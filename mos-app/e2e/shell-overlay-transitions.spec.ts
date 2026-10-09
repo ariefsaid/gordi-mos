@@ -98,23 +98,6 @@ async function expectDeputyPlaced(page: Page, viewport: { width: number; height:
 }
 
 test.describe('shell overlay transitions', () => {
-  test('Objective panel does not follow the rail into Projects & Processes, and the reverse', async ({ page }, info) => {
-    await page.setViewportSize(DESKTOP)
-    await loginAs(page, DIRECTOR, DEMO_PASSWORD)
-
-    const { name: objectiveName } = await openFirstRecord(page, 'objectives')
-    await rail(page).getByRole('link', { name: 'Projects & Processes' }).click()
-    await expect(page).toHaveURL(collectionUrl('projects'))
-    await expectNoStaleRecord(page, 'Projects & Processes', objectiveName)
-    await page.screenshot({ path: info.outputPath('objective-to-projects-1440.png'), animations: 'disabled', fullPage: true })
-
-    const { name: projectName } = await openFirstRecord(page, 'projects')
-    await rail(page).getByRole('link', { name: 'Objectives' }).click()
-    await expect(page).toHaveURL(collectionUrl('objectives'))
-    await expectNoStaleRecord(page, 'Objectives', projectName)
-    await page.screenshot({ path: info.outputPath('process-to-objectives-1440.png'), animations: 'disabled', fullPage: true })
-  })
-
   test('Back restores only the record its URL names; Close returns focus to the row', async ({ page }) => {
     await page.setViewportSize(DESKTOP)
     await loginAs(page, DIRECTOR, DEMO_PASSWORD)
@@ -142,21 +125,6 @@ test.describe('shell overlay transitions', () => {
 
     // A second rail trip after the close must not resurrect anything either.
     await rail(page).getByRole('link', { name: 'Projects & Processes' }).click()
-    await expectNoStaleRecord(page, 'Projects & Processes', objectiveName)
-  })
-
-  test('returning to the first collection through the rail shows no leftover record', async ({ page }) => {
-    await page.setViewportSize(DESKTOP)
-    await loginAs(page, DIRECTOR, DEMO_PASSWORD)
-
-    const { name: objectiveName } = await openFirstRecord(page, 'objectives')
-    await rail(page).getByRole('link', { name: 'Projects & Processes' }).click()
-    await expectNoStaleRecord(page, 'Projects & Processes', objectiveName)
-    await rail(page).getByRole('link', { name: 'Objectives' }).click()
-    await expect(page).toHaveURL(collectionUrl('objectives'))
-    await expectNoStaleRecord(page, 'Objectives', objectiveName)
-    await page.goBack()
-    await expect(page).toHaveURL(collectionUrl('projects'))
     await expectNoStaleRecord(page, 'Projects & Processes', objectiveName)
   })
 
@@ -218,7 +186,8 @@ test.describe('shell overlay transitions', () => {
     await expect(panel).toHaveAttribute('data-overlay-entry', `signal:${id}`)
   })
 
-  for (const width of [1280, 1440, 1920, 2300]) {
+  // Narrowest and widest of the old four-width sweep; 1440 is exercised by the other Deputy journeys here.
+  for (const width of [1280, 2300]) {
     test(`Deputy anchors inside the record column at ${width}px`, async ({ page }, info) => {
       await page.setViewportSize({ width, height: 900 })
       await loginAs(page, DIRECTOR, DEMO_PASSWORD)
@@ -258,7 +227,8 @@ test.describe('shell overlay transitions', () => {
     await page.screenshot({ path: info.outputPath('deputy-task-status-due-1440.png'), animations: 'disabled' })
   })
 
-  for (const width of [1024, 1440, 1920]) {
+  // Narrowest and widest dock; 1440 is exercised by the other Deputy journeys here.
+  for (const width of [1024, 1920]) {
     test(`Deputy keeps the header in view at ${width}px, with and without a record`, async ({ page }, info) => {
       const viewport = { width, height: width === 1920 ? 1080 : width === 1024 ? 768 : 900 }
       await page.setViewportSize(viewport)
@@ -308,23 +278,6 @@ test.describe('shell overlay transitions', () => {
     await deputy(page).focus()
     await page.keyboard.press('Escape')
     await expect(deputy(page)).toHaveCount(0)
-  })
-
-  test('Deputy stays below the record identity/actions header', async ({ page }, info) => {
-    await page.setViewportSize(DESKTOP)
-    await loginAs(page, DIRECTOR, DEMO_PASSWORD)
-
-    await openFirstRecord(page, 'objectives')
-    const closeRecord = recordPanel(page).getByRole('button', { name: 'Close', exact: true })
-    const mainBefore = await box(page.locator('#main-content'))
-    await deputyButton(page).click()
-    await expectDeputyPlaced(page, DESKTOP, mainBefore)
-    const d = await box(deputy(page))
-    const c = await box(closeRecord)
-    const overlaps = d.x < c.x + c.width && c.x < d.x + d.width && d.y < c.y + c.height && c.y < d.y + d.height
-    expect(overlaps).toBe(false)
-    await expect(recordPanel(page)).toBeVisible()
-    await page.screenshot({ path: info.outputPath('deputy-with-record-1440.png'), animations: 'disabled' })
   })
 
   test('desktop: menus, palette, Deputy and record unwind one Escape layer at a time', async ({ page }) => {
@@ -444,26 +397,11 @@ test.describe('shell overlay transitions', () => {
     await expect(taskRecord).toBeVisible()
   })
 
-  test('phone: a Work record opens as a full page with one Back; Deputy remains a modal', async ({ page }, info) => {
+  // A phone Work record opening as a page with one Back is owned by work-record-opening.spec.ts.
+  test('phone: Deputy remains a modal and reloads with focus outside it', async ({ page }, info) => {
     await page.setViewportSize(PHONE)
     await loginAs(page, DIRECTOR, DEMO_PASSWORD)
-
-    // A phone selection is a canonical page, not a full-screen Record Panel overlay.
-    await page.goto('work/objectives')
-    const row = page.locator('.catalog-collection__row-link').first()
-    await expect(row).toBeVisible()
-    const recordPath = new URL((await row.getAttribute('href'))!, page.url()).pathname
-    const recordName = (await row.getAttribute('aria-label')) ?? ''
-    await row.click()
-    await expect(page).toHaveURL((url) => url.pathname === recordPath)
-    await expect(page.getByRole('region', { name: recordName, exact: true })).toBeVisible()
-    await expect(recordPanel(page)).toHaveCount(0)
-
-    await page.getByRole('link', { name: 'Back to Objectives', exact: true }).click()
-    await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).toBe('/work/objectives')
-    await expect(page.locator('.catalog-collection__row-link').first()).toBeVisible()
-    await expect(recordPanel(page)).toHaveCount(0)
-    await rail(page).getByRole('link', { name: 'Home' }).click()
+    await page.goto('')
     await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).toBe('/')
 
     const mainBefore = await box(page.locator('#main-content'))

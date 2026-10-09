@@ -206,6 +206,7 @@ type CafeReceiptListOptions = {
   /** Only these receipts, when given. */
   ids?: readonly string[]
   receivedBy?: string
+  stream?: ProductionStream
   limit?: number
   /** Statuses whose photos are read and signed; a surface asks only for the photos it shows. */
   photosFor?: readonly CafeReceiptStatus[]
@@ -221,14 +222,14 @@ export async function listCafeReceipts(statuses: readonly CafeReceiptStatus[], o
  * and `more` says how many. A receiver holds at most one Counted receipt per branch, so the
  * count stays small.
  */
-export async function listCafeUnsentReceipts(): Promise<{ receipts: CafeReceipt[]; more: number }> {
-  const { receipts, total } = await readCafeReceipts(['Counted'], { photosFor: [] }, { oldestFirst: true, count: true })
+export async function listCafeUnsentReceipts(stream?: ProductionStream): Promise<{ receipts: CafeReceipt[]; more: number }> {
+  const { receipts, total } = await readCafeReceipts(['Counted'], { photosFor: [], stream }, { oldestFirst: true, count: true })
   return { receipts, more: Math.max(0, (total ?? receipts.length) - receipts.length) }
 }
 
 async function readCafeReceipts(
   statuses: readonly CafeReceiptStatus[],
-  { ids, receivedBy, limit = 50, photosFor = statuses }: CafeReceiptListOptions,
+  { ids, receivedBy, stream, limit = 50, photosFor = statuses }: CafeReceiptListOptions,
   { oldestFirst = false, count = false } = {},
 ): Promise<{ receipts: CafeReceipt[]; total: number | null }> {
   let query = ops()
@@ -237,6 +238,7 @@ async function readCafeReceipts(
     .in('status', [...statuses])
   if (ids) query = query.in('id', [...ids])
   if (receivedBy) query = query.eq('received_by', receivedBy)
+  if (stream) query = query.eq('branch_id', stream.branch.id).eq('activity', stream.activity)
   const { data, error, count: total } = await query
     .order('received_at', { ascending: oldestFirst })
     .limit(limit)

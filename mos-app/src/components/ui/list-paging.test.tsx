@@ -20,7 +20,8 @@ describe('ListPaging', () => {
     }
 
     render(<I18nProvider><Harness /></I18nProvider>)
-    const button = screen.getByRole('button', { name: 'Load more' })
+    const button = screen.getByRole('button', { name: /Load more/ })
+    expect(button).toHaveTextContent('Load more items')
     button.focus()
     fireEvent.click(button)
 
@@ -44,11 +45,31 @@ describe('ListPaging', () => {
       return <ListPaging count={more ? 50 : 60} hasMore={more} onLoadMore={() => setMore(false)} />
     }
     render(<I18nProvider><Harness /></I18nProvider>)
-    const button = screen.getByRole('button', { name: 'Load more' })
+    const button = screen.getByRole('button', { name: /Load more/ })
     button.focus()
     fireEvent.click(button)
-    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Load more/ })).toBeNull()
     expect(screen.getByText('60 items loaded · end of list')).toHaveFocus()
+  })
+
+  it('does not steal focus if the operator moves away while loading', () => {
+    function Harness() {
+      const [more, setMore] = useState(true)
+      const [loading, setLoading] = useState(false)
+      return <>
+        <button type="button" onClick={() => setMore(false)}>Finish elsewhere</button>
+        <ListPaging count={50} hasMore={more} loading={loading} onLoadMore={() => setLoading(true)} />
+      </>
+    }
+    render(<I18nProvider><Harness /></I18nProvider>)
+    const button = screen.getByRole('button', { name: /Load more/ })
+    button.focus()
+    fireEvent.click(button)
+    const elsewhere = screen.getByRole('button', { name: 'Finish elsewhere' })
+    elsewhere.focus()
+    fireEvent.click(elsewhere)
+    expect(elsewhere).toHaveFocus()
+    expect(screen.getByText('50 items loaded · end of list')).not.toHaveFocus()
   })
 
   it('does not take focus when the list is complete on first render', () => {
@@ -75,10 +96,26 @@ describe('ListPaging', () => {
     )
 
     expect(screen.getByText('No match in the loaded tasks')).toHaveAttribute('aria-live', 'polite')
-    expect(screen.getByText('Load more to continue through the list.')).toBeInTheDocument()
+    expect(screen.getByText('Use the action below to continue through the list.')).toHaveClass('list-paging__continue')
     expect(screen.queryByText('0 items loaded')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Load more items/ })).toBeInTheDocument()
   })
+
+  it.each([
+    { locale: 'en' as const, hint: 'Use the action below to continue through the list.', action: 'Show older done tasks' },
+    { locale: 'id' as const, hint: 'Gunakan tombol di bawah untuk melanjutkan daftar.', action: 'Tampilkan tugas selesai yang lebih lama' },
+  ])('keeps empty-page guidance accurate for a caller-specific action ($locale)', ({ locale, hint, action }) => {
+    render(
+      <I18nProvider initialLocale={locale}>
+        <ListPaging count={0} hasMore moreLabel={action} onLoadMore={vi.fn()} />
+      </I18nProvider>,
+    )
+
+    expect(screen.getByText(hint)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: action })).toBeInTheDocument()
+    expect(screen.queryByText(/Load more/)).toBeNull()
+  })
+
 
   it('keeps the error alert slot in place and uses it for retry feedback', () => {
     const { container, rerender } = render(

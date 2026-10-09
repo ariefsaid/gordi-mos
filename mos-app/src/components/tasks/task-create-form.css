@@ -85,6 +85,10 @@
 /* Phone touch floor (DO-15(a) convention, TaskSurface.css): every control in the create form
    is ≥44px tall, and inputs run ≥16px so mobile browsers never auto-zoom on focus. */
 @media (max-width: 767.98px) {
+  /* The inline draft shares the task-list viewport with the bottom nav; compact vertical rhythm keeps its actions above it. */
+  .tcf { gap: 4px; padding: 8px; }
+  .tcf-row, .tcf-row--pair { grid-template-columns: 1fr; gap: 8px; }
+  .tcf-foot { padding-top: 0; }
   .tcf-title { min-height: 44px; font-size: var(--font-size-touch-input); }
   .tcf .picker__trigger { min-height: 44px; font-size: var(--font-size-touch-input); }
   .tcf-foot .btn { min-height: 44px; }

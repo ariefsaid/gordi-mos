@@ -24,7 +24,7 @@
 //
 // #781 rewrite (AC-015/016, B4/B5/B12 first-look): a REQUIRED bounded choice used to render as a
 // full-width dropdown — a mandatory-looking CONTROL for a fact the surface already knows on every
-// visit but the first. OD-CAFE-6: it now STATES the stream as a heading on every Café surface, with a quiet "Change" beside it only when
+// visit but the first. OD-CAFE-6: it now STATES the stream as a heading on every Café surface, with an action-specific "Switch" beside it only when
 // another stream at this location is actually offered (never a select, never a "Stream:" label, never a "Choose stream…"
 // placeholder once a default exists). With no default at all (a home Team that is not a stream —
 // FR-002), it offers the location's own streams as direct one-click choices instead of a control
@@ -33,11 +33,11 @@
 // renders NOTHING then, which is also what keeps it from ever outranking a page's own Opening row
 // (B12 — an empty control sitting in the head previously did, simply by being there first).
 
-import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import type { ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { useState, useCallback, useEffect, useMemo, useRef, useId } from 'react'
+import * as Popover from '@radix-ui/react-popover'
+import { useAuth } from '@/auth/use-auth'
+import { EmptyState } from '@/components/ui/state-kit'
 import { useListboxPopover } from '@/components/ui/use-listbox-popover'
-import { usePopoverReflow } from '@/components/ui/use-popover-reflow'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { useT, type Translate } from '@/i18n/use-t'
@@ -101,8 +101,6 @@ export interface CafeStreamBarProps {
   options: readonly ProductionStream[]
   /** The stream in view; null = none resolved yet, so the surface asks for an explicit choice. */
   stream: ProductionStream | null
-  /** Inline context after the stream value, before its navigation controls. */
-  context?: ReactNode
   /** Omit on a surface that cannot switch — it then STATES its stream and offers no control. */
   onChange?: (next: ProductionStream) => void
   /** This surface is reading every stream at once (the outbox; the review queue's 'all'). */
@@ -112,7 +110,7 @@ export interface CafeStreamBarProps {
   disabled?: boolean
   /**
    * The person's own stream (issue 456's `useCafeStream().homeStream`), independent of whatever a
-   * session switch is currently showing. Drives the "Your Team" tag in the Change menu and the
+   * session switch is currently showing. Drives the "Your Team" tag in the Switch menu and the
    * "Back to <home>" action (item 3, B4) once a switch has moved the view away from it. Omitted on
    * Review, whose choice is deliberately cross-stream and carries no personal default to return to.
    */
@@ -120,7 +118,7 @@ export interface CafeStreamBarProps {
   /**
    * Stream keys (`streamKey(branch_id, activity)`) for every stream Team the person is a CURRENT
    * member of (`useCafeStream().myStreamKeys`) — home included, but not only home. Every one of
-   * these is tagged "Your Team" and ranked first (home first among them) in the Change menu.
+   * these is tagged "Your Team" and ranked first (home first among them) in the Switch menu.
    */
   myStreamKeys?: ReadonlySet<string>
   /** The active location's branch: streams elsewhere are tagged "Other location" and listed last. */
@@ -130,7 +128,6 @@ export interface CafeStreamBarProps {
 export function CafeStreamBar({
   options,
   stream,
-  context,
   onChange,
   allStreams = false,
   onAllStreams,
@@ -148,7 +145,6 @@ export function CafeStreamBar({
         <h2 className="cafe-stream__value cafe-stream__value--heading">
           {allStreams ? t('kitchen.review.allStreams') : streamLabel(t, stream)}
         </h2>
-        {context}
       </div>
     )
   }
@@ -161,15 +157,17 @@ export function CafeStreamBar({
 
   const valueLabel = allStreams ? t('kitchen.review.allStreams') : streamLabel(t, stream)
   const alternatives = options.filter((option) => !sameStream(option, stream))
-  const canSwitch = alternatives.length > 0 || Boolean(onAllStreams && !allStreams)
+  const canSwitch = allStreams ? options.length > 0 : alternatives.length > 0 || Boolean(onAllStreams)
   const backTarget = !allStreams && stream && homeStream && !sameStream(stream, homeStream)
     ? options.find((option) => sameStream(option, homeStream)) ?? null
     : null
+  const switchLabel = t(allStreams || !stream
+    ? 'cafe.stream.switchStream'
+    : stream.activity === 'kitchen' ? 'cafe.stream.switchKitchen' : 'cafe.stream.switchBar')
 
   return (
     <div className="cafe-stream" data-testid="cafe-stream">
       <h2 className="cafe-stream__value cafe-stream__value--heading">{valueLabel}</h2>
-      {context}
       {backTarget && (
         <button
           type="button"
@@ -190,23 +188,17 @@ export function CafeStreamBar({
           onAllStreams={allStreams ? undefined : onAllStreams}
           disabled={disabled}
           onChange={onChange}
-          label={t('cafe.stream.change')}
-          ariaLabel={t('cafe.stream.changeAria')}
+          label={switchLabel}
+          ariaLabel={switchLabel}
         />
       )}
     </div>
   )
 }
 
-// ── The Change menu ──────────────────────────────────────────────────────────────────────────
-// A quiet text-button trigger whose own label always reads "Change" — the current stream is
-// already stated beside it, so the trigger does not need to repeat it, and the menu offers only
-// the OTHER choices: re-choosing the view in place would re-read it (and on Log discard a draft) (unlike the shared
-// `Select`/`Picker` controls, whose trigger IS the current value). Built on the same listbox
-// popover primitives those controls share (DESIGN.md DD-MVP-2 "existing searchable/contextual
-// Picker controls share the same listbox interaction contract") — portalled, edge-clamped,
-// full keyboard support, outside-dismiss, focus return — just without their value-mirroring
-// trigger, which this control deliberately does not want.
+// ── Radix Popover switch ─────────────────────────────────────────────────────────────────────
+// Radix owns anchoring, collision handling, dismissal and focus scope. The shared listbox hook
+// keeps this menu's arrow/Home/End/Enter/Escape contract aligned with the other app pickers.
 interface StreamSwitchMenuProps {
   id: string
   options: readonly ProductionStream[]
@@ -224,12 +216,9 @@ function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, locationBranc
   const t = useT()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
 
   const entries = useMemo<Array<{ value: string; label: string; isAllStreams: boolean }>>(() => {
-    // "All streams" is a sentinel, not a stream to rank — it stays pinned first (Review's own
-    // cross-stream default). The real options rank the person's current streams first, home
-    // first among them (coordinator follow-up to item 1).
+    // The All streams sentinel stays pinned first; real streams rank current memberships first.
     const ranked = [...options].sort(
       (a, b) => myRank(a, homeStream, myStreamKeys, locationBranchId) - myRank(b, homeStream, myStreamKeys, locationBranchId),
     )
@@ -243,11 +232,6 @@ function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, locationBranc
     ]
   }, [homeStream, locationBranchId, myStreamKeys, onAllStreams, options, t])
 
-  const close = useCallback((restoreFocus: boolean) => {
-    setOpen(false)
-    if (restoreFocus) triggerRef.current?.focus()
-  }, [])
-
   const selectIndex = useCallback((index: number) => {
     const entry = entries[index]
     if (!entry) return
@@ -256,94 +240,58 @@ function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, locationBranc
       const target = options.find((option) => streamKey(option.branch.id, option.activity) === entry.value)
       if (target) onChange(target)
     }
-    close(true)
-  }, [close, entries, onAllStreams, onChange, options])
+    setOpen(false)
+  }, [entries, onAllStreams, onChange, options])
 
   const { listboxProps, getOptionProps, activeIndex, setActiveIndex, optionId } = useListboxPopover<HTMLDivElement>({
     itemCount: entries.length,
     initialActive: 0,
     onSelect: selectIndex,
-    onClose: () => close(true),
+    onClose: () => setOpen(false),
   })
 
-  const [position, setPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 320 })
-  const place = useCallback(() => {
-    const rect = triggerRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const gap = 6
-    const margin = 12
-    const viewportWidth = Math.max(window.innerWidth, margin * 2)
-    const width = Math.min(Math.max(rect.width, 220), viewportWidth - margin * 2)
-    const below = window.innerHeight - rect.bottom - margin - gap
-    const above = rect.top - margin - gap
-    const contentHeight = Math.min(320, Math.max(44, entries.length * 44 + 12))
-    const flip = below < contentHeight && above > below
-    const maxHeight = Math.max(44, Math.min(contentHeight, flip ? above : below))
-    setPosition({
-      top: flip ? rect.top - gap - maxHeight : rect.bottom + gap,
-      left: Math.max(margin, Math.min(rect.left, viewportWidth - width - margin)),
-      width,
-      maxHeight,
-    })
-  }, [entries.length])
-
-  useLayoutEffect(() => {
-    if (!open) return
-    setActiveIndex(0)
-    place()
-  }, [open, place, setActiveIndex])
-  usePopoverReflow(open, place)
-
   useEffect(() => {
-    if (!open) return
-    const outside = (event: PointerEvent) => {
-      if (!(event.target instanceof Node)) return
-      if (!menuRef.current?.contains(event.target) && !triggerRef.current?.contains(event.target)) close(false)
-    }
-    document.addEventListener('pointerdown', outside)
-    return () => document.removeEventListener('pointerdown', outside)
-  }, [close, open])
-
+    if (open) setActiveIndex(0)
+  }, [open, setActiveIndex])
   useEffect(() => {
     if (!open || activeIndex < 0) return
     document.getElementById(optionId(activeIndex))?.scrollIntoView?.({ block: 'nearest' })
   }, [activeIndex, open, optionId])
 
-  const setMenuRef = useCallback((node: HTMLDivElement | null) => {
-    menuRef.current = node
-    listboxProps.ref(node)
-  }, [listboxProps])
-
   return (
-    <>
-      <button
-        id={id}
-        ref={triggerRef}
-        type="button"
-        aria-label={ariaLabel}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={open ? `${id}-listbox` : undefined}
-        className="cafe-stream__switch"
-        disabled={disabled || entries.length === 0}
-        onClick={() => { if (!open) setOpen(true); else close(true) }}
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            if (!open) setOpen(true)
-          }
-        }}
-      >
-        {label}
-      </button>
-      {open && createPortal(
-        <div
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
+        <button
+          id={id}
+          ref={triggerRef}
+          type="button"
+          aria-label={ariaLabel}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={open ? `${id}-listbox` : undefined}
+          className="cafe-stream__switch"
+          disabled={disabled || entries.length === 0}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault()
+              setOpen(true)
+            }
+          }}
+        >
+          {label}
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
           {...listboxProps}
-          ref={setMenuRef}
           id={`${id}-listbox`}
           aria-label={t('kitchen.log.stream.pickerAria')}
           className="cafe-stream__menu"
-          style={position}
+          side="bottom"
+          align="start"
+          sideOffset={6}
+          collisionPadding={12}
+          data-escape-layer="nested"
         >
           {entries.map((entry, index) => (
             <div
@@ -351,15 +299,14 @@ function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, locationBranc
               key={entry.value}
               className="cafe-stream__option"
               onPointerMove={() => setActiveIndex(index)}
-              onClick={(event) => { event.stopPropagation(); selectIndex(index) }}
+              onClick={() => selectIndex(index)}
             >
               {entry.label}
             </div>
           ))}
-        </div>,
-        document.body,
-      )}
-    </>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   )
 }
 
@@ -380,10 +327,8 @@ export interface CafeStreamChoicesProps {
 }
 
 /**
- * A direct, one-click list of this location's streams — what replaces the old "Choose stream"
- * button that only focused a hidden control (B5). Placed by the caller in the page BODY (after
- * any Opening row it owns, B12), never in the head: with no default there is nothing for the
- * head to state.
+ * The shared no-default state: one heading/copy pattern and one direct, one-click list, placed
+ * in the page body (after any Opening row) because no stream exists for the head to state yet.
  */
 export function CafeStreamChoices({
   options,
@@ -393,37 +338,49 @@ export function CafeStreamChoices({
   disabled = false,
 }: CafeStreamChoicesProps) {
   const t = useT()
+  const auth = useAuth()
+  const idPrefix = useId()
   if (options.length === 0) {
-    return <p className="cafe-stream-choices__empty">{streamLabel(t, null)}</p>
+    return <EmptyState variant="blank" title={t('cafe.stream.none')} />
   }
   const ranked = [...options].sort(
     (a, b) => myRank(a, homeStream, myStreamKeys) - myRank(b, homeStream, myStreamKeys),
   )
+  const showAdminHint = auth.status === 'authenticated' && auth.viewer.accessRoles.includes('admin')
   return (
-    <div className="cafe-stream-choices">
-      <div className="cafe-stream-choices__list" role="group" aria-label={t('kitchen.log.stream.pickerAria')}>
+    <EmptyState variant="next-step" title={t('cafe.stream.chooseTitle')} copy={t('cafe.stream.chooseCopy')}>
+      <div className="cafe-stream-choices">
+        <div className="cafe-stream-choices__list" role="group" aria-label={t('kitchen.log.stream.pickerAria')}>
         {ranked.map((option) => {
+          const key = streamKey(option.branch.id, option.activity)
           const isMine = isMineStream(option, homeStream, myStreamKeys)
+          const receivingOnlyId = option.produces === false ? `${idPrefix}-receiving-${key}` : undefined
+          const accessibleName = [streamLabel(t, option), isMine ? t('cafe.stream.yourTeam') : null]
+            .filter((part): part is string => part !== null)
+            .join(' — ')
           return (
             <button
-              key={streamKey(option.branch.id, option.activity)}
+              key={key}
               type="button"
               className="cafe-stream-choices__option"
+              aria-label={accessibleName}
+              aria-describedby={receivingOnlyId}
               disabled={disabled}
               onClick={() => onChoose(option)}
             >
               <span className="cafe-stream-choices__name">{streamLabel(t, option)}</span>
               {isMine && <span className="cafe-stream-choices__tag">{t('cafe.stream.yourTeam')}</span>}
-              {option.produces === false && (
-                <span className="cafe-stream-choices__tag cafe-stream-choices__tag--muted">
+              {receivingOnlyId && (
+                <span id={receivingOnlyId} className="cafe-stream-choices__tag cafe-stream-choices__tag--muted">
                   {t('kitchen.stream.receivingOnly.tag')}
                 </span>
               )}
             </button>
           )
         })}
+        </div>
+        {showAdminHint && <p className="cafe-stream-choices__hint">{t('cafe.stream.noDefaultHint')}</p>}
       </div>
-      <p className="cafe-stream-choices__hint">{t('cafe.stream.noDefaultHint')}</p>
-    </div>
+    </EmptyState>
   )
 }

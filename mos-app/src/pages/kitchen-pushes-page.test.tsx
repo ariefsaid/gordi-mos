@@ -27,7 +27,7 @@ vi.mock('@/lib/db/kitchen-pushes', async () => {
   )
   return { ...actual, listEsbPushes: vi.fn() }
 })
-import { listEsbPushes } from '@/lib/db/kitchen-pushes'
+import { ESB_PUSHES_WINDOW_MAX_ROWS, listEsbPushes } from '@/lib/db/kitchen-pushes'
 
 import { KitchenPushesPage } from './kitchen-pushes-page'
 import type { EsbPushRow } from '@/lib/db/kitchen-pushes'
@@ -315,6 +315,22 @@ describe('KitchenPushesPage — populated (FR-074)', () => {
     mockListPushes.mockResolvedValue([POSTED_ROW])
     render(<KitchenPushesPage />)
     expect(await screen.findByText('1 push · 0 queued')).toBeInTheDocument()
+  })
+
+  it('discloses when more rows exist than the 100-push window', async () => {
+    const pushes = Array.from({ length: ESB_PUSHES_WINDOW_MAX_ROWS + 1 }, (_, index) => ({
+      ...POSTED_ROW,
+      id: `push-window-${index}`,
+      source_ref: `PR-WINDOW-${String(index).padStart(3, '0')}`,
+    }))
+    mockListPushes.mockResolvedValue(pushes)
+    render(<KitchenPushesPage />)
+
+    expect(await screen.findByText('PR-WINDOW-000')).toBeInTheDocument()
+    expect(mockListPushes).toHaveBeenCalledWith(undefined, ESB_PUSHES_WINDOW_MAX_ROWS + 1)
+    expect(screen.getByText(`Showing the first ${ESB_PUSHES_WINDOW_MAX_ROWS} pushes — more may exist.`)).toBeInTheDocument()
+    expect(screen.queryByText(`PR-WINDOW-${ESB_PUSHES_WINDOW_MAX_ROWS}`)).toBeNull()
+    expect(screen.getAllByRole('row')).toHaveLength(ESB_PUSHES_WINDOW_MAX_ROWS + 1)
   })
 
   it('RI-IXD-6: desktop pushes uses the shared DataTable branch, not a kitchen-local table wrapper', async () => {
@@ -767,6 +783,6 @@ describe('issue 455: document title', () => {
   it('titles the tab from the Café nav label, not the retired kitchen one', async () => {
     mockListPushes.mockResolvedValue([])
     render(<KitchenPushesPage />)
-    await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.pushes')))
+    await waitFor(() => expect(document.title).toBe(cafeDocTitle('cafe.pageTitle.pushes')))
   })
 })

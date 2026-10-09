@@ -45,10 +45,18 @@ export type CafeReceiptHeldPortion = {
   line: CafeReceiptLine
 }
 
+/** A queued portion ESB permanently refused, with the outbox message and identifying MOS key. */
+export type CafeReceiptEsbRefusedPortion = CafeReceiptHeldPortion & {
+  po_number: string
+  mos_key: string | null
+  esb_message: string | null
+}
+
 export type CafeReceiptIssueList = {
   /** Every open issue, and the newest resolved ones. */
   issues: CafeReceiptIssue[]
   held: CafeReceiptHeldPortion[]
+  refused: CafeReceiptEsbRefusedPortion[]
   /** How many issues are resolved in all, when more exist than are listed. */
   resolvedTotal: number
 }
@@ -91,12 +99,12 @@ export const RESOLVED_READ_LIMIT = 100
 const ops = () => supabase.schema('ops')
 
 /**
- * Every open issue and held no-longer-fits portion the viewer may read, plus the newest resolved
- * issues (RLS: procurement reads the organisation's, a receiver their own issues and no
- * portions). Each comes with its receipt, line, evidence and photos from the shared receipt read.
+ * Every open/resolved issue and held no-longer-fits portion allowed by row security, plus
+ * permanently ESB-refused portions from the role-gated read RPC. Each comes with its receipt,
+ * line, evidence and photos from the shared receipt read.
  */
 export async function listCafeReceiptIssues(): Promise<CafeReceiptIssueList> {
-  const [open, resolved, resolvedCount, heldRows] = await Promise.all([
+  const [open, resolved, resolvedCount, heldRows, refusedRows] = await Promise.all([
     readAllPages<Record<string, unknown>>('listCafeReceiptIssues', (from, to) => ops().from('cafe_receipt_issues')
       .select(ISSUE_FIELDS).eq('status', 'open').order('created_at').order('id').range(from, to)),
     ops().from('cafe_receipt_issues').select(ISSUE_FIELDS).neq('status', 'open')
@@ -104,11 +112,13 @@ export async function listCafeReceiptIssues(): Promise<CafeReceiptIssueList> {
     ops().from('cafe_receipt_issues').select('id', { count: 'exact', head: true }).neq('status', 'open'),
     readAllPages<Record<string, unknown>>('listCafeReceiptIssues', (from, to) => ops().from('cafe_receipt_portions')
       .select(HELD_FIELDS).eq('state', 'held').eq('hold_reason', 'no_longer_fits').order('created_at').order('id').range(from, to)),
+    readAllPages<Record<string, unknown>>('listCafeReceiptIssues', (from, to) =>
+      ops().rpc('cafe_receipt_esb_refused_portions', { p_offset: from, p_limit: to - from + 1 })),
   ])
   if (resolved.error) throw new Error(`listCafeReceiptIssues failed: ${resolved.error.message}`)
   if (resolvedCount.error) throw new Error(`listCafeReceiptIssues failed: ${resolvedCount.error.message}`)
   const issueRows = [...open, ...((resolved.data ?? []) as Array<Record<string, unknown>>)]
-  const receiptIds = [...new Set([...issueRows, ...heldRows].map(row => String(row.receipt_id)))]
+  const receiptIds = [...new Set([...issueRows, ...heldRows, ...refusedRows].map(row => String(row.receipt_id)))]
   const [receipts, parts] = await Promise.all([readReceipts(receiptIds), readParts(receiptIds)])
   const evidence = (row: Record<string, unknown>) => {
     const receipt = receipts.get(String(row.receipt_id))
@@ -137,6 +147,15 @@ export async function listCafeReceiptIssues(): Promise<CafeReceiptIssueList> {
       }
     }),
     held: heldRows.map(row => ({ ...evidence(row), quantity: String(row.quantity) })),
+    refused: refusedRows.map(row => {
+      if (typeof row.po_number !== 'string' || row.po_number.trim() === '') {
+        throw new Error('listCafeReceiptIssues failed: invalid refused portion row')
+      }
+      return {
+        ...evidence({ ...row, id: row.portion_id }), quantity: String(row.quantity), po_number: row.po_number,
+        mos_key: nullableString(row.mos_key), esb_message: nullableString(row.esb_message),
+      }
+    }),
     resolvedTotal: resolvedCount.count ?? 0,
   }
 }

@@ -1,8 +1,8 @@
 // CafeStreamBar — the ONE statement-and-switch every Café page head carries (#440), rewritten
 // for #781: a REQUIRED bounded choice used to render as a full-width dropdown that read as a
 // mandatory control on every visit (B4/B5/B12). What is asserted here is the GRAMMAR, once, so
-// the surfaces do not each re-assert it: a resolved stream is STATED as text with a quiet
-// "Change" beside it only when another stream is actually offered, a session switch away from
+// the surfaces do not each re-assert it: a resolved stream is STATED as text with an action-specific
+// "Switch" beside it only when another stream is actually offered, a session switch away from
 // the person's own stream carries a "Back to <home>" action, a surface with no default at all
 // says nothing in the head (CafeStreamChoices below owns that state instead), and a read-only
 // surface still SAYS which stream it is showing.
@@ -13,6 +13,8 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { AuthContext } from '@/auth/context'
+import type { AuthState } from '@/auth/context'
 import type { ReactNode } from 'react'
 import { CafeStreamBar, CafeStreamChoices } from './cafe-stream-bar'
 import { streamKey } from '@/lib/kitchen-action-label'
@@ -32,26 +34,21 @@ function wrap(node: ReactNode) {
 }
 
 describe('CafeStreamBar', () => {
-  it('keeps stream context before Back and Change while switching still works', () => {
+  it('keeps the stream, Back action, and activity-specific Switch in the head row', () => {
     const onChange = vi.fn()
-    wrap(<CafeStreamBar options={CATALOG} stream={RAD_BAR} homeStream={RR_KITCHEN}
-      onChange={onChange} context={<time dateTime="2026-10-05">Mon 5 Oct</time>} />)
+    wrap(<CafeStreamBar options={CATALOG} stream={RAD_BAR} homeStream={RR_KITCHEN} onChange={onChange} />)
     const heading = screen.getByRole('heading', { name: 'Radiant · Bar' })
-    const context = screen.getByText('Mon 5 Oct')
     const back = screen.getByRole('button', { name: /back to rumah rames · kitchen/i })
-    const change = screen.getByRole('button', { name: /^change/i })
-    expect(heading.nextElementSibling).toBe(context)
-    expect(context.nextElementSibling).toBe(back)
-    expect(back.nextElementSibling).toBe(change)
+    const switchButton = screen.getByRole('button', { name: /^switch bar$/i })
+    expect(heading.nextElementSibling).toBe(back)
+    expect(back.nextElementSibling).toBe(switchButton)
     fireEvent.click(back)
     expect(onChange).toHaveBeenCalledWith(RR_KITCHEN)
   })
 
-  it('keeps context next to the stream on a read-only surface', () => {
-    wrap(<CafeStreamBar options={CATALOG} stream={RAD_BAR}
-      context={<time dateTime="2026-10-05">Mon 5 Oct</time>} />)
-    expect(screen.getByRole('heading', { name: 'Radiant · Bar' }).nextElementSibling)
-      .toBe(screen.getByText('Mon 5 Oct'))
+  it('keeps the stated stream on a read-only surface without an action', () => {
+    wrap(<CafeStreamBar options={CATALOG} stream={RAD_BAR} />)
+    expect(screen.getByRole('heading', { name: 'Radiant · Bar' })).toBeInTheDocument()
     expect(screen.queryByRole('button')).toBeNull()
   })
 
@@ -59,7 +56,7 @@ describe('CafeStreamBar', () => {
     wrap(<CafeStreamBar options={[RR_KITCHEN]} stream={RR_KITCHEN} onChange={() => {}} />)
     expect(screen.getByRole('heading', { name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
     // With nothing else at this location there is nothing to switch to.
-    expect(screen.queryByRole('button', { name: /^change/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^switch/i })).toBeNull()
     expect(screen.queryByRole('combobox')).toBeNull()
   })
 
@@ -68,15 +65,15 @@ describe('CafeStreamBar', () => {
     expect(screen.queryByText(/Bungur/)).toBeNull()
   })
 
-  it('item 1: offers a quiet Change only when another stream at this location exists', () => {
+  it('offers the action-specific Switch only when another stream at this location exists', () => {
     wrap(<CafeStreamBar options={CATALOG} stream={RR_KITCHEN} onChange={() => {}} />)
-    expect(screen.getByRole('button', { name: /^change/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^switch kitchen$/i })).toBeInTheDocument()
   })
 
-  it('Change opens a picker listing this location\'s streams and hands the choice back', () => {
+  it('Switch opens a picker listing this location\'s streams and hands the choice back', () => {
     const onChange = vi.fn()
     wrap(<CafeStreamBar options={CATALOG} stream={RR_KITCHEN} onChange={onChange} />)
-    fireEvent.click(screen.getByRole('button', { name: /^change/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     fireEvent.click(screen.getByText('Radiant · Bar'))
     expect(onChange).toHaveBeenCalledWith(RAD_BAR)
   })
@@ -90,7 +87,7 @@ describe('CafeStreamBar', () => {
         onChange={() => {}}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: /^change/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch bar$/i }))
     expect(screen.getByText(/Rumah Rames · Kitchen.*Your Team/)).toBeInTheDocument()
     expect(screen.getByText(/Radiant · Kitchen.*Receiving only/)).toBeInTheDocument()
   })
@@ -105,7 +102,7 @@ describe('CafeStreamBar', () => {
         onChange={() => {}}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: /^change/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     expect(screen.getByText(/Radiant · Bar.*Your Team/)).toBeInTheDocument()
     const opts = screen.getAllByRole('option')
     expect(opts[0]).toHaveTextContent('Rumah Rames · Kitchen') // home, first
@@ -113,9 +110,9 @@ describe('CafeStreamBar', () => {
     expect(opts[2]).toHaveTextContent('Rumah Rames · Bar') // neither — last
   })
 
-  it('the Change menu never offers the stream already in view', () => {
+  it('the Switch menu never offers the stream already in view', () => {
     wrap(<CafeStreamBar options={[RR_KITCHEN, RR_BAR, RAD_BAR]} stream={RR_BAR} onChange={() => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: /^change/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch bar$/i }))
     const opts = screen.getAllByRole('option').map((o) => o.textContent)
     expect(opts).toEqual(['Rumah Rames · Kitchen', 'Radiant · Bar'])
   })
@@ -160,7 +157,7 @@ describe('CafeStreamBar', () => {
         onAllStreams={onAllStreams}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: /^change/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     fireEvent.click(screen.getByText(/all streams/i))
     expect(onAllStreams).toHaveBeenCalled()
   })
@@ -170,41 +167,90 @@ describe('CafeStreamBar — streams at another location are marked and listed la
   it('tags a stream outside the active location "Other location" and ranks it after the location’s own', async () => {
     const user = userEvent.setup()
     wrap(<CafeStreamBar options={[RAD_BAR, RR_BAR]} stream={RR_KITCHEN} locationBranchId={RR.id} onChange={() => {}} />)
-    await user.click(screen.getByRole('button', { name: /^change stream$/i }))
+    await user.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     const options = screen.getAllByRole('option').map(o => o.textContent)
     expect(options).toEqual(['Rumah Rames · Bar', 'Radiant · Bar — Other location'])
   })
 })
 
 describe('CafeStreamBar — one look on every Café screen (OD-CAFE-6)', () => {
-  it('on every surface: a heading with no "Stream" label, and a "Change" link, never "Switch"', () => {
+  it('on every surface: a heading with no "Stream" label and a stream-specific Switch action', () => {
     wrap(<CafeStreamBar options={CATALOG} stream={RR_KITCHEN} onChange={() => {}} />)
     expect(screen.getByRole('heading', { name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
     expect(screen.queryByText(/^stream$/i)).toBeNull()
-    expect(screen.getByRole('button', { name: /^change/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^switch/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /^switch kitchen$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^change/i })).toBeNull()
   })
 
-  it('Change opens the same picker and works from the keyboard alone', async () => {
+  it('Switch opens the same picker and works from the keyboard alone', async () => {
     const onChange = vi.fn()
     const user = userEvent.setup()
     wrap(<CafeStreamBar options={CATALOG} stream={RR_KITCHEN} homeStream={RR_KITCHEN} onChange={onChange} />)
     await user.tab()
-    expect(screen.getByRole('button', { name: /^change/i })).toHaveFocus()
+    expect(screen.getByRole('button', { name: /^switch kitchen$/i })).toHaveFocus()
     await user.keyboard('{Enter}')
     expect(screen.getByRole('option', { name: 'Radiant · Bar' })).toBeInTheDocument()
     await user.keyboard('{Enter}')
     expect(onChange).toHaveBeenCalledWith(RAD_BAR)
   })
 
-  it('with nothing else to change to, it is the heading alone', () => {
+  it('with nothing else to switch to, it is the heading alone', () => {
     wrap(<CafeStreamBar options={[RR_KITCHEN]} stream={RR_KITCHEN} onChange={() => {}} />)
     expect(screen.getByRole('heading', { name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
     expect(screen.queryByRole('button')).toBeNull()
   })
+
+  it('Escape dismisses the listbox and restores focus to its trigger', async () => {
+    const user = userEvent.setup()
+    wrap(<CafeStreamBar options={CATALOG} stream={RR_KITCHEN} onChange={() => {}} />)
+    const trigger = screen.getByRole('button', { name: /^switch kitchen$/i })
+    await user.click(trigger)
+    expect(await screen.findByRole('option', { name: 'Radiant · Bar' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('outside press dismisses the listbox without selecting a stream', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    wrap(
+      <>
+        <CafeStreamBar options={CATALOG} stream={RR_KITCHEN} onChange={onChange} />
+        <button type="button">Outside</button>
+      </>,
+    )
+    await user.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
+    expect(await screen.findByRole('option', { name: 'Radiant · Bar' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Outside' }))
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(onChange).not.toHaveBeenCalled()
+  })
 })
 
 describe('CafeStreamChoices — the no-default one-step choice (item 2, B5)', () => {
+  it('uses the shared no-default title and copy, with setup guidance reserved for admins', () => {
+    wrap(<CafeStreamChoices options={CATALOG} onChoose={() => {}} />)
+    expect(screen.getByRole('heading', { name: 'Choose a kitchen or bar' })).toBeInTheDocument()
+    expect(screen.getByText('Choose the stream you’re working in to continue.')).toBeInTheDocument()
+    expect(screen.queryByText(/Admin Settings/)).toBeNull()
+  })
+
+  it('shows setup guidance to an admin only', () => {
+    const admin = {
+      status: 'authenticated',
+      viewer: { person: { id: 'admin' }, accessRoles: ['admin'] },
+    } as AuthState
+    render(
+      <AuthContext.Provider value={admin}>
+        <I18nProvider>
+          <CafeStreamChoices options={CATALOG} onChoose={() => {}} />
+        </I18nProvider>
+      </AuthContext.Provider>,
+    )
+    expect(screen.getByText(/Admin Settings/)).toBeInTheDocument()
+  })
+
   it('renders every location stream as its own one-click button', () => {
     const onChoose = vi.fn()
     wrap(<CafeStreamChoices options={CATALOG} onChoose={onChoose} />)
@@ -233,9 +279,11 @@ describe('CafeStreamChoices — the no-default one-step choice (item 2, B5)', ()
     expect(buttons[0]).toHaveTextContent('Your Team')
   })
 
-  it('marks a receiving-only stream so it is not mistaken for a producing choice', () => {
+  it('names the stream button separately from its receiving-only description', () => {
     wrap(<CafeStreamChoices options={[RAD_KITCHEN]} onChoose={() => {}} />)
-    expect(screen.getByRole('button', { name: /radiant · kitchen/i })).toHaveTextContent('Receiving only')
+    const button = screen.getByRole('button', { name: 'Radiant · Kitchen' })
+    expect(button).toHaveAccessibleDescription('Receiving only')
+    expect(button).toHaveTextContent('Receiving only')
   })
 
   it('one click selects — there is no separate "open" step', () => {

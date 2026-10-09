@@ -27,11 +27,6 @@
   max-width: 1760px;
 }
 
-/* Café capture pairs its working list with a standing tally, so it earns the same wide measure. */
-.page-frame--v3 .page-frame__content:has(.kl-capture-wide) {
-  max-width: 1760px;
-}
-
 @media (min-width: 768px) and (max-width: 1279px) {
   .page-frame--v3 {
     padding: 20px 24px 40px;

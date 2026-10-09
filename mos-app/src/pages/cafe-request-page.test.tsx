@@ -5,6 +5,11 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
+const itemSettingsMocks = vi.hoisted(() => ({ list: vi.fn(), canManage: vi.fn() }))
+vi.mock('@/lib/db/cafe-item-settings', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/db/cafe-item-settings')>()
+  return { ...actual, listCafeItemSettings: itemSettingsMocks.list, canManageCafeItemSettings: itemSettingsMocks.canManage }
+})
 const streamMocks = vi.hoisted(() => {
   const branch = { id: 'branch-1', code: 'cafe-branch', name: 'Cafe Branch' }
   const kitchen = { branch, activity: 'kitchen' as const }
@@ -74,6 +79,7 @@ function renderPage() {
 }
 
 const neededBy = () => screen.getByLabelText(/Needed by/)
+const setNeededBy = (iso: string) => fireEvent.change(screen.getByLabelText('Open calendar'), { target: { value: iso } })
 const send = () => screen.getByRole('button', { name: 'Send for approval' })
 
 beforeEach(() => {
@@ -84,13 +90,50 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(viewer(['member']))
   mockItems.mockResolvedValue(ITEMS)
   mockList.mockResolvedValue([])
+  itemSettingsMocks.list.mockResolvedValue([{
+    id: 'item-setting', erpName: 'Synthetic item', mosName: 'Synthetic item', category: 'Kitchen',
+    kind: null, isActive: false, defaultUnitId: null, units: [],
+  }])
+  itemSettingsMocks.canManage.mockResolvedValue(false)
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
 })
 
 describe('CafeRequestPage', () => {
+  it('explains the missing confirmed stock unit when Items has active set-up items but none is receivable', async () => {
+    mockItems.mockResolvedValue([])
+    itemSettingsMocks.list.mockResolvedValue([{
+      id: 'wip-1', erpName: 'Prepared sauce with roasted vegetables', mosName: 'Prepared sauce',
+      category: 'Kitchen', kind: 'WIP', isActive: true, defaultUnitId: 'unit-portion',
+      units: [{ id: 'unit-portion', name: 'porsi', isDefault: true, isShown: true, labelOrdinal: null, labelCount: 1 }],
+    }])
+    renderPage()
+
+    const empty = await screen.findByTestId('empty-state')
+    expect(empty).toHaveTextContent('1 item is set up')
+    expect(empty).toHaveTextContent('default unit confirmed as an ESB stock unit')
+    expect(empty).not.toHaveTextContent('not set up for this list')
+  })
+
+  it.each([false, true])('offers the Items setup link only to people who can manage items (canManage=%s)', async canManage => {
+    mockItems.mockResolvedValue([])
+    itemSettingsMocks.canManage.mockResolvedValue(canManage)
+    renderPage()
+
+    if (canManage) {
+      expect(await screen.findByRole('link', { name: 'Set up items' })).toHaveAttribute('href', '/cafe/items')
+    } else {
+      expect(await screen.findByText(/kitchen manager or an ops lead sets it up in Café items/i)).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'Set up items' })).not.toBeInTheDocument()
+      expect(document.querySelector('a[href="/cafe/items"]')).not.toBeInTheDocument()
+    }
+  })
+
   it('AC-1043 opens blank on the person’s stream with item search, typed quantity and fixed unit, and no pre-fill or purchase-versus-transfer control', async () => {
     const { container } = renderPage()
     const bean = await screen.findByRole('textbox', { name: 'Needed for Coffee bean' })
+    expect(screen.getByRole('button', { name: 'Switch kitchen' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Cafe Branch · Kitchen' }).closest('.cafe-page-head')).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Find an item' })).toBeInTheDocument()
     expect(mockItems).toHaveBeenCalledWith(streamMocks.kitchen)
     expect(bean).toHaveValue('')
     expect(bean).toHaveAttribute('inputmode', 'decimal')
@@ -102,7 +145,7 @@ describe('CafeRequestPage', () => {
     expect(container.textContent).not.toMatch(/purchase order|transfer|supplier|price|ERP/i)
     expect(screen.queryByRole('combobox', { name: /type|process|transfer/i })).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'bean' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item' }), { target: { value: 'bean' } })
     await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Needed for Fresh milk' })).not.toBeInTheDocument())
     expect(screen.getByRole('textbox', { name: 'Needed for Coffee bean' })).toBeInTheDocument()
     expect(send()).toBeDisabled()
@@ -115,7 +158,7 @@ describe('CafeRequestPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Change unit' }))
     fireEvent.click(within(screen.getByRole('group', { name: 'ESB unit for Coffee bean' })).getByLabelText('bag'))
     fireEvent.change(screen.getByRole('textbox', { name: 'Needed for Coffee bean' }), { target: { value: '2,5' } })
-    fireEvent.change(neededBy(), { target: { value: '2026-10-08' } })
+    setNeededBy('2026-10-08')
     mockSubmit.mockResolvedValue({ request_id: 'q-1', outcome: 'created', row_version: 1 })
     fireEvent.click(send())
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledWith(
@@ -130,15 +173,32 @@ describe('CafeRequestPage', () => {
     expect(screen.getByText('1 line')).toBeInTheDocument()
     expect(screen.getByText('Choose the date this is needed by.')).toBeInTheDocument()
     expect(send()).toBeDisabled()
-    fireEvent.change(neededBy(), { target: { value: '2026-10-07' } })
+    setNeededBy('2026-10-07')
     expect(send()).toBeEnabled()
     fireEvent.change(milk, { target: { value: '0' } })
     expect(screen.getByText('Fix 1 quantity to continue')).toBeInTheDocument()
     expect(send()).toBeDisabled()
-    fireEvent.change(neededBy(), { target: { value: '2026-10-05' } })
+    setNeededBy('2026-10-05')
     fireEvent.change(milk, { target: { value: '3' } })
     expect(screen.getByText('Choose a date from today up to 90 days ahead.')).toBeInTheDocument()
     expect(send()).toBeDisabled()
+  })
+
+  it('keeps malformed typed dates from enabling send', async () => {
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Needed for Fresh milk' }), { target: { value: '1' } })
+    fireEvent.change(neededBy(), { target: { value: '35/13/2026' } })
+    fireEvent.blur(neededBy())
+    expect(send()).toBeDisabled()
+    expect(screen.getByRole('alert')).toHaveTextContent("That date doesn't exist")
+  })
+
+  it('puts Review requests after the capture form', async () => {
+    mockUseAuth.mockReturnValue(viewer(['member', 'supervisor']))
+    renderPage()
+    const date = await screen.findByLabelText(/Needed by/)
+    const review = await screen.findByRole('link', { name: 'Review requests' })
+    expect(date.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('sends once, shows the sent lines, and starts the next request blank with a fresh key', async () => {
@@ -146,7 +206,7 @@ describe('CafeRequestPage', () => {
     mockSubmit.mockReturnValue(new Promise(r => { resolve = r }))
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Needed for Fresh milk' }), { target: { value: '12' } })
-    fireEvent.change(neededBy(), { target: { value: '2026-10-07' } })
+    setNeededBy('2026-10-07')
     fireEvent.change(screen.getByLabelText('Note (optional)'), { target: { value: 'Weekend menu' } })
     fireEvent.click(send())
     fireEvent.click(screen.getByRole('button', { name: 'Working…' }))
@@ -163,7 +223,7 @@ describe('CafeRequestPage', () => {
     expect(await screen.findByRole('textbox', { name: 'Needed for Fresh milk' })).toHaveValue('')
     expect(neededBy()).toHaveValue('')
     fireEvent.change(screen.getByRole('textbox', { name: 'Needed for Fresh milk' }), { target: { value: '1' } })
-    fireEvent.change(neededBy(), { target: { value: '2026-10-07' } })
+    setNeededBy('2026-10-07')
     mockSubmit.mockResolvedValue({ request_id: 'q-2', outcome: 'created', row_version: 1 })
     fireEvent.click(send())
     await waitFor(() => expect(mockSubmit).toHaveBeenLastCalledWith(
@@ -175,7 +235,7 @@ describe('CafeRequestPage', () => {
     mockSubmit.mockRejectedValue(new Error('submitCafePurchaseRequest failed: CAFE_PURCHASE_REQUEST_ITEM_NOT_AVAILABLE'))
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Needed for Fresh milk' }), { target: { value: '12' } })
-    fireEvent.change(neededBy(), { target: { value: '2026-10-07' } })
+    setNeededBy('2026-10-07')
     fireEvent.click(send())
     expect(await screen.findByRole('alert')).toHaveTextContent('An item or its ESB unit is no longer available.')
     expect(screen.getByRole('textbox', { name: 'Needed for Fresh milk' })).toHaveValue('12')
@@ -185,7 +245,7 @@ describe('CafeRequestPage', () => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Needed for Fresh milk' }), { target: { value: '12' } })
-    fireEvent.change(neededBy(), { target: { value: '2026-10-07' } })
+    setNeededBy('2026-10-07')
     expect(screen.getByText('Reconnect to send this request.')).toBeInTheDocument()
     expect(send()).toBeDisabled()
   })

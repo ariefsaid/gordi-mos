@@ -78,6 +78,7 @@ import type {
   CafeDestination,
   ProductionStream,
   StreamPair,
+  KitchenLogLine,
 } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -148,17 +149,16 @@ const loggedUnit = (
   qty_porsi: quantity,
 })
 
-// #781: CafeStreamBar states a resolved stream as text with a quiet "Switch" beside it (opens a
-// portaled listbox, same as Select's) — or, with no default resolved at all, offers the
-// location's streams as direct one-click buttons (CafeStreamChoices) with no separate open step.
-// `startsWith` rather than an exact match because an option carries an appended tag ("— Your
-// Team" / "— Receiving only") when it applies; the journey below is real either way.
+// #781: CafeStreamBar states a resolved stream as text with a quiet activity-specific Switch
+// beside it (opens a portaled listbox, same as Select's) — or, with no default resolved at all,
+// offers the location's streams as direct one-click buttons (CafeStreamChoices) with no separate
+// open step. `startsWith` allows a menu option's appended membership tag.
 function startsWith(label: string) {
   return (accessibleName: string) => accessibleName.startsWith(label)
 }
 
 async function chooseStream(optionName: string) {
-  const switchButton = screen.queryByRole('button', { name: /^change stream$/i })
+  const switchButton = screen.queryByRole('button', { name: /^switch (bar|kitchen)$/i })
   if (switchButton) {
     fireEvent.click(switchButton)
     fireEvent.click(await screen.findByRole('option', { name: startsWith(optionName) }))
@@ -282,9 +282,11 @@ import { KitchenLogPage } from './kitchen-log-page'
 import { rememberStream } from '@/lib/cafe-stream'
 import { activeCafeLocation, rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
 import { cafeDraftCount } from '@/lib/cafe-capture-draft'
+import { cafeCaptureDraftStorageKey, writeCafeCaptureDraft } from '@/lib/cafe-capture-storage'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   // #440: the Café stream is remembered for the whole module (sessionStorage), so a test that
   // switches streams would otherwise seed the NEXT test's opening stream. Clear it per test.
   rememberStream(null)
@@ -588,10 +590,14 @@ describe('Populated state — WIP items loaded', () => {
 
   // AC-013 (FR-012): an item absent under the DD-WAY-29 gate must never read as a bug with
   // no exit — the capture surface carries a visible route to report it missing.
-  it('AC-013: offers a visible route to report a missing item on the loaded surface', async () => {
+  it('AC-013: keeps the missing-item route beside search on the loaded surface', async () => {
     await renderPage()
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /report it/i })).toBeInTheDocument()
+      const action = screen.getByRole('button', { name: /report it/i })
+      const search = screen.getByRole('searchbox', { name: /find an item/i })
+      const filters = document.querySelector('.ktb-filters')
+      expect(filters).toContainElement(action)
+      expect(filters).toContainElement(search)
     })
   })
 
@@ -599,7 +605,7 @@ describe('Populated state — WIP items loaded', () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /log production/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Production' })).toBeInTheDocument()
   })
 
   it('shows the unitless plan quantity as a placeholder without entering it as a value', async () => {
@@ -680,7 +686,7 @@ describe('Populated state — WIP items loaded', () => {
     const footer = form.querySelector('.kl-footer') as HTMLElement
     expect(footer).not.toBeNull()
 
-    const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-log-page.css'), 'utf8')
+    const css = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-layout.css'), 'utf8')
     const ruleStart = css.indexOf('.cafe-capture-footer.kl-footer {')
     const rule = css.slice(ruleStart, ruleStart + 500)
     const baseFooter = css.slice(css.indexOf('.kl-footer {'), css.indexOf('.kl-footer {') + 700)
@@ -905,28 +911,43 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     expect(screen.getByRole('button', { name: /report it/i })).toBeInTheDocument()
   })
 
-  // #744 review: with capture closed the footer's stream hint and tally describe a submit
-  // path the viewer cannot take — the reason line is the ONE message.
-  it('with capture closed and no stream, the stream hint and the tally are suppressed', async () => {
-    mockFetchDefaultStream.mockResolvedValue(null) // FR-002: the state that would hint
+  it('with capture closed and no eligible stream, shows empty guidance without a tally or editable quantities', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null)
     await renderPage(UNAFFILIATED)
-    await waitFor(() => screen.getByText('Ayam Bakar'))
+    await screen.findByRole('heading', { name: 'Choose a production stream to see this screen.' })
 
-    expect(screen.queryByText(/choose a production stream/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /production stream/i })).toBeNull()
+    expect(screen.queryByRole('spinbutton')).toBeNull()
     expect(screen.queryByText(/pending review/i)).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
   })
 
-  it('with capture open, the same missing-stream state shows the hint but no misleading tally', async () => {
+  it('with capture open and no eligible stream, shows empty guidance without a misleading tally', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
-    await renderPage() // affiliated
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await renderPage()
+    await screen.findByRole('heading', { name: 'Choose a production stream to see this screen.' })
 
-    // Two things now say "choose a production stream" (the top guidance and the footer's
-    // own reason) — both present is fine, but there must be no stale/misleading tally.
-    expect(screen.getAllByText(/choose a production stream/i).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('group', { name: /production stream/i })).toBeNull()
     expect(screen.queryByText(/pending review/i)).not.toBeInTheDocument()
   })
+
+  it.each([
+    ['Log', appUrl('/cafe')],
+    ['Transfer', appUrl('/cafe/transfer')],
+  ])('a read-only viewer with no eligible stream sees empty guidance without editable quantities on %s', async (_surface, path) => {
+    mockFetchDefaultStream.mockResolvedValue(null)
+    mockListCaptureFormItems.mockResolvedValue([])
+    await renderPage(UNAFFILIATED, path)
+
+    expect(await screen.findByRole('heading', { name: 'Choose a production stream to see this screen.' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /production stream/i })).toBeNull()
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+    expect(screen.getByRole('button', { name: /^submit/i })).toBeDisabled()
+    expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
+    expect(screen.queryByText('No items match your filter.')).not.toBeInTheDocument()
+  })
+
+
 })
 
 // ── F3b: disabled Submit shows an inline reason message ──────────────
@@ -1559,6 +1580,210 @@ describe('Submit error state', () => {
   })
 })
 
+describe('capture retry identity and saved drafts', () => {
+  it('does not restore yesterday’s staged quantities into today’s capture form', async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    const yesterdayDate = new Date(`${today}T00:00:00.000Z`)
+    yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1)
+    const yesterday = yesterdayDate.toISOString().slice(0, 10)
+    const scope = {
+      orgId: '10000000-0000-0000-0000-000000000001',
+      personId: '40000000-0000-0000-0000-000000000001',
+      form: 'production' as const,
+      branchId: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      logDate: yesterday,
+    }
+    writeCafeCaptureDraft(scope, {
+      branch_id: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      movement: { action: 'produce' },
+      lines: { w2: {
+        wip_item_id: 'w2', qty_porsi: 8, entry_quantity: 8, entry_unit_factor: 1,
+        item_unit_id: 'u2-porsi', entry_unit_name: 'porsi', client_request_id: '50000000-0000-0000-0000-000000000001',
+      } as KitchenLogLine },
+    })
+    const twoDaysAgo = new Date(`${today}T00:00:00.000Z`)
+    twoDaysAgo.setUTCDate(twoDaysAgo.getUTCDate() - 2)
+    const nextScope = { ...scope, logDate: twoDaysAgo.toISOString().slice(0, 10) }
+    writeCafeCaptureDraft(nextScope, {
+      branch_id: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      movement: { action: 'produce' },
+      lines: { w2: {
+        wip_item_id: 'w2', qty_porsi: 4, entry_quantity: 4, entry_unit_factor: 1,
+        item_unit_id: 'u2-porsi', entry_unit_name: 'porsi', client_request_id: '50000000-0000-0000-0000-000000000002',
+      } as KitchenLogLine },
+    })
+
+    await renderPage()
+    const quantity = await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+
+    expect(quantity).not.toHaveValue(8)
+    const oldDrafts = await screen.findAllByRole('article', { name: /unsent from/i })
+    const oldDraft = oldDrafts.find(draft => draft.textContent?.includes('8 porsi'))!
+    expect(oldDraft).toHaveTextContent('WIP - Nasi Goreng')
+    expect(screen.getByText(/today's form can't send older entries.*ask a café lead/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/expire after 7 days/i)).toHaveLength(1)
+    fireEvent.click(within(oldDraft).getByRole('button', { name: 'Discard' }))
+    const discardDialog = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
+    fireEvent.click(within(discardDialog).getByRole('button', { name: 'Discard' }))
+    await waitFor(() => expect(screen.getAllByRole('article', { name: /unsent from/i })).toHaveLength(1))
+    expect(screen.getByRole('article', { name: /unsent from/i })).toHaveTextContent('4 porsi')
+    const draftHeading = screen.getByRole('heading', { name: 'Unsent entries from other dates' })
+    await waitFor(() => expect(document.activeElement).toBe(draftHeading))
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).toBeNull()
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(nextScope))).not.toBeNull()
+  })
+
+  it('restores a matching saved draft after an explicit stream choice when no default stream is available', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null)
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    writeCafeCaptureDraft({
+      orgId: '10000000-0000-0000-0000-000000000001',
+      personId: '40000000-0000-0000-0000-000000000001',
+      form: 'production',
+      branchId: BRANCH_RADIANT.id,
+      activity: 'bar',
+      logDate: today,
+    }, {
+      branch_id: BRANCH_RADIANT.id,
+      activity: 'bar',
+      movement: { action: 'produce' },
+      lines: {
+        w2: {
+          wip_item_id: 'w2',
+          client_request_id: '50000000-0000-0000-0000-000000000001',
+          item_unit_id: 'u2-porsi',
+          entry_quantity: 7,
+          entry_unit_factor: 1,
+          entry_unit_name: 'porsi',
+          qty_porsi: 7,
+        } as KitchenLogLine,
+      },
+    })
+
+    await renderPage(OPS_LEAD)
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
+    await chooseStream('Radiant · Bar')
+
+    expect(await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })).toHaveValue('7')
+  })
+
+  it.each([
+    ['production', '/cafe', /quantity produced for nasi goreng/i, 12],
+    ['transfer', '/cafe/transfer', /quantity to transfer to radiant for ayam bakar/i, 10],
+  ] as const)('%s restores an unsent draft across reload, then clears it after success', async (_form, path, quantityLabel, quantity) => {
+    mockInsertKitchenLogBatch.mockResolvedValue(['log-ok'])
+    if (_form === 'transfer') {
+      mockFetchStockMap.mockResolvedValue({ w1: { stok: 0, tersedia: 100 }, w2: { stok: 0, tersedia: 100 } })
+    }
+    const first = await renderPage(VIEWER_MEMBER, appUrl(path))
+    const input = await screen.findByRole('spinbutton', { name: quantityLabel })
+    fireEvent.change(input, { target: { value: String(quantity) } })
+    await waitFor(() => expect(localStorage.length).toBeGreaterThan(0))
+    first.unmount()
+
+    await renderPage(VIEWER_MEMBER, appUrl(path))
+    const restored = await screen.findByRole('spinbutton', { name: quantityLabel })
+    expect(restored).toHaveValue(String(quantity))
+    const compactNotice = screen.getByText('1 unsent entry restored').closest('.kl-capture-draft-notice')
+    expect(compactNotice).toHaveAttribute('aria-live', 'off')
+    fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/submitted/i))
+    expect(localStorage.length).toBe(0)
+  })
+
+  it('freezes restore count and timestamp while later typing changes the draft', async () => {
+    const first = await renderPage(VIEWER_MEMBER, appUrl('/cafe'))
+    fireEvent.change(await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i }), { target: { value: '12' } })
+    await waitFor(() => expect(localStorage.length).toBeGreaterThan(0))
+    first.unmount()
+
+    await renderPage(VIEWER_MEMBER, appUrl('/cafe'))
+    const restored = await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    const notice = screen.getByText('1 unsent entry restored').closest('.kl-capture-draft-notice')
+    expect(notice).toHaveAttribute('aria-live', 'off')
+    const announcement = screen.getByRole('status').textContent
+    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }), { target: { value: '3' } })
+
+    expect(notice).toHaveTextContent('1 unsent entry restored')
+    expect(screen.getByRole('status')).toHaveTextContent(announcement ?? '')
+    expect(restored).toHaveValue('12')
+  })
+
+  it('does not double-count a committed production row when its saved request replays after reload', async () => {
+    const requestId = '50000000-0000-4000-8000-000000000001'
+    mockFetchActualsMap.mockResolvedValue({
+      w1: { [PRODUCE_KEY]: [{
+        key: `log:${requestId}`,
+        item_unit_id: 'u1-porsi',
+        unit_name: 'porsi',
+        qty_porsi: 8,
+        entry_quantity: 8,
+        entry_unit_factor: 1,
+        entry_unit_name: 'porsi',
+      }] },
+    })
+    mockInsertKitchenLogBatch.mockResolvedValue([requestId])
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    writeCafeCaptureDraft({
+      orgId: '10000000-0000-0000-0000-000000000001',
+      personId: '40000000-0000-0000-0000-000000000001',
+      form: 'production',
+      branchId: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      logDate: today,
+    }, {
+      branch_id: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      movement: { action: 'produce' },
+      lines: { w1: {
+        wip_item_id: 'w1',
+        client_request_id: requestId,
+        client_attempted: true,
+        item_unit_id: 'u1-porsi',
+        entry_quantity: 8,
+        entry_unit_factor: 1,
+        entry_unit_name: 'porsi',
+        qty_porsi: 8,
+        notes: 'Saved retry note',
+        dirty: true,
+      } },
+    })
+
+    await renderPage(VIEWER_MEMBER)
+    expect(await screen.findByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toHaveValue('8')
+    expect(document.querySelector('.kls-meta')?.textContent).toMatch(/logged\s*8/i)
+    fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+    await screen.findByText(/submitted/i)
+
+    expect(document.querySelector('.kls-meta')?.textContent).toMatch(/logged\s*8/i)
+    expect(document.querySelectorAll('.kls-logged-unit')).toHaveLength(1)
+  })
+
+  it.each([
+    ['production', '/cafe', /quantity produced for nasi goreng/i, 12],
+    ['transfer', '/cafe/transfer', /quantity to transfer to radiant for ayam bakar/i, 10],
+  ] as const)('%s retries the same capture attempt with its original request id', async (_form, path, quantityLabel, quantity) => {
+    mockInsertKitchenLogBatch.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(['log-ok'])
+    if (_form === 'transfer') {
+      mockFetchStockMap.mockResolvedValue({ w1: { stok: 0, tersedia: 100 }, w2: { stok: 0, tersedia: 100 } })
+    }
+    await renderPage(VIEWER_MEMBER, appUrl(path))
+    fireEvent.change(await screen.findByRole('spinbutton', { name: quantityLabel }), { target: { value: String(quantity) } })
+    fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(2))
+    const firstIds = mockInsertKitchenLogBatch.mock.calls[0]![0].map(row => row.client_request_id)
+    const retryIds = mockInsertKitchenLogBatch.mock.calls[1]![0].map(row => row.client_request_id)
+    expect(firstIds).toHaveLength(1)
+    expect(firstIds[0]).toEqual(expect.any(String))
+    expect(retryIds).toEqual(firstIds)
+  })
+})
+
 // ── offline write-blocked state (NFR-008) ─────────────────────────────────────
 describe('Offline / write-blocked state (NFR-008)', () => {
   it.each([false, true])('shows the offline message once (wide=%s)', async (wide) => {
@@ -1645,22 +1870,35 @@ describe('#3: Kitchen-and-Bar BU resolution', () => {
 
 // ── I3: S1 uses the ONE shared content PageHead (not a bespoke .kl-head) ───────
 describe('I3: shared PageHead variant="content"', () => {
-  it('renders one page title and keeps the selected stream and date on a single context line', async () => {
-    await renderPage()
+  it.each([
+    { route: 'production', path: appUrl('/cafe'), title: 'Production' },
+    { route: 'transfer', path: appUrl('/cafe/transfer'), title: 'Transfer' },
+  ])('$route keeps its stream action in statusRow and the date in PageHead metadata', async ({ path, title }) => {
+    await renderPage(VIEWER_MEMBER, path)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const head = screen.getByTestId('page-head')
-    // the signed mockup .content-header chrome (icon + title + count/meta), same as S2–S5
     expect(head).toHaveClass('content-header')
-    // ONE accessible heading carrying the page title (RI-IA-1)
     const h1 = within(head).getByRole('heading', { level: 1 })
-    expect(h1).toHaveTextContent('Log production')
-    const context = head.querySelector('.cafe-capture-context') as HTMLElement
+    expect(h1).toHaveTextContent(title)
+    const context = head.querySelector('.ch-status-row') as HTMLElement
     expect(context).toBeInTheDocument()
     expect(context.querySelector('[data-testid="cafe-stream"]')).toBeInTheDocument()
-    expect(within(context).getByText(/^\w{3} \d{1,2} \w{3,5}$/)).toBeInTheDocument()
-    expect(head.querySelector('.page-head-meta')).toBeNull()
-    // the bespoke hand-rolled header is gone
+    expect(context.querySelector('time')).toBeNull()
+    const date = head.querySelector('.ch-meta time.cafe-page-date')
+    expect(date).toBeInTheDocument()
+    expect(date?.closest('.ch-meta, .page-head-meta')).toBeInTheDocument()
+    expect(date?.getAttribute('datetime')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(date).toHaveTextContent(/\d/)
+    const actionName = context.querySelector('.cafe-stream__value')?.textContent?.endsWith('· Bar')
+      ? 'Switch bar'
+      : 'Switch kitchen'
+    const actionText = actionName
+    const switchButton = within(context).getByRole('button', { name: actionName })
+    expect(switchButton).toHaveTextContent(actionText)
+    expect(context).not.toHaveTextContent(date?.textContent ?? '')
+    fireEvent.click(switchButton)
+    expect(await screen.findByRole('listbox', { name: 'Production stream' })).toBeInTheDocument()
     expect(document.querySelector('.kl-head')).toBeNull()
   })
 })
@@ -2364,7 +2602,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     // The page lists ESB items per stream, so with no stream the read returns nothing (#1456).
     mockListCaptureFormItems.mockImplementation(async stream => (stream ? WIP_ITEMS : []))
     await renderPage(OPS_LEAD)
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
 
     // #781 item 2 / B5: with no default resolved the head states nothing (B12 — an empty
     // control must never sit above the page's own content), and the guidance state offers the
@@ -2395,7 +2633,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     mockFetchDefaultStream.mockResolvedValue(null)
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
     await renderPage(OPS_LEAD)
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
 
     await chooseStream('Radiant · Bar')
     await waitFor(() => screen.getByText('Nasi Goreng'))
@@ -2434,7 +2672,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
       },
     ])
     await renderPage()
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
 
     // Nothing preselected — the office Team is still not a stream.
     expect(screen.queryByText('Nasi Goreng')).toBeNull()
@@ -2461,7 +2699,7 @@ describe('OD-CAFE-6: Log opens by the one stream rule, with one look', () => {
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     expect(within(screen.getByTestId('cafe-stream')).getByText('Gordi HQ · Kitchen')).toBeInTheDocument()
-    expect(screen.queryByText(/choose a production stream to start logging/i)).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Choose a kitchen or bar' })).toBeNull()
     expect(mockFetchPlanMap.mock.calls[0][1]).toMatchObject({ branch: BRANCH_GORDI_HQ, activity: 'kitchen' })
   })
 
@@ -2472,15 +2710,14 @@ describe('OD-CAFE-6: Log opens by the one stream rule, with one look', () => {
     expect(within(screen.getByTestId('cafe-stream')).getByText('Rumah Rames · Kitchen')).toBeInTheDocument()
   })
 
-  it('shows the stream as a heading with a Change link — no "Stream:" label, no "Switch"', async () => {
+  it('shows the stream heading with its activity-specific Switch action and no generic Stream label', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const bar = screen.getByTestId('cafe-stream')
     expect(within(bar).getByRole('heading', { name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
-    expect(within(bar).getByRole('button', { name: /^change stream$/i })).toHaveTextContent('Change')
+    expect(within(bar).getByRole('button', { name: /^switch kitchen$/i })).toHaveTextContent('Switch kitchen')
     expect(within(bar).queryByText(/^stream:?$/i)).toBeNull()
-    expect(screen.queryByRole('button', { name: /^switch/i })).toBeNull()
   })
 })
 
@@ -2557,7 +2794,7 @@ describe('FR-005: the picker offers exactly the catalog pairs it is given — th
     await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch (bar|kitchen)$/i }))
     const listbox = screen.getByRole('listbox')
     const options = within(listbox).getAllByRole('option')
     // Exactly STREAM_PAIRS minus the stream already in view — no placeholder (a default
@@ -2752,7 +2989,7 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
 
     // While switch #1 is in flight the Switch action MUST stay mounted (FR-003 — a slow
     // stream is never a dead end; getByRole throws here if the switch unmounts it).
-    const switchDuringLoad = screen.getByRole('button', { name: /^change stream$/i })
+    const switchDuringLoad = screen.getByRole('button', { name: /^switch (bar|kitchen)$/i })
 
     // Switch #2 → (Gordi HQ, kitchen): the LATEST read — resolves immediately (w2 → 33).
     mockFetchPlanMap.mockResolvedValueOnce({ w2: { [PRODUCE_KEY]: 33 } })
@@ -2838,7 +3075,7 @@ describe('AC-007: destinations cover both movement classes from both activity su
   it('AC-007: with no resolved stream (FR-002) nothing is intra-branch yet, so no option is qualified', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     await renderTransferPage()
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a production stream to see this screen.' })
 
     expect(screen.queryByRole('tab')).toBeNull()
     expect(screen.queryByRole('tablist')).toBeNull()
@@ -2906,7 +3143,7 @@ function cafeDocTitle(leaf: keyof typeof messages.en): string {
 describe('issue 455: document title', () => {
   it('titles the tab from the Café nav label, not the retired kitchen one', async () => {
     await renderPage()
-    await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.production')))
+    await waitFor(() => expect(document.title).toBe(cafeDocTitle('cafe.pageTitle.production')))
   })
 })
 
@@ -3243,7 +3480,7 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
     await renderPage(VIEWER_MEMBER, appUrl('/cafe'), HQ)
     // The remembered default (Rumah Rames) is outside HQ, so this opens on the no-stream
     // guidance state (OD-CAFE-1) — the one-step choice itself is still reachable (#781 item 2).
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
 
     const group = screen.getByRole('group', { name: /production stream/i })
     const offered = within(group).getAllByRole('button').map(o => o.textContent?.trim() ?? '')
@@ -3257,7 +3494,7 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
   it('treats a remembered stream from another location as stale, and says which location this is', async () => {
     // The person's own default stream is Rumah Rames; they are standing at Gordi HQ.
     await renderPage(VIEWER_MEMBER, appUrl('/cafe'), HQ)
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
 
     // #781/B12: with nothing resolved the head states NOTHING — not silently re-pointed at an
     // HQ stream, and not left showing Rumah Rames either.
@@ -3304,11 +3541,11 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
     is_primary: false, branch_id: branchId, activity, effective_to: null,
   })
 
-  it('home stream names the location: Change offers only that location’s other streams', async () => {
+  it('home stream names the location: Switch offers only that location’s other streams', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch (bar|kitchen)$/i }))
     const offered = labels(await screen.findAllByRole('option'))
     expect(offered).toEqual(['Rumah Rames · Bar'])
   })
@@ -3319,7 +3556,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
       team(BRANCH_RUMAH_RAMES.id, 'kitchen'), team(BRANCH_RUMAH_RAMES.id, 'bar'),
     ])
     await renderPage()
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
     expect(document.querySelector('.msr')).toBeNull()
 
     const group = screen.getByRole('group', { name: /production stream/i })
@@ -3334,7 +3571,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
       team(BRANCH_RUMAH_RAMES.id, 'kitchen'), team(BRANCH_GORDI_HQ.id, 'bar'),
     ])
     await renderPage()
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
 
     const group = screen.getByRole('group', { name: /production stream/i })
     const offered = labels(within(group).getAllByRole('button')).map(label => label.replace(/Your Team$/, '').trim())
@@ -3345,7 +3582,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar', produces: true })
     rememberCafeLocation(PERSON, { branchId: BRANCH_RUMAH_RAMES.id, branchName: BRANCH_RUMAH_RAMES.name })
     await renderPage()
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
 
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
     const group = screen.getByRole('group', { name: /production stream/i })
@@ -3360,7 +3597,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
     expect(activeCafeLocation(PERSON)?.branchId).not.toBe(BRANCH_RADIANT.id)
 
     // Another location's stream is marked as such before it is chosen.
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch (bar|kitchen)$/i }))
     expect(labels(await screen.findAllByRole('option'))).toContain('Radiant · Bar — Other location')
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
 
@@ -3369,7 +3606,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
 
     expect(activeCafeLocation(PERSON)?.branchId).toBe(BRANCH_RADIANT.id)
     // The picker is now bounded to the NEW location: Radiant's other stream, plus other locations.
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch (bar|kitchen)$/i }))
     const offered = labels(await screen.findAllByRole('option'))
     expect(offered).toContain('Radiant · Kitchen — Receiving only')
     expect(offered).not.toContain('Radiant · Bar')
@@ -3378,7 +3615,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
   it('a person with no Team at another branch is not offered it (no silent mixing)', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch (bar|kitchen)$/i }))
     const offered = labels(await screen.findAllByRole('option'))
     expect(offered.some(label => /Radiant|Gordi HQ/.test(label))).toBe(false)
   })

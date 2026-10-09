@@ -42,10 +42,12 @@ const baseUrl = devServerBaseUrl(__dir, process.env[MOS_DEV_PORT_ENV], basePath)
 
 export default defineConfig({
   testDir: './e2e',
+  // Only Playwright specs: e2e/design-quality/*.test.ts are node:test files, run by their own lane.
+  testMatch: '**/*.spec.ts',
   fullyParallel: false, // auth journeys share state via admin-API setup; run serially
   workers: 1, // all spec files share mailpit + auth state; must run one-at-a-time
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 1 : 0,
   reporter: 'html',
   globalSetup: './e2e/global-setup.ts',
   globalTeardown: './e2e/global-teardown.ts',

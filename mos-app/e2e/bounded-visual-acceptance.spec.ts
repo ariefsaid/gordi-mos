@@ -10,11 +10,6 @@ const LONG_SIGNAL = 'A long Signal leaf title that stays readable without breaki
 // A Signal heading is its first line cut at 72 characters (SIGNAL_TITLE_MAX); the full text
 // stays in the message body.
 const LONG_TITLE = `${LONG_SIGNAL.slice(0, 72).trimEnd()}…`
-const WIDTHS = [390, 768, 1024, 1280, 1370, 1440] as const
-
-function capture(name: string, page: Page) {
-  return page.screenshot({ path: `/tmp/gordi-final-${name}.png`, animations: 'disabled', fullPage: true })
-}
 
 async function assertNoPageOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
@@ -42,7 +37,7 @@ test.describe('bounded visual and interaction acceptance', () => {
     })
     await loginAs(page, MANAGER.email, MANAGER.password)
 
-    for (const width of [390, 1370, 1440] as const) {
+    for (const width of [390, 1440] as const) {
       await page.setViewportSize({ width, height: 900 })
       await page.goto('./')
       const opener = page.getByRole('button', { name: /^Open signal:/ }).first()
@@ -60,7 +55,6 @@ test.describe('bounded visual and interaction acceptance', () => {
       expect(titleBox?.width).toBeGreaterThan(0)
       expect((titleBox?.x ?? 0) + (titleBox?.width ?? Infinity)).toBeLessThanOrEqual(width + 1)
       await assertNoPageOverflow(page)
-      await capture(`home-signal-panel-${width}`, page)
 
       // signal-record.tsx: "Open full page" rides the overflow menu now, not a direct button.
       await panel.getByRole('button', { name: 'More Signal actions', exact: true }).click()
@@ -69,41 +63,39 @@ test.describe('bounded visual and interaction acceptance', () => {
       await expect(page.getByRole('link', { name: 'Back to Home', exact: true })).toBeVisible()
       await expect(page.getByRole('heading', { name: LONG_TITLE, exact: true })).toBeVisible()
       await expect(page.locator('.signal-message-body')).toHaveText(LONG_SIGNAL)
-      await capture(`home-signal-page-${width}`, page)
       await page.getByRole('link', { name: 'Back to Home', exact: true }).click()
       await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).toBe('/')
     }
   })
 
-  for (const locale of ['en', 'id'] as const) {
-    for (const width of [390, 768] as const) {
-      test(`Home localized action census has tappable controls at ${locale}/${width}px`, async ({ page }) => {
-        await page.setViewportSize({ width, height: 900 })
-        await stubAccountLocale(page, locale)
-        await loginAs(page, MANAGER.email, MANAGER.password)
-        await page.goto('./')
-        await expect(page.getByRole('tablist', { name: locale === 'id' ? 'Bagian Beranda' : 'Home regions', exact: true })).toBeVisible()
-        const opener = page.getByRole('button', { name: locale === 'id' ? /^Buka sinyal:/ : /^Open signal:/ }).first()
-        await expect(opener).toBeVisible({ timeout: 15_000 })
-        const tappable = await page.locator('.home-tabs button, .home-signal-row[role="button"]').evaluateAll((nodes) => nodes
-          .map((node) => {
-            const rect = node.getBoundingClientRect()
-            const style = getComputedStyle(node)
-            return { visible: rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden', width: rect.width, height: rect.height }
-          })
-          .filter((entry) => entry.visible))
-        expect(tappable.length).toBeGreaterThan(0)
-        for (const control of tappable) {
-          expect(control.width).toBeGreaterThanOrEqual(44)
-          expect(control.height).toBeGreaterThanOrEqual(44)
-        }
-        await assertNoPageOverflow(page)
-        await capture(`home-${locale}-${width}`, page)
+  // One cell: Indonesian is the longest copy, 390 the narrowest width. The 44px tap floor
+  // itself is owned by guards.geometry.spec.ts; this keeps only Home's localized controls.
+  test('Home localized action census has tappable controls in Indonesian at 390px', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 })
+    await stubAccountLocale(page, 'id')
+    await loginAs(page, MANAGER.email, MANAGER.password)
+    await page.goto('./')
+    await expect(page.getByRole('tablist', { name: 'Bagian Beranda', exact: true })).toBeVisible()
+    const opener = page.getByRole('button', { name: /^Buka sinyal:/ }).first()
+    await expect(opener).toBeVisible({ timeout: 15_000 })
+    const tappable = await page.locator('.home-tabs button, .home-signal-row[role="button"]').evaluateAll((nodes) => nodes
+      .map((node) => {
+        const rect = node.getBoundingClientRect()
+        const style = getComputedStyle(node)
+        return { visible: rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden', width: rect.width, height: rect.height }
       })
+      .filter((entry) => entry.visible))
+    expect(tappable.length).toBeGreaterThan(0)
+    for (const control of tappable) {
+      expect(control.width).toBeGreaterThanOrEqual(44)
+      expect(control.height).toBeGreaterThanOrEqual(44)
     }
-  }
+    await assertNoPageOverflow(page)
+  })
 
-  for (const width of WIDTHS) {
+  // 390 = phone (toolbar nested in its own door, record opens as a page); 1440 = desktop (split
+  // panel, full toolbar fit). Widths between them re-run the same branches.
+  for (const width of [390, 1440] as const) {
     test(`Tasks toolbar, group grammar, title fit and lifecycle at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await page.addInitScript(() => {
@@ -133,7 +125,6 @@ test.describe('bounded visual and interaction acceptance', () => {
       await expect(toolbar.getByRole('group', { name: 'View & filters', exact: true })).toBeVisible()
       await expect(toolbar.getByRole('button', { name: 'All', exact: true })).toHaveAttribute('aria-pressed', 'true')
       await assertNoPageOverflow(page)
-      await capture(`tasks-toolbar-${width}`, page)
 
       const filters = toolbar.getByRole('group', { name: 'View & filters', exact: true })
       await expect(filters.getByRole('combobox', { name: 'Group', exact: true })).toBeVisible()
@@ -217,7 +208,6 @@ test.describe('bounded visual and interaction acceptance', () => {
         // door panel wraps now, by ruling. Layout-independence is what survives: every control
         // stays inside the toolbar slot and shows its own text (asserted above/below).
       }
-      await capture(`tasks-filters-${width}`, page)
 
       const groupPicker = filters.getByRole('combobox', { name: 'Group', exact: true })
       await groupPicker.click()
@@ -228,7 +218,6 @@ test.describe('bounded visual and interaction acceptance', () => {
       await expect(group.locator('.collection-grammar-group-label, .mgc-label')).toBeVisible()
       await expect(group.locator('.collection-grammar-group-count, .mgc-count')).toBeVisible()
       await expect(group.getByRole('button', { name: /Collapse|Expand/ })).toBeVisible()
-      await capture(`tasks-group-${width}`, page)
 
       const taskLink = page.locator(`a[href*="/work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}"]`).first()
       await expect(taskLink).toBeVisible()
@@ -242,12 +231,12 @@ test.describe('bounded visual and interaction acceptance', () => {
         await expect(page.getByRole('heading', { name: TASKS.VIEWER_ACCOUNTABLE.title, exact: true })).toBeVisible()
       }
       await assertNoPageOverflow(page)
-      await capture(`tasks-record-${width}`, page)
       await page.goto('work/tasks')
     })
   }
 
-  for (const width of [1024, 1440] as const) {
+  // 1024 is the tightest desktop width the full toolbar row must still fit.
+  for (const width of [1024] as const) {
     test(`Tasks toolbar keeps Indonesian labels and active Group visible at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await stubAccountLocale(page, 'id')
@@ -319,44 +308,42 @@ test.describe('bounded visual and interaction acceptance', () => {
       const activeFit = await group.locator('span[data-full-value]').evaluate((element) => element.scrollWidth <= element.clientWidth)
       expect(activeFit, 'Kelompok: Status must remain fully visible').toBe(true)
       await assertNoPageOverflow(page)
-      await capture(`tasks-toolbar-id-${width}`, page)
     })
   }
 
-  for (const locale of ['en', 'id'] as const) {
-    for (const width of [390, 768, 1280] as const) {
-      test(`Tasks grouped copy and focus are stable in ${locale} at ${width}px`, async ({ page }) => {
-        await page.setViewportSize({ width, height: 900 })
-        await stubAccountLocale(page, locale)
-        await page.addInitScript(() => localStorage.setItem('mos.tasks.groupBy', 'owner'))
-        await loginAs(page, MANAGER.email, MANAGER.password)
-        await page.goto('work/tasks')
-        await expect(page.getByRole('heading', { name: locale === 'id' ? 'Tugas' : 'Tasks', exact: true })).toBeVisible()
-        const doorName = locale === 'id' ? 'Tampilan & filter' : 'View & filters'
-        // #870: the door exists at every width now — open it before reaching Group.
-        await page.getByRole('button', { name: doorName, exact: true }).click()
-        const toolbar = page.getByTestId('record-collection-toolbar')
-        await expect(toolbar).toBeVisible()
-        const filters = toolbar.getByRole('group', { name: doorName, exact: true })
-        const group = filters.getByRole('combobox', { name: locale === 'id' ? 'Kelompok' : 'Group', exact: true })
-        await group.click()
-        await page.getByRole('listbox', { name: locale === 'id' ? 'Kelompok' : 'Group', exact: true })
-          .getByRole('option', { name: 'PIC', exact: true }).click()
-        await expect(group).toContainText('PIC')
-        await group.focus()
-        await expect(group).toBeFocused()
-        await page.keyboard.press('Escape')
-        // Picker Escape is local: it closes its listbox and returns focus without collapsing the
-        // phone's outer View & filters door. A second Escape owns the outer disclosure lifecycle.
-        await expect(filters).toBeVisible()
-        await expect(group).toBeFocused()
-        await assertNoPageOverflow(page)
-        await capture(`tasks-${locale}-group-${width}`, page)
-      })
-    }
+  // Phone door in English, desktop in Indonesian: each locale and each door branch once.
+  for (const [locale, width] of [['en', 390], ['id', 1280]] as const) {
+    test(`Tasks grouped copy and focus are stable in ${locale} at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await stubAccountLocale(page, locale)
+      await page.addInitScript(() => localStorage.setItem('mos.tasks.groupBy', 'owner'))
+      await loginAs(page, MANAGER.email, MANAGER.password)
+      await page.goto('work/tasks')
+      await expect(page.getByRole('heading', { name: locale === 'id' ? 'Tugas' : 'Tasks', exact: true })).toBeVisible()
+      const doorName = locale === 'id' ? 'Tampilan & filter' : 'View & filters'
+      // #870: the door exists at every width now — open it before reaching Group.
+      await page.getByRole('button', { name: doorName, exact: true }).click()
+      const toolbar = page.getByTestId('record-collection-toolbar')
+      await expect(toolbar).toBeVisible()
+      const filters = toolbar.getByRole('group', { name: doorName, exact: true })
+      const group = filters.getByRole('combobox', { name: locale === 'id' ? 'Kelompok' : 'Group', exact: true })
+      await group.click()
+      await page.getByRole('listbox', { name: locale === 'id' ? 'Kelompok' : 'Group', exact: true })
+        .getByRole('option', { name: 'PIC', exact: true }).click()
+      await expect(group).toContainText('PIC')
+      await group.focus()
+      await expect(group).toBeFocused()
+      await page.keyboard.press('Escape')
+      // Picker Escape is local: it closes its listbox and returns focus without collapsing the
+      // phone's outer View & filters door. A second Escape owns the outer disclosure lifecycle.
+      await expect(filters).toBeVisible()
+      await expect(group).toBeFocused()
+      await assertNoPageOverflow(page)
+    })
   }
 
-  for (const width of [390, 768, 1280, 1440] as const) {
+  // 390 = record as a page, 768 = record as a dialog, 1440 = record as a side panel.
+  for (const width of [390, 768, 1440] as const) {
     test(`Signals Feed/Table and record chrome at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await loginAs(page, MANAGER.email, MANAGER.password)
@@ -370,7 +357,6 @@ test.describe('bounded visual and interaction acceptance', () => {
         await table.click()
         await expect(table).toHaveAttribute('aria-selected', 'true')
         await expect(page.locator('table').first()).toBeVisible()
-        await capture(`signals-table-${width}`, page)
         await feed.click()
       } else {
         await expect(page.getByRole('button', { name: /View & filters/i })).toBeVisible()
@@ -388,7 +374,6 @@ test.describe('bounded visual and interaction acceptance', () => {
       await expect(record.getByRole('heading', { name: 'Reach & response', exact: true })).toBeVisible()
       await expect(record.getByRole('heading', { name: 'Facts', exact: true })).toBeVisible()
       await assertNoPageOverflow(page)
-      await capture(`signals-record-${width}`, page)
       if (phone) {
         const back = page.locator('.record-page-back')
         await expect(back).toHaveCount(1)
@@ -432,6 +417,5 @@ test.describe('bounded visual and interaction acceptance', () => {
     await page.goto('work/tasks')
     await expect(page.getByRole('heading', { name: 'Tasks', exact: true })).toBeVisible()
     await expect(page.getByText('No tasks yet', { exact: true })).toBeVisible()
-    await capture('missing-relations-1440', page)
   })
 })

@@ -1,17 +1,3 @@
-.cafe-items__stream-choice {
-  display: grid;
-  gap: 12px;
-  margin-block: 20px 24px;
-}
-
-.cafe-items__stream-choice h2 {
-  margin: 0;
-  color: var(--foreground);
-  font-family: var(--font-display);
-  font-size: var(--font-size-heading);
-  font-weight: 600;
-}
-
 .cafe-item-reports {
   margin: 0 0 20px;
   padding: 16px;
@@ -111,17 +97,17 @@
 }
 
 .cafe-items__table--editable th:nth-child(1),
-.cafe-items__table--editable td:nth-child(1) { width: 18%; }
+.cafe-items__table--editable td:nth-child(1) { width: 14%; }
 .cafe-items__table--editable th:nth-child(2),
-.cafe-items__table--editable td:nth-child(2) { width: 17%; }
+.cafe-items__table--editable td:nth-child(2) { width: 22%; }
 .cafe-items__table--editable th:nth-child(3),
-.cafe-items__table--editable td:nth-child(3) { width: 9%; }
+.cafe-items__table--editable td:nth-child(3) { width: 16%; }
 .cafe-items__table--editable th:nth-child(4),
-.cafe-items__table--editable td:nth-child(4) { width: 9%; }
+.cafe-items__table--editable td:nth-child(4) { width: 10%; }
 .cafe-items__table--editable th:nth-child(5),
-.cafe-items__table--editable td:nth-child(5) { width: 13%; }
+.cafe-items__table--editable td:nth-child(5) { width: 14%; }
 .cafe-items__table--editable th:nth-child(6),
-.cafe-items__table--editable td:nth-child(6) { width: 26%; }
+.cafe-items__table--editable td:nth-child(6) { width: 16%; }
 .cafe-items__table--editable th:nth-child(7),
 .cafe-items__table--editable td:nth-child(7) { width: 8%; }
 
@@ -178,8 +164,8 @@
 }
 
 .cafe-items__card-header .cafe-items__needs-unit-status {
-  margin: 0 0 0 8px;
-  vertical-align: middle;
+  display: table;
+  margin: 4px 0 0;
 }
 
 .cafe-items__name-editor,
@@ -407,11 +393,22 @@
 .cafe-items__card-action .cafe-items__save-control { align-items: flex-end; }
 
 @media (pointer: coarse) {
+  .cafe-items__name-input .mk-textinput__box,
+  .cafe-items__name-input .mk-textinput__field,
+  .cafe-items__table .mk-select__box,
+  .cafe-items__table .mk-select__field,
+  .cafe-items__card-body .mk-select__box,
+  .cafe-items__card-body .mk-select__field,
+  .cafe-items__active-control,
+  .cafe-items .btn,
+  .cafe-items .picker__trigger,
+  .cafe-items .dt-sort-button { min-width: 44px; min-height: 44px; }
   .cafe-items__name-input .mk-textinput__field { font-size: var(--font-size-touch-input); }
 }
 
 @media (max-width: 767.98px) {
-  .cafe-items__stream-choice { margin-block: 16px 20px; }
+  .cafe-items__active-control .mk-checkbox { width: 44px; height: 44px; }
+  .cafe-items__active-control .mk-checkbox__visual { width: 16px; height: 16px; }
 
   .cafe-items__collection {
     overflow: visible;

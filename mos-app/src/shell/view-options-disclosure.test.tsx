@@ -125,6 +125,18 @@ describe('ViewOptionsDisclosure', () => {
     expect(screen.getByRole('button', { name: 'View options, All · Status' })).toBeInTheDocument()
   })
 
+  it('uses an accessible count description while keeping the count badge decorative', () => {
+    renderDisclosure({
+      hasActiveFilters: true,
+      summary: '2',
+      accessibleSummary: '2 active filters',
+      summaryClassName: 'count-badge',
+    })
+    expect(screen.getByRole('button', { name: 'View options, 2 active filters' })).toBeInTheDocument()
+    expect(screen.getByText('2')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByText('2')).toHaveClass('count-badge')
+  })
+
   it('applies each host skin class (container/trigger/chevron/panel) so CSS is preserved', () => {
     const { container } = renderDisclosure({
       open: true,

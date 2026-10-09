@@ -124,6 +124,7 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
     <>
       <nav
         aria-label="Primary"
+        data-overlay-edge="bottom"
         className={`bottom-tab-bar${showLauncher ? ' bottom-tab-bar--with-launcher' : ''}`}
         style={{ gridArea: 'tabbar' }}
       >

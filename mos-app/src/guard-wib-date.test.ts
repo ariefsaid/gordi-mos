@@ -3,7 +3,7 @@ import { join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const SRC = resolve(process.cwd(), 'src')
-const ALLOWED_DEFINITIONS = new Set(['lib/format/date.ts', 'pages/kitchen-log-page.tsx'])
+const ALLOWED_DEFINITIONS = new Set(['lib/format/date.ts'])
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

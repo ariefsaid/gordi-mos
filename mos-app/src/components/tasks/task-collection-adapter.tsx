@@ -1,9 +1,8 @@
 // Task adapter for the V3 RecordCollection engine — load/project/presentations/viewer access.
-// The canonical typed query and URL schema live in task-collection-query.ts; this module re-exports
-// that contract for older consumers while keeping its collection descriptor focused on data work.
-/* eslint-disable react-refresh/only-export-components -- this is a descriptor module, not a component module */
+// The canonical typed query and URL schema live in task-collection-query.ts; this adapter keeps its
+// collection descriptor focused on data work.
 import { taskDoneRecentCutoff } from '@/lib/db/task-paging'
-import { listOlderDoneTasks, listTasks, type OlderDoneTaskCursor, type TaskListFilters } from '@/lib/db/tasks'
+import { hasOlderDoneTasks, listOlderDoneTasks, listTasks, type OlderDoneTaskCursor, type TaskListFilters } from '@/lib/db/tasks'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { ProcessRunRollup } from '@/lib/db/processes.types'
 import { listRunRollups, listTaskDefs } from '@/lib/db/processes'
@@ -35,20 +34,6 @@ import {
 } from '@/lib/record-collection/collection-view-spec'
 import { TASK_COLLECTION_NEUTRAL_QUERY, taskCollectionQuery } from './task-collection-query'
 import type { TaskCollectionAction, TaskCollectionPresentation, TaskCollectionQuery } from './task-collection-query'
-export {
-  TASK_COLLECTION_NEUTRAL_QUERY,
-  taskCollectionQuery,
-  taskPresentationCompatibleKeys,
-} from './task-collection-query'
-export type {
-  TaskCollectionAction,
-  TaskCollectionGroup,
-  TaskCollectionPresentation,
-  TaskCollectionQuery,
-  TaskCollectionSort,
-  TaskCollectionUnsupportedGroup,
-  TaskCollectionView,
-} from './task-collection-query'
 import type {
   CollectionAccess,
   CollectionData,
@@ -644,7 +629,7 @@ async function loadTaskCollection(args: {
   const lease = args.readLease
   const now = new Date()
   const doneCutoff = taskDoneRecentCutoff(now)
-  const [rows, businessUnits, people, downlinePersonIds, objectives, workLines, viewerTeams, viewerRoleBuIds] = await Promise.all([
+  const [rows, businessUnits, people, downlinePersonIds, objectives, workLines, viewerTeams, viewerRoleBuIds, olderDoneHasMore] = await Promise.all([
     lease ? listTasks(filters, lease, doneCutoff) : listTasks(filters, undefined, doneCutoff),
     lease ? getBusinessUnits(lease) : getBusinessUnits(),
     lease ? getPeople(lease) : getPeople(),
@@ -662,6 +647,9 @@ async function loadTaskCollection(args: {
         ? getPersonBusinessUnitIds(args.viewerId ?? '', lease)
         : getPersonBusinessUnitIds(args.viewerId ?? '')
       : Promise.resolve([] as string[]),
+    args.query.status === null || args.query.status === 'Done'
+      ? hasOlderDoneTasks({ ...(args.query.businessUnitId ? { businessUnitId: args.query.businessUnitId } : {}), includeArchived: args.query.includeArchived }, doneCutoff, lease).catch(() => true)
+      : Promise.resolve(false),
   ])
   const records = rows.map(toTaskCollectionRecord)
   const taskTeamIds = [...new Set(records.map((record) => record.teamId).filter((id): id is string => id !== null))]
@@ -731,7 +719,7 @@ async function loadTaskCollection(args: {
     now,
     olderDoneCutoff: doneCutoff,
     olderDoneCursor: null,
-    olderDoneHasMore: true,
+    olderDoneHasMore,
     olderDoneTaskIds: new Set(),
     refresh: () => {},
   }

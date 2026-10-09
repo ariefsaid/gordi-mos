@@ -614,8 +614,10 @@ class Outbox:
     def pending(self) -> list[dict[str, Any]]:
         """Rows this worker may drain. A grouped document is returned only when its
         complete membership is present and every member is eligible; a page boundary
-        must never turn a group into a short ERP document. Singles retain the page limit.
-        The endpoint and target environment filters are guards, not optimisations; noop
+        must never turn a group into a short ERP document. A re-matched goods-receipt group
+        may also resume when its only terminal members were returned to Receipt issues.
+        Singles retain the page limit. The endpoint and target environment filters are
+        guards, not optimisations; noop
         rows have no ERP counterpart and are held permanently."""
         filters = {
             "status": "eq.pending",
@@ -665,12 +667,22 @@ class Outbox:
             gid = row.get('push_group_id')
             if not gid:
                 result.append(row)
-            elif str(gid) in complete and (
+                continue
+            members = complete.get(str(gid), [])
+            returned = [m for m in members if m.get('status') != 'pending']
+            only_returned = bool(returned) and all(
+                m.get('endpoint') == 'goods-receipt'
+                and m.get('status') == 'dead_letter'
+                and str(m.get('last_error') or '').startswith('returned to Receipt issues:')
+                for m in returned
+            )
+            if members and (
                 group_meta.get(str(gid), {}).get('esb_doc_num')
                 or group_meta.get(str(gid), {}).get('posting_stage') or all(
                     m.get('status') == 'pending' and m.get('endpoint') != 'noop'
-                    for m in complete[str(gid)]
+                    for m in members
                 )
+                or only_returned
             ):
                 result.extend(complete.pop(str(gid)))
         return result

@@ -169,8 +169,8 @@ check("glm builder derives the z.ai trailer",
       gh.commit_trailer("zai/glm-5.3") == "Co-Authored-By: GLM-5.3 <noreply@z.ai>",
       gh.commit_trailer("zai/glm-5.3"))
 check("luna derives the openai trailer",
-      gh.commit_trailer("openai-codex/gpt-5.6-luna")
-      == "Co-Authored-By: GPT-5.6 Luna <noreply@openai.com>")
+      gh.commit_trailer("openai-codex/gpt-6-luna")
+      == "Co-Authored-By: GPT-6 Luna <noreply@openai.com>")
 fallback = gh.commit_trailer("someprovider/unmapped-model")
 check("unmapped substrate gets the neutral factory line — no vendor model named",
       fallback == "Co-Authored-By: SSSF factory agent <factory@sssf.invalid>", fallback)

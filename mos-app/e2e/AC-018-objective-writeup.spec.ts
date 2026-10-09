@@ -62,6 +62,9 @@ test.describe('AC-018: Objective write-up editor', () => {
       if (request.method() === 'PATCH' && /objectives/.test(request.url()) && /write_up/.test(request.postData() ?? '')) writeUpSaves.push(request.url())
     })
     await loginAs(page, ADMIN.email, ADMIN.password)
+    // A controllable clock (it still ticks in real time) lets the no-autosave check jump past any
+    // debounce instead of sleeping through it.
+    await page.clock.install()
 
     await page.goto('work/objectives')
     // #1292 gives catalog rows and cells their own accessible owners, so identify the row by its record link.
@@ -87,8 +90,9 @@ test.describe('AC-018: Objective write-up editor', () => {
     await page.keyboard.type('We open two new sites.')
     await page.getByRole('button', { name: 'Save' }).click()
     await expect(page.getByRole('status').filter({ hasText: 'Saved' })).toBeVisible()
-    // Typing saved nothing on its own: one deliberate Save, one request.
-    await page.waitForTimeout(3500)
+    // Typing saved nothing on its own: one deliberate Save, one request, even after any debounce fires.
+    await page.clock.fastForward(10_000)
+    await page.waitForLoadState('networkidle')
     expect(writeUpSaves).toHaveLength(1)
 
     await page.reload()

@@ -4,17 +4,16 @@
 # scans every outbound string against the posting policy, then execs `gh` with the same args.
 #
 #   scripts/gh-post.sh issue comment 42 --body "..."     # any gh write, same argv as gh itself
-#   scripts/gh-post.sh pr create --base dev --title ... # extra: requires the FOUR PR stamps
+#   scripts/gh-post.sh pr create --base dev --title ... # requires three lens stamps; other bases also need full verify
 #
 # Policy patterns live OUTSIDE this public repo, in the local docs checkout
 # (docs/gh-denylist.txt of the MAIN worktree — worktrees don't materialize gitignored dirs).
 # Missing policy file = refuse (fail closed). A match = refuse, no override flag on purpose:
 # reword the text or take it to the owner. Rationale: docs/decisions.md (2026-08-27).
 #
-# PR stamps checked on `pr create` and on the REST create `api repos/<this>/pulls` (FOUR, OD-WAY-83):
-#   <git-dir>/pre-pr-verify-ok                    HEAD sha    (scripts/pre-pr-verify.sh; a PR with
-#                                                             --base dev may carry pre-pr-verify-dev-ok
-#                                                             from scripts/pre-pr-verify.sh --dev)
+# PR stamps checked on `pr create` and REST create `api repos/<this>/pulls`: dev needs only the three
+# lens stamps because CI verify is its gate; every other base needs full local verify plus all lenses.
+#   <git-dir>/pre-pr-verify-ok                    HEAD sha    (scripts/pre-pr-verify.sh; non-dev bases)
 #   <git-dir>/independent-review-<lens>-ok  ×3    per lens    (scripts/record-review.sh --lens …)
 #
 # Self-test: scripts/gh-post.test.sh
@@ -70,11 +69,18 @@ if [ "$verb1" = "api" ]; then
       *) die "'api' argument '$a' is not one this door parses — pass each flag separately, after the endpoint" ;;
     esac
     case "$flag" in
-      -X|--method) api_method="$val" ;;
+      -X|--method)
+        [ -n "$val" ] || die "'$flag' needs a non-empty value"
+        api_method="$val" ;;
       -f|--raw-field|-F|--field) api_fields+=("$val") ;;
       --input) api_input=1 ;;
     esac
   done
+  api_effective_method="$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')"
+  if [ -z "$api_effective_method" ]; then
+    # gh api implies POST for --input or request fields; otherwise it implies GET.
+    if [ "${#api_fields[@]}" -gt 0 ] || [ "$api_input" = 1 ]; then api_effective_method=POST; else api_effective_method=GET; fi
+  fi
 fi
 
 # ── Collect every outbound string: all argv, plus the contents of any file-carrying flag
@@ -82,9 +88,18 @@ fi
 # refused outright — text the scanner can't see is text that doesn't leave.
 texts=("$@")
 args=("$@")
+issue_body_set=0 issue_body=""
 for ((i = 0; i < ${#args[@]}; i++)); do
   a="${args[$i]}"
   f="" v=""
+  if [ "$verb1 $verb2" = "issue create" ] || [ "$verb1 $verb2" = "issue edit" ]; then
+    case "$a" in
+      --body|-b) issue_body_set=1; issue_body="${args[$((i + 1))]:-}" ;;
+      --body=*) issue_body_set=1; issue_body="${a#--body=}" ;;
+      -b?*) issue_body_set=1; issue_body="${a#-b}" ;;
+      --body-file|-F|--body-file=*|-F?*) issue_body_set=1 ;;
+    esac
+  fi
   case "$a" in
     --body-file|--input) f="${args[$((i + 1))]:-}" ;;
     --body-file=*|--input=*) f="${a#*=}" ;;
@@ -101,7 +116,11 @@ for ((i = 0; i < ${#args[@]}; i++)); do
   if [ -n "$f" ]; then
     [ "$f" != "-" ] || die "stdin payloads ('-') are not scannable — put the text in a file"
     [ -r "$f" ] || die "cannot read body file: $f"
-    texts+=("$(cat "$f")")
+    file_text="$(cat "$f")"
+    texts+=("$file_text")
+    if [ "$verb1 $verb2" = "issue create" ] || [ "$verb1 $verb2" = "issue edit" ]; then
+      case "$a" in --body-file|-F|--body-file=*|-F?*) issue_body="$file_text" ;; esac
+    fi
   fi
 done
 
@@ -147,11 +166,11 @@ else
 fi
 
 
-# ── PR creation: all four stamps must certify the exact HEAD being PRed — and a pr create may only
-# target THIS checkout: the stamps certify HEAD here, nothing else. The REST create
+# ── PR creation: required stamps certify the exact HEAD being PRed — dev needs three lenses,
+# other bases also need full verify — and a pr create may only target THIS checkout. The REST create
 # (`api repos/<this>/pulls`, the route cloud sessions use where GraphQL is blocked) passes the same gate.
 require_pr_stamps() { # $1 base branch ('' when none named)
-  local base_val="$1" gitdir head v vd r lens
+  local base_val="$1" gitdir head v r lens stamp_file stamp release_stamp_file release_sha
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   head="$(git rev-parse HEAD)"
   # Promotion carve-out (/release §4b): a PR into staging FROM main carries content the release
@@ -159,18 +178,88 @@ require_pr_stamps() { # $1 base branch ('' when none named)
   # stamps. CI on the staging PR still gates. Any other route into staging needs the stamps.
   [ "$base_val" = "staging" ] && [ "$(git branch --show-current)" = "main" ] && return 0
   v="$(cat "$gitdir/pre-pr-verify-ok" 2>/dev/null || true)"
-  vd="$(cat "$gitdir/pre-pr-verify-dev-ok" 2>/dev/null || true)"
-  # The light stamp (scripts/pre-pr-verify.sh --dev) certifies a PR into dev only, where CI is the
-  # full-suite gate; any other base — main included, or none named — needs the full stamp.
-  if [ "$v" != "$head" ] && ! { [ "$base_val" = "dev" ] && [ "$vd" = "$head" ]; }; then
-    die "no verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh (a PR with --base dev may use: bash scripts/pre-pr-verify.sh --dev)"
+  # CI verify is the gate for dev PRs, so only every other base needs the full local stamp.
+  if [ "$base_val" != "dev" ] && [ "$v" != "$head" ]; then
+    die "no full verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh (only --base dev is exempt; CI verify is its gate)"
   fi
   # OD-WAY-83: three explicit lens records, each its own stamp on this exact HEAD.
   for lens in spec code-quality security; do
-    r="$(awk '{print $1}' "$gitdir/independent-review-$lens-ok" 2>/dev/null || true)"
+    stamp_file="$gitdir/independent-review-$lens-ok"
+    stamp="$(cat "$stamp_file" 2>/dev/null || true)"
+    r="$(printf '%s\n' "$stamp" | awk '{print $1}')"
+    if [ "$lens" = security ] && { [ "$base_val" = main ] || [ "$base_val" = staging ]; }; then
+      release_stamp_file="$gitdir/independent-review-security-release-ok"
+      release_sha="$(cat "$release_stamp_file" 2>/dev/null || true)"
+      [ "$release_sha" = "$head" ] \
+        || die "a PR into $base_val needs release-rule stamps — record the security lens with: bash scripts/record-review.sh --lens security --base $base_val --reviewer <opus id> --artifact <record>"
+    fi
     [ "$r" = "$head" ] || die "no $lens lens stamp for HEAD — a reviewer that did not write this branch records each lens: bash scripts/record-review.sh --lens $lens --reviewer <glm/luna/opus…> --artifact <record>"
   done
 }
+
+# Reuse-first (CLAUDE.md "Reuse before build"): a PR body names what it reused, on a line that
+# starts "Reused:" (anything new is justified there too). Checked on PRs into dev, where new work
+# enters; release and promotion PRs carry work already reviewed that way.
+require_reused_line() {
+  local t
+  for t in "${texts[@]}"; do
+    printf '%s\n' "$t" | sed -E '1s/^(-[fF]|--(raw-)?field=)?body=//' \
+      | grep -Eiq '^[[:space:]]*(\*\*)?Reused(\*\*)?:' && return 0
+  done
+  die "the PR body has no 'Reused:' line — name the existing components, helpers, tests or patterns you reused (and why anything new was needed)"
+}
+
+default_base_branch() {
+  local base
+  base="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)" || return 1
+  [ -n "$base" ] || return 1
+  printf '%s' "$base"
+}
+
+contains_ready_label() { [[ ",$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')," == *,ready-for-agent,* ]]; }
+
+require_ready_issue_skills_plan() {
+  local ready=0 issue_target="" label result body
+  local -a argv=("$@")
+  for ((i = 0; i < ${#argv[@]}; i++)); do
+    a="${argv[$i]}"
+    case "$verb1 $verb2:$a" in
+      "issue create:--label"|"issue create:-l"|"issue edit:--add-label")
+        [ $((i + 1)) -lt ${#argv[@]} ] || continue
+        i=$((i + 1)); label="${argv[$i]}" ;;
+      "issue create:--label="*|"issue create:--add-label="*|"issue edit:--add-label="*|"issue create:-l"?*)
+        case "$a" in -l*) label="${a#-l}" ;; *) label="${a#*=}" ;; esac ;;
+      *) continue ;;
+    esac
+    contains_ready_label "$label" && ready=1
+  done
+  [ "$ready" -eq 1 ] || return 0
+
+  if [ "$verb1 $verb2" = "issue edit" ]; then
+    for ((i = 0; i + 2 < ${#argv[@]}; i++)); do
+      if [ "${argv[$i]}" = issue ] && [ "${argv[$((i + 1))]}" = edit ]; then
+        issue_target="${argv[$((i + 2))]}"
+        [[ "$issue_target" = -* ]] && issue_target=""
+        break
+      fi
+    done
+    if [ "$issue_body_set" -eq 0 ]; then
+      [ -n "$issue_target" ] || die "cannot identify the issue for ready-for-agent; pass its number so the current body can be fetched"
+      body="$(gh issue view "$issue_target" --json body -q .body 2>/dev/null)" \
+        || die "cannot fetch the current body for issue $issue_target; retry when GitHub is reachable"
+      issue_body="$body"
+    fi
+  fi
+
+  result="$(printf '%s\n' "$issue_body" | bash "$(dirname "$0")/skills-plan.sh" check - 2>&1)" && return 0
+  [ -z "$issue_target" ] || issue_target="issue #$issue_target: "
+  die "${issue_target}ready-for-agent requires a valid Skills plan
+$result"
+}
+
+if [ "$verb1 $verb2" = "issue create" ] || [ "$verb1 $verb2" = "issue edit" ]; then
+  require_ready_issue_skills_plan "$@"
+fi
 
 if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   for a in "$@"; do
@@ -179,23 +268,93 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
         die "'pr create' through this door targets the current checkout on the default host only — no --repo/--head/--hostname (the stamps certify HEAD here). cd to the branch's checkout instead." ;;
     esac
   done
-  base_val="" prev=""
-  for a in "$@"; do
-    case "$prev" in --base) base_val="$a"; prev=""; continue ;; esac
-    case "$a" in --base) prev="$a" ;; --base=*) base_val="${a#--base=}" ;; esac
+  base_val="" base_seen=0
+  argv=("$@")
+  for ((i = 0; i < ${#argv[@]}; i++)); do
+    a="${argv[$i]}"
+    case "$a" in
+      --assignee|-a|--body|-b|--body-file|-F|--label|-l|--milestone|-m|--project|-p|--reviewer|-r|--title|-t)
+        [ $((i + 1)) -lt ${#argv[@]} ] || die "'$a' needs a value"
+        i=$((i + 1)); continue ;;
+    esac
+    case "$a" in
+      --base|-B)
+        [ $((i + 1)) -lt ${#argv[@]} ] || die "'$a' needs a value"
+        i=$((i + 1)); candidate="${argv[$i]}" ;;
+      --base=*) candidate="${a#--base=}" ;;
+      -B?*) candidate="${a#-B}" ;;
+      # gh accepts grouped short flags (-dB main, -dBmain); this door does not parse them.
+      -[!-]*B*) die "grouped short flags with -B are not accepted here — pass the base on its own: --base <branch>" ;;
+      *) continue ;;
+    esac
+    [ -n "$candidate" ] || die "base needs a value"
+    if [ "$base_seen" = 1 ] && [ "$candidate" != "$base_val" ]; then
+      die "multiple different PR bases were given — name one base"
+    fi
+    base_val="$candidate" base_seen=1
   done
+  if [ "$base_seen" = 0 ]; then
+    base_val="$(default_base_branch)" || die "cannot read repository default branch"
+  fi
   require_pr_stamps "$base_val"
+  [ "$base_val" = dev ] && require_reused_line
 fi
+
+issue_number_from_path() {
+  local candidate="$1" suffix="${2:-}"
+  if [ -n "$suffix" ]; then
+    case "$candidate" in */"$suffix") candidate="${candidate%/"$suffix"}" ;; *) return 1 ;; esac
+  fi
+  case "$candidate" in ''|*[!0-9]*) return 1 ;; esac
+  printf '%s' "$candidate"
+}
 
 if [ "$verb1" = "api" ]; then
   path="${verb2#/}"; path="${path%%\?*}"; path="${path%/}"
-  # Only an explicit GET reads the pulls collection; anything else may create a PR.
-  if [ "$path" = "repos/$this_repo/pulls" ] && [ "$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')" != "GET" ]; then
+  case "$path" in repos/"$this_repo"/issues/*/labels) [ "$api_effective_method" = GET ] || die "REST issue-label writes are refused — use 'issue edit --add-label' to change labels" ;; esac
+  issue_path=0
+  case "$path" in
+    "repos/$this_repo/issues") issue_path=1 ;;
+    "repos/$this_repo/issues/"*)
+      issue_number="$(issue_number_from_path "${path#repos/$this_repo/issues/}" 2>/dev/null || true)"
+      [ -n "$issue_number" ] && issue_path=1 ;;
+  esac
+  if [ "$issue_path" = 1 ] && [ "$api_effective_method" != GET ]; then
+    has_labels="$api_input"
+    for kv in "${api_fields[@]:-}"; do
+      field_name="${kv%%=*}"
+      case "$field_name" in labels|labels\[* ) has_labels=1 ;; esac
+    done
+    [ "$has_labels" = 0 ] || die "REST issue writes refused — labels go through 'issue create --label' or 'issue edit --add-label'"
+  fi
+  api_write_allowed=0
+  if [ "$api_effective_method" != GET ]; then
+    case "$api_effective_method:$path" in
+      "POST:repos/$this_repo/security-advisories"|"POST:repos/$this_repo/pulls") api_write_allowed=1 ;;
+    esac
+    issue_prefix="repos/$this_repo/issues/"
+    if [ "$api_effective_method" = POST ]; then
+      case "$path" in
+        "$issue_prefix"*/comments)
+          issue_number="$(issue_number_from_path "${path#"$issue_prefix"}" comments 2>/dev/null || true)"
+          [ -n "$issue_number" ] && api_write_allowed=1 ;;
+      esac
+    elif [ "$api_effective_method" = PATCH ]; then
+      case "$path" in
+        "$issue_prefix"*)
+          issue_number="$(issue_number_from_path "${path#"$issue_prefix"}" 2>/dev/null || true)"
+          [ -n "$issue_number" ] && api_write_allowed=1 ;;
+      esac
+    fi
+    [ "$api_write_allowed" = 1 ] || die "'api $api_effective_method $path' is not in the write allowlist. Allowed API writes: POST repos/$this_repo/security-advisories; POST repos/$this_repo/pulls (REST PR stamps required); POST repos/$this_repo/issues/<number>/comments; PATCH repos/$this_repo/issues/<number> without labels."
+  fi
+  # REST PR creation must pass the same HEAD stamps as `pr create`.
+  if [ "$path" = "repos/$this_repo/pulls" ] && [ "$api_effective_method" = POST ]; then
     [ "$api_input" = 0 ] || die "REST PR create must pass base/head as -f fields — an --input payload hides them from the stamp check"
-    base_val="" head_val=""
+    base_val="" base_seen=0 head_val=""
     for kv in "${api_fields[@]}"; do
       case "$kv" in
-        base=*) base_val="${kv#base=}" ;;
+        base=*) base_val="${kv#base=}"; base_seen=1 ;;
         head=*) head_val="${kv#head=}" ;;
         head_repo=*) die "REST PR create through this door targets this checkout only — no head_repo" ;;
       esac
@@ -203,7 +362,13 @@ if [ "$verb1" = "api" ]; then
     branch="$(git branch --show-current)"
     [ -n "$branch" ] && { [ "$head_val" = "$branch" ] || [ "$head_val" = "${this_repo%%/*}:$branch" ]; } \
       || die "REST PR create must name head=<this checkout's branch> ('$branch') — the stamps certify HEAD here"
+    if [ "$base_seen" = 0 ]; then
+      base_val="$(default_base_branch)" || die "cannot read repository default branch"
+    else
+      [ -n "$base_val" ] || die "REST PR create needs a non-empty base field"
+    fi
     require_pr_stamps "$base_val"
+    [ "$base_val" = dev ] && require_reused_line
   fi
 fi
 

@@ -1,22 +1,17 @@
 # sssf.config.yaml — the factory's agent roster. One agent, one prompt, one purpose.
 # v1 runs the Pi coding agent only; coding_agent: claude_code arrives in v2.
 #
-# MOS roster ruling (owner 2026-08-20, OD-WAY-71; amends the builder half of OD-WAY-64):
-# planner zai/glm-5.3-flash · builder AND fe_builder bitdeer/deepseek-ai/DeepSeek-V4-Flash ·
-# reviewer zai/glm-5.3-flash · fe_reviewer zai/glm-5.3-flash (luna = fallback).
+# Owner routing: builds on openai-codex/gpt-6-luna; reviews on zai/glm-5.3-flash (Luna fallback).
+# Planner and scout also use GLM; reviewer and fe_reviewer stay on GLM.
+# Model registration is not qualification: probe the actual selected route before relying on it.
+# Pixel judgment belongs to an independent image-capable reviewer. fe_reviewer owns it only after
+# a real image-transport and candidate-binding probe succeeds; otherwise use a separate
+# Director/Codex image-capable lane. DOM/a11y alone never passes pixels; provider failure leaves
+# review incomplete. Routing is also recorded in docs/agents/pi-delegation.md, per the two-places
+# rule above.
 #
-# The DEFAULT reviewer is zai/glm-5.3-flash; luna stays the fallback. Model registration is not
-# qualification: probe the actual selected route before relying on it. Pixel judgment belongs
-# to an independent image-capable reviewer. fe_reviewer owns it only after a real image-transport
-# and candidate-binding probe succeeds; otherwise use a separate Director/Codex image-capable
-# lane. DOM/a11y alone never passes pixels; provider failure leaves review incomplete.
-# Routing is also recorded in docs/agents/pi-delegation.md, per the two-places rule above.
-#
-# Three families now sit on the roster, so build and review are cross-family by CONSTRUCTION
-# rather than by the careful pairing OD-WAY-64 had to settle for. Escalation ladders by
-# availability and required capability live in docs/agents/pi-delegation.md; the one invariant
-# that survives every fall-through: A SLICE BUILT BY GLM MUST NOT THEN BE REVIEWED BY GLM, so a
-# dispatch that falls through to the GLM rung has to SAY SO in its report.
+# Builders and their default reviewers are different families. Any routing fallback must preserve
+# that invariant and be reported when it affects the selected route.
 # openrouter and fireworks are NOT valid substrates in this roster.
 #
 # ⚑ Two places, always: a substrate ruling lands in docs/agents/pi-delegation.md AND here —
@@ -134,7 +129,8 @@ agents:
       - subagent_remove
 
   - name: builder
-    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash  # OWNER RULING 2026-08-20 (OD-WAY-71, amends OD-WAY-64): DeepSeek-V4-Flash BUILDS. Escalation ladder deepseek -> luna -> glm lives in docs/agents/pi-delegation.md; a fall-through must be REPORTED, because a slice built by GLM must not then be reviewed by GLM. resolve_model splits at the FIRST '/', so the slashed model id survives.
+    model: openai-codex/gpt-6-luna  # owner routing: builds on Luna, reviews on GLM (OD-2026-10-07-SECURITY-LENS-SPLIT context)
+    thinking: xhigh
     color: "#22d3ee"
     purpose: Implement the plan exactly; report every changed file in the envelope.
     contract: agents/implementer.md
@@ -179,7 +175,7 @@ agents:
   # phase over adw_modules/quality.py. See SKILL.md hard rule 8.
 
   - name: reviewer
-    model: zai/glm-5.3-flash           # DEFAULT reviewer (owner 2026-08-28) — cross-family vs the DeepSeek builder; luna is the fallback rung and the reviewer whenever the build fell through to GLM. Ladder glm-5.3-flash -> luna; see docs/agents/pi-delegation.md.
+    model: zai/glm-5.3-flash           # owner routing: review on GLM, Luna fallback; different family from Luna builders.
     thinking: high
     color: "#fb7185"
     purpose: Confirm that what was built is what was asked for; change nothing.
@@ -198,7 +194,8 @@ agents:
       - write
 
   - name: fe_builder
-    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash  # OWNER RULING 2026-08-20 (OD-WAY-71): FE builds on DeepSeek too. fe_reviewer is GLM (2026-08-28), so build and review are different FAMILIES again, not merely different models. fe_builder is TEXT-ONLY - its self-check is the a11y tree via agent-browser; pixel judgment stays with fe_reviewer, which MUST remain a vision model.
+    model: openai-codex/gpt-6-luna  # owner routing: builds on Luna, reviews on GLM (OD-2026-10-07-SECURITY-LENS-SPLIT context)
+    thinking: xhigh
     color: "#34d399"
     purpose: Implement one FE/UI slice strictly to DESIGN.md tokens; self-verify rendered states via agent-browser.
     contract: agents/ui-implementer.md
@@ -234,7 +231,7 @@ agents:
       - write
 
   - name: documenter
-    model: openai-codex/gpt-5.6-luna    # codex OAuth; pinned explicitly
+    model: openai-codex/gpt-6-luna    # codex OAuth; pinned explicitly
     color: "#e879f9"
     purpose: Write up the change that was just made, from the diff; document only.
     # MOS runs NO contract-less writer into a public repo: minimal contract

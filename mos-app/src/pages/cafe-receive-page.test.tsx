@@ -6,6 +6,11 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
+const itemSettingsMocks = vi.hoisted(() => ({ list: vi.fn(), canManage: vi.fn() }))
+vi.mock('@/lib/db/cafe-item-settings', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/db/cafe-item-settings')>()
+  return { ...actual, listCafeItemSettings: itemSettingsMocks.list, canManageCafeItemSettings: itemSettingsMocks.canManage }
+})
 const streamMocks = vi.hoisted(() => {
   const branch = { id: 'branch-1', code: 'cafe-branch', name: 'Cafe Branch' }
   const kitchen = { branch, activity: 'kitchen' as const }
@@ -15,7 +20,7 @@ const streamMocks = vi.hoisted(() => {
     stream: kitchen as typeof kitchen | typeof bar | null, homeStream: kitchen as typeof kitchen | typeof bar | null,
     myStreamKeys: new Set(['branch-1|kitchen']), branchId: 'branch-1',
   }
-  return { kitchen, bar, catalog, resolve: vi.fn(async () => catalog), adopt: vi.fn(), setStream: vi.fn() }
+  return { branch, kitchen, bar, catalog, resolve: vi.fn(async () => catalog), adopt: vi.fn(), setStream: vi.fn() }
 })
 vi.mock('@/lib/use-cafe-stream', () => ({
   useCafeStream: () => ({ ...streamMocks.catalog, resolve: streamMocks.resolve, adopt: streamMocks.adopt, setStream: streamMocks.setStream }),
@@ -166,10 +171,15 @@ async function openLockStep() {
   return screen.findByRole('dialog', { name: /^Lock \d+ lines?\?$/ })
 }
 
+const setArrivalDate = (iso: string) => fireEvent.change(screen.getByLabelText('Open calendar'), { target: { value: iso } })
+
 beforeEach(() => {
   vi.clearAllMocks()
   keyMocks.key = 0
+  streamMocks.catalog.branches = [streamMocks.branch]
+  streamMocks.catalog.options = [streamMocks.kitchen, streamMocks.bar]
   streamMocks.catalog.stream = streamMocks.kitchen
+  streamMocks.catalog.branchId = streamMocks.branch.id
   streamMocks.catalog.homeStream = streamMocks.kitchen
   localStorage.clear()
   mockUseAuth.mockReturnValue(viewer(['member']))
@@ -178,11 +188,45 @@ beforeEach(() => {
   vi.mocked(listCafeReceipts).mockResolvedValue([])
   vi.mocked(canManageCafeReceiptIssues).mockResolvedValue(false)
   vi.mocked(countCafeReceiptIssuesNeedingPo).mockResolvedValue(0)
+  itemSettingsMocks.list.mockResolvedValue([{
+    id: 'item-setting', erpName: 'Synthetic item', mosName: 'Synthetic item', category: 'Kitchen',
+    kind: null, isActive: false, defaultUnitId: null, units: [],
+  }])
+  itemSettingsMocks.canManage.mockResolvedValue(false)
   mockDifferences.mockResolvedValue([])
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
 })
 
 describe('CafeReceivePage', () => {
+  it('explains the missing confirmed stock unit when Items has active set-up items but none is receivable', async () => {
+    mockItems.mockResolvedValue([])
+    itemSettingsMocks.list.mockResolvedValue([{
+      id: 'wip-1', erpName: 'Prepared sauce with roasted vegetables', mosName: 'Prepared sauce',
+      category: 'Kitchen', kind: 'WIP', isActive: true, defaultUnitId: 'unit-portion',
+      units: [{ id: 'unit-portion', name: 'porsi', isDefault: true, isShown: true, labelOrdinal: null, labelCount: 1 }],
+    }])
+    renderPage()
+
+    const empty = await screen.findByTestId('empty-state')
+    expect(empty).toHaveTextContent('1 item is set up')
+    expect(empty).toHaveTextContent('default unit confirmed as an ESB stock unit')
+    expect(empty).not.toHaveTextContent('not set up for this list')
+  })
+
+  it.each([false, true])('offers the Items setup link only to people who can manage items (canManage=%s)', async canManage => {
+    mockItems.mockResolvedValue([])
+    itemSettingsMocks.canManage.mockResolvedValue(canManage)
+    renderPage()
+
+    if (canManage) {
+      expect(await screen.findByRole('link', { name: 'Set up items' })).toHaveAttribute('href', '/cafe/items')
+    } else {
+      expect(await screen.findByText(/kitchen manager or an ops lead sets it up in Café items/i)).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'Set up items' })).not.toBeInTheDocument()
+      expect(document.querySelector('a[href="/cafe/items"]')).not.toBeInTheDocument()
+    }
+  })
+
   it('FR-1034 the Receipt issues link carries a badge with how many wait for a PO', async () => {
     vi.mocked(canManageCafeReceiptIssues).mockResolvedValue(true)
     vi.mocked(countCafeReceiptIssuesNeedingPo).mockResolvedValue(3)
@@ -234,8 +278,9 @@ describe('CafeReceivePage', () => {
   it('AC-1001 opens on the person’s own stream with every other stream selectable', async () => {
     renderPage()
     await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
+    expect(screen.getByRole('heading', { name: 'Cafe Branch · Kitchen' }).closest('.cafe-page-head')).toBeInTheDocument()
     expect(mockItems).toHaveBeenCalledWith(streamMocks.kitchen)
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     expect(screen.getByRole('option', { name: /Cafe Branch · Bar/ })).toBeInTheDocument()
   })
 
@@ -243,7 +288,7 @@ describe('CafeReceivePage', () => {
     streamMocks.catalog.stream = null
     streamMocks.catalog.homeStream = null
     renderPage()
-    expect(await screen.findByText('Choose the Café stream receiving this delivery.')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })).toBeInTheDocument()
     fireEvent.click(within(screen.getByRole('group', { name: /stream/i })).getAllByRole('button')[0])
     expect(streamMocks.setStream).toHaveBeenCalledTimes(1)
     expect(mockItems).not.toHaveBeenCalled()
@@ -252,7 +297,9 @@ describe('CafeReceivePage', () => {
   it('AC-1003 searching “bean” shows matching items with no typed PO number, ordered quantity, outstanding, price or location', async () => {
     const { container } = renderPage()
     await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
-    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'bean' } })
+    expect(screen.getByRole('button', { name: 'Switch kitchen' })).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Find an item' })).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item' }), { target: { value: 'bean' } })
     await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
 
     expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('')
@@ -261,7 +308,7 @@ describe('CafeReceivePage', () => {
     for (const word of ['ordered', 'outstanding', 'price', 'location']) {
       expect(page).not.toContain(word)
     }
-    expect(screen.getAllByRole('textbox').map(box => box.getAttribute('aria-label')))
+    expect(screen.getAllByRole('textbox').filter(box => box.getAttribute('inputmode') === 'decimal').map(box => box.getAttribute('aria-label')))
       .toEqual(['Received for Coffee bean'])
     expect(screen.queryByRole('textbox', { name: /po number/i })).toBeNull()
     expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveAttribute('inputmode', 'decimal')
@@ -286,9 +333,9 @@ describe('CafeReceivePage', () => {
     expect(screen.getByRole('textbox', { name: 'Received for Fresh milk' })).toHaveValue('')
     expect(screen.getByRole('textbox', { name: 'Received for Whole-grain pastry dough prepared for morning service' })).toHaveValue('')
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item by name' }), { target: { value: 'pastry' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item' }), { target: { value: 'pastry' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Whole-grain pastry dough prepared for morning service' }), { target: { value: '6' } })
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item by name' }), { target: { value: '' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item' }), { target: { value: '' } })
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '4' } })
@@ -406,12 +453,30 @@ describe('CafeReceivePage', () => {
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: /^Choose from 1 open PO/ }))
     fireEvent.click(screen.getByRole('button', { name: /PO-2001/ }))
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item by name' }), { target: { value: 'lemon' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item' }), { target: { value: 'lemon' } })
     expect(screen.getAllByRole('textbox', { name: /^Received for / }).map(box => box.getAttribute('aria-label')))
       .toEqual(['Received for Lemon lokal'])
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item by name' }), { target: { value: 'item 1' } })
-    expect(within(screen.getByRole('list', { name: 'On PO-2001' })).getAllByRole('textbox').map(box => box.getAttribute('aria-label')))
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item' }), { target: { value: 'item 1' } })
+    expect(within(screen.getByRole('region', { name: 'On PO-2001' })).getAllByRole('textbox').map(box => box.getAttribute('aria-label')))
       .toEqual(['Received for Long PO item 10', 'Received for Long PO item 11', 'Received for Long PO item 12', 'Received for Long PO item 13', 'Received for Long PO item 14'])
+  })
+
+  it('Issue 1518 a picked PO keeps the row unit and names its different purchase unit', async () => {
+    poMocks.list.mockResolvedValue({
+      ...TWO_PO_CACHE,
+      purchaseOrders: [{
+        ...TWO_PO_CACHE.purchaseOrders[0],
+        items: [{ itemUnitId: 'unit-bag', itemName: 'Coffee bean', unitName: 'bag 1 kg' }],
+      }],
+    } as never)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose from 1 open PO' }))
+    fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
+
+    const bean = screen.getByRole('group', { name: /Coffee bean/ })
+    expect(within(bean).getByText('PO lists: bag 1 kg')).toBeInTheDocument()
+    expect(bean.querySelector('.cafe-count__unit')).toHaveTextContent('kg')
+    expect(within(screen.getByRole('group', { name: /Fresh milk/ })).queryByText(/PO lists:/)).toBeNull()
   })
 
   it('Issue 1443 a picked PO shows its number, supplier and date over its own rows, apart from the other items', async () => {
@@ -423,10 +488,10 @@ describe('CafeReceivePage', () => {
     const picked = screen.getByRole('group', { name: /^On PO-1043/ })
     expect(picked).toHaveTextContent('Sample produce supplier')
     expect(picked).toHaveTextContent('Sun 4 Oct')
-    const onPo = screen.getByRole('list', { name: 'On PO-1043' })
+    const onPo = screen.getByRole('region', { name: 'On PO-1043' })
     expect(within(onPo).getAllByRole('textbox').map(box => box.getAttribute('aria-label')))
       .toEqual(['Received for Coffee bean', 'Received for Fresh milk'])
-    expect(within(screen.getByRole('list', { name: 'Not on this PO' })).getAllByRole('textbox').map(box => box.getAttribute('aria-label')))
+    expect(within(screen.getByRole('region', { name: 'Not on this PO' })).getAllByRole('textbox').map(box => box.getAttribute('aria-label')))
       .toEqual(['Received for Whole-grain pastry dough prepared for morning service'])
   })
 
@@ -439,12 +504,12 @@ describe('CafeReceivePage', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '4' } })
     fireEvent.click(screen.getByRole('button', { name: 'Receive without a PO' }))
     expect(screen.queryByRole('group', { name: /^On PO-1043/ })).toBeNull()
-    expect(screen.queryByRole('list', { name: 'On PO-1043' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'On PO-1043' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Choose from 2 open POs' })).toHaveFocus()
     expect(screen.getByRole('textbox', { name: 'Received for Fresh milk' })).toHaveValue('4')
   })
 
-  it('Issue 1443 names the PO lines that have no MOS product detail', async () => {
+  it('Issue 1518 says PO lines with a missing item or stream unit are not receivable here', async () => {
     mockItems.mockResolvedValue(PICKER_ITEMS)
     poMocks.list.mockResolvedValue({
       ...TWO_PO_CACHE,
@@ -460,7 +525,39 @@ describe('CafeReceivePage', () => {
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: /^Choose from 1 open PO/ }))
     fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
-    expect(screen.getByRole('group', { name: /^On PO-1043/ })).toHaveTextContent('Not in MOS: Vanilla syrup 700 ml, Paper straws')
+    expect(screen.getByRole('group', { name: /^On PO-1043/ })).toHaveTextContent('Not receivable here: Vanilla syrup 700 ml, Paper straws')
+  })
+
+  it('Issue 1518 remembers each branch’s picked PO when switching away and back', async () => {
+    const otherBranch = { id: 'branch-2', code: 'other-cafe', name: 'Second Cafe Branch' }
+    const otherKitchen = { branch: otherBranch, activity: 'kitchen' as const }
+    const otherPo = { ...TWO_PO_CACHE.purchaseOrders[0], poNumber: 'PO-2043' }
+    streamMocks.catalog.branches = [streamMocks.branch, otherBranch]
+    streamMocks.catalog.options = [streamMocks.kitchen, streamMocks.bar, otherKitchen]
+    poMocks.list.mockImplementation(branchId => Promise.resolve({
+      ...TWO_PO_CACHE,
+      purchaseOrders: [branchId === 'branch-1' ? TWO_PO_CACHE.purchaseOrders[0] : otherPo],
+    }) as never)
+    const view = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose from 1 open PO' }))
+    fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Switch kitchen' }))
+    fireEvent.click(screen.getByRole('option', { name: /Second Cafe Branch · Kitchen/ }))
+    await waitFor(() => expect(streamMocks.setStream).toHaveBeenCalledWith(otherKitchen))
+    streamMocks.catalog.stream = otherKitchen
+    streamMocks.catalog.branchId = otherBranch.id
+    view.rerender(<MemoryRouter initialEntries={['/cafe/receive']}><I18nProvider><CafeReceivePage /></I18nProvider></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose from 1 open PO' }))
+    fireEvent.click(screen.getByRole('button', { name: /PO-2043/ }))
+
+    fireEvent.click(screen.getByRole('button', { name: /Back to/ }))
+    streamMocks.catalog.stream = streamMocks.kitchen
+    streamMocks.catalog.branchId = streamMocks.branch.id
+    view.rerender(<MemoryRouter initialEntries={['/cafe/receive']}><I18nProvider><CafeReceivePage /></I18nProvider></MemoryRouter>)
+
+    expect(await screen.findByRole('group', { name: /^On PO-1043/ })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /^On PO-2043/ })).toBeNull()
   })
 
   it('FR-1007 picking a PO changes no unit and starts no draft', async () => {
@@ -472,8 +569,8 @@ describe('CafeReceivePage', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^Choose from 1 open PO/ }))
     fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
     const bean = screen.getByRole('textbox', { name: 'Received for Coffee bean' })
-    expect(bean.closest('li')).toHaveTextContent(/kg/)
-    expect(bean.closest('li')).not.toHaveTextContent(/bag/)
+    expect(bean.closest('.cafe-count__quantity-control')).toHaveTextContent('kg')
+    expect(bean.closest('.cafe-capture-row')).toHaveTextContent('PO lists: bag')
     expect(screen.queryByRole('button', { name: 'Discard draft' })).toBeNull()
     expect(Object.keys(localStorage).filter(key => key.includes('receive'))).toEqual([])
   })
@@ -564,7 +661,7 @@ describe('CafeReceivePage', () => {
     mockSubmit.mockResolvedValue(submitResult('receipt-1', [receiptLine({ unit_name: 'bag' })]))
     renderPage()
     const bean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
-    expect(within(screen.getAllByRole('listitem')[1]).queryByRole('button', { name: 'Change unit' })).toBeNull()
+    expect(within(screen.getByRole('group', { name: /Fresh milk/ })).queryByRole('button', { name: 'Change unit' })).toBeNull()
     fireEvent.change(bean, { target: { value: '2,5' } })
     fireEvent.click(screen.getByRole('button', { name: 'Change unit' }))
     fireEvent.click(screen.getByRole('radio', { name: 'bag' }))
@@ -735,15 +832,25 @@ describe('CafeReceivePage', () => {
 
   it('FR-1004 a shift member may choose today or yesterday; an ops lead may backdate further', async () => {
     const { unmount } = renderPage()
-    const date = await screen.findByLabelText('Arrival date')
-    expect(date).toHaveAttribute('min', '2026-10-05')
-    expect(date).toHaveAttribute('max', '2026-10-06')
+    await screen.findByLabelText('Arrival date')
+    expect(screen.getByLabelText('Open calendar')).toHaveAttribute('min', '2026-10-05')
+    expect(screen.getByLabelText('Open calendar')).toHaveAttribute('max', '2026-10-06')
     unmount()
     mockUseAuth.mockReturnValue(viewer(['member', 'ops_lead']))
     renderPage()
-    const leadDate = await screen.findByLabelText('Arrival date')
-    expect(leadDate).not.toHaveAttribute('min')
-    expect(leadDate).toHaveAttribute('max', '2026-10-06')
+    await screen.findByLabelText('Arrival date')
+    expect(screen.getByLabelText('Open calendar')).not.toHaveAttribute('min')
+    expect(screen.getByLabelText('Open calendar')).toHaveAttribute('max', '2026-10-06')
+  })
+
+  it('keeps an invalid typed arrival date from enabling Lock counts', async () => {
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '2' } })
+    const date = screen.getByLabelText('Arrival date')
+    fireEvent.change(date, { target: { value: '35/13/2026' } })
+    fireEvent.blur(date)
+    expect(screen.getByRole('button', { name: 'Lock counts' })).toBeDisabled()
+    expect(screen.getByRole('alert')).toHaveTextContent('That date doesn\'t exist')
   })
 
   it('AC-1006 an offline draft survives reload and reconnect never submits it automatically', async () => {
@@ -843,7 +950,7 @@ describe('CafeReceivePage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Send for review' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Receive another delivery' }))
 
-    expect(await screen.findByLabelText('Arrival date')).toHaveValue('2026-10-06')
+    expect(await screen.findByLabelText('Arrival date')).toHaveValue('6 Oct 2026')
     expect(screen.getByRole('textbox', { name: 'Received for Fresh milk' })).toHaveValue('5')
   })
 
@@ -851,14 +958,14 @@ describe('CafeReceivePage', () => {
     renderPage()
     const bean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
     fireEvent.change(bean, { target: { value: '2.5' } })
-    fireEvent.change(screen.getByLabelText('Arrival date'), { target: { value: '2026-10-05' } })
+    setArrivalDate('2026-10-05')
     const yesterdayBean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
     expect(yesterdayBean).toHaveValue('')
     fireEvent.change(yesterdayBean, { target: { value: '1' } })
 
-    fireEvent.change(screen.getByLabelText('Arrival date'), { target: { value: '2026-10-06' } })
+    setArrivalDate('2026-10-06')
     expect(await screen.findByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('2.5')
-    fireEvent.change(screen.getByLabelText('Arrival date'), { target: { value: '2026-10-05' } })
+    setArrivalDate('2026-10-05')
     expect(await screen.findByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('1')
     expect(mockSubmit).not.toHaveBeenCalled()
   })
@@ -866,7 +973,7 @@ describe('CafeReceivePage', () => {
   it('AC-1006 warns before switching streams and restores the saved draft only on its original stream', async () => {
     const view = renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Switch kitchen' }))
     fireEvent.click(screen.getByRole('option', { name: /Cafe Branch · Bar/ }))
     const dialog = await screen.findByRole('dialog', { name: 'Switch streams?' })
     expect(within(dialog).getByText(/does not send it/)).toBeInTheDocument()
