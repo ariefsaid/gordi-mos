@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# One-command staging deploy: preflight, verified backup, confirmation, database push, edge deploy, promotion PR.
+# One-command staging deploy: preflight, verified backup, confirmation, database push, edge deploy, direct promotion.
 #
-#   bash scripts/deploy-staging.sh [--dry-run] [--yes] [--no-pr]
+#   bash scripts/deploy-staging.sh [--dry-run] [--yes] [--no-promote]
 #
-#   --dry-run  list pending migrations and stop without a dump or push
-#   --yes      skip the y/N confirmation (default answer is No)
-#   --no-pr    do not open the main -> staging promotion PR
+#   --dry-run     list pending migrations and stop without a dump or push
+#   --yes         skip the y/N confirmation (default answer is No)
+#   --no-promote  do not push origin/main to staging (--no-pr is an alias)
 #
 # Before pending migrations are pushed, a custom-format backup is verified with pg_restore --list.
 # Its directory defaults to ~/backups/gordi-mos-staging/ and can be overridden with
@@ -24,17 +24,16 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MIG_DIR="${MIGRATIONS_DIR:-$ROOT/supabase/migrations}"
-GH_POST="${GH_POST:-$ROOT/scripts/gh-post.sh}"
 PATH="$PATH:$HOME/.local/bin:/opt/homebrew/opt/libpq/bin"
 # shellcheck source=lib/ops-common.sh
 . "$ROOT/scripts/lib/ops-common.sh"
 
-DRY=0 YES=0 PR=1
+DRY=0 YES=0 PROMOTE=1
 for a in "$@"; do
   case "$a" in
     --dry-run) DRY=1 ;;
     --yes) YES=1 ;;
-    --no-pr) PR=0 ;;
+    --no-promote|--no-pr) PROMOTE=0 ;;
     -h|--help) sed -n 2,13p "$0"; exit 0 ;;
     *) printf 'deploy-staging: unknown option %s\n' "$a" >&2; exit 2 ;;
   esac
@@ -45,10 +44,9 @@ say() { printf '%s\n' "$*"; }
 
 URL=""
 
-errf="$(mktemp)"; wt=""
+errf="$(mktemp)"
 cleanup() {
   rm -f "$errf" "$errf.body" "$errf.headers"
-  if [ -n "$wt" ]; then git -C "$ROOT" worktree remove --force "$wt" >/dev/null 2>&1 || true; fi
 }
 trap cleanup EXIT
 
@@ -57,7 +55,7 @@ for t in op-get.sh supabase psql pg_dump pg_restore git curl; do command -v "$t"
 # ── Where the connection string lives (names only; the values stay in the local file).
 envfile="${STAGING_OP_ENV_FILE:-}"
 if [ -z "$envfile" ]; then
-  main_wt="$(git -C "$ROOT" worktree list --porcelain | awk '$1=="worktree"{print $2; exit}')"
+  main_wt="$(git -C "$ROOT" worktree list --porcelain | awk '!f && $1=="worktree"{print $2; f=1}')"
   for d in "$ROOT" "$main_wt"; do [ -f "$d/supabase/op.staging.env" ] && { envfile="$d/supabase/op.staging.env"; break; }; done
 fi
 [ -n "$envfile" ] && [ -f "$envfile" ] || die "supabase/op.staging.env not found — copy supabase/op.staging.env.example and fill it in"
@@ -83,7 +81,7 @@ sqlq() { local o; if ! o="$(psql "$CONN" -X -At -v ON_ERROR_STOP=1 -c "$1" 2>"$e
 
 say "Staging deploy from $(git -C "$ROOT" branch --show-current) @ $(git -C "$ROOT" rev-parse --short HEAD)"
 
-# ── 1. Source: deploy exactly origin/main, the content the promotion PR carries.
+# ── 1. Source: deploy exactly origin/main, the commit promoted directly to staging.
 git -C "$ROOT" fetch -q origin main staging || die "git fetch failed"
 [ "$(git -C "$ROOT" branch --show-current)" = main ] || die "run this from a checkout of main"
 om="$(git -C "$ROOT" rev-parse --verify -q refs/remotes/origin/main)" || die "origin/main not found"
@@ -353,19 +351,21 @@ if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
   unset EDGE_ACCESS_TOKEN
 fi
 
-# ── 9. Promotion PR: gh-post accepts a staging PR only from a checkout on branch main.
-if [ "$PR" = 1 ]; then
-  if [ "$(git -C "$ROOT" rev-list --count origin/staging..origin/main)" = 0 ]; then
-    say "staging already contains main: no promotion PR needed."
+# ── 9. Promote the deployed origin/main commit with a fast-forward-only push.
+if [ "$PROMOTE" = 1 ]; then
+  staging_sha="$(git -C "$ROOT" rev-parse --verify -q refs/remotes/origin/staging)" || die "origin/staging not found"
+  if [ "$staging_sha" = "$om" ]; then
+    say "staging already contains origin/main: no promotion needed."
   else
-    body="Promotes main to staging."$'\n\n'
-    if [ "${#pending[@]}" -gt 0 ]; then body+="Migrations applied:"$'\n'; for f in "${pending[@]}"; do body+="- $f"$'\n'; done
-    else body+="No migrations were pending."$'\n'; fi
-    wt="$(mktemp -d)"
-    git -C "$ROOT" worktree add -q --detach "$wt" origin/main
-    git -C "$wt" checkout -q --ignore-other-worktrees main
-    [ "$(git -C "$wt" branch --show-current)" = main ] || die "temp worktree is not on main"
-    (cd "$wt" && bash "$GH_POST" pr create --base staging --title "Promote main to staging" --body "$body")
+    git -C "$ROOT" merge-base --is-ancestor "$staging_sha" "$om" || \
+      die "origin/staging is not an ancestor of origin/main; refusing to promote"
+    git -C "$ROOT" push origin "$om:refs/heads/staging" || die "fast-forward push to staging failed"
+    say "Pushed origin/main sha $om to staging."
+    remote_staging="$(git -C "$ROOT" ls-remote --exit-code origin refs/heads/staging)" || \
+      die "could not confirm origin/staging after promotion"
+    remote_sha="${remote_staging%%[[:space:]]*}"
+    [ "$remote_sha" = "$om" ] || die "origin/staging does not match the promoted commit"
+    say "Confirmed origin/staging at $remote_sha."
   fi
 fi
 say "Staging deploy complete."
