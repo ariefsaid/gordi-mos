@@ -6,9 +6,8 @@ import { lazy, useState, type ComponentProps, type ComponentType, type LazyExoti
 // somewhere to hook in. `withSuspense` wraps each split element in the app's one sanctioned
 // loading grammar (LoadingShell), so no route invents its own spinner.
 //
-// React.lazy caches a rejected promise. Drop the shared lazy after failure so an explicit remount
-// gets a fresh wrapper; successful imports remain shared across mounts, including React's own
-// retry of a first mount that suspended.
+// Share the lazy wrapper across React's retries of a suspended first mount, including rejection.
+// Failed page downloads reach the error boundary; its Retry starts a new document.
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- mirrors React.lazy's own type parameter */
 type Preloadable<T extends ComponentType<any>> = ComponentType<ComponentProps<T>> & {
@@ -29,12 +28,7 @@ export function lazyPage<T extends ComponentType<any>>(
     })
   }
   const sharedLazy = (): LazyExoticComponent<T> => {
-    shared ??= lazy(() =>
-      cachingLoader().catch((error: unknown) => {
-        shared = undefined
-        throw error
-      }),
-    )
+    shared ??= lazy(cachingLoader)
     return shared
   }
 
