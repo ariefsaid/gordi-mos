@@ -5,7 +5,7 @@
 import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
 import type { Translate } from '@/i18n/use-t'
 import { formatIDR } from '@/lib/format/money'
-import { formatSignedPercent } from '@/lib/format/percent'
+import { formatSignedPercent, formatSignedPoints } from '@/lib/format/percent'
 import { trailingSum } from '@/lib/trailing-window'
 
 // ── IDR formatting ────────────────────────────────────────────────────────────────
@@ -68,4 +68,15 @@ export function signedChange(frac: number): DeltaDisplay {
   const text = formatSignedPercent(frac)
   const tone: DeltaDisplay['tone'] = text.startsWith('+') ? 'success' : text.startsWith('\u2212') ? 'destructive' : 'neutral'
   return { text, tone }
+}
+
+export function moneyKpiDelta(value: number | null, t: Translate, points = false) {
+  if (value === null) return { text: t('money.delta.noComparison'), tone: 'neutral' as const, dot: false }
+  const change = signedChange(value)
+  const arrow = value > 0 ? '↗ ' : value < 0 ? '↘ ' : '→ '
+  return {
+    text: `${arrow}${points ? t('money.table.points', { value: formatSignedPoints(value) }) : change.text}`,
+    tone: change.tone,
+    dot: false,
+  }
 }

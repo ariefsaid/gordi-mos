@@ -113,7 +113,7 @@ describe('MoneyPage — what each tier receives', () => {
     expect(mockRev).toHaveBeenCalledWith({ sinceDays: 120 })
     expect(mockMarg).not.toHaveBeenCalled()
     const headers = within(table()).getAllByRole('columnheader').map((h) => h.textContent!.replace(/[↑↓]/g, ''))
-    expect(headers).toEqual(['Branch', 'Revenue', 'vs previous period', 'Latest day', 'vs same day last week'])
+    expect(headers).toEqual(['Branch', 'Revenue', 'vs previous period', 'Latest day', 'vs same day last week', 'Trend'])
     expect(screen.queryByText(/margin|COGS|recipe/i)).toBeNull()
   })
 
@@ -122,7 +122,7 @@ describe('MoneyPage — what each tier receives', () => {
     await screen.findByRole('table')
     expect(mockMarg).toHaveBeenCalledWith({ sinceDays: 120 })
     const headers = within(table()).getAllByRole('columnheader').map((h) => h.textContent!.replace(/[↑↓]/g, ''))
-    expect(headers.slice(5)).toEqual(['Margin % (interim)', 'COGS vs budget', 'Recipe vs stock cost'])
+    expect(headers.slice(5)).toEqual(['Margin % (interim)', 'COGS vs budget', 'Recipe vs stock cost', 'Trend'])
     expect(screen.getByText('Margin is interim: from stock movement, not yet reconciled.')).toBeInTheDocument()
     expect(screen.getByText('Margin covers POS branches only.')).toBeInTheDocument()
   })

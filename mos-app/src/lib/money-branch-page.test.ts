@@ -44,6 +44,7 @@ describe('buildBranchPage', () => {
     expect(page.days.map((d) => d.date)).toEqual([6, 5, 4, 3, 2, 1, 0].map(day))
     expect(page.days[6]).toEqual({ date: LATEST, value: 1_000_000, compare: 1_070_000 })
     expect(page.total).toBe(page.days.reduce((s, d) => s + (d.value ?? 0), 0))
+    expect(page.vsPrevious).toBeCloseTo(7_210_000 / 7_700_000 - 1, 10)
     expect(page.margin).toBeUndefined()
   })
 
@@ -63,6 +64,7 @@ describe('buildBranchPage', () => {
   it('a margin viewer gets the branch margin for the period', () => {
     const page = buildBranchPage(ROWS, MARGIN, 'ghq', 7)!
     expect(page.margin!.pct).toBeCloseTo(0.6, 10)
+    expect(page.days[0].marginPct).toBeCloseTo(0.6, 10)
     expect(page.margin!.budgetBasis).toEqual({ cogsShare: 0.4, budgetShare: 0.35 })
   })
 

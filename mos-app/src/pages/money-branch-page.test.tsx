@@ -162,7 +162,7 @@ describe('MoneyBranchPage — what each tier receives', () => {
     expect(await screen.findByRole('heading', { name: 'Margin, last 7 days' })).toBeInTheDocument()
     expect(screen.getByText('COGS 41,2% of revenue against a 34,0% budget: 7,2 points over.')).toBeInTheDocument()
     expect(screen.getByText('58,8%')).toBeInTheDocument()
-    expect(screen.getByText('Recipe vs stock cost', { selector: 'dt' })).toBeInTheDocument()
+    expect(screen.getByText('Recipe vs stock cost', { selector: '.kpi-tile-label' })).toBeInTheDocument()
   })
 
   it('COGS on its budget reads as on budget, not "0,0 points under"', async () => {

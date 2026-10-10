@@ -6,7 +6,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { translateFor } from '@/i18n/use-t'
-import { formatIDRCompact, trailingWindow, formatDelta } from './sales-dashboard'
+import { formatIDRCompact, moneyKpiDelta, trailingWindow, formatDelta } from './sales-dashboard'
 
 function row(overrides: Partial<SalesDailyRevenueRow>): SalesDailyRevenueRow {
   return {
@@ -90,6 +90,20 @@ describe('trailingWindow', () => {
     ]
     const result = trailingWindow(rows, '2026-06-30', 7)
     expect(result.current).toBe(1_000_000 + 4_500_000)
+  })
+})
+
+describe('moneyKpiDelta', () => {
+  const en = translateFor('en')
+  const id = translateFor('id')
+
+  it('pairs signed changes with direction and matching tone', () => {
+    expect(moneyKpiDelta(-0.1, en)).toMatchObject({ text: '↘ −10,0%', tone: 'destructive', dot: false })
+    expect(moneyKpiDelta(0.072, en, true).text).toBe('↗ +7,2 pts')
+  })
+
+  it('localizes missing comparisons instead of showing zero', () => {
+    expect(moneyKpiDelta(null, id).text).toBe('tak ada pembanding')
   })
 })
 

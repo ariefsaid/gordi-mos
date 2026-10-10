@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
 import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
-import { buildBranchTable, readMoneyView, withMoneyView } from './money-branch-table'
+import { buildBranchTable, moneyHeadline, readMoneyView, sparklinePoints, withMoneyView } from './money-branch-table'
+import { translateFor } from '@/i18n/use-t'
 
 describe('readMoneyView — period and sort from the URL', () => {
   const read = (qs: string, canSeeMargin = true) => readMoneyView(new URLSearchParams(qs), { canSeeMargin })
@@ -130,5 +131,17 @@ describe('buildBranchTable', () => {
     expect(table.branches.find((r) => r.code === 'beta')!.margin).toEqual({ pct: null, cogsVsBudget: null, coverage: null, budgetBasis: null })
     expect(table.company.margin!.pct).toBeCloseTo(0.65, 10)
     expect(table.b2b[0].margin).toBeNull()
+  })
+
+  it('builds a plain headline sentence, picks the largest POS mover, and names missing branches', () => {
+    const table = buildBranchTable(revenueRows(), null, 7)!
+    const headline = moneyHeadline(table, 7, translateFor('en'))
+    expect(headline.sentence).toBe('Over the last 7 days, revenue was Rp 31 jt (+67,6% vs the previous period).')
+    expect(headline.mover).toMatchObject({ code: 'alpha', name: 'Alpha', vsPrevious: 1 })
+    expect(headline.missing.map((row) => row.name)).toEqual(['Beta'])
+  })
+
+  it('maps received values to normalized sparkline points and leaves gaps', () => {
+    expect(sparklinePoints([0, 5, null, 10])).toEqual({ points: '0,22 21.3,12 64,2', end: { x: 64, y: 2 } })
   })
 })

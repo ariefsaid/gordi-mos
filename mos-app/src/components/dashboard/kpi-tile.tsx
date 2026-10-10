@@ -27,6 +27,7 @@ export interface KPITileProps {
   value: string
   delta?: KPITileDelta
   sub?: string
+  graphic?: ReactNode
   state?: 'ready' | 'loading' | 'empty'
   /** optional "?" tooltip text */
   help?: string
@@ -58,6 +59,7 @@ export function KPITile({
   value,
   delta,
   sub,
+  graphic,
   state = 'ready',
   help,
   onClick,
@@ -102,6 +104,7 @@ export function KPITile({
         </Pill>
       )}
       {sub && <span className="kpi-tile-sub">{sub}</span>}
+      {graphic}
       {(basis || dq || asOf) && (
         <span className="kpi-tile-foot">
           {basis && <BasisChip label={basis.label} />}
