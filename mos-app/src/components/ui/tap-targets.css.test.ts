@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const buttonCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Button.css'), 'utf8')
+const setPasswordFormTsx = readFileSync(resolve(process.cwd(), 'src/auth/set-password-form.tsx'), 'utf8')
 const segmentedTrackCss = readFileSync(resolve(process.cwd(), 'src/styles/segmented-track.css'), 'utf8')
 const branchTableCss = readFileSync(resolve(process.cwd(), 'src/components/money/branch-table.css'), 'utf8')
 const textInputCss = readFileSync(resolve(process.cwd(), 'src/components/ui/TextInput.css'), 'utf8')
@@ -350,5 +351,24 @@ describe('B-i: phone tap-target markers are applied at the inline/Tailwind touch
   it('auth-card marker (ticket 403): the shared AuthCard carries the class every auth page renders through)', () => {
     const shellTsx = readFileSync(resolve(process.cwd(), 'src/auth/auth-shell.tsx'), 'utf8')
     expect(shellTsx).toMatch(/className="auth-card /)
+  })
+})
+
+describe('issue 1677: set-password controls use shared phone tap targets', () => {
+  it('raises both password fields and the verification-code field with the shared phone floor', () => {
+    expect(setPasswordFormTsx).toMatch(/id=\{newPasswordId\}[\s\S]*?className="[^"]*tap-target-phone/)
+    expect(setPasswordFormTsx).toMatch(/id=\{confirmPasswordId\}[\s\S]*?className="[^"]*tap-target-phone/)
+    expect(setPasswordFormTsx).toMatch(/id=\{verificationCodeId\}[\s\S]*?className="[^"]*tap-target-phone/)
+  })
+
+  it('raises Save password with the shared phone floor while retaining its desktop height', () => {
+    expect(setPasswordFormTsx).toMatch(/type="submit"[\s\S]*?className="[^"]*tap-target-phone/)
+    expect(setPasswordFormTsx).toMatch(/type="submit"[\s\S]*?style=\{\{[\s\S]*?height:\s*32/)
+  })
+
+  it('gives each reveal icon a shared 44×44 phone target', () => {
+    expect(setPasswordFormTsx).toMatch(/className="absolute top-0 right-0 h-full px-2 tap-target-phone--icon/)
+    expect(mediaBody(buttonCss, '@media (max-width: 767.98px)'))
+      .toMatch(/\.tap-target-phone--icon\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px/)
   })
 })
