@@ -187,7 +187,7 @@ export function DayRevenueChart({ days, selected, onSelect, label, mode = 'reven
             />
             <Area dataKey="value" type="linear" fill="var(--primary)" fillOpacity={0.1} stroke="none" connectNulls={false} isAnimationActive={false} hide={!isMargin} />
             <Line dataKey="value" type="linear" stroke="var(--primary)" strokeWidth={2} dot={false} activeDot={false} connectNulls={false} isAnimationActive={false} hide={!isMargin} />
-            {isMargin && budget !== null && <ReferenceLine y={budget} stroke="var(--text-light)" strokeWidth={1} label={{ value: `${t('money.chart.legend.budget')} ${formatPercent(budget, 0)}`, position: 'insideTopRight', fill: 'var(--muted-foreground)', fontSize: 12 }} />}
+            {isMargin && budget !== null && <ReferenceLine y={budget} stroke="var(--text-light)" strokeWidth={1} label={{ value: `${t('money.chart.legend.budget')} ${formatPercent(budget, 0)}`, position: 'insideTopRight', fill: 'var(--muted-foreground)', fontSize: 'var(--font-size-label)' }} />}
           </ComposedChart>
         </ResponsiveContainer>
       </div>

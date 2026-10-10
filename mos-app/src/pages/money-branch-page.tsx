@@ -77,7 +77,7 @@ function MarginPanel({ margin, period }: { margin: MarginFigures; period: MoneyP
       {basis && bullet && <div className="flex items-center gap-3">
         <span className="relative block h-2.5 flex-1 rounded-full bg-secondary" role="meter" aria-label={t('money.branch.bullet.label')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(bullet.fill)}>
           <span className="block h-full rounded-full bg-primary" style={{ width: `${bullet.fill}%` }} />
-          <span className="absolute -top-1 h-[18px] border-l-2" aria-hidden="true" style={{ left: `${bullet.marker}%`, borderColor: 'var(--text-tertiary)' }} />
+          <span className="absolute -top-1 h-[18px] w-0.5 -translate-x-1/2" aria-hidden="true" style={{ left: `${bullet.marker}%`, background: 'var(--text-tertiary)' }} />
         </span>
         <strong className="whitespace-nowrap tabular">{t('money.table.points', { value: formatSignedPoints(margin.cogsVsBudget ?? 0) })}</strong>
       </div>}

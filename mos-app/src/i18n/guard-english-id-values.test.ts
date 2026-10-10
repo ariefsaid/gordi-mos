@@ -22,6 +22,7 @@ import { messages } from './messages'
  */
 const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'common.docTitle', // ${page} — Gordi MOS
+  'money.overview.moverSuffix', //  (${change}). — punctuation only
   'locale.en', // English — the language's own name in its own language
   'locale.id', // Bahasa Indonesia
   'pendingBills.form.multiTotal', // Total — the same word in Indonesian
