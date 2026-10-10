@@ -23,6 +23,8 @@ import * as kitchenItemList from '@/lib/kitchen-item-list'
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 
+const mockFetchLatestItemLogDates = vi.hoisted(() => vi.fn())
+
 vi.mock('@/lib/db/kitchen-logs', async () => {
   // `streamCatalogFrom` is pure catalog arithmetic, not IO — the page uses it to build the
   // stream picker out of the loaded pairs, so the real one is kept and only the reads
@@ -36,6 +38,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     fetchPlanMap: vi.fn(),
     fetchStockMap: vi.fn(),
     fetchActualsMap: vi.fn(),
+    fetchLatestItemLogDates: mockFetchLatestItemLogDates,
     listStreamPairs: vi.fn(),
     listCafeDestinations: vi.fn(),
     resolveKitchenBuId: vi.fn(),
@@ -309,6 +312,7 @@ beforeEach(() => {
   mockFetchPlanMap.mockResolvedValue(PLAN_MAP)
   mockFetchStockMap.mockResolvedValue(STOCK_MAP)
   mockFetchActualsMap.mockResolvedValue({})
+  mockFetchLatestItemLogDates.mockResolvedValue({})
   mockResolveKitchenBuId.mockResolvedValue(BU_ID)
   // Default: online
   Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true })
@@ -2225,6 +2229,46 @@ describe('OD-K-5: Planned/Off-plan group split (desktop)', () => {
     expect(within(offplanHead).getByText('1')).toBeInTheDocument()
     expect(screen.queryByText('Enter the amount produced')).not.toBeInTheDocument()
     expect(screen.queryByText('Sambal Matah')).toBeNull()
+  })
+
+  it('orders planned items first, then recent off-plan logs newest-first, then unlogged names', async () => {
+    setDesktopMatchMedia(true)
+    mockListCaptureFormItems.mockResolvedValue([
+      { id: 'plan-alpha', name: 'Alpha planned', category: null, units: [{ id: 'u1', name: 'each', is_default: true }] },
+      { id: 'never-bacon', name: 'Bacon', category: null, units: [{ id: 'u2', name: 'each', is_default: true }] },
+      { id: 'old-curry', name: 'Curry', category: null, units: [{ id: 'u3', name: 'each', is_default: true }] },
+      { id: 'second-rice', name: 'Rice', category: null, units: [{ id: 'u4', name: 'each', is_default: true }] },
+      { id: 'new-tostada', name: 'Tostada', category: null, units: [{ id: 'u5', name: 'each', is_default: true }] },
+      { id: 'never-zucchini', name: 'Zucchini', category: null, units: [{ id: 'u6', name: 'each', is_default: true }] },
+      { id: 'plan-zulu', name: 'Zulu planned', category: null, units: [{ id: 'u7', name: 'each', is_default: true }] },
+    ])
+    mockFetchPlanMap.mockResolvedValue({
+      'plan-alpha': { [PRODUCE_KEY]: 1 },
+      'plan-zulu': { [PRODUCE_KEY]: 1 },
+    })
+    mockFetchLatestItemLogDates.mockResolvedValue({
+      'old-curry': '2026-10-10T10:00:00Z',
+      'second-rice': '2026-10-11T10:00:00Z',
+      'new-tostada': '2026-10-12T10:00:00Z',
+    })
+    await renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /expand not planned today/i }))
+
+    const content = screen.getByRole('main').textContent ?? ''
+    const order = ['Alpha planned', 'Zulu planned', 'Tostada', 'Rice', 'Curry', 'Bacon', 'Zucchini']
+      .map(name => content.indexOf(name))
+    expect(order.every(index => index >= 0)).toBe(true)
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+  })
+
+  it('keeps capture available when the optional recent-log read fails', async () => {
+    setDesktopMatchMedia(true)
+    mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
+    mockFetchLatestItemLogDates.mockRejectedValue(new Error('history read failed'))
+    await renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /expand not planned today/i }))
+
+    expect(screen.getByRole('spinbutton', { name: /quantity produced for sambal matah/i })).toBeInTheDocument()
   })
 
   it('omits a zero-row group and opens Off-plan when Planned is empty', async () => {
