@@ -15,11 +15,13 @@ export function CafeCountReviewQueue({
   streamCatalog,
   canReviewAll,
   reviewableStreamKeys,
+  refreshKey = 0,
 }: {
   streamFilter: string
   streamCatalog: readonly ProductionStream[]
   canReviewAll: boolean
   reviewableStreamKeys: ReadonlySet<string>
+  refreshKey?: number
 }) {
   const t = useT()
   const [rows, setRows] = useState<CafeCountLine[]>([])
@@ -44,7 +46,7 @@ export function CafeCountReviewQueue({
       setLoading(false)
     })
     return () => { active = false }
-  }, [retry])
+  }, [refreshKey, retry])
 
   const visibleRows = useMemo(() => rows.filter(line => {
     const key = streamKey(line.branch_id, line.activity)
@@ -106,9 +108,6 @@ export function CafeCountReviewQueue({
             : t('cafe.count.review.empty.stream', {
               stream: streamLabel(t, streamCatalog.find(s => streamKey(s.branch.id, s.activity) === streamFilter) ?? null),
             })}</p>
-          <button type="button" className="btn btn-outline" onClick={() => setRetry(value => value + 1)}>
-            {t('cafe.count.review.refresh')}
-          </button>
         </div>
       ) : (
         <ul className="cafe-count-review__list">

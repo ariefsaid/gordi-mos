@@ -311,18 +311,26 @@ describe('KitchenReviewPage — states', () => {
     expect(within(emptyState).getByText(/Radiant · Bar/)).toBeInTheDocument()
   })
 
-  it('W4-4: empty state routes through EmptyState with exactly one refresh action', async () => {
+  it('W4-4: empty Review offers one Refresh for both queues', async () => {
     mockList.mockResolvedValue([])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText(/nothing to review/i)
+    await waitFor(() => expect(vi.mocked(listCafeCountLines)).toHaveBeenCalledTimes(1))
 
     const emptyState = kitchenReviewEmptyState()
     const emptyActions = emptyState.querySelector('.empty-actions')
     expect(emptyActions).not.toBeNull()
     expect(emptyActions!.querySelectorAll('button, a')).toHaveLength(1)
-    expect(within(emptyState).getByRole('button', { name: /refresh/i })).toBeInTheDocument()
+    const [refresh] = screen.getAllByRole('button', { name: /refresh/i })
+    expect(screen.getAllByRole('button', { name: /refresh/i })).toHaveLength(1)
     expect(within(emptyState).getByText(/refresh to check for newly submitted logs/i)).toBeInTheDocument()
     expect(within(emptyState).queryByText(/pull again/i)).toBeNull()
+
+    fireEvent.click(refresh!)
+    await waitFor(() => {
+      expect(mockList).toHaveBeenCalledTimes(2)
+      expect(vi.mocked(listCafeCountLines)).toHaveBeenCalledTimes(2)
+    })
   })
 
   it('error + retry: surfaces a retry that re-fetches', async () => {
