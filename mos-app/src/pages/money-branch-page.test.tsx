@@ -133,9 +133,8 @@ it('recipe/stock journey: prioritize a lead, filter, inspect evidence, then hand
   holiday.unmount()
   vi.mocked(listRecipeFindings).mockRejectedValueOnce(new Error('offline'))
   renderBranch(['finance'], '/money/branch/SKC?period=7')
-  const alert = await screen.findByRole('alert')
-  expect(alert).toHaveTextContent('The recipe/stock register could not be loaded.')
-  await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('The recipe/stock register could not be loaded.')
+  await user.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Try again' }))
   expect(await screen.findByText('Register not received yet')).toBeVisible()
 })
 

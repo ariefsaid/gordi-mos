@@ -172,7 +172,7 @@ function DaysTable({ page, period }: { page: BranchPage; period: MoneyPeriod }) 
                 </td>
                 <td className="tabular">{d.compare === null ? t('money.table.notReceived') : formatIDR(d.compare)}</td>
                 {page.margin && <>
-                  <td className="tabular">{d.marginPct == null ? t('money.table.notReceived') : formatPercent(d.marginPct, 1)}</td>
+                  <td className="tabular">{d.closed ? t('money.findings.closedDay') : d.marginPct == null ? t('money.table.notReceived') : formatPercent(d.marginPct, 1)}</td>
                   <td className="tabular">{budgetMargin === null ? t('money.table.notReceived') : formatPercent(budgetMargin, 0)}</td>
                 </>}
               </tr>
