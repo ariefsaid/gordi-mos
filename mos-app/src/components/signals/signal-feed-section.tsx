@@ -117,6 +117,7 @@ export function SignalFeedSection({
           totalCount={totalCount}
           onShareClick={canPost === false ? undefined : () => openSignalComposer()}
           showSearch={showSearch}
+          compactEmpty
           onOpen={(signal) => openRecord(signal.id)}
         />
       )}

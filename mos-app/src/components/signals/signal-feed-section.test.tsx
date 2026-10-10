@@ -199,9 +199,12 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
     expect(screen.queryByRole('button', { name: 'Create Task' })).not.toBeInTheDocument()
   })
 
-  it('shows the empty-state (composer still present) when there are no FYI Signals', async () => {
+  it('keeps the empty Home feed compact with its archive door beside the message', async () => {
     renderSection({ signals: [] })
-    await waitFor(() => expect(screen.getByText(/No Signals yet/i)).toBeInTheDocument())
+    const empty = await screen.findByTestId('empty-state')
+    expect(empty).toHaveClass('stream-all-clear')
+    expect(within(empty).getByRole('heading', { name: 'No Signals yet.' })).toBeInTheDocument()
+    expect(within(empty).getByRole('link', { name: 'See all →' })).toHaveAttribute('href', '/work/signals')
     expect(screen.getByRole('button', { name: /Share a Signal/i })).toBeInTheDocument()
   })
 
