@@ -234,6 +234,7 @@ describe('CafeWastePage', () => {
     expect(error).not.toHaveTextContent(/try again|retry/i)
     expect(screen.queryByText(/try again|retry/i)).toBeNull()
     expect(screen.queryByRole('button', { name: /try again|retry/i })).toBeNull()
+    expect(screen.getAllByRole('button', { name: 'Add photo' })[0]).toBeDisabled()
   })
 
   it('restores an unsent waste draft after reload and clears it after confirmed submit', async () => {

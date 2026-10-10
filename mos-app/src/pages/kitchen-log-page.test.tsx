@@ -1606,6 +1606,7 @@ describe('Submit error state', () => {
     expect(quantity).toHaveValue(amount)
     expect(screen.queryByText(/check the connection and try again|try again|retry/i)).toBeNull()
     expect(screen.queryByRole('button', { name: /try again|retry/i })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Submit 1 entry' })).toBeDisabled()
   })
 
   it('uses a batch-level unit refusal when the server cannot identify one row', async () => {
@@ -1632,6 +1633,7 @@ describe('Submit error state', () => {
     expect(nasi).toHaveValue('12')
     expect(screen.queryByText(/check the connection and try again|try again|retry/i)).toBeNull()
     expect(screen.queryByRole('button', { name: /try again|retry/i })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Submit 2 entries' })).toBeDisabled()
   })
 
   it.each([false, true])('announces a successful submit once in the pinned action bar (wide=%s)', async (wide) => {

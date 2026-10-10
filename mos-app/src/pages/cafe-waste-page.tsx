@@ -69,6 +69,7 @@ type WasteEntry = {
   photoReady: boolean
   photoWindowExpired: boolean
   preparing: boolean
+  unitNotShown: boolean
   submitted: boolean
   photos: KitchenWastePhoto[]
   error?: string
@@ -120,6 +121,7 @@ function createWasteEntry(item: CafeLogItem, clientRequestId = ''): WasteEntry {
     photoReady: false,
     photoWindowExpired: false,
     preparing: false,
+    unitNotShown: false,
     submitted: false,
     photos: [],
   }
@@ -528,7 +530,7 @@ export function CafeWastePage() {
           unitFactor: nextFactor,
           unitBasisKnown: true,
           capturedUnitName: item.defaultUnit.name,
-          error: undefined,
+          error: entry.unitNotShown ? entry.error : undefined,
         },
       }
     })
@@ -546,7 +548,7 @@ export function CafeWastePage() {
     const entry = entries[item.id]
     const quantity = quantityValue(entry?.quantity ?? '')
     if (!entry || quantity === null || !stream || !businessUnitId || !canCapture || !isOnline
-      || entry.logId || entry.preparing || draftRequests.current.has(item.id)) return
+      || entry.logId || entry.preparing || entry.unitNotShown || draftRequests.current.has(item.id)) return
     draftRequests.current.add(item.id)
     patchEntry(item.id, { preparing: true, client_attempted: true, error: undefined })
     try {
@@ -566,9 +568,11 @@ export function CafeWastePage() {
       })
       patchEntry(item.id, { logId, capturedLogDate: logDate, preparing: false })
     } catch (cause) {
+      const unitNotShown = isItemUnitNotShownError(cause)
       patchEntry(item.id, {
         preparing: false,
-        error: t(isItemUnitNotShownError(cause) ? 'kitchen.log.error.unitNotShown' : 'kitchen.waste.prepareFailed'),
+        unitNotShown,
+        error: t(unitNotShown ? 'kitchen.log.error.unitNotShown' : 'kitchen.waste.prepareFailed'),
       })
     } finally {
       draftRequests.current.delete(item.id)
@@ -765,7 +769,7 @@ export function CafeWastePage() {
       disabled={submitting || loadState !== 'ready'}
       onQuantityChange={value => patchEntry(item.id, {
         quantity: value,
-        error: undefined,
+        error: entries[item.id]?.unitNotShown ? entries[item.id]?.error : undefined,
         ...(entries[item.id]?.client_attempted || !value.trim()
           ? { client_request_id: crypto.randomUUID(), client_attempted: false }
           : {}),
@@ -1192,7 +1196,7 @@ function WasteItemControls({
           type="button"
           className="btn btn-outline cwl-add-photo cafe-capture-action"
           aria-describedby="cafe-waste-photo-guidance"
-          disabled={!canCapture || !isOnline || disabled || current.preparing || Boolean(current.logId) || quantity === null}
+          disabled={!canCapture || !isOnline || disabled || current.preparing || current.unitNotShown || Boolean(current.logId) || quantity === null}
           onClick={onPrepare}
         >
           {current.preparing ? t('common.working') : t('kitchen.waste.addPhoto')}
