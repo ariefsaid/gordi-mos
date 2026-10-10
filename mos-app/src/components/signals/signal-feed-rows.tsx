@@ -39,6 +39,8 @@ export interface SignalFeedRowsProps {
   ambientLimit?: number
   /** Exact count of readable, active Signals; null means the archive remainder is unknown. */
   totalCount?: number | null
+  /** Home's embedded empty state uses a compact row; the collection page keeps the full state. */
+  compactEmpty?: boolean
 }
 
 /** The ambient column's depth (signed mockup: `const FEED_CAP = 6`). "A feed column that grows
@@ -49,7 +51,7 @@ export const AMBIENT_CAP = 6
 export function SignalFeedRows({
   signals, authorNamesById, teamNamesById, onShareClick, onOpen,
   showSearch = true,
-  variant = 'ambient', ambientLimit = AMBIENT_CAP, totalCount = null,
+  variant = 'ambient', ambientLimit = AMBIENT_CAP, totalCount = null, compactEmpty = false,
 }: SignalFeedRowsProps) {
   const t = useT()
   const [query, setQuery] = useState('')
@@ -136,7 +138,17 @@ export function SignalFeedRows({
             </button>
           </EmptyState>
         ) : (
-          <EmptyState title={t('signals.feed.empty')} nested />
+          <EmptyState
+            title={t(compactEmpty ? 'signals.feed.emptyHome' : 'signals.feed.empty')}
+            nested
+            className={compactEmpty ? 'stream-all-clear' : undefined}
+          >
+            {compactEmpty && (
+              <Link to="/work/signals" className="signal-feed-link tap-floor">
+                {t('signals.feed.openArchive')}
+              </Link>
+            )}
+          </EmptyState>
         )
       ) : (
         <ul className="home-signal-list">

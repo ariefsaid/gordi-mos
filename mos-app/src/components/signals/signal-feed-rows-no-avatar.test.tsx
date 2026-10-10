@@ -119,6 +119,19 @@ describe('AC-061 archive rows keep one clean record activation', () => {
   })
 })
 
+describe('Signals collection keeps its full-size first-use empty state', () => {
+  it('does not use the compact Home row treatment', () => {
+    render(
+      <I18nProvider>
+        <SignalFeedRows signals={[]} authorNamesById={AUTHORS} teamNamesById={TEAMS} variant="archive" />
+      </I18nProvider>,
+    )
+    const empty = screen.getByTestId('empty-state')
+    expect(empty).not.toHaveClass('stream-all-clear')
+    expect(within(empty).getByRole('heading', { name: 'No Signals yet. Share the first one above.' })).toBeInTheDocument()
+  })
+})
+
 describe.each(['ambient', 'archive'] as const)('Signal row (%s) names its author, never their initials', (variant) => {
   it('renders the author name as plain text', () => {
     renderFeed(variant)
