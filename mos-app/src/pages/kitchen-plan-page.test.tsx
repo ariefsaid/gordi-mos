@@ -22,6 +22,11 @@ import type { AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 
+vi.mock('@/lib/format/date', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/format/date')>()
+  return { ...actual, wibToday: () => '2026-10-10' }
+})
+
 // PageFamilyFrame (the v4 shell chrome this page ports to — #197) calls useLocation()
 // unconditionally, so every render needs Router context, not just the ones that render a
 // <Link>. Mirrors kitchen-log-page.test.tsx's own wrapper.
@@ -331,6 +336,61 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(screen.getAllByRole('spinbutton').length).toBeGreaterThanOrEqual(2)
     // pre-filled with the existing plan qty for Ayam Bakar / Production
     expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue('12')
+  })
+
+  it('opens tomorrow for the selected stream and states which day is being edited', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    chooseStream('Radiant · Bar')
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next day' }))
+    await screen.findByText('Ayam Bakar')
+
+    expect(mockPlans.mock.calls.at(-1)).toEqual(['2026-10-11', RADIANT_BAR])
+    expect(screen.getByRole('group', { name: 'Plan date' })).toHaveTextContent('Sun 11 Oct · Tomorrow')
+    expect(screen.getByRole('heading', { level: 2, name: 'Radiant · Bar' })).toBeInTheDocument()
+
+    const quantity = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(quantity, { target: { value: '15' } })
+    fireEvent.blur(quantity)
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledOnce())
+    expect(mockUpsert.mock.calls[0][0]).toMatchObject({ log_date: '2026-10-11', branch_id: 'branch-2', activity: 'bar' })
+  })
+
+  it('keeps planning within today through day 13 and returns to today', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const previous = screen.getByRole('button', { name: 'Previous day' })
+    const next = screen.getByRole('button', { name: 'Next day' })
+    const today = screen.getByRole('button', { name: 'Today' })
+    const date = screen.getByRole('group', { name: 'Plan date' })
+    expect(previous).toBeDisabled()
+    expect(today).toBeDisabled()
+
+    for (let day = 0; day < 13; day += 1) fireEvent.click(next)
+    expect(date).toHaveTextContent('Fri 23 Oct · In 13 days')
+    expect(next).toBeDisabled()
+    fireEvent.click(today)
+    expect(date).toHaveTextContent('Sat 10 Oct · Today')
+    expect(previous).toBeDisabled()
+    await waitFor(() => expect(mockPlans).toHaveBeenLastCalledWith('2026-10-10', OWN_STREAM))
+  })
+
+  it('steps back to today but never to a past planning day', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const previous = screen.getByRole('button', { name: 'Previous day' })
+    const next = screen.getByRole('button', { name: 'Next day' })
+    const date = screen.getByRole('group', { name: 'Plan date' })
+
+    fireEvent.click(next)
+    await waitFor(() => expect(mockPlans).toHaveBeenLastCalledWith('2026-10-11', OWN_STREAM))
+    expect(previous).toBeEnabled()
+    fireEvent.click(previous)
+    await waitFor(() => expect(mockPlans).toHaveBeenLastCalledWith('2026-10-10', OWN_STREAM))
+    expect(date).toHaveTextContent('Sat 10 Oct · Today')
+    expect(previous).toBeDisabled()
   })
 
   it('FR-031: typing an amount + blur commits — upsertKitchenPlan with qty_porsi (no org_id/plan_by)', async () => {

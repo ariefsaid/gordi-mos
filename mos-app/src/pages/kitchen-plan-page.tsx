@@ -76,10 +76,16 @@ import {
   type KitchenListRow,
 } from '@/lib/kitchen-item-list'
 import { usePlanSummary } from '@/lib/kitchen-plan-kpis'
-import { wibToday } from '@/lib/format/date'
+import { formatWeekdayDayMonth, wibToday } from '@/lib/format/date'
 import './kitchen-plan-page.css'
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
+
+function shiftPlanDate(date: string, days: number): string {
+  const shifted = new Date(`${date}T00:00:00Z`)
+  shifted.setUTCDate(shifted.getUTCDate() + days)
+  return shifted.toISOString().slice(0, 10)
+}
 
 export function KitchenPlanPage() {
   const auth = useAuth()
@@ -187,7 +193,13 @@ function streamRows(items: PlanItem[], planableIds: Set<string>, planCells: Plan
 
 function PlanEditor() {
   const t = useT()
-  const [logDate] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
+  const [today] = useState(wibToday)
+  const [logDate, setLogDate] = useState(today)
+  const lastPlanDate = shiftPlanDate(today, PESANAN_HORIZON_DAYS - 1)
+  const dayOffset = Math.round((Date.parse(logDate) - Date.parse(today)) / 86_400_000)
+  const relativeDay = dayOffset === 0 ? t('kitchen.plan.day.today')
+    : dayOffset === 1 ? t('kitchen.plan.day.tomorrow')
+    : t('kitchen.plan.day.inDays', { days: dayOffset })
   // #784 AC-057 hardening (gpt-6-luna review): canEditCafePlan only picked the FACE — every
   // supervisor got the editor regardless of stream, and RLS (ops.is_stream_reviewer) rejects
   // a write against a stream she doesn't hold. isLeadOrAdmin writes everywhere (matches the
@@ -316,7 +328,6 @@ function PlanEditor() {
       setOfferedIds(offered ?? new Set())
       setPlanableIds(nextPlanableIds)
       adoptStream(catalog)
-      setMovement(PRODUCE)
       setCells(planCells)
       setReviewerStreamKeys(new Set(
         myTeams.filter(isReviewerEligibleTeam).map((team) => streamKey(team.branch_id, team.activity)),
@@ -591,7 +602,22 @@ function PlanEditor() {
   return (
     <CafePageFrame
       page="plan"
-      date={logDate}
+      meta={(
+        <div className="kp-day-stepper" role="group" aria-label={t('kitchen.plan.day.group')}>
+          <button type="button" className="btn btn-ghost kp-day-stepper__button" aria-label={t('kitchen.plan.day.previous')} disabled={logDate <= today} onClick={() => setLogDate(current => shiftPlanDate(current, -1))}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+          </button>
+          <time className="cafe-page-date tabular" dateTime={logDate} aria-live="polite">
+            {t('kitchen.plan.day.label', { date: formatWeekdayDayMonth(logDate), relative: relativeDay })}
+          </time>
+          <button type="button" className="btn btn-ghost kp-day-stepper__button" aria-label={t('kitchen.plan.day.next')} disabled={logDate >= lastPlanDate} onClick={() => setLogDate(current => shiftPlanDate(current, 1))}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+          </button>
+          <button type="button" className="btn btn-ghost kp-day-stepper__today" disabled={logDate === today} onClick={() => setLogDate(today)}>
+            {t('kitchen.plan.day.today')}
+          </button>
+        </div>
+      )}
       streamBar={{
         options: streamOptions,
         stream,
