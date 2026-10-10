@@ -840,25 +840,34 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     viewer: { ...VIEWER_MEMBER.viewer, affiliated: [] },
   }
 
-  it.each([false, true])('states the read-only reason once (wide=%s)', async (wide) => {
+  it.each([
+    [false, appUrl('/cafe')],
+    [true, appUrl('/cafe')],
+    [false, appUrl('/cafe/transfer')],
+    [true, appUrl('/cafe/transfer')],
+  ])('shows read-only facts without capture controls (wide=%s, path=%s)', async (wide, path) => {
     setWideMatchMedia(wide)
-    await renderPage(UNAFFILIATED)
+    await renderPage(UNAFFILIATED, path)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // Read-only, not hidden: the capture form and its rows render, but write controls are closed.
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    expect(qtyInput).toBeVisible()
-    expect(qtyInput).toBeDisabled()
+    expect(screen.getByText('Read-only — your Café access does not allow capture')).toBeVisible()
+    expect(screen.getAllByText('Not recorded').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: /capture/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^submit/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+  })
 
-    // The ONE line stating why capture is closed.
-    expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
-    expect(screen.getAllByText(/you can read café records/i)).toHaveLength(1)
+  it.each([
+    [appUrl('/cafe'), PRODUCE_KEY, loggedUnit('u1-porsi', 7, 'porsi'), '7 porsi'],
+    [appUrl('/cafe/transfer'), TRANSFER_RADIANT_KEY, loggedUnit('u1-batch', 5, 'batch'), '5 batch'],
+  ] as const)('shows recorded amounts as read-only text on %s', async (path, movement, entry, amount) => {
+    mockFetchActualsMap.mockResolvedValue({ w1: { [movement]: [entry] } })
+    await renderPage(UNAFFILIATED, path)
+    await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // No enabled submit control, even with a staged line.
-    fireEvent.change(qtyInput, { target: { value: '20' } })
-    const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
-    expect(submit).toBeDisabled()
+    expect(screen.getByText(amount)).toBeVisible()
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
   })
 
   it('an affiliated viewer gets capture active — no reason line, submit enabled on an on-plan line', async () => {
@@ -919,7 +928,8 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     expect(screen.queryByRole('group', { name: /production stream/i })).toBeNull()
     expect(screen.queryByRole('spinbutton')).toBeNull()
     expect(screen.queryByText(/pending review/i)).not.toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
+    expect(screen.queryByRole('button', { name: /^submit/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: /capture/i })).not.toBeInTheDocument()
   })
 
   it('with capture open and no eligible stream, shows empty guidance without a misleading tally', async () => {
@@ -942,8 +952,8 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     expect(await screen.findByRole('heading', { name: 'Choose a production stream to see this screen.' })).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: /production stream/i })).toBeNull()
     expect(screen.queryByRole('spinbutton')).toBeNull()
-    expect(screen.getByRole('button', { name: /^submit/i })).toBeDisabled()
-    expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
+    expect(screen.queryByRole('button', { name: /^submit/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: /capture/i })).not.toBeInTheDocument()
     expect(screen.queryByText('No items match your filter.')).not.toBeInTheDocument()
   })
 

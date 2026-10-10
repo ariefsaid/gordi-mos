@@ -1141,6 +1141,7 @@ function KitchenReviewPageForViewer() {
         streamCatalog={streamCatalog}
         canReviewAll={isLeadOrAdmin}
         reviewableStreamKeys={myStreamKeys}
+        refreshKey={retryKey}
       />
       <div className="kr-date-filterbar kr-block">
         <DateField

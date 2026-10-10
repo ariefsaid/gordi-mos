@@ -1,63 +1,40 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/db/directory', () => ({ getMyTeamLeads: vi.fn(), getPeople: vi.fn() }))
+vi.mock('@/lib/db/directory', () => ({ getDirectManagerPersonIds: vi.fn(), getPeople: vi.fn() }))
 
-import { getMyTeamLeads, getPeople, type TeamOption } from '@/lib/db/directory'
-import { defaultSupervisorId, homeTeamId, loadHomeLeadId } from './default-supervisor'
+import { getDirectManagerPersonIds, getPeople } from '@/lib/db/directory'
+import { defaultSupervisorId, resolvePicSupervisor } from './default-supervisor'
 
-const team = (id: string, isPrimary?: boolean): TeamOption =>
-  ({ id, name: id, businessUnitId: 'bu', siteId: null, orgId: 'o', ...(isPrimary === undefined ? {} : { isPrimary }) })
-const LEADS = [
-  { team_id: 'hq', lead_person_id: 'lead-hq' },
-  { team_id: 'bar', lead_person_id: 'lead-bar' },
-  { team_id: 'nolead', lead_person_id: null },
-]
-const ACTIVE = [
-  { id: 'viewer', full_name: 'Viewer' },
-  { id: 'lead-hq', full_name: 'Lead HQ' },
-]
+const PEOPLE = [{ id: 'manager', full_name: 'Manager' }, { id: 'other', full_name: 'Other' }]
 
-describe('home Team supervisor default', () => {
-  it('home Team is the primary one, else the only one, else none', () => {
-    expect(homeTeamId([team('bar', false), team('hq', true)])).toBe('hq')
-    expect(homeTeamId([team('bar')])).toBe('bar')
-    expect(homeTeamId([team('bar', false), team('hq', false)])).toBeNull()
+beforeEach(() => {
+  vi.mocked(getDirectManagerPersonIds).mockReset().mockResolvedValue(['manager'])
+  vi.mocked(getPeople).mockReset().mockResolvedValue(PEOPLE)
+})
+
+describe('PIC manager Supervisor default', () => {
+  it('uses exactly one active direct manager, not the PIC themself', () => {
+    expect(defaultSupervisorId(['pic', 'manager', 'manager'], 'pic', ['pic', 'manager'])).toBe('manager')
   })
 
-  it('returns the home Team lead, never another Team lead', () => {
-    expect(defaultSupervisorId(LEADS, 'hq', 'viewer')).toBe('lead-hq')
+  it('does not guess when no unique active manager exists', () => {
+    expect(defaultSupervisorId([], 'pic', ['manager'])).toBeNull()
+    expect(defaultSupervisorId(['manager', 'other'], 'pic', ['manager', 'other'])).toBeNull()
+    expect(defaultSupervisorId(['manager'], 'pic', ['pic'])).toBeNull()
   })
 
-  it('stays blank when the Team has no lead, no row, or the creator is the lead', () => {
-    expect(defaultSupervisorId(LEADS, 'nolead', 'viewer')).toBeNull()
-    expect(defaultSupervisorId(LEADS, 'other', 'viewer')).toBeNull()
-    expect(defaultSupervisorId(LEADS, 'hq', 'lead-hq')).toBeNull()
-    expect(defaultSupervisorId(LEADS, null, 'viewer')).toBeNull()
-  })
-
-  it('loads the home Team lead for any viewer, and swallows a failed read', async () => {
-    vi.mocked(getMyTeamLeads).mockReset().mockResolvedValue(LEADS)
-    vi.mocked(getPeople).mockReset().mockResolvedValue(ACTIVE)
-    expect(await loadHomeLeadId([team('hq', true)], 'viewer')).toBe('lead-hq')
-    vi.mocked(getMyTeamLeads).mockRejectedValue(new Error('denied'))
-    expect(await loadHomeLeadId([team('hq', true)], 'viewer')).toBeNull()
-  })
-
-  it('never offers an archived lead: Supervisor stays blank', async () => {
-    vi.mocked(getMyTeamLeads).mockReset().mockResolvedValue(LEADS)
-    vi.mocked(getPeople).mockReset().mockResolvedValue([{ id: 'viewer', full_name: 'Viewer' }])
-    expect(await loadHomeLeadId([team('hq', true)], 'viewer')).toBeNull()
-  })
-
-  it('stays blank when the active-people read fails', async () => {
-    vi.mocked(getMyTeamLeads).mockReset().mockResolvedValue(LEADS)
-    vi.mocked(getPeople).mockReset().mockRejectedValue(new Error('denied'))
-    expect(await loadHomeLeadId([team('hq', true)], 'viewer')).toBeNull()
-  })
-
-  it('reads nothing when the viewer has no home Team', async () => {
-    vi.mocked(getMyTeamLeads).mockReset().mockResolvedValue(LEADS)
-    expect(await loadHomeLeadId([team('hq', false), team('bar', false)], 'viewer')).toBeNull()
-    expect(getMyTeamLeads).not.toHaveBeenCalled()
+  it('resolves only the PIC manager for the Task BU and reports missing or unreadable data', async () => {
+    vi.mocked(getDirectManagerPersonIds).mockImplementation(async (_picId, businessUnitId) =>
+      businessUnitId === 'retail' ? ['retail-manager'] : ['sales-manager'])
+    vi.mocked(getPeople).mockResolvedValue([
+      { id: 'retail-manager', full_name: 'Retail manager' },
+      { id: 'sales-manager', full_name: 'Sales manager' },
+    ])
+    expect(await resolvePicSupervisor('pic', 'retail')).toEqual({ supervisorId: 'retail-manager', status: 'ready' })
+    expect(getDirectManagerPersonIds).toHaveBeenCalledWith('pic', 'retail')
+    vi.mocked(getDirectManagerPersonIds).mockResolvedValue([])
+    expect(await resolvePicSupervisor('pic', 'retail')).toEqual({ supervisorId: null, status: 'missing' })
+    vi.mocked(getDirectManagerPersonIds).mockRejectedValue(new Error('denied'))
+    expect(await resolvePicSupervisor('pic', 'retail')).toEqual({ supervisorId: null, status: 'error' })
   })
 })

@@ -23,7 +23,7 @@ import { listTaskDefs } from '@/lib/db/processes'
 import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { ConfirmArchive } from './confirm-archive'
-import { loadHomeLeadId } from './default-supervisor'
+import { resolvePicSupervisor } from './default-supervisor'
 import { picOptions } from './task-permissions'
 import { liveTasksSearch, type LiveTasksQueryRef } from './tasks-navigation'
 import { createTaskRecordAdapter, createTaskFieldCommit, type TaskTeamView, type TaskRelatedRecord, type TaskViewerFieldKey } from './task-record-adapter'
@@ -938,17 +938,14 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
     // A failed downline read fails closed: the PIC picker offers only the viewer.
     const downlinePromise = getDownlinePersonIds(viewerId).catch(() => [])
     Promise.all([getBusinessUnits(), getPeople(), teamsPromise, downlinePromise]).then(([, people, teams, downline]) => {
+      if (!live) return
       setPeopleDirectory(people)
       setDownlineIds(downline)
       setTeamDirectory(teams)
       setDirLoading(false)
-      // Supervisor defaults to the creator's home Team lead; a choice made meanwhile wins.
-      void loadHomeLeadId(teams, viewerId).then((leadId) => {
-        if (live && leadId) setAccountablePersonId((chosen) => chosen || leadId)
-      })
-    }).catch(() => setDirLoading(false))
+    }).catch(() => { if (live) setDirLoading(false) })
     // Non-blocking catalog load — a slow catalog must never block the form.
-    listWorkLines().then(setWorkLinesDir).catch(() => {})
+    listWorkLines().then((rows) => { if (live) setWorkLinesDir(rows) }).catch(() => {})
     return () => { live = false }
   }, [viewerId])
 
@@ -958,11 +955,11 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   const [title, setTitle] = useState(prefillTitle)
   const [teamId, setTeamId] = useState(prefillTeamId)
   const [responsiblePersonId, setResponsiblePersonId] = useState(prefillR || viewerId)
-  // Supervisor is never defaulted to the creator/PIC (OD-REDESIGN-3/14/41 — PIC and Supervisor are
-  // distinct accountable roles). It starts empty and is pre-filled with the creator's home Team
-  // lead when that is readable (see the directory-load effect); otherwise it is a required,
-  // explicit choice.
+  // Supervisor stays blank unless the selected PIC has one active direct manager in the Task BU.
   const [accountablePersonId, setAccountablePersonId] = useState('')
+  const [supervisorHint, setSupervisorHint] = useState<'missing' | 'error' | null>(null)
+  const supervisorChosenRef = useRef(false)
+  const derivedSupervisorRef = useRef<{ picId: string; businessUnitId: string; supervisorId: string | null } | null>(null)
   const [dueDate, setDueDate] = useState('')
   const [description, setDescription] = useState('')
   const [workLineId, setWorkLineId] = useState(createInitialValues?.workLineId ?? '')
@@ -977,6 +974,30 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
 
   const selectedTeam = teamDirectory.find((team) => team.id === teamId)
   const businessUnitId = selectedTeam?.businessUnitId ?? selectedTeam?.business_unit_id ?? ''
+
+  useEffect(() => {
+    if (dirLoading || !responsiblePersonId || !businessUnitId || supervisorChosenRef.current) {
+      setSupervisorHint(null)
+      return
+    }
+    const previous = derivedSupervisorRef.current
+    if (previous?.picId === responsiblePersonId && previous.businessUnitId === businessUnitId && previous.supervisorId === accountablePersonId) return
+    if (accountablePersonId && (!previous || accountablePersonId !== previous.supervisorId)) {
+      supervisorChosenRef.current = true
+      setSupervisorHint(null)
+      return
+    }
+    derivedSupervisorRef.current = null
+    setSupervisorHint(null)
+    let live = true
+    void resolvePicSupervisor(responsiblePersonId, businessUnitId).then(({ supervisorId, status }) => {
+      if (!live || supervisorChosenRef.current) return
+      derivedSupervisorRef.current = { picId: responsiblePersonId, businessUnitId, supervisorId }
+      if (status !== 'ready') setSupervisorHint(status)
+      setAccountablePersonId((current) => supervisorChosenRef.current ? current : supervisorId ?? '')
+    })
+    return () => { live = false }
+  }, [accountablePersonId, businessUnitId, dirLoading, responsiblePersonId])
 
   // D-B1: dirty = the user has started composing (any field the user has touched). Programmatic
   // prefills (viewer Team/PIC defaults) set state directly, never through markDirty, so an
@@ -1237,7 +1258,10 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
                 { value: '', label: t('tasks.create.teamPlaceholder') },
                 ...teamDirectory.map((team) => ({ value: team.id, label: team.name })),
               ]}
-              onChange={value => { setTeamId(value); markDirty(); if (buError) setBuError('') }}
+              onChange={value => {
+                if (!supervisorChosenRef.current) { setAccountablePersonId(''); derivedSupervisorRef.current = null; setSupervisorHint(null) }
+                setTeamId(value); markDirty(); if (buError) setBuError('')
+              }}
               onBlur={validateBuOnBlur}
               required
               describedBy={buError ? 'bu-err' : undefined}
@@ -1283,7 +1307,10 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
               hideLabel
               value={responsiblePersonId}
               options={picPickerOptions}
-              onChange={value => { setResponsiblePersonId(value); markDirty() }}
+              onChange={value => {
+                if (!supervisorChosenRef.current) { setAccountablePersonId(''); derivedSupervisorRef.current = null; setSupervisorHint(null) }
+                setResponsiblePersonId(value); markDirty()
+              }}
               disabled={submitting}
               required
             />
@@ -1323,7 +1350,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
                 { value: '', label: t('tasks.create.supervisorPlaceholder') },
                 ...peopleDirectory.map(p => ({ value: p.id, label: p.full_name })),
               ]}
-              onChange={value => { setAccountablePersonId(value); markDirty(); if (supervisorError) setSupervisorError('') }}
+              onChange={value => { supervisorChosenRef.current = true; derivedSupervisorRef.current = null; setSupervisorHint(null); setAccountablePersonId(value); markDirty(); if (supervisorError) setSupervisorError('') }}
               onBlur={validateSupervisorOnBlur}
               disabled={submitting}
               required
@@ -1333,7 +1360,10 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
           {supervisorError && (
             <span id="supervisor-err" role="alert" className="tc-field-error">{supervisorError}</span>
           )}
+          {supervisorHint === 'missing' && <span role="status" className="tc-hint">{t('tasks.create.noManager')}</span>}
+          {supervisorHint === 'error' && <span role="status" className="tc-hint">{t('tasks.create.managerLookupFailed')}</span>}
         </div>
+        <p className="tc-hint">{t('tasks.create.picSupervisorHint')}</p>
 
         {/* Due date (optional) */}
         <div className="tc-field">

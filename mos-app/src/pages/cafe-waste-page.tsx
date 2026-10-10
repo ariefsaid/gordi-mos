@@ -52,6 +52,7 @@ import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import '@/components/kitchen/status-banner-tone.css'
 import './cafe-waste-page.css'
+import './cafe-item-settings-page.css'
 
 type CafeLogItem = NonNullable<ReturnType<typeof toCafeLogItem>>
 
@@ -759,6 +760,7 @@ export function CafeWastePage() {
       item={item}
       entry={entries[item.id]}
       canCapture={canCapture}
+      formatQuantity={formatWasteQty}
       isOnline={isOnline}
       disabled={submitting || loadState !== 'ready'}
       onQuantityChange={value => patchEntry(item.id, {
@@ -807,6 +809,7 @@ export function CafeWastePage() {
 
         {loadState === 'ready' && stream && (
           <>
+            {!canCapture && <p className="cafe-items__read-only" role="note">{t('cafe.capture.readOnly')}</p>}
             <div className="kl-banner cwl-held" role="status">
               {t('kitchen.waste.held')}
             </div>
@@ -898,8 +901,7 @@ export function CafeWastePage() {
                 <small className="kl-capture-draft-expiry">{t('cafe.captureDraft.expiry')}</small>
               </section>
             )}
-            <p id="cafe-waste-photo-guidance" className="cwl-help">{t('kitchen.waste.help')}</p>
-            {!canCapture && <p className="kl-banner cwl-read-only" role="status">{t('kitchen.waste.readOnly')}</p>}
+            {canCapture && <p id="cafe-waste-photo-guidance" className="cwl-help">{t('kitchen.waste.help')}</p>}
             {canCapture && resumableDrafts.length > 0 && (
               <section className="cwl-resume" aria-labelledby="cwl-resume-title">
                 <h2 id="cwl-resume-title">{t('kitchen.waste.resumableDrafts')}</h2>
@@ -981,7 +983,7 @@ export function CafeWastePage() {
               </>
             )}
 
-            <div className="kl-footer cwl-footer cafe-capture-footer">
+            {canCapture && <div className="kl-footer cwl-footer cafe-capture-footer">
               {submitError && (
                 <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{t('kitchen.waste.submitFailed')}</p>
               )}
@@ -1027,11 +1029,11 @@ export function CafeWastePage() {
                   {submitting ? t('common.working') : t('kitchen.waste.submit')}
                 </button>
               )}
-            </div>
+            </div>}
           </>
         )}
         </div>
-        {isWide && loadState === 'ready' && stream && items.length > 0 && (
+        {isWide && canCapture && loadState === 'ready' && stream && items.length > 0 && (
           <aside className="kl-capture-summary cwl-summary" aria-label={t('kitchen.log.summary.captureAria')}>
             <h2>{t('kitchen.log.summary.captureTitle')}</h2>
             <h3>{t('kitchen.log.summary.entered')}</h3>
@@ -1074,6 +1076,7 @@ function WasteItemControls({
   item,
   entry,
   canCapture,
+  formatQuantity,
   isOnline,
   disabled,
   onQuantityChange,
@@ -1086,6 +1089,7 @@ function WasteItemControls({
   item: CafeLogItem
   entry: WasteEntry | undefined
   canCapture: boolean
+  formatQuantity: (quantity: number) => string
   isOnline: boolean
   disabled: boolean
   onQuantityChange: (quantity: string) => void
@@ -1099,17 +1103,24 @@ function WasteItemControls({
   const inputId = `cafe-waste-qty-${item.id}`
   const unitId = `cafe-waste-unit-${item.id}`
   const current = entry ?? createWasteEntry(item)
+  const quantity = quantityValue(current.quantity)
   const selectedUnit = item.units.find(unit => unit.id === item.defaultUnit.id)
     ?? { ...item.defaultUnit, isDefault: true, labelOrdinal: null, labelCount: 1 }
   const selectedUnitLabel = wasteEntryUnitLabel(item, current, t)
   const historicalUnit = Boolean(entry?.capturedUnitName
     && !item.units.some(unit => unit.id === current.unitId))
   const showUnitPicker = item.multiples.length > 0 || historicalUnit
+  if (!canCapture) {
+    return (
+      <span className="cafe-items__mos-value tabular">
+        {quantity === null ? t('cafe.capture.notRecorded') : `${formatQuantity(quantity)} ${selectedUnitLabel}`}
+      </span>
+    )
+  }
   const selectedChoice = current.unitFactor !== 1
     ? `multiple:${String(current.unitFactor)}`
     : current.unitId
   const locked = Boolean(current.logId || current.preparing || current.submitted)
-  const quantity = quantityValue(current.quantity)
   const editable = canCapture && isOnline && !disabled && !locked
   return (
     <div className="cwl-controls">
