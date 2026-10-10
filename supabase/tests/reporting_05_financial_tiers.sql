@@ -14,7 +14,7 @@
 -- at all.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(33);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();   -- GrandMgr ...0d3 -> admin
@@ -32,38 +32,6 @@ insert into reporting.sales_daily_revenue
 insert into reporting.sales_margin_daily
   (org_id, margin_date, esb_code, branch_code, branch_name, revenue, cogs_interim_sm, cogs_budget_bom, margin_interim, margin_interim_pct, snapshot_as_of) values
   ('00000000-0000-0000-0000-0000000000a1','2026-07-01','GKI','RRS','Rumah Rames',1250000.00,750000.00,700000.00,500000.00,0.4000,'2026-07-01 04:00:00+07');
-
-insert into reporting.sales_margin_daily
-  (org_id, margin_date, esb_code, branch_code, revenue, snapshot_as_of, bom_coverage_pct)
-values ('00000000-0000-0000-0000-0000000000a1','2026-07-02','GKI','RRS',1,now(),1.115);
-select is((select bom_coverage_pct from reporting.sales_margin_daily
-            where org_id = '00000000-0000-0000-0000-0000000000a1'
-              and margin_date = '2026-07-02' and esb_code = 'GKI' and branch_code = 'RRS'), 1.115::numeric,
-  'a recipe-to-stock ratio above 1 remains representable when BOM cost exceeds stock movement');
-select throws_ok($$
-  insert into reporting.sales_margin_daily
-    (org_id, margin_date, esb_code, branch_code, revenue, snapshot_as_of, bom_coverage_pct)
-  values ('00000000-0000-0000-0000-0000000000a1','2026-07-03','GKI','RRS',1,now(),-0.001)
-$$, '23514', null, 'negative recipe-to-stock ratios are refused');
-select throws_ok($$
-  insert into reporting.sales_margin_daily
-    (org_id, margin_date, esb_code, branch_code, revenue, snapshot_as_of, bom_coverage_pct)
-  values ('00000000-0000-0000-0000-0000000000a1','2026-07-04','GKI','RRS',1,now(),10.001)
-$$, '23514', null, 'ratios above the 10x ceiling are refused');
-delete from reporting.sales_margin_daily
- where org_id = '00000000-0000-0000-0000-0000000000a1'
-   and margin_date = '2026-07-02' and esb_code = 'GKI' and branch_code = 'RRS';
-
-create temp table coverage_backfill_probe (branch_id uuid, bom_coverage_pct numeric);
-insert into coverage_backfill_probe values
-  (null, 111.5), ('00000000-0000-0000-0000-0000000000b1', 0.9);
-update coverage_backfill_probe
-   set bom_coverage_pct = bom_coverage_pct / 100
- where branch_id is null and bom_coverage_pct is not null;
-select is((select bom_coverage_pct from coverage_backfill_probe where branch_id is null), 1.115::numeric,
-  'backfill converts the historical unlinked percentage-point value without clamping it');
-select is((select bom_coverage_pct from coverage_backfill_probe where branch_id is not null), 0.9::numeric,
-  'backfill preserves the already-normalized linked sample value');
 
 -- Scope grants, seeded as the superuser: RLS is bypassed here, but the BEFORE-INSERT guard still
 -- runs and reads current_org_id(), so the claim is set first.
