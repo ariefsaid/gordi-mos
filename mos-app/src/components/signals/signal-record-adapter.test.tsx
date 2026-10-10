@@ -3,10 +3,6 @@ import type { SignalDetail } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { wrapSignalRecord, firstLine, SIGNAL_TITLE_MAX } from './signal-record-adapter'
 
-// A Signal packs its job regions into ordered content slots — message → facts → reach → discussion
-// → history — with the shared RecordViewer's generic regions empty, so the message leads while
-// decision facts precede discussion on phone.
-
 function makeSignal(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
     id: 'signal-1', author_id: 'p-author', owning_team_id: 't-1', audience: 'team', occurred_at: '2026-07-20T08:00:00Z',

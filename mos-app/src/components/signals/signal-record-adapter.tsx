@@ -44,7 +44,6 @@ export interface WrapSignalRecordInput {
   detail: SignalDetail
   /** Formatted occurred time (host owns locale formatting) — rides with the message (LAW-2). */
   occurredLabel: string
-  /** Region 3 node built by the host (needs handlers/state); null when retracted. */
   reach: ReactNode | null
   /** Optional author/deputy attention editor for the message region. */
   onAttentionChange?: (attention: Attention) => void
@@ -53,9 +52,7 @@ export interface WrapSignalRecordInput {
   onRepost?: () => void
   retractedBy?: string | null
   retractedAtLabel?: string | null
-  /** Region 4 node built by the host; null when retracted. */
   discussion: ReactNode | null
-  /** Region 2 node (quiet provenance + category control) built by the host. */
   facts: ReactNode
   /** Region 5 node (edited disclosure) built by the host; null when never edited. */
   history: ReactNode | null
