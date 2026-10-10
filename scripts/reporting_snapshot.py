@@ -897,11 +897,128 @@ def run_recipe_history_snapshot(config: SnapshotConfig, snapshot_as_of: datetime
     return len(versions)
 
 
+RECIPE_FINDING_COLUMNS = (
+    "finding_id", "day", "esb_code", "branch_code", "branch_name", "menu_id", "menu_name",
+    "bom_id", "recipe_line_id", "expected_detail_id", "expected_name", "expected_unit",
+    "expected_qty", "actual_detail_id", "actual_name", "actual_unit", "actual_qty_day",
+    "actual_cost_day", "impact_idr", "impact_basis", "classification", "rule", "confidence",
+    "needs_human", "recommended_check", "recipe_edited_at", "first_sale_at",
+    "recipe_version_hash", "recipe_observed_at", "prior_recipe_version_hash",
+    "prior_recipe_observed_at", "sale_time_precision", "eligibility_population",
+    "eligibility_reason", "source_checked_at", "refreshed_at", "algorithm_version",
+    "replica_stale", "expected_qty_day_comparable", "actual_qty_day_comparable",
+    "comparison_unit", "conversion_evidence",
+)
+
+
+def normalize_recipe_finding(row: Mapping[str, Any], *, snapshot_as_of: Any,
+                             org_id: str, source_contract_version: str) -> dict[str, Any]:
+    result = {column: row.get(column) for column in RECIPE_FINDING_COLUMNS}
+    for field in ("finding_id", "esb_code", "branch_code", "classification", "rule",
+                  "confidence", "impact_basis", "recommended_check", "algorithm_version"):
+        result[field] = _required_text(row.get(field), field)
+    if row.get("day") is None or row.get("source_checked_at") is None:
+        raise ValueError("finding day and source_checked_at are required")
+    result["conversion_evidence"] = json.dumps(row.get("conversion_evidence") or {}, allow_nan=False)
+    result.update(org_id=org_id, snapshot_as_of=snapshot_as_of,
+                  source_contract_version=source_contract_version)
+    return result
+
+
+def build_recipe_findings_source_query() -> str:
+    return f"""
+        select {', '.join('f.' + c for c in RECIPE_FINDING_COLUMNS)}
+        from public.v_recipe_deduction_findings f
+        join public.sync_state s on s.esb_code = f.esb_code
+          and s.api_source = 'core' and s.endpoint = 'recipe-observation-pass'
+          and s.sync_key = 'nightly' and s.status = 'completed'
+        where f.day between %s::date and %s::date
+          and f.refreshed_at <= s.completed_at and f.source_checked_at <= s.completed_at
+        order by f.esb_code, f.branch_code, f.day, f.finding_id
+    """
+
+
+def build_recipe_finding_state_query() -> str:
+    return """
+        select s.esb_code::text as esb_code, s.status, s.completed_at,
+          (select max(greatest(f.refreshed_at, f.source_checked_at))
+           from public.v_recipe_deduction_findings f
+           where f.esb_code = s.esb_code and f.day between %s::date and %s::date) as latest_findings_at
+        from public.sync_state s where s.api_source = 'core'
+          and s.endpoint = 'recipe-observation-pass' and s.sync_key = 'nightly'
+    """
+
+
+def run_recipe_findings_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int | None:
+    import psycopg
+    from psycopg.rows import dict_row
+
+    start = pending_bill_window_start(snapshot_as_of, config.window_days)
+    end = snapshot_as_of.astimezone(WIB).date()
+    with psycopg.connect(config.supabase_reporting_db_url, row_factory=dict_row) as target:
+        with target.cursor() as cur:
+            for table in ("reporting.recipe_deduction_findings", "reporting.recipe_finding_snapshots"):
+                cur.execute("select to_regclass(%s) as target", (table,))
+                if cur.fetchone()["target"] is None:
+                    print(f"skipped {table}: not on target")
+                    return None
+            cur.execute(build_org_scope_sql(), (config.org_id,))
+            cur.execute("select pg_advisory_xact_lock(hashtextextended('reporting.recipe_findings:' || %s, 0))",
+                        (config.org_id,))
+            cur.execute("select snapshot_as_of from reporting.recipe_finding_snapshots where org_id = %s",
+                        (config.org_id,))
+            if any(r["snapshot_as_of"] > snapshot_as_of for r in cur.fetchall()):
+                return None
+            with psycopg.connect(config.warehouse_db_url, row_factory=dict_row) as source:
+                with source.cursor() as src:
+                    src.execute("set transaction isolation level repeatable read, read only")
+                    src.execute(build_recipe_finding_state_query(), (start, end))
+                    states = src.fetchall()
+                    src.execute(build_recipe_findings_source_query(), (start, end))
+                    rows = [normalize_recipe_finding(r, snapshot_as_of=snapshot_as_of,
+                            org_id=config.org_id, source_contract_version="recipe_deduction_findings.v2")
+                            for r in src.fetchall()]
+            count = 0
+            for state in states:
+                company = state["esb_code"]
+                complete = (state["status"] == "completed" and state["completed_at"] is not None
+                            and (state.get("latest_findings_at") is None
+                                 or state["latest_findings_at"] <= state["completed_at"]))
+                company_rows = [r for r in rows if r["esb_code"] == company]
+                if complete:
+                    cur.execute("""delete from reporting.recipe_deduction_findings
+                        where org_id = %s and esb_code = %s and day between %s and %s""",
+                        (config.org_id, company, start, end))
+                    columns = ("org_id", *RECIPE_FINDING_COLUMNS, "snapshot_as_of", "source_contract_version")
+                    # The version-on-date chronology is observed history, never backdated to a sale.
+                    cur.executemany(f"""
+                        insert into reporting.recipe_deduction_findings ({', '.join(columns)}, recipe_version)
+                        values ({', '.join('%(' + c + ')s' + ('::jsonb' if c == 'conversion_evidence' else '') for c in columns)},
+                          (select v.version from reporting.recipe_versions v
+                           where v.org_id = %(org_id)s and v.esb_code = %(esb_code)s
+                             and v.menu_id = %(menu_id)s and v.first_seen <= %(day)s
+                             and v.source_observed_at <= %(source_checked_at)s
+                           order by v.first_seen desc, v.version desc limit 1))
+                    """, company_rows)
+                    count += len(company_rows)
+                cur.execute("""
+                    insert into reporting.recipe_finding_snapshots
+                      (org_id, esb_code, window_start, window_end, snapshot_as_of, source_completed_at, complete)
+                    values (%s, %s, %s, %s, %s, %s, %s)
+                    on conflict (org_id, esb_code) do update set
+                      window_start = excluded.window_start, window_end = excluded.window_end,
+                      snapshot_as_of = excluded.snapshot_as_of,
+                      source_completed_at = excluded.source_completed_at, complete = excluded.complete
+                """, (config.org_id, company, start, end, snapshot_as_of, state["completed_at"], complete))
+        target.commit()
+    return count if states else None
+
+
 def run_all_snapshots(config: SnapshotConfig) -> dict[str, int | None]:
     """Run the reporting snapshots sharing one snapshot_as_of.
 
     Usage runs after revenue and margin: an unknown recipe unit fails the run loudly without holding
-    back the revenue and margin figures, which have already committed. Recipe history runs last.
+    back the revenue and margin figures, which have already committed. Findings follow recipe history.
     """
     snapshot_as_of = datetime.now(timezone.utc)
     revenue_count = run_snapshot(config, snapshot_as_of=snapshot_as_of)
@@ -919,6 +1036,7 @@ def run_all_snapshots(config: SnapshotConfig) -> dict[str, int | None]:
         "pending_bills": pending,
         "pending_bills_skipped": skipped,
         "recipe_history": run_recipe_history_snapshot(config, snapshot_as_of),
+        "recipe_findings": run_recipe_findings_snapshot(config, snapshot_as_of),
     }
 
 
@@ -933,7 +1051,8 @@ def main() -> int:
         f"revenue={counts['revenue']} margin={counts['margin']} usage={counts['usage']} "
         f"pending_bills={shown('pending_bills')} "
         f"pending_bills_skipped={shown('pending_bills_skipped')} "
-        f"recipe_history={shown('recipe_history')} window_days={config.window_days}"
+        f"recipe_history={shown('recipe_history')} recipe_findings={shown('recipe_findings')} "
+        f"window_days={config.window_days}"
     )
     return 0
 

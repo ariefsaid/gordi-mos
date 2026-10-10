@@ -16,11 +16,13 @@ vi.mock('@/lib/db/reporting-margin', async () => {
   return { ...actual, listSalesMarginDaily: vi.fn() }
 })
 vi.mock('@/lib/db/money-branch', () => ({ listUncoveredCafeItems: vi.fn(), askBranchLead: vi.fn() }))
+vi.mock('@/lib/db/recipe-findings', () => ({ listRecipeFindings: vi.fn() }))
 vi.mock('@/auth/use-auth')
 import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { askBranchLead, listUncoveredCafeItems } from '@/lib/db/money-branch'
 import { useAuth } from '@/auth/use-auth'
+import { listRecipeFindings, type RecipeFinding } from '@/lib/db/recipe-findings'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ReportingRowCapError } from '@/lib/db/reporting-shared'
 import { MoneyBranchPage } from './money-branch-page'
@@ -96,6 +98,45 @@ beforeEach(() => {
   mockMarg.mockResolvedValue(MARGIN)
   mockUncovered.mockResolvedValue([{ id: 'i-1', name: 'Cold brew base', activities: ['bar'] }])
   mockAsk.mockResolvedValue({ kind: 'created', taskId: 'task-9' })
+  vi.mocked(listRecipeFindings).mockResolvedValue({ rows: [], receipts: [] })
+})
+
+it('recipe/stock journey: prioritize a lead, filter, inspect evidence, then handle blocked units and denied/holiday states', async () => {
+  const base = { day: LATEST, esb_code: 'TEST', branch_code: 'GHQ', menu_name: 'Long synthetic lunch menu', actual_name: 'Stock ingredient', expected_name: 'Recipe ingredient', classification: 'team_input', rule: 'missing_recipe_mapping', confidence: 'candidate_current_recipe_not_historical_proof', needs_human: true, impact_basis: 'unassigned_actual', recommended_check: 'Check the menu mapping and recorded unit', expected_qty_day_comparable: 12, actual_qty_day_comparable: 18, comparison_unit: 'PCS', conversion_evidence: {}, recipe_versions: { version: 2, first_seen: day(1) }, recipe_version_hash: 'test-hash', recipe_edited_at: SYNCED, recipe_observed_at: SYNCED, prior_recipe_observed_at: null, first_sale_at: null, source_checked_at: SYNCED, snapshot_as_of: SYNCED, replica_stale: false }
+  vi.mocked(listRecipeFindings).mockResolvedValue({ rows: [{ ...base, finding_id: 'small', impact_idr: 100 }, { ...base, finding_id: 'large', impact_idr: 900 }, { ...base, finding_id: 'blocked', rule: 'unit_comparison_unverified', classification: 'warehouse_artefact', impact_idr: null, expected_qty_day_comparable: null, conversion_evidence: { recipe_units: [{ status: 'conflicting_recorded_conversions' }] } }, { ...base, finding_id: 'policy', impact_idr: 1000, needs_human: false }] as RecipeFinding[], receipts: [{ esb_code: 'TEST', complete: true, snapshot_as_of: SYNCED, source_completed_at: SYNCED, window_start: day(6), window_end: LATEST }] })
+  const user = userEvent.setup()
+  const first = renderBranch(['finance'])
+  await user.click(await screen.findByRole('link', { name: 'View discrepancies' }))
+  const section = await screen.findByRole('region', { name: 'Recipe vs stock — what to check' })
+  const rows = within(section).getAllByRole('row').slice(1)
+  expect(rows[0]).toHaveAttribute('data-finding', 'large')
+  expect(rows).toHaveLength(3)
+  expect(rows[0]).toHaveTextContent('Expected 12 PCS · actual 18 PCS')
+  await user.click(within(rows[0]).getByText('Evidence'))
+  expect(within(rows[0]).getByText(/Version 2/)).toBeVisible()
+  fireEvent.change(section.querySelector('select[name="rf_class"]')!, { target: { value: 'warehouse_artefact' } })
+  await waitFor(() => expect(where()).toContain('rf_class=warehouse_artefact'))
+  expect(within(section).getByText("Units can't be compared: conflicting recorded conversions")).toBeVisible()
+  expect(within(section).queryByText('Expected 12 PCS · actual 18 PCS')).toBeNull()
+  first.unmount()
+  vi.mocked(listRecipeFindings).mockClear()
+  const denied = renderBranch(['supervisor'])
+  await screen.findByRole('heading', { level: 1, name: 'Gordi HQ' })
+  expect(listRecipeFindings).not.toHaveBeenCalled()
+  expect(screen.queryByRole('region', { name: /what to check/ })).toBeNull()
+  denied.unmount()
+  mockRev.mockResolvedValue([rev(LATEST, 'SKC', 'Gordi Cikal', 100)])
+  vi.mocked(listRecipeFindings).mockResolvedValue({ rows: [], receipts: [] })
+  const holiday = renderBranch(['ops_lead'], '/money/branch/SKC?period=7')
+  expect(await screen.findByText(/Closed for school mid-term holiday/)).toBeVisible()
+  expect(await screen.findByText('Register not received yet')).toBeVisible()
+  holiday.unmount()
+  vi.mocked(listRecipeFindings).mockRejectedValueOnce(new Error('offline'))
+  renderBranch(['finance'], '/money/branch/SKC?period=7')
+  const alert = await screen.findByRole('alert')
+  expect(alert).toHaveTextContent('The recipe/stock register could not be loaded.')
+  await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+  expect(await screen.findByText('Register not received yet')).toBeVisible()
 })
 
 describe('MoneyBranchPage — the day chart', () => {

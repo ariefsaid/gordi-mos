@@ -22,8 +22,10 @@ select tables_are('reporting', array[
   'ingredient_usage_daily',
   'pending_bills',
   'pending_bill_snapshots',
-  'recipe_versions'
-], 'reporting holds exactly these ten tables — an eleventh has to be added here before it can hide from the assertions below');
+  'recipe_versions',
+  'recipe_deduction_findings',
+  'recipe_finding_snapshots'
+], 'reporting table inventory covers every snapshot and scope table');
 
 -- ── AC-005: RLS enabled AND forced on every one of them ──────────────────────────────────────
 select is(

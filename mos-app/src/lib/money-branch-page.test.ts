@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
 import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { buildBranchPage, readBranchView } from './money-branch-page'
+import { chartSeries } from '@/components/money/day-chart-geometry'
 
 const LATEST = '2026-10-05'
 function day(offset: number): string {
@@ -66,6 +67,15 @@ describe('buildBranchPage', () => {
     expect(page.margin!.pct).toBeCloseTo(0.6, 10)
     expect(page.days[0].marginPct).toBeCloseTo(0.6, 10)
     expect(page.margin!.budgetBasis).toEqual({ cogsShare: 0.4, budgetShare: 0.35 })
+  })
+
+  it('the confirmed holiday is closed, not a missing feed or zero; an unexpected sale remains visible', () => {
+    const rows = [rev('2026-10-08', 'ghq', 500), rev('2026-10-02', 'SKC', 100), rev('2026-10-05', 'SKC', 75)]
+    const page = buildBranchPage(rows, null, 'SKC', 7)!
+    expect(page.days.find(d => d.date === '2026-10-03')).toMatchObject({ closed: true, value: null })
+    expect(page.days.find(d => d.date === '2026-10-05')).toEqual({ date: '2026-10-05', value: 75, compare: null })
+    expect(page.days.find(d => d.date === '2026-10-02')?.closed).toBeUndefined()
+    expect(chartSeries(page.days, 'revenue', null, 0.08, String).data.find(d => d.date === '2026-10-03')?.stub).toBeNull()
   })
 
   it('an unknown branch is null', () => {
