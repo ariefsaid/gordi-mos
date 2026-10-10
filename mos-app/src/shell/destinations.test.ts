@@ -139,6 +139,19 @@ describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () =
 })
 
 describe('AC-011 prep (T4): MODULES — 2 BU groups, 3 module roots', () => {
+  it('removes duplicate Café and Money doors while keeping their legacy route targets resolvable', () => {
+    const cafe = MODULES.flatMap((group) => group.items).find((module) => module.id === 'cafe')!
+    const money = DESTINATIONS.find((destination) => destination.id === 'money')!
+
+    expect(cafe.children?.map((child) => child.path)).not.toContain('/cafe')
+    expect(cafe.children?.map((child) => child.path)).not.toContain('/cafe/production')
+    expect(cafe.links.map((link) => link.path)).toContain('/cafe/production')
+    expect(destinationForPath('/cafe')).toBe(cafe)
+    expect(destinationForPath('/cafe/production')).toBe(cafe)
+    expect(money.children?.map((child) => child.path)).not.toContain('/money')
+    expect(money.children?.map((child) => child.path)).toContain('/money/pending-bills')
+  })
+
   it('has exactly 2 BU groups (Retail Ops, B2B Ops) in order', () => {
     expect(MODULES.map((g) => g.bu)).toEqual(['rail.retailOps', 'rail.b2bOps'])
   })
@@ -190,16 +203,12 @@ describe('AC-011/013 prep (T4): UTILITY — admin (gated) + profile', () => {
   })
 })
 
-// The Café module carries its Today root, nine ungated work screens and gated Review + Pushes as `children`.
-// The port shipped this module with one link and left CAFE_SECTIONS — all ten sections, correctly
-// labelled — imported by nothing but a breadcrumb lookup.
+// Café route links retain every URL; only distinct pages appear as navigation children.
 describe('Café module — the tab strip is in the nav, gated as its routes are', () => {
   const cafe = MODULES.flatMap((g) => g.items).find((m) => m.id === 'cafe')!
 
-  it('carries the Today root, nine ungated screens, and two gated screens as children', () => {
+  it('keeps the capture root and production alias out of the child navigation', () => {
     expect(cafe.children?.map((c) => c.path)).toEqual([
-      '/cafe',
-      '/cafe/production',
       '/cafe/transfer',
       '/cafe/waste',
       '/cafe/count',
@@ -211,21 +220,20 @@ describe('Café module — the tab strip is in the nav, gated as its routes are'
       '/cafe/review',
       '/cafe/pushes',
     ])
-    // Derived, not re-listed: CAFE_SECTIONS is the tab-strip source of truth.
-    expect(cafe.children).toEqual(CAFE_SECTIONS)
+    expect(cafe.children).toEqual(CAFE_SECTIONS.filter(
+      ({ path }) => path !== '/cafe' && path !== '/cafe/production',
+    ))
   })
 
   it('a plain kitchen member sees Log, Plan and Stock — and not Review or Pushes', () => {
     const visible = visibleSections(cafe.children ?? [], ['member']).map((c) => c.path)
-    expect(visible).toEqual(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/request', '/cafe/plan', '/cafe/stock', '/cafe/items'])
+    expect(visible).toEqual(['/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/request', '/cafe/plan', '/cafe/stock', '/cafe/items'])
   })
 
   it('ops_lead and admin also see Review and Pushes', () => {
     for (const role of ['ops_lead', 'admin']) {
       const visible = visibleSections(cafe.children ?? [], [role]).map((c) => c.path)
       expect(visible, role).toEqual([
-        '/cafe',
-        '/cafe/production',
         '/cafe/transfer',
         '/cafe/waste',
         '/cafe/count',
@@ -246,7 +254,7 @@ describe('Café module — the tab strip is in the nav, gated as its routes are'
   // it is the dispatch surface, and opening review per stream opened nothing about posting.
   it('a stream supervisor sees Review — and still not Pushes (#236 FR-040)', () => {
     const visible = visibleSections(cafe.children ?? [], ['supervisor']).map((c) => c.path)
-    expect(visible).toEqual(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/request', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review'])
+    expect(visible).toEqual(['/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/request', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review'])
   })
 
   it("each gated nav entry carries the same role list as the route gate that OWNS it", () => {
