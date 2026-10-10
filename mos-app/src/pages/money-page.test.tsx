@@ -127,6 +127,14 @@ describe('MoneyPage — what each tier receives', () => {
     expect(screen.getByText('Margin covers POS branches only.')).toBeInTheDocument()
   })
 
+  it('shows the recipe-budget marker in the COGS KPI bullet', async () => {
+    renderMoney(['finance'])
+    const tile = await screen.findByRole('group', { name: 'COGS vs budget' })
+    const meter = within(tile).getByRole('meter')
+    expect(meter).toHaveAttribute('aria-valuenow', '35')
+    expect(meter.querySelector('[aria-hidden="true"]')).toBeInTheDocument()
+  })
+
   it('a supervisor granted one branch lands on that branch', async () => {
     mockRev.mockResolvedValue(revenue(['cikal']))
     renderMoney(['supervisor'], '/money?period=7')

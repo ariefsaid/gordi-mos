@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
 import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { buildBranchTable, moneyHeadline, readMoneyView, sparklinePoints, withMoneyView } from './money-branch-table'
+import { buildBranchPage } from './money-branch-page'
 import { translateFor } from '@/i18n/use-t'
 
 describe('readMoneyView — period and sort from the URL', () => {
@@ -83,6 +84,22 @@ describe('buildBranchTable', () => {
     expect(alpha).toMatchObject({ name: 'Alpha', revenue: 14_000_000, latestDay: 2_000_000 })
     expect(alpha.vsPrevious).toBeCloseTo(1, 10)
     expect(alpha.vsWeekday).toBeCloseTo(1, 10)
+  })
+
+  it('displays linked MOS branch names and title-cases unmapped ERP names without changing source rows', () => {
+    const linked = { ...rev(day(0), 'cikal', 'GORDI CIKAL', 10), branch_id: 'branch-cikal' }
+    const unmapped = rev(day(0), 'radiant', 'GORDI RADIANT', 20)
+    const rows = [linked, unmapped]
+    const names = new Map([['branch-cikal', 'Gordi Cikal']])
+    const table = buildBranchTable(rows, null, 7, names)!
+    const page = buildBranchPage(rows, null, 'cikal', 7, names)!
+
+    expect(table.branches.map((row) => [row.code, row.name])).toEqual([
+      ['radiant', 'Gordi Radiant'], ['cikal', 'Gordi Cikal'],
+    ])
+    expect(page.name).toBe('Gordi Cikal')
+    expect(linked.branch_name).toBe('GORDI CIKAL')
+    expect(unmapped.branch_name).toBe('GORDI RADIANT')
   })
 
   it('a day a branch has not sent is left out of both periods, never counted as zero', () => {

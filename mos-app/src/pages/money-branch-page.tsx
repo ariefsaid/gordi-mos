@@ -182,7 +182,7 @@ export function MoneyBranchPage() {
   const { load, read } = useMoneyRows(canSeeMargin)
   const data = load.data
   const page = useMemo(
-    () => (data ? buildBranchPage(data.revenue, data.margin, code, view.period) : null),
+    () => (data ? buildBranchPage(data.revenue, data.margin, code, view.period, data.branchNames) : null),
     [data, code, view.period],
   )
   const syncedAt = useMemo(() => (data ? latestBy(data.revenue, (r) => r.snapshot_as_of) : null), [data])

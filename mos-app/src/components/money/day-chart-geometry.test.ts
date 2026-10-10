@@ -46,6 +46,17 @@ describe('dayAt — the day under a click or tap', () => {
     expect(chart.ticks).toEqual([0.5, 0.55, 0.6])
   })
 
+  it('keeps margin marks and budget inside a padded plot domain while ticks stay clean', () => {
+    const days = [
+      { date: '2026-10-01', value: 100, compare: 90, marginPct: 0.5 },
+      { date: '2026-10-02', value: 110, compare: 95, marginPct: 0.6 },
+    ]
+    const chart = chartSeries(days, 'margin', 0.55, 0.08, String)
+    expect(chart.ticks).toEqual([0.5, 0.55, 0.6])
+    expect(chart.yMin).toBeLessThan(0.5)
+    expect(chart.yMax).toBeGreaterThan(0.6)
+  })
+
   it('keeps COGS fill and budget marker inside the bullet track', () => {
     expect(bulletGeometry(0.35, 0.3)).toEqual({ fill: 35, marker: 30 })
     expect(bulletGeometry(1.2, -0.1)).toEqual({ fill: 100, marker: 0 })

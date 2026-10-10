@@ -22,6 +22,7 @@ import { useT } from '@/i18n/use-t'
 import { latestBy } from '@/lib/db/reporting-shared'
 import { buildBranchTable, moneyHeadline, readMoneyView, sparklinePoints, withMoneyView, type MoneyView } from '@/lib/money-branch-table'
 import { formatIDRCompact, moneyKpiDelta, signedChange } from '@/lib/sales-dashboard'
+import { bulletGeometry } from '@/components/money/day-chart-geometry'
 import { formatPercent, formatSignedPoints } from '@/lib/format/percent'
 import { useMoneyRows } from '@/lib/use-money-rows'
 import { BranchTable } from '@/components/money/branch-table'
@@ -46,7 +47,7 @@ export function MoneyPage() {
 
   const data = load.data
   const table = useMemo(
-    () => (data ? buildBranchTable(data.revenue, data.margin, view.period) : null),
+    () => (data ? buildBranchTable(data.revenue, data.margin, view.period, data.branchNames) : null),
     [data, view.period],
   )
   const syncedAt = useMemo(() => (data ? latestBy(data.revenue, (r) => r.snapshot_as_of) : null), [data])
@@ -110,6 +111,7 @@ export function MoneyPage() {
   const headline = moneyHeadline(table, view.period, t)
   const trend = sparklinePoints(table.company.trend)
   const margin = table.company.margin
+  const cogsBullet = margin?.budgetBasis ? bulletGeometry(margin.budgetBasis.cogsShare, margin.budgetBasis.budgetShare) : null
   return frame(
     <div className="money-body">
       {periodControl()}
@@ -123,7 +125,7 @@ export function MoneyPage() {
         <KPITile label={t('money.overview.revenue', { days: String(view.period) })} value={formatIDRCompact(table.company.revenue)} delta={moneyKpiDelta(table.company.vsPrevious, t)} sub={t('money.table.col.vsPrevious')} graphic={trend && <svg className="block" aria-hidden="true" viewBox="0 0 64 24" width="100%" height="24"><polyline points={trend.points} fill="none" stroke="var(--text-light)" strokeWidth="2" /><circle cx={trend.end.x} cy={trend.end.y} r="4" fill="var(--primary)" stroke="var(--surface-primary)" strokeWidth="2" /></svg>} />
         <KPITile label={t('money.overview.latest')} value={formatIDRCompact(table.company.latestDay ?? 0)} delta={moneyKpiDelta(table.company.vsWeekday, t)} sub={t('money.table.col.vsWeekday')} />
         {margin && <KPITile label={t('money.overview.margin')} value={margin.pct === null ? t('money.table.notReceived') : formatPercent(margin.pct, 1)} delta={moneyKpiDelta(table.marginVsPrevious, t, true)} />}
-        {margin && <KPITile label={t('money.overview.cogs')} value={margin.cogsVsBudget === null ? t('money.table.notReceived') : t('money.table.points', { value: formatSignedPoints(margin.cogsVsBudget) })} sub={t('money.branch.bullet.label')} />}
+        {margin && <KPITile label={t('money.overview.cogs')} value={margin.cogsVsBudget === null ? t('money.table.notReceived') : t('money.table.points', { value: formatSignedPoints(margin.cogsVsBudget) })} sub={cogsBullet ? t('money.branch.bullet.label') : undefined} graphic={cogsBullet && <span className="relative block h-2.5 w-full rounded-full bg-secondary" role="meter" aria-label={t('money.branch.bullet.label')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(cogsBullet.fill)}><span className="block h-full rounded-full bg-primary" style={{ width: `${cogsBullet.fill}%` }} /><span className="absolute -top-1 h-[18px] border-l-2" aria-hidden="true" style={{ left: `${cogsBullet.marker}%`, borderColor: 'var(--text-tertiary)' }} /></span>} />}
       </div>
       <BranchTable
         data={table}

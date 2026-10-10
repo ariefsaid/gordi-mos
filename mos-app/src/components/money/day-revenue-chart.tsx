@@ -60,7 +60,7 @@ export function DayRevenueChart({ days, selected, onSelect, label, mode = 'reven
     indexRef.current = selectedIndex
   }
   const isMargin = mode === 'margin'
-  const { data, ticks, yMax } = chartSeries(days, mode, budget, STUB_SHARE, formatIDRCompact)
+  const { data, ticks, yMin, yMax } = chartSeries(days, mode, budget, STUB_SHARE, formatIDRCompact)
   const [hover, setHover] = useState<number | null>(null)
   // A pick is a primary press that starts and ends on the plot: a right click, or a drag released
   // here, picks nothing.
@@ -156,7 +156,7 @@ export function DayRevenueChart({ days, selected, onSelect, label, mode = 'reven
             />
             <YAxis
               ticks={ticks}
-              domain={[ticks[0] ?? 0, yMax]}
+              domain={[yMin, yMax]}
               width={Y_AXIS_WIDTH}
               tickLine={false}
               axisLine={false}

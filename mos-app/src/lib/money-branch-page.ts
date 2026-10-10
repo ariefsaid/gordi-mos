@@ -10,6 +10,7 @@ import {
   B2B_CHANNEL,
   DEFAULT_MONEY_VIEW,
   MONEY_PERIODS,
+  displayBranchName,
   marginFigures,
   type MarginFigures,
   type MoneyPeriod,
@@ -60,6 +61,7 @@ export function buildBranchPage(
   margin: SalesMarginDailyRow[] | null,
   code: string,
   period: MoneyPeriod,
+  branchNames?: ReadonlyMap<string, string>,
 ): BranchPage | null {
   const latestDate = latestReportingDate(revenue)
   const own = revenue.filter((r) => r.branch_code === code)
@@ -88,10 +90,11 @@ export function buildBranchPage(
     for (const d of days) d.marginPct = dailyMargin.get(d.date) ?? null
   }
   const latest = own.reduce((a, b) => (b.revenue_date > a.revenue_date ? b : a))
+  const branchId = own.find((r) => r.branch_id)?.branch_id ?? null
   const page: BranchPage = {
     code,
-    name: latest.branch_name ?? code,
-    branchId: own.find((r) => r.branch_id)?.branch_id ?? null,
+    name: displayBranchName(latest.branch_name ?? code, branchId ? branchNames?.get(branchId) : null),
+    branchId,
     isB2B,
     latestDate,
     days,

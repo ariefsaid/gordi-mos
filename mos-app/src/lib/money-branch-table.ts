@@ -90,6 +90,16 @@ export interface BranchTable {
 
 export const B2B_CHANNEL = 'B2B'
 
+/** The reporting name is an ERP value; display a linked MOS name first, otherwise title-case it. */
+export function displayBranchName(erpName: string, mosName?: string | null): string {
+  if (mosName?.trim()) return mosName.trim()
+  return erpName.trim().replace(/[\p{L}\p{M}]+/gu, (word) =>
+    word === word.toUpperCase() && word.length <= 3
+      ? word
+      : `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}`,
+  )
+}
+
 export function sparklinePoints(values: readonly (number | null)[], width = 64, height = 24) {
   const received = values.flatMap((value, i) => value === null ? [] : [{
     x: Number((i * width / Math.max(values.length - 1, 1)).toFixed(1)), value,
@@ -119,10 +129,16 @@ export function moneyHeadline(table: BranchTable, period: MoneyPeriod, t: Transl
 /** Daily revenue of one row group; a date absent from the map was not received. */
 interface Series { code: string; name: string; byDate: Map<string, number> }
 
-function seriesOf(rows: SalesDailyRevenueRow[]): Series[] {
+function seriesOf(rows: SalesDailyRevenueRow[], branchNames?: ReadonlyMap<string, string>): Series[] {
   const groups = new Map<string, Series>()
   for (const r of rows) {
-    const g = groups.get(r.branch_code) ?? { code: r.branch_code, name: r.branch_name ?? r.branch_code, byDate: new Map() }
+    const mosName = r.branch_id ? branchNames?.get(r.branch_id) : null
+    const g = groups.get(r.branch_code) ?? {
+      code: r.branch_code,
+      name: displayBranchName(r.branch_name ?? r.branch_code, mosName),
+      byDate: new Map(),
+    }
+    if (mosName) g.name = displayBranchName(r.branch_name ?? r.branch_code, mosName)
     g.byDate.set(r.revenue_date, (g.byDate.get(r.revenue_date) ?? 0) + r.clean_revenue)
     groups.set(r.branch_code, g)
   }
@@ -182,6 +198,7 @@ export function buildBranchTable(
   revenue: SalesDailyRevenueRow[],
   margin: SalesMarginDailyRow[] | null,
   period: MoneyPeriod,
+  branchNames?: ReadonlyMap<string, string>,
 ): BranchTable | null {
   const latestDate = latestReportingDate(revenue)
   if (!latestDate) return null
@@ -216,8 +233,8 @@ export function buildBranchTable(
   }
 
   const byRevenue = (a: BranchRow, b: BranchRow) => b.revenue - a.revenue
-  const branches = seriesOf(revenue.filter((r) => r.channel !== B2B_CHANNEL)).map((s) => toRow(s, 'branch')).sort(byRevenue)
-  const b2b = seriesOf(revenue.filter((r) => r.channel === B2B_CHANNEL)).map((s) => toRow(s, 'b2b')).sort(byRevenue)
+  const branches = seriesOf(revenue.filter((r) => r.channel !== B2B_CHANNEL), branchNames).map((s) => toRow(s, 'branch')).sort(byRevenue)
+  const b2b = seriesOf(revenue.filter((r) => r.channel === B2B_CHANNEL), branchNames).map((s) => toRow(s, 'b2b')).sort(byRevenue)
   const all = [...branches, ...b2b]
   const companyDaily = new Map<string, number>()
   for (const row of revenue) companyDaily.set(row.revenue_date, (companyDaily.get(row.revenue_date) ?? 0) + row.clean_revenue)

@@ -36,12 +36,15 @@ export function chartSeries(days: readonly BranchDay[], mode: 'revenue' | 'margi
   const chartValues = [...values, ...comparisons].filter((value): value is number => value !== null)
   const [low, high] = chartValues.length ? [Math.min(...chartValues), Math.max(...chartValues)] : [0, 1]
   const ticks = cleanTicks(mode === 'margin' ? low : 0, chartValues.length ? high : 1)
-  const yMax = ticks.at(-1) ?? 1
+  const tickStep = ticks.length > 1 ? ticks[1] - ticks[0] : 1
+  const domainPadding = mode === 'margin' && chartValues.length ? tickStep / 2 : 0
+  const yMin = mode === 'margin' && chartValues.length ? low - domainPadding : 0
+  const yMax = mode === 'margin' && chartValues.length ? high + domainPadding : ticks.at(-1) ?? 1
   const data = days.map((day, index) => {
     const value = values[index]
     return { ...day, value, compare: comparisons[index], stub: mode === 'revenue' && value === null ? yMax * stubShare : null, latestLabel: mode === 'revenue' && index === days.length - 1 && value !== null ? formatLatest(value) : null }
   })
-  return { data, ticks, yMax }
+  return { data, ticks, yMin, yMax }
 }
 
 export function bulletGeometry(value: number, budget: number) {
