@@ -31,6 +31,12 @@ function renderFrame(locale: Locale, stream: ProductionStream | null = kitchen) 
 }
 
 describe('CafePageFrame', () => {
+  it('omits stream controls and placeholders for the org-wide recipe catalog', () => {
+    render(<I18nProvider initialLocale="en"><CafePageFrame page="recipes"><p>Recipes body</p></CafePageFrame></I18nProvider>)
+    const head = screen.getByTestId('page-head')
+    expect(within(head).getByRole('heading', { level: 1 })).toHaveTextContent('Recipes')
+    expect(head.querySelector('.ch-status-row')).toBeNull()
+  })
   it.each([
     ['en', 'Production', 'Rumah Rames · Kitchen', 'Switch kitchen'],
     ['id', 'Produksi', 'Rumah Rames · Dapur', 'Ganti dapur'],

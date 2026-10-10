@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
+import { CafeItemRecipeSection } from '@/components/kitchen/cafe-recipe-detail'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/dashboard/data-table'
@@ -666,6 +667,7 @@ function CafeItemSettingsPageForViewer() {
               emptyLabel={t('cafe.items.noMatches')}
               caption={t('cafe.items.tableCaption')}
               renderCard={item => <ItemCard {...editorFor(item)} />}
+              renderRowDetail={item => <CafeItemRecipeSection itemId={item.id} erpName={item.erpName} />}
             />
           </div>
         </section>
@@ -861,6 +863,7 @@ function ItemCard({ item, draft, canEdit, saving, changed, saveState, onDraftCha
         <span className="cafe-items__field-label">{t('cafe.items.unitMultiples')}</span>
         <ItemMultiplesEditor item={item} draft={draft} canEdit={canEdit} saving={saving} onDraftChange={onDraftChange} />
       </div>
+      <CafeItemRecipeSection itemId={item.id} erpName={item.erpName} />
       {canEdit && (
         <div className="cafe-items__card-action">
           <SaveControl item={item} changed={changed} validName={!invalidName} saving={saving} state={saveState} onSave={onSave} />

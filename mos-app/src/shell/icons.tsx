@@ -601,6 +601,15 @@ export function ItemsIcon() {
   )
 }
 
+export function RecipesIcon() {
+  return (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1Z" />
+      <path d="M12 6v14M6 9h3M6 13h3M15 9h3M15 13h3" />
+    </svg>
+  )
+}
+
 // StockIcon — a carton, the Café Stock screen: the goods actually on hand in the stream.
 export function StockIcon() {
   return (

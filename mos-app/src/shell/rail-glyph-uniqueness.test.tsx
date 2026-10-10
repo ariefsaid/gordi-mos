@@ -308,7 +308,7 @@ describe('phone drawer glyphs (issue 457 part 1, the More drawer)', () => {
     expect(cup, 'the Café module row is missing from the drawer').toBeTruthy()
     const children = links.filter((l) => l.href.startsWith('/cafe/'))
     expect(children.map((c) => c.href).sort()).toEqual(
-      ['/cafe/count', '/cafe/items', '/cafe/plan', '/cafe/pushes', '/cafe/receive', '/cafe/request', '/cafe/review', '/cafe/stock', '/cafe/transfer', '/cafe/waste'],
+      ['/cafe/count', '/cafe/items', '/cafe/plan', '/cafe/pushes', '/cafe/receive', '/cafe/recipes', '/cafe/request', '/cafe/review', '/cafe/stock', '/cafe/transfer', '/cafe/waste'],
     )
     for (const child of children) {
       expect(child.glyph, `${child.href} draws the Café cup`).not.toBe(cup)

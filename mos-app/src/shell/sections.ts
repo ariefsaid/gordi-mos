@@ -6,7 +6,7 @@ import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
   MoneyIcon, PendingBillIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, PeopleIcon, ShieldIcon,
-  TodayIcon, LogIcon, TransferIcon, WasteIcon, PlanIcon, StockIcon, ItemsIcon, ReviewIcon, DispatchIcon, CountIcon, ReceiveIcon, RequestIcon,
+  TodayIcon, LogIcon, TransferIcon, WasteIcon, PlanIcon, StockIcon, ItemsIcon, RecipesIcon, ReviewIcon, DispatchIcon, CountIcon, ReceiveIcon, RequestIcon,
 } from './icons'
 
 export interface Section {
@@ -75,6 +75,7 @@ export const CAFE_SECTIONS: Section[] = [
   { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: PlanIcon },
   { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: StockIcon },
   { path: '/cafe/items', label: 'Items', labelKey: 'nav.cafe.items', Icon: ItemsIcon },
+  { path: '/cafe/recipes', label: 'Recipes', labelKey: 'nav.cafe.recipes', Icon: RecipesIcon },
   // `anyOf` matches each one's OWN route gate exactly (router.tsx: two RequireAccessRole
   // branches). Same list in both places or the rail offers a link that bounces — or, as #236
   // shipped it, withholds a link to a surface the person is entitled to.
