@@ -1,7 +1,5 @@
 /**
- * Money's sub-nav (#1464): Branches for every Money tier, Pending bills for Finance only — the same
- * answer on the desktop rail and the phone drawer, and the same `anyOf` the route gate carries.
- * Money remains available only to its revenue-view roles; tests exercise the real access-role predicate.
+ * Money navigation (#1673): Money is the root page; Pending bills is its Finance-only child.
  */
 import { describe, it, expect, vi } from 'vitest'
 import { render, within } from '@testing-library/react'
@@ -61,18 +59,19 @@ function surfaces(accessRoles: string[], path = '/money/pending-bills') {
   return { railChildren, railCurrent, drawerChildren }
 }
 
-describe('Money sub-nav', () => {
-  it('Finance sees Branches and Pending bills on both surfaces, and only the open one is the page', () => {
+describe('Money navigation', () => {
+  it('Finance sees only the distinct Pending bills child; the open child is the page', () => {
     const { railChildren, railCurrent, drawerChildren } = surfaces(['finance'])
-    expect(railChildren).toEqual(['/money=Branches', '/money/pending-bills=Pending bills'])
+    expect(railChildren).toEqual(['/money/pending-bills=Pending bills'])
     expect(drawerChildren).toEqual(railChildren)
     expect(railCurrent).toBe('/money/pending-bills')
   })
 
-  it.each([['manager'], ['supervisor']])('a %s sees Branches only, on both surfaces', (role) => {
-    const { railChildren, drawerChildren } = surfaces([role], '/money')
-    expect(railChildren).toEqual(['/money=Branches'])
+  it.each([['manager'], ['supervisor']])('a %s uses Money as the single page door', (role) => {
+    const { railChildren, railCurrent, drawerChildren } = surfaces([role], '/money')
+    expect(railChildren).toEqual([])
     expect(drawerChildren).toEqual(railChildren)
+    expect(railCurrent).toBe('/money')
   })
 
   it('names the denied link for the outside-access panel and admits Finance only', () => {

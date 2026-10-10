@@ -92,11 +92,8 @@ function DrawerGroupLabel({ children }: { children: string }) {
 /**
  * MobileDrawer — v4 shell rebuild (Task 4). The real two-zone nav drawer, derived from the SAME
  * destinations.tsx registry the desktop rail reads (no second hand-maintained list): workspace
- * roots (+ Work's 5 declared always-expanded children, 4 of them past the ship gate today) ·
- * Modules grouped by BU (modulesByBU,
- * viewer-scoped) · Utility. The viewer's promoted module is already a bottom-tab, so it's
- * excluded from the Modules zone here — it lives on exactly one nav surface. Links carry no
- * aria-current (the bottom-tab-bar / breadcrumb leaf own that; Rule 5 — see breadcrumb.tsx).
+ * Workspace roots · BU modules, including promoted module trees · Utility. Links carry no
+ * aria-current; the bottom-tab bar or breadcrumb owns the active page state (Rule 5).
  * Every close path — Esc, backdrop click, the ✕, and clicking a destination link — routes
  * through the SAME `closeAndReturn` so focus always returns to the launcher (interaction-
  * contract I2), never left dangling on a link about to unmount.
@@ -141,14 +138,8 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
 
   if (!open) return null
 
-  // Zone 1 — workspace roots (Home · Work · Signals · Money[role-gated] · Inbox), same isLive
-  // check the rail applies. Zone 2 — modules grouped by BU, viewer-scoped, minus the one already
-  // promoted to a bottom-tab. Zone 3 — utility (Admin[gated] · Profile).
   const liveWorkspace = DESTINATIONS.filter((d) => isLive(d, accessRoles))
   const promotedModule = primaryModuleForViewer(affiliated, accessRoles)
-  // Zone 2 keeps every viewer-scoped module. The promoted one contributes only its CHILDREN — its
-  // own row is already the bottom bar's module tab, so repeating it here would be the duplicate
-  // the "exactly one surface owns the module" rule exists to prevent.
   //
   // It used to be dropped whole, children included (#242). Below 920px there is no rail, and the
   // bottom bar renders one link per module with no children — so for every viewer who HAS a
@@ -161,7 +152,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
       items: g.items
         .map((m) => ({
           module: m,
-          showParent: m.id !== promotedModule?.id,
+          showParent: m.id !== promotedModule?.id || Boolean(m.children?.length),
           children: moduleChildrenForViewer(m, pathname, affiliated, accessRoles),
         }))
         .filter((i) => i.showParent || i.children.length > 0),
