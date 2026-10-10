@@ -15,6 +15,7 @@ import userEvent from '@testing-library/user-event'
 import { Profiler, StrictMode, Suspense, type ReactNode } from 'react'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { MemoryRouter, Route, Routes, createMemoryRouter, RouterProvider, Link } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import * as kitchenItemList from '@/lib/kitchen-item-list'
@@ -257,26 +258,33 @@ async function renderPage(
   initialPath = appUrl('/cafe'),
   location?: { activeBranchId: string; activeBranchName: string },
   leading?: ReactNode,
+  locale: 'en' | 'id' = 'en',
 ) {
   mockUseAuth.mockReturnValue(auth)
   let utils!: ReturnType<typeof render>
   await act(async () => {
     utils = render(
-      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[initialPath]}>
-        <Routes>
-          <Route path="/cafe" element={<KitchenLogPage mode="production" leading={leading} {...location} />} />
-          <Route path="/cafe/transfer" element={<KitchenLogPage mode="transfer" leading={leading} {...location} />} />
-          <Route path="/cafe/success" element={<div>Submitted</div>} />
-        </Routes>
-      </MemoryRouter>,
+      <I18nProvider initialLocale={locale}>
+        <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[initialPath]}>
+          <Routes>
+            <Route path="/cafe" element={<KitchenLogPage mode="production" leading={leading} {...location} />} />
+            <Route path="/cafe/transfer" element={<KitchenLogPage mode="transfer" leading={leading} {...location} />} />
+            <Route path="/cafe/success" element={<div>Submitted</div>} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
     )
     await Promise.resolve()
   })
   return utils
 }
 
-async function renderTransferPage(auth: AuthState = VIEWER_MEMBER, location?: { activeBranchId: string; activeBranchName: string }) {
-  return renderPage(auth, appUrl('/cafe/transfer'), location)
+async function renderTransferPage(
+  auth: AuthState = VIEWER_MEMBER,
+  location?: { activeBranchId: string; activeBranchName: string },
+  locale: 'en' | 'id' = 'en',
+) {
+  return renderPage(auth, appUrl('/cafe/transfer'), location, undefined, locale)
 }
 
 import { KitchenLogPage } from './kitchen-log-page'
@@ -1049,6 +1057,45 @@ describe('F3b: disabled Submit shows a note-missing pointer when a variance note
 // Parity with the OLD app (app/main.py ~L618-661): an over-`tersedia` transfer is a
 // HARD STOP ("Produksi dulu sebelum transfer"), NOT a silent clamp. The typed qty is
 // kept; Submit is blocked + the offending line shows the produce-first cue.
+describe('Issue 1702: transfer availability explains the date cutoff without changing its gate', () => {
+  it.each([
+    {
+      locale: 'en' as const,
+      explanation: "Available uses approved logs dated before today. Today's approved production can be transferred tomorrow.",
+      capCue: 'Insufficient stock — produce first',
+    },
+    {
+      locale: 'id' as const,
+      explanation: 'Tersedia dihitung dari catatan yang disetujui sebelum hari ini. Produksi yang disetujui hari ini bisa ditransfer besok.',
+      capCue: 'Stok kurang — produksi dulu',
+    },
+  ])('explains positive Stock with zero Available in the empty and blocked states ($locale)', async ({ locale, explanation, capCue }) => {
+    mockFetchStockMap.mockResolvedValue({
+      w1: { stok: 1, tersedia: 0 },
+      w2: { stok: 0, tersedia: 0 },
+    })
+    await renderTransferPage(VIEWER_MEMBER, undefined, locale)
+    await waitFor(() => expect(screen.getByText('Ayam Bakar')).toBeInTheDocument())
+    expect(screen.getByText(explanation)).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /radiant/i }))
+      await Promise.resolve()
+    })
+    const qtyInput = screen.getByRole('spinbutton', { name: /ayam bakar/i })
+    await act(async () => {
+      fireEvent.change(qtyInput, { target: { value: '1' } })
+      await Promise.resolve()
+    })
+
+    const rowExplanation = await screen.findByText(explanation)
+    expect(rowExplanation).toHaveClass('kls-availability-note')
+    expect(screen.getByText(capCue)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: locale === 'en' ? /^submit/i : /^kirim/i })).toBeDisabled()
+    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+  })
+})
+
 describe('AC-022: transfer over-availability rejects submit — "Insufficient stock — produce first" (FR-023)', () => {
   it('AC-022: an over-tersedia Transfer qty is NOT clamped — keeps the typed value + shows the cue', async () => {
     await renderTransferPage()

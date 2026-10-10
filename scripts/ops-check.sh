@@ -41,13 +41,13 @@ mkdir -p "$OPS_STATE_DIR" || { echo "ops-check: cannot create OPS_STATE_DIR" >&2
 # ---- alert once per condition: <name>.alert in the state dir means "already alerted" ----
 # The state changes only after the send succeeded, so a failed Telegram send is retried on the
 # next run instead of silencing the condition.
-report() { # name status(ok|fail) message
-  local name="$1" status="$2" msg="$3" f="$OPS_STATE_DIR/$1.alert"
+report() { # name status(ok|fail) message [recovery message]
+  local name="$1" status="$2" msg="$3" recovery="${4:-$3}" f="$OPS_STATE_DIR/$1.alert"
   if [ "$status" = fail ]; then
-    if [ ! -e "$f" ] && ops_notify "🚨 ops-check ${name}: ${msg}"; then
+    if [ ! -e "$f" ] && ops_notify "🚨 $msg"; then
       printf '%s\n' "$msg" > "$f"
     fi
-  elif [ -e "$f" ] && ops_notify "✅ ops-check ${name} recovered: ${msg}"; then
+  elif [ -e "$f" ] && ops_notify "✅ $recovery"; then
     rm -f "$f"
   fi
 }
@@ -71,57 +71,82 @@ mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null; }
 
 # ---- database and outbox ----
 if [ "$(sql 'select 1')" = 1 ]; then
-  report database ok "reachable"
+  report database ok "MOS can reach its database again."
   n="$(sql "select count(*) from integrations.esb_push where status = 'dead_letter' $ENV_FILTER")"
   if [[ "$n" =~ ^[0-9]+$ ]]; then
-    if [ "$n" -gt 0 ]; then report dead_letter fail "$n ERP outbox row(s) dead-lettered"
-    else report dead_letter ok "no dead-lettered rows"; fi
-  else report dead_letter fail "outbox query failed"; fi
+    if [ "$n" -gt 0 ]; then report dead_letter fail \
+      "Some MOS updates could not be sent to ERP. ERP may be missing recent changes; please review and resend them." \
+      "MOS updates are reaching ERP again."
+    else report dead_letter ok "MOS updates are reaching ERP again."; fi
+  else report dead_letter fail \
+    "MOS couldn't check whether ERP updates failed. ERP may be missing recent changes; please check the connection." \
+    "MOS updates are reaching ERP again."; fi
 
   age="$(sql "select coalesce(floor(extract(epoch from now() - min(created_at)) / 60), 0)::int from integrations.esb_push where status = 'pending' and (next_attempt_at is null or next_attempt_at <= now()) $ENV_FILTER")"
   if [[ "$age" =~ ^[0-9]+$ ]]; then
-    if [ "$age" -gt "$PENDING_MAX_MIN" ]; then report pending_age fail "oldest pending ERP row is ${age} min old (limit ${PENDING_MAX_MIN})"
-    else report pending_age ok "oldest pending row ${age} min"; fi
-  else report pending_age fail "outbox age query failed"; fi
+    if [ "$age" -gt "$PENDING_MAX_MIN" ]; then report pending_age fail \
+      "Some MOS updates have waited ${age} minutes to reach ERP. ERP may be behind; please check the connection." \
+      "MOS updates are reaching ERP on time again."
+    else report pending_age ok "MOS updates are reaching ERP on time again."; fi
+  else report pending_age fail \
+    "MOS couldn't check whether updates are waiting to reach ERP. ERP may be behind; please check the connection." \
+    "MOS updates are reaching ERP on time again."; fi
 
   stuck="$(sql "select count(*) from integrations.esb_push where status = 'in_flight' and locked_at < now() - interval '10 minutes' $ENV_FILTER")"
   if [[ "$stuck" =~ ^[0-9]+$ ]]; then
-    if [ "$stuck" -gt 0 ]; then report in_flight fail "$stuck in-flight ERP outbox row(s) have expired leases"
-    else report in_flight ok "no expired worker leases"; fi
-  else report in_flight fail "in-flight lease query failed"; fi
+    if [ "$stuck" -gt 0 ]; then report in_flight fail \
+      "Some MOS updates are stuck while being sent to ERP. ERP may be missing recent changes; please check the ERP worker." \
+      "MOS updates are moving through to ERP again."
+    else report in_flight ok "MOS updates are moving through to ERP again."; fi
+  else report in_flight fail \
+    "MOS couldn't check whether updates are stuck on their way to ERP. ERP may be missing changes; please check the ERP worker." \
+    "MOS updates are moving through to ERP again."; fi
 
   old_sent="$(sql "select count(*) from integrations.esb_push where status = 'posted' and posted_at < now() - interval '30 days' $ENV_FILTER")"
   if [[ "$old_sent" =~ ^[0-9]+$ ]]; then
-    if [ "$old_sent" -gt 0 ]; then report sent_retention fail "$old_sent sent outbox row(s) exceed the 30-day retention period"
-    else report sent_retention ok "sent rows are within retention"; fi
-  else report sent_retention fail "sent-row retention query failed"; fi
+    if [ "$old_sent" -gt 0 ]; then report sent_retention fail \
+      "Older MOS updates have not been cleared after reaching ERP. This may use extra storage; please check the cleanup." \
+      "Old MOS updates have been cleared."
+    else report sent_retention ok "Old MOS updates have been cleared."; fi
+  else report sent_retention fail \
+    "MOS couldn't check whether old ERP updates were cleared. Storage may keep growing; please check the cleanup." \
+    "Old MOS updates have been cleared."; fi
 
   if [ -n "${OPS_CLIENT_ERROR_TABLE:-}" ]; then
     if [ "$(sql "select to_regclass('${OPS_CLIENT_ERROR_TABLE}') is not null")" = t ]; then
       c="$(sql "select count(*) from ${OPS_CLIENT_ERROR_TABLE} where ${CLIENT_ERR_COL} > now() - interval '15 minutes'")"
       if [[ "$c" =~ ^[0-9]+$ ]]; then
-        if [ "$c" -gt "$CLIENT_ERR_MAX" ]; then report client_errors fail "$c client errors in 15 min (limit ${CLIENT_ERR_MAX})"
-        else report client_errors ok "$c client errors in 15 min"; fi
+        if [ "$c" -gt "$CLIENT_ERR_MAX" ]; then report client_errors fail \
+          "The app logged ${c} errors in the past 15 minutes. People may have trouble using MOS; please check the app." \
+          "MOS errors are back to normal."
+        else report client_errors ok "MOS errors are back to normal."; fi
       fi
     fi  # table absent: skipped, not an alert
   fi
 else
-  report database fail "production database unreachable"
+  report database fail "MOS can't reach its database. MOS data may be unavailable; please check the database connection." \
+    "MOS can reach its database again."
 fi
 
 # ---- ERP worker heartbeat is required: an unset path is itself a deployment alert ----
 if [ -z "${OPS_ESB_HEARTBEAT_FILE:-}" ]; then
-  report worker_heartbeat fail "ERP worker heartbeat path is not configured"
+  report worker_heartbeat fail \
+    "The ERP worker hasn't reported in. Recent MOS updates may not reach ERP; please check the worker." \
+    "The ERP worker is reporting in again."
 elif [ "$OPS_ESB_HEARTBEAT_FILE" = none ]; then
-  report worker_heartbeat ok "ERP worker not deployed on this host (OPS_ESB_HEARTBEAT_FILE=none)"
+  report worker_heartbeat ok "This server is no longer expected to run the ERP worker."
 else
   hb="$(mtime "$OPS_ESB_HEARTBEAT_FILE")"
   if [[ "$hb" =~ ^[0-9]+$ ]]; then
     hb_age=$(( ( $(date +%s) - hb ) / 60 ))
-    if [ "$hb_age" -gt "$HEARTBEAT_MAX_MIN" ]; then report worker_heartbeat fail "ERP worker last ran ${hb_age} min ago (limit ${HEARTBEAT_MAX_MIN})"
-    else report worker_heartbeat ok "ERP worker ran ${hb_age} min ago"; fi
+    if [ "$hb_age" -gt "$HEARTBEAT_MAX_MIN" ]; then report worker_heartbeat fail \
+      "The ERP worker hasn't reported in for ${hb_age} minutes. Recent MOS updates may not reach ERP; please check the worker." \
+      "The ERP worker is reporting in again."
+    else report worker_heartbeat ok "The ERP worker is reporting in again."; fi
   else
-    report worker_heartbeat fail "ERP worker heartbeat file missing"
+    report worker_heartbeat fail \
+      "The ERP worker hasn't reported in. Recent MOS updates may not reach ERP; please check the worker." \
+      "The ERP worker is reporting in again."
   fi
 fi
 
@@ -129,13 +154,18 @@ fi
 if [ -n "${OPS_BACKUP_DIR:-}" ]; then
   max_h="${OPS_BACKUP_MAX_AGE_HOURS:-26}"
   if [ -n "$(find "$OPS_BACKUP_DIR" -maxdepth 1 -type f -name 'mos-*.dump' -mmin "-$((max_h * 60))" 2>/dev/null | head -n 1)" ]; then
-    report backup ok "a dump exists from the last ${max_h} h"
-  else report backup fail "no database dump newer than ${max_h} h in the backup directory"; fi
+    report backup ok "A recent database copy is available again."
+  else report backup fail \
+    "No recent database copy is available. A restore may miss recent MOS changes; please check the backup job." \
+    "A recent database copy is available again."; fi
 fi
 
 # ---- reachability ----
-if http_ok "$OPS_APP_URL"; then report app ok "reachable"; else report app fail "app URL not reachable"; fi
-if http_ok "$OPS_AUTH_HEALTH_URL" "${OPS_AUTH_HEALTH_APIKEY:-}"; then report auth ok "health endpoint reachable"
-else report auth fail "auth health endpoint not reachable"; fi
+if http_ok "$OPS_APP_URL"; then report app ok "MOS is responding again."
+else report app fail "MOS isn't responding at its usual address. People may be unable to use it; please check MOS." \
+  "MOS is responding again."; fi
+if http_ok "$OPS_AUTH_HEALTH_URL" "${OPS_AUTH_HEALTH_APIKEY:-}"; then report auth ok "The sign-in service is responding again."
+else report auth fail "The sign-in service isn't responding. People may have trouble signing in; please check the service." \
+  "The sign-in service is responding again."; fi
 
 exit 0
