@@ -1386,6 +1386,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const isSubmitting = status.kind === 'submitting'
   const stagedLines = Object.values(lines).filter(l => l.qty_porsi > 0)
   const stagedCount = stagedLines.length
+  const showEmptyTransferAvailability = mode === 'transfer' && transferDestinationChosen && stagedCount === 0
+    && visibleItems.some(item => lines[item.id].stok > 0 && lines[item.id].tersedia === 0)
   const stagedSummary = stagedLines.flatMap(line => {
     const item = wipItems.find(candidate => candidate.id === line.wip_item_id)
     if (!item) return []
@@ -1870,6 +1872,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           ) : (
             <>
               {logToolbar}
+              {showEmptyTransferAvailability && (
+                <p className="kls-availability-note" role="status">{t('kitchen.transfer.availabilityCut')}</p>
+              )}
               {mode === 'transfer' && !transferDestinationChosen && !readOnlyNoStream ? null : logTable}
               {!isWide && mode === 'transfer' && stream !== null && !streamNonProducing && transferDestinationChosen && stagedCount > 0 && (
                 <section
