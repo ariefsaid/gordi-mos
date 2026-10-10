@@ -356,8 +356,9 @@ MARGIN_SOURCE_ROW = {
 class _UndefinedTableError(Exception):
     sqlstate = "42P01"
 
-    def __init__(self, table_name):
-        self.diag = types.SimpleNamespace(table_name=table_name)
+    def __init__(self):
+        # Postgres names no table in the error fields for a missing relation.
+        self.diag = types.SimpleNamespace(table_name=None)
 
 
 class _RecordingCursor:
@@ -371,16 +372,21 @@ class _RecordingCursor:
         return False
 
     def execute(self, sql, params=None):
+        # The table-exists probe is read-only; kept out of calls so write-order assertions stay exact.
+        if sql.startswith("select to_regclass"):
+            self._connection.probed = params[0]
+            return
         self._connection.calls.append(("execute", sql, params))
 
     def executemany(self, sql, params_seq):
         missing = self._connection.missing_target_table
         if missing and f"insert into {missing}" in sql.lower():
-            raise _UndefinedTableError(missing.rsplit(".", 1)[-1])
+            raise _UndefinedTableError()
         self._connection.calls.append(("executemany", sql, list(params_seq)))
 
     def fetchone(self):
-        return (None,) if self._connection.missing_target_table else ("reporting.table",)
+        regclass = self._connection.probed
+        return (None,) if regclass == self._connection.missing_target_table else (regclass,)
 
     def fetchall(self):
         return list(self._connection.source_rows)
@@ -391,6 +397,7 @@ class _RecordingConnection:
         self.dsn = dsn
         self.source_rows = source_rows
         self.missing_target_table = missing_target_table
+        self.probed = None
         self.calls = []
 
     def __enter__(self):
@@ -792,6 +799,17 @@ class PendingBillRunTests(unittest.TestCase):
         )
         self.assertIn("and source_state <> 'void'", flag_sql)
         self.assertNotIn("source_state = 'present'", flag_sql)
+
+    def test_missing_pending_bill_table_skips_without_writing(self):
+        snapshot = datetime(2026, 10, 6, 19, 5, tzinfo=timezone.utc)
+        output = io.StringIO()
+        with _observed_run(
+            [dict(r) for r in PENDING_SOURCE_ROWS], missing_target_table="reporting.pending_bill_snapshots"
+        ) as connections, redirect_stdout(output):
+            result = run_pending_bill_snapshot(self._config(), snapshot)
+        self.assertEqual(result, (None, None))
+        self.assertEqual(output.getvalue().splitlines(), ["skipped reporting.pending_bill_snapshots: not on target"])
+        self.assertEqual([c.calls for c in connections if c.dsn == REPORTING_DSN], [[]])
 
     def test_run_declares_org_before_writes_in_the_same_transaction(self):
         """Given a pending-bill run, then the org declaration is the first statement, every write
