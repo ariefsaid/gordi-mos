@@ -20,6 +20,16 @@ describe('Money branch table phone layout', () => {
     expect(phone).toMatch(/\.branch-money-table \.money-table__cell--branch\s*\{[^}]*min-width:\s*0/)
   })
 
+  it('keeps branch phone cards to revenue, the selected-period comparison and latest day', () => {
+    const hiddenFigures = ruleIn(
+      phone,
+      '.branch-money-table .money-table__row--link :is(.money-table__cell--vs-weekday, .money-table__cell--margin, .money-table__cell--cogs-vs-budget, .money-table__cell--coverage)',
+    )
+    expect(hiddenFigures).not.toBeNull()
+    expect(hiddenFigures).toMatch(/display:\s*none/)
+    expect(phone).not.toMatch(/\.money-table__row--link[^}]*\.money-table__cell--(?:revenue|vs-previous|latest-day)[^}]*display:\s*none/)
+  })
+
   it('gives the company margin summary the full phone card width', () => {
     expect(phone).toMatch(/\.branch-money-table \.money-table__row--company \.money-table__cell--margin\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/)
   })
