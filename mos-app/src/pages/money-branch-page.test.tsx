@@ -270,8 +270,10 @@ describe('MoneyBranchPage — states', () => {
   it('the period control changes the period in the URL and keeps the chosen day', async () => {
     const user = userEvent.setup()
     renderBranch(['finance'], `/money/branch/GHQ?period=7&d=${day(1)}`)
-    await user.click(await screen.findByRole('button', { name: '30 days' }))
-    expect(where()).toBe(`/money/branch/GHQ?period=30&d=${day(1)}`)
+    const thirtyDays = await screen.findByRole('button', { name: '30 days' })
+    await waitFor(() => expect(thirtyDays).toBeEnabled())
+    await user.click(thirtyDays)
+    await waitFor(() => expect(where()).toBe(`/money/branch/GHQ?period=30&d=${day(1)}`))
   })
 
   it('Indonesian', async () => {

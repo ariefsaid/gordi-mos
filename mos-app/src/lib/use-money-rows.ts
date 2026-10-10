@@ -3,7 +3,7 @@
 // the browser). The last rows read are kept through a later refresh's loading or failure, and a tab
 // left open overnight reads again when the viewer comes back to it.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { listActiveBranches } from '@/lib/db/branches'
+import { listBranchesByIds } from '@/lib/db/branches'
 import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { ReportingRowCapError } from '@/lib/db/reporting-shared'
@@ -43,9 +43,10 @@ export function useMoneyRows(canSeeMargin: boolean): { load: MoneyLoad; read: ()
       ])
       if (id !== latestRead.current) return
       const branchNames = new Map<string, string>()
-      if (revenue.some((row) => row.branch_id !== null)) {
+      const linkedBranchIds = [...new Set(revenue.flatMap((row) => row.branch_id ? [row.branch_id] : []))]
+      if (linkedBranchIds.length > 0) {
         try {
-          for (const branch of await listActiveBranches()) branchNames.set(branch.id, branch.name)
+          for (const branch of await listBranchesByIds(linkedBranchIds)) branchNames.set(branch.id, branch.name)
         } catch {
           // Reporting remains readable if the optional display-name lookup is unavailable.
         }
