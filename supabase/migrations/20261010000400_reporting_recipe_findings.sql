@@ -52,9 +52,7 @@ create table reporting.recipe_deduction_findings (
   source_contract_version text not null,
   loaded_at timestamptz not null default now(),
   primary key (org_id, esb_code, finding_id),
-  foreign key (org_id, branch_id) references shared.branches(org_id, id),
-  foreign key (org_id, esb_code, menu_id, recipe_version)
-    references reporting.recipe_versions(org_id, esb_code, menu_id, version)
+  foreign key (org_id, branch_id) references shared.branches(org_id, id)
 );
 comment on table reporting.recipe_deduction_findings is
   'Warehouse rule evidence. Expected and actual comparable quantities are whole ingredient-day context, repeated per menu and non-additive. Classes are leads, not confirmed fault.';
