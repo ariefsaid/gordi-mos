@@ -134,25 +134,28 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(within(nav).queryByRole('link', { name: 'Pushes' })).toBeNull()
   })
 
-  it('AC-012: an unaffiliated Director at the Café root sees Today and the dedicated Log routes', () => {
+  it('AC-012: the Café root is one capture entry with distinct child destinations', () => {
     setAuthAs(['admin'], 'Managing Director')
     renderRailNav('/cafe')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    for (const name of ['Today', 'Log production', 'Log transfer', 'Log waste', 'Plan', 'Stock', 'Review', 'Pushes']) {
+    expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
+    for (const name of ['Log transfer', 'Log waste', 'Count', 'Receive', 'Request', 'Plan', 'Stock', 'Items', 'Review', 'Pushes']) {
       expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
     }
+    expect(within(nav).queryByRole('link', { name: 'Today' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Log production' })).toBeNull()
     expect(within(nav).queryByRole('link', { name: 'Opening' })).not.toBeInTheDocument()
   })
 
-  it('AC-011b: a café-role viewer gets Café under a "Retail Ops" BU overline, plus capture and stock routes', () => {
+  it('AC-011b: a café-role viewer gets Café and distinct module routes under the Retail Ops overline', () => {
     setAuthAs([], 'Barista')
     renderRailNav('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(nav).getByText('Retail Ops')).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
-    // The module's own screens, which is what a barista actually opens the rail for.
-    expect(within(nav).getByRole('link', { name: 'Today' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Log production' })).toBeInTheDocument()
+    // Distinct module screens appear under the Café parent; the root and production alias do not.
+    expect(within(nav).getByRole('link', { name: 'Count' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Receive' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Log transfer' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Stock' })).toBeInTheDocument()
     // …and NOT the ops_lead/admin ones: OD-WAY-51 widened nav to the route, it did not drop gates.
@@ -346,7 +349,7 @@ describe('Issue 1656: navigation group disclosure', () => {
     renderRailNav('/work/tasks')
     expect(screen.getByRole('button', { name: 'Hide Work pages' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'Hide Café pages' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('link', { name: 'Today' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Count' })).toBeInTheDocument()
   })
 })
 
@@ -393,25 +396,24 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
     expect(within(nav).getByRole('link', { name: 'Work' }).getAttribute('aria-current')).toBeNull()
   })
 
-  it('at /money, Branches link page for a finance viewer', () => {
+  it('at /money, Money is the page door for a finance viewer', () => {
     setAuthAs(['finance'])
     renderRailNav('/money')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
     expect(pageLinks).toHaveLength(1)
-    expect(pageLinks[0]).toHaveAccessibleName('Branches')
+    expect(pageLinks[0]).toHaveAccessibleName('Money')
   })
 
-  // Updated to the STATED contract, not relaxed. Rule 5 is "the parent is a location, the active
-  // child is the page" — which is exactly what AC-807/808 assert two cases below for Work. This
-  // case previously put "page" on the Café parent because Café had no children to carry it: the
-  // module shipped with one link and its screens were unreachable from the nav at all. Now
-  // that they render, Café follows the same rule Work does. Still "exactly one page" — the
-  // invariant is unchanged and the case is stronger, because it now pins WHICH element holds it.
+  it('keeps the production alias under the Café page entry', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/cafe/production')
+    const cafe = screen.getByRole('link', { name: 'Café' })
+    expect(cafe).toHaveAttribute('href', '/cafe')
+    expect(cafe).toHaveAttribute('aria-current', 'page')
+  })
+
   it.each([
-    // #1239: /cafe is Today; production and transfer have dedicated child routes.
-    ['/cafe', 'Today'],
-    ['/cafe/production', 'Log production'],
     ['/cafe/transfer', 'Log transfer'],
     ['/cafe/waste', 'Log waste'],
     ['/cafe/count', 'Count'],
@@ -422,7 +424,7 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
     ['/cafe/items', 'Items'],
     ['/cafe/review', 'Review'],
     ['/cafe/pushes', 'Pushes'],
-  ] as const)('at %s, the active Café sub-tab carries page and the Café parent carries location, exactly one page', (path, label) => {
+  ] as const)('at %s, the Café child carries page and the parent carries location', (path, label) => {
     setAuthAs(['admin'])
     renderRailNav(path)
     const nav = screen.getByRole('navigation', { name: 'Primary' })

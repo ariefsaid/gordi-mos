@@ -18,7 +18,7 @@ const mockUseAuth = vi.mocked(useAuth)
 
 import { MobileDrawer } from './mobile-drawer'
 
-function setAuthAs(accessRoles: string[] = []) {
+function setAuthAs(accessRoles: string[] = [], affiliated: string[] = []) {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -26,7 +26,7 @@ function setAuthAs(accessRoles: string[] = []) {
         id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Cahya Cafe',
         email: 'c@example.test', archived_at: null, must_change_password: false, created_at: '', updated_at: '',
       },
-      roles: [], isManager: false, accessRoles, affiliated: [],
+      roles: [], isManager: false, accessRoles, affiliated,
     },
     signOut: vi.fn(),
   })
@@ -37,8 +37,8 @@ function LocationDisplay() {
   return <div data-testid="location">{location.pathname}</div>
 }
 
-function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'], locale }: { open?: boolean; onClose?: () => void; accessRoles?: string[]; locale?: 'id' } = {}) {
-  setAuthAs(accessRoles)
+function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'], locale, affiliated = [] }: { open?: boolean; onClose?: () => void; accessRoles?: string[]; locale?: 'id'; affiliated?: string[] } = {}) {
+  setAuthAs(accessRoles, affiliated)
   return render(
     <ThemeProvider>
       <I18nProvider initialLocale={locale}>
@@ -85,6 +85,14 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
     for (const name of [/^Events$/, /^Ecommerce$/, /^Roastery$/]) {
       expect(screen.queryByRole('link', { name }), `${name} is ship-gated`).toBeNull()
     }
+  })
+
+  it('Issue 1673: a promoted Café module keeps its parent row and indents the distinct child routes', () => {
+    renderDrawer({ accessRoles: ['member'], affiliated: ['cafe'] })
+    const cafe = screen.getByRole('link', { name: /^Café$/ })
+    expect(cafe).toHaveAttribute('href', '/cafe')
+    const children = cafe.closest('li')!.querySelector('ul.rail-item-children')!
+    for (const path of ['/cafe/count', '/cafe/receive']) expect(children.querySelector(`a.rail-item--child[href="${path}"]`)).toBeInTheDocument()
   })
 
   it('a plain member sees Café\'s ungated screens but not Review or Pushes', () => {
