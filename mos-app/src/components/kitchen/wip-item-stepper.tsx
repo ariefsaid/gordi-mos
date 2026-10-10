@@ -15,7 +15,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { ActualUnitTotal, ItemUnitOption, KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
-import { formatUnitMultiple, fromDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
+import { formatQuantityWithUnit, formatUnitMultiple, fromDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
 import { isStockConsuming, VARIANCE_NOTE_CUE, TRANSFER_SHORT_CUE } from '@/lib/kitchen-gates'
 import { useT } from '@/i18n/use-t'
 import { Select } from '@/components/ui/select'
@@ -70,15 +70,16 @@ function formatLoggedEntry(
   formatQuantity: (quantity: number) => string,
   unknownUnit: string,
 ): string {
+  const locale = document.documentElement.lang || 'en'
   if (entry.entry_quantity == null || entry.entry_unit_name == null) {
-    return `${formatQuantity(entry.qty_porsi)} ${entry.unit_name?.trim() || unknownUnit}`
+    return formatQuantityWithUnit(entry.qty_porsi, entry.unit_name?.trim() || unknownUnit, locale)
   }
   const factor = entry.entry_unit_factor ?? 1
   const unit = factor === 1
     ? entry.entry_unit_name
-    : formatUnitMultiple(factor, entry.entry_unit_name, document.documentElement.lang || 'en')
+    : formatUnitMultiple(factor, entry.entry_unit_name, locale)
   return factor === 1
-    ? `${formatQuantity(entry.entry_quantity)} ${unit}`
+    ? formatQuantityWithUnit(entry.entry_quantity, unit, locale)
     : `${formatQuantity(entry.entry_quantity)} × ${unit}`
 }
 
