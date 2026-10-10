@@ -42,7 +42,7 @@ export function chartSeries(days: readonly BranchDay[], mode: 'revenue' | 'margi
   const yMax = mode === 'margin' && chartValues.length ? high + domainPadding : ticks.at(-1) ?? 1
   const data = days.map((day, index) => {
     const value = values[index]
-    return { ...day, value, compare: comparisons[index], stub: mode === 'revenue' && value === null && !day.closed ? yMax * stubShare : null, latestLabel: mode === 'revenue' && index === days.length - 1 && value !== null ? formatLatest(value) : null }
+    return { ...day, value, compare: comparisons[index], stub: mode === 'revenue' && value === null ? yMax * stubShare : null, latestLabel: mode === 'revenue' && index === days.length - 1 && value !== null ? formatLatest(value) : null }
   })
   return { data, ticks, yMin, yMax }
 }

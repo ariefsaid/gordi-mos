@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
 import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { buildBranchPage, readBranchView } from './money-branch-page'
-import { chartSeries } from '@/components/money/day-chart-geometry'
 
-const LATEST = '2026-10-05'
+const LATEST = '2040-03-05'
 function day(offset: number): string {
   const d = new Date(`${LATEST}T00:00:00Z`)
   d.setUTCDate(d.getUTCDate() - offset)
@@ -14,7 +13,7 @@ function rev(date: string, code: string, amount: number, channel = 'POS'): Sales
   return {
     revenue_date: date, channel, esb_code: code, branch_code: code, branch_name: code.toUpperCase(),
     branch_id: code === 'ghq' ? 'b-ghq' : null, transactions: 1, clean_revenue: amount,
-    snapshot_as_of: '2026-10-05T19:05:00Z', source_contract_version: 'v1',
+    snapshot_as_of: '2040-03-05T19:05:00Z', source_contract_version: 'v1',
   }
 }
 // ghq every day for 21 days; ckl misses the latest day; b2b invoices on day 0 only.
@@ -26,12 +25,12 @@ const ROWS: SalesDailyRevenueRow[] = [
 const MARGIN: SalesMarginDailyRow[] = Array.from({ length: 7 }, (_, i) => ({
   margin_date: day(i), esb_code: 'ghq', branch_code: 'ghq', branch_name: 'GHQ', branch_id: 'b-ghq',
   revenue: 1_000_000, cogs_interim_sm: 400_000, cogs_budget_bom: 350_000, margin_interim: 600_000,
-  bom_coverage_pct: 0.8, snapshot_as_of: '2026-10-05T19:05:00Z', source_contract_version: 'v1',
+  bom_coverage_pct: 0.8, snapshot_as_of: '2040-03-05T19:05:00Z', source_contract_version: 'v1',
 }))
 
 describe('readBranchView', () => {
   it('reads the period and a well-formed day, else the defaults', () => {
-    expect(readBranchView(new URLSearchParams('period=7&d=2026-10-03'))).toMatchObject({ period: 7, day: '2026-10-03' })
+    expect(readBranchView(new URLSearchParams('period=7&d=2040-03-03'))).toMatchObject({ period: 7, day: '2040-03-03' })
     expect(readBranchView(new URLSearchParams('period=14&d=yesterday'))).toMatchObject({ period: 30, range: null, day: null })
   })
 })
@@ -89,15 +88,6 @@ describe('buildBranchPage', () => {
     expect(page.margin!.pct).toBeCloseTo(0.6, 10)
     expect(page.days[0].marginPct).toBeCloseTo(0.6, 10)
     expect(page.margin!.budgetBasis).toEqual({ cogsShare: 0.4, budgetShare: 0.35 })
-  })
-
-  it('the confirmed holiday is closed, not a missing feed or zero; an unexpected sale remains visible', () => {
-    const rows = [rev('2026-10-08', 'ghq', 500), rev('2026-10-02', 'SKC', 100), rev('2026-10-05', 'SKC', 75)]
-    const page = buildBranchPage(rows, null, 'SKC', 7)!
-    expect(page.days.find(d => d.date === '2026-10-03')).toMatchObject({ closed: true, value: null })
-    expect(page.days.find(d => d.date === '2026-10-05')).toEqual({ date: '2026-10-05', value: 75, compare: null })
-    expect(page.days.find(d => d.date === '2026-10-02')?.closed).toBeUndefined()
-    expect(chartSeries(page.days, 'revenue', null, 0.08, String).data.find(d => d.date === '2026-10-03')?.stub).toBeNull()
   })
 
   it('an unknown branch is null', () => {

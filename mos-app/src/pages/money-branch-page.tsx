@@ -1,5 +1,5 @@
-// MoneyBranchPage — /money/branch/:code, opened from a branch row on the Money page
-// (OD-2026-10-06-MONEY-BUILD). A day chart of the branch's revenue against the same weekday a week
+// MoneyBranchPage — /money/branch/:code, opened from a branch row on the Money page. A day chart
+// of the branch's revenue against the same weekday a week
 // earlier; for the margin tier, margin and COGS against the recipe budget for the period in the
 // URL, the branch's Café items without a recipe, and "Ask {branch} lead", which creates a Task that
 // carries a link to this view and never a figure (mos.ask_branch_lead builds its text).
@@ -12,7 +12,7 @@ import { getCoreRowModel, getSortedRowModel, getPaginationRowModel, useReactTabl
 import { MoneyTableShell } from '@/components/money/money-table-shell'
 import { Select } from '@/components/ui/select'
 import { listRecipeFindings, type RecipeFindingsData } from '@/lib/db/recipe-findings'
-import { FINDING_CLASSES, FINDING_RULES, FINDING_COLUMNS, FINDING_SORT, findingKey, findingComparison, filterRecipeFindings, isCikalHoliday } from '@/lib/recipe-findings'
+import { FINDING_CLASSES, FINDING_RULES, FINDING_COLUMNS, FINDING_SORT, findingKey, findingComparison, filterRecipeFindings } from '@/lib/recipe-findings'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { canViewMargin } from '@/lib/capabilities'
@@ -161,7 +161,7 @@ function DaysTable({ page, period }: { page: BranchPage; period: number }) {
             {[...page.days].reverse().map((d) => (
               <tr key={d.date}>
                 <th scope="row">{formatWeekdayDayMonth(d.date, locale)}</th>
-                <td className="tabular">{d.closed ? t('money.findings.closedDay') : d.value === null ? t('money.table.notReceived') : formatIDR(d.value)}</td>
+                <td className="tabular">{d.value === null ? t('money.branch.days.noSales') : formatIDR(d.value)}</td>
                 <td>
                   {d.value !== null && d.compare
                     ? (() => {
@@ -172,7 +172,7 @@ function DaysTable({ page, period }: { page: BranchPage; period: number }) {
                 </td>
                 <td className="tabular">{d.compare === null ? t('money.table.notReceived') : formatIDR(d.compare)}</td>
                 {page.margin && <>
-                  <td className="tabular">{d.closed ? t('money.findings.closedDay') : d.marginPct == null ? t('money.table.notReceived') : formatPercent(d.marginPct, 1)}</td>
+                  <td className="tabular">{d.value === null ? t('money.branch.days.noSales') : d.marginPct == null ? t('money.table.notReceived') : formatPercent(d.marginPct, 1)}</td>
                   <td className="tabular">{budgetMargin === null ? t('money.table.notReceived') : formatPercent(budgetMargin, 0)}</td>
                 </>}
               </tr>
@@ -282,7 +282,7 @@ export function MoneyBranchPage() {
   const selectedText = selected ? formatWeekdayDayMonth(selected, locale) : ''
   const canAskBase = canSeeMargin && page !== null && !page.isB2B && page.branchId !== null && ASKABLE_CODE.test(page.code)
   const canAsk = canAskBase && load.status === 'ready' && !view.range && view.period !== 90
-  const missingDays = page ? page.days.filter((d) => d.value === null && !d.closed).length : 0
+  const missingDays = page ? page.days.filter((d) => d.value === null).length : 0
 
   const onAsk = async () => {
     if (!page) return
@@ -403,7 +403,6 @@ export function MoneyBranchPage() {
       {canSeeFindings && <section id="recipe-findings" className="money-findings" aria-labelledby="recipe-findings-title">
         <h2 id="recipe-findings-title" className="money-branch__h2">{t('money.findings.title')}</h2>
         <p className="money-branch__note">{t('money.findings.context')}</p>
-        {isCikalHoliday(code, findingStart, findingEnd) && <p>{t('money.findings.holiday')}</p>}
         {findingStatus === 'error' && <ErrorState message={t('money.findings.error')} onRetry={() => setFindingAttempt(n => n + 1)} />}
         {!findingData && findingStatus === 'loading' && <div role="status" aria-label={t('common.loading')}><SkeletonRows count={3} /></div>}
         {findingData && <>

@@ -5,7 +5,6 @@ import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
 import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { latestReportingDate } from '@/lib/db/reporting'
 import { isoDaysBefore } from '@/lib/trailing-window'
-import { isCikalHoliday } from '@/lib/recipe-findings'
 import {
   B2B_CHANNEL,
   displayBranchName,
@@ -37,7 +36,6 @@ export interface BranchDay {
   /** The same weekday a week earlier; null when that day was not received. */
   compare: number | null
   marginPct?: number | null
-  closed?: boolean
 }
 
 export interface BranchPage {
@@ -73,12 +71,7 @@ export function buildBranchPage(
 
   const days: BranchDay[] = Array.from({ length: window.days }, (_, i) => {
     const date = isoDaysBefore(window.to, window.days - i - 1)
-    return {
-      date,
-      value: byDate.get(date) ?? null,
-      compare: byDate.get(isoDaysBefore(date, 7)) ?? null,
-      ...(!byDate.has(date) && isCikalHoliday(code, date, date) ? { closed: true } : {}),
-    }
+    return { date, value: byDate.get(date) ?? null, compare: byDate.get(isoDaysBefore(date, 7)) ?? null }
   })
   let currentPair = 0
   let previousPair = 0

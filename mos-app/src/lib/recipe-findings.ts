@@ -65,7 +65,3 @@ export function findingComparison(row: RecipeFinding, t: Translate, locale: stri
   return t('money.findings.comparison', { expected: number.format(row.expected_qty_day_comparable), actual: number.format(row.actual_qty_day_comparable), unit: row.comparison_unit })
 }
 
-/** Owner-confirmed closure, not inferred from absent sales; unexpected findings remain visible. */
-export function isCikalHoliday(code: string, start: string, end: string): boolean {
-  return code === 'SKC' && start <= '2026-10-08' && end >= '2026-10-03'
-}

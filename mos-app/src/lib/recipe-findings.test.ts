@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { findingComparison, findingKey, isCikalHoliday } from './recipe-findings'
+import { findingComparison, findingKey } from './recipe-findings'
 import { translateFor } from '@/i18n/use-t'
 import type { RecipeFinding } from '@/lib/db/recipe-findings'
 const t = translateFor('en')
@@ -23,11 +23,3 @@ it.each(['class', 'rule', 'cause', 'basis'] as const)('a future source %s remain
   expect(findingKey(group, 'future-source-value')).toBe(`money.findings.${group}.other`)
 })
 
-it('the owner-confirmed holiday is inclusive, branch-specific and not inferred outside its dates', () => {
-  expect(isCikalHoliday('SKC', '2026-10-03', '2026-10-08')).toBe(true)
-  expect(isCikalHoliday('SKC', '2026-10-01', '2026-10-03')).toBe(true)
-  expect(isCikalHoliday('SKC', '2026-10-08', '2026-10-10')).toBe(true)
-  expect(isCikalHoliday('SKC', '2026-10-01', '2026-10-02')).toBe(false)
-  expect(isCikalHoliday('SKC', '2026-10-09', '2026-10-10')).toBe(false)
-  expect(isCikalHoliday('NEW', '2026-10-03', '2026-10-08')).toBe(false)
-})

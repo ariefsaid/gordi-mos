@@ -34,7 +34,7 @@ export interface DayRevenueChartProps {
   /** The selected day's date; it must be one of `days`. */
   selected: string
   onSelect: (date: string) => void
-  /** The chart's accessible name, e.g. "Gordi HQ revenue per day". */
+  /** The chart's accessible name, including the branch and metric. */
   label: string
   mode?: 'revenue' | 'margin'
   budget?: number | null
@@ -76,7 +76,6 @@ export function DayRevenueChart({ days, selected, onSelect, label, mode = 'reven
   const readout = day ? readoutText(day) : ''
   function readoutText(d: BranchDay): string {
     const date = formatWeekdayDayMonth(d.date, locale)
-    if (d.closed) return `${date} · ${t('money.findings.closedDay')}`
     if (isMargin) return t('money.chart.readout.margin', {
       date, value: d.marginPct == null ? t('money.table.notReceived') : formatPercent(d.marginPct, 1),
       budget: budget === null ? t('money.table.notReceived') : formatPercent(budget, 1),
@@ -105,7 +104,7 @@ export function DayRevenueChart({ days, selected, onSelect, label, mode = 'reven
     const rect = event.currentTarget.getBoundingClientRect()
     return dayAt(event.clientX - rect.left, rect.width, days.length)
   }
-  const anyMissing = isMargin ? days.some((d) => d.marginPct == null && !d.closed) : days.some((d) => d.value === null && !d.closed)
+  const anyMissing = isMargin ? days.some((d) => d.marginPct == null) : days.some((d) => d.value === null)
 
   return (
     <figure className="money-chart">

@@ -48,7 +48,7 @@ function authViewer(accessRoles: string[]): AuthState {
   }
 }
 
-const LATEST = '2026-10-05'
+const LATEST = '2040-03-05'
 function day(offset: number): string {
   const d = new Date(`${LATEST}T00:00:00Z`)
   d.setUTCDate(d.getUTCDate() - offset)
@@ -64,7 +64,7 @@ function rev(date: string, code: string, name: string, amount: number): SalesDai
 // GHQ: 14 200 000 on the latest day, 18 900 000 on the same weekday a week earlier.
 const REVENUE: SalesDailyRevenueRow[] = [
   ...Array.from({ length: 14 }, (_, i) => rev(day(i), 'GHQ', 'Gordi HQ', i === 0 ? 14_200_000 : i === 7 ? 18_900_000 : 15_000_000 + i * 100_000)),
-  ...Array.from({ length: 14 }, (_, i) => rev(day(i), 'CKL', 'Cikal', 5_000_000)),
+  ...Array.from({ length: 14 }, (_, i) => rev(day(i), 'QA-SOUTH', 'South Branch', 5_000_000)),
 ]
 const MARGIN: SalesMarginDailyRow[] = Array.from({ length: 14 }, (_, i) => ({
   margin_date: day(i), esb_code: 'GHQ', branch_code: 'GHQ', branch_name: 'Gordi HQ', branch_id: 'b-ghq',
@@ -103,7 +103,7 @@ beforeEach(() => {
   vi.mocked(listRecipeFindings).mockResolvedValue({ rows: [], receipts: [] })
 })
 
-it('recipe/stock journey: prioritize a lead, filter, inspect evidence, then handle blocked units and denied/holiday states', async () => {
+it('recipe/stock journey: prioritize a lead, filter, inspect evidence, then handle blocked units and denied states', async () => {
   const base = { day: LATEST, esb_code: 'TEST', branch_code: 'GHQ', menu_name: 'Long synthetic lunch menu', actual_name: 'Stock ingredient', expected_name: 'Recipe ingredient', classification: 'team_input', rule: 'missing_recipe_mapping', confidence: 'candidate_current_recipe_not_historical_proof', needs_human: true, impact_basis: 'unassigned_actual', recommended_check: 'Check the menu mapping and recorded unit', expected_qty_day_comparable: 12, actual_qty_day_comparable: 18, comparison_unit: 'PCS', conversion_evidence: {}, recipe_versions: { version: 2, first_seen: day(1) }, recipe_version_hash: 'test-hash', recipe_edited_at: SYNCED, recipe_observed_at: SYNCED, prior_recipe_observed_at: null, first_sale_at: null, source_checked_at: SYNCED, snapshot_as_of: SYNCED, replica_stale: false }
   vi.mocked(listRecipeFindings).mockResolvedValue({ rows: [{ ...base, finding_id: 'small', impact_idr: 100 }, { ...base, finding_id: 'large', impact_idr: 900 }, { ...base, finding_id: 'blocked', rule: 'unit_comparison_unverified', classification: 'warehouse_artefact', impact_idr: null, expected_qty_day_comparable: null, conversion_evidence: { recipe_units: [{ status: 'conflicting_recorded_conversions' }] } }, { ...base, finding_id: 'policy', impact_idr: 1000, needs_human: false }] as RecipeFinding[], receipts: [{ esb_code: 'TEST', complete: true, snapshot_as_of: SYNCED, source_completed_at: SYNCED, window_start: day(6), window_end: LATEST }] })
   const user = userEvent.setup()
@@ -127,31 +127,42 @@ it('recipe/stock journey: prioritize a lead, filter, inspect evidence, then hand
   expect(listRecipeFindings).not.toHaveBeenCalled()
   expect(screen.queryByRole('region', { name: /what to check/ })).toBeNull()
   denied.unmount()
-  mockRev.mockResolvedValue([rev(LATEST, 'SKC', 'Gordi Cikal', 100)])
+  mockRev.mockResolvedValue([rev(LATEST, 'QA-EAST', 'East Branch', 100)])
   vi.mocked(listRecipeFindings).mockResolvedValue({ rows: [], receipts: [] })
-  const holiday = renderBranch(['ops_lead'], '/money/branch/SKC?period=7')
-  expect(await screen.findByText(/Closed for school mid-term holiday/)).toBeVisible()
-  expect(await screen.findByText('Register not received yet')).toBeVisible()
-  holiday.unmount()
   vi.mocked(listRecipeFindings).mockRejectedValueOnce(new Error('offline'))
-  renderBranch(['finance'], '/money/branch/SKC?period=7')
+  renderBranch(['finance'], '/money/branch/QA-EAST?period=7')
   expect(await screen.findByRole('alert')).toHaveTextContent('The recipe/stock register could not be loaded.')
   await user.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Try again' }))
+  await waitFor(() => expect(listRecipeFindings).toHaveBeenCalledTimes(2))
   expect(await screen.findByText('Register not received yet')).toBeVisible()
 })
 
 describe('MoneyBranchPage — the day chart', () => {
+  it.each([['en', 'No sales'], ['id', 'Tidak ada penjualan']] as const)(
+    'shows the generic short no-sales label without discrepancy rows (%s)', async (locale, label) => {
+      mockLatest.mockResolvedValue('2040-03-05')
+      mockRev.mockResolvedValue([rev('2040-03-04', 'QA-NORTH', 'North Branch', 500_000)])
+      vi.mocked(listRecipeFindings).mockResolvedValue({ rows: [], receipts: [] })
+      renderBranch(['finance'], '/money/branch/QA-NORTH?period=7', locale)
+
+      const table = await screen.findByRole('table', { name: /North Branch/ })
+      const latestRow = within(table).getAllByRole('row')[1]
+      expect(latestRow.textContent?.match(new RegExp(label, 'g')) ?? []).toHaveLength(2)
+      await waitFor(() => expect(listRecipeFindings).toHaveBeenCalled())
+    },
+  )
+
   it('reads the latest day against the same weekday last week, and moves a day at a time by keyboard', async () => {
     renderBranch(['finance'])
     expect(await screen.findByRole('heading', { level: 1, name: 'Gordi HQ' })).toBeInTheDocument()
-    expect(readout()).toHaveTextContent('Mon 5 Oct · Rp 14.200.000 · same day last week Rp 18.900.000 (−24,9%)')
+    expect(readout()).toHaveTextContent('Mon 5 Mar · Rp 14.200.000 · same day last week Rp 18.900.000 (−24,9%)')
     const chart = screen.getByRole('group', { name: 'Gordi HQ revenue per day' })
     chart.focus()
     fireEvent.keyDown(chart, { key: 'ArrowLeft' })
     fireEvent.keyDown(chart, { key: 'ArrowLeft' })
     fireEvent.keyDown(chart, { key: 'ArrowLeft' })
     await waitFor(() => expect(where()).toBe(`/money/branch/GHQ?period=7&d=${day(3)}`))
-    expect(readout()).toHaveTextContent(/^Fri 2 Oct · Rp 15\.300\.000/)
+    expect(readout()).toHaveTextContent(/^Fri 2 Mar · Rp 15\.300\.000/)
     fireEvent.keyDown(chart, { key: 'Home' })
     await waitFor(() => expect(where()).toContain(`d=${day(6)}`))
     fireEvent.keyDown(chart, { key: 'End' })
@@ -163,12 +174,12 @@ describe('MoneyBranchPage — the day chart', () => {
     mockRev.mockResolvedValue(REVENUE.filter((r) => !(r.branch_code === 'GHQ' && r.revenue_date === LATEST)))
     renderBranch(['finance'])
     await screen.findByRole('heading', { level: 1, name: 'Gordi HQ' })
-    expect(readout()).toHaveTextContent(/^Sun 4 Oct · Rp /)
-    expect(screen.getByText(/Sales through Sun 4 Oct/)).toBeInTheDocument()
+    expect(readout()).toHaveTextContent(/^Sun 4 Mar · Rp /)
+    expect(screen.getByText(/Sales through Sun 4 Mar/)).toBeInTheDocument()
     expect(screen.getByText(/over 7 days · 1 day not received/)).toBeInTheDocument()
     const chart = screen.getByRole('group', { name: 'Gordi HQ revenue per day' })
     fireEvent.keyDown(chart, { key: 'End' })
-    await waitFor(() => expect(readout()).toHaveTextContent('Mon 5 Oct · not received'))
+    await waitFor(() => expect(readout()).toHaveTextContent('Mon 5 Mar · not received'))
   })
 
   it('held arrow keys move one day per press, before the URL catches up', async () => {
@@ -187,7 +198,7 @@ describe('MoneyBranchPage — the day chart', () => {
     expect(within(table).getByRole('columnheader', { name: 'Interim margin' })).toBeInTheDocument()
     expect(within(table).getByRole('columnheader', { name: 'Budget' })).toBeInTheDocument()
     const firstRow = within(table).getAllByRole('row')[1]
-    expect(firstRow).toHaveTextContent('Mon 5 OctRp 14.200.000−24,9%Rp 18.900.00058,8%66%')
+    expect(firstRow).toHaveTextContent('Mon 5 MarRp 14.200.000−24,9%Rp 18.900.00058,8%66%')
   })
 })
 
@@ -231,7 +242,7 @@ describe('MoneyBranchPage — what each tier receives', () => {
   })
 
   it('an ESB branch not linked to a MOS branch says why no Café items are listed', async () => {
-    renderBranch(['finance'], '/money/branch/CKL?period=7')
+    renderBranch(['finance'], '/money/branch/QA-SOUTH?period=7')
     expect(await screen.findByText(/not linked to a MOS branch/)).toBeInTheDocument()
     expect(mockUncovered).not.toHaveBeenCalled()
   })
@@ -241,9 +252,9 @@ describe('MoneyBranchPage — Ask branch lead', () => {
   it('asks about the chosen day of this view and links to the created Task', async () => {
     const user = userEvent.setup()
     renderBranch(['finance'], `/money/branch/GHQ?period=7&d=${day(2)}`)
-    await user.click(await screen.findByRole('button', { name: 'Ask Gordi HQ lead about Sat 3 Oct' }))
+    await user.click(await screen.findByRole('button', { name: 'Ask Gordi HQ lead about Sat 3 Mar' }))
     expect(mockAsk).toHaveBeenCalledWith({ code: 'GHQ', period: 7, day: day(2), locale: 'en' })
-    const status = (await screen.findByText(/Task created for the Gordi HQ lead about Sat 3 Oct\./)).closest('[role="status"]') as HTMLElement
+    const status = (await screen.findByText(/Task created for the Gordi HQ lead about Sat 3 Mar\./)).closest('[role="status"]') as HTMLElement
     expect(status).not.toBeNull()
     // The answer takes focus, so a keyboard user lands next to the Task link.
     expect(status.parentElement).toHaveFocus()
@@ -279,8 +290,8 @@ describe('MoneyBranchPage — Ask branch lead', () => {
   })
 
   it('an ESB code not linked to a MOS branch gets no Ask', async () => {
-    renderBranch(['finance'], '/money/branch/CKL?period=7')
-    await screen.findByRole('heading', { level: 1, name: 'Cikal' })
+    renderBranch(['finance'], '/money/branch/QA-SOUTH?period=7')
+    await screen.findByRole('heading', { level: 1, name: 'South Branch' })
     expect(screen.queryByRole('button', { name: /^Ask/ })).toBeNull()
   })
 
@@ -328,9 +339,9 @@ describe('MoneyBranchPage — states', () => {
   })
 
   it('the back link restores the custom range, branch, channel and sort from a shared URL', async () => {
-    renderBranch(['finance'], '/money/branch/GHQ?period=custom&from=2026-09-01&to=2026-09-30&branch=GHQ&channel=POS&sort=branch.asc')
+    renderBranch(['finance'], '/money/branch/GHQ?period=custom&from=2040-03-01&to=2040-03-05&branch=GHQ&channel=POS&sort=branch.asc')
     await screen.findByRole('heading', { level: 1, name: 'Gordi HQ' })
-    expect(screen.getByRole('link', { name: /Money/ })).toHaveAttribute('href', '/money?period=custom&from=2026-09-01&to=2026-09-30&branch=GHQ&channel=POS&sort=branch.asc')
+    expect(screen.getByRole('link', { name: /Money/ })).toHaveAttribute('href', '/money?period=custom&from=2040-03-01&to=2040-03-05&branch=GHQ&channel=POS&sort=branch.asc')
     expect(screen.queryByRole('button', { name: /Ask Gordi HQ lead/ })).toBeNull()
     expect(screen.getByText('Ask the branch lead is available on 7-, 30-, or 60-day presets only.')).toBeInTheDocument()
   })
