@@ -24,6 +24,7 @@ vi.mock('../../lib/db/directory', () => ({
   getPersonTeams: () => Promise.resolve([]),
   getTeamsByIds: () => Promise.resolve([]),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getDirectManagerPersonIds: () => Promise.resolve([]),
 }))
 vi.mock('../../lib/comments/postComment', () => ({ listComments: vi.fn(), postComment: vi.fn() }))
 

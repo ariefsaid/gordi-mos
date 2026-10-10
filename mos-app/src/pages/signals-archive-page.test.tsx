@@ -1062,20 +1062,24 @@ describe('issue #770 — Save view, phone door, and empty states (AC-028/029/030
     expect(screen.queryByRole('button', { name: 'Share Signal' })).not.toBeInTheDocument()
   })
 
-  it('AC-030: a viewer who cannot post reads true-empty "No Signals yet." with no door; a poster also gets "Share the first one"', async () => {
+  it('AC-030: first-use Signals is short, keeps only the header Share action, and is not an all-clear', async () => {
     mockListReadableSignals.mockResolvedValue([])
     composerCanPost.value = false
     const { unmount } = renderPage()
     const empty = await screen.findByTestId('empty-state')
     expect(within(empty).getByText('No Signals yet.')).toBeInTheDocument()
     expect(within(empty).queryByRole('button')).not.toBeInTheDocument()
+    expect(empty).toHaveAttribute('data-empty-variant', 'next-step')
+    expect(empty.querySelector('.empty-state-glyph')).toBeNull()
     unmount()
 
     composerCanPost.value = true
     renderPage()
-    const emptyWithDoor = await screen.findByTestId('empty-state')
-    expect(within(emptyWithDoor).getByText('No Signals yet.')).toBeInTheDocument()
-    expect(within(emptyWithDoor).getByRole('button', { name: 'Share the first one' })).toBeInTheDocument()
+    const emptyWithShare = await screen.findByTestId('empty-state')
+    expect(within(emptyWithShare).getByText('No Signals yet.')).toBeInTheDocument()
+    expect(within(emptyWithShare).getByText('Share a Signal above.')).toBeInTheDocument()
+    expect(within(emptyWithShare).queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Share Signal' })).toBeInTheDocument()
   })
 })
 

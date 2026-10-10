@@ -1,4 +1,4 @@
-// Task create draft (#1029): the Supervisor default from the home Team lead, and the Due date +
+// Task create draft (#1029): the Supervisor default from the selected PIC's manager, and the Due date +
 // Project/Process choices reaching the create write, with the Objective derived from the
 // Project/Process (mos.work_lines.objective_id) rather than picked.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -23,8 +23,8 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/signals', () => ({ linkSignalTask: vi.fn() }))
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(), getPeople: vi.fn(), getPersonTeams: vi.fn(),
-  getTeamsByIds: vi.fn(), getDownlinePersonIds: vi.fn(), getMyTeamLeads: vi.fn(),
-  getPersonBusinessUnitIds: vi.fn(),
+  getTeamsByIds: vi.fn(), getDownlinePersonIds: vi.fn(),
+  getDirectManagerPersonIds: vi.fn(), getPersonBusinessUnitIds: vi.fn(),
 }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
@@ -36,7 +36,7 @@ vi.mock('@/lib/db/user-views-collection', () => ({
 
 import { linkSignalTask } from '@/lib/db/signals'
 import { listTasks, createTask } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams, getTeamsByIds, getMyTeamLeads } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams, getTeamsByIds, getDirectManagerPersonIds } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { canStartProcessForTeam } from '@/lib/db/processes'
@@ -45,6 +45,7 @@ import { TasksWorkspace } from './tasks-workspace'
 
 const VIEWER_ID = 'viewer-id'
 const LEAD_ID = 'lead-id'
+const MANAGER_ID = 'manager-id'
 const PERSON: PeopleRow = {
   id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Test Viewer',
   email: 'viewer@example.test', must_change_password: false, archived_at: null,
@@ -64,6 +65,7 @@ const MEMBER: AuthState = {
 const PEOPLE = [
   { id: VIEWER_ID, full_name: 'Test Viewer' },
   { id: LEAD_ID, full_name: 'Test Lead' },
+  { id: MANAGER_ID, full_name: 'Role Manager' },
 ]
 const TEAMS = [
   { id: 'team-1', name: 'Café team', businessUnitId: 'bu-1', siteId: null, orgId: 'org', isPrimary: true },
@@ -109,10 +111,7 @@ beforeEach(() => {
     objective_id: null, work_line_id: null, last_activity_at: '2026-06-11T10:00:00Z',
     archived_at: null, created_by: VIEWER_ID,
   }])
-  vi.mocked(getMyTeamLeads).mockResolvedValue([
-    { team_id: 'team-1', lead_person_id: LEAD_ID },
-    { team_id: 'team-2', lead_person_id: VIEWER_ID },
-  ])
+  vi.mocked(getDirectManagerPersonIds).mockResolvedValue([MANAGER_ID])
   vi.mocked(createTask).mockResolvedValue('created-task')
 })
 
@@ -143,39 +142,29 @@ async function pick(form: HTMLElement, combobox: string, option: RegExp) {
   await userEvent.click(chosen)
 }
 
-describe('create draft — Supervisor defaults to the home Team lead', () => {
-  it('a member gets the home Team lead pre-filled and creates with them, PIC stays the creator', async () => {
+describe('create draft — Supervisor defaults to the selected PIC\'s manager', () => {
+  it('uses the PIC\'s manager instead of the creator\'s home Team lead', async () => {
     const form = await openDraft()
-    await waitFor(() => expect(within(form).getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Test Lead'))
+    await waitFor(() => expect(within(form).getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Role Manager'))
+    expect(getDirectManagerPersonIds).toHaveBeenCalledWith(VIEWER_ID, 'bu-1')
     fireEvent.keyDown(within(form).getByRole('textbox', { name: 'Title' }), { key: 'Enter' })
     await waitFor(() => expect(createTask).toHaveBeenCalled())
     expect(vi.mocked(createTask).mock.calls[0][0]).toMatchObject({
-      accountablePersonId: LEAD_ID, responsiblePersonId: VIEWER_ID, teamId: 'team-1',
+      accountablePersonId: MANAGER_ID, responsiblePersonId: VIEWER_ID, teamId: 'team-1',
     })
   })
 
-  it('leaves Supervisor blank when the creator is the home Team lead', async () => {
-    vi.mocked(getPersonTeams).mockResolvedValue([TEAMS[1]])
+  it('explains when the PIC has no manager', async () => {
+    vi.mocked(getDirectManagerPersonIds).mockResolvedValue([])
     const form = await openDraft()
-    expect(within(form).getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent(/select supervisor/i)
-    expect(createTask).not.toHaveBeenCalled()
-  })
-
-  it('leaves Supervisor blank when the home Team has no lead', async () => {
-    vi.mocked(getMyTeamLeads).mockResolvedValue([{ team_id: 'team-1', lead_person_id: null }])
-    const form = await openDraft()
+    await waitFor(() => expect(within(form).getByText('No manager found for this PIC — choose who follows up')).toBeInTheDocument())
     expect(within(form).getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent(/select supervisor/i)
   })
 
-  it('never offers an archived home Team lead: Supervisor stays blank', async () => {
-    vi.mocked(getPeople).mockResolvedValue([PEOPLE[0]])
+  it('leaves Supervisor blank and explains a failed manager read', async () => {
+    vi.mocked(getDirectManagerPersonIds).mockRejectedValue(new Error('denied'))
     const form = await openDraft()
-    expect(within(form).getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent(/select supervisor/i)
-  })
-
-  it('a failed lead read still opens the draft with a blank Supervisor', async () => {
-    vi.mocked(getMyTeamLeads).mockRejectedValue(new Error('denied'))
-    const form = await openDraft()
+    await waitFor(() => expect(within(form).getByText("Couldn't check this PIC's manager — choose who follows up")).toBeInTheDocument())
     expect(within(form).getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent(/select supervisor/i)
   })
 })
