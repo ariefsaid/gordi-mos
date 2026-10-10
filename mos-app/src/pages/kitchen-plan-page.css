@@ -15,6 +15,18 @@
   box-sizing: border-box;
 }
 
+.kp-day-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.kp-day-stepper__button { min-width: 32px; padding-inline: 6px; }
+.kp-day-stepper__today { padding-inline: 8px; }
+@media (max-width: 767.98px) {
+  .kp-day-stepper__button { min-width: 44px; }
+}
+
 @media (max-width: 767.98px) {
   .kp-block .ktb-filter-selects { display: none; }
 }
