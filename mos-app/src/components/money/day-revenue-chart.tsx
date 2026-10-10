@@ -163,7 +163,7 @@ export function DayRevenueChart({ days, selected, onSelect, label, mode = 'reven
               tick={{ fill: 'var(--muted-foreground)' }}
               tickFormatter={(v: number) => isMargin ? formatPercent(v, 0) : formatIDRCompact(v)}
             />
-            <Bar dataKey="value" stackId="day" radius={[4, 4, 0, 0]} isAnimationActive={false} hide={isMargin}>
+            <Bar dataKey="value" stackId="day" maxBarSize={24} radius={[4, 4, 0, 0]} isAnimationActive={false} hide={isMargin}>
               {data.map((d, i) => (
                 <Cell
                   key={d.date}
@@ -173,7 +173,7 @@ export function DayRevenueChart({ days, selected, onSelect, label, mode = 'reven
               ))}
               {!isMargin && <LabelList dataKey="latestLabel" content={(p) => p.value != null ? <text x={Number(p.x) + Number(p.width ?? 0)} y={Number(p.y) - 4} fill="var(--foreground)" textAnchor="end" fontSize="12">{p.value}</text> : null} />}
             </Bar>
-            <Bar dataKey="stub" stackId="day" fill={`url(#${patternId})`} isAnimationActive={false} hide={isMargin} />
+            <Bar dataKey="stub" stackId="day" maxBarSize={24} fill={`url(#${patternId})`} isAnimationActive={false} hide={isMargin} />
             <Line
               dataKey="compare"
               type="linear"

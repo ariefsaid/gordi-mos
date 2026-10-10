@@ -291,10 +291,10 @@ export function MoneyBranchPage() {
       {load.status === 'error' && <MoneyLoadError kept tooMany={load.tooMany} onRetry={() => void read()} />}
       {askStatus && <div ref={askStatusRef} tabIndex={-1} className="money-branch__ask-result">{askStatus}</div>}
       <div className={`money-branch__kpis grid min-w-0 grid-cols-2 gap-2 ${page.margin ? 'lg:grid-cols-4' : 'lg:grid-cols-2'}`}>
-        <KPITile label={t('money.overview.revenue', { days: String(view.period) })} value={formatIDRCompact(page.total)} delta={moneyKpiDelta(page.vsPrevious, t)} sub={t('money.table.col.vsPrevious')} />
-        <KPITile label={t('money.overview.latest')} value={lastDay ? formatIDRCompact(lastDay.value!) : t('money.table.notReceived')} delta={moneyKpiDelta(lastDay?.compare ? lastDay.value! / lastDay.compare - 1 : null, t)} sub={t('money.table.col.vsWeekday')} />
-        {page.margin && <KPITile label={t('money.overview.margin')} value={page.margin.pct === null ? t('money.table.notReceived') : formatPercent(page.margin.pct, 1)} />}
-        {page.margin && <KPITile label={t('money.table.col.coverage')} value={page.margin.coverage === null ? t('money.table.notReceived') : formatPercent(page.margin.coverage, 0)} />}
+        <KPITile valueVariant="proportional" label={t('money.overview.revenue', { days: String(view.period) })} value={formatIDRCompact(page.total)} delta={moneyKpiDelta(page.vsPrevious, t)} sub={t('money.table.col.vsPrevious')} />
+        <KPITile valueVariant="proportional" label={t('money.overview.latest')} value={lastDay ? formatIDRCompact(lastDay.value!) : t('money.table.notReceived')} delta={moneyKpiDelta(lastDay?.compare ? lastDay.value! / lastDay.compare - 1 : null, t)} sub={t('money.table.col.vsWeekday')} />
+        {page.margin && <KPITile valueVariant="proportional" label={t('money.overview.margin')} value={page.margin.pct === null ? t('money.table.notReceived') : formatPercent(page.margin.pct, 1)} />}
+        {page.margin && <KPITile valueVariant="proportional" label={t('money.table.col.coverage')} value={page.margin.coverage === null ? t('money.table.notReceived') : formatPercent(page.margin.coverage, 0)} />}
       </div>
       <div className={`money-branch__grid${page.margin || (data.marginFailed && !page.isB2B) ? '' : ' money-branch__grid--single'}`}>
         <section className="money-branch__panel money-branch__panel--chart" aria-labelledby="money-branch-chart">

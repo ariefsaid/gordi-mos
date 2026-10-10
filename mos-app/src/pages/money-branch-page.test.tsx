@@ -165,6 +165,14 @@ describe('MoneyBranchPage — what each tier receives', () => {
     expect(screen.getByText('Recipe vs stock cost', { selector: '.kpi-tile-label' })).toBeInTheDocument()
   })
 
+  it('uses proportional figures for branch Money KPIs', async () => {
+    renderBranch(['finance'])
+    await screen.findByRole('heading', { name: 'Margin, last 7 days' })
+    const values = Array.from(document.querySelectorAll('.money-branch__kpis .kpi-tile-value'))
+    expect(values).toHaveLength(4)
+    expect(values.every((value) => !value.classList.contains('tabular'))).toBe(true)
+  })
+
   it('COGS on its budget reads as on budget, not "0,0 points under"', async () => {
     mockMarg.mockResolvedValue(MARGIN.map((m) => ({ ...m, cogs_budget_bom: m.cogs_interim_sm })))
     renderBranch(['finance'])

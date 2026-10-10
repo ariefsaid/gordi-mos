@@ -130,6 +130,12 @@ describe('buildBranchTable', () => {
     expect(company.vsWeekday).toBeCloseTo(1, 10)
   })
 
+  it('leaves a company trend gap for a day with no received revenue', () => {
+    const rows = revenueRows().filter((row) => row.revenue_date !== day(2))
+    const company = buildBranchTable(rows, null, 7)!.company
+    expect(company.trend[2]).toBeNull()
+  })
+
   it('margin figures are only present when margin rows were read', () => {
     const table = buildBranchTable(revenueRows(), null, 7)!
     for (const row of [table.company, ...table.branches, ...table.b2b]) expect('margin' in row).toBe(false)

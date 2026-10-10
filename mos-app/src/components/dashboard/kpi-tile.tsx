@@ -25,6 +25,8 @@ export interface KPITileProps {
   label: string
   /** pre-formatted display string — the composition formats currency/%/counts */
   value: string
+  /** Numeric treatment for the standalone figure. */
+  valueVariant?: 'tabular' | 'proportional'
   delta?: KPITileDelta
   sub?: string
   graphic?: ReactNode
@@ -57,6 +59,7 @@ const DELTA_TONE: Record<KPITileDelta['tone'], PillTone> = {
 export function KPITile({
   label,
   value,
+  valueVariant = 'tabular',
   delta,
   sub,
   graphic,
@@ -97,7 +100,7 @@ export function KPITile({
             overlay); the glyph now comes from help-tip.css. */}
         {help && <HelpTip label={help} className="kpi-tile-help" />}
       </span>
-      <span className="kpi-tile-value kpi-tile-value--nowrap tabular">{value}</span>
+      <span className={`kpi-tile-value kpi-tile-value--nowrap${valueVariant === 'tabular' ? ' tabular' : ''}`}>{value}</span>
       {delta && (
         <Pill tone={DELTA_TONE[delta.tone]} dot={delta.dot}>
           {delta.text}

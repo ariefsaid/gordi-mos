@@ -248,7 +248,7 @@ export function buildBranchTable(
     latestDay: all.reduce((s, r) => s + (r.latestDay ?? 0), 0),
     vsWeekday: change(companyWeekday),
     missingLatest: branches.filter((r) => r.latestDay === null).length,
-    trend: dates.map((date) => companyDaily.get(date) ?? 0),
+    trend: dates.map((date) => companyDaily.get(date) ?? null),
   }
   if (companyMargin) company.margin = companyMargin
   const marginVsPrevious = companyMargin?.pct !== null && companyMargin && previousMargin !== null

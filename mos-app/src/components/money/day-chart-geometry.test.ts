@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { bulletGeometry, chartSeries, cleanTicks, dayAt } from './day-chart-geometry'
 
@@ -18,6 +20,11 @@ describe('dayAt — the day under a click or tap', () => {
   it('uses clean round intervals for currency and percent axes', () => {
     expect(cleanTicks(0, 38_000_000)).toEqual([0, 10_000_000, 20_000_000, 30_000_000, 40_000_000])
     expect(cleanTicks(0.53, 0.67)).toEqual([0.5, 0.55, 0.6, 0.65, 0.7])
+  })
+
+  it('caps Recharts revenue columns at 24px even for the 7-day period', () => {
+    const source = readFileSync(resolve(__dirname, 'day-revenue-chart.tsx'), 'utf8')
+    expect(source).toMatch(/<Bar dataKey="value"[^>]*maxBarSize=\{24\}/)
   })
 
   it('projects missing revenue and comparison values without losing the latest label', () => {

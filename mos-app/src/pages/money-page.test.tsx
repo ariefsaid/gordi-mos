@@ -135,6 +135,14 @@ describe('MoneyPage — what each tier receives', () => {
     expect(meter.querySelector('[aria-hidden="true"]')).toBeInTheDocument()
   })
 
+  it('uses proportional figures for Money KPIs', async () => {
+    renderMoney(['finance'])
+    await screen.findByRole('table')
+    const values = Array.from(document.querySelectorAll('.money-overview__kpis .kpi-tile-value'))
+    expect(values).toHaveLength(4)
+    expect(values.every((value) => !value.classList.contains('tabular'))).toBe(true)
+  })
+
   it('a supervisor granted one branch lands on that branch', async () => {
     mockRev.mockResolvedValue(revenue(['cikal']))
     renderMoney(['supervisor'], '/money?period=7')
