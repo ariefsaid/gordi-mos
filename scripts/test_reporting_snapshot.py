@@ -139,7 +139,7 @@ class MarginSnapshotTests(unittest.TestCase):
             "revenue": "3000000",
             "cogs_interim_sm": "1800000",
             "cogs_budget_bom": "1700000",
-            "bom_coverage_pct": "0.9",
+            "bom_coverage_pct": "90",
         }
 
         normalized = normalize_margin_row(
@@ -153,6 +153,7 @@ class MarginSnapshotTests(unittest.TestCase):
         self.assertEqual(normalized["branch_name"], "Gordi Roastery")
         self.assertEqual(normalized["margin_interim"], 1200000.0)
         self.assertEqual(normalized["margin_interim_pct"], 0.4)
+        self.assertEqual(normalized["bom_coverage_pct"], 0.9)
 
     def test_normalize_margin_row_computes_margin_interim_and_pct(self):
         """AC-SN02/AC-HK02: Given revenue and cogs_interim_sm, when normalize_margin_row runs,
@@ -165,7 +166,7 @@ class MarginSnapshotTests(unittest.TestCase):
             "revenue": "1250000",
             "cogs_interim_sm": "750000",
             "cogs_budget_bom": "700000",
-            "bom_coverage_pct": "0.95",
+            "bom_coverage_pct": "95",
         }
 
         normalized = normalize_margin_row(
@@ -178,6 +179,48 @@ class MarginSnapshotTests(unittest.TestCase):
         self.assertEqual(normalized["margin_interim"], 500000.0)
         self.assertEqual(normalized["margin_interim_pct"], 0.4)
         self.assertEqual(normalized["bom_coverage_pct"], 0.95)
+
+    def test_normalize_margin_row_converts_warehouse_percentage_points_to_ratio(self):
+        for source_pct, expected_ratio in (("90", 0.9), ("112.5", 1.125), ("200", 2.0)):
+            with self.subTest(source_pct=source_pct):
+                row = {
+                    "margin_date": "2026-07-01",
+                    "esb_code": "GKI",
+                    "branch_code": "BGR",
+                    "branch_name": "Bungur",
+                    "revenue": "1250000",
+                    "cogs_interim_sm": "750000",
+                    "cogs_budget_bom": "700000",
+                    "bom_coverage_pct": source_pct,
+                }
+
+                normalized = normalize_margin_row(
+                    row,
+                    snapshot_as_of="2026-07-01T04:00:00+07:00",
+                    org_id="00000000-0000-0000-0000-0000000000a1",
+                    source_contract_version=DEFAULT_MARGIN_SOURCE_CONTRACT_VERSION,
+                )
+
+                self.assertEqual(normalized["bom_coverage_pct"], expected_ratio)
+
+    def test_normalize_margin_row_rejects_coverage_outside_ratio_range(self):
+        for source_pct in ("-0.1", "1000.1"):
+            with self.subTest(source_pct=source_pct):
+                row = {
+                    "margin_date": "2026-07-01",
+                    "esb_code": "GKI",
+                    "branch_code": "BGR",
+                    "revenue": "1250000",
+                    "bom_coverage_pct": source_pct,
+                }
+
+                with self.assertRaisesRegex(ValueError, "ratio must be between 0 and 10"):
+                    normalize_margin_row(
+                        row,
+                        snapshot_as_of="2026-07-01T04:00:00+07:00",
+                        org_id="00000000-0000-0000-0000-0000000000a1",
+                        source_contract_version=DEFAULT_MARGIN_SOURCE_CONTRACT_VERSION,
+                    )
 
     def test_normalize_margin_row_pct_is_none_when_revenue_not_positive(self):
         """AC-HK02: Given revenue is 0, when pct is computed, then pct is None (not NaN)."""
@@ -200,6 +243,7 @@ class MarginSnapshotTests(unittest.TestCase):
         )
 
         self.assertIsNone(normalized["margin_interim_pct"])
+        self.assertIsNone(normalized["bom_coverage_pct"])
 
     def test_normalize_margin_row_margin_fields_none_when_cogs_missing(self):
         """AC-SN06: Given a day with revenue but NULL cogs_interim_sm, when normalize_margin_row
@@ -212,7 +256,7 @@ class MarginSnapshotTests(unittest.TestCase):
             "revenue": "1250000",
             "cogs_interim_sm": None,
             "cogs_budget_bom": "700000",
-            "bom_coverage_pct": "0.95",
+            "bom_coverage_pct": "95",
         }
 
         normalized = normalize_margin_row(
@@ -225,6 +269,7 @@ class MarginSnapshotTests(unittest.TestCase):
         self.assertIsNone(normalized["cogs_interim_sm"])
         self.assertIsNone(normalized["margin_interim"])
         self.assertIsNone(normalized["margin_interim_pct"])
+        self.assertEqual(normalized["bom_coverage_pct"], 0.95)
 
     def test_margin_source_query_reads_pos_only_join(self):
         """AC-SN03: Given the margin source query, when built, then it reads
@@ -304,8 +349,16 @@ MARGIN_SOURCE_ROW = {
     "revenue": "1000000",
     "cogs_interim_sm": "600000",
     "cogs_budget_bom": "550000",
-    "bom_coverage_pct": "0.9",
+    "bom_coverage_pct": "90",
 }
+
+
+class _UndefinedTableError(Exception):
+    sqlstate = "42P01"
+
+    def __init__(self):
+        # Postgres names no table in the error fields for a missing relation.
+        self.diag = types.SimpleNamespace(table_name=None)
 
 
 class _RecordingCursor:
@@ -319,19 +372,32 @@ class _RecordingCursor:
         return False
 
     def execute(self, sql, params=None):
+        # The table-exists probe is read-only; kept out of calls so write-order assertions stay exact.
+        if sql.startswith("select to_regclass"):
+            self._connection.probed = params[0]
+            return
         self._connection.calls.append(("execute", sql, params))
 
     def executemany(self, sql, params_seq):
+        missing = self._connection.missing_target_table
+        if missing and f"insert into {missing}" in sql.lower():
+            raise _UndefinedTableError()
         self._connection.calls.append(("executemany", sql, list(params_seq)))
+
+    def fetchone(self):
+        regclass = self._connection.probed
+        return (None,) if regclass == self._connection.missing_target_table else (regclass,)
 
     def fetchall(self):
         return list(self._connection.source_rows)
 
 
 class _RecordingConnection:
-    def __init__(self, dsn, source_rows):
+    def __init__(self, dsn, source_rows, missing_target_table=None):
         self.dsn = dsn
         self.source_rows = source_rows
+        self.missing_target_table = missing_target_table
+        self.probed = None
         self.calls = []
 
     def __enter__(self):
@@ -348,7 +414,7 @@ class _RecordingConnection:
 
 
 @contextmanager
-def _observed_run(source_rows, reporting_rows=()):
+def _observed_run(source_rows, reporting_rows=(), missing_target_table=None):
     """Stand in for psycopg for the duration of a run, and hand back the connections it opened.
 
     reporting_snapshot imports psycopg inside its run functions, so substituting the module in
@@ -359,7 +425,11 @@ def _observed_run(source_rows, reporting_rows=()):
 
     def connect(dsn, **_kwargs):
         rows = reporting_rows if dsn == REPORTING_DSN else source_rows
-        connection = _RecordingConnection(dsn, rows)
+        connection = _RecordingConnection(
+            dsn,
+            rows,
+            missing_target_table if dsn == REPORTING_DSN else None,
+        )
         connections.append(connection)
         return connection
 
@@ -632,6 +702,61 @@ class PendingBillFlagTests(unittest.TestCase):
         self.assertEqual(plan, {"void": [], "missing": []})
 
 
+class MissingTargetTableTests(unittest.TestCase):
+    def test_missing_target_table_skips_its_snapshot_and_other_steps_write(self):
+        config = SnapshotConfig(
+            warehouse_db_url=WAREHOUSE_DSN,
+            supabase_reporting_db_url=REPORTING_DSN,
+            org_id=ORG_A,
+        )
+        source_row = {
+            **REVENUE_SOURCE_ROW,
+            **MARGIN_SOURCE_ROW,
+            **USAGE_SOURCE_ROW,
+        }
+
+        with _observed_run(
+            [source_row],
+            missing_target_table="reporting.sales_margin_daily",
+        ) as connections:
+            output = io.StringIO()
+            try:
+                with redirect_stdout(output):
+                    counts = run_all_snapshots(config)
+            except _UndefinedTableError:
+                counts = None
+
+        self.assertIsNotNone(counts, "a missing target table must not abort later snapshots")
+        self.assertIsNone(counts["margin"])
+        self.assertEqual(
+            output.getvalue().splitlines(),
+            ["skipped reporting.sales_margin_daily: not on target"],
+        )
+        written_tables = [
+            sql.split("(", 1)[0].strip().lower()
+            for connection in connections
+            for kind, sql, _params in connection.calls
+            if kind == "executemany"
+        ]
+        self.assertEqual(
+            written_tables,
+            ["insert into reporting.sales_daily_revenue", "insert into reporting.ingredient_usage_daily"],
+        )
+
+        with _observed_run(
+            [],
+            missing_target_table="reporting.sales_margin_daily",
+        ):
+            output = io.StringIO()
+            with redirect_stdout(output):
+                count = run_margin_snapshot(config, datetime(2026, 10, 10, tzinfo=timezone.utc))
+        self.assertIsNone(count)
+        self.assertEqual(
+            output.getvalue().splitlines(),
+            ["skipped reporting.sales_margin_daily: not on target"],
+        )
+
+
 class PendingBillRunTests(unittest.TestCase):
     def _config(self, **overrides):
         return SnapshotConfig(
@@ -674,6 +799,17 @@ class PendingBillRunTests(unittest.TestCase):
         )
         self.assertIn("and source_state <> 'void'", flag_sql)
         self.assertNotIn("source_state = 'present'", flag_sql)
+
+    def test_missing_pending_bill_table_skips_without_writing(self):
+        snapshot = datetime(2026, 10, 6, 19, 5, tzinfo=timezone.utc)
+        output = io.StringIO()
+        with _observed_run(
+            [dict(r) for r in PENDING_SOURCE_ROWS], missing_target_table="reporting.pending_bill_snapshots"
+        ) as connections, redirect_stdout(output):
+            result = run_pending_bill_snapshot(self._config(), snapshot)
+        self.assertEqual(result, (None, None))
+        self.assertEqual(output.getvalue().splitlines(), ["skipped reporting.pending_bill_snapshots: not on target"])
+        self.assertEqual([c.calls for c in connections if c.dsn == REPORTING_DSN], [[]])
 
     def test_run_declares_org_before_writes_in_the_same_transaction(self):
         """Given a pending-bill run, then the org declaration is the first statement, every write

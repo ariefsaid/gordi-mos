@@ -122,7 +122,7 @@ describe('MoneyPage — what each tier receives', () => {
     await screen.findByRole('table')
     expect(mockMarg).toHaveBeenCalledWith({ sinceDays: 120 })
     const headers = within(table()).getAllByRole('columnheader').map((h) => h.textContent!.replace(/[↑↓]/g, ''))
-    expect(headers.slice(5)).toEqual(['Margin % (interim)', 'COGS vs budget', 'Recipe coverage'])
+    expect(headers.slice(5)).toEqual(['Margin % (interim)', 'COGS vs budget', 'Recipe vs stock cost'])
     expect(screen.getByText('Margin is interim: from stock movement, not yet reconciled.')).toBeInTheDocument()
     expect(screen.getByText('Margin covers POS branches only.')).toBeInTheDocument()
   })

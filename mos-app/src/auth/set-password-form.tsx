@@ -1,5 +1,6 @@
 import { useState, useId, type ReactNode } from 'react'
 import { Spinner } from './auth-shell'
+import '@/components/ui/Button.css'
 import { useT } from '@/i18n/use-t'
 
 /**
@@ -41,7 +42,7 @@ function RevealToggle({
       aria-pressed={shown}
       aria-controls={controls}
       aria-label={shown ? hideLabel : showLabel}
-      className="absolute top-0 right-0 h-full px-2 flex items-center text-muted-foreground hover:text-foreground"
+      className="absolute top-0 right-0 h-full px-2 tap-target-phone--icon flex items-center text-muted-foreground hover:text-foreground"
       style={{ fontSize: 'var(--font-size-label)' }}
     >
       <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
@@ -176,7 +177,7 @@ export function SetPasswordForm({ title, subtitle, onSubmit, onReauthenticationR
               aria-describedby={[ruleError ? ruleErrorId : ruleId, serverError ? serverErrorId : '']
                 .filter(Boolean)
                 .join(' ')}
-              className="w-full bg-background text-foreground border rounded-sm pl-2.5 pr-12"
+              className="w-full tap-target-phone bg-background text-foreground border rounded-sm pl-2.5 pr-12"
               style={{
                 height: 32,
                 fontSize: 'var(--font-size-touch-input)',
@@ -233,7 +234,7 @@ export function SetPasswordForm({ title, subtitle, onSubmit, onReauthenticationR
               aria-required="true"
               aria-invalid={mismatchError ? 'true' : undefined}
               aria-describedby={mismatchError ? mismatchErrorId : undefined}
-              className="w-full bg-background text-foreground border rounded-sm pl-2.5 pr-12"
+              className="w-full tap-target-phone bg-background text-foreground border rounded-sm pl-2.5 pr-12"
               style={{
                 height: 32,
                 fontSize: 'var(--font-size-touch-input)',
@@ -266,7 +267,7 @@ export function SetPasswordForm({ title, subtitle, onSubmit, onReauthenticationR
           <div className="mb-5">
             <p role="status" aria-live="polite" style={{ fontSize: 'var(--font-size-label)' }}>{t('profile.password.codeSent')}</p>
             <label htmlFor={verificationCodeId} className="block text-foreground font-semibold mb-1" style={{ fontSize: 'var(--font-size-label)' }}>{t('auth.password.reauth.code')}</label>
-            <input id={verificationCodeId} value={verificationCode} onChange={(e) => setVerificationCode(e.target.value)} autoComplete="one-time-code" inputMode="numeric" aria-required="true" aria-invalid={serverError ? 'true' : undefined} aria-describedby={serverError ? serverErrorId : undefined} className="w-full bg-background text-foreground border rounded-sm px-2.5" style={{ height: 32, fontSize: 'var(--font-size-touch-input)', borderColor: serverError ? 'var(--destructive)' : 'var(--input)' }} />
+            <input id={verificationCodeId} value={verificationCode} onChange={(e) => setVerificationCode(e.target.value)} autoComplete="one-time-code" inputMode="numeric" aria-required="true" aria-invalid={serverError ? 'true' : undefined} aria-describedby={serverError ? serverErrorId : undefined} className="w-full tap-target-phone bg-background text-foreground border rounded-sm px-2.5" style={{ height: 32, fontSize: 'var(--font-size-touch-input)', borderColor: serverError ? 'var(--destructive)' : 'var(--input)' }} />
           </div>
         )}
 
@@ -275,7 +276,7 @@ export function SetPasswordForm({ title, subtitle, onSubmit, onReauthenticationR
           type="submit"
           disabled={loading}
           aria-busy={loading}
-          className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-sm font-medium"
+          className="w-full tap-target-phone flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-sm font-medium"
           style={{
             height: 32,
             fontSize: 16,

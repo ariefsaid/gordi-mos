@@ -14,6 +14,7 @@ ops_require reporting-snapshot-cron \
   REPORTING_ORG_ID REPORTING_WRITER_CRED_FILE WAREHOUSE_DB_URL || exit 2
 
 cd "$SNAPSHOT_ROOT" || { echo "reporting-snapshot-cron: cannot enter SNAPSHOT_ROOT" >&2; exit 2; }
+REPORTING_PYTHON="${REPORTING_PYTHON:-$SNAPSHOT_ROOT/sync/venv/bin/python}"
 
 echo "--- reporting-snapshot START: $(date) ---"
 
@@ -23,13 +24,18 @@ run_snapshot() {
     return 1
   fi
 
-  ./sync/venv/bin/python - <<'PY'
+  MOS_SCRIPTS_DIR="$HERE" "$REPORTING_PYTHON" - <<'PY'
 import os
 import sys
 from urllib.parse import quote
 
-sys.path.insert(0, "scripts")
+mos_scripts_dir = os.path.realpath(os.environ["MOS_SCRIPTS_DIR"])
+sys.path.insert(0, mos_scripts_dir)
+import reporting_snapshot
 from reporting_snapshot import SnapshotConfig, run_all_snapshots
+
+if os.path.realpath(reporting_snapshot.__file__) != os.path.join(mos_scripts_dir, "reporting_snapshot.py"):
+    raise ImportError("reporting_snapshot did not resolve from MOS scripts")
 
 with open(os.environ["REPORTING_WRITER_CRED_FILE"]) as f:
     writer_password = f.read().strip()
