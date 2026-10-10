@@ -34,7 +34,7 @@ export interface DayRevenueChartProps {
   /** The selected day's date; it must be one of `days`. */
   selected: string
   onSelect: (date: string) => void
-  /** The chart's accessible name, e.g. "Gordi HQ revenue per day". */
+  /** The chart's accessible name, including the branch and metric. */
   label: string
   mode?: 'revenue' | 'margin'
   budget?: number | null

@@ -1,5 +1,5 @@
-// MoneyBranchPage — /money/branch/:code, opened from a branch row on the Money page
-// (OD-2026-10-06-MONEY-BUILD). A day chart of the branch's revenue against the same weekday a week
+// MoneyBranchPage — /money/branch/:code, opened from a branch row on the Money page. A day chart
+// of the branch's revenue against the same weekday a week
 // earlier; for the margin tier, margin and COGS against the recipe budget for the period in the
 // URL, the branch's Café items without a recipe, and "Ask {branch} lead", which creates a Task that
 // carries a link to this view and never a figure (mos.ask_branch_lead builds its text).
@@ -8,6 +8,11 @@
 // the margin query is never issued and the margin, uncovered and ask pieces are absent. Postgres is
 // the boundary. Period, range, filters, sort and ?d=YYYY-MM-DD (the chosen day) live in the URL.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { getCoreRowModel, getSortedRowModel, getPaginationRowModel, useReactTable } from '@tanstack/react-table'
+import { MoneyTableShell } from '@/components/money/money-table-shell'
+import { Select } from '@/components/ui/select'
+import { listRecipeFindings, type RecipeFindingsData } from '@/lib/db/recipe-findings'
+import { FINDING_CLASSES, FINDING_RULES, FINDING_COLUMNS, FINDING_SORT, findingKey, findingComparison, filterRecipeFindings } from '@/lib/recipe-findings'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { canViewMargin } from '@/lib/capabilities'
@@ -39,7 +44,6 @@ import { KPITile } from '@/components/dashboard/kpi-tile'
 import { bulletGeometry } from '@/components/money/day-chart-geometry'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { Button } from '@/components/ui/button'
-import { Select } from '@/components/ui/select'
 import { streamKey } from '@/lib/kitchen-action-label'
 import './money-page.css'
 import './money-branch-page.css'
@@ -157,7 +161,7 @@ function DaysTable({ page, period }: { page: BranchPage; period: number }) {
             {[...page.days].reverse().map((d) => (
               <tr key={d.date}>
                 <th scope="row">{formatWeekdayDayMonth(d.date, locale)}</th>
-                <td className="tabular">{d.value === null ? t('money.table.notReceived') : formatIDR(d.value)}</td>
+                <td className="tabular">{d.value === null ? t('money.branch.days.noSales') : formatIDR(d.value)}</td>
                 <td>
                   {d.value !== null && d.compare
                     ? (() => {
@@ -168,7 +172,7 @@ function DaysTable({ page, period }: { page: BranchPage; period: number }) {
                 </td>
                 <td className="tabular">{d.compare === null ? t('money.table.notReceived') : formatIDR(d.compare)}</td>
                 {page.margin && <>
-                  <td className="tabular">{d.marginPct == null ? t('money.table.notReceived') : formatPercent(d.marginPct, 1)}</td>
+                  <td className="tabular">{d.value === null ? t('money.branch.days.noSales') : d.marginPct == null ? t('money.table.notReceived') : formatPercent(d.marginPct, 1)}</td>
                   <td className="tabular">{budgetMargin === null ? t('money.table.notReceived') : formatPercent(budgetMargin, 0)}</td>
                 </>}
               </tr>
@@ -208,6 +212,35 @@ export function MoneyBranchPage() {
   const syncedAt = useMemo(() => (data ? latestBy(data.revenue, (r) => r.snapshot_as_of) : null), [data])
   // A supervisor who sees one branch was sent here from /money; a link back would send them here again.
   const onlyBranch = !canSeeMargin && data !== null && new Set(data.revenue.map((r) => r.branch_code)).size === 1
+  const canSeeFindings = accessRoles.some(r => ['finance', 'manager', 'ops_lead'].includes(r)) && !page?.isB2B
+  const findingStart = page?.days[0]?.date ?? ''
+  const findingEnd = page?.latestDate ?? ''
+  const companies = [...new Set(data?.revenue.filter(r => r.branch_code === code).map(r => r.esb_code))].sort().join(',')
+  const findingScope = `${code}:${findingStart}:${findingEnd}:${companies}`
+  const [findings, setFindings] = useState<{ scope: string; data: RecipeFindingsData } | null>(null)
+  const [findingStatus, setFindingStatus] = useState('loading')
+  const [findingAttempt, setFindingAttempt] = useState(0)
+  useEffect(() => {
+    if (!canSeeFindings || !findingStart) return
+    let live = true
+    setFindingStatus('loading')
+    listRecipeFindings(code, findingStart, findingEnd, companies.split(',')).then(
+      rows => { if (live) { setFindings({ scope: findingScope, data: rows }); setFindingStatus('ready') } },
+      () => { if (live) setFindingStatus('error') },
+    )
+    return () => { live = false }
+  }, [canSeeFindings, code, findingStart, findingEnd, companies, findingScope, findingAttempt])
+  const findingData = findings?.scope === findingScope ? findings.data : null
+  const findingTable = useReactTable({ data: filterRecipeFindings(findingData?.rows ?? [], searchParams), columns: FINDING_COLUMNS, state: { sorting: FINDING_SORT }, initialState: { pagination: { pageSize: 25 } }, autoResetPageIndex: false, getCoreRowModel: getCoreRowModel(), getSortedRowModel: getSortedRowModel(), getPaginationRowModel: getPaginationRowModel() })
+  useEffect(() => { findingTable.setPageIndex(0) }, [findingScope, findingTable])
+  const setFindingFilter = (key: string, value: string) => {
+    const next = new URLSearchParams(searchParams)
+    if (key === 'clear') for (const k of ['rf_class', 'rf_rule', 'rf_day', 'rf_all']) next.delete(k)
+    else if (value) next.set(key, value)
+    else next.delete(key)
+    findingTable.setPageIndex(0)
+    setSearchParams(next)
+  }
   const [ask, setAsk] = useState<Ask>({ status: 'idle' })
   const askStatusRef = useRef<HTMLDivElement>(null)
   // The result is announced and takes focus, so a keyboard user lands on the Task link.
@@ -329,6 +362,7 @@ export function MoneyBranchPage() {
         {page.margin && <KPITile valueVariant="proportional" label={t('money.overview.margin')} value={page.margin.pct === null ? t('money.table.notReceived') : formatPercent(page.margin.pct, 1)} />}
         {page.margin && <KPITile valueVariant="proportional" label={t('money.table.col.coverage')} value={page.margin.coverage === null ? t('money.table.notReceived') : formatPercent(page.margin.coverage, 0)} />}
       </div>
+      {canSeeFindings && <a href="#recipe-findings" className="money-branch__link">{t('money.findings.view')}</a>}
       <div className={`money-branch__grid${page.margin || (data.marginFailed && !page.isB2B) ? '' : ' money-branch__grid--single'}`}>
         <section className="money-branch__panel money-branch__panel--chart" aria-labelledby="money-branch-chart">
           <div className="money-branch__panel-head">
@@ -366,6 +400,38 @@ export function MoneyBranchPage() {
           </div>
         )}
       </div>
+      {canSeeFindings && <section id="recipe-findings" className="money-findings" aria-labelledby="recipe-findings-title">
+        <h2 id="recipe-findings-title" className="money-branch__h2">{t('money.findings.title')}</h2>
+        <p className="money-branch__note">{t('money.findings.context')}</p>
+        {findingStatus === 'error' && <ErrorState message={t('money.findings.error')} onRetry={() => setFindingAttempt(n => n + 1)} />}
+        {!findingData && findingStatus === 'loading' && <div role="status" aria-label={t('common.loading')}><SkeletonRows count={3} /></div>}
+        {findingData && <>
+          <p className="money-branch__note">{findingData.receipts.length ? t('money.findings.received', { date: formatWeekdayDayMonth(findingData.receipts[0].snapshot_as_of.slice(0, 10), locale) }) : t('money.findings.notReceived')}</p>
+          {findingData.receipts.some(r => !r.complete || r.window_start > findingStart || r.window_end < findingEnd) && <p role="status">{t('money.findings.incomplete')}</p>}
+          {findingData.rows.length > 0 && <div className="flex flex-wrap gap-3 my-3">
+            <Select label={t('money.findings.scope')} name="rf_all" value={searchParams.get('rf_all') ?? ''} onChange={e => setFindingFilter('rf_all', e.target.value)}><option value="">{t('money.findings.needsHuman')}</option><option value="1">{t('money.findings.all')}</option></Select>
+            <Select label={t('money.findings.class')} name="rf_class" value={searchParams.get('rf_class') ?? ''} onChange={e => setFindingFilter('rf_class', e.target.value)}><option value="">{t('money.findings.all')}</option>{FINDING_CLASSES.map(c => <option key={c} value={c}>{t(findingKey('class', c))}</option>)}</Select>
+            <Select label={t('money.findings.rule')} name="rf_rule" value={searchParams.get('rf_rule') ?? ''} onChange={e => setFindingFilter('rf_rule', e.target.value)}><option value="">{t('money.findings.all')}</option>{FINDING_RULES.map(r => <option key={r} value={r}>{t(findingKey('rule', r))}</option>)}</Select>
+            <Select label={t('money.branch.days.col.day')} name="rf_day" value={searchParams.get('rf_day') ?? ''} onChange={e => setFindingFilter('rf_day', e.target.value)}><option value="">{t('money.findings.all')}</option>{[...new Set(findingData.rows.map(r => r.day))].sort().reverse().map(d => <option key={d} value={d}>{formatWeekdayDayMonth(d, locale)}</option>)}</Select>
+            <Button variant="outline" onClick={() => setFindingFilter('clear', '')}>{t('money.findings.clear')}</Button>
+          </div>}
+          {findingTable.getFilteredRowModel().rows.length > 0 ? <>
+            <MoneyTableShell><caption className="sr-only">{t('money.findings.title')}</caption><thead><tr>{(['money.findings.identity', 'money.findings.compare', 'money.findings.check'] as const).map(k => <th key={k} scope="col" className="money-table__head">{t(k)}</th>)}</tr></thead><tbody className="money-table__group">
+              {findingTable.getRowModel().rows.map(({ original: r }) => <tr key={`${r.esb_code}:${r.finding_id}`} data-finding={r.finding_id} className="money-table__row">
+                <th scope="row" className="money-table__cell"><span className="money-table__cell-label">{t('money.findings.identity')}</span><span>{formatWeekdayDayMonth(r.day, locale)}</span><strong className="block">{r.menu_name ?? t('money.findings.noMenu')}</strong><span>{r.expected_name ?? r.actual_name ?? t('money.findings.noIngredient')}</span></th>
+                <td className="money-table__cell"><span className="money-table__cell-label">{t('money.findings.compare')}</span><p className="tabular">{findingComparison(r, t, locale)}</p><p className="tabular">{r.impact_idr === null ? t('money.findings.notQuantified') : `${formatIDR(r.impact_idr)} · ${t(findingKey('basis', r.impact_basis))}`}</p></td>
+                <td className="money-table__cell"><Pill tone="neutral" dot={false}>{t(findingKey('class', r.classification))}</Pill><strong className="block">{t(findingKey('rule', r.rule))}</strong><p>{t('money.findings.likely', { cause: t(findingKey('cause', r.rule)) })}</p><p>{t('money.findings.nextCheck', { check: r.recommended_check })}</p>
+                  <details><summary>{t('money.findings.evidence')}</summary><p>{r.recipe_versions ? t('money.findings.version', { version: String(r.recipe_versions.version), date: formatWeekdayDayMonth(r.recipe_versions.first_seen, locale) }) : t('money.findings.noHistory')}</p>
+                    <p>{t('money.findings.recipeTiming', { edited: r.recipe_edited_at ?? t('money.findings.unknown'), observed: r.recipe_observed_at ?? t('money.findings.unknown') })}</p><p>{t('money.findings.source', { checked: r.source_checked_at })}</p><p>{t('money.findings.previousObservation', { time: r.prior_recipe_observed_at ?? t('money.findings.unknown'), sale: r.first_sale_at ?? t('money.findings.unknown') })}</p><p>{t('money.findings.confidence', { confidence: t(r.confidence === 'evidenced_warehouse_policy' ? 'money.findings.evidenced' : 'money.findings.candidate'), rule: r.rule })}</p>{r.replica_stale && <p>{t('money.findings.stale')}</p>}
+                    <details><summary>{t('money.findings.unitEvidence')}</summary><pre className="whitespace-pre-wrap break-words">{r.recipe_version_hash}{'\n'}{JSON.stringify(r.conversion_evidence, null, 2)}</pre></details>
+                  </details>
+                </td>
+              </tr>)}
+            </tbody></MoneyTableShell>
+            <div className="flex flex-wrap items-center gap-3 mt-3"><Button variant="outline" disabled={!findingTable.getCanPreviousPage()} onClick={() => findingTable.previousPage()}>{t('money.findings.previous')}</Button><span>{t('money.findings.count', { count: String(findingTable.getFilteredRowModel().rows.length), page: String(findingTable.getState().pagination.pageIndex + 1) })}</span><Button variant="outline" disabled={!findingTable.getCanNextPage()} onClick={() => findingTable.nextPage()}>{t('money.findings.next')}</Button></div>
+          </> : findingData.receipts.length > 0 && findingData.receipts.every(r => r.complete && r.window_start <= findingStart && r.window_end >= findingEnd) && <EmptyState variant="awaiting" title={t(findingData.rows.length ? 'money.findings.filtered' : 'money.findings.empty')} copy={t('money.findings.noLossClaim')} />}
+        </>}
+      </section>}
       </div>
     </>,
     undefined,

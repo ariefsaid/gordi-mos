@@ -29,9 +29,9 @@ describe('dayAt — the day under a click or tap', () => {
 
   it('projects missing revenue and comparison values without losing the latest label', () => {
     const days = [
-      { date: '2026-10-01', value: 10, compare: 8 },
-      { date: '2026-10-02', value: null, compare: 9 },
-      { date: '2026-10-03', value: 30, compare: null },
+      { date: '2040-03-01', value: 10, compare: 8 },
+      { date: '2040-03-02', value: null, compare: 9 },
+      { date: '2040-03-03', value: 30, compare: null },
     ]
     const chart = chartSeries(days, 'revenue', null, 0.08, (value) => `Rp ${value}`)
     expect(chart.data.map(({ value, compare, stub, latestLabel }) => [value, compare, stub, latestLabel])).toEqual([
@@ -42,9 +42,9 @@ describe('dayAt — the day under a click or tap', () => {
 
   it('projects margin gaps and the budget series separately from revenue stubs', () => {
     const days = [
-      { date: '2026-10-01', value: 100, compare: 90, marginPct: 0.5 },
-      { date: '2026-10-02', value: 110, compare: 95, marginPct: null },
-      { date: '2026-10-03', value: 120, compare: 100, marginPct: 0.6 },
+      { date: '2040-03-01', value: 100, compare: 90, marginPct: 0.5 },
+      { date: '2040-03-02', value: 110, compare: 95, marginPct: null },
+      { date: '2040-03-03', value: 120, compare: 100, marginPct: 0.6 },
     ]
     const chart = chartSeries(days, 'margin', 0.55, 0.08, String)
     expect(chart.data.map(({ value, compare, stub, latestLabel }) => [value, compare, stub, latestLabel])).toEqual([
@@ -55,8 +55,8 @@ describe('dayAt — the day under a click or tap', () => {
 
   it('keeps margin marks and budget inside a padded plot domain while ticks stay clean', () => {
     const days = [
-      { date: '2026-10-01', value: 100, compare: 90, marginPct: 0.5 },
-      { date: '2026-10-02', value: 110, compare: 95, marginPct: 0.6 },
+      { date: '2040-03-01', value: 100, compare: 90, marginPct: 0.5 },
+      { date: '2040-03-02', value: 110, compare: 95, marginPct: 0.6 },
     ]
     const chart = chartSeries(days, 'margin', 0.55, 0.08, String)
     expect(chart.ticks).toEqual([0.5, 0.55, 0.6])

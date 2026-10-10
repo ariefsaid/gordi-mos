@@ -414,8 +414,13 @@ class _RecordingCursor:
         return {"target": value} if self._connection.dict_rows else (value,)
 
     def fetchall(self):
-        if self._connection.calls and "from public.recipe_observations" in self._connection.calls[-1][1]:
+        sql = self._connection.calls[-1][1] if self._connection.calls else ""
+        if "from public.recipe_observations" in sql:
             return list(self._connection.recipe_rows)
+        if "from public.sync_state" in sql:
+            return list(self._connection.state_rows)
+        if "from public.v_recipe_deduction_findings" in sql:
+            return list(self._connection.finding_rows)
         return list(self._connection.source_rows)
 
 
@@ -427,6 +432,8 @@ class _RecordingConnection:
         self.probed = None
         self.dict_rows = False
         self.recipe_rows = ()
+        self.state_rows = ()
+        self.finding_rows = ()
         self.calls = []
 
     def __enter__(self):
@@ -443,7 +450,8 @@ class _RecordingConnection:
 
 
 @contextmanager
-def _observed_run(source_rows, reporting_rows=(), missing_target_table=None, recipe_rows=()):
+def _observed_run(source_rows, reporting_rows=(), missing_target_table=None, recipe_rows=(),
+                  state_rows=(), finding_rows=()):
     """Stand in for psycopg for the duration of a run, and hand back the connections it opened.
 
     reporting_snapshot imports psycopg inside its run functions, so substituting the module in
@@ -461,6 +469,8 @@ def _observed_run(source_rows, reporting_rows=(), missing_target_table=None, rec
         )
         connection.dict_rows = "row_factory" in _kwargs
         connection.recipe_rows = recipe_rows
+        connection.state_rows = state_rows
+        connection.finding_rows = finding_rows
         connections.append(connection)
         return connection
 
@@ -885,7 +895,7 @@ class PendingBillRunTests(unittest.TestCase):
             out = io.StringIO()
             with redirect_stdout(out):
                 main()
-        self.assertEqual(len(connections), 8, "revenue, margin, usage and recipe history")
+        self.assertEqual(len(connections), 10, "revenue, margin, usage, recipe history and findings")
         self.assertIn("usage=0 pending_bills=off pending_bills_skipped=off", out.getvalue())
 
     def test_step_runs_after_margin_when_enabled(self):
@@ -898,7 +908,7 @@ class PendingBillRunTests(unittest.TestCase):
         config = SnapshotConfig.from_env(env)
         with _observed_run([]) as connections:
             counts = run_all_snapshots(config)
-        self.assertEqual(len(connections), 10, "revenue, margin, usage, pending bills and recipe history")
+        self.assertEqual(len(connections), 12, "revenue, margin, usage, pending bills, recipe history and findings")
         self.assertIn("reporting.pending_bill_snapshots", repr(connections[7].calls))
         self.assertEqual(counts["pending_bills"], 0)
 
