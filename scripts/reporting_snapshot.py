@@ -385,12 +385,8 @@ def run_margin_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int
 
 # --- reporting.ingredient_usage_daily (#1473) ---------------------------------------------------
 #
-# Recipe-based ingredient usage per branch and day: each sold menu line times its recipe, grouped
-# by the ingredient's ERP product detail id (never its name). Unlike the warehouse's COGS views,
-# this keeps menus the ERP has soft-deleted and zero-price add-on lines (package sub-items): both
-# were really made and really used ingredients. The sale statuses are the warehouse's own
-# consumption rule (v_transaction_cogs_total): Finished and Void count, because a voided order was
-# prepared and refunded; Cancelled was never prepared.
+# Recipe-based ingredient usage per branch and day. The warehouse eligibility and recipe-line
+# functions own Finished-header, Preparing-line, and package-parent selection rules.
 
 
 class UnknownUnitError(ValueError):
@@ -475,52 +471,49 @@ def normalize_usage_row(
 
 def build_usage_source_query() -> str:
     return """
-      with lines as (
-        select si.sales_date,
-               si.esb_code::text as esb_code,
-               coalesce(nullif(btrim(coalesce(si.branch_code, '')), ''), si.esb_code::text) as branch_code,
-               si.qty,
-               dm.bom_id
-        from oms_sales_items si
-        join oms_sales o
-          on o.sales_num = si.sales_num
-         and o.status_name in ('Finished', 'Void')
-        left join dim_menus dm
-          on dm.esb_code = si.esb_code
-         and dm.menu_id = si.menu_id
-        where si.sales_date >= current_date - ((%s::int - 1) * interval '1 day')
-          and si.qty > 0
+      with date_window as (
+        select current_date - (%s::int - 1) as from_date, current_date as to_date
+      ),
+      eligible_items as (
+        select e.item_id, e.sales_date, e.esb_code::text as esb_code,
+               coalesce(nullif(btrim(coalesce(e.branch_code, '')), ''), e.esb_code::text) as branch_code,
+               e.menu_qty
+        from date_window w
+        cross join lateral cogs_item_eligibility(w.from_date, w.to_date) e
+        where e.eligible
       ),
       recipe as (
-        select bi.esb_code, bi.bom_id, bi.product_detail_id,
-               max(bi.product_name) as ingredient_name,
-               btrim(bi.uom_name) as source_unit,
-               sum(bi.qty) as recipe_qty
-        from core_bom_items bi
-        where bi.qty > 0 and bi.product_detail_id is not null
-        group by bi.esb_code, bi.bom_id, bi.product_detail_id, btrim(bi.uom_name)
+        select r.item_id, r.sales_date, r.esb_code::text as esb_code,
+               coalesce(nullif(btrim(coalesce(r.branch_code, '')), ''), r.esb_code::text) as branch_code,
+               r.product_detail_id, max(r.ingredient) as ingredient_name,
+               btrim(r.unit) as source_unit, sum(r.ingredient_qty) as source_qty,
+               max(r.menu_qty) as menu_units
+        from date_window w
+        cross join lateral cogs_recipe_lines(w.from_date, w.to_date) r
+        where r.eligible and r.product_detail_id is not null
+        group by r.item_id, r.sales_date, r.esb_code, r.branch_code,
+                 r.product_detail_id, btrim(r.unit)
       ),
-      recipe_boms as (
-        select distinct esb_code, bom_id from recipe
+      recipe_items as (
+        select distinct item_id from recipe
       ),
       sold as (
-        select l.sales_date, l.esb_code, l.branch_code,
-               sum(l.qty) as units_sold,
-               sum(l.qty) filter (where rb.bom_id is not null) as units_with_recipe
-        from lines l
-        left join recipe_boms rb on rb.esb_code = l.esb_code and rb.bom_id = l.bom_id
-        group by l.sales_date, l.esb_code, l.branch_code
+        select i.sales_date, i.esb_code, i.branch_code,
+               sum(i.menu_qty) as units_sold,
+               sum(i.menu_qty) filter (where ri.item_id is not null) as units_with_recipe
+        from eligible_items i
+        left join recipe_items ri using (item_id)
+        group by i.sales_date, i.esb_code, i.branch_code
       ),
       used as (
-        select l.sales_date, l.esb_code, l.branch_code,
-               b.product_detail_id::text as ingredient_detail_id,
-               max(b.ingredient_name) as ingredient_name,
-               b.source_unit,
-               sum(l.qty * b.recipe_qty) as source_qty,
-               sum(l.qty) as menu_units
-        from lines l
-        join recipe b on b.esb_code = l.esb_code and b.bom_id = l.bom_id
-        group by l.sales_date, l.esb_code, l.branch_code, b.product_detail_id, b.source_unit
+        select r.sales_date, r.esb_code, r.branch_code,
+               r.product_detail_id::text as ingredient_detail_id,
+               max(r.ingredient_name) as ingredient_name,
+               r.source_unit, sum(r.source_qty) as source_qty,
+               sum(r.menu_units) as menu_units
+        from recipe r
+        group by r.sales_date, r.esb_code, r.branch_code,
+                 r.product_detail_id, r.source_unit
       )
       select u.sales_date as usage_date, u.esb_code, u.branch_code, u.ingredient_detail_id,
              u.ingredient_name, u.source_unit, u.source_qty, u.menu_units,

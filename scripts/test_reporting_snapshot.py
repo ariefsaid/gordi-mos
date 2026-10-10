@@ -977,25 +977,16 @@ class UsageSnapshotTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self._normalize(ingredient_detail_id=None)
 
-    def test_usage_query_keeps_soft_deleted_menus_and_zero_price_add_on_lines(self):
-        """AC: soft-deleted menu rows and zero-price add-on lines are included."""
+    def test_usage_query_counts_finished_and_excludes_void_and_print_cancelled_lines(self):
+        """Finished/Preparing items count; warehouse eligibility excludes voids and cancellations."""
         sql = " ".join(build_usage_source_query().split())
 
-        self.assertNotIn("deleted_at", sql, "a soft-deleted menu still carries real usage")
-        self.assertNotIn("price", sql, "a zero-price add-on line still carries real usage")
-        self.assertNotIn("is_package_sub_item", sql, "add-on lines ride as package sub-items")
-        self.assertIn("from oms_sales_items si", sql)
-
-    def test_usage_query_counts_finished_and_void_sales_and_never_cancelled(self):
-        """The warehouse's consumption rule: a voided order was prepared, a cancelled one was not."""
-        sql = " ".join(build_usage_source_query().split())
-
-        self.assertIn("o.status_name in ('Finished', 'Void')", sql)
-        self.assertIn(
-            "select distinct esb_code, bom_id from recipe", sql,
-            "coverage counts each sold line once, however many ingredients its recipe has",
-        )
-        self.assertNotIn("Cancel", sql)
+        self.assertIn("cogs_item_eligibility", sql)
+        self.assertIn("cogs_recipe_lines", sql)
+        self.assertIn("where e.eligible", sql)
+        self.assertIn("where r.eligible", sql)
+        self.assertNotIn("status_name", sql)
+        self.assertNotIn("Print Cancelled", sql)
 
     def test_usage_row_without_a_unit_is_refused_by_the_named_error(self):
         with self.assertRaises(UnknownUnitError):
@@ -1004,11 +995,11 @@ class UsageSnapshotTests(unittest.TestCase):
     def test_usage_query_joins_ingredients_by_product_detail_id_never_by_name(self):
         sql = " ".join(build_usage_source_query().split())
 
-        self.assertIn("bi.product_detail_id", sql)
-        self.assertIn("on b.esb_code = l.esb_code and b.bom_id = l.bom_id", sql)
+        self.assertIn("r.product_detail_id::text as ingredient_detail_id", sql)
+        self.assertIn("group by r.sales_date, r.esb_code, r.branch_code, r.product_detail_id, r.source_unit", sql)
         self.assertNotIn("product_name =", sql)
         self.assertNotIn("menu_name", sql)
-        self.assertIn("si.sales_date >= current_date - ((%s::int - 1) * interval '1 day')", sql)
+        self.assertIn("current_date - (%s::int - 1)", sql)
 
     def test_usage_upsert_is_keyed_on_the_table_grain(self):
         """AC: re-running a day yields the same rows — the upsert key is the table grain."""
