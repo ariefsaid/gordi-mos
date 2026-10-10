@@ -35,6 +35,9 @@ import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
+import { cafeUnitDisplayLabel, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
+import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
+import { formatQuantityWithUnit } from '@/lib/cafe-unit-multiples'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import type { KitchenStockRow, ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { streamLabel } from '@/lib/kitchen-action-label'
@@ -53,6 +56,13 @@ type LoadState =
   | { kind: 'loading' }
   | { kind: 'error' }
   | { kind: 'ready' }
+
+function stockUnitNames(settings: CafeItemSetting[]): Record<string, string | null> {
+  return Object.fromEntries(settings.map(item => {
+    const unit = item.units.find(candidate => candidate.id === item.defaultUnitId)
+    return [item.id, unit ? cafeUnitDisplayLabel(unit) : null]
+  }))
+}
 
 // The stream label lives in `lib/kitchen-action-label` now (#440) — the same words on every
 // Café surface, and the #238 naming ruling (canonical catalog name, never the 'Bungur'
@@ -80,29 +90,21 @@ function KitchenStockPageForViewer() {
   const { options: streamOptions, locationOptions, stream, homeStream, myStreamKeys } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [rows, setRows] = useState<KitchenStockRow[]>([])
+  const [unitNames, setUnitNames] = useState<Record<string, string | null>>({})
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const isDesktop = useIsDesktop()
   const [search, setSearch] = useState('')
-  // One compact summary over the SELECTED stream's rows. Stock's meaning is the system
-  // balance, available balance, and negative-row count; the retired four-tile strip implied
-  // four separate decisions where the table already is the source of truth.
   const stockSummary = useMemo(() => {
-    let onHand = 0
-    let available = 0
-    let negative = 0
-    for (const row of rows) {
-      onHand += row.stok
-      available += row.tersedia
-      if (row.stok < 0 || row.tersedia < 0) negative += 1
-    }
-    return { onHand, available, negative }
+    const negative = rows.filter(row => row.stok < 0 || row.tersedia < 0).length
+    return { items: rows.length, negative }
   }, [rows])
   const searchQuery = search.trim().toLowerCase()
   const visibleRows = rows.filter(row => (
     !searchQuery || row.wip_item_name.toLowerCase().includes(searchQuery)
   ))
-
+  const formatStockQuantity = (quantity: number, unitName: string | null | undefined) =>
+    formatQuantityWithUnit(quantity, unitName ?? t('kitchen.stock.unitNotSet'), document.documentElement.lang || 'en')
   // FR-060 column order: the system-quantity net (`stok`) sits DIRECTLY BESIDE the ERP
   // inventory column — the comparison is the point. The ERP cell is a placeholder ('—')
   // until the ERP read is wired (#237 preserves the ported page's placeholder source;
@@ -121,14 +123,14 @@ function KitchenStockPageForViewer() {
         </span>
       ),
     },
-    { key: 'stok', header: t('kitchen.stock.col.stok'), numeric: true },
+    { key: 'stok', header: t('kitchen.stock.col.stok'), numeric: true, render: row => formatStockQuantity(row.stok, unitNames[row.wip_item_id]) },
     {
       key: 'erp_qty',
       header: t('kitchen.stock.col.erp'),
       numeric: true,
-      render: () => <span className="ks-erp-pending">—</span>,
+      render: () => <span className="ks-erp-pending" aria-label={t('kitchen.stock.systemUnavailable')}>—</span>,
     },
-    { key: 'tersedia', header: t('kitchen.stock.col.tersedia'), numeric: true },
+    { key: 'tersedia', header: t('kitchen.stock.col.tersedia'), numeric: true, render: row => formatStockQuantity(row.tersedia, unitNames[row.wip_item_id]) },
   ]
 
   // FR-028: stock is read, not acted on row-by-row. The phone row keeps the name and the
@@ -139,9 +141,9 @@ function KitchenStockPageForViewer() {
       <span className="ks-card-name">{row.wip_item_name}</span>
       {row.on_stream === false && <NotOnStreamTag />}
       <div className="ks-card-meta">
-        <span><span className="ks-card-label">{t('kitchen.stock.col.stok')}</span> <strong className="tabular">{row.stok}</strong></span>
-        <span><span className="ks-card-label">{t('kitchen.stock.card.erp')}</span> <span className="ks-erp-pending">—</span></span>
-        <span><span className="ks-card-label">{t('kitchen.stock.col.tersedia')}</span> <strong className="tabular">{row.tersedia}</strong></span>
+        <span><span className="ks-card-label">{t('kitchen.stock.col.stok')}</span> <strong className="tabular">{formatStockQuantity(row.stok, unitNames[row.wip_item_id])}</strong></span>
+        <span><span className="ks-card-label">{t('kitchen.stock.card.erp')}</span> <span className="ks-erp-pending" aria-label={t('kitchen.stock.systemUnavailable')}>—</span></span>
+        <span><span className="ks-card-label">{t('kitchen.stock.col.tersedia')}</span> <strong className="tabular">{formatStockQuantity(row.tersedia, unitNames[row.wip_item_id])}</strong></span>
       </div>
     </div>
   )
@@ -164,10 +166,16 @@ function KitchenStockPageForViewer() {
     setLoad({ kind: 'loading' })
     try {
       const catalog = await resolveStream()
-      const data = catalog.stream ? await fetchKitchenStock(asOf, catalog.stream) : []
+      let data: KitchenStockRow[] = []
+      let settings: CafeItemSetting[] = []
+      if (catalog.stream) {
+        data = await fetchKitchenStock(asOf, catalog.stream)
+        if (data.length > 0) settings = await listCafeItemSettings(catalog.stream)
+      }
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
       adoptStream(catalog)
       setRows(data)
+      setUnitNames(stockUnitNames(settings))
       setLoad({ kind: 'ready' })
     } catch {
       if (gen !== requestGen.current) return
@@ -184,8 +192,10 @@ function KitchenStockPageForViewer() {
     setLoad({ kind: 'loading' })
     try {
       const data = await fetchKitchenStock(asOf, next)
+      const settings = data.length > 0 ? await listCafeItemSettings(next) : []
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
       setRows(data)
+      setUnitNames(stockUnitNames(settings))
       setLoad({ kind: 'ready' })
     } catch {
       if (gen !== requestGen.current) return
@@ -243,9 +253,8 @@ function KitchenStockPageForViewer() {
         <MetricSummaryRule
           ariaLabel={t('kitchen.stock.kpi.ariaLabel')}
           metrics={[
-            { key: 'on-hand', label: t('kitchen.stock.kpi.onHand'), value: String(stockSummary.onHand) },
+            { key: 'items', label: t('kitchen.stock.kpi.items'), value: String(stockSummary.items) },
             { key: 'negative', label: t('kitchen.stock.kpi.negative'), value: String(stockSummary.negative) },
-            { key: 'available', label: t('kitchen.stock.kpi.available'), value: String(stockSummary.available) },
           ]}
         />
       )}

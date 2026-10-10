@@ -1,14 +1,6 @@
-// The Plan band's derivation, reshaped for the DESIGN.md "Metric summary rule"
-// (DD-WAY-40, ratified OD-WAY-74 #2 — #401): ONE inline line of label:value metrics,
-// never a KPI tile row. The old shape put WORDS in the number slots ('Active action' =
-// a movement label, 'Plan status' = 'Ready'/'No plan created yet') with dev-jargon
-// captions ('write surface', 'editing today') — exactly what the rule forbids on a
-// capture surface (OD-WAY-74 #2: "enforce"). Two numbers only: the planned-portion
-// total and the dish count for the current movement. The first label REUSES
-// kitchen.kpi.plannedTotal — the same concept Log's meta line already names. No delta
-// is ever emitted: deltas carry a state worth acting on (destructive/success) and a
-// plan band has none; neutral restating captions are omitted by construction.
-//
+// The Plan summary counts planned items for the current movement. Quantities are not
+// added because rows may use different units.
+
 // #247: cells carry a KitchenMovement (DD-WAY-13), not the removed action_type column
 // — comparisons go through movementKey, same as the plan editor and review queue. The
 // module stays pure (no i18n `t`, no branch catalog): labels are MessageKeys the page
@@ -32,23 +24,17 @@ export interface PlanSummary {
 }
 
 export function computePlanSummary(cells: PlanCell[], movement: KitchenMovement): PlanSummary {
-  let plannedTotal = 0
-  let plannedDishCount = 0
+  let plannedItemCount = 0
   const key = movementKey(movement)
 
   for (const c of cells) {
-    if (movementKey(c.movement) !== key) continue
-    if (c.qty_porsi > 0) {
-      plannedDishCount += 1
-      plannedTotal += c.qty_porsi
-    }
+    if (movementKey(c.movement) === key && c.qty_porsi > 0) plannedItemCount += 1
   }
 
   return {
     ariaLabel: 'kitchen.plan.summary.aria',
     metrics: [
-      { key: 'plannedTotal', label: 'kitchen.kpi.plannedTotal', value: String(plannedTotal) },
-      { key: 'dishesPlanned', label: 'kitchen.plan.summary.itemsPlanned', value: String(plannedDishCount) },
+      { key: 'itemsPlanned', label: 'kitchen.plan.summary.itemsPlanned', value: String(plannedItemCount) },
     ],
   }
 }
