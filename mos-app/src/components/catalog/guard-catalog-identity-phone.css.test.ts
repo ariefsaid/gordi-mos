@@ -60,6 +60,10 @@ describe('Objectives list wraps longer translated text (issue 1109)', () => {
     expect(css).toMatch(/--objective \.catalog-collection__cell--relation \.catalog-collection__cell-value,[\s\S]*?\{[\s\S]*?white-space:\s*normal/)
   })
 
+  it('Objective progress wraps the full no-linked-tasks label instead of clipping it', () => {
+    expect(css).toMatch(/--objective \.catalog-collection__cell--progress \.catalog-collection__cell-value\s*\{[\s\S]*?white-space:\s*normal/)
+  })
+
   it('empty-state copy wraps instead of clipping', () => {
     const recordCollection = readFileSync(resolve(process.cwd(), 'src/components/record-collection/record-collection.css'), 'utf8')
     expect(recordCollection).toMatch(/\.record-collection \.empty-copy\s*\{[^}]*overflow-wrap:\s*anywhere/)
