@@ -31,7 +31,8 @@ import {
   type BranchTable as BranchTableData,
   type CompanyRow,
   type MoneyColumn,
-  type MoneyPeriod,
+  moneyBranchHref,
+  type MoneySelection,
   type MoneySort,
 } from '@/lib/money-branch-table'
 import '@/components/collection-grammar.css'
@@ -111,18 +112,14 @@ function columnDefs(ids: readonly MoneyColumn[]): ColumnDef<BranchRow>[] {
 
 const ALL_COLUMNS: readonly MoneyColumn[] = [...REVENUE_COLUMNS, ...MARGIN_COLUMNS]
 
-function branchHref(code: string, period: MoneyPeriod): string {
-  return `/money/branch/${encodeURIComponent(code)}?period=${period}`
-}
-
 export interface BranchTableProps {
   data: BranchTableData
-  period: MoneyPeriod
+  selection: MoneySelection
   sort: MoneySort
   onSortChange: (sort: MoneySort) => void
 }
 
-export function BranchTable({ data, period, sort, onSortChange }: BranchTableProps) {
+export function BranchTable({ data, selection, sort, onSortChange }: BranchTableProps) {
   const t = useT()
   const navigate = useNavigate()
   const sortId = useId()
@@ -180,7 +177,7 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
   ) : undefined
 
   const linkedRow = (row: BranchRow, name: string) => {
-    const href = branchHref(row.code, period)
+    const href = moneyBranchHref(row.code, { ...selection, sort })
     return (
       <tr
         key={row.code}
@@ -236,7 +233,7 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
       )}
     >
           <caption className="sr-only">
-            {t('money.table.caption', { days: String(period), date: formatWeekdayDayMonth(data.latestDate) })}
+            {t('money.table.caption', { days: String(data.daysCount), date: formatWeekdayDayMonth(data.latestDate) })}
           </caption>
           <thead>
             <tr>
@@ -266,7 +263,7 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
               <th scope="col" className="money-table__head money-table__cell--trend text-center">{t('money.table.col.trend')}</th>
             </tr>
           </thead>
-          <tbody className="money-table__group money-table__group--company">
+          {!selection.branchCode && <tbody className="money-table__group money-table__group--company">
             <tr className="money-table__row money-table__row--company">
               <th scope="row" className="money-table__cell money-table__cell--branch">
                 <span className="money-table__name">{t('money.table.company')}</span>
@@ -281,7 +278,7 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
               {figureCells(data.company, companySummary)}
               {trendCell(data.company)}
             </tr>
-          </tbody>
+          </tbody>}
           <tbody className="money-table__group">
             {table.getRowModel().rows.map((row) => linkedRow(row.original, row.original.name))}
           </tbody>

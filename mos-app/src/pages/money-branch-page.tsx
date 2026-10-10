@@ -6,7 +6,7 @@
 //
 // Same two gates as /money: the route admits the revenue roles (router.tsx); below the margin tier
 // the margin query is never issued and the margin, uncovered and ask pieces are absent. Postgres is
-// the boundary. ?period=7|30|60 and ?d=YYYY-MM-DD (the chosen day) live in the URL.
+// the boundary. Period, range, filters, sort and ?d=YYYY-MM-DD (the chosen day) live in the URL.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
@@ -21,11 +21,11 @@ import { formatIDR } from '@/lib/format/money'
 import { formatPercent, formatPoints, formatSignedPoints } from '@/lib/format/percent'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { formatIDRCompact, moneyKpiDelta, signedChange } from '@/lib/sales-dashboard'
-import { isoDaysBefore } from '@/lib/trailing-window'
 import { Pill } from '@/components/ui/pill'
 import { useMoneyRows } from '@/lib/use-money-rows'
-import { buildBranchPage, readBranchView, type BranchPage } from '@/lib/money-branch-page'
-import { MONEY_FETCH_DAYS, type MarginFigures, type MoneyPeriod } from '@/lib/money-branch-table'
+import { useNormalizeMoneyRange } from '@/lib/use-normalize-money-range'
+import { buildBranchPage, readBranchView, type BranchPage, type BranchView } from '@/lib/money-branch-page'
+import { resolveMoneyWindow, withMoneyView, type MarginFigures, type MoneyView } from '@/lib/money-branch-table'
 import {
   askBranchLead,
   listUncoveredCafeItems,
@@ -39,6 +39,7 @@ import { KPITile } from '@/components/dashboard/kpi-tile'
 import { bulletGeometry } from '@/components/money/day-chart-geometry'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { Button } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
 import { streamKey } from '@/lib/kitchen-action-label'
 import './money-page.css'
 import './money-branch-page.css'
@@ -54,7 +55,7 @@ function cafeItemHref(item: UncoveredCafeItem, branchId: string): string {
   return `/cafe/items?${params.toString()}`
 }
 
-function MarginPanel({ margin, period }: { margin: MarginFigures; period: MoneyPeriod }) {
+function MarginPanel({ margin, period }: { margin: MarginFigures; period: number }) {
   const t = useT()
   const basis = margin.budgetBasis
   const bullet = basis ? bulletGeometry(basis.cogsShare, basis.budgetShare) : null
@@ -128,7 +129,7 @@ function UncoveredPanel({ branchId }: { branchId: string | null }) {
   )
 }
 
-function DaysTable({ page, period }: { page: BranchPage; period: MoneyPeriod }) {
+function DaysTable({ page, period }: { page: BranchPage; period: number }) {
   const t = useT()
   const { locale } = useI18n()
   const budgetMargin = page.margin?.budgetBasis ? 1 - page.margin.budgetBasis.budgetShare : null
@@ -187,12 +188,22 @@ export function MoneyBranchPage() {
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const canSeeMargin = canViewMargin(accessRoles)
   const [searchParams, setSearchParams] = useSearchParams()
-  const view = readBranchView(searchParams)
-  const { load, read } = useMoneyRows(canSeeMargin)
+  const requestedView = readBranchView(searchParams, { canSeeMargin })
+  const { load, read } = useMoneyRows(canSeeMargin, requestedView)
   const data = load.data
+  const view = readBranchView(searchParams, { canSeeMargin, latestDate: data?.latestDate ?? undefined })
+  useNormalizeMoneyRange({ searchParams, setSearchParams, ready: Boolean(data) && load.status !== 'loading', view })
+  const applied = data && load.status !== 'ready' ? { period: data.period, range: data.range, channel: data.channel } : view
+  const displayView = { ...view, ...applied }
+  const displayRangeFrom = displayView.range?.from
+  const displayRangeTo = displayView.range?.to
   const page = useMemo(
-    () => (data ? buildBranchPage(data.revenue, data.margin, code, view.period, data.branchNames) : null),
-    [data, code, view.period],
+    () => (data ? buildBranchPage(data.revenue, data.margin, code, displayView.period, data.branchNames, {
+      latestDate: data.latestDate ?? undefined,
+      range: displayRangeFrom && displayRangeTo ? { from: displayRangeFrom, to: displayRangeTo } : null,
+      channel: displayView.channel,
+    }) : null),
+    [data, code, displayView.period, displayRangeFrom, displayRangeTo, displayView.channel],
   )
   const syncedAt = useMemo(() => (data ? latestBy(data.revenue, (r) => r.snapshot_as_of) : null), [data])
   // A supervisor who sees one branch was sent here from /money; a link back would send them here again.
@@ -208,22 +219,36 @@ export function MoneyBranchPage() {
   useDocumentTitle(t('money.branch.documentTitle', { branch: name }))
   useSetBreadcrumbTitle(name)
 
-  const setView = (period: MoneyPeriod, day: string | null) => {
-    const next = new URLSearchParams(searchParams)
-    next.set('period', String(period))
-    // A chosen day outside the new period is dropped rather than kept in the URL unseen.
-    if (day && (!page || day >= isoDaysBefore(page.latestDate, period - 1))) next.set('d', day)
+  const writeView = (nextView: BranchView, day: string | null, replace = false) => {
+    const next = withMoneyView(searchParams, nextView)
+    const latest = data?.latestDate ?? page?.latestDate
+    const window = latest ? resolveMoneyWindow(nextView, latest) : null
+    if (day && window && day >= window.from && day <= window.to) next.set('d', day)
     else next.delete('d')
-    setSearchParams(next, { replace: true })
-    // An answer about the previous view no longer describes this one.
+    setSearchParams(next, { replace })
     setAsk({ status: 'idle' })
   }
+  const setDay = (day: string | null) => {
+    const next = new URLSearchParams(searchParams)
+    if (day) next.set('d', day); else next.delete('d')
+    setSearchParams(next, { replace: true })
+    setAsk({ status: 'idle' })
+  }
+  const periodControl = (disabled = false) => <PeriodControl period={view.period} range={view.range} latestDate={data?.latestDate ?? null}
+    onChange={(period) => writeView({ ...view, period, range: null }, view.day)}
+    onRangeChange={(range) => writeView({ ...view, range }, view.day)} disabled={disabled} />
+  const filters = <div className="money-filter-row">{periodControl(!data)}
+    <label className="money-filter-select">{t('money.filter.channel')}<Select id="money-branch-channel-filter" value={view.channel} disabled={!data} onChange={(event) => writeView({ ...view, channel: event.target.value as MoneyView['channel'] }, view.day)}>
+      <option value="all">{t('money.filter.allChannels')}</option><option value="POS">{t('money.filter.pos')}</option><option value="B2B">{t('money.filter.b2b')}</option>
+    </Select></label>
+  </div>
   // The branch's own latest received day: the page opens on it and its freshness names it.
   const lastReceived = page ? [...page.days].reverse().find((d) => d.value !== null)?.date ?? page.latestDate : ''
   const lastDay = page ? [...page.days].reverse().find((d) => d.value !== null) : undefined
   const selected = page && view.day && page.days.some((d) => d.date === view.day) ? view.day : lastReceived
   const selectedText = selected ? formatWeekdayDayMonth(selected, locale) : ''
-  const canAsk = canSeeMargin && page !== null && !page.isB2B && page.branchId !== null && ASKABLE_CODE.test(page.code)
+  const canAskBase = canSeeMargin && page !== null && !page.isB2B && page.branchId !== null && ASKABLE_CODE.test(page.code)
+  const canAsk = canAskBase && load.status === 'ready' && !view.range && view.period !== 90
   const missingDays = page ? page.days.filter((d) => d.value === null).length : 0
 
   const onAsk = async () => {
@@ -248,7 +273,7 @@ export function MoneyBranchPage() {
     <PageFamilyFrame family="workspace" title={name} meta={meta} state={state} action={action}>
       <div className="money-body money-branch">
         {!onlyBranch && (
-          <Link to={`/money?period=${view.period}`} className="money-branch__back">
+          <Link to={`/money?${withMoneyView(new URLSearchParams(), view)}`} className="money-branch__back">
             <span aria-hidden="true">←</span>{t('money.branch.back')}
           </Link>
         )}
@@ -256,14 +281,10 @@ export function MoneyBranchPage() {
       </div>
     </PageFamilyFrame>
   )
-  const periodControl = (disabled = false) => (
-    <PeriodControl period={view.period} onChange={(period) => setView(period, view.day)} disabled={disabled} />
-  )
-
   if (!data && load.status === 'loading') {
     return frame(
       <>
-        {periodControl(true)}
+        {filters}
         <div role="status" aria-label={t('common.loading')} aria-busy="true" className="money-branch__skeleton">
           <div className="skeleton-bar money-branch__skeleton-chart" />
           <SkeletonRows count={3} />
@@ -272,12 +293,13 @@ export function MoneyBranchPage() {
       'loading',
     )
   }
-  if (!data) return frame(<MoneyLoadError tooMany={load.tooMany} onRetry={() => void read()} />, 'error')
+  if (!data) return frame(<>{filters}<MoneyLoadError tooMany={load.tooMany} onRetry={() => void read()} /></>, 'error')
   if (!page) {
-    return frame(
-      <EmptyState variant="awaiting" title={t('money.branch.notFound.title')} copy={t('money.branch.notFound.copy', { days: String(MONEY_FETCH_DAYS) })} />,
-      'empty',
-    )
+    const filtered = Boolean(view.range || view.channel !== 'all')
+    const days = view.range ? resolveMoneyWindow(view, view.range.to).days : view.period
+    return frame(<>{filters}<EmptyState variant={filtered ? 'quiet' : 'awaiting'} title={filtered ? t('money.filter.empty.title') : t('money.branch.notFound.title')} copy={filtered ? t('money.filter.empty.copy') : t('money.branch.notFound.copy', { days: String(days) })}>
+      {filtered && <Button variant="outline" onClick={() => writeView({ ...view, period: 30, range: null, channel: 'all' }, null)}>{t('money.filter.clear')}</Button>}
+    </EmptyState></>, 'empty')
   }
 
   let askStatus: ReactNode = null
@@ -296,11 +318,13 @@ export function MoneyBranchPage() {
 
   return frame(
     <>
-      {periodControl()}
+      {filters}
+      <div className="money-results" aria-busy={load.status === 'loading' ? 'true' : undefined}>
+      {canAskBase && (view.range || view.period === 90) && <p className="money-branch__note">{t('money.branch.ask.rangeUnavailable')}</p>}
       {load.status === 'error' && <MoneyLoadError kept tooMany={load.tooMany} onRetry={() => void read()} />}
       {askStatus && <div ref={askStatusRef} tabIndex={-1} className="money-branch__ask-result">{askStatus}</div>}
       <div className={`money-branch__kpis grid min-w-0 grid-cols-2 gap-2 ${page.margin ? 'lg:grid-cols-4' : 'lg:grid-cols-2'}`}>
-        <KPITile valueVariant="proportional" label={t('money.overview.revenue', { days: String(view.period) })} value={formatIDRCompact(page.total)} delta={moneyKpiDelta(page.vsPrevious, t)} sub={t('money.table.col.vsPrevious')} />
+        <KPITile valueVariant="proportional" label={t('money.overview.revenue', { days: String(page.daysCount) })} value={formatIDRCompact(page.total)} delta={moneyKpiDelta(page.vsPrevious, t)} sub={t('money.table.col.vsPrevious')} />
         <KPITile valueVariant="proportional" label={t('money.overview.latest')} value={lastDay ? formatIDRCompact(lastDay.value!) : t('money.table.notReceived')} delta={moneyKpiDelta(lastDay?.compare ? lastDay.value! / lastDay.compare - 1 : null, t)} sub={t('money.table.col.vsWeekday')} />
         {page.margin && <KPITile valueVariant="proportional" label={t('money.overview.margin')} value={page.margin.pct === null ? t('money.table.notReceived') : formatPercent(page.margin.pct, 1)} />}
         {page.margin && <KPITile valueVariant="proportional" label={t('money.table.col.coverage')} value={page.margin.coverage === null ? t('money.table.notReceived') : formatPercent(page.margin.coverage, 0)} />}
@@ -311,28 +335,28 @@ export function MoneyBranchPage() {
             <h2 id="money-branch-chart" className="money-branch__h2">{t('money.branch.chart.title')}</h2>
             <span className="money-branch__total tabular">
               {missingDays === 0
-                ? t('money.branch.total', { value: formatIDRCompact(page.total), days: String(view.period) })
+                ? t('money.branch.total', { value: formatIDRCompact(page.total), days: String(page.daysCount) })
                 : t(missingDays === 1 ? 'money.branch.total.missingOne' : 'money.branch.total.missingOther', {
-                  value: formatIDRCompact(page.total), days: String(view.period), count: String(missingDays),
+                  value: formatIDRCompact(page.total), days: String(page.daysCount), count: String(missingDays),
                 })}
             </span>
           </div>
           <DayRevenueChart
             days={page.days}
             selected={selected}
-            onSelect={(day) => setView(view.period, day)}
+            onSelect={setDay}
             label={t('money.chart.label', { branch: page.name })}
           />
           {page.margin && <section className="money-branch__margin-chart mt-3 grid gap-2 border-t border-border pt-3" aria-labelledby="money-branch-margin-chart">
             <h2 id="money-branch-margin-chart" className="money-branch__h2">{t('money.branch.marginChart.title')}</h2>
-            <DayRevenueChart days={page.days} selected={selected} onSelect={(day) => setView(view.period, day)} label={t('money.chart.margin.label', { branch: page.name })} mode="margin" budget={page.margin.budgetBasis ? 1 - page.margin.budgetBasis.budgetShare : null} />
+            <DayRevenueChart days={page.days} selected={selected} onSelect={setDay} label={t('money.chart.margin.label', { branch: page.name })} mode="margin" budget={page.margin.budgetBasis ? 1 - page.margin.budgetBasis.budgetShare : null} />
           </section>}
-          <DaysTable page={page} period={view.period} />
+          <DaysTable page={page} period={page.daysCount} />
           {canSeeMargin && page.isB2B && <p className="money-branch__note">{t('money.note.b2b')}</p>}
         </section>
         {page.margin && (
           <div className="money-branch__side">
-            <MarginPanel margin={page.margin} period={view.period} />
+            <MarginPanel margin={page.margin} period={page.daysCount} />
             <UncoveredPanel branchId={page.branchId} />
           </div>
         )}
@@ -341,6 +365,7 @@ export function MoneyBranchPage() {
             <MoneyLoadError margin onRetry={() => void read()} />
           </div>
         )}
+      </div>
       </div>
     </>,
     undefined,

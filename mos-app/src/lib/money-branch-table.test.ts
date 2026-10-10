@@ -6,34 +6,62 @@ import { buildBranchPage } from './money-branch-page'
 import { translateFor } from '@/i18n/use-t'
 
 describe('readMoneyView — period and sort from the URL', () => {
-  const read = (qs: string, canSeeMargin = true) => readMoneyView(new URLSearchParams(qs), { canSeeMargin })
+  const read = (qs: string, canSeeMargin = true, latestDate?: string) => readMoneyView(new URLSearchParams(qs), { canSeeMargin, latestDate })
 
   it('a bare /money opens on 30 days sorted by revenue, highest first', () => {
-    expect(read('')).toEqual({ period: 30, sort: { column: 'revenue', desc: true } })
+    expect(read('')).toEqual({ period: 30, range: null, branchCode: null, channel: 'all', sort: { column: 'revenue', desc: true } })
   })
 
   it('reads a shared link back exactly', () => {
-    expect(read('period=7&sort=latest-day.asc')).toEqual({ period: 7, sort: { column: 'latest-day', desc: false } })
-    expect(read('period=60&sort=branch.desc')).toEqual({ period: 60, sort: { column: 'branch', desc: true } })
+    expect(read('period=7&sort=latest-day.asc')).toMatchObject({ period: 7, sort: { column: 'latest-day', desc: false } })
+    expect(read('period=60&sort=branch.desc')).toMatchObject({ period: 60, sort: { column: 'branch', desc: true } })
+    expect(read('period=90').period).toBe(90)
   })
 
   it('an unknown period or sort falls back to the default instead of an empty table', () => {
-    expect(read('period=14&sort=revenue.sideways')).toEqual({ period: 30, sort: { column: 'revenue', desc: true } })
+    expect(read('period=14&sort=revenue.sideways')).toMatchObject({ period: 30, range: null, sort: { column: 'revenue', desc: true } })
     expect(read('sort=profit.desc').sort).toEqual({ column: 'revenue', desc: true })
   })
 
   it('a revenue-only viewer opening a link sorted by a margin column gets the default sort', () => {
-    expect(read('period=7&sort=margin.desc', false)).toEqual({ period: 7, sort: { column: 'revenue', desc: true } })
+    expect(read('period=7&sort=margin.desc', false)).toMatchObject({ period: 7, sort: { column: 'revenue', desc: true } })
     expect(read('period=7&sort=margin.desc', true).sort).toEqual({ column: 'margin', desc: true })
+  })
+
+  it('reads a valid custom range and both filters from a shared URL', () => {
+    const view = read('period=custom&from=2026-09-01&to=2026-09-30&branch=GHQ&channel=B2B&sort=branch.asc', true, '2026-10-05')
+    expect(view).toMatchObject({
+      period: 30, range: { from: '2026-09-01', to: '2026-09-30' },
+      branchCode: 'GHQ', channel: 'B2B', sort: { column: 'branch', desc: false },
+    })
+  })
+
+  it.each([
+    ['impossible calendar date', '2026-02-30', '2026-03-01'],
+    ['reversed range', '2026-09-30', '2026-09-01'],
+    ['end after latest synced day', '2026-09-01', '2026-10-06'],
+  ])('rejects a custom range with %s', (_reason, from, to) => {
+    const view = read(`period=custom&from=${from}&to=${to}`, true, '2026-10-05')
+    expect(view.range).toBeNull()
   })
 })
 
 describe('withMoneyView — writes the view without touching other params', () => {
   it('writes period and sort as period=N&sort=column.direction', () => {
-    const next = withMoneyView(new URLSearchParams('keep=1'), { period: 60, sort: { column: 'vs-weekday', desc: false } })
+    const next = withMoneyView(new URLSearchParams('keep=1'), { period: 60, range: null, branchCode: null, channel: 'all', sort: { column: 'vs-weekday', desc: false } })
     expect(next.get('keep')).toBe('1')
     expect(next.get('period')).toBe('60')
     expect(next.get('sort')).toBe('vs-weekday.asc')
+  })
+
+  it('round-trips custom dates and branch/channel filters without dropping unrelated state', () => {
+    const view = {
+      period: 30, range: { from: '2026-09-01', to: '2026-09-30' }, branchCode: 'GHQ', channel: 'POS',
+      sort: { column: 'branch', desc: false },
+    } as ReturnType<typeof readMoneyView>
+    const next = withMoneyView(new URLSearchParams('keep=1'), view)
+    expect(next.toString()).toBe('keep=1&period=custom&from=2026-09-01&to=2026-09-30&branch=GHQ&channel=POS&sort=branch.asc')
+    expect(readMoneyView(next, { canSeeMargin: true, latestDate: '2026-10-05' })).toMatchObject(view)
   })
 })
 
@@ -133,12 +161,53 @@ describe('buildBranchTable', () => {
   it('leaves a company trend gap for a day with no received revenue', () => {
     const rows = revenueRows().filter((row) => row.revenue_date !== day(2))
     const company = buildBranchTable(rows, null, 7)!.company
-    expect(company.trend[2]).toBeNull()
+    expect(company.trend[4]).toBeNull()
   })
 
   it('margin figures are only present when margin rows were read', () => {
     const table = buildBranchTable(revenueRows(), null, 7)!
     for (const row of [table.company, ...table.branches, ...table.b2b]) expect('margin' in row).toBe(false)
+  })
+
+  it('custom dates and branch/channel filters scope the company, headline inputs and rows identically', () => {
+    const table = buildBranchTable(revenueRows(), null, 30, undefined, {
+      latestDate: LATEST, range: { from: day(6), to: day(0) }, branchCode: 'alpha', channel: 'POS',
+    })!
+    expect(table.latestDate).toBe(LATEST)
+    expect(table.company).toMatchObject({ revenue: 14_000_000, latestDay: 2_000_000, trend: Array(7).fill(2_000_000) })
+    expect(table.branches.map((row) => row.code)).toEqual(['alpha'])
+    expect(table.b2b).toEqual([])
+    expect(table.branches[0].vsPrevious).toBeCloseTo(1, 10)
+  })
+
+  it('company margin and prior comparison use the same branch as filtered revenue', () => {
+    const betaMargin = marginRows().map((row) => ({
+      ...row, branch_code: 'beta', branch_name: 'Beta', revenue: 2_000_000,
+      cogs_interim_sm: 1_000_000, cogs_budget_bom: 800_000, margin_interim: 1_000_000,
+    }))
+    const table = buildBranchTable(revenueRows(), [...marginRows(), ...betaMargin], 7, undefined, {
+      latestDate: LATEST, branchCode: 'beta', channel: 'POS',
+    })!
+    expect(table.company.revenue).toBe(12_000_000)
+    expect(table.company.latestDay).toBeNull()
+    expect(table.company.margin?.pct).toBeCloseTo(0.5, 10)
+    expect(table.marginVsPrevious).toBeNull()
+  })
+
+  it('a branch with only comparison-period rows is an empty current-period selection', () => {
+    expect(buildBranchTable(revenueRows(), null, 30, undefined, {
+      latestDate: LATEST, range: { from: day(0), to: day(0) }, branchCode: 'beta', channel: 'POS',
+    })).toBeNull()
+  })
+
+  it('a B2B channel filter removes POS rows and margin figures from the same view', () => {
+    const table = buildBranchTable(revenueRows(), marginRows(), 7, undefined, {
+      latestDate: LATEST, channel: 'B2B',
+    })!
+    expect(table.company.revenue).toBe(5_000_000)
+    expect(table.branches).toEqual([])
+    expect(table.b2b).toHaveLength(1)
+    expect('margin' in table.company).toBe(false)
   })
 
   it('a margin viewer gets interim margin, COGS against budget in points, and recipe coverage', () => {

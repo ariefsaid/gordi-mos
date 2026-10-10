@@ -4,19 +4,20 @@
 //          the margin query is never issued, so no hidden figure reaches the browser.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/lib/db/reporting', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/reporting')>('@/lib/db/reporting')
-  return { ...actual, listSalesDailyRevenue: vi.fn() }
+  return { ...actual, listSalesDailyRevenue: vi.fn(), latestSalesReportingDate: vi.fn() }
 })
 vi.mock('@/lib/db/reporting-margin', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/reporting-margin')>('@/lib/db/reporting-margin')
   return { ...actual, listSalesMarginDaily: vi.fn() }
 })
 vi.mock('@/auth/use-auth')
-import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
+import { latestSalesReportingDate, listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { useAuth } from '@/auth/use-auth'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -24,6 +25,7 @@ import { ReportingRowCapError } from '@/lib/db/reporting-shared'
 import { MoneyPage } from './money-page'
 
 const mockRev = vi.mocked(listSalesDailyRevenue)
+const mockLatest = vi.mocked(latestSalesReportingDate)
 const mockMarg = vi.mocked(listSalesMarginDaily)
 const mockUseAuth = vi.mocked(useAuth)
 
@@ -102,6 +104,7 @@ const bodyRowNames = () => within(table()).getAllByRole('rowheader').map((c) => 
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockLatest.mockResolvedValue(LATEST)
   mockRev.mockResolvedValue(revenue(['gordi_hq', 'cikal', 'roastery']))
   mockMarg.mockResolvedValue(margin())
 })
@@ -110,17 +113,17 @@ describe('MoneyPage — what each tier receives', () => {
   it('a supervisor never issues the margin query, and no margin column or note is drawn', async () => {
     renderMoney(['supervisor'])
     await screen.findByRole('table')
-    expect(mockRev).toHaveBeenCalledWith({ sinceDays: 120 })
+    expect(mockRev).toHaveBeenCalledWith({ fromDate: '2026-08-07', toDate: LATEST })
     expect(mockMarg).not.toHaveBeenCalled()
     const headers = within(table()).getAllByRole('columnheader').map((h) => h.textContent!.replace(/[↑↓]/g, ''))
     expect(headers).toEqual(['Branch', 'Revenue', 'vs previous period', 'Latest day', 'vs same day last week', 'Trend'])
     expect(screen.queryByText(/margin|COGS|recipe/i)).toBeNull()
   })
 
-  it('finance reads both read-models over 120 days and sees the margin columns and the basis note', async () => {
+  it('finance reads both read-models over the selected comparison window and sees margin columns', async () => {
     renderMoney(['finance'])
     await screen.findByRole('table')
-    expect(mockMarg).toHaveBeenCalledWith({ sinceDays: 120 })
+    expect(mockMarg).toHaveBeenCalledWith({ fromDate: '2026-08-07', toDate: LATEST })
     const headers = within(table()).getAllByRole('columnheader').map((h) => h.textContent!.replace(/[↑↓]/g, ''))
     expect(headers.slice(5)).toEqual(['Margin % (interim)', 'COGS vs budget', 'Recipe vs stock cost', 'Trend'])
     expect(screen.getByText('Margin is interim: from stock movement, not yet reconciled.')).toBeInTheDocument()
@@ -146,7 +149,7 @@ describe('MoneyPage — what each tier receives', () => {
   it('a supervisor granted one branch lands on that branch', async () => {
     mockRev.mockResolvedValue(revenue(['cikal']))
     renderMoney(['supervisor'], '/money?period=7')
-    await waitFor(() => expect(where()).toBe('/money/branch/cikal?period=7'))
+    await waitFor(() => expect(where()).toBe('/money/branch/cikal?period=7&sort=revenue.desc'))
   })
 })
 
@@ -162,8 +165,8 @@ describe('MoneyPage — the table', () => {
   it('every branch name is a link to its Branch page carrying the period, and the company row is not', async () => {
     renderMoney(['manager'], '/money?period=7')
     await screen.findByRole('table')
-    expect(screen.getByRole('link', { name: 'Gordi HQ' })).toHaveAttribute('href', '/money/branch/gordi_hq?period=7')
-    expect(screen.getByRole('link', { name: 'B2B (invoices)' })).toHaveAttribute('href', '/money/branch/roastery?period=7')
+    expect(screen.getByRole('link', { name: 'Gordi HQ' })).toHaveAttribute('href', '/money/branch/gordi_hq?period=7&sort=revenue.desc')
+    expect(screen.getByRole('link', { name: 'B2B (invoices)' })).toHaveAttribute('href', '/money/branch/roastery?period=7&sort=revenue.desc')
     expect(screen.queryByRole('link', { name: 'Company' })).toBeNull()
   })
 
@@ -171,7 +174,7 @@ describe('MoneyPage — the table', () => {
     renderMoney(['manager'])
     const cikal = await screen.findByRole('link', { name: 'Cikal' })
     fireEvent.click(within(cikal.closest('tr')!).getAllByRole('cell')[0])
-    await waitFor(() => expect(where()).toBe('/money/branch/cikal?period=30'))
+    await waitFor(() => expect(where()).toBe('/money/branch/cikal?period=30&sort=revenue.desc'))
   })
 
   it('figures use tabular digits and id-ID formats', async () => {
@@ -223,12 +226,63 @@ describe('MoneyPage — period and sort live in the URL', () => {
     expect(bodyRowNames()).toEqual(['Company', 'Cikal', 'Gordi HQ', 'B2B (invoices)'])
   })
 
-  it('a period change re-draws from rows already held instead of reading again', async () => {
+  it('normalizes a shared custom range that extends past the latest synced day', async () => {
+    renderMoney(['manager'], '/money?period=custom&from=2026-10-01&to=2026-10-06&sort=revenue.desc')
+    await screen.findByRole('table')
+    await waitFor(() => expect(where()).toBe('/money?period=30&sort=revenue.desc'))
+    expect(mockRev).toHaveBeenCalledWith({ fromDate: '2026-08-07', toDate: LATEST })
+  })
+
+  it('90 days reads the selected inclusive window plus its prior comparison period', async () => {
     renderMoney(['manager'])
     await screen.findByRole('table')
-    fireEvent.click(screen.getByRole('button', { name: '7 days' }))
-    await waitFor(() => expect(where()).toContain('period=7'))
-    expect(mockRev).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: '90 days' }))
+    await waitFor(() => expect(mockRev).toHaveBeenCalledTimes(2))
+    expect(mockRev.mock.calls[1][0]).toEqual({ fromDate: '2026-04-09', toDate: LATEST })
+    expect(screen.getByRole('button', { name: '90 days' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('branch and channel filters are reflected in the URL and scope the table together', async () => {
+    const user = userEvent.setup()
+    renderMoney(['manager'])
+    await screen.findByRole('table')
+    await user.click(screen.getByRole('combobox', { name: 'Branch' }))
+    await user.click(await screen.findByRole('option', { name: 'Cikal' }))
+    await waitFor(() => expect(where()).toContain('branch=cikal'))
+    await user.click(screen.getByRole('combobox', { name: 'Channel' }))
+    await user.click(await screen.findByRole('option', { name: 'POS' }))
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Channel' })).toHaveTextContent('POS'))
+    await waitFor(() => expect(where()).toBe('/money?period=30&branch=cikal&sort=revenue.desc&channel=POS'))
+    expect(bodyRowNames()).toEqual(['Cikal'])
+    expect(screen.queryByRole('link', { name: 'B2B (invoices)' })).toBeNull()
+  })
+
+  it('custom dates persist in the URL and reject a reversed pair without changing figures', async () => {
+    renderMoney(['manager'])
+    await screen.findByRole('table')
+    const customRange = screen.getByRole('button', { name: 'Custom range' })
+    fireEvent.click(customRange)
+    await waitFor(() => expect(where()).toBe('/money?period=custom&from=2026-09-06&to=2026-10-05&sort=revenue.desc'))
+    fireEvent.click(customRange)
+    expect(customRange).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByLabelText('From')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '02/10/2026' } })
+    await waitFor(() => expect(where()).toBe('/money?period=custom&from=2026-10-02&to=2026-10-05&sort=revenue.desc'))
+    await waitFor(() => expect(mockRev).toHaveBeenCalledTimes(3))
+    expect(screen.getByText('Revenue · 4 days')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '01/10/2026' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose real dates in order, ending no later than the latest synced day.')
+    expect(where()).toContain('from=2026-10-02&to=2026-10-05')
+    expect(screen.getByText('Revenue · 4 days')).toBeInTheDocument()
+  })
+
+  it('keeps the previous figures visibly busy while a selected window is refetched', async () => {
+    renderMoney(['manager'])
+    await screen.findByRole('table')
+    mockRev.mockReturnValueOnce(new Promise(() => {}))
+    fireEvent.click(screen.getByRole('button', { name: '90 days' }))
+    await waitFor(() => expect(document.querySelector('.money-results')).toHaveAttribute('aria-busy', 'true'))
+    expect(screen.getByRole('table')).toBeInTheDocument()
   })
 })
 
@@ -238,6 +292,15 @@ describe('MoneyPage — states in text', () => {
     renderMoney(['manager'])
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '7 days' })).toBeDisabled()
+  })
+
+  it('no reporting date settles empty without querying a date window', async () => {
+    mockLatest.mockResolvedValue(null)
+    renderMoney(['manager'])
+    expect(await screen.findByText('No sales have been received yet')).toBeInTheDocument()
+    expect(mockRev).not.toHaveBeenCalled()
+    expect(mockMarg).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Custom range' })).toBeDisabled()
   })
 
   it('empty says when the sync runs and who to tell, and Check again reads again', async () => {
@@ -279,14 +342,16 @@ describe('MoneyPage — states in text', () => {
     mockRev.mockReturnValueOnce(new Promise((resolve) => { finishFirst = resolve }))
     mockRev.mockResolvedValueOnce(revenue(['gordi_hq', 'cikal', 'roastery']))
     renderMoney(['manager'])
+    await waitFor(() => expect(mockRev).toHaveBeenCalledTimes(1))
     // The viewer comes back to the tab while the first read is still out: a second read starts.
     document.dispatchEvent(new Event('visibilitychange'))
+    await waitFor(() => expect(mockRev).toHaveBeenCalledTimes(2))
     await screen.findByRole('table')
     expect(screen.getByText('B2B (invoices)')).toBeInTheDocument()
     finishFirst(revenue(['gordi_hq']))
     await new Promise((r) => setTimeout(r, 20))
     expect(screen.getByText('B2B (invoices)')).toBeInTheDocument()
-    expect(screen.getByText('Cikal')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Cikal' })).toBeInTheDocument()
   })
 
   it('a failed background refresh keeps the figures already on screen and says so', async () => {

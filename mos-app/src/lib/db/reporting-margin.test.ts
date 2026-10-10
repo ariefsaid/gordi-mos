@@ -27,6 +27,7 @@ interface Recorder {
   selects: string[]
   eqs: Array<[string, unknown]>
   gtes: Array<[string, unknown]>
+  ltes: Array<[string, unknown]>
   orders: Array<[string, unknown]>
   limits: number[]
   ranges: Array<[number, number]>
@@ -58,6 +59,7 @@ function makeSchema(
       rec.gtes.push([c, v])
       return builder
     })
+    builder.lte = vi.fn((c: string, v: unknown) => { rec.ltes.push([c, v]); return builder })
     builder.order = vi.fn((c: string, o: unknown) => {
       rec.orders.push([c, o])
       return builder
@@ -72,7 +74,7 @@ function makeSchema(
 }
 
 function freshRec(): Recorder {
-  return { schemaNames: [], fromTables: [], selects: [], eqs: [], gtes: [], orders: [], limits: [], ranges: [] }
+  return { schemaNames: [], fromTables: [], selects: [], eqs: [], gtes: [], ltes: [], orders: [], limits: [], ranges: [] }
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -158,6 +160,14 @@ describe('listSalesMarginDaily', () => {
     expect(rec.gtes).toHaveLength(1)
     expect(rec.gtes[0][0]).toBe('margin_date')
     expect(rec.ranges).toEqual([[0, 999]])
+  })
+
+  it('queries an inclusive custom date window', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ sales_margin_daily: [{ data: [], error: null }] }, rec) as never)
+    await listSalesMarginDaily({ fromDate: '2026-01-01', toDate: '2026-01-31' })
+    expect(rec.gtes).toContainEqual(['margin_date', '2026-01-01'])
+    expect(rec.ltes).toContainEqual(['margin_date', '2026-01-31'])
   })
 
   it('passes rows through unchanged, including a NULL-COGS sync-gap day (never a fake margin)', async () => {

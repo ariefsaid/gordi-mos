@@ -74,6 +74,7 @@ vi.mock('@/lib/db/admin-users', () => ({
 vi.mock('@/lib/db/reporting', async () => ({
   ...(await vi.importActual<typeof import('@/lib/db/reporting')>('@/lib/db/reporting')),
   listSalesDailyRevenue: vi.fn(),
+  latestSalesReportingDate: vi.fn(),
 }))
 vi.mock('@/lib/db/reporting-margin', async () => ({
   ...(await vi.importActual<typeof import('@/lib/db/reporting-margin')>('@/lib/db/reporting-margin')),
@@ -94,7 +95,7 @@ import { useAuth } from '@/auth/use-auth'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsCoarsePointer } from '@/shell/use-is-coarse-pointer'
 import { listAdminPeople, listRoles, listRevenueScopeOptions, listTeams } from '@/lib/db/admin-users'
-import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
+import { latestSalesReportingDate, listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { listBomLines, listIngredientCostLines, listBudgets, getCertifiedMetric } from '@/lib/db/plan-budget'
 import { getBusinessUnits } from '@/lib/db/directory'
@@ -198,6 +199,7 @@ beforeEach(() => {
   vi.mocked(listTeams).mockResolvedValue([])
   // money lane (#250): a resolved-but-empty baseline, so each test states only the shape
   // its own case needs.
+  vi.mocked(latestSalesReportingDate).mockResolvedValue(new Date().toISOString().slice(0, 10))
   vi.mocked(listSalesDailyRevenue).mockResolvedValue([])
   vi.mocked(listSalesMarginDaily).mockResolvedValue([])
   vi.mocked(listBomLines).mockResolvedValue([])
