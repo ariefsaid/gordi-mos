@@ -163,7 +163,7 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
   })
   const trendCell = (row: Figures) => {
     const trend = sparklinePoints(row.trend)
-    return <td className="money-table__cell money-table__cell--trend text-center col-span-full"><span className="money-table__cell-label">{t('money.table.col.trend')}</span><span className="money-table__cell-value">{trend && <svg aria-hidden="true" viewBox="0 0 64 24" width="64" height="24"><polyline points={trend.points} fill="none" stroke="var(--text-light)" strokeWidth="2" /><circle cx={trend.end.x} cy={trend.end.y} r="4.5" fill="var(--primary)" stroke="var(--surface-primary)" strokeWidth="2" /></svg>}</span></td>}
+    return <td className="money-table__cell money-table__cell--trend text-center col-span-full"><span className="money-table__cell-label">{t('money.table.col.trend')}</span><span className="money-table__cell-value">{trend && <svg aria-hidden="true" viewBox="0 0 64 24" width="64" height="24"><polyline points={trend.points} fill="none" stroke="var(--text-light)" strokeWidth="2" /><circle cx={trend.end.x} cy={trend.end.y} r="5" fill="var(--primary)" stroke="var(--surface-primary)" strokeWidth="2" /></svg>}</span></td>}
 
   // Phone: the company's three margin figures read as one line (branch-table.css shows it <768px).
   const companyMargin = data.company.margin

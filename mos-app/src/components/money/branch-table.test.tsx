@@ -74,12 +74,15 @@ describe('BranchTable — one term for recipe vs stock cost (#1453)', () => {
 })
 
 describe('BranchTable — trend endpoint size', () => {
-  it('draws the sparkline unscaled, so the endpoint stays at least 8px wide at every width', () => {
+  it('draws the sparkline unscaled, so the visible endpoint (inside its surface ring) is at least 8px', () => {
     const { container } = render(<Harness period={30} sort={{ column: 'revenue', desc: true }} onCommit={() => {}} />)
     const svg = container.querySelector('.money-table__cell--trend svg')!
     const viewBoxWidth = Number(svg.getAttribute('viewBox')!.split(' ')[2])
     const scale = Number(svg.getAttribute('width')) / viewBoxWidth
     expect(svg.getAttribute('class') ?? '').not.toMatch(/\bw-/)
-    expect(2 * Number(svg.querySelector('circle')!.getAttribute('r')) * scale).toBeGreaterThanOrEqual(8)
+    const dot = svg.querySelector('circle')!
+    // The ring stroke is centred on the edge, so it covers half its width of the fill.
+    const visible = (2 * Number(dot.getAttribute('r')) - Number(dot.getAttribute('stroke-width'))) * scale
+    expect(visible).toBeGreaterThanOrEqual(8)
   })
 })
