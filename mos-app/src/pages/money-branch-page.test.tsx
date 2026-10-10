@@ -103,7 +103,7 @@ beforeEach(() => {
   vi.mocked(listRecipeFindings).mockResolvedValue({ rows: [], receipts: [] })
 })
 
-it('recipe/stock journey: prioritize a lead, filter, inspect evidence, then handle blocked units and denied states', async () => {
+it('recipe/stock journey: prioritize a lead, filter, inspect evidence and blocked units', async () => {
   const base = { day: LATEST, esb_code: 'TEST', branch_code: 'GHQ', menu_name: 'Long synthetic lunch menu', actual_name: 'Stock ingredient', expected_name: 'Recipe ingredient', classification: 'team_input', rule: 'missing_recipe_mapping', confidence: 'candidate_current_recipe_not_historical_proof', needs_human: true, impact_basis: 'unassigned_actual', recommended_check: 'Check the menu mapping and recorded unit', expected_qty_day_comparable: 12, actual_qty_day_comparable: 18, comparison_unit: 'PCS', conversion_evidence: {}, recipe_versions: { version: 2, first_seen: day(1) }, recipe_version_hash: 'test-hash', recipe_edited_at: SYNCED, recipe_observed_at: SYNCED, prior_recipe_observed_at: null, first_sale_at: null, source_checked_at: SYNCED, snapshot_as_of: SYNCED, replica_stale: false }
   vi.mocked(listRecipeFindings).mockResolvedValue({ rows: [{ ...base, finding_id: 'small', impact_idr: 100 }, { ...base, finding_id: 'large', impact_idr: 900 }, { ...base, finding_id: 'blocked', rule: 'unit_comparison_unverified', classification: 'warehouse_artefact', impact_idr: null, expected_qty_day_comparable: null, conversion_evidence: { recipe_units: [{ status: 'conflicting_recorded_conversions' }] } }, { ...base, finding_id: 'policy', impact_idr: 1000, needs_human: false }] as RecipeFinding[], receipts: [{ esb_code: 'TEST', complete: true, snapshot_as_of: SYNCED, source_completed_at: SYNCED, window_start: day(6), window_end: LATEST }] })
   const user = userEvent.setup()
@@ -121,12 +121,17 @@ it('recipe/stock journey: prioritize a lead, filter, inspect evidence, then hand
   expect(within(section).getByText("Units can't be compared: conflicting recorded conversions")).toBeVisible()
   expect(within(section).queryByText('Expected 12 PCS · actual 18 PCS')).toBeNull()
   first.unmount()
-  vi.mocked(listRecipeFindings).mockClear()
-  const denied = renderBranch(['supervisor'])
+})
+
+it('recipe/stock register: a role without access never issues the query or sees the section', async () => {
+  renderBranch(['supervisor'])
   await screen.findByRole('heading', { level: 1, name: 'Gordi HQ' })
   expect(listRecipeFindings).not.toHaveBeenCalled()
   expect(screen.queryByRole('region', { name: /what to check/ })).toBeNull()
-  denied.unmount()
+})
+
+it('recipe/stock register: a failed load says so and recovers on Try again', async () => {
+  const user = userEvent.setup()
   mockRev.mockResolvedValue([rev(LATEST, 'QA-EAST', 'East Branch', 100)])
   vi.mocked(listRecipeFindings).mockResolvedValue({ rows: [], receipts: [] })
   vi.mocked(listRecipeFindings).mockRejectedValueOnce(new Error('offline'))
