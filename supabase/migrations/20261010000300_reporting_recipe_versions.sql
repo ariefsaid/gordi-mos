@@ -38,15 +38,15 @@ alter table reporting.recipe_versions force row level security;
 
 create policy recipe_versions_select_org on reporting.recipe_versions
   for select to authenticated
-  using (org_id = shared.current_org_id());
+  using (org_id = (SELECT shared.current_org_id()));
 comment on policy recipe_versions_select_org on reporting.recipe_versions is
   'Same org-readable contract as Cafe items (ops.wip_items); recipe history contains no ingredient costs.';
 create policy recipe_versions_select_writer on reporting.recipe_versions
   for select to reporting_writer
-  using (org_id = reporting.current_writer_org());
+  using (org_id = (SELECT reporting.current_writer_org()));
 create policy recipe_versions_insert_writer on reporting.recipe_versions
   for insert to reporting_writer
-  with check (org_id = reporting.current_writer_org());
+  with check (org_id = (SELECT reporting.current_writer_org()));
 
 create function reporting._reject_recipe_version_mutation()
 returns trigger
