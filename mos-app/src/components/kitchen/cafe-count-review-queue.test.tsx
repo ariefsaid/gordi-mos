@@ -89,12 +89,12 @@ describe('CafeCountReviewQueue', () => {
     expect(rows[0]).not.toHaveTextContent('2026-10-04')
   })
 
-  it('uses a compact single-line empty state for all Submitted Counts', async () => {
+  it('uses a compact single-line empty state and leaves page refresh to Review', async () => {
     mockList.mockResolvedValue([])
     const { container } = renderQueue()
     expect(await screen.findByText('No Submitted Counts.')).toBeInTheDocument()
     expect(container.querySelector('.empty-state')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveClass('btn-outline')
+    expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
   })
 
   it('confirms through the versioned RPC and closes a zero Variance as not needed', async () => {
