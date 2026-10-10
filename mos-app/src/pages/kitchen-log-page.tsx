@@ -1099,11 +1099,6 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
 
     const staged = Object.values(lines).filter(l => l.qty_porsi > 0)
     if (staged.length === 0) return
-    if (!canCapture) {
-      setSubmitError(t('kitchen.log.readOnlyReason'))
-      return
-    }
-
     // Re-gate all staged lines; block on any note-required or cap violation.
     let hasErrors = false
     const validated = { ...lines }
@@ -1858,9 +1853,6 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               <p role="status" aria-live="polite" className="kl-submit-outcome kl-submit-outcome--success">
                 {t(status.count === 1 ? 'kitchen.log.success.one' : 'kitchen.log.success.other', { count: status.count })}
               </p>
-            )}
-            {!canCapture && (
-              <p className="kl-submit-reason" role="status">{t('kitchen.log.readOnlyReason')}</p>
             )}
             {!streamMissing && (
             <div className="kl-footer-count-row">

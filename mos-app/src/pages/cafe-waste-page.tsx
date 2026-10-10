@@ -977,7 +977,7 @@ export function CafeWastePage() {
                     isDesktop={isDesktop}
                     state={visibleItems.length > 0 ? 'ready' : 'empty'}
                     emptyLabel={t('kitchen.filter.noMatch')}
-                    caption={canCapture ? t('kitchen.waste.tableCaption') : t('cafe.capture.readOnlyCaption')}
+                    caption={t('kitchen.waste.tableCaption')}
                     quantityHeader={t('kitchen.waste.quantity')}
                 />
               </>

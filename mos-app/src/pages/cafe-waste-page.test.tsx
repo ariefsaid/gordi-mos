@@ -200,14 +200,16 @@ afterEach(() => {
 
 describe('CafeWastePage', () => {
   it.each([
-    ['en', 'Read-only — your Café access does not allow capture', 'Not recorded'],
-    ['id', 'Hanya-baca — akses Café Anda tidak mengizinkan pencatatan', 'Belum tercatat'],
-  ] as const)('shows %s read-only waste facts without capture controls', async (locale, notice, notRecorded) => {
+    ['en', 'Read-only — your Café access does not allow capture', 'Not recorded', 'Café waste items'],
+    ['id', 'Hanya-baca — akses Café Anda tidak mengizinkan pencatatan', 'Belum tercatat', 'Barang limbah Kafe'],
+  ] as const)('shows %s read-only waste facts without capture controls', async (locale, notice, notRecorded, caption) => {
+    setWideMatchMedia()
     mockUseAuth.mockReturnValue({ ...VIEWER, viewer: { ...VIEWER.viewer, affiliated: [] } })
     renderPage(locale)
     await screen.findByText('Oat Latte')
 
     expect(screen.getByText(notice)).toBeVisible()
+    expect(screen.getByRole('table', { name: caption })).toBeInTheDocument()
     expect(screen.getAllByText(notRecorded)).toHaveLength(ITEM_SETTINGS.length)
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add photo|submit waste/i })).not.toBeInTheDocument()
