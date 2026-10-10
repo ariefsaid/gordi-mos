@@ -202,9 +202,10 @@ def _copy_window(
     source_query: str,
     normalize: Any,
     upsert_sql: str,
+    target_table: str,
     snapshot_as_of: Any,
     source_contract_version: str,
-) -> int:
+) -> int | None:
     """Read one trailing-window dataset from the warehouse and upsert it into reporting.
 
     Every row is normalised before the reporting connection opens, so a row the normaliser
@@ -235,6 +236,12 @@ def _copy_window(
 
     with psycopg.connect(config.supabase_reporting_db_url) as reporting_conn:
         with reporting_conn.cursor() as reporting_cur:
+            # Staging can lag dev: skip a table the target does not have yet. Checked up front
+            # because Postgres reports a missing table without naming it in the error fields.
+            reporting_cur.execute("select to_regclass(%s)", (target_table,))
+            if reporting_cur.fetchone()[0] is None:
+                print(f"skipped {target_table}: not on target")
+                return None
             # Declare the run's org BEFORE any write, and in the SAME transaction as the write:
             # the reporting.* write policies admit only rows in the declared org, and the
             # declaration is transaction-scoped. No commit may separate these two statements.
@@ -246,12 +253,13 @@ def _copy_window(
     return len(normalized_rows)
 
 
-def run_snapshot(config: SnapshotConfig, *, snapshot_as_of: datetime | None = None) -> int:
+def run_snapshot(config: SnapshotConfig, *, snapshot_as_of: datetime | None = None) -> int | None:
     return _copy_window(
         config,
         source_query=build_source_query(),
         normalize=normalize_row,
         upsert_sql=build_upsert_sql(),
+        target_table="reporting.sales_daily_revenue",
         snapshot_as_of=snapshot_as_of or datetime.now(timezone.utc),
         source_contract_version=config.source_contract_version,
     )
@@ -361,12 +369,13 @@ def build_margin_upsert_sql() -> str:
     """
 
 
-def run_margin_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int:
+def run_margin_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int | None:
     return _copy_window(
         config,
         source_query=build_margin_source_query(),
         normalize=normalize_margin_row,
         upsert_sql=build_margin_upsert_sql(),
+        target_table="reporting.sales_margin_daily",
         snapshot_as_of=snapshot_as_of,
         source_contract_version=config.margin_source_contract_version,
     )
@@ -545,12 +554,13 @@ def build_usage_upsert_sql() -> str:
     """
 
 
-def run_usage_snapshot(config: SnapshotConfig, snapshot_as_of: Any) -> int:
+def run_usage_snapshot(config: SnapshotConfig, snapshot_as_of: Any) -> int | None:
     return _copy_window(
         config,
         source_query=build_usage_source_query(),
         normalize=normalize_usage_row,
         upsert_sql=build_usage_upsert_sql(),
+        target_table="reporting.ingredient_usage_daily",
         snapshot_as_of=snapshot_as_of,
         source_contract_version=DEFAULT_USAGE_SOURCE_CONTRACT_VERSION,
     )
@@ -712,7 +722,9 @@ def build_bill_snapshot_insert_sql() -> str:
     """
 
 
-def run_pending_bill_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> tuple[int, int]:
+def run_pending_bill_snapshot(
+    config: SnapshotConfig, snapshot_as_of: datetime
+) -> tuple[int | None, int | None]:
     """Returns (bills written, non-positive bills skipped)."""
     try:
         import psycopg
@@ -747,6 +759,12 @@ def run_pending_bill_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) 
 
     with psycopg.connect(config.supabase_reporting_db_url) as reporting_conn:
         with reporting_conn.cursor() as reporting_cur:
+            # Same up-front check as _copy_window: Postgres names no table for a missing relation.
+            for table in ("reporting.pending_bills", "reporting.pending_bill_snapshots"):
+                reporting_cur.execute("select to_regclass(%s)", (table,))
+                if reporting_cur.fetchone()[0] is None:
+                    print(f"skipped {table}: not on target")
+                    return None, None
             # Same rule as the revenue path: declare first, in the transaction that writes.
             reporting_cur.execute(build_org_scope_sql(), (config.org_id,))
             reporting_cur.executemany(build_pending_bill_upsert_sql(), bills)
