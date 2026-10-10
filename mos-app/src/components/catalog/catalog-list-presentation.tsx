@@ -51,11 +51,13 @@ function rowProgressText(
   progress: CountRollup | undefined,
   t: ReturnType<typeof useT>,
 ): string {
+  if (row.type === undefined) {
+    if (!progress || progress.total === 0) return t('catalog.objectives.noTasksLinked')
+    return t('catalog.objectives.taskProgress', { done: String(progress.done), total: String(progress.total) })
+  }
   if (row.type !== 'process') {
     if (!progress) return t('catalog.noTasks')
-    return row.type === undefined
-      ? t('catalog.objectives.taskProgress', { done: String(progress.done), total: String(progress.total) })
-      : progressText(progress.done, progress.total, t)
+    return progressText(progress.done, progress.total, t)
   }
 
   // A Process is a repeatable definition, so its catalog progress is about today's/current
