@@ -12,6 +12,7 @@ import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { TaskCreateForm } from './task-create-form'
 import { TaskCreateContext } from './task-create-context'
 import type { TaskRow } from '@/lib/db/tasks.types'
@@ -57,6 +58,11 @@ function renderForm(
 }
 
 describe('TaskCreateForm — labels and required markers', () => {
+  it('localizes the PIC/Supervisor hint in Indonesian', () => {
+    renderForm({}, (form) => <I18nProvider initialLocale="id">{form}</I18nProvider>)
+    expect(screen.getByText('PIC mengerjakan · Supervisor menindaklanjuti')).toBeInTheDocument()
+  })
+
   it('gives every field a visible label, and marks Team + Supervisor required (PIC is not)', () => {
     renderForm()
     expect(screen.getByText('Title')).toBeInTheDocument()
@@ -70,6 +76,7 @@ describe('TaskCreateForm — labels and required markers', () => {
     expect(teamLabel?.textContent).toContain('*')
     expect(supervisorLabel?.textContent).toContain('*')
     expect(screen.getByText('PIC').closest('label')?.textContent).not.toContain('*')
+    expect(screen.getByText('PIC does the work · Supervisor follows up')).toBeInTheDocument()
   })
 
   it('shows the derived Business unit once, as quiet read-only text tied to Team', () => {

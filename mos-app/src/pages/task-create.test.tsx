@@ -16,7 +16,7 @@ vi.mock('../lib/db/directory', () => ({
   getPersonTeams: vi.fn(),
   getTeamsByIds: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
-  getMyTeamLeads: vi.fn(),
+  getDirectManagerPersonIds: vi.fn(),
 }))
 vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
@@ -43,11 +43,11 @@ const mockGetPeople = vi.mocked(getPeople)
 const directoryMocks = directoryApi as unknown as {
   getPersonTeams: ReturnType<typeof vi.fn>
   getTeamsByIds: ReturnType<typeof vi.fn>
-  getMyTeamLeads: ReturnType<typeof vi.fn>
+  getDirectManagerPersonIds: ReturnType<typeof vi.fn>
 }
 const mockGetPersonTeams = directoryMocks.getPersonTeams
 const mockGetTeamsByIds = directoryMocks.getTeamsByIds
-const mockGetMyTeamLeads = directoryMocks.getMyTeamLeads
+const mockGetDirectManagerPersonIds = directoryMocks.getDirectManagerPersonIds
 const mockListObjectives = vi.mocked(listObjectives)
 const mockListWorkLines = vi.mocked(listWorkLines)
 
@@ -107,6 +107,7 @@ beforeEach(() => {
   mockGetPeople.mockResolvedValue(mockPeople)
   mockGetPersonTeams.mockResolvedValue(mockTeams)
   mockGetTeamsByIds.mockResolvedValue(mockTeams)
+  mockGetDirectManagerPersonIds.mockResolvedValue([])
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   mockListObjectives.mockResolvedValue([])
   mockListWorkLines.mockResolvedValue([])
@@ -128,8 +129,7 @@ describe('AC-080 — create form prefills', () => {
     const picPicker = screen.getByRole('combobox', { name: 'PIC' })
     expect(picPicker).toHaveTextContent('Cahya Cafe')
 
-    // Supervisor is never the creator/PIC: it stays empty (a required, explicit choice) unless the
-    // home Team has a lead other than the creator (see the Supervisor default tests below).
+    // With no unique PIC manager, Supervisor stays an explicit choice.
     const supervisorPicker = screen.getByRole('combobox', { name: 'Supervisor' })
     expect(supervisorPicker).toHaveTextContent(/select supervisor/i)
 
@@ -176,7 +176,7 @@ describe('AC-080 — create form prefills', () => {
 })
 
 // ── #1029: Project/Process is shown directly; the Objective is derived, never picked ──
-describe('create surface — Project/Process context and Supervisor default (#1029)', () => {
+describe('create surface — Project/Process context and PIC manager Supervisor default (#1029)', () => {
   const WORK_LINES = [
     { id: 'wl-1', name: 'Q4 Launch', type: 'project', objective_id: 'obj-1' },
     { id: 'wl-2', name: 'Daily Open', type: 'process', objective_id: null },
@@ -226,19 +226,31 @@ describe('create surface — Project/Process context and Supervisor default (#10
     })))
   })
 
-  it('a member gets the home Team lead as Supervisor, PIC stays self', async () => {
+  it('defaults through the PIC manager for the selected Team BU', async () => {
     mockListWorkLines.mockResolvedValue([])
-    mockGetMyTeamLeads.mockResolvedValue([{ team_id: 'team-cafe', lead_person_id: 'other-id' }])
+    mockGetDirectManagerPersonIds.mockResolvedValue(['other-id'])
     renderCreate()
     await waitFor(() => expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Other Person'))
+    expect(mockGetDirectManagerPersonIds).toHaveBeenCalledWith(VIEWER_ID, 'bu-1')
     expect(screen.getByRole('combobox', { name: 'PIC' })).toHaveTextContent(mockPerson.full_name)
   })
 
-  it('keeps an empty Supervisor when the home Team has no lead', async () => {
-    mockGetMyTeamLeads.mockResolvedValue([{ team_id: 'team-cafe', lead_person_id: null }])
+  it('shows the short role hint and explains a missing PIC manager beside Supervisor', async () => {
+    mockGetDirectManagerPersonIds.mockResolvedValue([])
     renderCreate()
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Team' })).toHaveTextContent('Cafe Team'))
+    await waitFor(() => expect(screen.getByText('No manager found for this PIC — choose who follows up')).toBeInTheDocument())
+    expect(screen.getByText('PIC does the work · Supervisor follows up')).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent(/select supervisor/i)
+  })
+
+  it('clears and re-resolves a derived Supervisor when the Task Team changes BU', async () => {
+    mockGetDirectManagerPersonIds.mockImplementation(async (_picId, businessUnitId) => businessUnitId === 'bu-1' ? ['other-id'] : [])
+    renderCreate()
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Other Person'))
+    chooseCreateOption('Team', 'Sales Team')
+    await waitFor(() => expect(mockGetDirectManagerPersonIds).toHaveBeenCalledWith(VIEWER_ID, 'bu-2'))
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent(/select supervisor/i))
+    expect(screen.getByText('No manager found for this PIC — choose who follows up')).toBeInTheDocument()
   })
 })
 
