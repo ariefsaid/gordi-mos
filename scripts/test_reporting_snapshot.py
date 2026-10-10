@@ -1,6 +1,7 @@
 from contextlib import contextmanager, redirect_stdout
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import io
+import json
 import sys
 import types
 import unittest
@@ -36,6 +37,7 @@ from reporting_snapshot import (
     normalize_usage_row,
     run_usage_snapshot,
 )
+from reporting_snapshot import plan_recipe_versions, run_recipe_history_snapshot
 
 
 class ReportingSnapshotTests(unittest.TestCase):
@@ -408,9 +410,12 @@ class _RecordingCursor:
 
     def fetchone(self):
         regclass = self._connection.probed
-        return (None,) if regclass == self._connection.missing_target_table else (regclass,)
+        value = None if regclass == self._connection.missing_target_table else regclass
+        return {"target": value} if self._connection.dict_rows else (value,)
 
     def fetchall(self):
+        if self._connection.calls and "from public.recipe_observations" in self._connection.calls[-1][1]:
+            return list(self._connection.recipe_rows)
         return list(self._connection.source_rows)
 
 
@@ -420,6 +425,8 @@ class _RecordingConnection:
         self.source_rows = source_rows
         self.missing_target_table = missing_target_table
         self.probed = None
+        self.dict_rows = False
+        self.recipe_rows = ()
         self.calls = []
 
     def __enter__(self):
@@ -436,7 +443,7 @@ class _RecordingConnection:
 
 
 @contextmanager
-def _observed_run(source_rows, reporting_rows=(), missing_target_table=None):
+def _observed_run(source_rows, reporting_rows=(), missing_target_table=None, recipe_rows=()):
     """Stand in for psycopg for the duration of a run, and hand back the connections it opened.
 
     reporting_snapshot imports psycopg inside its run functions, so substituting the module in
@@ -452,6 +459,8 @@ def _observed_run(source_rows, reporting_rows=(), missing_target_table=None):
             rows,
             missing_target_table if dsn == REPORTING_DSN else None,
         )
+        connection.dict_rows = "row_factory" in _kwargs
+        connection.recipe_rows = recipe_rows
         connections.append(connection)
         return connection
 
@@ -773,7 +782,8 @@ class MissingTargetTableTests(unittest.TestCase):
         ]
         self.assertEqual(
             written_tables,
-            ["insert into reporting.sales_daily_revenue", "insert into reporting.ingredient_usage_daily"],
+            ["insert into reporting.sales_daily_revenue", "insert into reporting.ingredient_usage_daily",
+             "insert into reporting.recipe_versions"],
         )
 
         with _observed_run(
@@ -875,7 +885,7 @@ class PendingBillRunTests(unittest.TestCase):
             out = io.StringIO()
             with redirect_stdout(out):
                 main()
-        self.assertEqual(len(connections), 6, "revenue, margin and usage only")
+        self.assertEqual(len(connections), 8, "revenue, margin, usage and recipe history")
         self.assertIn("usage=0 pending_bills=off pending_bills_skipped=off", out.getvalue())
 
     def test_step_runs_after_margin_when_enabled(self):
@@ -888,8 +898,8 @@ class PendingBillRunTests(unittest.TestCase):
         config = SnapshotConfig.from_env(env)
         with _observed_run([]) as connections:
             counts = run_all_snapshots(config)
-        self.assertEqual(len(connections), 8, "revenue, margin, usage, then pending bills")
-        self.assertIn("reporting.pending_bill_snapshots", repr(connections[-1].calls))
+        self.assertEqual(len(connections), 10, "revenue, margin, usage, pending bills and recipe history")
+        self.assertIn("reporting.pending_bill_snapshots", repr(connections[7].calls))
         self.assertEqual(counts["pending_bills"], 0)
 
 
@@ -1033,6 +1043,146 @@ class UsageSnapshotTests(unittest.TestCase):
                     "2026-08-03T20:30:00+00:00",
                 )
         self.assertEqual([c.dsn for c in connections], [WAREHOUSE_DSN])
+
+
+class RecipeHistorySnapshotTests(unittest.TestCase):
+    SNAPSHOT = datetime(2026, 10, 10, 21, tzinfo=timezone.utc)
+    OBSERVED = datetime(2026, 10, 10, 20, tzinfo=timezone.utc)
+
+    def _source(self, **changes):
+        return {
+            "esb_code": "TEST", "menu_id": 101, "bom_id": 201,
+            "observed_at": self.OBSERVED, "recipe_version_hash": "a" * 32,
+            "recipe": {"active": True, "lines": [
+                {"detail_id": 301, "qty": 25, "unit": "Batch @10porsi", "detail_active": True},
+            ]},
+            **changes,
+        }
+
+    def _previous(self, **changes):
+        return {
+            "esb_code": "TEST", "menu_id": 101, "version": 1,
+            "warehouse_version_hash": "a" * 32,
+            "source_observed_at": datetime(2026, 10, 9, 20, tzinfo=timezone.utc),
+            **changes,
+        }
+
+    def _plan(self, source, previous=()):
+        return plan_recipe_versions(
+            source, previous, org_id=ORG_A, snapshot_as_of=self.SNAPSHOT,
+        )
+
+    def test_changed_ingredient_quantity_unit_or_active_flag_adds_a_version(self):
+        for field, value in (("detail_id", 302), ("qty", 30), ("unit", "GR"),
+                             ("detail_active", False)):
+            with self.subTest(field=field):
+                recipe = self._source()["recipe"]
+                recipe["lines"][0][field] = value
+                versions = self._plan(
+                    [self._source(recipe=recipe, recipe_version_hash="b" * 32)],
+                    [self._previous()],
+                )
+                self.assertEqual(len(versions), 1)
+                self.assertEqual(versions[0]["version"], 2)
+                self.assertEqual(versions[0]["warehouse_version_hash"], "b" * 32)
+                self.assertEqual(json.loads(versions[0]["recipe"]), recipe)
+                self.assertEqual(versions[0]["source_observed_at"], self.OBSERVED)
+
+    def test_unchanged_recipe_adds_nothing_on_a_later_observation(self):
+        self.assertEqual(self._plan([self._source()], [self._previous()]), [])
+
+    def test_return_to_an_earlier_hash_is_a_new_version(self):
+        versions = self._plan(
+            [self._source()], [self._previous(version=2, warehouse_version_hash="b" * 32)],
+        )
+        self.assertEqual([(v["version"], v["warehouse_version_hash"]) for v in versions],
+                         [(3, "a" * 32)])
+
+    def test_stale_observation_cannot_replace_a_newer_mos_version(self):
+        versions = self._plan(
+            [self._source(recipe_version_hash="b" * 32)],
+            [self._previous(source_observed_at=self.SNAPSHOT)],
+        )
+        self.assertEqual(versions, [])
+
+    def test_first_import_starts_on_mos_observation_day_not_source_edit_day(self):
+        versions = self._plan([self._source(bom_id=None)])
+        self.assertEqual(versions[0]["version"], 1)
+        self.assertEqual(versions[0]["first_seen"], date(2026, 10, 11))
+        self.assertEqual(versions[0]["org_id"], ORG_A)
+        self.assertIsNone(versions[0]["bom_id"])
+        self.assertEqual(json.loads(versions[0]["recipe"])["lines"][0]["unit"], "Batch @10porsi")
+
+    def test_menu_identity_is_company_scoped(self):
+        versions = self._plan([self._source(esb_code="OTHER")], [self._previous()])
+        self.assertEqual(versions[0]["version"], 1)
+
+    def test_missing_target_skips_before_opening_the_warehouse(self):
+        output = io.StringIO()
+        with _observed_run([], missing_target_table="reporting.recipe_versions") as connections, \
+                redirect_stdout(output):
+            result = run_recipe_history_snapshot(
+                SnapshotConfig(WAREHOUSE_DSN, REPORTING_DSN, ORG_A), self.SNAPSHOT,
+            )
+        self.assertIsNone(result)
+        self.assertEqual([c.dsn for c in connections], [REPORTING_DSN])
+        self.assertEqual(connections[0].calls, [])
+        self.assertEqual(output.getvalue().splitlines(),
+                         ["skipped reporting.recipe_versions: not on target"])
+
+    def test_run_declares_org_and_serializes_before_reading_and_appending_versions(self):
+        with _observed_run([], recipe_rows=[self._source()]) as connections:
+            count = run_recipe_history_snapshot(
+                SnapshotConfig(WAREHOUSE_DSN, REPORTING_DSN, ORG_A), self.SNAPSHOT,
+            )
+        self.assertEqual(count, 1)
+        reporting = connections[0]
+        self.assertEqual([c[0] for c in reporting.calls],
+                         ["execute", "execute", "execute", "executemany", "commit"])
+        self.assertIn("set_config('app.reporting_org'", reporting.calls[0][1])
+        self.assertEqual(reporting.calls[0][2], (ORG_A,))
+        self.assertIn("pg_advisory_xact_lock", reporting.calls[1][1])
+        self.assertEqual(reporting.calls[1][2], (ORG_A,))
+        self.assertIn("where org_id = %s", reporting.calls[2][1])
+        self.assertEqual(reporting.calls[2][2], (ORG_A,))
+        write_sql, rows = reporting.calls[3][1:]
+        self.assertEqual(rows[0]["org_id"], ORG_A)
+        self.assertNotIn("update", write_sql.lower())
+        self.assertNotIn("delete", write_sql.lower())
+        source_sql, params = connections[1].calls[0][1:]
+        self.assertIn("s.status = 'completed'", source_sql)
+        self.assertIn("o.observed_at <= s.completed_at", source_sql)
+        self.assertEqual(params, (self.SNAPSHOT,))
+
+    def test_unchanged_run_submits_no_insert_rows(self):
+        with _observed_run([], [self._previous()], recipe_rows=[self._source()]) as connections:
+            count = run_recipe_history_snapshot(
+                SnapshotConfig(WAREHOUSE_DSN, REPORTING_DSN, ORG_A), self.SNAPSHOT,
+            )
+        self.assertEqual(count, 0)
+        self.assertEqual(connections[0].calls[-2][2], [])
+
+    def test_nightly_job_copies_a_recipe_observation(self):
+        source_row = {
+            **REVENUE_SOURCE_ROW,
+            **MARGIN_SOURCE_ROW,
+            **USAGE_SOURCE_ROW,
+            "menu_id": 101,
+            "bom_id": 201,
+            "observed_at": datetime(2026, 10, 10, 21, tzinfo=timezone.utc),
+            "recipe_version_hash": "a" * 32,
+            "recipe": {"lines": [{"detail_id": 301, "qty": 25, "unit": "GR"}]},
+        }
+        config = SnapshotConfig(WAREHOUSE_DSN, REPORTING_DSN, ORG_A)
+        with _observed_run([source_row], recipe_rows=[source_row]) as connections:
+            counts = run_all_snapshots(config)
+        self.assertEqual(counts.get("recipe_history"), 1)
+        writes = [
+            params for connection in connections for kind, sql, params in connection.calls
+            if kind == "executemany" and "reporting.recipe_versions" in sql
+        ]
+        self.assertEqual(len(writes), 1)
+        self.assertEqual(json.loads(writes[0][0]["recipe"]), source_row["recipe"])
 
 
 class LocalSnapshotEnvTests(unittest.TestCase):

@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
+import json
 import os
 import re
 import sys
@@ -802,12 +803,105 @@ def run_pending_bill_snapshot(
     return len(bills), skipped
 
 
+def build_recipe_history_source_query() -> str:
+    return """
+        select distinct on (o.esb_code, o.menu_id)
+               o.esb_code::text as esb_code, o.menu_id, o.bom_id, o.observed_at,
+               o.recipe_version_hash, o.recipe
+        from public.recipe_observations o
+        join public.sync_state s on s.esb_code = o.esb_code
+          and s.api_source = 'core' and s.endpoint = 'recipe-observation-pass'
+          and s.sync_key = 'nightly' and s.status = 'completed'
+        where o.observed_at <= s.completed_at and o.observed_at <= %s
+        order by o.esb_code, o.menu_id, o.observed_at desc
+    """
+
+
+def plan_recipe_versions(
+    source_rows: list[Mapping[str, Any]],
+    latest_versions: list[Mapping[str, Any]],
+    *,
+    org_id: str,
+    snapshot_as_of: datetime,
+) -> list[dict[str, Any]]:
+    latest = {(r["esb_code"], r["menu_id"]): r for r in latest_versions}
+    versions = []
+    for row in source_rows:
+        esb_code = _required_text(row.get("esb_code"), "esb_code")
+        version_hash = _required_text(row.get("recipe_version_hash"), "recipe_version_hash")
+        previous = latest.get((esb_code, row["menu_id"]))
+        if previous and (
+            previous["warehouse_version_hash"] == version_hash
+            or row["observed_at"] <= previous["source_observed_at"]
+        ):
+            continue
+        versions.append({
+            "org_id": org_id,
+            "esb_code": esb_code,
+            "menu_id": row["menu_id"],
+            "bom_id": row["bom_id"],
+            "version": previous["version"] + 1 if previous else 1,
+            "warehouse_version_hash": version_hash,
+            "recipe": json.dumps(row["recipe"], allow_nan=False),
+            "first_seen": snapshot_as_of.astimezone(WIB).date(),
+            "source_observed_at": row["observed_at"],
+        })
+    return versions
+
+
+def run_recipe_history_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int | None:
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+    except ImportError as exc:
+        raise SystemExit(
+            "Missing dependency: install psycopg on the VPS snapshot environment"
+        ) from exc
+
+    with psycopg.connect(config.supabase_reporting_db_url, row_factory=dict_row) as reporting_conn:
+        with reporting_conn.cursor() as reporting_cur:
+            reporting_cur.execute("select to_regclass(%s) as target", ("reporting.recipe_versions",))
+            if reporting_cur.fetchone()["target"] is None:
+                print("skipped reporting.recipe_versions: not on target")
+                return None
+            with psycopg.connect(config.warehouse_db_url, row_factory=dict_row) as warehouse_conn:
+                with warehouse_conn.cursor() as warehouse_cur:
+                    warehouse_cur.execute(build_recipe_history_source_query(), (snapshot_as_of,))
+                    source_rows = warehouse_cur.fetchall()
+            reporting_cur.execute(build_org_scope_sql(), (config.org_id,))
+            reporting_cur.execute(
+                "select pg_advisory_xact_lock(hashtextextended('reporting.recipe_versions:' || %s, 0))",
+                (config.org_id,),
+            )
+            reporting_cur.execute("""
+                select distinct on (esb_code, menu_id)
+                       esb_code, menu_id, version, warehouse_version_hash, source_observed_at
+                from reporting.recipe_versions where org_id = %s
+                order by esb_code, menu_id, version desc
+            """, (config.org_id,))
+            versions = plan_recipe_versions(
+                source_rows, reporting_cur.fetchall(),
+                org_id=config.org_id, snapshot_as_of=snapshot_as_of,
+            )
+            reporting_cur.executemany("""
+                insert into reporting.recipe_versions (
+                    org_id, esb_code, menu_id, bom_id, version, warehouse_version_hash,
+                    recipe, first_seen, source_observed_at
+                ) values (
+                    %(org_id)s, %(esb_code)s, %(menu_id)s, %(bom_id)s, %(version)s,
+                    %(warehouse_version_hash)s, %(recipe)s::jsonb, %(first_seen)s,
+                    %(source_observed_at)s
+                )
+            """, versions)
+        reporting_conn.commit()
+    return len(versions)
+
+
 def run_all_snapshots(config: SnapshotConfig) -> dict[str, int | None]:
-    """Run the revenue, margin, usage (and pending bills when enabled) snapshots in one job run
-    sharing one snapshot_as_of.
+    """Run the reporting snapshots sharing one snapshot_as_of.
 
     Usage runs after revenue and margin: an unknown recipe unit fails the run loudly without holding
-    back the revenue and margin figures, which have already committed. Pending bills run last.
+    back the revenue and margin figures, which have already committed. Recipe history runs last.
     """
     snapshot_as_of = datetime.now(timezone.utc)
     revenue_count = run_snapshot(config, snapshot_as_of=snapshot_as_of)
@@ -824,6 +918,7 @@ def run_all_snapshots(config: SnapshotConfig) -> dict[str, int | None]:
         "usage": usage_count,
         "pending_bills": pending,
         "pending_bills_skipped": skipped,
+        "recipe_history": run_recipe_history_snapshot(config, snapshot_as_of),
     }
 
 
@@ -838,7 +933,7 @@ def main() -> int:
         f"revenue={counts['revenue']} margin={counts['margin']} usage={counts['usage']} "
         f"pending_bills={shown('pending_bills')} "
         f"pending_bills_skipped={shown('pending_bills_skipped')} "
-        f"window_days={config.window_days}"
+        f"recipe_history={shown('recipe_history')} window_days={config.window_days}"
     )
     return 0
 
