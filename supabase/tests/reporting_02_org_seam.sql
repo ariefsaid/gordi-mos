@@ -10,7 +10,7 @@
 -- everything, and it is asserted at the bottom rather than assumed.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(17);
 
 select shared._test_seed_directory();     -- org A ...0a1, org B ...0b1
 select shared._test_seed_access_roles();
@@ -29,6 +29,27 @@ insert into reporting.sales_margin_daily
   (org_id, margin_date, esb_code, branch_code, branch_name, branch_id, revenue, cogs_interim_sm, margin_interim, snapshot_as_of) values
   ('00000000-0000-0000-0000-0000000000a1','2026-07-01','GKI','RRS','Rumah Rames','00000000-0000-0000-0000-00000000ba01',1250000.00,750000.00,500000.00,'2026-07-01 04:00:00+07'),
   ('00000000-0000-0000-0000-0000000000b1','2026-07-01','GKI','RRS','B''s own RRS','00000000-0000-0000-0000-00000000bb01',9900000.00,5900000.00,4000000.00,'2026-07-01 04:00:00+07');
+
+-- Exercise the legacy-value threshold without weakening the live table constraint.
+create temp table t_coverage_legacy (kind text primary key, bom_coverage_pct numeric(8,4)) on commit drop;
+insert into t_coverage_legacy (kind, bom_coverage_pct) values
+  ('percentage', 72.0000), ('ratio', 0.7200), ('missing', null);
+update t_coverage_legacy
+   set bom_coverage_pct = bom_coverage_pct / 100
+ where bom_coverage_pct > 10;
+
+select is((select bom_coverage_pct from t_coverage_legacy where kind = 'percentage'), 0.7200::numeric,
+  'a legacy percentage value is converted to a ratio');
+select is((select bom_coverage_pct from t_coverage_legacy where kind = 'ratio'), 0.7200::numeric,
+  'an existing ratio value is unchanged');
+select is((select bom_coverage_pct from t_coverage_legacy where kind = 'missing'), null::numeric,
+  'a missing coverage value stays null');
+select throws_ok($$
+  insert into reporting.sales_margin_daily
+    (org_id, margin_date, esb_code, branch_code, bom_coverage_pct, snapshot_as_of)
+  values ('00000000-0000-0000-0000-0000000000a1','2026-07-03','GXX','RATIO-CHECK',11.0000,now())
+$$, '23514', null,
+  'coverage above the allowed range is refused');
 
 insert into reporting.ingredient_cost_lines (org_id, ingredient_esb_code, name, unit_cost, unit, as_of) values
   ('00000000-0000-0000-0000-0000000000a1','ING-MILK','Fresh Milk',18000.0000,'L',  now()),
