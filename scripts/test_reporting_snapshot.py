@@ -18,6 +18,7 @@ from reporting_snapshot import (
     run_pending_bill_snapshot,
     void_bill_keys,
     build_margin_source_query,
+    build_pending_bill_source_query,
     build_margin_upsert_sql,
     build_source_query,
     build_upsert_sql,
@@ -245,6 +246,27 @@ class MarginSnapshotTests(unittest.TestCase):
         self.assertIsNone(normalized["margin_interim_pct"])
         self.assertIsNone(normalized["bom_coverage_pct"])
 
+    def test_normalize_margin_row_nulls_unrepresentable_pct_without_dropping_margin(self):
+        row = {
+            "margin_date": "2026-07-01",
+            "esb_code": "GKI",
+            "branch_code": "BGR",
+            "revenue": "1",
+            "cogs_interim_sm": "10001",
+            "cogs_budget_bom": "9000",
+            "bom_coverage_pct": "0.95",
+        }
+
+        normalized = normalize_margin_row(
+            row,
+            snapshot_as_of="2026-07-01T04:00:00+07:00",
+            org_id="00000000-0000-0000-0000-0000000000a1",
+            source_contract_version=DEFAULT_MARGIN_SOURCE_CONTRACT_VERSION,
+        )
+
+        self.assertEqual(normalized["margin_interim"], -10000.0)
+        self.assertIsNone(normalized["margin_interim_pct"])
+
     def test_normalize_margin_row_margin_fields_none_when_cogs_missing(self):
         """AC-SN06: Given a day with revenue but NULL cogs_interim_sm, when normalize_margin_row
         runs, then margin_interim and margin_interim_pct are both None (no fake margin)."""
@@ -281,7 +303,7 @@ class MarginSnapshotTests(unittest.TestCase):
         self.assertIn("left join public.fact_daily_cogs_interim c", sql)
         self.assertIn("r.channel = 'POS'", sql)
         self.assertIn("c.sm_total", sql)
-        self.assertIn("c.bom_total", sql)
+        self.assertIn("max(c.cogs_total) as cogs_budget_bom", sql)
         self.assertIn("c.bom_coverage_pct", sql)
 
     def test_margin_source_query_derives_window_in_sql_like_revenue_sibling(self):
@@ -584,6 +606,17 @@ PENDING_SOURCE_ROWS = [
     _bill("B-004", status="Void"),
     _bill("B-005", tender="QRIS"),
 ]
+
+
+class PendingBillSourceQueryTests(unittest.TestCase):
+    def test_pending_bill_source_query_uses_the_live_sales_contract(self):
+        sql = " ".join(build_pending_bill_source_query().split())
+
+        self.assertIn("from public.oms_sales_clean s", sql)
+        self.assertIn("left join public.oms_sales o on o.sales_num = s.sales_num", sql)
+        self.assertIn("o.additional_info as counterparty_note", sql)
+        self.assertIn("s.payment_method_name", sql)
+        self.assertIn("s.status_name", sql)
 
 
 class PendingBillNormaliserTests(unittest.TestCase):

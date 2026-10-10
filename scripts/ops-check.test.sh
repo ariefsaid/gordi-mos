@@ -134,6 +134,9 @@ mkenv "$tmp/ops.env" OPS_ESB_HEARTBEAT_FILE; reset; run
 [ "$(nmsg)" = 1 ] && has_msg "not configured" && ok "unset heartbeat path alerts" || bad "unset heartbeat" "$(msgs)"
 mkenv "$tmp/ops.env"; fresh_heartbeat; run
 [ "$(nmsg)" = 1 ] && has_msg "recovered" && ok "configured heartbeat recovers" || bad "heartbeat recovery" "$(msgs)"
+EXTRA_ENV="OPS_ESB_HEARTBEAT_FILE=none" mkenv "$tmp/ops.env"; reset; rm -f "$tmp/heartbeat"; run
+[ "$(nmsg)" = 0 ] && ok "worker declared not deployed stays quiet" || bad "not-deployed heartbeat" "$(msgs)"
+mkenv "$tmp/ops.env"
 fresh_heartbeat
 
 echo "backup freshness"

@@ -112,6 +112,8 @@ fi
 # ---- ERP worker heartbeat is required: an unset path is itself a deployment alert ----
 if [ -z "${OPS_ESB_HEARTBEAT_FILE:-}" ]; then
   report worker_heartbeat fail "ERP worker heartbeat path is not configured"
+elif [ "$OPS_ESB_HEARTBEAT_FILE" = none ]; then
+  report worker_heartbeat ok "ERP worker not deployed on this host (OPS_ESB_HEARTBEAT_FILE=none)"
 else
   hb="$(mtime "$OPS_ESB_HEARTBEAT_FILE")"
   if [[ "$hb" =~ ^[0-9]+$ ]]; then
