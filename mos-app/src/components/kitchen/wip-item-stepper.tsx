@@ -285,6 +285,9 @@ export function WipItemStepper({
 
       {/* Transfer-availability cap cue (FR-023 / AC-022) */}
       {capError && <span role="alert" className="kls-cap">{capCueText}</span>}
+      {capError && transfer && line.stok > 0 && line.tersedia === 0 && (
+        <p className="kls-availability-note" role="status">{t('kitchen.transfer.availabilityCut')}</p>
+      )}
 
       {/* Variance-note gate (FR-022 / AC-020/021) — revealed inline when qty != target.
           B13: the field needs a visible label of its own — the red cue was the ONLY label
