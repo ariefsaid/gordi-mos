@@ -692,17 +692,17 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    // PLAN_CELLS has one Production cell: Ayam Bakar qty 12 → total 12, dishes 1
+    // PLAN_CELLS has one planned Production item.
     const band = screen.getByRole('group', { name: /planning summary/i })
     expect(document.querySelector('.msr')).not.toBeNull()
     // never the retired tile strip (KitchenKpiStrip stays for Stock, not here)
     expect(document.querySelector('.kks')).toBeNull()
-    const values = Array.from(band.querySelectorAll('.msr-value')).map(el => el.textContent)
-    expect(values).toEqual(['12', '1'])
-    expect(values.every(v => /^\d+$/.test(v ?? ''))).toBe(true)
+    expect(Array.from(band.querySelectorAll('.msr-value')).map(el => el.textContent)).toEqual(['1'])
+    expect(within(band).getByText('Items planned')).toBeInTheDocument()
+    expect(within(band).queryByText('Planned total')).toBeNull()
   })
 
-  it('renders the two plan metrics under their catalog labels — never the retired word-tiles', async () => {
+  it('renders the planned-item count without a unitless planned quantity total', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       configurable: true,
@@ -717,8 +717,8 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    expect(screen.getByText(/planned total/i)).toBeInTheDocument()
     expect(screen.getByText(/items planned/i)).toBeInTheDocument()
+    expect(screen.queryByText(/planned total/i)).toBeNull()
     expect(screen.queryByText(/active action/i)).toBeNull()
     expect(screen.queryByText(/plan status/i)).toBeNull()
     expect(screen.queryByText(/write surface/i)).toBeNull()
@@ -744,7 +744,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const band = screen.getByRole('group', { name: /planning summary/i })
-    expect(Array.from(band.querySelectorAll('.msr-value')).map(el => el.textContent)).toEqual(['0', '0'])
+    expect(Array.from(band.querySelectorAll('.msr-value')).map(el => el.textContent)).toEqual(['0'])
     expect(screen.queryByText(/no plan created yet/i)).toBeNull()
   })
 
@@ -1155,12 +1155,12 @@ describe('KitchenPlanPage — locale id (#401)', () => {
     mockPlans.mockResolvedValue(PLAN_CELLS)
   })
 
-  it('the summary band renders Indonesian (reused plannedTotal key + the new label)', async () => {
+  it('the summary band renders the planned-item count in Indonesian', async () => {
     render(<KitchenPlanPage />, { wrapper: idWrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByRole('group', { name: 'Ringkasan perencanaan' })).toBeInTheDocument()
-    expect(screen.getByText('Total rencana')).toBeInTheDocument()
     expect(screen.getByText('Item direncanakan')).toBeInTheDocument()
+    expect(screen.queryByText(/Total rencana/i)).toBeNull()
     expect(screen.queryByText(/planned total/i)).toBeNull()
   })
 

@@ -1243,7 +1243,6 @@ export const messages = {
     'kitchen.toolbar.active.ariaLabel': 'Active status',
     'kitchen.toolbar.needsUnit.ariaLabel': 'Unit setup',
     'kitchen.filter.noMatch': 'No items match your filter.',
-    'kitchen.kpi.plannedTotal': 'Planned total',
     'kitchen.log.caption': 'Café production log — enter the quantity made today for each item',
     'kitchen.transfer.caption': 'Café transfer log — enter the quantity sent to ${branch} today for each item',
     'kitchen.transfer.receivingCaption': 'Café log — receiving-only read view',
@@ -1495,6 +1494,7 @@ export const messages = {
     'kitchen.stock.caption': 'Stock — ${stream} — system quantity, ESB inventory and available per item for ${date}',
     'kitchen.stock.col.erp': 'System stock',
     'kitchen.stock.erpPending': 'ESB inventory not connected yet — comparison column pending',
+    'kitchen.stock.systemUnavailable': 'Unavailable',
     'kitchen.stock.searchPlaceholder': 'Find an item',
     'kitchen.stock.signInMsg': 'You need to sign in to view stock.',
     'kitchen.stock.toolbarAria': 'Stock filters',
@@ -2424,9 +2424,9 @@ export const messages = {
     // components/kitchen/kitchen-kpi-strip.tsx) is retired; only the labels the summary
     // line itself still reads survive here.
     'kitchen.stock.kpi.ariaLabel': 'Stock summary',
-    'kitchen.stock.kpi.onHand': 'Total on-hand',
+    'kitchen.stock.kpi.items': 'Items',
     'kitchen.stock.kpi.negative': 'Negative balances',
-    'kitchen.stock.kpi.available': 'Available total',
+    'kitchen.stock.unitNotSet': 'Unit not set',
     // Café · Review — the per-row approve/reject decision flow, its outcome banners and its
     // action errors. The confirm buttons NAME THE OBJECT (v4 clarify) — a destructive
     // confirm never says only "Confirm reject". It keeps the word "Confirm" all the same
@@ -3826,7 +3826,6 @@ export const messages = {
     'kitchen.toolbar.active.ariaLabel': 'Status aktif',
     'kitchen.toolbar.needsUnit.ariaLabel': 'Pengaturan satuan',
     'kitchen.filter.noMatch': 'Tidak ada item yang cocok dengan filter Anda.',
-    'kitchen.kpi.plannedTotal': 'Total rencana',
     'kitchen.log.caption': 'Log produksi Kafe — isi jumlah yang dibuat hari ini untuk tiap item',
     'kitchen.transfer.caption': 'Log transfer Kafe — isi jumlah yang dikirim ke ${branch} hari ini untuk tiap item',
     'kitchen.transfer.receivingCaption': 'Log Kafe — tampilan baca untuk stream penerima',
@@ -4053,6 +4052,7 @@ export const messages = {
     'kitchen.stock.caption': 'Stok — ${stream} — jumlah sistem, inventori ESB dan tersedia per item untuk ${date}',
     'kitchen.stock.col.erp': 'Stok sistem',
     'kitchen.stock.erpPending': 'Inventori ESB belum terhubung — kolom perbandingan menyusul',
+    'kitchen.stock.systemUnavailable': 'Tidak tersedia',
     'kitchen.stock.searchPlaceholder': 'Cari item',
     'kitchen.stock.signInMsg': 'Anda perlu masuk untuk melihat stok.',
     'kitchen.stock.toolbarAria': 'Filter stok',
@@ -4956,9 +4956,9 @@ export const messages = {
     // ── i18n port sweep (#400, first slice of #290) — verbatim dari katalog v4 ───────────
     // Café · Stock — satu baris ringkasan (#788; pita KPI 4-ubin lama sudah dipensiunkan).
     'kitchen.stock.kpi.ariaLabel': 'Ringkasan stok',
-    'kitchen.stock.kpi.onHand': 'Total stok fisik',
+    'kitchen.stock.kpi.items': 'Item',
     'kitchen.stock.kpi.negative': 'Saldo minus',
-    'kitchen.stock.kpi.available': 'Total tersedia',
+    'kitchen.stock.unitNotSet': 'Satuan belum diatur',
     // Café · Review — alur keputusan setujui/tolak per baris + banner hasilnya.
     'kitchen.review.approve': 'Setujui',
     'kitchen.review.reject': 'Tolak',
