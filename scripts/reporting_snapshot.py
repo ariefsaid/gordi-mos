@@ -196,15 +196,26 @@ def build_upsert_sql() -> str:
     """
 
 
+def _missing_target_table(exc: Exception, target_tables: tuple[str, ...]) -> str | None:
+    if getattr(exc, "sqlstate", None) != "42P01":
+        return None
+    table_name = getattr(getattr(exc, "diag", None), "table_name", None)
+    return next(
+        (table for table in target_tables if table.rsplit(".", 1)[-1] == table_name),
+        None,
+    )
+
+
 def _copy_window(
     config: SnapshotConfig,
     *,
     source_query: str,
     normalize: Any,
     upsert_sql: str,
+    target_table: str,
     snapshot_as_of: Any,
     source_contract_version: str,
-) -> int:
+) -> int | None:
     """Read one trailing-window dataset from the warehouse and upsert it into reporting.
 
     Every row is normalised before the reporting connection opens, so a row the normaliser
@@ -233,25 +244,38 @@ def _copy_window(
         for row in source_rows
     ]
 
-    with psycopg.connect(config.supabase_reporting_db_url) as reporting_conn:
-        with reporting_conn.cursor() as reporting_cur:
-            # Declare the run's org BEFORE any write, and in the SAME transaction as the write:
-            # the reporting.* write policies admit only rows in the declared org, and the
-            # declaration is transaction-scoped. No commit may separate these two statements.
-            # Each snapshot opens its own connection, so each carries its own declaration.
-            reporting_cur.execute(build_org_scope_sql(), (config.org_id,))
-            reporting_cur.executemany(upsert_sql, normalized_rows)
-        reporting_conn.commit()
+    try:
+        with psycopg.connect(config.supabase_reporting_db_url) as reporting_conn:
+            with reporting_conn.cursor() as reporting_cur:
+                if not normalized_rows:
+                    reporting_cur.execute("select to_regclass(%s)", (target_table,))
+                    if reporting_cur.fetchone()[0] is None:
+                        print(f"skipped {target_table}: not on target")
+                        return None
+                # Declare the run's org BEFORE any write, and in the SAME transaction as the write:
+                # the reporting.* write policies admit only rows in the declared org, and the
+                # declaration is transaction-scoped. No commit may separate these two statements.
+                # Each snapshot opens its own connection, so each carries its own declaration.
+                reporting_cur.execute(build_org_scope_sql(), (config.org_id,))
+                reporting_cur.executemany(upsert_sql, normalized_rows)
+            reporting_conn.commit()
+    except Exception as exc:
+        missing = _missing_target_table(exc, (target_table,))
+        if missing is None:
+            raise
+        print(f"skipped {missing}: not on target")
+        return None
 
     return len(normalized_rows)
 
 
-def run_snapshot(config: SnapshotConfig, *, snapshot_as_of: datetime | None = None) -> int:
+def run_snapshot(config: SnapshotConfig, *, snapshot_as_of: datetime | None = None) -> int | None:
     return _copy_window(
         config,
         source_query=build_source_query(),
         normalize=normalize_row,
         upsert_sql=build_upsert_sql(),
+        target_table="reporting.sales_daily_revenue",
         snapshot_as_of=snapshot_as_of or datetime.now(timezone.utc),
         source_contract_version=config.source_contract_version,
     )
@@ -361,12 +385,13 @@ def build_margin_upsert_sql() -> str:
     """
 
 
-def run_margin_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int:
+def run_margin_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int | None:
     return _copy_window(
         config,
         source_query=build_margin_source_query(),
         normalize=normalize_margin_row,
         upsert_sql=build_margin_upsert_sql(),
+        target_table="reporting.sales_margin_daily",
         snapshot_as_of=snapshot_as_of,
         source_contract_version=config.margin_source_contract_version,
     )
@@ -545,12 +570,13 @@ def build_usage_upsert_sql() -> str:
     """
 
 
-def run_usage_snapshot(config: SnapshotConfig, snapshot_as_of: Any) -> int:
+def run_usage_snapshot(config: SnapshotConfig, snapshot_as_of: Any) -> int | None:
     return _copy_window(
         config,
         source_query=build_usage_source_query(),
         normalize=normalize_usage_row,
         upsert_sql=build_usage_upsert_sql(),
+        target_table="reporting.ingredient_usage_daily",
         snapshot_as_of=snapshot_as_of,
         source_contract_version=DEFAULT_USAGE_SOURCE_CONTRACT_VERSION,
     )
@@ -712,7 +738,9 @@ def build_bill_snapshot_insert_sql() -> str:
     """
 
 
-def run_pending_bill_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> tuple[int, int]:
+def run_pending_bill_snapshot(
+    config: SnapshotConfig, snapshot_as_of: datetime
+) -> tuple[int | None, int | None]:
     """Returns (bills written, non-positive bills skipped)."""
     try:
         import psycopg
@@ -745,44 +773,54 @@ def run_pending_bill_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) 
     run_keys = {(b["esb_code"], b["branch_code"], b["bill_no"]) for b in bills}
     void_keys = void_bill_keys(source_rows)
 
-    with psycopg.connect(config.supabase_reporting_db_url) as reporting_conn:
-        with reporting_conn.cursor() as reporting_cur:
-            # Same rule as the revenue path: declare first, in the transaction that writes.
-            reporting_cur.execute(build_org_scope_sql(), (config.org_id,))
-            reporting_cur.executemany(build_pending_bill_upsert_sql(), bills)
-            reporting_cur.execute(build_flaggable_bill_keys_sql(), (config.org_id, window_start))
-            existing = [tuple(row) for row in reporting_cur.fetchall()]
-            plan = plan_bill_flags(
-                {row[:3] for row in existing if row[3] == "present"},
-                run_keys,
-                void_keys,
-                {row[:3] for row in existing if row[3] == "missing"},
-            )
-            reporting_cur.executemany(
-                build_bill_flag_sql(),
-                [
+    try:
+        with psycopg.connect(config.supabase_reporting_db_url) as reporting_conn:
+            with reporting_conn.cursor() as reporting_cur:
+                # Same rule as the revenue path: declare first, in the transaction that writes.
+                reporting_cur.execute(build_org_scope_sql(), (config.org_id,))
+                reporting_cur.executemany(build_pending_bill_upsert_sql(), bills)
+                reporting_cur.execute(build_flaggable_bill_keys_sql(), (config.org_id, window_start))
+                existing = [tuple(row) for row in reporting_cur.fetchall()]
+                plan = plan_bill_flags(
+                    {row[:3] for row in existing if row[3] == "present"},
+                    run_keys,
+                    void_keys,
+                    {row[:3] for row in existing if row[3] == "missing"},
+                )
+                reporting_cur.executemany(
+                    build_bill_flag_sql(),
+                    [
+                        {
+                            "state": state,
+                            "org_id": config.org_id,
+                            "esb_code": key[0],
+                            "branch_code": key[1],
+                            "bill_no": key[2],
+                        }
+                        for state in ("void", "missing")
+                        for key in plan[state]
+                    ],
+                )
+                reporting_cur.execute(
+                    build_bill_snapshot_insert_sql(),
                     {
-                        "state": state,
                         "org_id": config.org_id,
-                        "esb_code": key[0],
-                        "branch_code": key[1],
-                        "bill_no": key[2],
-                    }
-                    for state in ("void", "missing")
-                    for key in plan[state]
-                ],
-            )
-            reporting_cur.execute(
-                build_bill_snapshot_insert_sql(),
-                {
-                    "org_id": config.org_id,
-                    "snapshot_as_of": snapshot_as_of,
-                    "bill_count": len(bills),
-                    "window_start": window_start,
-                    "source_contract_version": config.pending_bills_source_contract_version,
-                },
-            )
-        reporting_conn.commit()
+                        "snapshot_as_of": snapshot_as_of,
+                        "bill_count": len(bills),
+                        "window_start": window_start,
+                        "source_contract_version": config.pending_bills_source_contract_version,
+                    },
+                )
+            reporting_conn.commit()
+    except Exception as exc:
+        missing = _missing_target_table(
+            exc,
+            ("reporting.pending_bills", "reporting.pending_bill_snapshots"),
+        )
+        if missing is None:
+            raise
+        print(f"skipped {missing}: not on target")
+        return None, None
 
     return len(bills), skipped
 
