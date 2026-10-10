@@ -29,14 +29,14 @@
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 8px 12px;
+  gap: 8px 4px;
   max-width: 100%;
   padding-top: 8px;
   border-top: 1px solid var(--border);
 }
 
 .money-period__range .mk-date {
-  width: min(160px, 100%);
+  width: min(176px, 100%);
 }
 
 .money-period__error {
