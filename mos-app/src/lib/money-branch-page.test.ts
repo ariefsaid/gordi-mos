@@ -31,8 +31,8 @@ const MARGIN: SalesMarginDailyRow[] = Array.from({ length: 7 }, (_, i) => ({
 
 describe('readBranchView', () => {
   it('reads the period and a well-formed day, else the defaults', () => {
-    expect(readBranchView(new URLSearchParams('period=7&d=2026-10-03'))).toEqual({ period: 7, day: '2026-10-03' })
-    expect(readBranchView(new URLSearchParams('period=14&d=yesterday'))).toEqual({ period: 30, day: null })
+    expect(readBranchView(new URLSearchParams('period=7&d=2026-10-03'))).toMatchObject({ period: 7, day: '2026-10-03' })
+    expect(readBranchView(new URLSearchParams('period=14&d=yesterday'))).toMatchObject({ period: 30, range: null, day: null })
   })
 })
 
@@ -60,6 +60,28 @@ describe('buildBranchPage', () => {
     expect(page.isB2B).toBe(true)
     expect(page.days[5].value).toBe(0)
     expect(page.margin).toBeNull()
+  })
+
+  it('a custom range bounds the branch chart, comparison and channel data', () => {
+    const page = buildBranchPage(ROWS, null, 'ghq', 30, undefined, {
+      latestDate: LATEST, range: { from: day(2), to: day(0) }, channel: 'POS',
+    })!
+    expect(page.days.map((d) => d.date)).toEqual([day(2), day(1), day(0)])
+    expect(page.total).toBe(3_030_000)
+    expect(page.days[2].compare).toBe(1_070_000)
+    expect(page.daysCount).toBe(3)
+  })
+
+  it('a branch with no current rows in a custom range is empty, not zero revenue', () => {
+    expect(buildBranchPage(ROWS, null, 'ckl', 30, undefined, {
+      latestDate: LATEST, range: { from: day(0), to: day(0) }, channel: 'POS',
+    })).toBeNull()
+  })
+
+  it('a B2B channel filter does not show POS branch data', () => {
+    expect(buildBranchPage(ROWS, null, 'ghq', 7, undefined, {
+      latestDate: LATEST, channel: 'B2B',
+    })).toBeNull()
   })
 
   it('a margin viewer gets the branch margin for the period', () => {

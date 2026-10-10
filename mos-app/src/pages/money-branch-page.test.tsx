@@ -9,7 +9,7 @@ import type { AuthState } from '@/auth/context'
 
 vi.mock('@/lib/db/reporting', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/reporting')>('@/lib/db/reporting')
-  return { ...actual, listSalesDailyRevenue: vi.fn() }
+  return { ...actual, listSalesDailyRevenue: vi.fn(), latestSalesReportingDate: vi.fn() }
 })
 vi.mock('@/lib/db/reporting-margin', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/reporting-margin')>('@/lib/db/reporting-margin')
@@ -18,7 +18,7 @@ vi.mock('@/lib/db/reporting-margin', async () => {
 vi.mock('@/lib/db/money-branch', () => ({ listUncoveredCafeItems: vi.fn(), askBranchLead: vi.fn() }))
 vi.mock('@/lib/db/recipe-findings', () => ({ listRecipeFindings: vi.fn() }))
 vi.mock('@/auth/use-auth')
-import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
+import { latestSalesReportingDate, listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { askBranchLead, listUncoveredCafeItems } from '@/lib/db/money-branch'
 import { useAuth } from '@/auth/use-auth'
@@ -28,6 +28,7 @@ import { ReportingRowCapError } from '@/lib/db/reporting-shared'
 import { MoneyBranchPage } from './money-branch-page'
 
 const mockRev = vi.mocked(listSalesDailyRevenue)
+const mockLatest = vi.mocked(latestSalesReportingDate)
 const mockMarg = vi.mocked(listSalesMarginDaily)
 const mockUncovered = vi.mocked(listUncoveredCafeItems)
 const mockAsk = vi.mocked(askBranchLead)
@@ -94,6 +95,7 @@ const readout = () => screen.getByText(/· Rp|· not received/, { selector: '.mo
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockLatest.mockResolvedValue(LATEST)
   mockRev.mockResolvedValue(REVENUE)
   mockMarg.mockResolvedValue(MARGIN)
   mockUncovered.mockResolvedValue([{ id: 'i-1', name: 'Cold brew base', activities: ['bar'] }])
@@ -281,6 +283,14 @@ describe('MoneyBranchPage — Ask branch lead', () => {
     await screen.findByRole('heading', { level: 1, name: 'Cikal' })
     expect(screen.queryByRole('button', { name: /^Ask/ })).toBeNull()
   })
+
+  it('the 90-day preset explains why Ask is unavailable', async () => {
+    renderBranch(['finance'], '/money/branch/GHQ?period=90')
+    await screen.findByRole('heading', { level: 1, name: 'Gordi HQ' })
+    expect(screen.queryByRole('button', { name: /^Ask/ })).toBeNull()
+    expect(screen.getByText('Ask the branch lead is available on 7-, 30-, or 60-day presets only.')).toBeInTheDocument()
+    expect(mockAsk).not.toHaveBeenCalled()
+  })
 })
 
 describe('MoneyBranchPage — states', () => {
@@ -307,7 +317,7 @@ describe('MoneyBranchPage — states', () => {
   it('an unknown branch says nothing has been received for it, with a way back to Money', async () => {
     renderBranch(['finance'], '/money/branch/NOPE?period=30')
     expect(await screen.findByText('No sales for this branch')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Money/ })).toHaveAttribute('href', '/money?period=30')
+    expect(screen.getByRole('link', { name: /Money/ })).toHaveAttribute('href', '/money?period=30&sort=revenue.desc')
   })
 
   it('a supervisor who sees one branch has no link back to a table that would send them here again', async () => {
@@ -317,13 +327,21 @@ describe('MoneyBranchPage — states', () => {
     expect(screen.queryByRole('link', { name: /Money/ })).toBeNull()
   })
 
+  it('the back link restores the custom range, branch, channel and sort from a shared URL', async () => {
+    renderBranch(['finance'], '/money/branch/GHQ?period=custom&from=2026-09-01&to=2026-09-30&branch=GHQ&channel=POS&sort=branch.asc')
+    await screen.findByRole('heading', { level: 1, name: 'Gordi HQ' })
+    expect(screen.getByRole('link', { name: /Money/ })).toHaveAttribute('href', '/money?period=custom&from=2026-09-01&to=2026-09-30&branch=GHQ&channel=POS&sort=branch.asc')
+    expect(screen.queryByRole('button', { name: /Ask Gordi HQ lead/ })).toBeNull()
+    expect(screen.getByText('Ask the branch lead is available on 7-, 30-, or 60-day presets only.')).toBeInTheDocument()
+  })
+
   it('the period control changes the period in the URL and keeps the chosen day', async () => {
     const user = userEvent.setup()
     renderBranch(['finance'], `/money/branch/GHQ?period=7&d=${day(1)}`)
     const thirtyDays = await screen.findByRole('button', { name: '30 days' })
     await waitFor(() => expect(thirtyDays).toBeEnabled())
     await user.click(thirtyDays)
-    await waitFor(() => expect(where()).toBe(`/money/branch/GHQ?period=30&d=${day(1)}`))
+    await waitFor(() => expect(where()).toBe(`/money/branch/GHQ?period=30&d=${day(1)}&sort=revenue.desc`))
   })
 
   it('Indonesian', async () => {

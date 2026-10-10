@@ -4,31 +4,30 @@
 import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
 import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { latestReportingDate } from '@/lib/db/reporting'
-import { resolveWindow } from '@/lib/dashboard'
 import { isoDaysBefore } from '@/lib/trailing-window'
 import { isCikalHoliday } from '@/lib/recipe-findings'
 import {
   B2B_CHANNEL,
-  DEFAULT_MONEY_VIEW,
-  MONEY_PERIODS,
   displayBranchName,
   marginFigures,
+  readMoneyView,
+  resolveMoneyWindow,
   type MarginFigures,
-  type MoneyPeriod,
+  type MoneyDataScope,
+  type MoneyView,
 } from '@/lib/money-branch-table'
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
 
-export interface BranchView {
-  period: MoneyPeriod
+export interface BranchView extends MoneyView {
   /** The chosen chart day (?d=YYYY-MM-DD); null = the latest day. */
   day: string | null
 }
 
-export function readBranchView(params: URLSearchParams): BranchView {
-  const period = MONEY_PERIODS.find((p) => String(p) === params.get('period')) ?? DEFAULT_MONEY_VIEW.period
+export function readBranchView(params: URLSearchParams, options: { canSeeMargin: boolean; latestDate?: string } = { canSeeMargin: true }): BranchView {
+  const view = readMoneyView(params, options)
   const d = params.get('d')
-  return { period, day: d && ISO_DAY.test(d) ? d : null }
+  return { ...view, day: d && ISO_DAY.test(d) ? d : null }
 }
 
 export interface BranchDay {
@@ -48,7 +47,8 @@ export interface BranchPage {
   branchId: string | null
   isB2B: boolean
   latestDate: string
-  /** The period's days, oldest first. */
+  daysCount: number
+  /** The selected range's days, oldest first. */
   days: BranchDay[]
   total: number
   vsPrevious: number | null
@@ -56,34 +56,34 @@ export interface BranchPage {
   margin?: MarginFigures | null
 }
 
-/** The page for `code` over `period` days, or null when no sales have been received or the code
- *  has none in the rows read. */
 export function buildBranchPage(
-  revenue: SalesDailyRevenueRow[],
-  margin: SalesMarginDailyRow[] | null,
-  code: string,
-  period: MoneyPeriod,
-  branchNames?: ReadonlyMap<string, string>,
+  revenue: SalesDailyRevenueRow[], margin: SalesMarginDailyRow[] | null, code: string, period: MoneyView['period'],
+  branchNames?: ReadonlyMap<string, string>, scope: MoneyDataScope = {},
 ): BranchPage | null {
-  const latestDate = latestReportingDate(revenue)
-  const own = revenue.filter((r) => r.branch_code === code)
-  if (!latestDate || own.length === 0) return null
-  const isB2B = own.some((r) => r.channel === B2B_CHANNEL)
+  const syncedDate = scope.latestDate ?? latestReportingDate(revenue)
+  if (!syncedDate) return null
+  const window = resolveMoneyWindow({ period, range: scope.range ?? null }, syncedDate)
+  const own = revenue.filter((r) => r.branch_code === code
+    && (!scope.channel || scope.channel === 'all' || r.channel === scope.channel))
+  if (!own.some((r) => r.revenue_date >= window.from && r.revenue_date <= window.to)) return null
+  const isB2B = own.every((r) => r.channel === B2B_CHANNEL)
   const byDate = new Map<string, number>()
   for (const r of own) byDate.set(r.revenue_date, (byDate.get(r.revenue_date) ?? 0) + r.clean_revenue)
-  // An invoice-less day is a zero, not a gap: B2B counts every day the snapshot covers.
   if (isB2B) for (const r of revenue) if (!byDate.has(r.revenue_date)) byDate.set(r.revenue_date, 0)
 
-  const { start, end } = resolveWindow({ kind: 'preset', days: period }, latestDate)
-  const days: BranchDay[] = Array.from({ length: period }, (_, i) => {
-    const date = isoDaysBefore(end, period - 1 - i)
-    return { date, value: byDate.get(date) ?? null, compare: byDate.get(isoDaysBefore(date, 7)) ?? null,
-      ...(!byDate.has(date) && isCikalHoliday(code, date, date) ? { closed: true } : {}) }
+  const days: BranchDay[] = Array.from({ length: window.days }, (_, i) => {
+    const date = isoDaysBefore(window.to, window.days - i - 1)
+    return {
+      date,
+      value: byDate.get(date) ?? null,
+      compare: byDate.get(isoDaysBefore(date, 7)) ?? null,
+      ...(!byDate.has(date) && isCikalHoliday(code, date, date) ? { closed: true } : {}),
+    }
   })
   let currentPair = 0
   let previousPair = 0
   for (const d of days) {
-    const earlier = byDate.get(isoDaysBefore(d.date, period))
+    const earlier = byDate.get(isoDaysBefore(d.date, window.days))
     if (d.value !== null && earlier !== undefined) { currentPair += d.value; previousPair += earlier }
   }
   if (margin && !isB2B) {
@@ -95,15 +95,11 @@ export function buildBranchPage(
   const latest = own.reduce((a, b) => (b.revenue_date > a.revenue_date ? b : a))
   const branchId = own.find((r) => r.branch_id)?.branch_id ?? null
   const page: BranchPage = {
-    code,
-    name: displayBranchName(latest.branch_name ?? code, branchId ? branchNames?.get(branchId) : null),
-    branchId,
-    isB2B,
-    latestDate,
-    days,
+    code, name: displayBranchName(latest.branch_name ?? code, branchId ? branchNames?.get(branchId) : null),
+    branchId, isB2B, latestDate: window.to, daysCount: window.days, days,
     total: days.reduce((s, d) => s + (d.value ?? 0), 0),
     vsPrevious: previousPair > 0 ? currentPair / previousPair - 1 : null,
   }
-  if (margin) page.margin = isB2B ? null : marginFigures(margin.filter((m) => m.branch_code === code), start, end)
+  if (margin) page.margin = isB2B ? null : marginFigures(margin.filter((m) => m.branch_code === code), window.from, window.to)
   return page
 }

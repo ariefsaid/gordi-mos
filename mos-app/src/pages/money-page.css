@@ -17,3 +17,42 @@
 .money-body > .money-period {
   align-self: flex-start;
 }
+
+.money-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
+
+.money-filter-select {
+  display: flex;
+  flex: 1 1 150px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 128px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 500;
+}
+
+.money-filter-select .mk-select {
+  min-width: 0;
+}
+
+.money-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+  transition: opacity var(--dur-fast) ease;
+}
+
+.money-results[aria-busy='true'] {
+  opacity: 0.62;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .money-results { transition: none; }
+}

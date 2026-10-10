@@ -4,45 +4,78 @@
 import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
 import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { latestReportingDate } from '@/lib/db/reporting'
-import { bomCoveragePct, resolveWindow } from '@/lib/dashboard'
+import { bomCoveragePct } from '@/lib/dashboard'
 import { isoDaysBefore } from '@/lib/trailing-window'
 import { formatIDRCompact, signedChange } from '@/lib/sales-dashboard'
 import type { Translate } from '@/i18n/use-t'
+import { isRealDate } from '@/lib/format/date-entry'
+import { formatDayMonthYear } from '@/lib/format/date'
 
-// ── View state (?period=7|30|60&sort=<column>.<asc|desc>) ────────────────────────────────────
-export const MONEY_PERIODS = [7, 30, 60] as const
+// ── View state (?period=7|30|60|90|custom&from=…&to=…&sort=…) ────────────────────────────────
+export const MONEY_PERIODS = [7, 30, 60, 90] as const
 export type MoneyPeriod = (typeof MONEY_PERIODS)[number]
-
-/** Days of rows the page reads: the longest period plus the equal-length period before it. */
-export const MONEY_FETCH_DAYS = 2 * MONEY_PERIODS[MONEY_PERIODS.length - 1]
+export type MoneyChannel = 'all' | 'POS' | 'B2B'
+export interface MoneyRange { from: string; to: string }
+export interface MoneySelection { period: MoneyPeriod; range: MoneyRange | null; branchCode: string | null; channel: MoneyChannel }
 
 export const REVENUE_COLUMNS = ['branch', 'revenue', 'vs-previous', 'latest-day', 'vs-weekday'] as const
 export const MARGIN_COLUMNS = ['margin', 'cogs-vs-budget', 'coverage'] as const
 export type MoneyColumn = (typeof REVENUE_COLUMNS)[number] | (typeof MARGIN_COLUMNS)[number]
 
 export interface MoneySort { column: MoneyColumn; desc: boolean }
-export interface MoneyView { period: MoneyPeriod; sort: MoneySort }
+export interface MoneyView extends MoneySelection { sort: MoneySort }
+export interface MoneyDateWindow { from: string; to: string; days: number }
 
-export const DEFAULT_MONEY_VIEW: MoneyView = { period: 30, sort: { column: 'revenue', desc: true } }
+export const DEFAULT_MONEY_VIEW: MoneyView = {
+  period: 30, range: null, branchCode: null, channel: 'all', sort: { column: 'revenue', desc: true },
+}
 
-/** The view a URL asks for. Anything unknown, or a margin column for a viewer without margin
- *  access, falls back to the default rather than drawing an empty or unsorted table. */
-export function readMoneyView(params: URLSearchParams, { canSeeMargin }: { canSeeMargin: boolean }): MoneyView {
+/** ISO calendar dates only; a custom end cannot outrun the newest synced revenue day. */
+export function isValidMoneyRange(from: string | null, to: string | null, latestDate?: string): boolean {
+  const real = (value: string | null): value is string => value !== null && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    && isRealDate(Number(value.slice(0, 4)), Number(value.slice(5, 7)), Number(value.slice(8, 10)))
+  return real(from) && real(to) && from <= to && (!latestDate || to <= latestDate)
+}
+
+export function resolveMoneyWindow(selection: Pick<MoneySelection, 'period' | 'range'>, latestDate: string): MoneyDateWindow {
+  const from = selection.range?.from ?? isoDaysBefore(latestDate, selection.period - 1)
+  const to = selection.range?.to ?? latestDate
+  const days = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1
+  return { from, to, days }
+}
+
+export function readMoneyView(params: URLSearchParams, { canSeeMargin, latestDate }: { canSeeMargin: boolean; latestDate?: string }): MoneyView {
   const period = MONEY_PERIODS.find((p) => String(p) === params.get('period')) ?? DEFAULT_MONEY_VIEW.period
+  const from = params.get('from')
+  const to = params.get('to')
+  const range = params.get('period') === 'custom' && isValidMoneyRange(from, to, latestDate) && from && to
+    ? { from, to } : null
+  const rawBranch = params.get('branch')?.trim() ?? ''
+  const branchCode = rawBranch && rawBranch.length <= 100 ? rawBranch : null
+  const channel = params.get('channel')
   const [column, dir] = (params.get('sort') ?? '').split('.')
   const columns: readonly string[] = canSeeMargin ? [...REVENUE_COLUMNS, ...MARGIN_COLUMNS] : REVENUE_COLUMNS
   const sort = columns.includes(column) && (dir === 'asc' || dir === 'desc')
     ? { column: column as MoneyColumn, desc: dir === 'desc' }
     : DEFAULT_MONEY_VIEW.sort
-  return { period, sort }
+  return { period, range, branchCode, channel: channel === 'POS' || channel === 'B2B' ? channel : 'all', sort }
 }
 
-/** `params` with the view written into it; other params are kept. */
+/** `params` with the view written into it; unrelated state, including a chosen chart day, survives. */
 export function withMoneyView(params: URLSearchParams, view: MoneyView): URLSearchParams {
   const next = new URLSearchParams(params)
-  next.set('period', String(view.period))
+  next.set('period', view.range ? 'custom' : String(view.period))
+  if (view.range) { next.set('from', view.range.from); next.set('to', view.range.to) }
+  else { next.delete('from'); next.delete('to') }
+  if (view.branchCode) next.set('branch', view.branchCode); else next.delete('branch')
+  if (view.channel === 'all') next.delete('channel'); else next.set('channel', view.channel)
   next.set('sort', `${view.sort.column}.${view.sort.desc ? 'desc' : 'asc'}`)
   return next
+}
+
+export function moneyBranchHref(code: string, view: MoneyView): string {
+  const query = withMoneyView(new URLSearchParams(), view)
+  return `/money/branch/${encodeURIComponent(code)}?${query.toString()}`
 }
 
 // ── Rows ──────────────────────────────────────────────────────────────────────────────────────
@@ -81,6 +114,7 @@ export interface CompanyRow extends Omit<BranchRow, 'code' | 'name'> {
 
 export interface BranchTable {
   latestDate: string
+  daysCount: number
   company: CompanyRow
   branches: BranchRow[]
   /** B2B invoices, one row per ERP code — never a branch. */
@@ -89,6 +123,13 @@ export interface BranchTable {
 }
 
 export const B2B_CHANNEL = 'B2B'
+
+export interface MoneyDataScope {
+  latestDate?: string
+  range?: MoneyRange | null
+  branchCode?: string | null
+  channel?: MoneyChannel
+}
 
 /** The reporting name is an ERP value; display a linked MOS name first, otherwise title-case it. */
 export function displayBranchName(erpName: string, mosName?: string | null): string {
@@ -116,14 +157,17 @@ export function sparklinePoints(values: readonly (number | null)[], width = 64, 
   return { points: points.map(({ x, y }) => `${x},${y}`).join(' '), end: points.at(-1)! }
 }
 
-export function moneyHeadline(table: BranchTable, period: MoneyPeriod, t: Translate) {
+export function moneyHeadline(table: BranchTable, period: number, t: Translate, range?: MoneyRange | null, locale?: 'en' | 'id') {
   const mover = table.branches.filter((row) => row.vsPrevious !== null)
     .sort((a, b) => Math.abs(b.vsPrevious!) - Math.abs(a.vsPrevious!))[0] ?? null
+  const values = {
+    days: period, revenue: formatIDRCompact(table.company.revenue),
+    change: table.company.vsPrevious === null ? t('money.delta.noComparison') : signedChange(table.company.vsPrevious).text,
+  }
   return {
-    sentence: t('money.overview.headline', {
-      days: period, revenue: formatIDRCompact(table.company.revenue),
-      change: table.company.vsPrevious === null ? t('money.delta.noComparison') : signedChange(table.company.vsPrevious).text,
-    }),
+    sentence: range
+      ? t('money.overview.headline.custom', { ...values, from: formatDayMonthYear(range.from, locale), to: formatDayMonthYear(range.to, locale) })
+      : t('money.overview.headline', values),
     mover,
     missing: table.branches.filter((row) => row.latestDay === null),
   }
@@ -192,63 +236,62 @@ export function marginFigures(rows: SalesMarginDailyRow[], start: string, end: s
   }
 }
 
-/**
- * The branch table for `period` days ending on the latest reporting day. `margin` is null for a
- * viewer without margin access; their rows then carry no margin field at all. Returns null when no
- * sales have been received.
- */
+/** Returns null when the selected channel/branch has no rows in the requested window. */
 export function buildBranchTable(
   revenue: SalesDailyRevenueRow[],
   margin: SalesMarginDailyRow[] | null,
   period: MoneyPeriod,
   branchNames?: ReadonlyMap<string, string>,
+  scope: MoneyDataScope = {},
 ): BranchTable | null {
-  const latestDate = latestReportingDate(revenue)
-  if (!latestDate) return null
-  const { start, end } = resolveWindow({ kind: 'preset', days: period }, latestDate)
-  const dates = Array.from({ length: period }, (_, i) => isoDaysBefore(end, i))
-  // An invoice-less day is a zero, not a gap: B2B counts every day the snapshot covers.
-  const receivedDates = new Set(revenue.map((r) => r.revenue_date))
+  const syncedDate = scope.latestDate ?? latestReportingDate(revenue)
+  if (!syncedDate) return null
+  const window = resolveMoneyWindow({ period, range: scope.range ?? null }, syncedDate)
+  const dates = Array.from({ length: window.days }, (_, i) => isoDaysBefore(window.to, window.days - i - 1))
+  const selected = revenue.filter((row) => (!scope.branchCode || row.branch_code === scope.branchCode)
+    && (!scope.channel || scope.channel === 'all' || row.channel === scope.channel))
+  const current = selected.filter((row) => row.revenue_date >= window.from && row.revenue_date <= window.to)
+  if (current.length === 0) return null
+  const currentCodes = new Set(current.map((row) => row.branch_code))
+  const visible = selected.filter((row) => currentCodes.has(row.branch_code))
+  const latestDate = window.to
+  const previousStart = isoDaysBefore(window.from, window.days)
+  const previousEnd = isoDaysBefore(window.from, 1)
+  const receivedDates = new Set(revenue.map((row) => row.revenue_date))
+  const b2bOnly = scope.channel === 'B2B' || Boolean(scope.branchCode && current.every((row) => row.channel === B2B_CHANNEL))
+  const visibleMargin = b2bOnly ? null : margin
   let companyPeriod: Pairs = { current: 0, earlier: 0 }
   let companyWeekday: Pairs = { current: 0, earlier: 0 }
 
   const toRow = (s: Series, kind: 'branch' | 'b2b'): BranchRow => {
     if (kind === 'b2b') for (const d of receivedDates) if (!s.byDate.has(d)) s.byDate.set(d, 0)
-    const periodPairs = pairSums(s.byDate, dates, period)
+    const periodPairs = pairSums(s.byDate, dates, window.days)
     const weekdayPairs = pairSums(s.byDate, [latestDate], 7)
     companyPeriod = addPairs(companyPeriod, periodPairs)
     companyWeekday = addPairs(companyWeekday, weekdayPairs)
     const row: BranchRow = {
-      code: s.code,
-      name: s.name,
+      code: s.code, name: s.name,
       revenue: dates.reduce((sum, d) => sum + (s.byDate.get(d) ?? 0), 0),
-      vsPrevious: change(periodPairs),
-      latestDay: s.byDate.get(latestDate) ?? null,
-      vsWeekday: change(weekdayPairs),
-      trend: dates.map((date) => s.byDate.get(date) ?? null),
+      vsPrevious: change(periodPairs), latestDay: s.byDate.get(latestDate) ?? null,
+      vsWeekday: change(weekdayPairs), trend: dates.map((date) => s.byDate.get(date) ?? null),
     }
-    if (margin) {
-      row.margin = kind === 'b2b'
-        ? null
-        : marginFigures(margin.filter((m) => m.branch_code === s.code), start, end)
-    }
+    if (visibleMargin) row.margin = kind === 'b2b' ? null : marginFigures(visibleMargin.filter((m) => m.branch_code === s.code), window.from, window.to)
     return row
   }
 
   const byRevenue = (a: BranchRow, b: BranchRow) => b.revenue - a.revenue
-  const branches = seriesOf(revenue.filter((r) => r.channel !== B2B_CHANNEL), branchNames).map((s) => toRow(s, 'branch')).sort(byRevenue)
-  const b2b = seriesOf(revenue.filter((r) => r.channel === B2B_CHANNEL), branchNames).map((s) => toRow(s, 'b2b')).sort(byRevenue)
+  const branches = seriesOf(visible.filter((r) => r.channel !== B2B_CHANNEL), branchNames).map((s) => toRow(s, 'branch')).sort(byRevenue)
+  const b2b = seriesOf(visible.filter((r) => r.channel === B2B_CHANNEL), branchNames).map((s) => toRow(s, 'b2b')).sort(byRevenue)
   const all = [...branches, ...b2b]
   const companyDaily = new Map<string, number>()
-  for (const row of revenue) companyDaily.set(row.revenue_date, (companyDaily.get(row.revenue_date) ?? 0) + row.clean_revenue)
-  const companyMargin = margin ? marginFigures(margin, start, end) : null
-  const previousStart = isoDaysBefore(start, period)
-  const previousEnd = isoDaysBefore(start, 1)
-  const previousMargin = margin ? marginFigures(margin, previousStart, previousEnd).pct : null
+  if (scope.channel === 'B2B') for (const date of receivedDates) companyDaily.set(date, 0)
+  for (const row of visible) companyDaily.set(row.revenue_date, (companyDaily.get(row.revenue_date) ?? 0) + row.clean_revenue)
+  const scopedMargin = visibleMargin?.filter((row) => !scope.branchCode || row.branch_code === scope.branchCode) ?? null
+  const companyMargin = scopedMargin ? marginFigures(scopedMargin, window.from, window.to) : null
+  const previousMargin = scopedMargin ? marginFigures(scopedMargin, previousStart, previousEnd).pct : null
   const company: CompanyRow = {
-    revenue: all.reduce((s, r) => s + r.revenue, 0),
-    vsPrevious: change(companyPeriod),
-    latestDay: all.reduce((s, r) => s + (r.latestDay ?? 0), 0),
+    revenue: all.reduce((s, r) => s + r.revenue, 0), vsPrevious: change(companyPeriod),
+    latestDay: all.some((row) => row.latestDay !== null) ? all.reduce((s, r) => s + (r.latestDay ?? 0), 0) : null,
     vsWeekday: change(companyWeekday),
     missingLatest: branches.filter((r) => r.latestDay === null).length,
     trend: dates.map((date) => companyDaily.get(date) ?? null),
@@ -256,5 +299,5 @@ export function buildBranchTable(
   if (companyMargin) company.margin = companyMargin
   const marginVsPrevious = companyMargin?.pct !== null && companyMargin && previousMargin !== null
     ? companyMargin.pct - previousMargin : null
-  return { latestDate, company, branches, b2b, marginVsPrevious }
+  return { latestDate, daysCount: window.days, company, branches, b2b, marginVsPrevious }
 }

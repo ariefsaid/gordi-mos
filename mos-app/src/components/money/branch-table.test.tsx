@@ -30,7 +30,7 @@ function Harness({ period, sort, onCommit }: { period: MoneyPeriod; sort: MoneyS
     <I18nProvider initialLocale="en">
       <MemoryRouter>
         <Profiler id="table" onRender={onCommit}>
-          <BranchTable data={buildBranchTable(ROWS, null, 30)!} period={period} sort={sort} onSortChange={() => {}} />
+          <BranchTable data={buildBranchTable(ROWS, null, 30)!} selection={{ period, range: null, branchCode: null, channel: 'all' }} sort={sort} onSortChange={() => {}} />
         </Profiler>
       </MemoryRouter>
     </I18nProvider>
@@ -64,12 +64,29 @@ describe('BranchTable — one term for recipe vs stock cost (#1453)', () => {
     const { container } = render(
       <I18nProvider initialLocale={locale}>
         <MemoryRouter>
-          <BranchTable data={buildBranchTable(ROWS, margin, 30)!} period={30} sort={{ column: 'revenue', desc: true }} onSortChange={() => {}} />
+          <BranchTable data={buildBranchTable(ROWS, margin, 30)!} selection={{ period: 30, range: null, branchCode: null, channel: 'all' }} sort={{ column: 'revenue', desc: true }} onSortChange={() => {}} />
         </MemoryRouter>
       </I18nProvider>,
     )
     expect(screen.getByRole('columnheader', { name: new RegExp(`^${term}`) })).toBeInTheDocument()
     expect(container.querySelector('.money-table__company-margin')?.textContent?.toLowerCase()).toContain(term.toLowerCase())
+  })
+})
+
+describe('BranchTable — filter link persistence', () => {
+  it('a branch link carries the custom range and channel so the back link can restore them', () => {
+    const range = { from: day(6), to: day(0) }
+    const data = buildBranchTable(ROWS, null, 30, undefined, { latestDate: LATEST, range, branchCode: 'alpha', channel: 'POS' })!
+    render(
+      <I18nProvider initialLocale="en">
+        <MemoryRouter>
+          <BranchTable data={data} selection={{ period: 30, range, branchCode: 'alpha', channel: 'POS' }} sort={{ column: 'revenue', desc: true }} onSortChange={() => {}} />
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    expect(screen.getByRole('link', { name: 'Alpha' })).toHaveAttribute(
+      'href', `/money/branch/alpha?period=custom&from=${range.from}&to=${range.to}&branch=alpha&channel=POS&sort=revenue.desc`,
+    )
   })
 })
 
