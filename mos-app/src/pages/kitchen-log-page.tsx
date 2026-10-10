@@ -25,6 +25,7 @@ import {
   fetchStockMap,
   listStreamItemIds,
   isItemNotOnStreamError,
+  isItemUnitNotShownError,
   resolveKitchenBuId,
   insertKitchenLogBatch,
 } from '@/lib/db/kitchen-logs'
@@ -361,6 +362,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const [lines, setLines] = useState<Record<string, KitchenLogLine>>({})
   const [status, setStatus] = useState<PageStatus>({ kind: 'loading' })
   const [submitError, setSubmitError] = useState('')
+  const [unitNotShownItemIds, setUnitNotShownItemIds] = useState<Set<string>>(new Set())
+  const [unitNotShownBatch, setUnitNotShownBatch] = useState(false)
   // The capture inputs disable while a batch saves; a failed save gives focus back to the field being typed in.
   const captureRef = useFocusRestore<HTMLDivElement>(status.kind === 'submitting', !!submitError)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
@@ -792,6 +795,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setInvalidQuantityDrafts({})
     setVisibleQuantityErrors(new Set())
     setFocusInvalidId(null)
+    setSubmitError('')
+    setUnitNotShownItemIds(new Set())
+    setUnitNotShownBatch(false)
     chooseStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
     setSavedDraftAt(null)
@@ -1090,15 +1096,18 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setInvalidQuantityDrafts({})
     setVisibleQuantityErrors(new Set())
     setFocusInvalidId(null)
+    setSubmitError('')
+    setUnitNotShownItemIds(new Set())
+    setUnitNotShownBatch(false)
     setDiscardConfirmOpen(false)
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!isOnline || invalidQuantityCount > 0) return
+    if (!isOnline || invalidQuantityCount > 0 || unitNotShownBatch) return
 
     const staged = Object.values(lines).filter(l => l.qty_porsi > 0)
-    if (staged.length === 0) return
+    if (staged.length === 0 || staged.some(line => unitNotShownItemIds.has(line.wip_item_id))) return
     // Re-gate all staged lines; block on any note-required or cap violation.
     let hasErrors = false
     const validated = { ...lines }
@@ -1133,6 +1142,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
 
     setStatus({ kind: 'submitting' })
     setSubmitError('')
+    setUnitNotShownItemIds(new Set())
+    setUnitNotShownBatch(false)
     setLines(prev => {
       const next = { ...prev }
       for (const line of staged) {
@@ -1195,6 +1206,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       setRestoredDraftInfo(null)
       setRestoreAnnouncement('')
       setInvalidItemIds(new Set())
+      setUnitNotShownItemIds(new Set())
+      setUnitNotShownBatch(false)
       setInvalidQuantityIds(new Set())
       setInvalidQuantityDrafts({})
       setVisibleQuantityErrors(new Set())
@@ -1202,7 +1215,13 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       setLines(buildLines(wipItems, planMap, stockMap, movement))
     } catch (err) {
       reportError(err, { source: 'kitchen-log.submit' })
-      if (isItemNotOnStreamError(err)) {
+      if (isItemUnitNotShownError(err)) {
+        if (staged.length === 1) setUnitNotShownItemIds(new Set([staged[0]!.wip_item_id]))
+        else {
+          setUnitNotShownBatch(true)
+          setSubmitError(t('kitchen.log.error.unitNotShownBatch'))
+        }
+      } else if (isItemNotOnStreamError(err)) {
         // The list changed under the open form (#222). The draft stays; the refused lines are
         // marked so the person can clear them or switch stream, then submit again.
         try {
@@ -1420,8 +1439,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   )
   // FR-023 / AC-022: an over-`tersedia` transfer line is a hard stop — Submit stays
   // disabled while any staged line exceeds availability (the line shows the cue).
-  const hasBlockingError = stagedLines.some(
-    l => transferExceedsAvailable(l, movement),
+  const hasBlockingError = unitNotShownBatch || stagedLines.some(
+    l => unitNotShownItemIds.has(l.wip_item_id) || transferExceedsAvailable(l, movement),
   )
   // F3 (FR-022): surface the variance-note gate as an EXPLICIT disabled control — a
   // staged off-plan line whose required note is empty disables Submit (the blocking
@@ -1484,6 +1503,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     return (
       <>
         {invalidItemIds.has(item.id) && <NotOnStreamTag />}
+        {unitNotShownItemIds.has(item.id) && (
+          <p role="alert" className="cafe-count__field-error">{t('kitchen.log.error.unitNotShown')}</p>
+        )}
         {renderCaptureMeta(line, rowStatus)}
       </>
     )
