@@ -48,9 +48,9 @@ function LocationProbe() {
   return <div data-testid="location">{loc.pathname + loc.search}</div>
 }
 
-function renderSection(props: Partial<React.ComponentProps<typeof SignalFeedSection>> = {}) {
+function renderSection(props: Partial<React.ComponentProps<typeof SignalFeedSection>> = {}, locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={['/']}>
         <LocationProbe />
         <Routes>
@@ -204,8 +204,14 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
     const empty = await screen.findByTestId('empty-state')
     expect(empty).toHaveClass('stream-all-clear')
     expect(within(empty).getByRole('heading', { name: 'No Signals yet.' })).toBeInTheDocument()
-    expect(within(empty).getByRole('link', { name: 'See all →' })).toHaveAttribute('href', '/work/signals')
+    expect(within(empty).getByRole('link', { name: 'See all Signals →' })).toHaveAttribute('href', '/work/signals')
     expect(screen.getByRole('button', { name: /Share a Signal/i })).toBeInTheDocument()
+  })
+
+  it('names the compact Signals destination in Indonesian', async () => {
+    renderSection({ signals: [] }, 'id')
+    const empty = await screen.findByTestId('empty-state')
+    expect(within(empty).getByRole('link', { name: 'Lihat semua Sinyal →' })).toHaveAttribute('href', '/work/signals')
   })
 
   // Issue 360 (AC-430): the composer host bumps postCount on each successful Share; the section must
