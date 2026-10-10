@@ -13,9 +13,8 @@ import './signal-card.css'
 import './signal-record.css'
 
 // Signal record — JTBD anatomy (docs/specs/record-page-anatomy.spec.md §2.1, OD-REDESIGN-90;
-// visual reference: scratchpad ds-bundle/mockups/signal-record-anatomy.html). The record reads
-// top-to-bottom as the reader's job sequence:
-//   Message → Reach & response → Discussion → Facts (provenance) → History (audit).
+// visual reference: scratchpad ds-bundle/mockups/signal-record-anatomy.html). The current order is:
+//   Message → Facts (provenance) → Reach & response → Discussion → History (audit).
 // Each region is a small presentational component fed by props; the host (signal-record-host.tsx)
 // wires data + handlers and the adapter (wrapSignalRecord) orders them into the shared
 // RecordViewer's content slots (identity stays region 0). A Signal never gains Status/PIC/
@@ -264,7 +263,7 @@ export function SignalOverflowMenu({
   )
 }
 
-// ── Region 2 · Reach & response — know the audience, take the one factual response ─────────────
+// ── Region 3 · Reach & response — know the audience, take the one factual response ─────────────
 // Mentions + visibility line, the ONE action register (LAW-3): Acknowledge + linked-work verbs —
 // no Status/resolve/close (a Signal is a fact). The "who's acknowledged" roster + linked summary
 // (only when linked work exists — the empty "0 Tasks · 0 open" line was noise, LAW-5).
@@ -399,7 +398,7 @@ export function SignalReach({
   )
 }
 
-// ── Region 3 · Discussion — discuss without turning fact into work ─────────────────────────────
+// ── Region 4 · Discussion — discuss without turning fact into work ─────────────────────────────
 export function SignalDiscussion({
   comments, people, canComment, onPostComment,
 }: {
@@ -417,8 +416,8 @@ export function SignalDiscussion({
   )
 }
 
-// ── Region 4 · Facts (provenance) — verify who/where/when when needed ───────────────────────────
-// Quiet, compact, near the end. NO per-field "fixed after posting" caption on every row (LAW-6):
+// ── Region 2 · Facts (provenance) — verify who/where/when when needed ───────────────────────────
+// Quiet, compact, directly after the message. NO per-field "fixed after posting" caption on every row (LAW-6):
 // ONE whole-section note. Category renders here as its value + the correct affordance.
 export function SignalFacts({
   authorName, teamName, businessUnitName, siteName,

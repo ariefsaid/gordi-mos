@@ -156,7 +156,8 @@
 /* Objective relationships and Work Line's objective/progress context have no length bound,
    so they wrap here instead of clipping mid-word. */
 .catalog-collection__table--objective .catalog-collection__cell--relation .catalog-collection__cell-value,
-.catalog-collection__table--objective .catalog-collection__cell--cadence .catalog-collection__cell-value {
+.catalog-collection__table--objective .catalog-collection__cell--cadence .catalog-collection__cell-value,
+.catalog-collection__table--objective .catalog-collection__cell--progress .catalog-collection__cell-value {
   overflow: visible;
   overflow-wrap: anywhere;
   text-overflow: clip;

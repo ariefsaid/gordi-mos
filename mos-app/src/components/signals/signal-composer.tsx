@@ -122,12 +122,11 @@ export function SignalComposer({
   // person/people by count; Indonesian "orang" is invariant (both keys resolve to it). The caller
   // resolves the noun in the active locale and threads it as ${noun}.
   const notifyNoun = t(notifyCount === 1 ? 'signals.notify.person' : 'signals.notify.people')
-  // ONE metadata line — audience, then notify count, then author — with a STABLE "All teams"
-  // prefix. Typing an @mention only APPENDS the notify segment; it never swaps the audience
-  // phrase out from under the reader.
+  // Keep notification targeting separate from the fixed All Teams audience.
+  const audienceLabel = t('signals.composer.audience')
   const metaLine = notifyCount > 0
-    ? t('signals.composer.shareAllNotify', { count: notifyCount, noun: notifyNoun, name: authorName })
-    : t('signals.composer.shareAll', { name: authorName })
+    ? t('signals.composer.authorLineNotify', { count: notifyCount, noun: notifyNoun, name: authorName })
+    : t('signals.composer.authorLine', { name: authorName })
 
   function handleBodyChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     if (posting) return
@@ -376,6 +375,7 @@ export function SignalComposer({
       {error && <p role="alert">{error}</p>}
 
       <div className="signal-composer-foot">
+        <span className="signal-composer-audience">{audienceLabel}</span>
         <div className="signal-composer-send">
           {/* OD-REDESIGN-91 #10: quiet Shift+Enter hint by the Send button; hidden without a
               real keyboard (touch, or a pointer with no hover). */}

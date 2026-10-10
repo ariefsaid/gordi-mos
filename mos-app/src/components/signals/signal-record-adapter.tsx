@@ -5,15 +5,14 @@
 // ownership. A retracted Signal keeps its identity while the reach/discussion regions and every
 // mutating action drop away; the tombstone/retract reason is the sole message.
 //
-// Per-kind composition (record-viewer.tsx keeps its shared region order untouched — a global flip
-// would not make Task content-first, which composes its own content in TaskSurface, and would
-// endanger every other consumer): a Signal packs its five job regions into ordered CONTENT slots.
-//   identity(title) → [message, reach, discussion, facts, history]
+// Per-kind composition (record-viewer.tsx keeps its shared region order untouched): a Signal packs
+// its job regions into ordered CONTENT slots.
+//   identity(title) → [message, facts, reach, discussion, history]
 //   1. message   — the Signal body after the identity's first line, unclipped, leading; attention
 //      pill + occurred ride with it. A retracted Signal keeps the original line in its tombstone.
-//   2. reach     — mentions + visibility, the Acknowledge action, the roster, linked work + create/link.
-//   3. discussion— the comment thread.
-//   4. facts     — Reported by · Owning Team · Business Unit · Site · Category, quiet, near the end.
+//   2. facts     — Reported by · Owning Team · Business Unit · Site · Category, directly after message.
+//   3. reach     — mentions + visibility, the Acknowledge action, the roster, linked work + create/link.
+//   4. discussion— the comment thread.
 //   5. history   — "edited N times" disclosure (no raw old→new diff dumped in the default view).
 import type { ReactNode } from 'react'
 import type { SignalDetail } from '@/lib/db/signals'
@@ -45,7 +44,7 @@ export interface WrapSignalRecordInput {
   detail: SignalDetail
   /** Formatted occurred time (host owns locale formatting) — rides with the message (LAW-2). */
   occurredLabel: string
-  /** Region 2 node built by the host (needs handlers/state); null when retracted. */
+  /** Region 3 node built by the host (needs handlers/state); null when retracted. */
   reach: ReactNode | null
   /** Optional author/deputy attention editor for the message region. */
   onAttentionChange?: (attention: Attention) => void
@@ -54,9 +53,9 @@ export interface WrapSignalRecordInput {
   onRepost?: () => void
   retractedBy?: string | null
   retractedAtLabel?: string | null
-  /** Region 3 node built by the host; null when retracted. */
+  /** Region 4 node built by the host; null when retracted. */
   discussion: ReactNode | null
-  /** Region 4 node (quiet provenance + category control) built by the host. */
+  /** Region 2 node (quiet provenance + category control) built by the host. */
   facts: ReactNode
   /** Region 5 node (edited disclosure) built by the host; null when never edited. */
   history: ReactNode | null
@@ -72,7 +71,7 @@ export interface WrapSignalRecordInput {
  * generic regions (metadata / relations / activity / actions) are EMPTY: the Signal's five job
  * regions are ordered CONTENT slots instead, so the content leads (F1), the identity title is the
  * unclipped first line and the live message continuation appears exactly once (F2), provenance is
- * one quiet region near the end with no per-field captions (F3/LAW-6), the revision history is a
+ * one quiet region before reach/discussion with no per-field captions (F3/LAW-6), history is a
  * single disclosed region with no raw diff dump (F4/LAW-5), and every mutating action lives in the
  * one reach register (F5/LAW-3).
  */
@@ -112,9 +111,9 @@ export function wrapSignalRecord(input: WrapSignalRecordInput): RecordViewerAdap
 
   const contentSlots: RecordContentSlot[] = [
     message,
+    { id: 'facts', label: 'Facts', render: () => facts },
     ...(!retracted && reach ? [{ id: 'reach', label: 'Reach & response', render: () => reach } as RecordContentSlot] : []),
     ...(!retracted && discussion ? [{ id: 'discussion', label: 'Discussion', render: () => discussion } as RecordContentSlot] : []),
-    { id: 'facts', label: 'Facts', render: () => facts },
     ...(history ? [{ id: 'history', label: 'History', render: () => history } as RecordContentSlot] : []),
   ]
 

@@ -1,4 +1,4 @@
-/* Signal record — Message → Reach & response → Discussion → Facts → History.
+/* Signal record — Message → Facts → Reach & response → Discussion → History.
    RecordViewer owns the spacing and separator between the five sections. */
 
 /* ── Region shell — inner content must not add another divider or band. ── */
@@ -44,7 +44,7 @@
 .signal-overflow-menu button:hover { background: var(--surface-tertiary); }
 .signal-overflow-menu button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 
-/* ── 2 · Reach & response — one action register (LAW-3). ── */
+/* ── 3 · Reach & response — one action register (LAW-3). ── */
 .signal-reach-audience { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .signal-reach-linked-error {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -88,7 +88,7 @@
   font-size: var(--font-size-label);
 }
 
-/* ── 3 · Discussion — the comment thread in the document grammar (no nested card, LAW-7). ──
+/* ── 4 · Discussion — the comment thread in the document grammar (no nested card, LAW-7). ──
    The reused CommentThread wraps itself in a bordered .card with a 20px .card-h2. Inside the
    Signal record DOCUMENT that reads as a nested card; neutralize the chrome so Comments is a quiet
    peer of the sibling regions. (jsdom cannot compute the border — the guard pins this grammar.) */
@@ -100,7 +100,7 @@
   font-size: var(--font-size-mono); font-weight: 600; margin-bottom: 8px; color: var(--foreground);
 }
 
-/* ── 4 · Facts (provenance) — quiet, compact, last; ONE section note, no per-field captions. ── */
+/* ── 2 · Facts (provenance) — compact, directly after the message; ONE section note. ── */
 .signal-facts {
   display: grid; grid-template-columns: 130px 1fr; row-gap: 8px; column-gap: 16px;
   margin: 0; font-size: var(--font-size-control);
