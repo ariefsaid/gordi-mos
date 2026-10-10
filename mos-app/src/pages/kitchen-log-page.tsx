@@ -25,6 +25,7 @@ import {
   fetchStockMap,
   listStreamItemIds,
   isItemNotOnStreamError,
+  isItemUnitNotShownError,
   resolveKitchenBuId,
   insertKitchenLogBatch,
 } from '@/lib/db/kitchen-logs'
@@ -361,6 +362,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const [lines, setLines] = useState<Record<string, KitchenLogLine>>({})
   const [status, setStatus] = useState<PageStatus>({ kind: 'loading' })
   const [submitError, setSubmitError] = useState('')
+  const [unitNotShownItemIds, setUnitNotShownItemIds] = useState<Set<string>>(new Set())
   // The capture inputs disable while a batch saves; a failed save gives focus back to the field being typed in.
   const captureRef = useFocusRestore<HTMLDivElement>(status.kind === 'submitting', !!submitError)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
@@ -1133,6 +1135,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
 
     setStatus({ kind: 'submitting' })
     setSubmitError('')
+    setUnitNotShownItemIds(new Set())
     setLines(prev => {
       const next = { ...prev }
       for (const line of staged) {
@@ -1195,6 +1198,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       setRestoredDraftInfo(null)
       setRestoreAnnouncement('')
       setInvalidItemIds(new Set())
+      setUnitNotShownItemIds(new Set())
       setInvalidQuantityIds(new Set())
       setInvalidQuantityDrafts({})
       setVisibleQuantityErrors(new Set())
@@ -1202,7 +1206,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       setLines(buildLines(wipItems, planMap, stockMap, movement))
     } catch (err) {
       reportError(err, { source: 'kitchen-log.submit' })
-      if (isItemNotOnStreamError(err)) {
+      if (isItemUnitNotShownError(err)) {
+        if (staged.length === 1) setUnitNotShownItemIds(new Set([staged[0]!.wip_item_id]))
+        else setSubmitError(t('kitchen.log.error.unitNotShownBatch'))
+      } else if (isItemNotOnStreamError(err)) {
         // The list changed under the open form (#222). The draft stays; the refused lines are
         // marked so the person can clear them or switch stream, then submit again.
         try {
@@ -1484,6 +1491,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     return (
       <>
         {invalidItemIds.has(item.id) && <NotOnStreamTag />}
+        {unitNotShownItemIds.has(item.id) && (
+          <p role="alert" className="cafe-count__field-error">{t('kitchen.log.error.unitNotShown')}</p>
+        )}
         {renderCaptureMeta(line, rowStatus)}
       </>
     )

@@ -32,10 +32,10 @@ vi.mock('@/lib/db/cafe-item-settings', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/db/cafe-item-settings')>()
   return { ...actual, listCafeItemSettings: vi.fn() }
 })
-vi.mock('@/lib/db/kitchen-logs', () => ({
-  insertKitchenLog: vi.fn(),
-  resolveKitchenBuId: vi.fn(),
-}))
+vi.mock('@/lib/db/kitchen-logs', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/db/kitchen-logs')>()
+  return { ...actual, insertKitchenLog: vi.fn(), resolveKitchenBuId: vi.fn() }
+})
 vi.mock('@/lib/db/kitchen-waste-photos', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/db/kitchen-waste-photos')>()
   return {
@@ -214,6 +214,26 @@ describe('CafeWastePage', () => {
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add photo|submit waste/i })).not.toBeInTheDocument()
     expect(mockListWasteDrafts).not.toHaveBeenCalled()
+  })
+
+  it('explains an unconfigured unit beside its waste row without offering retry', async () => {
+    mockInsertKitchenLog.mockRejectedValueOnce(new Error(
+      'insertKitchenLog failed — CAFE_ITEM_UNIT_NOT_SHOWN: the selected ERP detail is not shown for this stream item',
+    ))
+    renderPage()
+
+    const quantity = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    fireEvent.change(quantity, { target: { value: '2.5' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)
+
+    const error = await screen.findByRole('alert')
+    expect(error).toHaveTextContent(
+      "This unit isn't set up for Café yet — ask your Café lead to set it in Items",
+    )
+    expect(quantity).toHaveValue('2.5')
+    expect(error).not.toHaveTextContent(/try again|retry/i)
+    expect(screen.queryByText(/try again|retry/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: /try again|retry/i })).toBeNull()
   })
 
   it('restores an unsent waste draft after reload and clears it after confirmed submit', async () => {

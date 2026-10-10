@@ -18,7 +18,7 @@ import {
   type StoredCafeCaptureDraft,
 } from '@/lib/cafe-capture-storage'
 import { listCafeItemSettings, toCafeLogItem } from '@/lib/db/cafe-item-settings'
-import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
+import { insertKitchenLog, isItemUnitNotShownError, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
 import {
   listCurrentPersonKitchenWasteDrafts,
   submitKitchenWasteLog,
@@ -565,10 +565,10 @@ export function CafeWastePage() {
         entry_unit_factor: entry.unitFactor ?? 1,
       })
       patchEntry(item.id, { logId, capturedLogDate: logDate, preparing: false })
-    } catch {
+    } catch (cause) {
       patchEntry(item.id, {
         preparing: false,
-        error: t('kitchen.waste.prepareFailed'),
+        error: t(isItemUnitNotShownError(cause) ? 'kitchen.log.error.unitNotShown' : 'kitchen.waste.prepareFailed'),
       })
     } finally {
       draftRequests.current.delete(item.id)

@@ -133,6 +133,11 @@ export function isItemNotOnStreamError(err: unknown): boolean {
   return err instanceof Error && err.message.includes('CAFE_ITEM_NOT_ON_STREAM')
 }
 
+/** True when the selected ERP detail is not configured for Café capture (DB token). */
+export function isItemUnitNotShownError(err: unknown): boolean {
+  return err instanceof Error && err.message.includes('CAFE_ITEM_UNIT_NOT_SHOWN')
+}
+
 /**
  * List the items the capture form may offer on a stream, sorted by the name operators see. The
  * stream's Café settings supply the MOS name, default ERP detail and kind; every item is an ESB

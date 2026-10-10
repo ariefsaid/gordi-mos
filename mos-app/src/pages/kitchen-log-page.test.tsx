@@ -41,6 +41,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     insertKitchenLogBatch: vi.fn(),
     listStreamItemIds: vi.fn(),
     isItemNotOnStreamError: actual.isItemNotOnStreamError,
+    isItemUnitNotShownError: actual.isItemUnitNotShownError,
   }
 })
 // The person's own default stream — the ONE shape-validated resolver (default-stream.ts,
@@ -1573,6 +1574,64 @@ describe('Submit error state', () => {
     expect(alert.closest('.kl-footer')).not.toBeNull()
     expect(nasiInput).toHaveValue('12')
     expect(screen.getByRole('button', { name: /^submit/i })).toBeEnabled()
+  })
+
+  it.each([
+    { wide: false, path: appUrl('/cafe'), quantityLabel: /quantity produced for nasi goreng/i, amount: '12' },
+    { wide: true, path: appUrl('/cafe'), quantityLabel: /quantity produced for nasi goreng/i, amount: '12' },
+    { wide: false, path: appUrl('/cafe/transfer'), quantityLabel: /quantity to transfer to radiant for ayam baka/i, amount: '1' },
+  ])('explains an unconfigured unit beside its row without offering retry ($path, wide=$wide)', async ({ wide, path, quantityLabel, amount }) => {
+    setWideMatchMedia(wide)
+    mockInsertKitchenLogBatch.mockRejectedValue(new Error(
+      'insertKitchenLogBatch failed — CAFE_ITEM_UNIT_NOT_SHOWN: the selected ERP detail is not shown for this stream item',
+    ))
+    await renderPage(VIEWER_MEMBER, path)
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const quantity = screen.getByRole('spinbutton', { name: quantityLabel })
+    fireEvent.change(quantity, { target: { value: amount } })
+    if (path === appUrl('/cafe/transfer')) {
+      fireEvent.change(screen.getByRole('textbox', { name: /note for ayam baka/i }), { target: { value: 'unit refusal test' } })
+    }
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /submit/i }))
+      await Promise.resolve()
+    })
+
+    const row = quantity.closest('tr, .dt-card') as HTMLElement | null
+    expect(row).not.toBeNull()
+    expect(within(row!).getByRole('alert')).toHaveTextContent(
+      "This unit isn't set up for Café yet — ask your Café lead to set it in Items",
+    )
+    expect(quantity).toHaveValue(amount)
+    expect(screen.queryByText(/check the connection and try again|try again|retry/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: /try again|retry/i })).toBeNull()
+  })
+
+  it('uses a batch-level unit refusal when the server cannot identify one row', async () => {
+    mockInsertKitchenLogBatch.mockRejectedValue(new Error(
+      'insertKitchenLogBatch failed — CAFE_ITEM_UNIT_NOT_SHOWN: the selected ERP detail is not shown for this stream item',
+    ))
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const ayam = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    const nasi = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(ayam, { target: { value: '20' } })
+    fireEvent.change(nasi, { target: { value: '12' } })
+    fireEvent.change(screen.getByRole('textbox', { name: /note for ayam baka/i }), { target: { value: 'unit refusal test' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /submit/i }))
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "At least one unit in this submission isn't set up for Café yet — ask your Café lead to check Items.",
+    )
+    expect(ayam).toHaveValue('20')
+    expect(nasi).toHaveValue('12')
+    expect(screen.queryByText(/check the connection and try again|try again|retry/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: /try again|retry/i })).toBeNull()
   })
 
   it.each([false, true])('announces a successful submit once in the pinned action bar (wide=%s)', async (wide) => {
