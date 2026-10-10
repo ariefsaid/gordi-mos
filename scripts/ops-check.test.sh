@@ -16,10 +16,10 @@ cat > "$tmp/bin/psql" <<'SH'
 printf 'argv %s | passfile=%s\n' "$*" "${PGPASSFILE:-}" >> "$PSQLLOG"
 case "$*" in
   *"select 1"*) [ "${FAKE_DB_DOWN:-0}" = 1 ] && exit 2; echo 1 ;;
-  *dead_letter*) echo "${FAKE_DEAD:-0}" ;;
-  *in_flight*) echo "${FAKE_IN_FLIGHT:-0}" ;;
-  *posted_at*) echo "${FAKE_OLD_SENT:-0}" ;;
-  *"min(created_at)"*) echo "${FAKE_AGE:-0}" ;;
+  *dead_letter*) [ "${FAKE_QUERY_FAIL:-}" = dead_letter ] && exit 2; echo "${FAKE_DEAD:-0}" ;;
+  *in_flight*) [ "${FAKE_QUERY_FAIL:-}" = in_flight ] && exit 2; echo "${FAKE_IN_FLIGHT:-0}" ;;
+  *posted_at*) [ "${FAKE_QUERY_FAIL:-}" = posted_at ] && exit 2; echo "${FAKE_OLD_SENT:-0}" ;;
+  *"min(created_at)"*) [ "${FAKE_QUERY_FAIL:-}" = pending_age ] && exit 2; echo "${FAKE_AGE:-0}" ;;
   *to_regclass*) echo "${FAKE_TABLE:-f}" ;;
   *"interval '15 minutes'"*) echo "${FAKE_CLIENT_ERRS:-0}" ;;
 esac
@@ -69,17 +69,18 @@ run() { # [ENV=val...]; sets out, rc; log of messages in msgs()
 nmsg() { grep -c '^MSG ' "$tmp/curl.log"; }
 msgs() { grep '^MSG ' "$tmp/curl.log"; }
 has_msg() { msgs | grep -qF -- "$1"; }
+message_is() { grep -Fxq "MSG $1" "$tmp/curl.log"; }
 
 # alert lifecycle: bad-env first run alerts once, second run silent, good-env run recovers once
-lifecycle() { # name needle bad-env... -- good-env...
-  local name="$1" needle="$2"; shift 2
+lifecycle() { # name failure-message recovery-message bad-env... -- good-env...
+  local name="$1" failure="$2" recovery="$3"; shift 3
   local bads=(); while [ "$1" != -- ]; do bads+=("$1"); shift; done; shift
   run "${bads[@]}"
-  if [ "$(nmsg)" = 1 ] && has_msg "$needle"; then ok "$name: alerts once"; else bad "$name: first run" "$(msgs)"; fi
+  if [ "$(nmsg)" = 1 ] && message_is "🚨 $failure"; then ok "$name: alerts once"; else bad "$name: first run" "$(msgs)"; fi
   run "${bads[@]}"
   [ "$(nmsg)" = 0 ] && ok "$name: second run stays silent" || bad "$name: repeated alert" "$(msgs)"
   run "$@"
-  if [ "$(nmsg)" = 1 ] && has_msg "recovered"; then ok "$name: recovery alert once"; else bad "$name: recovery" "$(msgs)"; fi
+  if [ "$(nmsg)" = 1 ] && message_is "✅ $recovery"; then ok "$name: recovery alert once"; else bad "$name: recovery" "$(msgs)"; fi
   run "$@"
   [ "$(nmsg)" = 0 ] && ok "$name: quiet after recovery" || bad "$name: alert after recovery" "$(msgs)"
 }
@@ -101,11 +102,30 @@ grep '^argv ' "$tmp/curl.log" | grep -qF -e "$TOKEN" -e "$APIKEY" -e 4242 && bad
 grep -q "apikey: $APIKEY" "$tmp/curl.log" && ok "api key sent on curl stdin" || bad "api key not sent"
 
 echo "outbox"
-reset; lifecycle "dead letters" "dead-lettered" FAKE_DEAD=2 -- FAKE_DEAD=0
-reset; lifecycle "pending age" "oldest pending" FAKE_AGE=45 -- FAKE_AGE=3
+reset; lifecycle "dead letters" \
+  "Some MOS updates could not be sent to ERP. ERP may be missing recent changes; please review and resend them." \
+  "MOS updates are reaching ERP again." FAKE_DEAD=2 -- FAKE_DEAD=0
+reset; lifecycle "pending age" \
+  "Some MOS updates have waited 45 minutes to reach ERP. ERP may be behind; please check the connection." \
+  "MOS updates are reaching ERP on time again." FAKE_AGE=45 -- FAKE_AGE=3
 reset; run FAKE_AGE=30; [ "$(nmsg)" = 0 ] && ok "pending age at the limit is not an alert" || bad "boundary" "$(msgs)"
-reset; lifecycle "aged in-flight rows" "in-flight" FAKE_IN_FLIGHT=1 -- FAKE_IN_FLIGHT=0
-reset; lifecycle "sent-row retention" "retention" FAKE_OLD_SENT=2 -- FAKE_OLD_SENT=0
+reset; lifecycle "aged in-flight rows" \
+  "Some MOS updates are stuck while being sent to ERP. ERP may be missing recent changes; please check the ERP worker." \
+  "MOS updates are moving through to ERP again." FAKE_IN_FLIGHT=1 -- FAKE_IN_FLIGHT=0
+reset; lifecycle "sent-row retention" \
+  "Older MOS updates have not been cleared after reaching ERP. This may use extra storage; please check the cleanup." \
+  "Old MOS updates have been cleared." FAKE_OLD_SENT=2 -- FAKE_OLD_SENT=0
+for query in dead_letter pending_age in_flight posted_at; do
+  reset; run FAKE_QUERY_FAIL="$query"
+  case "$query" in
+    dead_letter) expected="MOS couldn't check whether ERP updates failed. ERP may be missing recent changes; please check the connection." ;;
+    pending_age) expected="MOS couldn't check whether updates are waiting to reach ERP. ERP may be behind; please check the connection." ;;
+    in_flight) expected="MOS couldn't check whether updates are stuck on their way to ERP. ERP may be missing changes; please check the ERP worker." ;;
+    posted_at) expected="MOS couldn't check whether old ERP updates were cleared. Storage may keep growing; please check the cleanup." ;;
+  esac
+  [ "$(nmsg)" = 1 ] && message_is "🚨 $expected" \
+    && ok "$query query failure uses plain alert" || bad "$query query failure" "$(msgs)"
+done
 mkenv "$tmp/ops.env"; EXTRA_ENV="OPS_ESB_TARGET_ENV=goo" mkenv "$tmp/ops.env"; reset; run
 grep -q "target_env = 'goo'" "$tmp/psql.log" && ok "target env filter reaches the outbox queries" || bad "no target filter" "$(cat "$tmp/psql.log")"
 EXTRA_ENV="OPS_ESB_TARGET_ENV=prod_x" mkenv "$tmp/ops.env"; run
@@ -116,53 +136,64 @@ echo "a failed send does not silence the condition"
 reset; : > "$tmp/failonce"; run FAKE_DEAD=2 TG_FAIL_ONCE="$tmp/failonce"
 [ "$(nmsg)" = 1 ] && [ ! -e "$tmp/state/dead_letter.alert" ] && ok "failed send: no state written" || bad "state written after a failed send" "$(ls "$tmp/state")"
 run FAKE_DEAD=2
-[ "$(nmsg)" = 1 ] && has_msg "dead-lettered" && [ -e "$tmp/state/dead_letter.alert" ] && ok "next run re-sends and records the alert" || bad "alert not retried" "$(msgs)"
+[ "$(nmsg)" = 1 ] && message_is "🚨 Some MOS updates could not be sent to ERP. ERP may be missing recent changes; please review and resend them." && [ -e "$tmp/state/dead_letter.alert" ] && ok "next run re-sends and records the alert" || bad "alert not retried" "$(msgs)"
 run FAKE_DEAD=2; [ "$(nmsg)" = 0 ] && ok "then stays silent" || bad "repeated after success" "$(msgs)"
 : > "$tmp/failonce"; run FAKE_DEAD=0 TG_FAIL_ONCE="$tmp/failonce"
 [ -e "$tmp/state/dead_letter.alert" ] && ok "failed recovery send keeps the state" || bad "state dropped after a failed recovery send"
 run FAKE_DEAD=0
-[ "$(nmsg)" = 1 ] && has_msg "recovered" && [ ! -e "$tmp/state/dead_letter.alert" ] && ok "recovery re-sent, then cleared" || bad "recovery not retried" "$(msgs)"
+[ "$(nmsg)" = 1 ] && message_is "✅ MOS updates are reaching ERP again." && [ ! -e "$tmp/state/dead_letter.alert" ] && ok "recovery re-sent, then cleared" || bad "recovery not retried" "$(msgs)"
 
 echo "worker heartbeat"
 reset; age_heartbeat 60; run
-[ "$(nmsg)" = 1 ] && has_msg "last ran" && ok "stale heartbeat alerts" || bad "stale heartbeat" "$(msgs)"
+[ "$(nmsg)" = 1 ] && message_is "🚨 The ERP worker hasn't reported in for 60 minutes. Recent MOS updates may not reach ERP; please check the worker." && ok "stale heartbeat alerts" || bad "stale heartbeat" "$(msgs)"
 fresh_heartbeat; run
-has_msg "recovered" && ok "fresh heartbeat recovers" || bad "heartbeat recovery" "$(msgs)"
+message_is "✅ The ERP worker is reporting in again." && ok "fresh heartbeat recovers" || bad "heartbeat recovery" "$(msgs)"
 reset; rm -f "$tmp/heartbeat"; run
-has_msg "heartbeat file missing" && ok "missing heartbeat file alerts" || bad "missing heartbeat" "$(msgs)"
+message_is "🚨 The ERP worker hasn't reported in. Recent MOS updates may not reach ERP; please check the worker." && ok "missing heartbeat file alerts" || bad "missing heartbeat" "$(msgs)"
 mkenv "$tmp/ops.env" OPS_ESB_HEARTBEAT_FILE; reset; run
-[ "$(nmsg)" = 1 ] && has_msg "not configured" && ok "unset heartbeat path alerts" || bad "unset heartbeat" "$(msgs)"
+[ "$(nmsg)" = 1 ] && message_is "🚨 The ERP worker hasn't reported in. Recent MOS updates may not reach ERP; please check the worker." && ok "unset heartbeat path alerts" || bad "unset heartbeat" "$(msgs)"
 mkenv "$tmp/ops.env"; fresh_heartbeat; run
-[ "$(nmsg)" = 1 ] && has_msg "recovered" && ok "configured heartbeat recovers" || bad "heartbeat recovery" "$(msgs)"
+[ "$(nmsg)" = 1 ] && message_is "✅ The ERP worker is reporting in again." && ok "configured heartbeat recovers" || bad "heartbeat recovery" "$(msgs)"
 EXTRA_ENV="OPS_ESB_HEARTBEAT_FILE=none" mkenv "$tmp/ops.env"; reset; rm -f "$tmp/heartbeat"; run
 [ "$(nmsg)" = 0 ] && ok "worker declared not deployed stays quiet" || bad "not-deployed heartbeat" "$(msgs)"
+mkenv "$tmp/ops.env"; reset; rm -f "$tmp/heartbeat"; run
+EXTRA_ENV="OPS_ESB_HEARTBEAT_FILE=none" mkenv "$tmp/ops.env"; run
+message_is "✅ This server is no longer expected to run the ERP worker." && ok "worker removal recovers prior alert" || bad "worker removal recovery" "$(msgs)"
 mkenv "$tmp/ops.env"
 fresh_heartbeat
 
 echo "backup freshness"
 mkdir -p "$tmp/bk"; EXTRA_ENV="OPS_BACKUP_DIR=$tmp/bk" mkenv "$tmp/ops.env"
 reset; run
-[ "$(nmsg)" = 1 ] && has_msg "no database dump" && ok "no dump in the backup dir alerts" || bad "no dump" "$(msgs)"
+[ "$(nmsg)" = 1 ] && message_is "🚨 No recent database copy is available. A restore may miss recent MOS changes; please check the backup job." && ok "no dump in the backup dir alerts" || bad "no dump" "$(msgs)"
 touch "$tmp/bk/mos-20260101T000000Z.dump"; run
-has_msg "recovered" && ok "a fresh dump recovers" || bad "backup recovery" "$(msgs)"
+message_is "✅ A recent database copy is available again." && ok "a fresh dump recovers" || bad "backup recovery" "$(msgs)"
 age_file() { python3 -c "import os,time,sys; t=time.time()-int(sys.argv[2])*3600; os.utime(sys.argv[1],(t,t))" "$1" "$2"; }
 age_file "$tmp/bk/mos-20260101T000000Z.dump" 30; run
-[ "$(nmsg)" = 1 ] && has_msg "no database dump" && ok "a 30 h old dump alerts" || bad "stale dump" "$(msgs)"
+[ "$(nmsg)" = 1 ] && message_is "🚨 No recent database copy is available. A restore may miss recent MOS changes; please check the backup job." && ok "a 30 h old dump alerts" || bad "stale dump" "$(msgs)"
 mkenv "$tmp/ops.env"
 
 echo "reachability"
-reset; lifecycle "app" "app URL" FAKE_FAIL_URL=app.fake.invalid -- FAKE_FAIL_URL=
-reset; lifecycle "auth" "auth health" FAKE_FAIL_URL=auth.fake.invalid -- FAKE_FAIL_URL=
+reset; lifecycle "app" \
+  "MOS isn't responding at its usual address. People may be unable to use it; please check MOS." \
+  "MOS is responding again." FAKE_FAIL_URL=app.fake.invalid -- FAKE_FAIL_URL=
+reset; lifecycle "auth" \
+  "The sign-in service isn't responding. People may have trouble signing in; please check the service." \
+  "The sign-in service is responding again." FAKE_FAIL_URL=auth.fake.invalid -- FAKE_FAIL_URL=
 
 echo "database down"
 reset; run FAKE_DB_DOWN=1 FAKE_DEAD=5
-if [ "$(nmsg)" = 1 ] && has_msg "unreachable" && ! grep -q dead_letter "$tmp/psql.log"; then ok "db down: one alert, no outbox queries piled on"; else bad "db down" "$(msgs)"; fi
+if [ "$(nmsg)" = 1 ] && message_is "🚨 MOS can't reach its database. MOS data may be unavailable; please check the database connection." && ! grep -q dead_letter "$tmp/psql.log"; then ok "db down: one alert, no outbox queries piled on"; else bad "db down" "$(msgs)"; fi
+run FAKE_DB_DOWN=0
+message_is "✅ MOS can reach its database again." && ok "database recovery is clear" || bad "database recovery" "$(msgs)"
 
 echo "client errors"
 EXTRA_ENV="OPS_CLIENT_ERROR_TABLE=app_logs.client_errors" mkenv "$tmp/ops.env"
 reset; run FAKE_TABLE=f FAKE_CLIENT_ERRS=999
 if [ "$(nmsg)" = 0 ] && ! grep -q "interval '15 minutes'" "$tmp/psql.log"; then ok "missing table: skipped, no alert, no count query"; else bad "missing table" "$(msgs)"; fi
-reset; lifecycle "client errors" "client errors" FAKE_TABLE=t FAKE_CLIENT_ERRS=50 -- FAKE_TABLE=t FAKE_CLIENT_ERRS=2
+reset; lifecycle "client errors" \
+  "The app logged 50 errors in the past 15 minutes. People may have trouble using MOS; please check the app." \
+  "MOS errors are back to normal." FAKE_TABLE=t FAKE_CLIENT_ERRS=50 -- FAKE_TABLE=t FAKE_CLIENT_ERRS=2
 EXTRA_ENV="OPS_CLIENT_ERROR_TABLE=Bad.Name-x" mkenv "$tmp/ops.env"; run
 [ "$rc" = 2 ] && ok "a table name that is not schema.table is refused" || bad "bad table accepted"
 

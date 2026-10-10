@@ -67,6 +67,7 @@ run() { # env-file-path [ENV=val...]; sets out, rc
   : > "$tmp/curl.log"; : > "$tmp/py.log"
   out="$(env -i PATH="$tmp/bin:$PATH" HOME="$tmp" CURLLOG="$tmp/curl.log" PYLOG="$tmp/py.log" OPS_ENV_FILE="$envfile" "$@" bash "$SCRIPT" 2>&1)"; rc=$?
 }
+message_is() { grep -Fxq "msg $1" "$tmp/curl.log"; }
 
 echo "fail closed"
 run "$tmp/nope.env"
@@ -84,12 +85,12 @@ if [ "$rc" = 0 ] && printf '%s' "$out" | grep -Fq "$expected_script"; then ok "s
 echo "success and failure"
 mkenv "$tmp/e.env"; run "$tmp/e.env"
 [ "$rc" = 0 ] && grep -q 'role=fake_writer ref=fakeref' "$tmp/py.log" && ok "full env runs the snapshot with env coordinates" || bad "full env run: rc=$rc" "$out"
-grep -q '✅' "$tmp/curl.log" && ok "success notified" || bad "no success notification" "$(cat "$tmp/curl.log")"
+message_is "✅ Sales, margin and usage figures are up to date in MOS. No action is needed." && ok "success has a plain status message" || bad "success notification" "$(cat "$tmp/curl.log")"
 grep '^argv ' "$tmp/curl.log" | grep -qF -e "$TOKEN" -e 4242 && bad "bot token or chat id in curl argv" || ok "bot token and chat id not in curl argv"
 grep '^stdin ' "$tmp/curl.log" | grep -qF "bot${TOKEN}" && ok "token reaches curl on stdin" || bad "token not on curl stdin" "$(cat "$tmp/curl.log")"
 run "$tmp/e.env" FAKE_PY_RC=1
 [ "$rc" = 1 ] && ok "snapshot failure propagates exit code" || bad "failure rc=$rc" "$out"
-if grep -q '❌' "$tmp/curl.log" && ! grep -q LEAKPW "$tmp/curl.log"; then ok "failure notified with the password scrubbed"; else bad "failure notification missing or leaks" "$(cat "$tmp/curl.log")"; fi
+if message_is "❌ MOS couldn't refresh its sales, margin and usage figures. Money may show older results until the next successful update; please check the reporting connection." && ! grep -q LEAKPW "$tmp/curl.log" && printf '%s' "$out" | grep -Fq "$tmp/root/sync/logs/reporting-snapshot.log"; then ok "failure message is plain, keeps log path for engineers, and scrubs credentials"; else bad "failure notification or log path" "$(cat "$tmp/curl.log") $out"; fi
 
 echo "notifier unset"
 NOTIFY_TOKEN= mkenv "$tmp/e.env"; run "$tmp/e.env"
