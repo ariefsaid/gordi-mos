@@ -101,14 +101,17 @@ export function displayBranchName(erpName: string, mosName?: string | null): str
 }
 
 export function sparklinePoints(values: readonly (number | null)[], width = 64, height = 24) {
+  const inset = 6
+  const plotWidth = width - inset * 2
+  const plotHeight = height - inset * 2
   const received = values.flatMap((value, i) => value === null ? [] : [{
-    x: Number((i * width / Math.max(values.length - 1, 1)).toFixed(1)), value,
+    x: Number((inset + i * plotWidth / Math.max(values.length - 1, 1)).toFixed(1)), value,
   }])
   if (!received.length) return null
   const low = Math.min(...received.map((point) => point.value))
   const high = Math.max(...received.map((point) => point.value))
   const points = received.map(({ x, value }) => ({
-    x, y: Number((high === low ? height / 2 : height - 2 - (value - low) / (high - low) * (height - 4)).toFixed(1)),
+    x, y: Number((high === low ? height / 2 : height - inset - (value - low) / (high - low) * plotHeight).toFixed(1)),
   }))
   return { points: points.map(({ x, y }) => `${x},${y}`).join(' '), end: points.at(-1)! }
 }

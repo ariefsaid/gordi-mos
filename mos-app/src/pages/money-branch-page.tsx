@@ -131,6 +131,7 @@ function UncoveredPanel({ branchId }: { branchId: string | null }) {
 function DaysTable({ page, period }: { page: BranchPage; period: MoneyPeriod }) {
   const t = useT()
   const { locale } = useI18n()
+  const budgetMargin = page.margin?.budgetBasis ? 1 - page.margin.budgetBasis.budgetShare : null
   return (
     <details className="money-branch__days" open={period === 7} key={period}>
       <summary>{t('money.branch.days.show')}</summary>
@@ -145,6 +146,10 @@ function DaysTable({ page, period }: { page: BranchPage; period: MoneyPeriod }) 
               <th scope="col">{t('money.chart.legend.revenue')}</th>
               <th scope="col">{t('money.branch.days.col.change')}</th>
               <th scope="col">{t('money.chart.legend.compare')}</th>
+              {page.margin && <>
+                <th scope="col">{t('money.chart.legend.margin')}</th>
+                <th scope="col">{t('money.chart.legend.budget')}</th>
+              </>}
             </tr>
           </thead>
           <tbody>
@@ -161,6 +166,10 @@ function DaysTable({ page, period }: { page: BranchPage; period: MoneyPeriod }) 
                     : <span className="money-branch__muted">{t('money.delta.noComparison')}</span>}
                 </td>
                 <td className="tabular">{d.compare === null ? t('money.table.notReceived') : formatIDR(d.compare)}</td>
+                {page.margin && <>
+                  <td className="tabular">{d.marginPct == null ? t('money.table.notReceived') : formatPercent(d.marginPct, 1)}</td>
+                  <td className="tabular">{budgetMargin === null ? t('money.table.notReceived') : formatPercent(budgetMargin, 0)}</td>
+                </>}
               </tr>
             ))}
           </tbody>

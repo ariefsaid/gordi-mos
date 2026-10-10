@@ -164,7 +164,16 @@ describe('buildBranchTable', () => {
     expect(headline.missing.map((row) => row.name)).toEqual(['Beta'])
   })
 
-  it('maps received values to normalized sparkline points and leaves gaps', () => {
-    expect(sparklinePoints([0, 5, null, 10])).toEqual({ points: '0,22 21.3,12 64,2', end: { x: 64, y: 2 } })
+  it('keeps the sparkline endpoint ring inside its viewBox at compact width', () => {
+    const trend = sparklinePoints([0, 5, null, 10])!
+    const markerExtent = 4.5 + 2 / 2
+    const viewBox = { width: 64, height: 24 }
+
+    expect(trend.points).toBe('6,18 23.3,12 58,6')
+    expect(trend.end.x - markerExtent).toBeGreaterThanOrEqual(0)
+    expect(trend.end.x + markerExtent).toBeLessThanOrEqual(viewBox.width)
+    expect(trend.end.y - markerExtent).toBeGreaterThanOrEqual(0)
+    expect(trend.end.y + markerExtent).toBeLessThanOrEqual(viewBox.height)
+    expect((markerExtent * 2 * 48) / viewBox.width).toBeGreaterThanOrEqual(8)
   })
 })
