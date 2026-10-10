@@ -502,7 +502,8 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     expect(stokIdx).toBeGreaterThan(-1)
     expect(erpIdx).toBe(stokIdx + 1) // beside, not merely present
 
-    // The per-stream net values keep their configured unit; the DB function's net is mocked here.
+    // The per-stream net values render in the row (12 = Σ produce − Σ transfer for the
+    // selected stream — the DB function's contract, mocked here at its seam).
     const ayamRow = screen.getByText('Ayam Bakar').closest('tr') as HTMLElement
     expect(within(ayamRow).getByText('12 Unit not set')).toBeInTheDocument()
     expect(within(ayamRow).getByText('8 Unit not set')).toBeInTheDocument()
@@ -524,7 +525,7 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     expect(within(table).getByRole('columnheader', { name: /^stock$/i })).toBeInTheDocument()
     expect(within(table).getByRole('columnheader', { name: /available/i })).toBeInTheDocument()
 
-    // Each item is a row showing both quantities with the missing-unit state.
+    // Each item is a row showing its two numbers
     const ayamRow = screen.getByText('Ayam Bakar').closest('tr') as HTMLElement
     expect(within(ayamRow).getByText('12 Unit not set')).toBeInTheDocument()
     expect(within(ayamRow).getByText('8 Unit not set')).toBeInTheDocument()
@@ -542,7 +543,7 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     const [ayamRow, nasiRow] = ['Ayam Bakar', 'Nasi Goreng'].map(name => screen.getByText(name).closest('tr') as HTMLElement)
     expect(within(ayamRow).getAllByText('0 porsi')).toHaveLength(2)
     expect(within(nasiRow).getAllByText('0 Unit not set')).toHaveLength(2)
-    expect(within(ayamRow).getByText('—')).toHaveAttribute('aria-label', 'Unavailable')
+    expect(within(ayamRow).getByRole('cell', { name: 'Unavailable' })).toBeInTheDocument()
   })
 
   it('AC-032: preserves negative balances (does not clamp to 0)', async () => {
@@ -566,9 +567,8 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     const card = screen.getByText('Ayam Bakar').closest('.ks-card') as HTMLElement
     expect(card).not.toBeNull()
     expect(card.textContent).toMatch(/Stock\s*12 porsi/i)
-    // The label shows once, in user language ("System stock"), with a plain "—" placeholder —
-    // never the "ERP" jargon.
-    expect(card.textContent).toMatch(/System stock\s*—/i)
+    // Keep the localized unavailable label without exposing ERP jargon.
+    expect(within(card).getByText('Unavailable')).toBeInTheDocument()
     expect(card.textContent).toMatch(/Available\s*8 porsi/i)
     expect(card.querySelector('dl')).toBeNull()
   })

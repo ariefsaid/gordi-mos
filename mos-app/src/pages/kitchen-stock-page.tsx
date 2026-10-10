@@ -128,7 +128,7 @@ function KitchenStockPageForViewer() {
       key: 'erp_qty',
       header: t('kitchen.stock.col.erp'),
       numeric: true,
-      render: () => <span className="ks-erp-pending" aria-label={t('kitchen.stock.systemUnavailable')}>—</span>,
+      render: () => <span className="ks-erp-pending"><span className="sr-only">{t('kitchen.stock.systemUnavailable')}</span><span aria-hidden="true">—</span></span>,
     },
     { key: 'tersedia', header: t('kitchen.stock.col.tersedia'), numeric: true, render: row => formatStockQuantity(row.tersedia, unitNames[row.wip_item_id]) },
   ]
@@ -142,7 +142,7 @@ function KitchenStockPageForViewer() {
       {row.on_stream === false && <NotOnStreamTag />}
       <div className="ks-card-meta">
         <span><span className="ks-card-label">{t('kitchen.stock.col.stok')}</span> <strong className="tabular">{formatStockQuantity(row.stok, unitNames[row.wip_item_id])}</strong></span>
-        <span><span className="ks-card-label">{t('kitchen.stock.card.erp')}</span> <span className="ks-erp-pending" aria-label={t('kitchen.stock.systemUnavailable')}>—</span></span>
+        <span><span className="ks-card-label">{t('kitchen.stock.card.erp')}</span> <span className="ks-erp-pending"><span className="sr-only">{t('kitchen.stock.systemUnavailable')}</span><span aria-hidden="true">—</span></span></span>
         <span><span className="ks-card-label">{t('kitchen.stock.col.tersedia')}</span> <strong className="tabular">{formatStockQuantity(row.tersedia, unitNames[row.wip_item_id])}</strong></span>
       </div>
     </div>
