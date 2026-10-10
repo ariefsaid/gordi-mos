@@ -251,7 +251,7 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search-only palette', 
       railLabels(['admin']),
     )
     // The destinations #1193 found missing, by name — not only by the catalog derivation above.
-    for (const label of ['Signals', 'Tasks', 'Projects & Processes', 'Objectives', 'Log production', 'Log transfer', 'Plan', 'Stock', 'Review', 'Pushes', 'Admin Settings']) {
+    for (const label of ['Signals', 'Tasks', 'Projects & Processes', 'Objectives', 'Café', 'Log transfer', 'Plan', 'Stock', 'Review', 'Pushes', 'Admin Settings']) {
       expect(within(groups[0]).getByRole('option', { name: label })).toBeInTheDocument()
     }
     expect(within(groups[1]).getAllByRole('option')).toHaveLength(3)
