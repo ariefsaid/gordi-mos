@@ -316,6 +316,36 @@ export async function fetchActualsMap(
   return map
 }
 
+/** Reads the newest eligible log for each catalog item on one stream. RLS scopes every query to the caller's org. */
+export async function fetchLatestItemLogDates(
+  itemIds: string[],
+  stream: ProductionStream,
+): Promise<Record<string, string>> {
+  type LatestLogRow = { wip_item_id: string; created_at: string }
+  const unresolved = new Set(itemIds)
+  const latest: Record<string, string> = {}
+  while (unresolved.size > 0) {
+    const { data, error } = await ops()
+      .from('kitchen_logs')
+      .select('wip_item_id,created_at')
+      .eq('branch_id', stream.branch.id)
+      .eq('activity', stream.activity)
+      .in('wip_item_id', [...unresolved])
+      .neq('status', 'Rejected')
+      .is('superseded_by', null)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(1000)
+    if (error) throw new Error(`fetchLatestItemLogDates failed — ${error.message}`)
+    const rows = (data ?? []) as LatestLogRow[]
+    if (rows.length === 0) break
+    for (const row of rows) {
+      if (unresolved.delete(row.wip_item_id)) latest[row.wip_item_id] = row.created_at
+    }
+  }
+  return latest
+}
+
 // ── Kitchen business unit resolution (#3, spec §3.3) ──────────────────────────
 
 /**
