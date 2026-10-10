@@ -127,7 +127,7 @@
      Indonesian labels included (#1453). */
   .branch-money-table .money-table__head,
   .branch-money-table .money-table__cell {
-    padding: 0 6px;
+    padding: 0 4px;
   }
 
   .branch-money-table .money-table__cell--branch {

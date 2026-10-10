@@ -6,6 +6,8 @@ import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { latestReportingDate } from '@/lib/db/reporting'
 import { bomCoveragePct, resolveWindow } from '@/lib/dashboard'
 import { isoDaysBefore } from '@/lib/trailing-window'
+import { formatIDRCompact, signedChange } from '@/lib/sales-dashboard'
+import type { Translate } from '@/i18n/use-t'
 
 // ── View state (?period=7|30|60&sort=<column>.<asc|desc>) ────────────────────────────────────
 export const MONEY_PERIODS = [7, 30, 60] as const
@@ -67,6 +69,7 @@ export interface BranchRow {
   latestDay: number | null
   /** Latest day against the same weekday a week earlier; null unless both were received. */
   vsWeekday: number | null
+  trend: Array<number | null>
   /** Present only when margin rows were read. Null on a B2B row: margin covers POS branches. */
   margin?: MarginFigures | null
 }
@@ -82,17 +85,63 @@ export interface BranchTable {
   branches: BranchRow[]
   /** B2B invoices, one row per ERP code — never a branch. */
   b2b: BranchRow[]
+  marginVsPrevious: number | null
 }
 
 export const B2B_CHANNEL = 'B2B'
 
+/** The reporting name is an ERP value; display a linked MOS name first, otherwise title-case it. */
+export function displayBranchName(erpName: string, mosName?: string | null): string {
+  if (mosName?.trim()) return mosName.trim()
+  return erpName.trim().replace(/[\p{L}\p{M}]+/gu, (word) =>
+    word === word.toUpperCase() && word.length <= 3
+      ? word
+      : `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}`,
+  )
+}
+
+export function sparklinePoints(values: readonly (number | null)[], width = 64, height = 24) {
+  const inset = 6
+  const plotWidth = width - inset * 2
+  const plotHeight = height - inset * 2
+  const received = values.flatMap((value, i) => value === null ? [] : [{
+    x: Number((inset + i * plotWidth / Math.max(values.length - 1, 1)).toFixed(1)), value,
+  }])
+  if (!received.length) return null
+  const low = Math.min(...received.map((point) => point.value))
+  const high = Math.max(...received.map((point) => point.value))
+  const points = received.map(({ x, value }) => ({
+    x, y: Number((high === low ? height / 2 : height - inset - (value - low) / (high - low) * plotHeight).toFixed(1)),
+  }))
+  return { points: points.map(({ x, y }) => `${x},${y}`).join(' '), end: points.at(-1)! }
+}
+
+export function moneyHeadline(table: BranchTable, period: MoneyPeriod, t: Translate) {
+  const mover = table.branches.filter((row) => row.vsPrevious !== null)
+    .sort((a, b) => Math.abs(b.vsPrevious!) - Math.abs(a.vsPrevious!))[0] ?? null
+  return {
+    sentence: t('money.overview.headline', {
+      days: period, revenue: formatIDRCompact(table.company.revenue),
+      change: table.company.vsPrevious === null ? t('money.delta.noComparison') : signedChange(table.company.vsPrevious).text,
+    }),
+    mover,
+    missing: table.branches.filter((row) => row.latestDay === null),
+  }
+}
+
 /** Daily revenue of one row group; a date absent from the map was not received. */
 interface Series { code: string; name: string; byDate: Map<string, number> }
 
-function seriesOf(rows: SalesDailyRevenueRow[]): Series[] {
+function seriesOf(rows: SalesDailyRevenueRow[], branchNames?: ReadonlyMap<string, string>): Series[] {
   const groups = new Map<string, Series>()
   for (const r of rows) {
-    const g = groups.get(r.branch_code) ?? { code: r.branch_code, name: r.branch_name ?? r.branch_code, byDate: new Map() }
+    const mosName = r.branch_id ? branchNames?.get(r.branch_id) : null
+    const g = groups.get(r.branch_code) ?? {
+      code: r.branch_code,
+      name: displayBranchName(r.branch_name ?? r.branch_code, mosName),
+      byDate: new Map(),
+    }
+    if (mosName) g.name = displayBranchName(r.branch_name ?? r.branch_code, mosName)
     g.byDate.set(r.revenue_date, (g.byDate.get(r.revenue_date) ?? 0) + r.clean_revenue)
     groups.set(r.branch_code, g)
   }
@@ -152,6 +201,7 @@ export function buildBranchTable(
   revenue: SalesDailyRevenueRow[],
   margin: SalesMarginDailyRow[] | null,
   period: MoneyPeriod,
+  branchNames?: ReadonlyMap<string, string>,
 ): BranchTable | null {
   const latestDate = latestReportingDate(revenue)
   if (!latestDate) return null
@@ -175,6 +225,7 @@ export function buildBranchTable(
       vsPrevious: change(periodPairs),
       latestDay: s.byDate.get(latestDate) ?? null,
       vsWeekday: change(weekdayPairs),
+      trend: dates.map((date) => s.byDate.get(date) ?? null),
     }
     if (margin) {
       row.margin = kind === 'b2b'
@@ -185,16 +236,25 @@ export function buildBranchTable(
   }
 
   const byRevenue = (a: BranchRow, b: BranchRow) => b.revenue - a.revenue
-  const branches = seriesOf(revenue.filter((r) => r.channel !== B2B_CHANNEL)).map((s) => toRow(s, 'branch')).sort(byRevenue)
-  const b2b = seriesOf(revenue.filter((r) => r.channel === B2B_CHANNEL)).map((s) => toRow(s, 'b2b')).sort(byRevenue)
+  const branches = seriesOf(revenue.filter((r) => r.channel !== B2B_CHANNEL), branchNames).map((s) => toRow(s, 'branch')).sort(byRevenue)
+  const b2b = seriesOf(revenue.filter((r) => r.channel === B2B_CHANNEL), branchNames).map((s) => toRow(s, 'b2b')).sort(byRevenue)
   const all = [...branches, ...b2b]
+  const companyDaily = new Map<string, number>()
+  for (const row of revenue) companyDaily.set(row.revenue_date, (companyDaily.get(row.revenue_date) ?? 0) + row.clean_revenue)
+  const companyMargin = margin ? marginFigures(margin, start, end) : null
+  const previousStart = isoDaysBefore(start, period)
+  const previousEnd = isoDaysBefore(start, 1)
+  const previousMargin = margin ? marginFigures(margin, previousStart, previousEnd).pct : null
   const company: CompanyRow = {
     revenue: all.reduce((s, r) => s + r.revenue, 0),
     vsPrevious: change(companyPeriod),
     latestDay: all.reduce((s, r) => s + (r.latestDay ?? 0), 0),
     vsWeekday: change(companyWeekday),
     missingLatest: branches.filter((r) => r.latestDay === null).length,
+    trend: dates.map((date) => companyDaily.get(date) ?? null),
   }
-  if (margin) company.margin = marginFigures(margin, start, end)
-  return { latestDate, company, branches, b2b }
+  if (companyMargin) company.margin = companyMargin
+  const marginVsPrevious = companyMargin?.pct !== null && companyMargin && previousMargin !== null
+    ? companyMargin.pct - previousMargin : null
+  return { latestDate, company, branches, b2b, marginVsPrevious }
 }

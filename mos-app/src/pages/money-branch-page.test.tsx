@@ -139,11 +139,13 @@ describe('MoneyBranchPage — the day chart', () => {
     await waitFor(() => expect(where()).toBe(`/money/branch/GHQ?period=7&d=${day(3)}`))
   })
 
-  it('the days are also a table, newest first', async () => {
+  it('the days table includes the daily margin and its budget reference, newest first', async () => {
     renderBranch(['finance'])
     const table = await screen.findByRole('table', { name: /Gordi HQ revenue per day, 7 days/ })
+    expect(within(table).getByRole('columnheader', { name: 'Interim margin' })).toBeInTheDocument()
+    expect(within(table).getByRole('columnheader', { name: 'Budget' })).toBeInTheDocument()
     const firstRow = within(table).getAllByRole('row')[1]
-    expect(firstRow).toHaveTextContent('Mon 5 OctRp 14.200.000−24,9%Rp 18.900.000')
+    expect(firstRow).toHaveTextContent('Mon 5 OctRp 14.200.000−24,9%Rp 18.900.00058,8%66%')
   })
 })
 
@@ -161,8 +163,16 @@ describe('MoneyBranchPage — what each tier receives', () => {
     renderBranch(['finance'])
     expect(await screen.findByRole('heading', { name: 'Margin, last 7 days' })).toBeInTheDocument()
     expect(screen.getByText('COGS 41,2% of revenue against a 34,0% budget: 7,2 points over.')).toBeInTheDocument()
-    expect(screen.getByText('58,8%')).toBeInTheDocument()
-    expect(screen.getByText('Recipe vs stock cost', { selector: 'dt' })).toBeInTheDocument()
+    expect(screen.getByText('58,8%', { selector: '.kpi-tile-value' })).toBeInTheDocument()
+    expect(screen.getByText('Recipe vs stock cost', { selector: '.kpi-tile-label' })).toBeInTheDocument()
+  })
+
+  it('uses proportional figures for branch Money KPIs', async () => {
+    renderBranch(['finance'])
+    await screen.findByRole('heading', { name: 'Margin, last 7 days' })
+    const values = Array.from(document.querySelectorAll('.money-branch__kpis .kpi-tile-value'))
+    expect(values).toHaveLength(4)
+    expect(values.every((value) => !value.classList.contains('tabular'))).toBe(true)
   })
 
   it('COGS on its budget reads as on budget, not "0,0 points under"', async () => {
@@ -270,8 +280,10 @@ describe('MoneyBranchPage — states', () => {
   it('the period control changes the period in the URL and keeps the chosen day', async () => {
     const user = userEvent.setup()
     renderBranch(['finance'], `/money/branch/GHQ?period=7&d=${day(1)}`)
-    await user.click(await screen.findByRole('button', { name: '30 days' }))
-    expect(where()).toBe(`/money/branch/GHQ?period=30&d=${day(1)}`)
+    const thirtyDays = await screen.findByRole('button', { name: '30 days' })
+    await waitFor(() => expect(thirtyDays).toBeEnabled())
+    await user.click(thirtyDays)
+    await waitFor(() => expect(where()).toBe(`/money/branch/GHQ?period=30&d=${day(1)}`))
   })
 
   it('Indonesian', async () => {

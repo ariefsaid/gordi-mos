@@ -407,6 +407,19 @@ describe('functional foregrounds on their actual theme surfaces (#1300)', () => 
       .toContain('color: var(--field-error-text)')
   })
 
+  it('uses the AA-safe accent text token for Money headline links on the dark canvas', () => {
+    const moneyPage = source('pages/money-page.tsx')
+    expect(moneyPage.match(/style=\{\{ color: 'var\(--text-on-accent-tint\)' \}\}/g)).toHaveLength(2)
+
+    const indexCss = readFileSync(APP_CSS, 'utf8')
+    const darkTheme = readFileSync(join(TOKENS_DIR, 'theme-dark.css'), 'utf8')
+    const linkText = declaredP3(indexCss, 'text-on-accent-tint')
+    const canvas = declaredP3(darkTheme, 'ds-background-primary')
+    expect(linkText).not.toBeNull()
+    expect(canvas).not.toBeNull()
+    expect(contrastRatio(p3ToSrgb(linkText!), p3ToSrgb(canvas!))).toBeGreaterThanOrEqual(4.5)
+  })
+
   it.each(['light', 'dark'] as const)('%s selected, mention and recovery text clear AA on default, hover and focus surfaces', (theme) => {
     const css = readFileSync(join(__dirname, `theme-${theme}.css`), 'utf8')
     const dark = theme === 'dark'

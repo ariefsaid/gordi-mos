@@ -18,9 +18,9 @@ import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { latestBy } from '@/lib/db/reporting-shared'
 import { formatIDR } from '@/lib/format/money'
-import { formatPercent, formatPoints } from '@/lib/format/percent'
+import { formatPercent, formatPoints, formatSignedPoints } from '@/lib/format/percent'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
-import { formatIDRCompact, signedChange } from '@/lib/sales-dashboard'
+import { formatIDRCompact, moneyKpiDelta, signedChange } from '@/lib/sales-dashboard'
 import { isoDaysBefore } from '@/lib/trailing-window'
 import { Pill } from '@/components/ui/pill'
 import { useMoneyRows } from '@/lib/use-money-rows'
@@ -35,6 +35,8 @@ import {
 import { MoneyFreshness, PeriodControl } from '@/components/money/money-head'
 import { MoneyLoadError } from '@/components/money/money-load-error'
 import { DayRevenueChart } from '@/components/money/day-revenue-chart'
+import { KPITile } from '@/components/dashboard/kpi-tile'
+import { bulletGeometry } from '@/components/money/day-chart-geometry'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { Button } from '@/components/ui/button'
 import { streamKey } from '@/lib/kitchen-action-label'
@@ -55,6 +57,7 @@ function cafeItemHref(item: UncoveredCafeItem, branchId: string): string {
 function MarginPanel({ margin, period }: { margin: MarginFigures; period: MoneyPeriod }) {
   const t = useT()
   const basis = margin.budgetBasis
+  const bullet = basis ? bulletGeometry(basis.cogsShare, basis.budgetShare) : null
   return (
     <section className="money-branch__panel" aria-labelledby="money-branch-margin">
       <h2 id="money-branch-margin" className="money-branch__h2">{t('money.branch.margin.title', { days: String(period) })}</h2>
@@ -71,16 +74,13 @@ function MarginPanel({ margin, period }: { margin: MarginFigures; period: MoneyP
           )
           : t('money.branch.margin.noBudget')}
       </p>
-      <dl className="money-branch__figures">
-        <div>
-          <dt>{t('money.table.col.margin')}</dt>
-          <dd className="tabular">{margin.pct === null ? t('money.table.notReceived') : formatPercent(margin.pct, 1)}</dd>
-        </div>
-        <div>
-          <dt>{t('money.table.col.coverage')}</dt>
-          <dd className="tabular">{margin.coverage === null ? t('money.table.notReceived') : formatPercent(margin.coverage, 0)}</dd>
-        </div>
-      </dl>
+      {basis && bullet && <div className="flex items-center gap-3">
+        <span className="relative block h-2.5 flex-1 rounded-full bg-secondary" role="meter" aria-label={t('money.branch.bullet.label')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(bullet.fill)}>
+          <span className="block h-full rounded-full bg-primary" style={{ width: `${bullet.fill}%` }} />
+          <span className="absolute -top-1 h-[18px] w-0.5 -translate-x-1/2" aria-hidden="true" style={{ left: `${bullet.marker}%`, background: 'var(--text-tertiary)' }} />
+        </span>
+        <strong className="whitespace-nowrap tabular">{t('money.table.points', { value: formatSignedPoints(margin.cogsVsBudget ?? 0) })}</strong>
+      </div>}
       <p className="money-branch__note">{t('money.note.interim')}</p>
     </section>
   )
@@ -131,6 +131,7 @@ function UncoveredPanel({ branchId }: { branchId: string | null }) {
 function DaysTable({ page, period }: { page: BranchPage; period: MoneyPeriod }) {
   const t = useT()
   const { locale } = useI18n()
+  const budgetMargin = page.margin?.budgetBasis ? 1 - page.margin.budgetBasis.budgetShare : null
   return (
     <details className="money-branch__days" open={period === 7} key={period}>
       <summary>{t('money.branch.days.show')}</summary>
@@ -145,6 +146,10 @@ function DaysTable({ page, period }: { page: BranchPage; period: MoneyPeriod }) 
               <th scope="col">{t('money.chart.legend.revenue')}</th>
               <th scope="col">{t('money.branch.days.col.change')}</th>
               <th scope="col">{t('money.chart.legend.compare')}</th>
+              {page.margin && <>
+                <th scope="col">{t('money.chart.legend.margin')}</th>
+                <th scope="col">{t('money.chart.legend.budget')}</th>
+              </>}
             </tr>
           </thead>
           <tbody>
@@ -161,6 +166,10 @@ function DaysTable({ page, period }: { page: BranchPage; period: MoneyPeriod }) 
                     : <span className="money-branch__muted">{t('money.delta.noComparison')}</span>}
                 </td>
                 <td className="tabular">{d.compare === null ? t('money.table.notReceived') : formatIDR(d.compare)}</td>
+                {page.margin && <>
+                  <td className="tabular">{d.marginPct == null ? t('money.table.notReceived') : formatPercent(d.marginPct, 1)}</td>
+                  <td className="tabular">{budgetMargin === null ? t('money.table.notReceived') : formatPercent(budgetMargin, 0)}</td>
+                </>}
               </tr>
             ))}
           </tbody>
@@ -182,7 +191,7 @@ export function MoneyBranchPage() {
   const { load, read } = useMoneyRows(canSeeMargin)
   const data = load.data
   const page = useMemo(
-    () => (data ? buildBranchPage(data.revenue, data.margin, code, view.period) : null),
+    () => (data ? buildBranchPage(data.revenue, data.margin, code, view.period, data.branchNames) : null),
     [data, code, view.period],
   )
   const syncedAt = useMemo(() => (data ? latestBy(data.revenue, (r) => r.snapshot_as_of) : null), [data])
@@ -211,6 +220,7 @@ export function MoneyBranchPage() {
   }
   // The branch's own latest received day: the page opens on it and its freshness names it.
   const lastReceived = page ? [...page.days].reverse().find((d) => d.value !== null)?.date ?? page.latestDate : ''
+  const lastDay = page ? [...page.days].reverse().find((d) => d.value !== null) : undefined
   const selected = page && view.day && page.days.some((d) => d.date === view.day) ? view.day : lastReceived
   const selectedText = selected ? formatWeekdayDayMonth(selected, locale) : ''
   const canAsk = canSeeMargin && page !== null && !page.isB2B && page.branchId !== null && ASKABLE_CODE.test(page.code)
@@ -289,6 +299,12 @@ export function MoneyBranchPage() {
       {periodControl()}
       {load.status === 'error' && <MoneyLoadError kept tooMany={load.tooMany} onRetry={() => void read()} />}
       {askStatus && <div ref={askStatusRef} tabIndex={-1} className="money-branch__ask-result">{askStatus}</div>}
+      <div className={`money-branch__kpis grid min-w-0 grid-cols-2 gap-2 ${page.margin ? 'lg:grid-cols-4' : 'lg:grid-cols-2'}`}>
+        <KPITile valueVariant="proportional" label={t('money.overview.revenue', { days: String(view.period) })} value={formatIDRCompact(page.total)} delta={moneyKpiDelta(page.vsPrevious, t)} sub={t('money.table.col.vsPrevious')} />
+        <KPITile valueVariant="proportional" label={t('money.overview.latest')} value={lastDay ? formatIDRCompact(lastDay.value!) : t('money.table.notReceived')} delta={moneyKpiDelta(lastDay?.compare ? lastDay.value! / lastDay.compare - 1 : null, t)} sub={t('money.table.col.vsWeekday')} />
+        {page.margin && <KPITile valueVariant="proportional" label={t('money.overview.margin')} value={page.margin.pct === null ? t('money.table.notReceived') : formatPercent(page.margin.pct, 1)} />}
+        {page.margin && <KPITile valueVariant="proportional" label={t('money.table.col.coverage')} value={page.margin.coverage === null ? t('money.table.notReceived') : formatPercent(page.margin.coverage, 0)} />}
+      </div>
       <div className={`money-branch__grid${page.margin || (data.marginFailed && !page.isB2B) ? '' : ' money-branch__grid--single'}`}>
         <section className="money-branch__panel money-branch__panel--chart" aria-labelledby="money-branch-chart">
           <div className="money-branch__panel-head">
@@ -307,6 +323,10 @@ export function MoneyBranchPage() {
             onSelect={(day) => setView(view.period, day)}
             label={t('money.chart.label', { branch: page.name })}
           />
+          {page.margin && <section className="money-branch__margin-chart mt-3 grid gap-2 border-t border-border pt-3" aria-labelledby="money-branch-margin-chart">
+            <h2 id="money-branch-margin-chart" className="money-branch__h2">{t('money.branch.marginChart.title')}</h2>
+            <DayRevenueChart days={page.days} selected={selected} onSelect={(day) => setView(view.period, day)} label={t('money.chart.margin.label', { branch: page.name })} mode="margin" budget={page.margin.budgetBasis ? 1 - page.margin.budgetBasis.budgetShare : null} />
+          </section>}
           <DaysTable page={page} period={view.period} />
           {canSeeMargin && page.isB2B && <p className="money-branch__note">{t('money.note.b2b')}</p>}
         </section>

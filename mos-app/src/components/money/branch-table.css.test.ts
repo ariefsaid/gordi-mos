@@ -34,8 +34,8 @@ describe('Money branch table phone layout', () => {
     expect(phone).toMatch(/\.branch-money-table \.money-table__row--company \.money-table__cell--margin\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/)
   })
 
-  it('wraps tablet labels and tightens gutters so all eight columns fit at 768px', () => {
-    expect(tablet).toMatch(/\.branch-money-table \.money-table__head,\s*\.branch-money-table \.money-table__cell\s*\{[^}]*padding:\s*0 6px/)
+  it('wraps tablet labels and tightens gutters so all nine columns fit at 768px', () => {
+    expect(tablet).toMatch(/\.branch-money-table \.money-table__head,\s*\.branch-money-table \.money-table__cell\s*\{[^}]*padding:\s*0 4px/)
     expect(ruleIn(tablet, '.branch-money-table .money-table__cell--branch')).toMatch(/min-width:\s*112px/)
     const mutedCell = ruleIn(tablet, '.branch-money-table .money-table__cell .money-table__muted')
     expect(mutedCell).toMatch(/max-width:\s*9em/)

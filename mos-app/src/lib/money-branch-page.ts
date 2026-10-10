@@ -10,6 +10,7 @@ import {
   B2B_CHANNEL,
   DEFAULT_MONEY_VIEW,
   MONEY_PERIODS,
+  displayBranchName,
   marginFigures,
   type MarginFigures,
   type MoneyPeriod,
@@ -35,6 +36,7 @@ export interface BranchDay {
   value: number | null
   /** The same weekday a week earlier; null when that day was not received. */
   compare: number | null
+  marginPct?: number | null
 }
 
 export interface BranchPage {
@@ -47,6 +49,7 @@ export interface BranchPage {
   /** The period's days, oldest first. */
   days: BranchDay[]
   total: number
+  vsPrevious: number | null
   /** Present only when margin rows were read; null on B2B (margin covers POS branches). */
   margin?: MarginFigures | null
 }
@@ -58,6 +61,7 @@ export function buildBranchPage(
   margin: SalesMarginDailyRow[] | null,
   code: string,
   period: MoneyPeriod,
+  branchNames?: ReadonlyMap<string, string>,
 ): BranchPage | null {
   const latestDate = latestReportingDate(revenue)
   const own = revenue.filter((r) => r.branch_code === code)
@@ -69,19 +73,33 @@ export function buildBranchPage(
   if (isB2B) for (const r of revenue) if (!byDate.has(r.revenue_date)) byDate.set(r.revenue_date, 0)
 
   const { start, end } = resolveWindow({ kind: 'preset', days: period }, latestDate)
-  const days = Array.from({ length: period }, (_, i) => {
+  const days: BranchDay[] = Array.from({ length: period }, (_, i) => {
     const date = isoDaysBefore(end, period - 1 - i)
     return { date, value: byDate.get(date) ?? null, compare: byDate.get(isoDaysBefore(date, 7)) ?? null }
   })
+  let currentPair = 0
+  let previousPair = 0
+  for (const d of days) {
+    const earlier = byDate.get(isoDaysBefore(d.date, period))
+    if (d.value !== null && earlier !== undefined) { currentPair += d.value; previousPair += earlier }
+  }
+  if (margin && !isB2B) {
+    const dailyMargin = new Map(margin.filter((row) => row.branch_code === code).map((row) => [
+      row.margin_date, row.revenue > 0 && row.margin_interim !== null ? row.margin_interim / row.revenue : null,
+    ]))
+    for (const d of days) d.marginPct = dailyMargin.get(d.date) ?? null
+  }
   const latest = own.reduce((a, b) => (b.revenue_date > a.revenue_date ? b : a))
+  const branchId = own.find((r) => r.branch_id)?.branch_id ?? null
   const page: BranchPage = {
     code,
-    name: latest.branch_name ?? code,
-    branchId: own.find((r) => r.branch_id)?.branch_id ?? null,
+    name: displayBranchName(latest.branch_name ?? code, branchId ? branchNames?.get(branchId) : null),
+    branchId,
     isB2B,
     latestDate,
     days,
     total: days.reduce((s, d) => s + (d.value ?? 0), 0),
+    vsPrevious: previousPair > 0 ? currentPair / previousPair - 1 : null,
   }
   if (margin) page.margin = isB2B ? null : marginFigures(margin.filter((m) => m.branch_code === code), start, end)
   return page

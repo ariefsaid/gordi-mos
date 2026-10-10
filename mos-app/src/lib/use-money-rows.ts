@@ -3,6 +3,7 @@
 // the browser). The last rows read are kept through a later refresh's loading or failure, and a tab
 // left open overnight reads again when the viewer comes back to it.
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { listBranchesByIds } from '@/lib/db/branches'
 import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { ReportingRowCapError } from '@/lib/db/reporting-shared'
@@ -10,6 +11,7 @@ import { MONEY_FETCH_DAYS } from '@/lib/money-branch-table'
 
 export interface MoneyRows {
   revenue: SalesDailyRevenueRow[]
+  branchNames: ReadonlyMap<string, string>
   /** Null for a viewer below the margin tier (the query was not issued) or when its read failed. */
   margin: SalesMarginDailyRow[] | null
   /** The margin read failed while revenue loaded: revenue stays on screen, margin says so. */
@@ -40,9 +42,19 @@ export function useMoneyRows(canSeeMargin: boolean): { load: MoneyLoad; read: ()
           : Promise.resolve(null),
       ])
       if (id !== latestRead.current) return
+      const branchNames = new Map<string, string>()
+      const linkedBranchIds = [...new Set(revenue.flatMap((row) => row.branch_id ? [row.branch_id] : []))]
+      if (linkedBranchIds.length > 0) {
+        try {
+          for (const branch of await listBranchesByIds(linkedBranchIds)) branchNames.set(branch.id, branch.name)
+        } catch {
+          // Reporting remains readable if the optional display-name lookup is unavailable.
+        }
+      }
+      if (id !== latestRead.current) return
       dataRef.current = margin === 'failed'
-        ? { revenue, margin: null, marginFailed: true }
-        : { revenue, margin, marginFailed: false }
+        ? { revenue, branchNames, margin: null, marginFailed: true }
+        : { revenue, branchNames, margin, marginFailed: false }
       setLoad({ status: 'ready', data: dataRef.current })
     } catch (error) {
       if (id !== latestRead.current) return
