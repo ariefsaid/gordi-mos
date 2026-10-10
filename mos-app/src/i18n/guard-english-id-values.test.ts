@@ -38,6 +38,8 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'nav.ecommerce', // Ecommerce
   'nav.roastery', // Roastery
   'rail.b2bOps', // B2B Ops
+  'money.filter.pos', // POS — channel acronym
+  'money.filter.b2b', // B2B — channel acronym
   'kitchen.actionType.transferTo.short', // → ${branch} — symbol template
   'kitchen.activity.bar', // Bar
   // #1366 Café Count preserves its feature, lifecycle and inventory terms in Indonesian copy.

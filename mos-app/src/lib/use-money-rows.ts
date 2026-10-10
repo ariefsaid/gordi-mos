@@ -4,12 +4,18 @@
 // left open overnight reads again when the viewer comes back to it.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { listBranchesByIds } from '@/lib/db/branches'
-import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
+import { latestSalesReportingDate, listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { ReportingRowCapError } from '@/lib/db/reporting-shared'
-import { MONEY_FETCH_DAYS } from '@/lib/money-branch-table'
+import { isValidMoneyRange, resolveMoneyWindow, type MoneyChannel, type MoneyPeriod, type MoneyRange, type MoneyView } from '@/lib/money-branch-table'
+import { isoDaysBefore } from '@/lib/trailing-window'
 
 export interface MoneyRows {
+  latestDate: string | null
+  period: MoneyPeriod
+  range: MoneyRange | null
+  branchCode: string | null
+  channel: MoneyChannel
   revenue: SalesDailyRevenueRow[]
   branchNames: ReadonlyMap<string, string>
   /** Null for a viewer below the margin tier (the query was not issued) or when its read failed. */
@@ -26,19 +32,37 @@ export interface MoneyLoad {
   tooMany?: boolean
 }
 
-export function useMoneyRows(canSeeMargin: boolean): { load: MoneyLoad; read: () => Promise<void> } {
+export function useMoneyRows(canSeeMargin: boolean, selection: Pick<MoneyView, 'period' | 'range' | 'branchCode' | 'channel'>): { load: MoneyLoad; read: () => Promise<void> } {
   const [load, setLoad] = useState<MoneyLoad>({ status: 'loading', data: null })
   const dataRef = useRef<MoneyRows | null>(null)
   // Reads can overlap (a Retry, a tab coming back); only the latest one may land.
   const latestRead = useRef(0)
+  const selectionRef = useRef(selection)
+  selectionRef.current = selection
+  const period = selection.period
+  const from = selection.range?.from
+  const to = selection.range?.to
   const read = useCallback(async () => {
     const id = ++latestRead.current
     setLoad({ status: 'loading', data: dataRef.current })
     try {
+      const { branchCode, channel } = selectionRef.current
+      const latestDate = await latestSalesReportingDate()
+      if (id !== latestRead.current) return
+      if (!latestDate) {
+        const empty = { latestDate: null, period, range: null, branchCode, channel, revenue: [], branchNames: new Map<string, string>(), margin: canSeeMargin ? [] : null, marginFailed: false }
+        dataRef.current = empty
+        setLoad({ status: 'ready', data: empty })
+        return
+      }
+      const range = isValidMoneyRange(from ?? null, to ?? null, latestDate) && from && to ? { from, to } : null
+      const window = resolveMoneyWindow({ period, range }, latestDate)
+      const fromDate = isoDaysBefore(window.from, Math.max(window.days, 7))
+      const bounds = { fromDate, toDate: window.to }
       const [revenue, margin] = await Promise.all([
-        listSalesDailyRevenue({ sinceDays: MONEY_FETCH_DAYS }),
+        listSalesDailyRevenue(bounds),
         canSeeMargin
-          ? listSalesMarginDaily({ sinceDays: MONEY_FETCH_DAYS }).catch(() => 'failed' as const)
+          ? listSalesMarginDaily(bounds).catch(() => 'failed' as const)
           : Promise.resolve(null),
       ])
       if (id !== latestRead.current) return
@@ -53,14 +77,14 @@ export function useMoneyRows(canSeeMargin: boolean): { load: MoneyLoad; read: ()
       }
       if (id !== latestRead.current) return
       dataRef.current = margin === 'failed'
-        ? { revenue, branchNames, margin: null, marginFailed: true }
-        : { revenue, branchNames, margin, marginFailed: false }
+        ? { latestDate, period, range, branchCode, channel, revenue, branchNames, margin: null, marginFailed: true }
+        : { latestDate, period, range, branchCode, channel, revenue, branchNames, margin, marginFailed: false }
       setLoad({ status: 'ready', data: dataRef.current })
     } catch (error) {
       if (id !== latestRead.current) return
       setLoad({ status: 'error', data: dataRef.current, tooMany: error instanceof ReportingRowCapError })
     }
-  }, [canSeeMargin])
+  }, [canSeeMargin, from, period, to])
 
   useEffect(() => {
     void read()

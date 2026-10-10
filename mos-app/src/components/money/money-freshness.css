@@ -9,3 +9,39 @@
   background: color-mix(in srgb, var(--warning) 18%, transparent);
   color: var(--warning-foreground);
 }
+
+.money-period-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.money-period {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: 32px;
+  max-width: 100%;
+}
+
+.money-period__range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+  max-width: 100%;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.money-period__range .mk-date {
+  width: min(160px, 100%);
+}
+
+.money-period__error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--status-lost-text);
+  font-size: var(--font-size-label);
+}
