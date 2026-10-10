@@ -302,6 +302,8 @@ def normalize_margin_row(
     else:
         margin_interim = round(revenue - cogs_interim_sm, 2)
         margin_interim_pct = round(margin_interim / revenue, 4) if revenue > 0 else None
+        if margin_interim_pct is not None and abs(margin_interim_pct) >= 10**4:
+            margin_interim_pct = None
 
     return {
         "org_id": org_id,
@@ -328,7 +330,7 @@ def build_margin_source_query() -> str:
              max(r.branch_name)           as branch_name,
              sum(r.clean_revenue)         as revenue,
              max(c.sm_total)              as cogs_interim_sm,
-             max(c.bom_total)             as cogs_budget_bom,
+             max(c.cogs_total)            as cogs_budget_bom,
              max(c.bom_coverage_pct)      as bom_coverage_pct
       from public.v_daily_revenue_unified r
       left join public.fact_daily_cogs_interim c
@@ -658,11 +660,13 @@ def pending_bill_window_start(snapshot_as_of: datetime, window_days: int) -> dat
 def build_pending_bill_source_query() -> str:
     # Void rows are read too, so a bill the till voided can be flagged rather than left present.
     return """
-        select sales_num, bill_num, sales_date, esb_code::text as esb_code, branch_code,
-               branch_name, counterparty_note, grand_total, status_name, payment_method_name
-        from public.v_pos_pending_bills
-        where sales_date >= %s::date
-        order by sales_date, esb_code, branch_code, bill_num
+        select s.sales_num, s.bill_num, s.sales_date, s.esb_code::text as esb_code, s.branch_code,
+               s.branch_name, o.additional_info as counterparty_note, s.grand_total,
+               s.status_name, s.payment_method_name
+        from public.oms_sales_clean s
+        left join public.oms_sales o on o.sales_num = s.sales_num
+        where s.sales_date >= %s::date
+        order by s.sales_date, s.esb_code, s.branch_code, s.bill_num
     """
 
 
