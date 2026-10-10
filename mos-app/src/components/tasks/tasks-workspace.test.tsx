@@ -1147,12 +1147,16 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
   })
 
-  it('AC-133: empty (no tasks, no active filter) shows segment-aware empty copy + Create task CTA', async () => {
+  it('AC-133: first-use empty Tasks state is short, has one create action, and is not an all-clear', async () => {
     mockListTasks.mockResolvedValue([])
     renderTable()
     await waitFor(() => {
-      expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument()
+      expect(screen.getByText('No tasks yet.')).toBeInTheDocument()
     })
+    const empty = screen.getByTestId('empty-state')
+    expect(empty).toHaveTextContent('Create a task to assign work.')
+    expect(empty).toHaveAttribute('data-empty-variant', 'next-step')
+    expect(empty.querySelector('.empty-state-glyph')).toBeNull()
     expect(screen.getByRole('link', { name: /\+ create task/i })).toBeInTheDocument()
     expect(document.querySelector('.list-paging')).toBeNull()
   })

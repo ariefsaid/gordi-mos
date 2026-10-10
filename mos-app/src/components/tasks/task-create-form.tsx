@@ -57,7 +57,7 @@ export function TaskCreateForm({
   const supervisorErrorId = `${formId}-supervisor-error`
   const dueFieldId = `${formId}-due`
   const workLineFieldId = `${formId}-workline`
-  const { workLineOptions, onEditDue, onEditWorkLine, onTitleChange, formState, onFormStateChange } = useTaskCreateContext()
+  const { workLineOptions, onEditDue, onEditWorkLine, onTitleChange, formState, onFormStateChange, supervisorHint } = useTaskCreateContext()
 
   const [localTitle, setLocalTitle] = useState(task.title)
   const title = onTitleChange ? task.title : localTitle
@@ -232,8 +232,11 @@ export function TaskCreateForm({
             onChange={(value) => { void onEditSupervisor(task.id, value) }}
           />
           {supervisorError && <p id={supervisorErrorId} role="alert" className="tcf-error">{supervisorError}</p>}
+          {supervisorHint === 'missing' && <p role="status" className="tcf-hint">{t('tasks.create.noManager')}</p>}
+          {supervisorHint === 'error' && <p role="status" className="tcf-hint">{t('tasks.create.managerLookupFailed')}</p>}
         </div>
       </div>
+      <p className="tcf-hint">{t('tasks.create.picSupervisorHint')}</p>
 
       <div className="tcf-row tcf-row--pair">
         <div className="tcf-field">

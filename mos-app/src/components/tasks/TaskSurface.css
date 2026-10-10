@@ -317,6 +317,7 @@
    .mk-*--error rule) and the required asterisk (.tc-required) keep base --destructive
    — those are non-text. */
 .tc-field-error { font-size: var(--font-size-label); color: var(--status-lost-text); }
+.tc-hint { margin: 0; font-size: var(--font-size-label); color: var(--muted-foreground); }
 .tc-title-error-slot {
   min-height: 1.25em;
   font-size: var(--font-size-label);

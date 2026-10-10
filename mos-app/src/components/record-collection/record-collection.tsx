@@ -4,6 +4,7 @@
 // system, and never a disabled "soon" presentation placeholder.
 import type { ReactElement, ReactNode } from 'react'
 import { EmptyState, ErrorState, FilteredEmptyState, LoadingShell } from '@/components/ui/state-kit'
+import type { EmptyStateVariant } from '@/components/ui/state-kit'
 import type { RecordCollectionController } from '@/lib/record-collection/engine'
 import type { CollectionPresentationProps } from '@/lib/record-collection/types'
 import { useT } from '@/i18n/use-t'
@@ -24,7 +25,7 @@ export interface RecordCollectionSurfaceProps<
   /** Typed bulk-action bar; rendered only when the descriptor grants selection and rows are picked. */
   selectionBar?: ReactNode
   archivedEmpty?: { title: string; copy?: string }
-  empty: { title: string; copy?: string; create?: ReactNode; className?: string }
+  empty: { title: string; copy?: string; create?: ReactNode; variant?: EmptyStateVariant; className?: string }
   filteredEmpty: { items: string; clear: () => void; create?: ReactNode; title?: string; copy?: string }
   error: { message: string; retry: () => void }
   loadingLabel: string
@@ -145,7 +146,7 @@ export function RecordCollectionSurface<
         {controls}
         <div className="record-collection-results">
           {header}
-          <EmptyState variant="quiet" title={empty.title} copy={empty.copy} className={empty.className}>
+          <EmptyState variant={empty.variant ?? 'quiet'} title={empty.title} copy={empty.copy} className={empty.className}>
             {empty.create}
           </EmptyState>
         </div>

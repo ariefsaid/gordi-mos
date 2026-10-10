@@ -38,7 +38,7 @@ import { canStartProcessForTeam } from '@/lib/db/processes'
 import { linkSignalTask } from '@/lib/db/signals'
 import { TaskOverlayContent } from './task-drawer'
 import { TaskCreateContext, type TaskCreateContextValue, type TaskCreateFormState } from './task-create-context'
-import { loadHomeLeadId } from './default-supervisor'
+import { usePicSupervisorDefault } from './default-supervisor'
 import { useCatalogRecordEntryFactory } from '@/components/catalog/use-catalog-record-overlay'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
 import { getActiveTaskView } from './task-collection-view'
@@ -208,9 +208,7 @@ export function TasksWorkspace({
   // `null` means the viewer Team directory is still loading; [] is an honest no-eligible-Team
   // result and must never be replaced with a BU/first-row guess.
   const [viewerTeams, setViewerTeams] = useState<readonly TeamOption[] | null>(null)
-  // The creator's home Team lead, resolved together with viewerTeams so a draft never opens
-  // between the two. Null (no lead, or the creator leads) leaves Supervisor blank.
-  const [homeLeadId, setHomeLeadId] = useState<string | null>(null)
+  const { hint: supervisorHint, reset: resetSupervisorDefault, choose: chooseSupervisor } = usePicSupervisorDefault(draftTask, setDraftTask)
   const [processStartTeamIds, setProcessStartTeamIds] = useState<Set<string>>(new Set())
   const [announcement, setAnnouncement] = useState('')
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
@@ -242,11 +240,8 @@ export function TasksWorkspace({
       return () => { active = false }
     }
     setViewerTeams(null)
-    getPersonTeams(viewerId).then(async (teams) => {
-      const leadId = await loadHomeLeadId(teams, viewerId)
-      if (!active) return
-      setHomeLeadId(leadId)
-      setViewerTeams(teams)
+    getPersonTeams(viewerId).then((teams) => {
+      if (active) setViewerTeams(teams)
     }).catch(() => {
       // A failed directory read is deliberately fail-closed: the draft shows no eligible Team and
       // cannot manufacture a BU. The title entry remains inline so a later retry/refresh can heal.
@@ -254,6 +249,7 @@ export function TasksWorkspace({
     })
     return () => { active = false }
   }, [viewerId])
+
 
   const controller = useRecordCollection({
     descriptor: taskCollectionDescriptor,
@@ -579,10 +575,11 @@ export function TasksWorkspace({
   }, [draftTask?.id, setDraftTask, viewerTeams])
   const onEditSupervisor = useCallback(async (taskId: string, personId: string) => {
     if (draftTask?.id !== taskId) return
+    chooseSupervisor()
     setDraftTask((current) => current?.id === taskId
       ? { ...current, accountable_person_id: personId }
       : current)
-  }, [draftTask?.id, setDraftTask])
+  }, [chooseSupervisor, draftTask?.id, setDraftTask])
   const onEditTitle = useCallback(async (taskId: string, title: string) => {
     if (draftTask?.id === taskId) {
       if (!viewerId) throw new Error('inline task creation requires an authenticated viewer')
@@ -710,6 +707,12 @@ export function TasksWorkspace({
     const supervisorId = firstCreateParam(prefill, ['supervisor', 'supervisorId'])
       ?? firstCreateParam(urlPrefill, ['createSupervisor', 'supervisor', 'supervisorId'])
       ?? query.supervisorId
+    const picId = firstCreateParam(prefill, ['r', 'pic', 'picId'])
+      ?? firstCreateParam(urlPrefill, ['createPic', 'pic', 'picId'])
+      ?? query.picId
+      ?? viewerId
+      ?? firstPerson
+    resetSupervisorDefault(Boolean(supervisorId))
     const now = new Date().toISOString()
     setDraftTask({
       id: `new-task-${Date.now()}`,
@@ -720,22 +723,15 @@ export function TasksWorkspace({
       // until they choose; a zero-Team viewer stays honestly unassigned.
       business_unit_id: selectedTeam?.businessUnitId ?? '',
       status: query.status ?? 'Open',
-      responsible_person_id: firstCreateParam(prefill, ['r', 'pic', 'picId'])
-        ?? firstCreateParam(urlPrefill, ['createPic', 'pic', 'picId'])
-        ?? query.picId
-        ?? viewerId
-        ?? firstPerson,
-      // PIC and Supervisor are independent RACI roles. Supervisor is an explicit choice or the
-      // home Team lead (null when there is none or the creator is the lead) — never the
-      // viewer/PIC fallback used by the retired create path.
-      accountable_person_id: supervisorId ?? homeLeadId ?? '',
+      responsible_person_id: picId,
+      accountable_person_id: supervisorId ?? '',
       consulted_person_ids: [], informed_person_ids: [],
       description: null, due_date: null, objective_id: objectiveId, work_line_id: workLineId,
       last_activity_at: now, archived_at: null, created_by: viewerId ?? '',
       created_at: now, updated_at: now, process_run_id: null, generated_from_task_def_id: null,
     })
     draftSourceSignalRef.current = sourceSignal ?? draftSourceSignalRef.current
-  }, [createdDraftTaskRef, dataContext, draftSourceSignalRef, draftTask, draftTitleRef, homeLeadId, params, setDraftFormState, setDraftLinkError, setDraftTask, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
+  }, [createdDraftTaskRef, dataContext, draftSourceSignalRef, draftTask, draftTitleRef, params, resetSupervisorDefault, setDraftFormState, setDraftLinkError, setDraftTask, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
   // Every create entry — page button, global actions menu, command menu, keyboard shortcut, group
   // "Add" — comes through here, so a draft and an open record are never on screen together. A
   // dirty record may refuse to close; the draft opens only on a committed close, and only once
@@ -953,6 +949,7 @@ export function TasksWorkspace({
   ])
   // Projects & Processes the viewer can read (RLS scopes the catalog), for the create form.
   const createContext: TaskCreateContextValue = useMemo(() => ({
+    supervisorHint: supervisorHint && supervisorHint.taskId === draftTask?.id && supervisorHint.picId === draftTask?.responsible_person_id && supervisorHint.businessUnitId === draftTask?.business_unit_id ? supervisorHint.status : null,
     workLineOptions: [...(dataContext?.workLinesById ?? [])].map(([id, name]) => ({
       id, name, type: dataContext?.workLineTypeById.get(id) ?? 'project',
     })),
@@ -961,7 +958,7 @@ export function TasksWorkspace({
     onTitleChange: (title) => setDraftTask((current) => current ? { ...current, title } : current),
     formState: draftFormState,
     onFormStateChange: (patch) => setDraftFormState((current) => ({ ...current, ...patch })),
-  }), [dataContext, draftFormState, onEditDue, onEditWorkLine, setDraftTask, setDraftFormState])
+  }), [dataContext, draftFormState, draftTask, onEditDue, onEditWorkLine, setDraftTask, setDraftFormState, supervisorHint])
 
   const controls = !isDesktop ? (
     <ViewOptionsDisclosure
@@ -1027,6 +1024,7 @@ export function TasksWorkspace({
               empty={{
                 title: emptyTitle,
                 copy: emptyCopy,
+                variant: 'next-step',
                 create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
               }}
               filteredEmpty={{
