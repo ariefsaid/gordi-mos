@@ -15,12 +15,15 @@ import userEvent from '@testing-library/user-event'
 import { Profiler, StrictMode, Suspense, type ReactNode } from 'react'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { MemoryRouter, Route, Routes, createMemoryRouter, RouterProvider, Link } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import * as kitchenItemList from '@/lib/kitchen-item-list'
 
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
+
+const mockFetchLatestItemLogDates = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/db/kitchen-logs', async () => {
   // `streamCatalogFrom` is pure catalog arithmetic, not IO — the page uses it to build the
@@ -35,6 +38,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     fetchPlanMap: vi.fn(),
     fetchStockMap: vi.fn(),
     fetchActualsMap: vi.fn(),
+    fetchLatestItemLogDates: mockFetchLatestItemLogDates,
     listStreamPairs: vi.fn(),
     listCafeDestinations: vi.fn(),
     resolveKitchenBuId: vi.fn(),
@@ -257,26 +261,33 @@ async function renderPage(
   initialPath = appUrl('/cafe'),
   location?: { activeBranchId: string; activeBranchName: string },
   leading?: ReactNode,
+  locale: 'en' | 'id' = 'en',
 ) {
   mockUseAuth.mockReturnValue(auth)
   let utils!: ReturnType<typeof render>
   await act(async () => {
     utils = render(
-      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[initialPath]}>
-        <Routes>
-          <Route path="/cafe" element={<KitchenLogPage mode="production" leading={leading} {...location} />} />
-          <Route path="/cafe/transfer" element={<KitchenLogPage mode="transfer" leading={leading} {...location} />} />
-          <Route path="/cafe/success" element={<div>Submitted</div>} />
-        </Routes>
-      </MemoryRouter>,
+      <I18nProvider initialLocale={locale}>
+        <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[initialPath]}>
+          <Routes>
+            <Route path="/cafe" element={<KitchenLogPage mode="production" leading={leading} {...location} />} />
+            <Route path="/cafe/transfer" element={<KitchenLogPage mode="transfer" leading={leading} {...location} />} />
+            <Route path="/cafe/success" element={<div>Submitted</div>} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
     )
     await Promise.resolve()
   })
   return utils
 }
 
-async function renderTransferPage(auth: AuthState = VIEWER_MEMBER, location?: { activeBranchId: string; activeBranchName: string }) {
-  return renderPage(auth, appUrl('/cafe/transfer'), location)
+async function renderTransferPage(
+  auth: AuthState = VIEWER_MEMBER,
+  location?: { activeBranchId: string; activeBranchName: string },
+  locale: 'en' | 'id' = 'en',
+) {
+  return renderPage(auth, appUrl('/cafe/transfer'), location, undefined, locale)
 }
 
 import { KitchenLogPage } from './kitchen-log-page'
@@ -301,6 +312,7 @@ beforeEach(() => {
   mockFetchPlanMap.mockResolvedValue(PLAN_MAP)
   mockFetchStockMap.mockResolvedValue(STOCK_MAP)
   mockFetchActualsMap.mockResolvedValue({})
+  mockFetchLatestItemLogDates.mockResolvedValue({})
   mockResolveKitchenBuId.mockResolvedValue(BU_ID)
   // Default: online
   Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true })
@@ -1049,6 +1061,45 @@ describe('F3b: disabled Submit shows a note-missing pointer when a variance note
 // Parity with the OLD app (app/main.py ~L618-661): an over-`tersedia` transfer is a
 // HARD STOP ("Produksi dulu sebelum transfer"), NOT a silent clamp. The typed qty is
 // kept; Submit is blocked + the offending line shows the produce-first cue.
+describe('Issue 1702: transfer availability explains the date cutoff without changing its gate', () => {
+  it.each([
+    {
+      locale: 'en' as const,
+      explanation: "Available uses approved logs dated before today. Today's approved production can be transferred tomorrow.",
+      capCue: 'Insufficient stock — produce first',
+    },
+    {
+      locale: 'id' as const,
+      explanation: 'Tersedia dihitung dari catatan yang disetujui sebelum hari ini. Produksi yang disetujui hari ini bisa ditransfer besok.',
+      capCue: 'Stok kurang — produksi dulu',
+    },
+  ])('explains positive Stock with zero Available in the empty and blocked states ($locale)', async ({ locale, explanation, capCue }) => {
+    mockFetchStockMap.mockResolvedValue({
+      w1: { stok: 1, tersedia: 0 },
+      w2: { stok: 0, tersedia: 0 },
+    })
+    await renderTransferPage(VIEWER_MEMBER, undefined, locale)
+    await waitFor(() => expect(screen.getByText('Ayam Bakar')).toBeInTheDocument())
+    expect(screen.getByText(explanation)).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /radiant/i }))
+      await Promise.resolve()
+    })
+    const qtyInput = screen.getByRole('spinbutton', { name: /ayam bakar/i })
+    await act(async () => {
+      fireEvent.change(qtyInput, { target: { value: '1' } })
+      await Promise.resolve()
+    })
+
+    const rowExplanation = await screen.findByText(explanation)
+    expect(rowExplanation).toHaveClass('kls-availability-note')
+    expect(screen.getByText(capCue)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: locale === 'en' ? /^submit/i : /^kirim/i })).toBeDisabled()
+    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+  })
+})
+
 describe('AC-022: transfer over-availability rejects submit — "Insufficient stock — produce first" (FR-023)', () => {
   it('AC-022: an over-tersedia Transfer qty is NOT clamped — keeps the typed value + shows the cue', async () => {
     await renderTransferPage()
@@ -2178,6 +2229,46 @@ describe('OD-K-5: Planned/Off-plan group split (desktop)', () => {
     expect(within(offplanHead).getByText('1')).toBeInTheDocument()
     expect(screen.queryByText('Enter the amount produced')).not.toBeInTheDocument()
     expect(screen.queryByText('Sambal Matah')).toBeNull()
+  })
+
+  it('orders planned items first, then recent off-plan logs newest-first, then unlogged names', async () => {
+    setDesktopMatchMedia(true)
+    mockListCaptureFormItems.mockResolvedValue([
+      { id: 'plan-alpha', name: 'Alpha planned', category: null, units: [{ id: 'u1', name: 'each', is_default: true }] },
+      { id: 'never-bacon', name: 'Bacon', category: null, units: [{ id: 'u2', name: 'each', is_default: true }] },
+      { id: 'old-curry', name: 'Curry', category: null, units: [{ id: 'u3', name: 'each', is_default: true }] },
+      { id: 'second-rice', name: 'Rice', category: null, units: [{ id: 'u4', name: 'each', is_default: true }] },
+      { id: 'new-tostada', name: 'Tostada', category: null, units: [{ id: 'u5', name: 'each', is_default: true }] },
+      { id: 'never-zucchini', name: 'Zucchini', category: null, units: [{ id: 'u6', name: 'each', is_default: true }] },
+      { id: 'plan-zulu', name: 'Zulu planned', category: null, units: [{ id: 'u7', name: 'each', is_default: true }] },
+    ])
+    mockFetchPlanMap.mockResolvedValue({
+      'plan-alpha': { [PRODUCE_KEY]: 1 },
+      'plan-zulu': { [PRODUCE_KEY]: 1 },
+    })
+    mockFetchLatestItemLogDates.mockResolvedValue({
+      'old-curry': '2026-10-10T10:00:00Z',
+      'second-rice': '2026-10-11T10:00:00Z',
+      'new-tostada': '2026-10-12T10:00:00Z',
+    })
+    await renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /expand not planned today/i }))
+
+    const content = screen.getByRole('main').textContent ?? ''
+    const order = ['Alpha planned', 'Zulu planned', 'Tostada', 'Rice', 'Curry', 'Bacon', 'Zucchini']
+      .map(name => content.indexOf(name))
+    expect(order.every(index => index >= 0)).toBe(true)
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+  })
+
+  it('keeps capture available when the optional recent-log read fails', async () => {
+    setDesktopMatchMedia(true)
+    mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
+    mockFetchLatestItemLogDates.mockRejectedValue(new Error('history read failed'))
+    await renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /expand not planned today/i }))
+
+    expect(screen.getByRole('spinbutton', { name: /quantity produced for sambal matah/i })).toBeInTheDocument()
   })
 
   it('omits a zero-row group and opens Off-plan when Planned is empty', async () => {

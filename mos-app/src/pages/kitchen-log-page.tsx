@@ -21,6 +21,7 @@ import { useT, type Translate } from '@/i18n/use-t'
 import {
   listCaptureFormItems,
   fetchActualsMap,
+  fetchLatestItemLogDates,
   fetchPlanMap,
   fetchStockMap,
   listStreamItemIds,
@@ -237,6 +238,16 @@ type PageStatus =
 
 export type KitchenLogMode = 'production' | 'transfer'
 
+async function readLatestItemLogDates(stream: ProductionStream | null, itemIds: string[], enabled: boolean) {
+  if (!stream || !enabled || itemIds.length === 0) return {}
+  try {
+    return await fetchLatestItemLogDates(itemIds, stream)
+  } catch (error) {
+    reportError(error, { source: 'kitchen-log.recent-item-order' })
+    return {}
+  }
+}
+
 export function KitchenLogPage({ mode = 'production', leading, activeBranchId, activeBranchName }: {
   mode?: KitchenLogMode
   leading?: ReactNode
@@ -357,6 +368,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const [planMap, setPlanMap] = useState<PlanMap>({})
   const [stockMap, setStockMap] = useState<StockMap>({})
   const [actualsMap, setActualsMap] = useState<ActualsMap>({})
+  const [recentItemLogDates, setRecentItemLogDates] = useState<Record<string, string>>({})
   const [summaryCountsAvailable, setSummaryCountsAvailable] = useState(false)
   const [buId, setBuId] = useState('')
   const [lines, setLines] = useState<Record<string, KitchenLogLine>>({})
@@ -429,7 +441,18 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const effectiveKindFilter: KitchenItemKindFilter = canUseCategoryAndKindFilters ? supportedKindFilter : 'All'
   const effectiveCategory = canUseCategoryAndKindFilters ? capturePageState.category : 'All'
   const filterRows = useMemo(
-    () => toKitchenListRows(wipItems, {
+    () => toKitchenListRows([...wipItems].sort((a, b) => {
+      const aPlanned = (lines[a.id]?.plan_qty ?? 0) > 0
+      const bPlanned = (lines[b.id]?.plan_qty ?? 0) > 0
+      const byName = a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
+      if (aPlanned !== bPlanned) return aPlanned ? -1 : 1
+      if (aPlanned || mode !== 'production') return byName
+      const aRecent = recentItemLogDates[a.id]
+      const bRecent = recentItemLogDates[b.id]
+      if (aRecent && bRecent && aRecent !== bRecent) return bRecent.localeCompare(aRecent)
+      if (Boolean(aRecent) !== Boolean(bRecent)) return aRecent ? -1 : 1
+      return byName
+    }), {
       kind: 'WIP',
       getId: item => item.id,
       getKind: item => item.kind ?? 'WIP',
@@ -437,7 +460,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       getCategory: item => item.category,
       getGroupKey: item => (lines[item.id]?.plan_qty ?? 0) > 0 ? 'planned' : 'offplan',
     }),
-    [lines, wipItems],
+    [lines, mode, recentItemLogDates, wipItems],
   )
   const itemTable = useKitchenItemTable({
     data: filterRows,
@@ -528,11 +551,12 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   }, [setRestorationNotice])
 
   const commitRestoredStreamDraft = useCallback((
-    { items, plan, stock, actuals, restored, record, dateDrafts }: {
+    { items, plan, stock, actuals, recentItemLogDates, restored, record, dateDrafts }: {
       items: CaptureFormItem[]
       plan: PlanMap
       stock: StockMap
       actuals: ActualsMap
+      recentItemLogDates: Record<string, string>
       restored: ReturnType<typeof restoreKitchenCaptureDraft>
       record: StoredCafeCaptureDraft<StoredKitchenCaptureDraft> | null
       dateDrafts: StoredCafeCaptureDraft<StoredKitchenCaptureDraft>[]
@@ -545,6 +569,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setPlanMap(plan)
     setStockMap(stock)
     setActualsMap(actuals)
+    setRecentItemLogDates(recentItemLogDates)
     setSummaryCountsAvailable(streamProduces(stream, options))
     setMovement(restored.movement)
     setLines(restored.lines)
@@ -569,6 +594,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setRestoredDraftInfo(null)
     setRestoreAnnouncement('')
     setSummaryCountsAvailable(false)
+    setRecentItemLogDates({})
     try {
       const [catalog, bu] = await Promise.all([
         // The module's stream, resolved the one way every Café surface resolves it
@@ -631,6 +657,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         setPlanMap(plan)
         setStockMap({})
         setActualsMap(actuals)
+        setRecentItemLogDates({})
         setSummaryCountsAvailable(countsAvailable)
         setBuId(bu)
         setLines({})
@@ -642,13 +669,14 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         setStatus({ kind: 'ready' })
         return
       }
-      const [plan, stock, actuals] = resolvedStream
+      const [plan, stock, actuals, recentItemLogDates] = resolvedStream
         ? await Promise.all([
             fetchPlanMap(logDate, resolvedStream),
             fetchStockMap(logDate, resolvedStream),
             fetchActualsMap(logDate, resolvedStream),
+            readLatestItemLogDates(resolvedStream, items.map(item => item.id), mode === 'production'),
           ])
-        : [{} as PlanMap, {} as StockMap, {} as ActualsMap]
+        : [{} as PlanMap, {} as StockMap, {} as ActualsMap, {} as Record<string, string>]
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
       setInvalidQuantityIds(new Set())
       setInvalidQuantityDrafts({})
@@ -660,7 +688,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       adoptStream(catalog)
       setBuId(bu)
       commitRestoredStreamDraft(
-        { items, plan, stock, actuals, restored, record: storedDraftRecord, dateDrafts },
+        { items, plan, stock, actuals, recentItemLogDates, restored, record: storedDraftRecord, dateDrafts },
         resolvedStream,
         catalog.options,
       )
@@ -807,6 +835,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setOtherDateDrafts([])
     setStatus({ kind: 'loading' })
     setSummaryCountsAvailable(false)
+    setRecentItemLogDates({})
     try {
       const items = await listCaptureFormItems(nextStream, mode === 'transfer' ? 'transfer' : 'produce')
       if (gen !== requestGen.current) return
@@ -831,6 +860,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         setInvalidItemIds(new Set())
         setStockMap({})
         setActualsMap(actuals)
+        setRecentItemLogDates({})
         setSummaryCountsAvailable(countsAvailable)
         setLines({})
         setOtherDateDrafts(draftOrgId && draftPersonId
@@ -841,10 +871,11 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         setStatus({ kind: 'ready' })
         return
       }
-      const [plan, stock, actuals] = await Promise.all([
+      const [plan, stock, actuals, recentItemLogDates] = await Promise.all([
         fetchPlanMap(logDate, nextStream),
         fetchStockMap(logDate, nextStream),
         fetchActualsMap(logDate, nextStream),
+        readLatestItemLogDates(nextStream, items.map(item => item.id), mode === 'production'),
       ])
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
       const availableMovements = mode === 'transfer'
@@ -867,7 +898,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         storedDraft, items, plan, stock, nextStream, availableMovements, fallbackMovement,
       )
       commitRestoredStreamDraft(
-        { items, plan, stock, actuals, restored, record: storedDraftRecord, dateDrafts },
+        { items, plan, stock, actuals, recentItemLogDates, restored, record: storedDraftRecord, dateDrafts },
         nextStream,
         streamOptions,
       )
@@ -1355,6 +1386,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const isSubmitting = status.kind === 'submitting'
   const stagedLines = Object.values(lines).filter(l => l.qty_porsi > 0)
   const stagedCount = stagedLines.length
+  const showEmptyTransferAvailability = mode === 'transfer' && transferDestinationChosen && stagedCount === 0
+    && visibleItems.some(item => lines[item.id].stok > 0 && lines[item.id].tersedia === 0)
   const stagedSummary = stagedLines.flatMap(line => {
     const item = wipItems.find(candidate => candidate.id === line.wip_item_id)
     if (!item) return []
@@ -1839,6 +1872,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           ) : (
             <>
               {logToolbar}
+              {showEmptyTransferAvailability && (
+                <p className="kls-availability-note" role="status">{t('kitchen.transfer.availabilityCut')}</p>
+              )}
               {mode === 'transfer' && !transferDestinationChosen && !readOnlyNoStream ? null : logTable}
               {!isWide && mode === 'transfer' && stream !== null && !streamNonProducing && transferDestinationChosen && stagedCount > 0 && (
                 <section

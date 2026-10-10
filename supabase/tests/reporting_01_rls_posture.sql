@@ -1,9 +1,7 @@
 -- reporting, squashed baseline — the posture every table in the schema has to hold (AC-005).
 --
--- Written as SET assertions over the catalog rather than one line per table, on purpose: a per-table
--- list proves the tables that were remembered, and the failure this guards against is a SEVENTH
--- table arriving later with no RLS. The table list is pinned separately, so adding one is a
--- deliberate act that shows up here rather than a silent gap.
+-- Written as SET assertions over the catalog rather than one line per table, on purpose: the pinned
+-- table list ensures every addition is deliberate, while the catalog checks cover schema-wide posture.
 --
 -- reporting.esb_ar_reduction is in this schema and was NOT authored by this ticket — the `mos` pass
 -- created it, deliberately, because a mos view reads it and Postgres validates view references at
@@ -11,7 +9,7 @@
 -- not "every table this ticket wrote".
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(14);
 
 -- ── The set of tables, pinned ────────────────────────────────────────────────────────────────
 select tables_are('reporting', array[
@@ -23,8 +21,9 @@ select tables_are('reporting', array[
   'esb_ar_reduction',
   'ingredient_usage_daily',
   'pending_bills',
-  'pending_bill_snapshots'
-], 'reporting holds exactly these nine tables — a tenth has to be added here before it can hide from the assertions below');
+  'pending_bill_snapshots',
+  'recipe_versions'
+], 'reporting holds exactly these ten tables — an eleventh has to be added here before it can hide from the assertions below');
 
 -- ── AC-005: RLS enabled AND forced on every one of them ──────────────────────────────────────
 select is(
@@ -33,6 +32,28 @@ select is(
     where n.nspname = 'reporting' and c.relkind = 'r'
       and not (c.relrowsecurity and c.relforcerowsecurity)),
   0, 'AC-005: every table in reporting has row-level security ENABLED and FORCED — no exceptions, counted from the catalog');
+
+select ok((select relrowsecurity and relforcerowsecurity
+  from pg_class where oid = 'reporting.recipe_versions'::regclass),
+  'recipe_versions has RLS enabled and forced');
+select ok(
+  has_table_privilege('authenticated', 'reporting.recipe_versions', 'SELECT')
+  and not has_table_privilege('authenticated', 'reporting.recipe_versions', 'INSERT')
+  and not has_table_privilege('authenticated', 'reporting.recipe_versions', 'UPDATE')
+  and not has_table_privilege('authenticated', 'reporting.recipe_versions', 'DELETE')
+  and not has_table_privilege('anon', 'reporting.recipe_versions', 'SELECT')
+  and not has_table_privilege('service_role', 'reporting.recipe_versions', 'SELECT')
+  and has_table_privilege('reporting_writer', 'reporting.recipe_versions', 'SELECT')
+  and has_table_privilege('reporting_writer', 'reporting.recipe_versions', 'INSERT')
+  and not has_table_privilege('reporting_writer', 'reporting.recipe_versions', 'UPDATE')
+  and not has_table_privilege('reporting_writer', 'reporting.recipe_versions', 'DELETE')
+  and not has_table_privilege('reporting_writer', 'reporting.recipe_versions', 'TRUNCATE'),
+  'recipe_versions grants readers SELECT and reporting_writer append-only access');
+select is(
+  (select array_agg(polname::text order by polname::text)
+     from pg_policy where polrelid = 'reporting.recipe_versions'::regclass),
+  ARRAY['recipe_versions_insert_writer', 'recipe_versions_select_org', 'recipe_versions_select_writer']::text[],
+  'recipe_versions has exactly its org-reader and reporting-writer policies');
 
 -- A table with RLS enabled and no policy is fail-closed, which is safe but is never what was meant:
 -- it means a policy was forgotten, and the surface reads empty for everyone including finance.
