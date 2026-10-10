@@ -2,14 +2,13 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useIsNarrow } from './use-is-narrow'
-import { DESTINATIONS } from './destinations'
+import { DESTINATIONS, MODULES } from './destinations'
 import { visibleSections } from './sections'
 import './work-collection-switcher.css'
 
 /**
- * Narrow-layout sibling navigation for the four Work collections. The list and order come from the
- * same Work-child registry as the rail and More drawer, and the rail's visibility gate is reused so
- * the switcher cannot offer a destination the viewer is not allowed to reach.
+ * Narrow-layout sibling navigation for Work collections and high-frequency Café destinations.
+ * Both lists come from the same registry and visibility gate as the rail and More drawer.
  */
 export function WorkCollectionSwitcher() {
   const { pathname } = useLocation()
@@ -18,20 +17,26 @@ export function WorkCollectionSwitcher() {
   const t = useT()
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const work = DESTINATIONS.find((destination) => destination.id === 'work')
-  const collections = visibleSections(work?.children ?? [], accessRoles)
+  const cafe = MODULES.flatMap((group) => group.items).find((module) => module.id === 'cafe')
+  const workCollections = visibleSections(work?.children ?? [], accessRoles)
+  const cafeRoute = pathname === '/cafe' || pathname.startsWith('/cafe/')
+  const cafeShortcuts = visibleSections(cafe?.children ?? [], accessRoles).filter(({ path }) =>
+    ['/cafe/count', '/cafe/receive', '/cafe/plan', '/cafe/stock'].includes(path),
+  )
+  const collections = cafeRoute ? cafeShortcuts : workCollections
 
-  // Keep canonical record pages uncluttered: their shared record chrome owns the one Back door.
-  if (!isNarrow || !collections.some((collection) => collection.path === pathname)) return null
+  // Keep canonical Work record pages uncluttered; Café shortcuts stay available across its routes.
+  if (!isNarrow || (!cafeRoute && !workCollections.some((collection) => collection.path === pathname))) return null
 
   return (
     <nav
-      aria-label={t('dest.work')}
+      aria-label={t(cafeRoute ? 'dest.cafe' : 'dest.work')}
       className="work-collection-switcher"
       data-anatomy="work-collection-switcher"
     >
       <ul className="work-collection-switcher__list">
         {collections.map((collection) => {
-          const current = collection.path === pathname
+          const current = pathname === collection.path || pathname.startsWith(`${collection.path}/`)
           return (
             <li key={collection.path} className="work-collection-switcher__item">
               <Link

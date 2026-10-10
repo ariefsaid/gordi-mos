@@ -61,6 +61,13 @@ describe('WorkCollectionSwitcher', () => {
     expect(within(nav).getByRole('link', { name: label })).toHaveAttribute('aria-current', 'location')
   })
 
+  it('Issue 1673: Count and Receive are one tap from Café Production on phone', () => {
+    renderAt('/cafe/production')
+    const nav = screen.getByRole('navigation', { name: 'Café' })
+    expect(within(nav).getByRole('link', { name: 'Count' })).toHaveAttribute('href', '/cafe/count')
+    expect(within(nav).getByRole('link', { name: 'Receive' })).toHaveAttribute('href', '/cafe/receive')
+  })
+
   it('does not add collection navigation to a canonical record page', () => {
     renderAt('/work/signals/signal-1')
 

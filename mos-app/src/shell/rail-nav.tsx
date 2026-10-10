@@ -309,10 +309,6 @@ export function RailNav({ onNavigate, openTasks, compact = false }: RailNavProps
         <div className="flex flex-col gap-[2px] rail-item-list">
           {liveDestinations.map((d) => {
             if (d.children) {
-              // Work parent (and Money, the other workspace root with children): aria-current=
-              // "location" when any route in its section is active (Rule 5 — parent never carries
-              // "page"; the active child does). Computed from the URL directly, now that `to`
-              // targets the real canonical destination instead of the `/work` redirect entry.
               const children = visibleSections(d.children, accessRoles)
               const workLabel = t(d.labelKey)
               const workActive = sectionActive(pathname, d)
@@ -321,7 +317,7 @@ export function RailNav({ onNavigate, openTasks, compact = false }: RailNavProps
                 <div key={d.id} className="relative">
                   <Link
                     to={d.primaryPath ?? d.links[0].path}
-                    aria-current={workActive ? 'location' : undefined}
+                    aria-current={workActive ? (d.id === 'money' && pathname === (d.primaryPath ?? d.links[0].path) ? 'page' : 'location') : undefined}
                     onClick={onNavigate}
                     aria-label={compact ? workLabel : undefined}
                     data-label={compact ? workLabel : undefined}
@@ -370,7 +366,7 @@ export function RailNav({ onNavigate, openTasks, compact = false }: RailNavProps
                 const moduleActive = sectionActive(pathname, m)
                 return (
                   <div key={m.id} className="relative">
-                    <DestLink d={m} onNavigate={onNavigate} compact={compact} parentOfChildren={kids.length > 0 && moduleActive} />
+                    <DestLink d={m} onNavigate={onNavigate} compact={compact} parentOfChildren={kids.some(({ path }) => pathname === path || pathname.startsWith(`${path}/`)) && moduleActive} />
                     {!compact && kids.length > 0 && disclosure(m.id, t(m.labelKey), expanded)}
                     {kids.length > 0 && (
                       <div id={`rail-children-${m.id}`} hidden={!expanded} className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list rail-item-children'}>
