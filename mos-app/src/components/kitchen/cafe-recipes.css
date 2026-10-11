@@ -23,7 +23,7 @@
   display: inline-flex;
   align-items: center;
   min-height: 44px;
-  color: var(--primary);
+  color: var(--text-on-accent-tint);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
