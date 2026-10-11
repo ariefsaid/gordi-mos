@@ -50,7 +50,7 @@ export function CafeRecipeDetail({ versions }: { versions: RecipeVersion[] }) {
               <span>{line.name || t('cafe.recipes.unnamedIngredient')}
                 {(line.detail_active === false || line.product_active === false || line.product_deleted) && <small>{t('cafe.recipes.inactiveIngredient')}</small>}
               </span>
-              <span className="tabular">{quantity(line.qty)} {line.unit || missing}</span>
+              <span className="tabular cafe-recipe-detail__qty">{quantity(line.qty)} {line.unit || missing}</span>
             </li>
           ))}
         </ul>
