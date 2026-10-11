@@ -36,6 +36,7 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
       '/cafe/plan',
       '/cafe/stock',
       '/cafe/items',
+      '/cafe/recipes',
       '/cafe/review',
       '/cafe/pushes',
     ])
@@ -67,6 +68,7 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
     expect(sectionForPath('/cafe/receive/review')!.label).toBe('Receive')
     expect(sectionForPath('/cafe/request/review')!.label).toBe('Request')
     expect(sectionForPath('/cafe/items')!.label).toBe('Items')
+    expect(sectionForPath('/cafe/recipes')!.label).toBe('Recipes')
     expect(sectionForPath('/cafe/review')!.label).toBe('Review')
     expect(sectionForPath('/cafe/pushes')!.label).toBe('Pushes')
   })
@@ -135,8 +137,8 @@ describe('the Café children carry marks of their own (#457)', () => {
   // Several rungs, one picture: each Café tab gets its own mark so compact rail and phone drawer entries remain identifiable.
   it('the Café root and routes use distinct components', () => {
     const icons = CAFE_SECTIONS.map((s) => s.Icon)
-    expect(icons).toHaveLength(12)
-    expect(new Set(icons).size).toBe(12)
+    expect(icons).toHaveLength(CAFE_SECTIONS.length)
+    expect(new Set(icons).size).toBe(CAFE_SECTIONS.length)
   })
 
   it('none of them is a mark another destination already draws', () => {

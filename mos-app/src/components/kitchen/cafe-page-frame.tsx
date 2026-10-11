@@ -23,6 +23,7 @@ export type CafePageId =
   | 'plan'
   | 'stock'
   | 'items'
+  | 'recipes'
   | 'review'
   | 'pushes'
 
@@ -39,6 +40,7 @@ const PAGE_TITLE_KEYS: Record<CafePageId, MessageKey> = {
   plan: 'cafe.pageTitle.plan',
   stock: 'cafe.pageTitle.stock',
   items: 'cafe.pageTitle.items',
+  recipes: 'cafe.pageTitle.recipes',
   review: 'cafe.pageTitle.review',
   pushes: 'cafe.pageTitle.pushes',
 }
@@ -50,7 +52,7 @@ export interface CafePageFrameProps {
   /** Optional non-date meta, e.g. an item count or push summary. */
   meta?: ReactNode
   /** The only stream line this page may render; dates belong in `date`, never in its context. */
-  streamBar: CafeStreamBarProps
+  streamBar?: CafeStreamBarProps
   state?: PageFamilyState
   children: ReactNode
 }
@@ -65,13 +67,13 @@ export function CafePageFrame({ page, date, meta, streamBar, state, children }: 
   const dateMeta = date
     ? <time className="cafe-page-date tabular" dateTime={date}>{formatWeekdayDayMonth(date)}</time>
     : undefined
-  const showStreamBar = streamBar.allStreams || streamBar.stream !== null || !streamBar.onChange
+  const showStreamBar = streamBar && (streamBar.allStreams || streamBar.stream !== null || !streamBar.onChange)
 
   return (
     <PageFamilyFrame
       family="workspace"
       title={title}
-      statusRow={showStreamBar ? <CafeStreamBar {...streamBar} /> : undefined}
+      statusRow={showStreamBar && streamBar ? <CafeStreamBar {...streamBar} /> : undefined}
       meta={meta ?? dateMeta}
       state={state}
       headClassName="cafe-page-head"

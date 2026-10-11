@@ -74,6 +74,9 @@ const KitchenReviewPage = lazyPage(() =>
 const KitchenStockPage = lazyPage(() =>
   import('./pages/kitchen-stock-page').then((m) => ({ default: m.KitchenStockPage })),
 )
+const CafeRecipesPage = lazyPage(() =>
+  import('./pages/cafe-recipes-page').then((m) => ({ default: m.CafeRecipesPage })),
+)
 const CafeItemSettingsPage = lazyPage(() =>
   import('./pages/cafe-item-settings-page').then((m) => ({ default: m.CafeItemSettingsPage })),
 )
@@ -426,6 +429,7 @@ const routeTable: RouteObject[] = [
           { path: ROUTE_PATHS.cafeReceiptIssues, element: withSuspense(<CafeReceiptIssuesPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeRequest, element: withSuspense(<CafeRequestPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeItems, element: withSuspense(<CafeItemSettingsPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeRecipes, element: withSuspense(<CafeRecipesPage />), handle: pageHandle('workspace') },
           // #1239 split the former kitchen log into production and transfer; the retired kitchen
           // entry and log alias land directly on production rather than stopping at the Today root.
           { path: 'kitchen', element: <RouteRedirect to="/cafe/production" />, handle: redirectHandle('/cafe/production') },
