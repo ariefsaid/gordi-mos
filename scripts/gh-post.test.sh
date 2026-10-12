@@ -345,7 +345,8 @@ rm -f "$gitdir/pre-pr-verify-ok"; printf '%s' "$head" > "$gitdir/pre-pr-verify-d
 check "REST pr create, cluster -ifbase=main after base=dev refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -ifbase=main
 check "REST pr create, -F head=@file refused" 1 no api repos/x/y/pulls -F head=@"$tmp/repo/body.md" -f base=dev
 check "REST PR without base resolves default dev and requires a body reuse line" 1 no api repos/x/y/pulls -f head=feat-rest
-check "REST pr create, base dev then main (last wins) refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -f base=main
+check_message "REST pr create with two base= fields is refused outright" 1 no "name one base" api repos/x/y/pulls -f head=feat-rest -f base=dev -f base=main
+check_message "REST pr create with the same base= twice is refused too" 1 no "name one base" api repos/x/y/pulls -f head=feat-rest -f base=dev -f base=dev
 check "REST pr create, head naming another branch refused" 1 no api repos/x/y/pulls -f head=other -f base=dev
 check "REST pr create, head naming another owner refused" 1 no api repos/x/y/pulls -f head=evil:feat-rest -f base=dev
 check "REST pr create, no head refused" 1 no api repos/x/y/pulls -f base=dev

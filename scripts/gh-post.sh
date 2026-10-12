@@ -371,7 +371,7 @@ if [ "$verb1" = "api" ]; then
     base_val="" base_seen=0 head_val=""
     for kv in "${api_fields[@]}"; do
       case "$kv" in
-        base=*) base_val="${kv#base=}"; base_seen=1 ;;
+        base=*) [ "$base_seen" = 1 ] && die "name one base — the REST payload carries more than one base= field"; base_val="${kv#base=}"; base_seen=1 ;;
         head=*) head_val="${kv#head=}" ;;
         head_repo=*) die "REST PR create through this door targets this checkout only — no head_repo" ;;
       esac
