@@ -379,6 +379,11 @@ check_message "renaming a migration to a neutral path still needs a security sta
 g "$tmp/repo" checkout -q -b feat-gatescript refs/remotes/origin/dev
 mkdir -p "$tmp/repo/scripts/lib"; echo g > "$tmp/repo/scripts/lib/github-repo.sh"; g "$tmp/repo" add scripts; g "$tmp/repo" commit -qm gatelib
 check_message "editing a gate library needs a security stamp" 1 no "security" pr create --base dev --title t --body "Reused: x"
+g "$tmp/repo" checkout -q -b feat-bigdiff refs/remotes/origin/dev
+mkdir -p "$tmp/repo/.github/workflows" "$tmp/repo/pad"; echo w > "$tmp/repo/.github/workflows/x.yml"
+for i in $(seq 1 3000); do : > "$tmp/repo/pad/file-$i.txt"; done
+g "$tmp/repo" add .github pad; g "$tmp/repo" commit -qm bigdiff
+check_message "a huge diff cannot hide a workflow change (no SIGPIPE fail-open)" 1 no "security" pr create --base dev --title t --body "Reused: x"
 g "$tmp/repo" push -q -f origin "$(g "$tmp/repo" rev-parse feat-plain)":refs/heads/dev
 g "$tmp/repo" checkout -q -b feat-stale refs/remotes/origin/dev
 g "$tmp/repo" branch -f dev HEAD
