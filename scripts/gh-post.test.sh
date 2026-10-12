@@ -250,8 +250,10 @@ check "alias 'pr new' refused (allowlist)" 1 no pr new --title t --body "clean"
 echo "contains secretword" > "$tmp/repo/notes.md"
 check "release create refused (allowlist)" 1 no release create v1 -F "$tmp/repo/notes.md"
 check "gist create refused (allowlist)" 1 no gist create "$tmp/repo/notes.md"
+printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
+printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok"
 printf 'deadbeef security reviewer-x now art.md\n' > "$gitdir/independent-review-security-ok"
-check "security stamp on wrong sha refused" 1 no pr create --title t --body "Reused: x"
+check_message "security stamp on wrong sha refused" 1 no "security lens stamp" pr create --base main --title t --body "Reused: x"
 g "$tmp/repo" checkout -q main 2>/dev/null || g "$tmp/repo" checkout -qb main
 rm -f "$gitdir/pre-pr-verify-ok" "$gitdir"/independent-review-*-ok
 check "main->staging promotion passes unstamped (release carve-out)" 0 yes pr create --base staging --title t --body "Reused: x"
