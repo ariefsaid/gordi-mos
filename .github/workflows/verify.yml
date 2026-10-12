@@ -116,6 +116,11 @@ jobs:
         if: steps.scope.outputs.app == 'true'
         run: npm run lint:ci
 
+      - name: Quality checks (duplication / dead code / colour tokens)
+        if: steps.scope.outputs.app == 'true'
+        working-directory: .
+        run: bash scripts/quality-checks.sh
+
       - name: Unit tests + coverage gate (≥80% changed lines)
         if: steps.scope.outputs.app == 'true'
         run: npm run test:coverage

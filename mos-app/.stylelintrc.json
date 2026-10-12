@@ -7,7 +7,7 @@
       "files": ["src/**/*.css"],
       "rules": {
         "color-no-hex": true,
-        "function-disallowed-list": ["rgb", "rgba", "hsl", "hsla"]
+        "function-disallowed-list": ["rgb", "rgba", "hsl", "hsla", "oklch", "oklcha"]
       }
     },
     {

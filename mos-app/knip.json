@@ -1,0 +1,6 @@
+{
+  "$schema": "./node_modules/knip/schema.json",
+  "entry": ["vite.config.ts", "playwright.config.ts"],
+  "project": ["src/**/*.{ts,tsx}", "e2e/**/*.{ts,tsx}", "scripts/**/*.{ts,mjs}"],
+  "ignoreDependencies": ["rollup"]
+}
