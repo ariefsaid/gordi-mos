@@ -352,7 +352,7 @@ printf 'deadbeef security reviewer-x now art.md\n' > "$gitdir/independent-review
 check "REST pr create, one lens on the wrong sha refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev
 
 # ── Security lens is path-triggered: only auth / schema / migrations / money diffs need it
-g "$tmp/repo" branch -f dev HEAD
+g "$tmp/repo" update-ref refs/remotes/origin/dev HEAD
 g "$tmp/repo" checkout -q -b feat-plain
 echo x > "$tmp/repo/plain.txt"; g "$tmp/repo" add plain.txt; g "$tmp/repo" commit -qm plain
 rm -f "$gitdir"/independent-review-*-ok
@@ -361,6 +361,16 @@ mkdir -p "$tmp/repo/supabase"; echo y > "$tmp/repo/supabase/m.sql"; g "$tmp/repo
 check_message "schema diff into dev needs a security stamp" 1 no "security" pr create --base dev --title t --body "Reused: x"
 printf '%s security reviewer-x now art.md\n' "$(g "$tmp/repo" rev-parse HEAD)" > "$gitdir/independent-review-security-ok"
 check "schema diff into dev passes with a security stamp" 0 yes pr create --base dev --title t --body "Reused: x"
+g "$tmp/repo" checkout -q -b feat-migration refs/remotes/origin/dev
+mkdir -p "$tmp/repo/db/migrations"; echo z > "$tmp/repo/db/migrations/001.sql"; g "$tmp/repo" add db; g "$tmp/repo" commit -qm mig
+rm -f "$gitdir"/independent-review-*-ok
+check_message "a migration outside supabase/ still needs a security stamp" 1 no "security" pr create --base dev --title t --body "Reused: x"
+g "$tmp/repo" checkout -q -b feat-stale refs/remotes/origin/dev
+g "$tmp/repo" branch -f dev HEAD
+mkdir -p "$tmp/repo/supabase"; echo s > "$tmp/repo/supabase/stale.sql"; g "$tmp/repo" add supabase; g "$tmp/repo" commit -qm stale
+g "$tmp/repo" branch -f dev HEAD
+check_message "a local base branch moved to HEAD cannot hide a sensitive diff (remote base decides)" 1 no "security" pr create --base dev --title t --body "Reused: x"
+check_message "an option-like base is refused" 1 no "looks like an option" pr create --base --upload-pack=x --title t --body "Reused: x"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

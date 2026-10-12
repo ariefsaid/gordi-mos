@@ -171,6 +171,7 @@ fi
 # (`api repos/<this>/pulls`, the route cloud sessions use where GraphQL is blocked) passes the same gate.
 require_pr_stamps() { # $1 base branch ('' when none named)
   local base_val="$1" gitdir head v r lens stamp_file stamp release_stamp_file release_sha
+  case "$base_val" in -*) die "base '$base_val' looks like an option, not a branch" ;; esac
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   head="$(git rev-parse HEAD)"
   # Staging promotion normally uses a direct post-deploy fast-forward push, not a PR. If a PR is
@@ -185,15 +186,16 @@ require_pr_stamps() { # $1 base branch ('' when none named)
   # Security lens only, and only when the diff touches auth, schema/RLS, migrations, money or the
   # CI/gate scripts (or the base cannot be resolved: fail closed). Spec and code quality are machine
   # gates in CI; looks are the owner's call on rendered screens. Main/staging always need the release stamps.
-  local range_base="" ref sensitive=0
+  local range_base="" sensitive=0
   if [ -n "$base_val" ]; then
-    for ref in "origin/$base_val" "$base_val"; do
-      git rev-parse -q --verify "$ref^{commit}" >/dev/null 2>&1 || continue
-      range_base="$(git merge-base "$ref" HEAD 2>/dev/null || true)"; [ -n "$range_base" ] && break
-    done
+    # Only the remote base counts: refresh it (best effort), never trust a stale local branch.
+    git fetch -q origin "+refs/heads/$base_val:refs/remotes/origin/$base_val" >/dev/null 2>&1 || true
+    if git rev-parse -q --verify "refs/remotes/origin/$base_val^{commit}" >/dev/null 2>&1; then
+      range_base="$(git merge-base "refs/remotes/origin/$base_val" HEAD 2>/dev/null || true)"
+    fi
   fi
   if [ -z "$range_base" ]; then sensitive=1
-  elif git diff --name-only "$range_base" HEAD | grep -Eiq '^supabase/|^mos-app/src/auth/|money|payment|billing|pricing|budget|revenue|expense|pending-bills|^\.github/|^scripts/gh-|^\.claude/hooks/'; then sensitive=1
+  elif git diff --name-only --diff-filter=ACDMR "$range_base" HEAD | grep -Eiq '^supabase/|migration|\.sql$|rls|policy|^mos-app/src/auth/|auth-|money|payment|billing|pricing|budget|revenue|expense|pending-bills|^\.github/|^scripts/gh-|^\.claude/hooks/|^\.githooks/'; then sensitive=1
   fi
   if [ "$base_val" = main ] || [ "$base_val" = staging ]; then
     sensitive=1
