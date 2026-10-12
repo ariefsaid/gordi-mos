@@ -131,7 +131,7 @@ clean_brief="$(planned 'Add a reports endpoint and mos-app/src/pages/Reports.tsx
 out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$barred_brief" 2>&1)"; rc=$?
 [ "$rc" -eq 3 ]; t "barred brief refuses before exec, with a dedicated exit code" $?
 printf '%s' "$out" | grep -q "adws/adw_modules/permissions.py"; t "refusal names the offending path" $?
-printf '%s' "$out" | grep -q "lane-exempt.sh"; t "refusal points at the Director lane" $?
+printf '%s' "$out" | grep -q "pi dispatch"; t "refusal points at a direct pi dispatch" $?
 printf '%s' "$out" | grep -q -- "--allow-barred"; t "refusal names the override" $?
 
 out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$clean_brief" 2>&1)"; rc=$?

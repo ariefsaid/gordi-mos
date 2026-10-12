@@ -4,7 +4,7 @@
 # scans every outbound string against the posting policy, then execs `gh` with the same args.
 #
 #   scripts/gh-post.sh issue comment 42 --body "..."     # any gh write, same argv as gh itself
-#   scripts/gh-post.sh pr create --base dev --title ... # requires three lens stamps; other bases also need full verify
+#   scripts/gh-post.sh pr create --base dev --title ... # security stamp only for sensitive diffs; other bases also need full verify
 #
 # Policy patterns live OUTSIDE this public repo, in the local docs checkout
 # (docs/gh-denylist.txt of the MAIN worktree — worktrees don't materialize gitignored dirs).
@@ -166,11 +166,12 @@ else
 fi
 
 
-# ── PR creation: required stamps certify the exact HEAD being PRed — dev needs three lenses,
+# ── PR creation: stamps certify the exact HEAD being PRed — a security lens only when the diff is sensitive,
 # other bases also need full verify — and a pr create may only target THIS checkout. The REST create
 # (`api repos/<this>/pulls`, the route cloud sessions use where GraphQL is blocked) passes the same gate.
 require_pr_stamps() { # $1 base branch ('' when none named)
   local base_val="$1" gitdir head v r lens stamp_file stamp release_stamp_file release_sha
+  case "$base_val" in -*) die "base '$base_val' looks like an option, not a branch" ;; esac
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   head="$(git rev-parse HEAD)"
   # Staging promotion normally uses a direct post-deploy fast-forward push, not a PR. If a PR is
@@ -182,19 +183,40 @@ require_pr_stamps() { # $1 base branch ('' when none named)
   if [ "$base_val" != "dev" ] && [ "$v" != "$head" ]; then
     die "no full verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh (only --base dev is exempt; CI verify is its gate)"
   fi
-  # OD-WAY-83: three explicit lens records, each its own stamp on this exact HEAD.
-  for lens in spec code-quality security; do
-    stamp_file="$gitdir/independent-review-$lens-ok"
+  # Security lens only, and only when the diff touches auth, schema/RLS, migrations, money or the
+  # CI/gate scripts (or the base cannot be resolved: fail closed). Spec and code quality are machine
+  # gates in CI; looks are the owner's call on rendered screens. Main/staging always need the release stamps.
+  local range_base="" sensitive=0 changed_paths=""
+  if [ "$base_val" = main ] || [ "$base_val" = staging ]; then
+    sensitive=1   # release bases always need the stamps; no path scan
+  elif [ -z "$base_val" ]; then
+    sensitive=1   # no base named: fail closed
+  else
+    # Only the freshly fetched remote base counts; a stale or local branch never decides.
+    git fetch -q origin "+refs/heads/$base_val:refs/remotes/origin/$base_val" >/dev/null 2>&1 \
+      || die "could not refresh origin/$base_val — the sensitivity check needs the real base (network? branch name?)"
+    range_base="$(git merge-base "refs/remotes/origin/$base_val" HEAD 2>/dev/null || true)"
+    if [ -z "$range_base" ]; then sensitive=1
+    else
+      # The name list is captured first: `grep -q` quitting early would SIGPIPE git under pipefail and
+      # read as "not sensitive". --no-renames lists BOTH sides of a rename; quotePath=false keeps
+      # non-ASCII paths unquoted so the ^-anchored patterns hold. A failed diff fails closed.
+      changed_paths="$(git -c core.quotePath=false diff --name-only --no-renames "$range_base" HEAD 2>/dev/null)" || sensitive=1
+      if printf '%s\n' "$changed_paths" | grep -Eiq '^supabase/|migration|\.sql$|rls|policy|auth|login|authority|permission|view-as|session|money|payment|billing|pricing|budget|revenue|expense|pending-bills|package(-lock)?\.json$|^adws/|^\.github/|^\.githooks/|^\.claude/|^scripts/(gh-|pre-pr|record-review|carry-stamps|lib/|ci-|setup-hooks|deploy-)'; then sensitive=1; fi
+    fi
+  fi
+  if [ "$base_val" = main ] || [ "$base_val" = staging ]; then
+    release_stamp_file="$gitdir/independent-review-security-release-ok"
+    release_sha="$(cat "$release_stamp_file" 2>/dev/null || true)"
+    [ "$release_sha" = "$head" ] \
+      || die "a PR into $base_val needs release-rule stamps — record the security lens with: bash scripts/record-review.sh --lens security --base $base_val --reviewer <opus id> --artifact <record>"
+  fi
+  if [ "$sensitive" = 1 ]; then
+    stamp_file="$gitdir/independent-review-security-ok"
     stamp="$(cat "$stamp_file" 2>/dev/null || true)"
     r="$(printf '%s\n' "$stamp" | awk '{print $1}')"
-    if [ "$lens" = security ] && { [ "$base_val" = main ] || [ "$base_val" = staging ]; }; then
-      release_stamp_file="$gitdir/independent-review-security-release-ok"
-      release_sha="$(cat "$release_stamp_file" 2>/dev/null || true)"
-      [ "$release_sha" = "$head" ] \
-        || die "a PR into $base_val needs release-rule stamps — record the security lens with: bash scripts/record-review.sh --lens security --base $base_val --reviewer <opus id> --artifact <record>"
-    fi
-    [ "$r" = "$head" ] || die "no $lens lens stamp for HEAD — a reviewer that did not write this branch records each lens: bash scripts/record-review.sh --lens $lens --reviewer <glm/luna/opus…> --artifact <record>"
-  done
+    [ "$r" = "$head" ] || die "this diff touches auth, schema, migrations, money or CI/gate scripts (or the base is unknown): it needs a security lens stamp for HEAD from a reviewer that did not write this branch — bash scripts/record-review.sh --lens security --reviewer <luna/glm/opus…> --artifact <record>"
+  fi
 }
 
 # Reuse-first (CLAUDE.md "Reuse before build"): a PR body names what it reused, on a line that
@@ -354,7 +376,7 @@ if [ "$verb1" = "api" ]; then
     base_val="" base_seen=0 head_val=""
     for kv in "${api_fields[@]}"; do
       case "$kv" in
-        base=*) base_val="${kv#base=}"; base_seen=1 ;;
+        base=*) [ "$base_seen" = 1 ] && die "name one base — the REST payload carries more than one base= field"; base_val="${kv#base=}"; base_seen=1 ;;
         head=*) head_val="${kv#head=}" ;;
         head_repo=*) die "REST PR create through this door targets this checkout only — no head_repo" ;;
       esac
