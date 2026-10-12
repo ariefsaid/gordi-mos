@@ -184,11 +184,10 @@ if [ "$app_touched" = 1 ]; then
       'cd mos-app && npm run typecheck && npm run lint && { [ "$#" -eq 0 ] || npm exec -- vitest related "$@" --run --passWithNoTests; }' \
       _ ${related[@]+"${related[@]}"}
   else
+    # `npm run quality` = scripts/quality-checks.sh: deterministic ratchets (duplication / dead
+    # code / colour tokens) against mos-app/.quality-baseline.json.
     bash scripts/with-test-lock.sh bash -c \
-      'cd mos-app && npm run typecheck && npm run lint && npm run test:coverage && npm run build'
-    # Deterministic quality ratchets (duplication / dead code / colour tokens) vs the committed
-    # baseline in mos-app/.quality-baseline.json.
-    bash scripts/quality-checks.sh
+      'cd mos-app && npm run typecheck && npm run lint && npm run test:coverage && npm run build && npm run quality'
   fi
 else
   mode=skipped
