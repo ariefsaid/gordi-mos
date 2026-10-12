@@ -10,6 +10,27 @@ cd "$root/mos-app"
 baseline_file=".quality-baseline.json"
 [ -f "$baseline_file" ] || { echo "✗ mos-app/.quality-baseline.json missing" >&2; exit 1; }
 
+# A baseline number only goes down. Compare with the baseline committed on dev; a raised number
+# is refused even if the current measurement sits under it. QUALITY_CHECKS_DEV_BASELINE_JSON
+# (self-tests only) injects dev's baseline; "none" means dev has no baseline yet.
+if [ -n "${QUALITY_CHECKS_DEV_BASELINE_JSON:-}" ]; then
+  dev_baseline="$QUALITY_CHECKS_DEV_BASELINE_JSON"; [ "$dev_baseline" = none ] && dev_baseline=""
+else
+  dev_ref=""
+  for r in origin/dev dev; do git rev-parse -q --verify "$r^{commit}" >/dev/null 2>&1 && { dev_ref="$r"; break; }; done
+  [ -n "$dev_ref" ] || { echo "✗ cannot see dev (origin/dev) to compare the baseline — fetch it first" >&2; exit 1; }
+  dev_baseline="$(git show "$dev_ref:mos-app/$baseline_file" 2>/dev/null || true)"
+fi
+if [ -n "$dev_baseline" ]; then
+  for key in jscpdPercent knipIssues stylelintColourViolations; do
+    here="$(BASE_FILE="$baseline_file" KEY="$key" node -p 'JSON.parse(require("fs").readFileSync(process.env.BASE_FILE, "utf8"))[process.env.KEY]')"
+    dev="$(DEV="$dev_baseline" KEY="$key" node -p 'JSON.parse(process.env.DEV)[process.env.KEY]')"
+    if awk -v h="$here" -v d="$dev" 'BEGIN { exit !(h > d) }'; then
+      echo "✗ $key baseline raised from $dev (dev) to $here — a baseline only goes down; fix the code instead" >&2; exit 1
+    fi
+  done
+fi
+
 if [ -n "${QUALITY_CHECKS_CURRENT_JSON:-}" ]; then
   current="$QUALITY_CHECKS_CURRENT_JSON"
 else

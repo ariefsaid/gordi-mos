@@ -33,6 +33,7 @@ Load only what the task needs. `docs/` is local-only (gitignored); in a managed 
 - Never report an action without reading its output; include the line that proves a completion claim. Report when a job finishes, with its proof; never promise timed check-ins.
 - Do not add AI attribution trailers to agent-authored commits; `.githooks/commit-msg` blocks Claude/Anthropic co-author trailers.
 - One deterministic owning test per acceptance criterion at the cheapest sufficient layer; assert the user's goal; keep ≥80% changed-line coverage with behaviour tests; retain security, data-integrity, and public-write safeguards.
+- `scripts/quality-checks.sh` ratchets duplicate code, dead exports and raw colours against `mos-app/.quality-baseline.json`. A baseline number only goes down: when the check prints a tighten hint, lower it in the same PR; never raise one to pass.
 - Reuse before adding; name what you reused on the PR's `Reused:` line. Use proven MIT, Apache-2.0, or MPL-2.0 libraries behind a MOS-owned interface instead of hand-building controls.
 - Only manually dispatch CI e2e for shared-code or milestone PRs into `dev`; a second run requires a real app bug and code fix, never a flake rerun. Main PRs run their own e2e; scheduled/looping runs need owner approval. Use `scripts/ci-e2e.sh`. Run at most one heavy local job across sessions and repos.
 - A record has typed fields plus an authored block document (OD-REDESIGN-16).

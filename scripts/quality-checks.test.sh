@@ -7,9 +7,9 @@ cd "$(dirname "$0")/.."
 SCRIPT="$(pwd)/scripts/quality-checks.sh"
 pass=0; fail=0
 
-check() { # $1 name · $2 expected rc · $3 injected current JSON · $4 expected fragment
-  local name="$1" want="$2" current="$3" fragment="$4" out rc
-  out="$(QUALITY_CHECKS_CURRENT_JSON="$current" bash "$SCRIPT" 2>&1)"; rc=$?
+check() { # $1 name · $2 expected rc · $3 injected current JSON · $4 expected fragment · [$5 injected dev baseline JSON]
+  local name="$1" want="$2" current="$3" fragment="$4" devbase="${5:-none}" out rc
+  out="$(QUALITY_CHECKS_CURRENT_JSON="$current" QUALITY_CHECKS_DEV_BASELINE_JSON="$devbase" bash "$SCRIPT" 2>&1)"; rc=$?
   if [ "$rc" -eq "$want" ] && printf '%s' "$out" | grep -q "$fragment"; then
     pass=$((pass+1)); printf '  ok    %s\n' "$name"
   else
@@ -32,6 +32,16 @@ check "current above baseline refuses" 1 \
 check "current below baseline prints tighten hint" 0 \
   "{\"jscpdPercent\": 1.0, \"knipIssues\": $((knip - 1)), \"stylelintColourViolations\": 0}" \
   "tighten by lowering mos-app/.quality-baseline.json"
+
+# (d) the committed baseline may not exceed dev's: a raised number refuses even when current is under it.
+here="$(node -p 'JSON.stringify(JSON.parse(require("fs").readFileSync("mos-app/.quality-baseline.json", "utf8")))')"
+check "a baseline raised above dev's refuses" 1 \
+  "{\"jscpdPercent\": 1.0, \"knipIssues\": 1, \"stylelintColourViolations\": 0}" \
+  "baseline raised from" \
+  "{\"jscpdPercent\": 1.0, \"knipIssues\": $((knip - 5)), \"stylelintColourViolations\": 2}"
+check "a baseline equal to dev's passes" 0 "$here" "✓ stylelintColourViolations" "$here"
+check "a baseline lower than dev's passes" 0 "$here" "✓ stylelintColourViolations" \
+  "{\"jscpdPercent\": 9.9, \"knipIssues\": $((knip + 50)), \"stylelintColourViolations\": 9}"
 
 # Every ratcheted key is present and numeric in the committed baseline.
 if node -e '
