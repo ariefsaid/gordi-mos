@@ -4,7 +4,7 @@
 # scans every outbound string against the posting policy, then execs `gh` with the same args.
 #
 #   scripts/gh-post.sh issue comment 42 --body "..."     # any gh write, same argv as gh itself
-#   scripts/gh-post.sh pr create --base dev --title ... # requires three lens stamps; other bases also need full verify
+#   scripts/gh-post.sh pr create --base dev --title ... # security stamp only for sensitive diffs; other bases also need full verify
 #
 # Policy patterns live OUTSIDE this public repo, in the local docs checkout
 # (docs/gh-denylist.txt of the MAIN worktree — worktrees don't materialize gitignored dirs).
@@ -166,7 +166,7 @@ else
 fi
 
 
-# ── PR creation: required stamps certify the exact HEAD being PRed — dev needs three lenses,
+# ── PR creation: stamps certify the exact HEAD being PRed — a security lens only when the diff is sensitive,
 # other bases also need full verify — and a pr create may only target THIS checkout. The REST create
 # (`api repos/<this>/pulls`, the route cloud sessions use where GraphQL is blocked) passes the same gate.
 require_pr_stamps() { # $1 base branch ('' when none named)
@@ -182,19 +182,32 @@ require_pr_stamps() { # $1 base branch ('' when none named)
   if [ "$base_val" != "dev" ] && [ "$v" != "$head" ]; then
     die "no full verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh (only --base dev is exempt; CI verify is its gate)"
   fi
-  # OD-WAY-83: three explicit lens records, each its own stamp on this exact HEAD.
-  for lens in spec code-quality security; do
-    stamp_file="$gitdir/independent-review-$lens-ok"
+  # Security lens only, and only when the diff touches auth, schema/RLS, migrations, money or the
+  # CI/gate scripts (or the base cannot be resolved: fail closed). Spec and code quality are machine
+  # gates in CI; looks are the owner's call on rendered screens. Main/staging always need the release stamps.
+  local range_base="" ref sensitive=0
+  if [ -n "$base_val" ]; then
+    for ref in "origin/$base_val" "$base_val"; do
+      git rev-parse -q --verify "$ref^{commit}" >/dev/null 2>&1 || continue
+      range_base="$(git merge-base "$ref" HEAD 2>/dev/null || true)"; [ -n "$range_base" ] && break
+    done
+  fi
+  if [ -z "$range_base" ]; then sensitive=1
+  elif git diff --name-only "$range_base" HEAD | grep -Eiq '^supabase/|^mos-app/src/auth/|money|payment|billing|pricing|budget|revenue|expense|pending-bills|^\.github/|^scripts/gh-|^\.claude/hooks/'; then sensitive=1
+  fi
+  if [ "$base_val" = main ] || [ "$base_val" = staging ]; then
+    sensitive=1
+    release_stamp_file="$gitdir/independent-review-security-release-ok"
+    release_sha="$(cat "$release_stamp_file" 2>/dev/null || true)"
+    [ "$release_sha" = "$head" ] \
+      || die "a PR into $base_val needs release-rule stamps — record the security lens with: bash scripts/record-review.sh --lens security --base $base_val --reviewer <opus id> --artifact <record>"
+  fi
+  if [ "$sensitive" = 1 ]; then
+    stamp_file="$gitdir/independent-review-security-ok"
     stamp="$(cat "$stamp_file" 2>/dev/null || true)"
     r="$(printf '%s\n' "$stamp" | awk '{print $1}')"
-    if [ "$lens" = security ] && { [ "$base_val" = main ] || [ "$base_val" = staging ]; }; then
-      release_stamp_file="$gitdir/independent-review-security-release-ok"
-      release_sha="$(cat "$release_stamp_file" 2>/dev/null || true)"
-      [ "$release_sha" = "$head" ] \
-        || die "a PR into $base_val needs release-rule stamps — record the security lens with: bash scripts/record-review.sh --lens security --base $base_val --reviewer <opus id> --artifact <record>"
-    fi
-    [ "$r" = "$head" ] || die "no $lens lens stamp for HEAD — a reviewer that did not write this branch records each lens: bash scripts/record-review.sh --lens $lens --reviewer <glm/luna/opus…> --artifact <record>"
-  done
+    [ "$r" = "$head" ] || die "this diff touches auth, schema, migrations, money or CI/gate scripts (or the base is unknown): it needs a security lens stamp for HEAD from a reviewer that did not write this branch — bash scripts/record-review.sh --lens security --reviewer <luna/glm/opus…> --artifact <record>"
+  fi
 }
 
 # Reuse-first (CLAUDE.md "Reuse before build"): a PR body names what it reused, on a line that
