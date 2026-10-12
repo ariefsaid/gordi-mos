@@ -23,6 +23,7 @@ function readDirectory<T>(readLease: ReadLease | undefined, key: ReadKey, load: 
 
 const PERSON_ROLE_ASSIGNMENTS_KEY = 'shared.person_roles:select(person_id,role_id)'
 const ROLE_TREE_KEY = 'shared.roles:select(id,reports_to_role_id)'
+const DIRECT_MANAGER_ROLE_KEY = 'shared.roles:select(id,business_unit_id,reports_to_role_id)'
 const ROLE_BUSINESS_UNITS_KEY = 'shared.roles:select(id,business_unit_id)'
 
 export interface BusinessUnitOption {
@@ -134,6 +135,31 @@ export async function getMyTeamLeads(): Promise<TeamLeadRow[]> {
 export async function getTeamsByIds(teamIds: readonly string[], readLease?: ReadLease): Promise<TeamOption[]> {
   const teams = await readTeamRows(teamIds, readLease)
   return teams.map((team) => toTeamOption(team))
+}
+
+/** Resolve holders of direct parent roles only for the PIC role in the Task's BU. */
+export async function getDirectManagerPersonIds(personId: string, businessUnitId: string, readLease?: ReadLease): Promise<string[]> {
+  if (!personId || !businessUnitId) return []
+  const [assignments, roles] = await Promise.all([
+    readDirectory(readLease, PERSON_ROLE_ASSIGNMENTS_KEY, async () => {
+      const { data, error } = await shared().from('person_roles').select('person_id,role_id')
+      if (error) throw new Error(`getDirectManagerPersonIds assignments failed — ${error.message}`)
+      return data ?? []
+    }),
+    readDirectory(readLease, DIRECT_MANAGER_ROLE_KEY, async () => {
+      const { data, error } = await shared().from('roles').select('id,business_unit_id,reports_to_role_id')
+      if (error) throw new Error(`getDirectManagerPersonIds roles failed — ${error.message}`)
+      return data ?? []
+    }),
+  ])
+  const roleRows = roles as Array<{ id: string; business_unit_id: string | null; reports_to_role_id: string | null }>
+  const picRoleIds = new Set(roleRows
+    .filter((role) => role.business_unit_id === businessUnitId && assignments.some((assignment: { person_id: string; role_id: string }) => assignment.person_id === personId && assignment.role_id === role.id))
+    .map((role) => role.reports_to_role_id)
+    .filter((roleId): roleId is string => roleId !== null))
+  return [...new Set(assignments
+    .filter((assignment: { person_id: string; role_id: string }) => assignment.person_id !== personId && picRoleIds.has(assignment.role_id))
+    .map((assignment: { person_id: string }) => assignment.person_id))]
 }
 
 /** #742 AC-060: everyone the viewer manages, walked down the role tree (BFS over

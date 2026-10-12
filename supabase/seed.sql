@@ -504,38 +504,87 @@ insert into ops.wip_items (id, org_id, name, reference_source, esb_product_id, c
   ('a1100000-0000-0000-0000-000000000020', '10000000-0000-0000-0000-000000000001', 'Balado Cumi Asin', 'erp_catalog', 'DEV-P-a1100000000000000000000000000020', 'Seafood')
 on conflict (id) do nothing;
 
--- Real café catalog rows are loaded from the private data repository. Local seed uses synthetic
--- references supplied to the same refresh function below.
+-- Every fixed development item is also represented in the synthetic ERP snapshot. The refresh
+-- creates its product-detail unit from the same coordinates used by the kitchen fixtures.
+select ops.refresh_cafe_item_references(
+  $cafe_seed_1480$[
+    {"esb_product_id":"DEV-ERP-P-1240-RAW","esb_product_detail_id":"DEV-ERP-PD-1240-RAW-A","name":"Synthetic RAW Sample","category":"Kitchen","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true,"branch_code":null},
+    {"esb_product_id":"DEV-ERP-P-1240-RAW","esb_product_detail_id":"DEV-ERP-PD-1240-RAW-B","name":"Synthetic RAW Sample","category":"Kitchen","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true,"branch_code":null},
+    {"esb_product_id":"DEV-ERP-P-1240-WIP","esb_product_detail_id":"DEV-ERP-PD-1240-WIP","name":"Synthetic WIP Sample","category":"Bar","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":true,"is_active":true,"branch_code":"gordi_hq"}
+  ]$cafe_seed_1480$::jsonb
+  || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'esb_product_id', item.esb_product_id,
+      'esb_product_detail_id', 'DEV-PD-' || replace(item.id::text, '-', ''),
+      'name', item.name,
+      'category', case when right(item.id::text, 2) in ('17', '18', '1b', '1c', '1d', '1e', '1f', '20') then 'Bar' else 'Kitchen' end,
+      'unit_name', 'porsi',
+      'erp_category_type_name', 'Inventory',
+      'is_stock', false,
+      'has_active_bom_output', true,
+      'is_active', true,
+      'branch_code', 'dev-catalog-only'
+    ) order by item.id)
+    from ops.wip_items item
+    where item.org_id = '10000000-0000-0000-0000-000000000001'
+      and item.id::text like 'a1100000-%'
+  ), '[]'::jsonb)
+);
 
-
--- ── Their CONFIRMED default unit — what puts them on a capture form (#238) ───────────────────
--- Since #232 the capture form reads ops.capture_form_items, which returns only item-units whose
--- ERP coordinates are CONFIRMED: an unconfirmed item is ABSENT, not disabled (DD-WAY-29). The
--- migration's backfill keys on wip_items.esb_product_detail_id_porsi, and the rows above carry
--- none (see the note there — the Teable source has no ESB identifiers), so a fresh `db reset`
--- produced ZERO confirmed item-units and an EMPTY capture form for every persona on every
--- stream. The app was correct; there was simply nothing to offer. It cost #238 an e2e fixture
--- and would have cost the owner a render pass.
---
--- Same shape as the migration backfill — one confirmed default 'porsi' unit per item — with a
--- DEV-only synthetic coordinate. `DEV-PD-` prefixed and derived from the row id: deterministic
--- across resets, and unmistakable for a real ERP coordinate at a glance, in a payload, or in a
--- log. Nothing here reaches an ERP: this file is applied by `supabase db reset` (local) only,
--- staging and prod take migrations, and the dispatch target is gated pre-flip regardless.
---
--- confirmed_at is set to a non-null marker and RE-STAMPED by ops._stamp_item_unit_confirmation
--- to now(); confirmed_by lands NULL under the seed's claimless session — the system-recorded
--- shape, exactly as the backfilled rows carry.
+-- Each kitchen demo item must have a confirmed default unit produced by that source snapshot.
+-- A missing source detail leaves the item out of the capture forms instead of inventing one.
 insert into ops.item_units
   (org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id, is_default, confirmed_at)
-select w.org_id, w.id, 'porsi',
-       'DEV-PD-' || replace(w.id::text, '-', ''),
-       'DEV-P-'  || replace(w.id::text, '-', ''),
+select w.org_id, w.id, source_unit.unit_name,
+       source_unit.esb_product_detail_id, source_unit.esb_product_id,
        true, now()
 from ops.wip_items w
+join ops.item_units source_unit
+  on source_unit.org_id = w.org_id
+ and source_unit.wip_item_id = w.id
+ and source_unit.esb_product_id = w.esb_product_id
+ and source_unit.esb_product_detail_id = 'DEV-PD-' || replace(w.id::text, '-', '')
+ and source_unit.source_active
+ and source_unit.erp_is_stock is false
 where w.org_id = '10000000-0000-0000-0000-000000000001'
+  and w.id::text like 'a1100000-%'
 on conflict (wip_item_id, esb_product_detail_id)
-  where esb_product_detail_id is not null do nothing;
+  where esb_product_detail_id is not null do update
+    set is_default = excluded.is_default,
+        confirmed_at = excluded.confirmed_at;
+
+do $$
+begin
+  if (select count(*) from ops.wip_items item
+       where item.org_id = '10000000-0000-0000-0000-000000000001'
+         and item.id::text like 'a1100000-%') <> 32
+     or exists (
+       select 1
+         from ops.wip_items item
+        where item.org_id = '10000000-0000-0000-0000-000000000001'
+          and item.id::text like 'a1100000-%'
+          and (item.reference_source is distinct from 'erp_catalog'
+            or item.esb_product_id is distinct from 'DEV-P-' || replace(item.id::text, '-', '')
+            or item.erp_category_type_name is distinct from 'Inventory'
+            or item.has_active_bom_output is distinct from true
+            or item.category is null or item.category not in ('Kitchen', 'Bar')
+            or not exists (
+              select 1
+                from ops.item_units unit
+               where unit.org_id = item.org_id
+                 and unit.wip_item_id = item.id
+                 and unit.esb_product_id = item.esb_product_id
+                 and unit.esb_product_detail_id = 'DEV-PD-' || replace(item.id::text, '-', '')
+                 and unit.source_active
+                 and unit.erp_is_stock is false
+                 and unit.is_default
+                 and unit.confirmed_at is not null
+            ))
+     ) then
+    raise exception 'seed.sql: development kitchen items need matching synthetic ERP catalog details';
+  end if;
+end
+$$;
 
 -- ── Stream item lists (#222) — synthetic dev membership plus source-driven references ─────────
 -- Public dev seed membership uses synthetic rows only; the private snapshot loader runs separately.

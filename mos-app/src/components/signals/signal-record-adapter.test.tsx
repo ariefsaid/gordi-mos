@@ -3,11 +3,6 @@ import type { SignalDetail } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { wrapSignalRecord, firstLine, SIGNAL_TITLE_MAX } from './signal-record-adapter'
 
-// OD-REDESIGN-90 anatomy (docs/specs/record-page-anatomy.spec.md §2.1): a Signal packs its five
-// job regions into ORDERED content slots — message → reach → discussion → facts → history — with
-// the shared RecordViewer's generic regions (metadata/relations/activity/actions) empty, so the
-// message leads and the ordering never leaks into every other RecordViewer consumer.
-
 function makeSignal(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
     id: 'signal-1', author_id: 'p-author', owning_team_id: 't-1', audience: 'team', occurred_at: '2026-07-20T08:00:00Z',
@@ -49,9 +44,9 @@ describe('wrapSignalRecord (OD-REDESIGN-90 JTBD anatomy)', () => {
     expect(wrapSignalRecord(makeInput({ detail: makeDetail(makeSignal({ body: 'Line one.\nLine two.' })) })).title).toBe('Line one.')
   })
 
-  it('AC-ANAT-001: content leads — the ordered content slots are [message, reach, discussion, facts]; generic regions are empty', () => {
+  it('puts Facts directly after the message and before Reach & response and Discussion', () => {
     const adapter = wrapSignalRecord(makeInput())
-    expect(adapter.contentSlots.map((s) => s.id)).toEqual(['message', 'reach', 'discussion', 'facts'])
+    expect(adapter.contentSlots.map((s) => s.id)).toEqual(['message', 'facts', 'reach', 'discussion'])
     // The generic RecordViewer regions carry NOTHING — the Signal composes via content slots only,
     // so no Facts/metadata block can precede the message (F1).
     expect(adapter.metadata).toEqual([])
@@ -62,7 +57,7 @@ describe('wrapSignalRecord (OD-REDESIGN-90 JTBD anatomy)', () => {
 
   it('orders History last, only when the record has been edited', () => {
     const withHistory = wrapSignalRecord(makeInput({ history: <div data-testid="history-node" /> }))
-    expect(withHistory.contentSlots.map((s) => s.id)).toEqual(['message', 'reach', 'discussion', 'facts', 'history'])
+    expect(withHistory.contentSlots.map((s) => s.id)).toEqual(['message', 'facts', 'reach', 'discussion', 'history'])
     const withoutHistory = wrapSignalRecord(makeInput({ history: null }))
     expect(withoutHistory.contentSlots.map((s) => s.id)).not.toContain('history')
   })

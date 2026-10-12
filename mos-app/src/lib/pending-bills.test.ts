@@ -1,7 +1,7 @@
 // Pending bills view-model (#1464): what one copied bill reads as on the Finance list.
 import { describe, it, expect } from 'vitest'
 import type { PendingBillRow } from '@/lib/db/reporting-pending-bills'
-import { filterPendingBills, isPendingBillCopyStale, pendingBillAgeDays, summarizePendingBills, toPendingBillViews, type PendingBillFilters } from './pending-bills'
+import { filterPendingBills, isPendingBillCopyStale, normalizePendingBillFinanceLabel, pendingBillAgeDays, summarizePendingBills, toPendingBillViews, validatePendingBillFinanceLabel, type PendingBillFilters } from './pending-bills'
 
 function bill(over: Partial<PendingBillRow>): PendingBillRow {
   return {
@@ -211,11 +211,35 @@ describe('AC-1121: paid/open views, branch and age filters drive the matching su
   })
 })
 
-describe('AC-1122: search matches copied bill text independent of case and spacing', () => {
+describe('AC-1122: search matches copied text and Finance labels independent of case and spacing', () => {
   it('finds copied counterparty text without requiring its original spacing', () => {
     const rows = toPendingBillViews([bill({ bill_no: 'TEXT', counterparty_note: '  Meja   Empat  ' })], '2026-10-06')
     expect(filterPendingBills(rows, { view: 'all', branchCode: '', ageBucket: 'all', search: ' mejaempat ' }).map((row) => row.billNo))
       .toEqual(['TEXT'])
+  })
+
+  it('finds the MOS Finance label without changing the copied counterparty note', () => {
+    const rows = toPendingBillViews([bill({ bill_no: 'LABEL', counterparty_note: 'ESB note' })], '2026-10-06', [], [
+      { esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'LABEL', finance_label: 'Owner Sari' },
+    ])
+    expect(rows[0]).toMatchObject({ counterpartyNote: 'ESB note', financeLabel: 'Owner Sari' })
+    expect(filterPendingBills(rows, { view: 'all', branchCode: '', ageBucket: 'all', search: ' owner   sari ' }).map((row) => row.billNo))
+      .toEqual(['LABEL'])
+  })
+})
+
+describe('Finance label validation', () => {
+  it('allows a trimmed label of 60 characters and rejects 61', () => {
+    expect(validatePendingBillFinanceLabel(` ${'x'.repeat(60)} `)).toBe(true)
+    expect(validatePendingBillFinanceLabel('x'.repeat(61))).toBe(false)
+  })
+
+  it('normalizes edge whitespace without changing interior text', () => {
+    expect(normalizePendingBillFinanceLabel('\t\n Owner Sari \r\n\t')).toBe('Owner Sari')
+    expect(normalizePendingBillFinanceLabel('\u00a0\u2003')).toBe('')
+    expect(normalizePendingBillFinanceLabel('Owner\t\nSari')).toBe('Owner\t\nSari')
+    expect(validatePendingBillFinanceLabel(`\t\n${'x'.repeat(60)}\r\n`)).toBe(true)
+    expect(validatePendingBillFinanceLabel(`\t\n${'x'.repeat(61)}\r\n`)).toBe(false)
   })
 })
 

@@ -43,8 +43,10 @@ const SELECT =
   'margin_date,esb_code,branch_code,branch_name,branch_id,revenue,cogs_interim_sm,cogs_budget_bom,margin_interim,bom_coverage_pct,snapshot_as_of,source_contract_version'
 
 export interface SalesMarginDailyFilters {
-  /** Only include rows with margin_date >= (today − sinceDays). Defaults to the dashboard's 60-day window. */
+  /** Only include rows with margin_date >= (today − sinceDays). */
   sinceDays?: number
+  fromDate?: string
+  toDate?: string
 }
 
 /**
@@ -55,13 +57,15 @@ export async function listSalesMarginDaily(
   f: SalesMarginDailyFilters = {},
 ): Promise<SalesMarginDailyRow[]> {
   const since = daysAgoIsoDate(f.sinceDays ?? REPORTING_WINDOW_DAYS)
-  return readAllPages<SalesMarginDailyRow>('listSalesMarginDaily', (from, to) =>
-    reporting().from('sales_margin_daily').select(SELECT)
-      .gte('margin_date', since)
-      .order('margin_date', { ascending: true })
+  return readAllPages<SalesMarginDailyRow>('listSalesMarginDaily', (from, to) => {
+    let query = reporting().from('sales_margin_daily').select(SELECT)
+    query = query.gte('margin_date', f.fromDate ?? since)
+    if (f.toDate) query = query.lte('margin_date', f.toDate)
+    return query.order('margin_date', { ascending: true })
       .order('esb_code', { ascending: true })
       .order('branch_code', { ascending: true })
-      .range(from, to))
+      .range(from, to)
+  })
 }
 
 /** Reporting-day window: the latest `margin_date` across the given rows, or null if empty.

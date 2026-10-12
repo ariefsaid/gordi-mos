@@ -25,17 +25,60 @@ function isTopmostTrap(container: HTMLElement): boolean {
 }
 
 /** Keep keyboard Tab navigation inside the active focus scope. */
-export function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean): void {
+export function useFocusTrap(
+  ref: RefObject<HTMLElement | null>,
+  active: boolean,
+  /** Live extra focus stops outside the container, appended after its own controls. */
+  getAdditionalFocusable?: () => HTMLElement[],
+): void {
   useEffect(() => {
     const container = active ? ref.current : null
     if (!container) return
 
     activeTraps.push(container)
 
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (rawEvent: Event) => {
+      const event = rawEvent as KeyboardEvent
       if (event.key !== 'Tab' || !isTopmostTrap(container)) return
 
       const controls = focusableWithin(container)
+      const additional = (getAdditionalFocusable?.() ?? []).filter((element) =>
+        element.isConnected
+        && !container.contains(element)
+        && element.parentElement !== null
+        && focusableWithin(element.parentElement).includes(element),
+      )
+      const activeElement = document.activeElement as HTMLElement
+
+      if (additional.length > 0) {
+        const additionalIndex = additional.indexOf(activeElement)
+        const controlIndex = controls.indexOf(activeElement)
+        if (additionalIndex >= 0) {
+          const target = event.shiftKey
+            ? additional[additionalIndex - 1] ?? controls.at(-1) ?? additional.at(-1)!
+            : additional[additionalIndex + 1] ?? controls[0] ?? additional[0]
+          event.preventDefault()
+          target.focus()
+          return
+        }
+        if (!container.contains(activeElement)) return
+
+        if (controls.length === 0) {
+          event.preventDefault()
+          additional[0].focus()
+        } else if (event.shiftKey && controlIndex === 0) {
+          event.preventDefault()
+          additional.at(-1)!.focus()
+        } else if (!event.shiftKey && controlIndex === controls.length - 1) {
+          event.preventDefault()
+          additional[0].focus()
+        } else if (controlIndex === -1) {
+          event.preventDefault()
+          ;(event.shiftKey ? additional.at(-1)! : controls[0]).focus()
+        }
+        return
+      }
+
       if (controls.length === 0) {
         event.preventDefault()
         container.focus()
@@ -44,21 +87,22 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean
 
       const first = controls[0]
       const last = controls[controls.length - 1]
-      const focusIsUnlisted = !controls.includes(document.activeElement as HTMLElement)
-      if (event.shiftKey && (document.activeElement === first || focusIsUnlisted)) {
+      const focusIsUnlisted = !controls.includes(activeElement)
+      if (event.shiftKey && (activeElement === first || focusIsUnlisted)) {
         event.preventDefault()
         last.focus()
-      } else if (!event.shiftKey && (document.activeElement === last || focusIsUnlisted)) {
+      } else if (!event.shiftKey && (activeElement === last || focusIsUnlisted)) {
         event.preventDefault()
         first.focus()
       }
     }
 
-    container.addEventListener('keydown', handleKeyDown)
+    const eventTarget = getAdditionalFocusable ? document : container
+    eventTarget.addEventListener('keydown', handleKeyDown)
     return () => {
-      container.removeEventListener('keydown', handleKeyDown)
+      eventTarget.removeEventListener('keydown', handleKeyDown)
       const index = activeTraps.lastIndexOf(container)
       if (index !== -1) activeTraps.splice(index, 1)
     }
-  }, [active, ref])
+  }, [active, ref, getAdditionalFocusable])
 }

@@ -10,9 +10,8 @@ import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { RecordViewer } from '@/components/records/record-viewer'
 import { getPeople, type PersonOption } from '@/lib/db/directory'
 import {
-  FOLLOW_UPS_PAGE_SIZE,
   getFollowUp,
-  listFollowUpEvents,
+  listFollowUpEventsPage,
   type FollowUpRow,
   type FollowUpEvent,
 } from '@/lib/db/follow-ups'
@@ -49,14 +48,14 @@ export function FollowUpRecordHost({ followUpId, mode = 'panel' }: FollowUpRecor
       .then(async (found) => {
         if (cancelled || generation !== loadGeneration.current) return
         if (!found) { setState('not-found'); return }
-        const [eventRows, peopleRows] = await Promise.all([
-          listFollowUpEvents(followUpId),
+        const [eventPage, peopleRows] = await Promise.all([
+          listFollowUpEventsPage(followUpId),
           getPeople(),
         ])
         if (cancelled || generation !== loadGeneration.current) return
         setRow(found)
-        setEvents(eventRows)
-        setEventsHasMore(eventRows.length === FOLLOW_UPS_PAGE_SIZE)
+        setEvents(eventPage.rows)
+        setEventsHasMore(eventPage.hasMore)
         setEventsMoreError(false)
         setPeople(peopleRows)
         setState('ready')
@@ -75,10 +74,10 @@ export function FollowUpRecordHost({ followUpId, mode = 'panel' }: FollowUpRecor
     setEventsLoadingMore(true)
     setEventsMoreError(false)
     try {
-      const older = await listFollowUpEvents(followUpId, before)
+      const older = await listFollowUpEventsPage(followUpId, before)
       if (generation !== loadGeneration.current) return
-      setEvents((loaded) => [...loaded, ...older])
-      setEventsHasMore(older.length === FOLLOW_UPS_PAGE_SIZE)
+      setEvents((loaded) => [...loaded, ...older.rows])
+      setEventsHasMore(older.hasMore)
     } catch {
       if (generation === loadGeneration.current) setEventsMoreError(true)
     } finally {

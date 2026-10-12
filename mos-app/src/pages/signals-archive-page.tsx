@@ -474,16 +474,8 @@ function SignalsArchiveCollection() {
                 title: query.q.trim()
                   ? t('signals.archive.empty', { query: query.q })
                   : t('signals.archive.emptyUnfiltered'),
-                // AC-030 (#770): the true-empty door exists only for a viewer who can post. It is a
-                // door in an ambient surface, so it takes the outline weight — the head keeps the
-                // one action blue (DESIGN.md § Signal row (v4) / §5 Buttons).
-                ...(canPost === false ? {} : {
-                  create: (
-                    <Button variant="outline" onClick={() => openSignalComposer()}>
-                      {t('signals.archive.emptyShareFirst')}
-                    </Button>
-                  ),
-                }),
+                copy: query.q.trim() || canPost === false ? undefined : t('signals.archive.emptyShareAbove'),
+                variant: 'next-step',
               }}
               filteredEmpty={{ items: t('collection.items.signals'), clear: clearFilters }}
               error={{ message: t('signals.archive.error'), retry: () => controller.retry() }}

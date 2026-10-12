@@ -24,7 +24,7 @@ for (const actor of personas) {
     for (const label of ['Home', 'Work', 'Signals', 'Tasks', 'Projects & Processes', 'Objectives', 'Inbox', 'Café']) {
       await expect(rail.getByRole('link', { name: new RegExp(`^${label}(,|$)`) }).first()).toBeVisible()
     }
-    await expect(rail.getByRole('link', { name: 'Money', exact: true })).toHaveCount(0)
+    await expect(rail.getByRole('link', { name: 'Money', exact: true })).toHaveCount(actor.revenue ? 1 : 0)
     await expect(rail.getByRole('link', { name: 'Admin Settings' })).toHaveCount(['admin', 'director'].includes(actor.name) ? 1 : 0)
     await rail.getByRole('link', { name: 'Café', exact: true }).click()
     await expect(page).toHaveURL(/\/cafe$/)
@@ -56,9 +56,9 @@ for (const actor of personas) {
     for (const label of ['Signals', 'Tasks', 'Projects & Processes', 'Objectives']) {
       await expect(more.getByRole('link', { name: label, exact: true })).toBeVisible()
     }
-    // Money is outside the shipped surface for every persona, in the bar and in More alike.
+    // Money stays out of the fixed tabs and appears in More only for revenue-view roles.
     await expect(nav.getByRole('link', { name: 'Money', exact: true })).toHaveCount(0)
-    await expect(more.getByRole('link', { name: 'Money', exact: true })).toHaveCount(0)
+    await expect(more.getByRole('link', { name: 'Money', exact: true })).toHaveCount(actor.revenue ? 1 : 0)
     if (actor.cafe) {
       await expect(more.getByRole('link', { name: 'Café', exact: true })).toHaveCount(0)
       await page.keyboard.press('Escape')

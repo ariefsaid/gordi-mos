@@ -26,6 +26,8 @@ import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 // ── Mock data layer ──────────────────────────────────────────────────────────
 vi.mock('../../lib/db/tasks', () => ({
   listTasks: vi.fn(),
+  hasOlderDoneTasks: async () => false,
+  listOlderDoneTasks: async () => ({ rows: [], nextCursor: null, hasMore: false }),
   getTask: vi.fn(),
   createTask: vi.fn(),
   updateTaskStatus: vi.fn(),
@@ -44,6 +46,7 @@ vi.mock('../../lib/db/directory', () => ({
   getTeamsByIds: () => Promise.resolve([]),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
   getPersonBusinessUnitIds: vi.fn().mockResolvedValue([]),
+  getDirectManagerPersonIds: () => Promise.resolve([]),
 }))
 vi.mock('../../lib/db/objectives', () => ({
   listObjectives: vi.fn(),
@@ -578,6 +581,8 @@ describe('Fix-6 — Work-line picker options include project/daily cue', () => {
     // We test it via the work-line pickers rendered in the task-surface create form.
     vi.mock('../../lib/db/tasks', () => ({
       listTasks: vi.fn(),
+      hasOlderDoneTasks: async () => false,
+      listOlderDoneTasks: async () => ({ rows: [], nextCursor: null, hasMore: false }),
       getTask: vi.fn(),
       createTask: vi.fn(),
       updateTaskStatus: vi.fn(),

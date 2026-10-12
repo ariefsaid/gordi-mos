@@ -10,7 +10,14 @@ ok()  { pass=$((pass+1)); printf '  ok    %s\n' "$1"; }
 bad() { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; [ -n "${2:-}" ] && printf '%s\n' "$2" | sed 's/^/        /'; }
 
 TOKEN='123456:FAKE-token_ZZ'
-mkdir -p "$tmp/bin" "$tmp/root/sync/venv/bin" "$tmp/root/sync/logs"
+mkdir -p "$tmp/bin" "$tmp/root/sync/venv/bin" "$tmp/root/sync/logs" "$tmp/root/scripts"
+cat > "$tmp/root/scripts/reporting_snapshot.py" <<'PY'
+class SnapshotConfig:
+    pass
+
+def run_all_snapshots(_config):
+    return {}
+PY
 cat > "$tmp/bin/curl" <<'SH'
 #!/usr/bin/env bash
 printf 'argv %s\n' "$*" >> "$CURLLOG"; in="$(cat)"; printf 'stdin %s\n' "$in" >> "$CURLLOG"
@@ -18,6 +25,17 @@ f="$(printf '%s' "$in" | sed -n 's/^data-urlencode = "text@\(.*\)"$/\1/p')"; [ -
 SH
 cat > "$tmp/root/sync/venv/bin/python" <<'SH'
 #!/usr/bin/env bash
+if [ "${VERIFY_IMPORT:-0}" = 1 ]; then
+  source_file="$(mktemp)"
+  trap 'rm -f "$source_file"' EXIT
+  while IFS= read -r line; do
+    [ "$line" = 'with open(os.environ["REPORTING_WRITER_CRED_FILE"]) as f:' ] && break
+    printf '%s\n' "$line" >> "$source_file"
+  done
+  printf 'import importlib; print(importlib.import_module(SnapshotConfig.__module__).__file__)\n' >> "$source_file"
+  python3 - < "$source_file"
+  exit $?
+fi
 cat >/dev/null
 printf 'role=%s ref=%s\n' "$REPORTING_WRITER_ROLE" "$SUPABASE_PROJECT_REF" >> "$PYLOG"
 [ "${FAKE_PY_RC:-0}" = 0 ] || { echo "postgresql://writer:LEAKPW@host/db failed" > "$SNAPSHOT_ROOT/sync/logs/reporting-snapshot.log"; exit "$FAKE_PY_RC"; }
@@ -38,6 +56,7 @@ SUPABASE_POOLER_HOST=pooler.fake.invalid
 REPORTING_WRITER_ROLE=fake_writer
 REPORTING_ORG_ID=11111111-2222-3333-4444-555555555555
 REPORTING_WRITER_CRED_FILE=$tmp/cred
+REPORTING_PYTHON=$tmp/root/sync/venv/bin/python
 WAREHOUSE_DB_URL=postgresql://fake@127.0.0.1:5432/fake
 TELEGRAM_BOT_TOKEN=${NOTIFY_TOKEN-$TOKEN}
 TELEGRAM_CHAT_ID=${NOTIFY_CHAT-4242}
@@ -48,6 +67,7 @@ run() { # env-file-path [ENV=val...]; sets out, rc
   : > "$tmp/curl.log"; : > "$tmp/py.log"
   out="$(env -i PATH="$tmp/bin:$PATH" HOME="$tmp" CURLLOG="$tmp/curl.log" PYLOG="$tmp/py.log" OPS_ENV_FILE="$envfile" "$@" bash "$SCRIPT" 2>&1)"; rc=$?
 }
+message_is() { grep -Fxq "msg $1" "$tmp/curl.log"; }
 
 echo "fail closed"
 run "$tmp/nope.env"
@@ -57,15 +77,20 @@ for v in SNAPSHOT_ROOT SUPABASE_PROJECT_REF SUPABASE_POOLER_HOST REPORTING_WRITE
   if [ "$rc" = 2 ] && printf '%s' "$out" | grep -q "missing.*$v" && [ ! -s "$tmp/py.log" ]; then ok "missing $v refuses and names it"; else bad "missing $v: rc=$rc" "$out"; fi
 done
 
+echo "MOS import path"
+mkenv "$tmp/e.env"; run "$tmp/e.env" VERIFY_IMPORT=1
+expected_script="$(dirname "$SCRIPT")/reporting_snapshot.py"
+if [ "$rc" = 0 ] && printf '%s' "$out" | grep -Fq "$expected_script"; then ok "snapshot imports reporting_snapshot from MOS scripts"; else bad "snapshot import resolved outside MOS scripts: rc=$rc" "$out"; fi
+
 echo "success and failure"
 mkenv "$tmp/e.env"; run "$tmp/e.env"
 [ "$rc" = 0 ] && grep -q 'role=fake_writer ref=fakeref' "$tmp/py.log" && ok "full env runs the snapshot with env coordinates" || bad "full env run: rc=$rc" "$out"
-grep -q '✅' "$tmp/curl.log" && ok "success notified" || bad "no success notification" "$(cat "$tmp/curl.log")"
+message_is "✅ Sales, margin and usage figures are up to date in MOS. No action is needed." && ok "success has a plain status message" || bad "success notification" "$(cat "$tmp/curl.log")"
 grep '^argv ' "$tmp/curl.log" | grep -qF -e "$TOKEN" -e 4242 && bad "bot token or chat id in curl argv" || ok "bot token and chat id not in curl argv"
 grep '^stdin ' "$tmp/curl.log" | grep -qF "bot${TOKEN}" && ok "token reaches curl on stdin" || bad "token not on curl stdin" "$(cat "$tmp/curl.log")"
 run "$tmp/e.env" FAKE_PY_RC=1
 [ "$rc" = 1 ] && ok "snapshot failure propagates exit code" || bad "failure rc=$rc" "$out"
-if grep -q '❌' "$tmp/curl.log" && ! grep -q LEAKPW "$tmp/curl.log"; then ok "failure notified with the password scrubbed"; else bad "failure notification missing or leaks" "$(cat "$tmp/curl.log")"; fi
+if message_is "❌ MOS couldn't refresh its sales, margin and usage figures. Money may show older results until the next successful update; please check the reporting connection." && ! grep -q LEAKPW "$tmp/curl.log" && printf '%s' "$out" | grep -Fq "$tmp/root/sync/logs/reporting-snapshot.log"; then ok "failure message is plain, keeps log path for engineers, and scrubs credentials"; else bad "failure notification or log path" "$(cat "$tmp/curl.log") $out"; fi
 
 echo "notifier unset"
 NOTIFY_TOKEN= mkenv "$tmp/e.env"; run "$tmp/e.env"

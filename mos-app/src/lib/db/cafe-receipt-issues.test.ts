@@ -8,6 +8,7 @@ import {
   linkCafeReceiptIssue,
   listCafeReceiptIssueOpenPos,
   listCafeReceiptIssues,
+  resolveCafeReceiptHaltedGroup,
   setCafeReceiptIssueAccess,
 } from './cafe-receipt-issues'
 
@@ -41,7 +42,10 @@ function issueRow(n: number, status = 'open') {
 
 /** A query per table read; records each call so the tests can assert the read shape. */
 type Call = { table: string; select: unknown[]; filters: unknown[][]; range?: [number, number]; limit?: number }
-function backend(responses: Record<string, (call: Call) => { data?: unknown[]; count?: number }>) {
+function backend(
+  responses: Record<string, (call: Call) => { data?: unknown[]; count?: number }>,
+  rpc = vi.fn().mockResolvedValue({ data: null, error: null }),
+) {
   const calls: Call[] = []
   const from = vi.fn((table: string) => {
     const call: Call = { table, select: [], filters: [] }
@@ -52,12 +56,12 @@ function backend(responses: Record<string, (call: Call) => { data?: unknown[]; c
     query.range = vi.fn((a: number, b: number) => { call.range = [a, b]; return query })
     query.limit = vi.fn((n: number) => { call.limit = n; return query })
     query.then = (resolve: (value: unknown) => unknown) => {
-      const result = responses[table](call)
+      const result = responses[table]?.(call) ?? {}
       return Promise.resolve({ data: result.data ?? null, count: result.count ?? null, error: null }).then(resolve)
     }
     return query
   })
-  schemaMock.mockReturnValue({ from } as never)
+  schemaMock.mockReturnValue({ from, rpc } as never)
   return calls
 }
 
@@ -89,6 +93,55 @@ describe('Café receipt issues adapter', () => {
     // 1201 receipts: read 50 at a time, as the receipt photo read does.
     expect(receiptsMock).toHaveBeenCalledTimes(25)
     expect(Math.max(...receiptsMock.mock.calls.map(([, options]) => options?.ids?.length ?? 0))).toBe(50)
+  })
+
+  it('AC-1533 a halted group is joined to its receipt for the existing issues surface', async () => {
+    const rpc = vi.fn((name: string) => Promise.resolve({
+      data: name === 'list_cafe_receipt_halted_groups' ? [
+        { group_id: 'group-1', receipt_id: 'receipt-7', po_number: 'PO-7', mos_key: 'MOS-RECEIPT-7' },
+      ] : null,
+      error: null,
+    }))
+    backend({
+      cafe_receipt_issues: call => (call.select[1] ? { count: 0 } : { data: [] }),
+      cafe_receipt_portions: () => ({ data: [] }),
+    }, rpc)
+
+    const list = await listCafeReceiptIssues()
+
+    expect(list.haltedGroups).toEqual([expect.objectContaining({
+      group_id: 'group-1', po_number: 'PO-7', mos_key: 'MOS-RECEIPT-7',
+      receipt: expect.objectContaining({ id: 'receipt-7' }),
+    })])
+    expect(receiptsMock).toHaveBeenCalledWith(['Approved'], expect.objectContaining({ ids: ['receipt-7'], limit: 1 }))
+    expect(rpc).toHaveBeenCalledWith('list_cafe_receipt_halted_groups')
+  })
+
+  it('FR-1534 ESB-refused portions return with their receipt, line, message and MOS key', async () => {
+    const rpc = vi.fn((name: string) => Promise.resolve({
+      data: name === 'cafe_receipt_esb_refused_portions' ? [{
+        portion_id: 'portion-refused', receipt_id: 'receipt-8', line_id: 'line-8', quantity: '3.0000',
+        created_at: '2026-10-06T05:00:00Z', po_number: 'PO-SYNTH-8', mos_key: 'MOS-RECEIPT-GROUP',
+        esb_message: 'ESB refused this receipt: period is closed',
+      }] : null,
+      error: null,
+    }))
+    const calls = backend({
+      cafe_receipt_issues: call => (call.select[1] ? { count: 0 } : { data: [] }),
+      cafe_receipt_portions: () => ({ data: [] }),
+    }, rpc)
+
+    const list = await listCafeReceiptIssues()
+    const refused = (list as unknown as { refused: Array<Record<string, unknown>> }).refused
+
+    expect(refused).toEqual([expect.objectContaining({
+      id: 'portion-refused', quantity: '3.0000', po_number: 'PO-SYNTH-8', mos_key: 'MOS-RECEIPT-GROUP',
+      esb_message: 'ESB refused this receipt: period is closed',
+    })])
+    expect(refused[0].line).toEqual(expect.objectContaining({ id: 'line-8' }))
+    expect(refused[0].receipt).toEqual(expect.objectContaining({ id: 'receipt-8' }))
+    expect(rpc).toHaveBeenCalledWith('cafe_receipt_esb_refused_portions', { p_offset: 0, p_limit: 1000 })
+    expect(calls.some(call => call.table === 'cafe_receipt_portions' && call.filters.some(filter => filter[1] === 'esb_refused'))).toBe(false)
   })
 
   it('DD-2026-10-06-1429 held portions that no longer fit a PO come back with their receipt and line', async () => {
@@ -168,6 +221,41 @@ describe('Café receipt issues adapter', () => {
     await closeCafeReceiptIssue('issue-1', '  Supplier credit  ')
     expect(rpc).toHaveBeenNthCalledWith(1, 'link_cafe_receipt_issue', { p_issue_id: 'issue-1', p_po_number: 'PO-1' })
     expect(rpc).toHaveBeenNthCalledWith(2, 'close_cafe_receipt_issue', { p_issue_id: 'issue-1', p_note: 'Supplier credit' })
+  })
+
+  it('S1508 a re-opened issue retains the note that closed the remaining quantity', async () => {
+    const calls = backend({
+      cafe_receipt_issues: call => (call.select[1] ? { count: 0 }
+        : call.filters.some(f => f[0] === 'eq' && f[1] === 'status') ? { data: [{
+          ...issueRow(1), reopened_po_number: 'PO-REOPENED',
+        }] } : { data: [] }),
+      cafe_receipt_portions: () => ({ data: [] }),
+      record_history: () => ({ data: [{
+        record_key: 'issue-1', field_name: 'closed_note', old_value: 'The remainder was returned to supplier', new_value: null,
+      }] }),
+    })
+
+    const list = await listCafeReceiptIssues()
+
+    expect(list.issues[0]).toEqual(expect.objectContaining({
+      id: 'issue-1', previous_closed_note: 'The remainder was returned to supplier',
+    }))
+    expect(calls.find(call => call.table === 'record_history')?.filters).toEqual(expect.arrayContaining([
+      ['eq', 'schema_name', 'ops'], ['eq', 'table_name', 'cafe_receipt_issues'],
+      ['in', 'record_key', ['issue-1']], ['eq', 'field_name', 'closed_note'],
+      ['is', 'new_value', null], ['not', 'old_value', 'is', null],
+    ]))
+  })
+
+  it('AC-1533 a resolution sends only its group, choice and optional number', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { group_id: 'group-1', resolution: 'record_number' }, error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+
+    await resolveCafeReceiptHaltedGroup('group-1', 'record_number', '  GR-7  ')
+
+    expect(rpc).toHaveBeenCalledWith('resolve_cafe_receipt_halted_group', {
+      p_group_id: 'group-1', p_resolution: 'record_number', p_esb_doc_num: 'GR-7',
+    })
   })
 
   it('FR-1036 a refused link surfaces the database token for a plain explanation', async () => {

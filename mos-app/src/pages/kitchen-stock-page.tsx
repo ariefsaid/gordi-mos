@@ -29,20 +29,22 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { useDocumentTitle } from '@/shell/use-document-title'
+import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
+import { cafeUnitDisplayLabel, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
+import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
+import { formatQuantityWithUnit } from '@/lib/cafe-unit-multiples'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import type { KitchenStockRow, ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { streamLabel } from '@/lib/kitchen-action-label'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
-import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
-import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
@@ -54,6 +56,13 @@ type LoadState =
   | { kind: 'loading' }
   | { kind: 'error' }
   | { kind: 'ready' }
+
+function stockUnitNames(settings: CafeItemSetting[]): Record<string, string | null> {
+  return Object.fromEntries(settings.map(item => {
+    const unit = item.units.find(candidate => candidate.id === item.defaultUnitId)
+    return [item.id, unit ? cafeUnitDisplayLabel(unit) : null]
+  }))
+}
 
 // The stream label lives in `lib/kitchen-action-label` now (#440) — the same words on every
 // Café surface, and the #238 naming ruling (canonical catalog name, never the 'Bungur'
@@ -70,10 +79,6 @@ export function KitchenStockPage() {
 
 function KitchenStockPageForViewer() {
   const t = useT()
-  // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
-  // the catalog's own docTitle convention (tasks-layout, signals-archive).
-  useDocumentTitle(t('common.docTitle', { page: `${t('nav.cafe.stock')} · ${t('nav.cafe')}` }))
-  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.stock')}`
   const auth = useAuth()
 
   const [asOf] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
@@ -85,29 +90,21 @@ function KitchenStockPageForViewer() {
   const { options: streamOptions, locationOptions, stream, homeStream, myStreamKeys } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [rows, setRows] = useState<KitchenStockRow[]>([])
+  const [unitNames, setUnitNames] = useState<Record<string, string | null>>({})
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const isDesktop = useIsDesktop()
   const [search, setSearch] = useState('')
-  // One compact summary over the SELECTED stream's rows. Stock's meaning is the system
-  // balance, available balance, and negative-row count; the retired four-tile strip implied
-  // four separate decisions where the table already is the source of truth.
   const stockSummary = useMemo(() => {
-    let onHand = 0
-    let available = 0
-    let negative = 0
-    for (const row of rows) {
-      onHand += row.stok
-      available += row.tersedia
-      if (row.stok < 0 || row.tersedia < 0) negative += 1
-    }
-    return { onHand, available, negative }
+    const negative = rows.filter(row => row.stok < 0 || row.tersedia < 0).length
+    return { items: rows.length, negative }
   }, [rows])
   const searchQuery = search.trim().toLowerCase()
   const visibleRows = rows.filter(row => (
     !searchQuery || row.wip_item_name.toLowerCase().includes(searchQuery)
   ))
-
+  const formatStockQuantity = (quantity: number, unitName: string | null | undefined) =>
+    formatQuantityWithUnit(quantity, unitName ?? t('kitchen.stock.unitNotSet'), document.documentElement.lang || 'en')
   // FR-060 column order: the system-quantity net (`stok`) sits DIRECTLY BESIDE the ERP
   // inventory column — the comparison is the point. The ERP cell is a placeholder ('—')
   // until the ERP read is wired (#237 preserves the ported page's placeholder source;
@@ -126,14 +123,14 @@ function KitchenStockPageForViewer() {
         </span>
       ),
     },
-    { key: 'stok', header: t('kitchen.stock.col.stok'), numeric: true },
+    { key: 'stok', header: t('kitchen.stock.col.stok'), numeric: true, render: row => formatStockQuantity(row.stok, unitNames[row.wip_item_id]) },
     {
       key: 'erp_qty',
       header: t('kitchen.stock.col.erp'),
       numeric: true,
-      render: () => <span className="ks-erp-pending">—</span>,
+      render: () => <span className="ks-erp-pending"><span className="sr-only">{t('kitchen.stock.systemUnavailable')}</span><span aria-hidden="true">—</span></span>,
     },
-    { key: 'tersedia', header: t('kitchen.stock.col.tersedia'), numeric: true },
+    { key: 'tersedia', header: t('kitchen.stock.col.tersedia'), numeric: true, render: row => formatStockQuantity(row.tersedia, unitNames[row.wip_item_id]) },
   ]
 
   // FR-028: stock is read, not acted on row-by-row. The phone row keeps the name and the
@@ -144,9 +141,9 @@ function KitchenStockPageForViewer() {
       <span className="ks-card-name">{row.wip_item_name}</span>
       {row.on_stream === false && <NotOnStreamTag />}
       <div className="ks-card-meta">
-        <span><span className="ks-card-label">{t('kitchen.stock.col.stok')}</span> <strong className="tabular">{row.stok}</strong></span>
-        <span><span className="ks-card-label">{t('kitchen.stock.card.erp')}</span> <span className="ks-erp-pending">—</span></span>
-        <span><span className="ks-card-label">{t('kitchen.stock.col.tersedia')}</span> <strong className="tabular">{row.tersedia}</strong></span>
+        <span><span className="ks-card-label">{t('kitchen.stock.col.stok')}</span> <strong className="tabular">{formatStockQuantity(row.stok, unitNames[row.wip_item_id])}</strong></span>
+        <span><span className="ks-card-label">{t('kitchen.stock.card.erp')}</span> <span className="ks-erp-pending"><span className="sr-only">{t('kitchen.stock.systemUnavailable')}</span><span aria-hidden="true">—</span></span></span>
+        <span><span className="ks-card-label">{t('kitchen.stock.col.tersedia')}</span> <strong className="tabular">{formatStockQuantity(row.tersedia, unitNames[row.wip_item_id])}</strong></span>
       </div>
     </div>
   )
@@ -169,10 +166,16 @@ function KitchenStockPageForViewer() {
     setLoad({ kind: 'loading' })
     try {
       const catalog = await resolveStream()
-      const data = catalog.stream ? await fetchKitchenStock(asOf, catalog.stream) : []
+      let data: KitchenStockRow[] = []
+      let settings: CafeItemSetting[] = []
+      if (catalog.stream) {
+        data = await fetchKitchenStock(asOf, catalog.stream)
+        if (data.length > 0) settings = await listCafeItemSettings(catalog.stream)
+      }
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
       adoptStream(catalog)
       setRows(data)
+      setUnitNames(stockUnitNames(settings))
       setLoad({ kind: 'ready' })
     } catch {
       if (gen !== requestGen.current) return
@@ -189,8 +192,10 @@ function KitchenStockPageForViewer() {
     setLoad({ kind: 'loading' })
     try {
       const data = await fetchKitchenStock(asOf, next)
+      const settings = data.length > 0 ? await listCafeItemSettings(next) : []
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
       setRows(data)
+      setUnitNames(stockUnitNames(settings))
       setLoad({ kind: 'ready' })
     } catch {
       if (gen !== requestGen.current) return
@@ -207,19 +212,19 @@ function KitchenStockPageForViewer() {
   // ── Auth loading / unauth ──────────────────────────────────────────────────
   if (auth.status === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading">
+      <CafePageFrame page="stock" streamBar={{ options: [], stream: null, onChange: () => undefined }} state="loading">
         <LoadingShell count={3} />
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
+      <CafePageFrame page="stock" streamBar={{ options: [], stream: null, onChange: () => undefined }} state="permission">
         <div className="ks-block ks-forbidden">
           <p className="ks-forbidden-msg">{t('kitchen.stock.signInMsg')}</p>
           <Link to="/login" className="btn btn-primary">{t('common.signIn')}</Link>
         </div>
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
 
@@ -228,24 +233,19 @@ function KitchenStockPageForViewer() {
   // very stream that has nothing to show) and a picker that unmounts during the re-read makes
   // rapid correction impossible — both violate FR-003. The generation guard above is what
   // makes rapid switching safe to allow.
-  const streamHead = (
-    <CafeStreamBar
-      options={locationOptions}
-      stream={stream}
-      homeStream={homeStream}
-      myStreamKeys={myStreamKeys}
-      onChange={next => { void applyStream(next) }}
-    />
-  )
+  const streamBar = {
+    options: locationOptions,
+    stream,
+    homeStream,
+    myStreamKeys,
+    onChange: (next: ProductionStream) => { void applyStream(next) },
+  }
 
   return (
-    <PageFamilyFrame
-      family="workspace"
-      title={pageTitle}
-      statusRow={streamHead}
-      // B9: one date format across Log/Plan/Stock heads — Stock used to print the raw ISO
-      // date (`2026-09-24`) while Log/Plan already read "Thu 24 Sept".
-      meta={<span className="ks-date tabular">{formatWeekdayDayMonth(asOf)}</span>}
+    <CafePageFrame
+      page="stock"
+      date={asOf}
+      streamBar={streamBar}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
       {/* FR-027: one summary line only — no tile strip and no second "no entries" note. */}
@@ -253,9 +253,8 @@ function KitchenStockPageForViewer() {
         <MetricSummaryRule
           ariaLabel={t('kitchen.stock.kpi.ariaLabel')}
           metrics={[
-            { key: 'on-hand', label: t('kitchen.stock.kpi.onHand'), value: String(stockSummary.onHand) },
+            { key: 'items', label: t('kitchen.stock.kpi.items'), value: String(stockSummary.items) },
             { key: 'negative', label: t('kitchen.stock.kpi.negative'), value: String(stockSummary.negative) },
-            { key: 'available', label: t('kitchen.stock.kpi.available'), value: String(stockSummary.available) },
           ]}
         />
       )}
@@ -273,14 +272,12 @@ function KitchenStockPageForViewer() {
           head has nothing to state, so the one-step choice renders here instead of a table of
           nothing under an em dash. */}
       {load.kind === 'ready' && stream === null && (
-        <EmptyState variant="next-step" title={t('cafe.stream.none')}>
-          <CafeStreamChoices
-            options={locationOptions}
-            homeStream={homeStream}
-            myStreamKeys={myStreamKeys}
-            onChoose={next => { void applyStream(next) }}
-          />
-        </EmptyState>
+        <CafeStreamChoices
+          options={locationOptions}
+          homeStream={homeStream}
+          myStreamKeys={myStreamKeys}
+          onChoose={next => { void applyStream(next) }}
+        />
       )}
 
       {((load.kind === 'ready' && stream !== null) || (load.kind === 'loading' && streamOptions.length > 0)) && (
@@ -311,6 +308,6 @@ function KitchenStockPageForViewer() {
           )}
         </div>
       )}
-    </PageFamilyFrame>
+    </CafePageFrame>
   )
 }

@@ -269,6 +269,15 @@ printf '.new-card { display: block; }\n' > "$css_repo/mos-app/src/styles/new-car
 commit_design_change "$css_repo" 'add stylesheet'
 check_design 'new CSS file requires a design pass' 1 "$css_repo" 'adds a stylesheet (mos-app/src/styles/new-card.css)'
 
+for t in pages/cafe-x-page.css.test.ts pages/cafe-x-page.test.ts components/x-card.test.tsx components/x-card.spec.tsx pages/__tests__/x.tsx; do
+  test_repo="$tmp/test-only-$(printf '%s' "$t" | tr '/.' '--')"
+  init_design_repo "$test_repo"
+  mkdir -p "$test_repo/mos-app/src/$(dirname "$t")"
+  printf 'export {};\n' > "$test_repo/mos-app/src/$t"
+  commit_design_change "$test_repo" "add $t"
+  check_design "a new test file ($t) needs no design pass" 0 "$test_repo" ''
+done
+
 threshold_repo="$tmp/150-ui-lines-repo"
 mkdir -p "$threshold_repo/mos-app/src/components"
 : > "$threshold_repo/mos-app/src/components/large.tsx"

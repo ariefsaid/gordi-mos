@@ -315,7 +315,7 @@ export function SignalsIcon() {
   )
 }
 
-// MoneyIcon — a banknote, the Money destination (finance/admin gated).
+// MoneyIcon — a banknote, the Money destination (finance/manager/supervisor gated).
 export function MoneyIcon() {
   return (
     <svg
@@ -597,6 +597,15 @@ export function ItemsIcon() {
       <circle cx="5" cy="12" r="1" />
       <circle cx="5" cy="18" r="1" />
       <path d="M10 6h9M10 12h9M10 18h9" />
+    </svg>
+  )
+}
+
+export function RecipesIcon() {
+  return (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1Z" />
+      <path d="M12 6v14M6 9h3M6 13h3M15 9h3M15 13h3" />
     </svg>
   )
 }

@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { BAR_MEMBER } from './fixtures/users'
+import { assertTapFloor } from './helpers/tap-floor'
 import { loginAs } from './helpers/login'
 
 type MissingReportRow = {
@@ -225,18 +226,29 @@ test.describe('Café item settings', () => {
       await mockSettingsApi(page, largeItemSettingsFixture())
       await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
       await page.goto('cafe/items')
-      await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible({ timeout: 15_000 })
-      const visibleItems = width === 390
+      await expect(page.getByTestId('page-head').getByRole('heading', { level: 1, name: 'Items', exact: true })).toBeVisible({ timeout: 15_000 })
+      let visibleItems = width === 390
         ? page.locator('.dt-cards .dt-card')
         : page.locator('.cafe-items__table tbody tr:not(.dt-group-row)')
 
       await expect(visibleItems).toHaveCount(501, { timeout: 30_000 })
       await expect(page.getByRole('searchbox', { name: 'Find an ESB or MOS name' })).toBeVisible()
       const extraUnitControls = page.getByRole('button', { name: /^Extra units for / })
-      await expect(extraUnitControls).toHaveCount(501)
+      await expect(extraUnitControls).toHaveCount(width === 390 ? 501 : 0)
       await expect(page.getByText('500 items need a default unit before they can be logged.', { exact: true })).toHaveCount(1)
       await expect(page.locator('.cafe-items__needs-unit-status')).toHaveCount(500)
       await assertNoOverflow(page, width)
+
+      if (width === 1440) {
+        // The approved wide table omits Extra units; the item cards retain its editor.
+        await expect(page.getByRole('columnheader', { name: 'Extra units', exact: true })).toHaveCount(0)
+        await captureViewport(page, `lane-1332-after-${width}.png`)
+        await page.setViewportSize({ width: 768, height: 960 })
+        visibleItems = page.locator('.dt-cards .dt-card')
+        await expect(visibleItems).toHaveCount(501)
+        await expect(extraUnitControls).toHaveCount(501)
+        await assertNoOverflow(page, 768)
+      }
 
       const threeUnitItem = visibleItems.filter({ hasText: 'A three-unit ESB product' }).first()
       await expect(threeUnitItem).toBeVisible()
@@ -256,7 +268,7 @@ test.describe('Café item settings', () => {
         expect(saveBox!.y + saveBox!.height).toBeLessThan(900)
       }
 
-      await captureViewport(page, `lane-1332-after-${width}.png`)
+      if (width === 390) await captureViewport(page, `lane-1332-after-${width}.png`)
     })
   }
   // The phone cards vs wide table switch and the no-overflow check are asserted by the 501-item
@@ -297,7 +309,7 @@ test.describe('Café item settings', () => {
     for (const width of [390, 1440] as const) {
       await page.setViewportSize({ width, height: 960 })
       await page.goto('cafe/waste')
-      await expect(page.getByRole('heading', { name: 'Log waste', exact: true })).toBeVisible()
+      await expect(page.getByTestId('page-head').getByRole('heading', { level: 1, name: 'Waste', exact: true })).toBeVisible()
       const report = page.locator('.kl-missing')
       const reportButton = report.getByRole('button', { name: 'Missing an item? Report it', exact: true })
       const toolbar = page.locator('.ktb')
@@ -315,5 +327,42 @@ test.describe('Café item settings', () => {
     }
   })
 
-
+  test('gives every active toggle a 44px hit area on the phone Items cards', async ({ page }) => {
+    const readRows: SettingsReadRow[] = Array.from({ length: 26 }, (_, index) => {
+      const itemId = `00000000-0000-0000-0000-${(0xd000 + index).toString(16).padStart(12, '0')}`
+      return {
+        item_id: itemId,
+        erp_name: `Sample item ${index + 1}`,
+        mos_name: `Sample item ${index + 1}`,
+        category: 'KITCHEN',
+        kind: 'RAW',
+        is_active: true,
+        item_unit_id: null,
+        unit_name: null,
+        default_item_unit_id: null,
+        unit_is_default: false,
+        unit_is_shown: false,
+      }
+    })
+    await mockSettingsApi(page, { reports: [], readRows, configuredItemIds: [], references: [] })
+    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('cafe/items')
+    await expect(page.getByText('26 items', { exact: true })).toBeVisible()
+    await expect(page.locator('.dt-cards .dt-card')).toHaveCount(26)
+    const activeToggles = page.locator('.cafe-items__active-control .mk-checkbox__input')
+    await assertTapFloor(page, '.cafe-items__active-control .mk-checkbox__input', 'Café Items active toggles', {
+      axes: 'both',
+      noOverflow: true,
+    })
+    for (const width of [768, 1440] as const) {
+      await page.setViewportSize({ width, height: 900 })
+      const sizes = await activeToggles.evaluateAll(inputs => inputs.map(input => {
+        const { width: boxWidth, height } = input.getBoundingClientRect()
+        return [boxWidth, height]
+      }))
+      expect(sizes).toHaveLength(26)
+      expect(sizes.every(([boxWidth, height]) => boxWidth === 16 && height === 16)).toBe(true)
+    }
+  })
 })

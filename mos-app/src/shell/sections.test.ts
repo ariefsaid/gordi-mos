@@ -36,6 +36,7 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
       '/cafe/plan',
       '/cafe/stock',
       '/cafe/items',
+      '/cafe/recipes',
       '/cafe/review',
       '/cafe/pushes',
     ])
@@ -67,6 +68,7 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
     expect(sectionForPath('/cafe/receive/review')!.label).toBe('Receive')
     expect(sectionForPath('/cafe/request/review')!.label).toBe('Request')
     expect(sectionForPath('/cafe/items')!.label).toBe('Items')
+    expect(sectionForPath('/cafe/recipes')!.label).toBe('Recipes')
     expect(sectionForPath('/cafe/review')!.label).toBe('Review')
     expect(sectionForPath('/cafe/pushes')!.label).toBe('Pushes')
   })
@@ -102,10 +104,9 @@ describe('T5: new destination sections resolve', () => {
     expect(sectionForPath('/work/signals')!.label).toBe('Signals')
   })
 
-  it('sectionForPath resolves a sub-route by prefix', () => {
-    // Was `/money/detail` → `/money`; Money is ship-gated (#444) and resolves to nothing now, so
-    // the PREFIX behaviour itself is proven on a path that is still live.
-    expect(sectionForPath('/cafe/plan/anything')!.path).toBe('/cafe/plan')
+  it('sectionForPath resolves Money sub-routes by prefix', () => {
+    expect(sectionForPath('/money/detail')?.path).toBe('/money')
+    expect(sectionForPath('/cafe/plan/anything')?.path).toBe('/cafe/plan')
   })
 
   // #444 — the gate closes resolution, not just rendering. The router forwards a gated path home,
@@ -118,10 +119,10 @@ describe('T5: new destination sections resolve', () => {
     },
   )
 
-  it('keeps non-navigation gated sections in the fallback registry', () => {
+  it('keeps workspace and module sections in the fallback registry', () => {
     const paths = SECTIONS.map((s) => s.path)
     for (const p of ['/money', '/work/objectives', '/ecommerce', '/roastery']) {
-      expect(paths, `${p} was deleted from SECTIONS rather than gated`).toContain(p)
+      expect(paths, `${p} was deleted from SECTIONS`).toContain(p)
     }
   })
 })
@@ -136,8 +137,8 @@ describe('the Café children carry marks of their own (#457)', () => {
   // Several rungs, one picture: each Café tab gets its own mark so compact rail and phone drawer entries remain identifiable.
   it('the Café root and routes use distinct components', () => {
     const icons = CAFE_SECTIONS.map((s) => s.Icon)
-    expect(icons).toHaveLength(12)
-    expect(new Set(icons).size).toBe(12)
+    expect(icons).toHaveLength(CAFE_SECTIONS.length)
+    expect(new Set(icons).size).toBe(CAFE_SECTIONS.length)
   })
 
   it('none of them is a mark another destination already draws', () => {

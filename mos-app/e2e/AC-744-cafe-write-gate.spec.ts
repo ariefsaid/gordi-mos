@@ -81,6 +81,7 @@ const BRANCH_SQL =
   `(select b.id from shared.branches b where b.org_id = '${ORG}' and b.code = '${BAR_STREAM.branchCode}')`
 
 test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales cannot', () => {
+  const fixtureTime = new Date()
   const today = wibToday()
 
   async function resetFixtureRows() {
@@ -124,6 +125,8 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
 
   test('restored and other-date drafts remain readable at phone, tablet and desktop widths in both locales', async ({ page }) => {
     test.setTimeout(120_000)
+    // Keep the browser on the fixture's WIB date even when the suite crosses midnight.
+    await page.clock.setFixedTime(fixtureTime)
     let locale: 'en' | 'id' = 'en'
     await page.route(/\/rest\/v1\/person_preferences\?/, route =>
       route.fulfill({ json: [{ locale }] }),
@@ -179,7 +182,7 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
         await page.goto('cafe/production')
         await expect(page.locator('html')).toHaveAttribute('lang', locale)
         await ensureStream(page)
-        await expect(page.getByRole('heading', { name: locale === 'en' ? 'Log production' : 'Catat produksi', exact: true })).toBeVisible()
+        await expect(page.getByTestId('page-head').getByRole('heading', { level: 1, name: locale === 'en' ? 'Production' : 'Produksi', exact: true })).toBeVisible()
         await expect(page.locator('.kl-capture-draft-notice').first()).toContainText(locale === 'en' ? '1 unsent entry restored' : '1 entri belum dikirim dipulihkan')
         await expect(page.getByRole('status').filter({ hasText: locale === 'en' ? /Restored 1 unsent entry · saved/ : /Dipulihkan 1 entri yang belum dikirim · tersimpan/ })).toBeVisible()
         await expect(page.locator('.kl-capture-draft-list')).toContainText(ITEM_NAME)

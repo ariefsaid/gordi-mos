@@ -99,9 +99,15 @@ describe('HomeDailyBrief', () => {
 
   it('distinguishes a genuinely empty brief from a pending or failed read', async () => {
     await renderBrief({ failedChecks: [], overdue: [], myWork: [] })
-    expect(await screen.findAllByText("You're all caught up")).toHaveLength(1)
+    const allClear = await screen.findByText("You're all caught up")
     expect(await screen.findByText('No failed checks')).toBeInTheDocument()
     expect(await screen.findByText(/Nothing else open/i)).toBeInTheDocument()
+    const emptyStates = screen.getAllByTestId('empty-state')
+    expect(emptyStates).toHaveLength(3)
+    emptyStates.forEach((empty) => expect(empty).toHaveClass('stream-all-clear'))
+    const allClearState = allClear.closest('[data-testid="empty-state"]') as HTMLElement
+    expect(within(allClearState).getByRole('link', { name: 'View tasks →' }))
+      .toHaveAttribute('href', '/work/tasks?view=my-work')
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.queryByRole('status')).toBeNull()
   })

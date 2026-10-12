@@ -98,7 +98,7 @@ describe('AC-002/004/005 (#1299): matched route context in the production shell'
   ] as const)('AC-004/005: names the real %s legacy Dashboard denial and suppresses conflicting context', async (locale, expectedHeading) => {
     const { router, matches } = renderMatchedRoute('/dashboard', locale)
     try {
-      expect(matches.at(-1)?.route.handle).toEqual({ kind: 'redirect', target: '/' })
+      expect(matches.at(-1)?.route.handle).toEqual({ kind: 'redirect', target: '/money' })
       expect(await screen.findByRole('heading', { level: 2 })).toHaveTextContent(expectedHeading)
       const context = screen.getByRole('region', { name: 'Context' })
       expect(context).toBeEmptyDOMElement()

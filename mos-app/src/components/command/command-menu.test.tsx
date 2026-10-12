@@ -242,7 +242,7 @@ describe('CommandMenu (AC-K02/AC-K08): combobox + listbox + keyboard', () => {
 })
 
 // ── AC-030..032: e7 palette contents and phone search-only mode ─────────────
-describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
+describe('AC-030..032: desktop GO TO roots → ACT; phone search-only palette', () => {
   it('AC-030: rests on every destination the viewer can open (the catalog), then the universal actions', () => {
     renderMenu()
     const groups = screen.getAllByRole('group')
@@ -251,7 +251,7 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
       railLabels(['admin']),
     )
     // The destinations #1193 found missing, by name — not only by the catalog derivation above.
-    for (const label of ['Signals', 'Tasks', 'Projects & Processes', 'Objectives', 'Log production', 'Log transfer', 'Plan', 'Stock', 'Review', 'Pushes', 'Admin Settings']) {
+    for (const label of ['Signals', 'Tasks', 'Projects & Processes', 'Objectives', 'Café', 'Log transfer', 'Plan', 'Stock', 'Review', 'Pushes', 'Admin Settings']) {
       expect(within(groups[0]).getByRole('option', { name: label })).toBeInTheDocument()
     }
     expect(within(groups[1]).getAllByRole('option')).toHaveLength(3)
@@ -326,16 +326,10 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
     expect(input.getAttribute('aria-activedescendant')).not.toBe(person.id)
   })
 
-  // Asserting ANY group, not the two current labels: a name-based query passed vacuously against
-  // the pre-#748 palette (whose groups were labelled Navigate/Actions, so "no GO TO group" was
-  // trivially true while the phone palette still listed the whole rail). The audit's phone ruling
-  // is results-only — navigation lives on the tab bar, actions on the `+` launcher — so NO group
-  // belongs in the phone DOM, whatever the labels are called this week.
-  //
-  // AC-032 keys on the shell's WIDTH seam, not the pointer (#748 delta): the bottom tab bar and
-  // the `+` launcher render below 920px because `useIsNarrow()` says so, and the palette branches
-  // on the SAME helper — search-only when narrow, GO TO/ACT otherwise. Pointer modality keeps its
-  // own, separate job (#41): hiding the keyboard-hint footer.
+  // AC-032 keeps narrow typed searches results-only because navigation lives on the tab bar.
+  // Issue #1487 requires the otherwise empty, search-only palette to explain its next step.
+  // Width, not pointer modality, selects the shell and palette composition; #41 separately owns
+  // the keyboard-hint footer.
   function stubViewport({ narrow, coarse }: { narrow: boolean; coarse: boolean }) {
     vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
       matches: query.includes('919.98') ? narrow : query.includes('coarse') ? coarse : false,
@@ -344,11 +338,14 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
     }))
   }
 
-  it('AC-032: at 390 with a FINE pointer the palette is search-only — no group of any name in the DOM', () => {
+  it.each([390, 768])('issue 1487: at %ipx the empty narrow palette explains how to search', (width) => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
     stubViewport({ narrow: true, coarse: false })
     renderMenu()
     expect(screen.getByRole('combobox')).toBeInTheDocument()
-    expect(screen.queryByRole('group')).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent('Start typing to search tasks, signals, and people.')
+    expect(screen.queryAllByRole('group')).toHaveLength(0)
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
   })
 
   it('AC-032: narrowing still yields record results, and never a GO TO / ACT group', async () => {
@@ -373,7 +370,7 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
 
   // Go to asks the rail's own question (`isLive` + `visibleSections`, derived in
   // `goToDestinations`), so a destination the rail hides for a role is absent here too.
-  it('AC-031: a destination the rail hides for the role is absent from Go to (Money is gated off for a member)', () => {
+  it('AC-031: a destination the rail hides for the role is absent from Go to (Money is not for a member)', () => {
     setAuth(['member'])
     renderMenu()
     expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
@@ -466,8 +463,7 @@ describe('AC-016: Navigate group points to the new canonical routes', () => {
     expect(screen.queryByRole('option', { name: /^Events$/i })).toBeNull()
     expect(screen.getByRole('option', { name: /^Inbox$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Café$/i })).toBeInTheDocument()
-    // #444: Money was asserted PRESENT here for this (admin) viewer. The palette is a navigation
-    // surface like the rail, so it must not offer a door the router has closed.
+    // Admin alone has no revenue-view role, so Money is absent just as it is from the rail.
     expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
   })
 
@@ -486,19 +482,23 @@ describe('AC-016: Navigate group points to the new canonical routes', () => {
     expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
   })
 
-  // AC-127 (ADR-0050 D8) / AC-326 (ADR-0051) — the financial and revenue-only VIEW tiers. The
-  // palette used to offer Money to each of these four, matching the /money route and rail gate.
-  // #444 ship-gates /money above every role, and the rule the palette follows is unchanged: it
-  // offers exactly what the router admits, so the entry is gone for all four. The VIEW-tier
-  // policy itself stays asserted on the destination registry (`destinations.test.ts`), and
-  // deleting /money from SHIP_GATED_PATHS restores this entry with no edit to the palette.
-  it.each(['manager', 'supervisor', 'finance', 'admin'])(
-    'AC-127/AC-326 (issue 444): %s is offered no Money entry while /money is ship-gated',
+  // AC-127 (ADR-0050 D8) / AC-326 (ADR-0051): the palette follows the Money route's viewer roles.
+  it.each(['manager', 'supervisor', 'finance'])(
+    'AC-127/AC-326: %s is offered Money',
+    (role) => {
+      setAuth([role])
+      renderMenu()
+      expect(screen.getByRole('option', { name: /^Money$/i })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
+    },
+  )
+
+  it.each(['admin', 'member'])(
+    '%s without a revenue-view role is not offered Money',
     (role) => {
       setAuth([role])
       renderMenu()
       expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
-      // …and they still get a palette, so this is not passing on an empty render.
       expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
     },
   )
@@ -673,23 +673,21 @@ describe('#4/B2: ⌘K search spans Tasks + Signals + AR Follow-ups', () => {
   })
 
   // DD-WAY-36 held that a follow-up hit lands on the Money queue rather than the deleted Work
-  // path. #444 ship-gates the whole /money subtree, so the hit has nowhere to land and the
-  // palette must not render it: a record row pointing at a closed route is the same defect as a
-  // Navigate entry pointing at one, and the gate is applied at the seam every row passes through
-  // precisely so a record hit cannot slip past it.
-  it('issue 444: a follow-up hit is not offered at all while the Money queue is ship-gated', async () => {
+  // path. The queue is available to Finance when SHOW_FOLLOWUPS is enabled; its read remains RLS-
+  // governed and the record routes through the same ship-gate seam as every palette target.
+  it('a Finance viewer can open a follow-up hit in the Money queue when enabled', async () => {
     features.SHOW_FOLLOWUPS = true
+    setAuth(['finance'])
     mockSearch.mockResolvedValue([])
     mockSearchSignals.mockResolvedValue([])
     mockSearchFollowUps.mockResolvedValue([{ id: 'fu-1', counterparty: 'PT Acme' }])
-    renderMenu()
+    const { onClose } = renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'acme' } })
-    // The search still FIRES (SHOW_FOLLOWUPS is on) — this is the palette declining to offer the
-    // result, not the read being switched off, which is a different flag and a different test.
     await waitFor(() => expect(mockSearchFollowUps).toHaveBeenCalledWith('acme'))
-    await waitFor(() =>
-      expect(screen.queryByRole('option', { name: /PT Acme/i })).toBeNull(),
-    )
+    const followUp = await screen.findByRole('option', { name: /PT Acme/i })
+    fireEvent.click(followUp)
+    expect(screen.getByTestId('location')).toHaveTextContent('/money/follow-ups')
+    expect(onClose).toHaveBeenCalled()
   })
 
   it('#B2/GAP-3: AR Follow-ups stay dark while SHOW_FOLLOWUPS is off — the search is never fired', async () => {

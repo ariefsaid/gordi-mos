@@ -262,3 +262,12 @@
     row-gap: 6px;
   }
 }
+
+@media (pointer: coarse) {
+  .stream-band-link {
+    display: inline-flex;
+    align-items: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

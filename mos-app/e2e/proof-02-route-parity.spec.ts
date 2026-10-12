@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { ADMIN } from './fixtures/users'
+import { ADMIN, MANAGER, VIEWER } from './fixtures/users'
 import { loginAs } from './helpers/login'
 import { TAP_FLOOR } from './helpers/tap-floor'
 import { stripE2eBasePath } from './helpers/app-path'
@@ -10,7 +10,9 @@ import { ROUTE_PARITY_CATALOG, type RouteParityId } from '../src/shell/route-par
 const ROUTE_CATALOG = ROUTE_PARITY_CATALOG
 
 const VISIBLE_ROOT_ROUTES = ROUTE_CATALOG.filter((route) => route.kind === 'visible-root').map((route) => route.path)
+const ADMIN_VISIBLE_ROOT_ROUTES = VISIBLE_ROOT_ROUTES.filter((route) => route !== '/money')
 const CANONICAL_ROUTES = ROUTE_CATALOG.map((route) => route.path)
+const FINANCE = { email: 'fitri.dev@example.test', password: VIEWER.password }
 
 // The active tab each Admin settings route owns. The tab and the rail's Admin link both mark the
 // place, so these routes are checked by their tab instead of the single-aria-current count.
@@ -33,8 +35,7 @@ const CROSS_SECTION_RETURNS = [
   { name: 'Home → Inbox → Home', route: routePath('inbox') },
 ] as const
 
-// Café capture pages own their visible title where the breadcrumb is hidden by the phone shell.
-const CAPTURE_TITLE_ROUTES: readonly RouteParityId[] = ['cafe', 'cafeProduction', 'cafeTransfer', 'cafeWaste']
+// CafePageFrame owns the title on every Café route; cafe-page-frame.css hides its breadcrumb leaf.
 
 function normalizeHref(href: string): string {
   const url = new URL(href)
@@ -77,6 +78,9 @@ async function assertCanonicalSurface(page: Page, route: string) {
   } else {
     await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible({ timeout: 15_000 })
   }
+  // The shell can settle before a lazy route mounts. Wait for the destination landmark before
+  // asserting shell chrome, so a phone breadcrumb is measured against the finished route.
+  await expect(page.getByRole('main')).toBeVisible({ timeout: 15_000 })
   const settingsTab = ADMIN_SETTINGS_TABS[route]
   if (routeEntry?.owner === 'admin-settings' && !settingsTab) throw new Error(`No Admin settings tab named for ${route}`)
   if (settingsTab) {
@@ -88,12 +92,13 @@ async function assertCanonicalSurface(page: Page, route: string) {
     // omitted entirely at narrow widths; preserve the no-breadcrumb behavior, not an empty <nav>.
     await expect.poll(async () => (await breadcrumb.allTextContents()).join('').trim()).toBe('')
     await expect(page.getByRole('heading', { name: 'Connect an agent', level: 1 })).toBeVisible()
-  } else if (routeEntry && CAPTURE_TITLE_ROUTES.includes(routeEntry.id)) {
-    if ((page.viewportSize()?.width ?? 1440) < 920) {
-      await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toBeVisible()
+  } else if (routeEntry && (routeEntry.path === '/cafe' || routeEntry.path.startsWith('/cafe/'))) {
+    await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toBeVisible()
+    if ((page.viewportSize()?.width ?? 1440) < 920 || routeEntry.path === '/cafe') {
+      await expect(breadcrumb).toBeHidden()
     } else {
       await expect(breadcrumb).toBeVisible()
-      await expect(breadcrumb.locator('.top-bar__breadcrumb-leaf')).toHaveText(/\S/)
+      await expect(breadcrumb.locator('.top-bar__breadcrumb-fixed').first()).toContainText(/\S/)
     }
   } else {
     await expect(breadcrumb).toBeVisible()
@@ -103,7 +108,6 @@ async function assertCanonicalSurface(page: Page, route: string) {
   } else if (!settingsTab && routeEntry?.owner !== 'agent-consent') {
     await expect(page.locator('[aria-current="page"]')).toHaveCount(1)
   }
-  await expect(page.getByRole('main')).toBeVisible()
   // The phone shell never scrolls sideways on any destination (jsdom has no layout engine).
   if ((page.viewportSize()?.width ?? 1440) < 920) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${route}: no horizontal scroll`).toBe(true)
@@ -121,11 +125,10 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
       await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible({ timeout: 15_000 })
 
       const hrefs = await visibleSurfaceHrefs(page)
-      // The same visible-root selector must expose the same admitted route set at every width.
-      // At this committed candidate ADMIN admits Café, while ship-gated roots remain absent from
-      // every surface. The set is captured from rendered links, never retyped per UI.
+      // The same selector exposes the same roots at every width. Admin lacks Money's revenue-view
+      // role, so its visible set excludes that role-gated root while the catalog retains it.
       expect([...hrefs].sort(), 'route catalog parity from the rendered visible-root selector').toEqual(
-        [...VISIBLE_ROOT_ROUTES].sort(),
+        [...ADMIN_VISIBLE_ROOT_ROUTES].sort(),
       )
 
       for (const journey of CROSS_SECTION_RETURNS) {
@@ -139,9 +142,13 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
         })
       }
 
-      for (const route of CANONICAL_ROUTES) {
+      for (const route of CANONICAL_ROUTES.filter((path) => path !== '/money' && path !== '/money/pending-bills')) {
         await assertCanonicalSurface(page, route)
       }
+      await loginAs(page, MANAGER.email, MANAGER.password)
+      await assertCanonicalSurface(page, '/money')
+      await loginAs(page, FINANCE.email, FINANCE.password)
+      await assertCanonicalSurface(page, '/money/pending-bills')
     })
   }
 

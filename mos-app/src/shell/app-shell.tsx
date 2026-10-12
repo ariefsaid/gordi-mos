@@ -20,6 +20,7 @@ import { createRecordDeepLinkResolver, RECORD_KINDS } from './record-deep-link-r
 import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
 import { WorkCollectionSwitcher } from './work-collection-switcher'
 import { useT } from '@/i18n/use-t'
+import { OverlayPortal } from '@/components/ui/overlay-portal'
 import { CreateDraftProvider } from './create-drafts'
 
 // Mounted with the Signals surface, exactly as the deferral note here said it would be (#267).
@@ -207,7 +208,7 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
             there is nothing to press, and it disappears the moment the connection returns. */}
         {isOffline && (
           <div
-            role="status"
+            aria-hidden="true"
             data-anatomy="offline-line"
             className="text-muted-foreground border-b border-border px-4 py-1"
             style={{ gridArea: 'offline' }}
@@ -215,6 +216,25 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
             {t('shell.offline')}
           </div>
         )}
+        <OverlayPortal>
+          <span
+            role="status"
+            aria-live="polite"
+            style={{
+              position: 'absolute',
+              width: 1,
+              height: 1,
+              padding: 0,
+              margin: -1,
+              overflow: 'hidden',
+              clip: 'rect(0, 0, 0, 0)',
+              whiteSpace: 'nowrap',
+              border: 0,
+            }}
+          >
+            {isOffline ? t('shell.offline') : ''}
+          </span>
+        </OverlayPortal>
 
         {/* Rail — grid-area: rail, row 2 col 1; hidden at <920px (drawer is the nav);
             icon-only compact regime at 920–1099.98px (OD-REDESIGN-84.2 / P1-1). */}

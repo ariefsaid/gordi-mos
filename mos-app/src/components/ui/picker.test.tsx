@@ -61,6 +61,13 @@ describe('Picker', () => {
     expect(onChange).toHaveBeenCalledWith('blocked')
   })
 
+  it('focuses the Picker trigger on pointer down', () => {
+    renderPicker()
+    const trigger = screen.getByRole('combobox', { name: 'Status' })
+    fireEvent.pointerDown(trigger, { button: 0, pointerType: 'mouse' })
+    expect(trigger).toHaveFocus()
+  })
+
   it('opens as an anchored listbox and selects with arrows, then returns focus', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
@@ -243,6 +250,13 @@ describe('Picker', () => {
       { value: '2', label: '2 tray' },
       { value: '4', label: '4 tray' },
     ]
+
+    it('focuses the MultiPicker trigger on pointer down', () => {
+      render(<MultiPicker label="Extra units" values={[]} options={factors} onChange={vi.fn()} />)
+      const trigger = screen.getByRole('button', { name: 'Extra units' })
+      fireEvent.pointerDown(trigger, { button: 0, pointerType: 'mouse' })
+      expect(trigger).toHaveFocus()
+    })
 
     it('toggles options without closing, exposes checked state, and returns focus on Escape', async () => {
       const user = userEvent.setup()

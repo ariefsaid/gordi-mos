@@ -75,6 +75,9 @@
   transform: rotate(-90deg);
 }
 
+.rail-group-toggle .rail-module-chevron { margin-left: 0; }
+.rail-module-chevron--open { transform: rotate(0deg); }
+
 /* Child rows stay subordinate through the existing type ladder and tokenized indent, without
    another vertical rule running through every sibling. */
 .rail-item-children {
@@ -146,6 +149,10 @@
    so the exception is gated on `(pointer: coarse)`, not taken unconditionally. */
 @media (pointer: coarse) {
   .rail-item {
+    min-height: 44px;
+  }
+  .rail-group-toggle {
+    min-width: 44px;
     min-height: 44px;
   }
   .rail-item-list {

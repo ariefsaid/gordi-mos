@@ -28,6 +28,16 @@ cat > "$tmp/bin/curl" <<'SH'
 in="$(cat)"; printf 'argv %s\n' "$*" >> "$CURLLOG"
 f="$(printf '%s' "$in" | sed -n 's/^data-urlencode = "text@\(.*\)"$/\1/p')"; printf 'MSG %s\n' "$(cat "$f")" >> "$CURLLOG"
 SH
+cat > "$tmp/bin/mv" <<'SH'
+#!/usr/bin/env bash
+[ "${FAKE_MV_FAIL:-0}" = 1 ] && exit 1
+exec /bin/mv "$@"
+SH
+cat > "$tmp/bin/find" <<'SH'
+#!/usr/bin/env bash
+[ "${FAKE_PRUNE_FAIL:-0}" = 1 ] && { echo 'permission denied' >&2; exit 1; }
+exec /usr/bin/find "$@"
+SH
 chmod +x "$tmp/bin/"*
 
 mkenv() { # $1 file; omitted names after
@@ -52,6 +62,7 @@ run() { : > "$tmp/dump.log"; : > "$tmp/curl.log"
   out="$(env -i PATH="$tmp/bin:$PATH" HOME="$tmp" DUMPLOG="$tmp/dump.log" CURLLOG="$tmp/curl.log" OPS_ENV_FILE="$tmp/ops.env" "$@" bash "$SCRIPT" 2>&1)"; rc=$?; }
 age() { python3 -c "import os,time,sys; t=time.time()-int(sys.argv[2])*86400; os.utime(sys.argv[1],(t,t))" "$1" "$2"; }
 msgs() { grep -c '^MSG ' "$tmp/curl.log"; }
+message_is() { grep -Fxq "MSG $1" "$tmp/curl.log"; }
 dumps() { ls "$BK" 2>/dev/null | grep -c '^mos-.*\.dump$'; }
 
 echo "fail closed"
@@ -88,11 +99,15 @@ EXTRA_ENV="OPS_BACKUP_KEEP_DAYS=2" mkenv "$tmp/ops.env"; run
 echo "failures"
 mkenv "$tmp/ops.env"; rm -f "$BK"/*; : > "$BK/mos-20200101T000000Z.dump"; age "$BK/mos-20200101T000000Z.dump" 30
 run FAKE_LIST_EMPTY=1
-if [ "$rc" = 1 ] && [ "$(msgs)" = 1 ] && [ "$(dumps)" = 1 ] && [ -e "$BK/mos-20200101T000000Z.dump" ] && ! ls "$BK" | grep -q partial; then
-  ok "unlistable dump: alert, no new dump kept, old dumps NOT pruned"; else bad "verify failure handling" "rc=$rc msgs=$(msgs) $(ls "$BK")"; fi
+if [ "$rc" = 1 ] && [ "$(msgs)" = 1 ] && message_is "❌ The latest database copy could not be verified. It may not be safe to restore from; please check the backup job." && [ "$(dumps)" = 1 ] && [ -e "$BK/mos-20200101T000000Z.dump" ] && ! ls "$BK" | grep -q partial; then
+  ok "unlistable dump: plain alert, no new dump kept, old dumps NOT pruned"; else bad "verify failure handling" "rc=$rc msgs=$(cat "$tmp/curl.log") $(ls "$BK")"; fi
 run FAKE_DUMP_FAIL=1
-if [ "$rc" = 1 ] && [ "$(msgs)" = 1 ] && ! grep -q LEAKPW "$tmp/curl.log" && [ -e "$BK/mos-20200101T000000Z.dump" ]; then
-  ok "pg_dump failure: one alert, password scrubbed, old dumps kept"; else bad "dump failure handling" "rc=$rc $(cat "$tmp/curl.log")"; fi
+if [ "$rc" = 1 ] && [ "$(msgs)" = 1 ] && message_is "❌ The latest database copy could not be created. A restore may miss recent MOS changes; please check the backup job." && ! grep -q LEAKPW "$tmp/curl.log" && ! printf '%s' "$out" | grep -q LEAKPW && [ -e "$BK/mos-20200101T000000Z.dump" ]; then
+  ok "pg_dump failure: plain alert, password scrubbed, old dumps kept"; else bad "dump failure handling" "rc=$rc $(cat "$tmp/curl.log") $out"; fi
+rm -f "$BK"/*; run FAKE_MV_FAIL=1
+if [ "$rc" = 1 ] && message_is "❌ The latest database copy could not be saved. A restore may miss recent MOS changes; please check the backup job."; then ok "rename failure has its own plain alert"; else bad "rename failure" "rc=$rc $(cat "$tmp/curl.log")"; fi
+rm -f "$BK"/*; run FAKE_PRUNE_FAIL=1
+if [ "$rc" = 1 ] && message_is "❌ Old database copies could not be cleaned up. The backup folder may run out of space; please check it."; then ok "prune failure has its own plain alert"; else bad "prune failure" "rc=$rc $(cat "$tmp/curl.log")"; fi
 grep '^argv' "$tmp/curl.log" | grep -qF -e "$TOKEN" -e 4242 && bad "token in curl argv" || ok "bot token stays out of curl argv"
 
 printf '\n%s passed, %s failed\n' "$pass" "$fail"

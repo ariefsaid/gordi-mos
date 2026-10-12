@@ -113,7 +113,7 @@ export function DevViewsPage({ viewId: viewIdProp }: { viewId?: string } = {}) {
       subtitle={t('dev.views.subtitle')}
     >
       <div className="dev-views">
-        <section className="dev-views__list" aria-label={t('dev.views.title')}>
+        <section className="dev-views__list" aria-label={t('dev.views.savedViews')}>
           {views.length === 0
             ? <p className="dev-views__empty">{t('dev.views.empty')}</p>
             : (

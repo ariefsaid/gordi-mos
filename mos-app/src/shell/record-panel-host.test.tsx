@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useRef } from 'react'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { RecordPanelHost } from './record-panel-host'
+import { Toast } from '@/components/admin/toast'
+import type { ToastState } from '@/components/admin/use-toast'
 
 // The RecordPanelHost is the ONE overlay grammar every record tenant (Task, Signal, …) mounts
 // through. These tests drive the dual modal regime, the
@@ -35,6 +39,63 @@ function renderHost(props: Partial<React.ComponentProps<typeof RecordPanelHost>>
         {props.children ?? <button type="button">record body</button>}
       </RecordPanelHost>
     </I18nProvider>,
+  )
+}
+
+function ToastRecord({ onClose, onDismiss }: { onClose: () => void; onDismiss: () => void }) {
+  const [toast, setToast] = useState<ToastState | null>(null)
+  return (
+    <I18nProvider>
+      <RecordPanelHost label="Record" onClose={onClose}>
+        <button type="button">first control</button>
+        <button type="button" onClick={() => setToast({ id: 1, message: 'Saved' })}>last control</button>
+      </RecordPanelHost>
+      <Toast
+        toast={toast}
+        onDismiss={() => {
+          onDismiss()
+          setToast(null)
+        }}
+      />
+    </I18nProvider>
+  )
+}
+
+function ToastRecordWithReplacingInvoker({
+  onClose,
+  removeReturnTargetOnDismiss = false,
+}: {
+  onClose: () => void
+  removeReturnTargetOnDismiss?: boolean
+}) {
+  const [toast, setToast] = useState<ToastState | null>(null)
+  const [replaceInvoker, setReplaceInvoker] = useState(false)
+  const replacementRef = useRef<HTMLButtonElement | null>(null)
+  useEffect(() => {
+    if (toast) replacementRef.current?.focus()
+  }, [toast])
+  return (
+    <I18nProvider>
+      <RecordPanelHost label="Record" onClose={onClose}>
+        <button type="button">fallback control</button>
+        {!replaceInvoker && (
+          <button type="button" onClick={() => {
+            setToast({ id: 1, message: 'Saved' })
+            setReplaceInvoker(true)
+          }}>
+            replaceable control
+          </button>
+        )}
+        {replaceInvoker && <button ref={replacementRef} type="button">replacement control</button>}
+      </RecordPanelHost>
+      <Toast
+        toast={toast}
+        onDismiss={() => flushSync(() => {
+          setToast(null)
+          if (removeReturnTargetOnDismiss) setReplaceInvoker(false)
+        })}
+      />
+    </I18nProvider>
   )
 }
 
@@ -420,6 +481,151 @@ describe('RecordPanelHost — phone regime a11y (NFR-003 / AC-022)', () => {
       if (original) Object.defineProperty(HTMLElement.prototype, 'offsetParent', original)
       else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetParent
     }
+  })
+
+  it('adds a shown Toast dismiss control after the modal ring without changing the empty-toast ring', async () => {
+    const originalOffsetParent = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetParent')
+    Object.defineProperty(HTMLElement.prototype, 'offsetParent', {
+      configurable: true,
+      get() { return document.body },
+    })
+    const appRoot = document.createElement('div')
+    appRoot.id = 'root'
+    const overlayRoot = document.createElement('div')
+    overlayRoot.id = 'overlay-root'
+    document.body.append(appRoot, overlayRoot)
+
+    let unmount = () => {}
+    const onClose = vi.fn()
+    const onDismiss = vi.fn()
+    const user = userEvent.setup()
+    try {
+      phone()
+      unmount = render(<ToastRecord onClose={onClose} onDismiss={onDismiss} />, { container: appRoot }).unmount
+      const first = screen.getByRole('button', { name: 'first control' })
+      const last = screen.getByRole('button', { name: 'last control' })
+      expect(document.activeElement).toBe(first)
+
+      // With no Toast, the modal's existing forward wrap remains unchanged.
+      await user.tab()
+      expect(document.activeElement).toBe(last)
+      await user.tab()
+      expect(document.activeElement).toBe(first)
+
+      // The record action shows a Toast while the modal remains open.
+      await user.click(last)
+      const dismiss = screen.getByRole('button', { name: 'Dismiss notification' })
+      const status = screen.getByRole('status')
+      expect(appRoot).toHaveAttribute('inert')
+      expect(overlayRoot.contains(screen.getByRole('dialog', { name: 'Record' }))).toBe(true)
+      expect(status.parentElement).toBe(overlayRoot)
+      expect(status.closest('[inert], [aria-hidden="true"]')).toBeNull()
+      await user.tab()
+      expect(document.activeElement).toBe(dismiss)
+
+      // The Toast joins the end of the ring in both directions.
+      await user.tab({ shift: true })
+      expect(document.activeElement).toBe(last)
+      await user.tab()
+      expect(document.activeElement).toBe(dismiss)
+      await user.tab()
+      expect(document.activeElement).toBe(first)
+      first.focus()
+      await user.tab({ shift: true })
+      expect(document.activeElement).toBe(dismiss)
+      await user.keyboard('{Escape}')
+      expect(onClose).not.toHaveBeenCalled()
+      expect(onDismiss).toHaveBeenCalledOnce()
+      expect(screen.queryByRole('button', { name: 'Dismiss notification' })).toBeNull()
+      expect(document.activeElement).toBe(last)
+    } finally {
+      unmount()
+      overlayRoot.remove()
+      appRoot.remove()
+      if (originalOffsetParent) Object.defineProperty(HTMLElement.prototype, 'offsetParent', originalOffsetParent)
+      else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetParent
+    }
+  })
+
+  it('Escape on another modal control still closes the modal and leaves the Toast visible', async () => {
+    phone()
+    const onClose = vi.fn()
+    const onDismiss = vi.fn()
+    const user = userEvent.setup()
+    render(<ToastRecord onClose={onClose} onDismiss={onDismiss} />)
+
+    await user.click(screen.getByRole('button', { name: 'last control' }))
+    const dismiss = screen.getByRole('button', { name: 'Dismiss notification' })
+    screen.getByRole('button', { name: 'last control' }).focus()
+    await user.keyboard('{Escape}')
+
+    expect(onClose).toHaveBeenLastCalledWith('escape')
+    expect(onDismiss).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'Record' })).toBeInTheDocument()
+    expect(dismiss).toBeInTheDocument()
+  })
+
+  it.each(['click', 'Enter', 'Space'] as const)('returns focus after Toast dismissal by %s', async (method) => {
+    phone()
+    const onClose = vi.fn()
+    const onDismiss = vi.fn()
+    const user = userEvent.setup()
+    render(<ToastRecord onClose={onClose} onDismiss={onDismiss} />)
+    const last = screen.getByRole('button', { name: 'last control' })
+    await user.click(last)
+    const dismiss = screen.getByRole('button', { name: 'Dismiss notification' })
+    dismiss.focus()
+
+    if (method === 'click') await user.click(dismiss)
+    else await user.keyboard(method === 'Enter' ? '{Enter}' : ' ')
+
+    expect(onDismiss).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('button', { name: 'Dismiss notification' })).toBeNull()
+    expect(document.activeElement).toBe(last)
+  })
+
+  it('restores focus that returns in a sibling effect after Toast appears', async () => {
+    phone()
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(<ToastRecordWithReplacingInvoker onClose={onClose} />)
+    const invoker = screen.getByRole('button', { name: 'replaceable control' })
+    await user.click(invoker)
+    const dismiss = screen.getByRole('button', { name: 'Dismiss notification' })
+    const replacement = screen.getByRole('button', { name: 'replacement control' })
+    await waitFor(() => expect(document.activeElement).toBe(replacement))
+    expect(invoker).not.toBeInTheDocument()
+
+    await user.click(dismiss)
+
+    expect(screen.queryByRole('button', { name: 'Dismiss notification' })).toBeNull()
+    expect(document.activeElement).toBe(replacement)
+    expect(document.activeElement).not.toBe(document.body)
+    expect(screen.getByRole('dialog', { name: 'Record' })).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('falls back into the modal when React removes the Toast and remembered control before restoration', async () => {
+    phone()
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(<ToastRecordWithReplacingInvoker onClose={onClose} removeReturnTargetOnDismiss />)
+    const invoker = screen.getByRole('button', { name: 'replaceable control' })
+    await user.click(invoker)
+    const dismiss = screen.getByRole('button', { name: 'Dismiss notification' })
+    const replacement = screen.getByRole('button', { name: 'replacement control' })
+    await waitFor(() => expect(document.activeElement).toBe(replacement))
+    dismiss.focus()
+
+    await user.click(dismiss)
+
+    expect(invoker).not.toBeInTheDocument()
+    expect(replacement).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Dismiss notification' })).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'fallback control' }))
+    expect(document.activeElement).not.toBe(document.body)
+    expect(screen.getByRole('dialog', { name: 'Record' })).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('Shift+Tab from a parked open-focus heading wraps to the last control, not out of the sheet', () => {

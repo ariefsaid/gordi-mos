@@ -12,6 +12,8 @@ export const ROUTE_PATHS = {
   workProjects: 'work/projects',
   workObjectives: 'work/objectives',
   inbox: 'inbox',
+  money: 'money',
+  moneyPendingBills: 'money/pending-bills',
   cafe: 'cafe',
   cafeLog: 'cafe/log',
   cafeProduction: 'cafe/production',
@@ -26,6 +28,7 @@ export const ROUTE_PATHS = {
   cafePlan: 'cafe/plan',
   cafeStock: 'cafe/stock',
   cafeItems: 'cafe/items',
+  cafeRecipes: 'cafe/recipes',
   cafeReview: 'cafe/review',
   cafePushes: 'cafe/pushes',
   adminPeople: 'admin/people',
@@ -46,6 +49,8 @@ export type RouteParityId =
   | 'workProjects'
   | 'workObjectives'
   | 'inbox'
+  | 'money'
+  | 'moneyPendingBills'
   | 'cafe'
   | 'cafeProduction'
   | 'cafeTransfer'
@@ -59,6 +64,7 @@ export type RouteParityId =
   | 'cafePlan'
   | 'cafeStock'
   | 'cafeItems'
+  | 'cafeRecipes'
   | 'cafeReview'
   | 'cafePushes'
   | 'adminPeople'
@@ -87,6 +93,9 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'workProjects', path: absolutePath(ROUTE_PATHS.workProjects), kind: 'visible-root' },
   { id: 'workObjectives', path: absolutePath(ROUTE_PATHS.workObjectives), kind: 'visible-root' },
   { id: 'inbox', path: absolutePath(ROUTE_PATHS.inbox), kind: 'visible-root' },
+  // Money is a root visible to finance, manager and supervisor; pending bills is its Finance-only child.
+  { id: 'money', path: absolutePath(ROUTE_PATHS.money), kind: 'visible-root' },
+  { id: 'moneyPendingBills', path: absolutePath(ROUTE_PATHS.moneyPendingBills), kind: 'child' },
   { id: 'cafe', path: absolutePath(ROUTE_PATHS.cafe), kind: 'visible-root' },
   // cafeLog is a legacy redirect; production, transfer and Count are dedicated capture routes.
   { id: 'cafeProduction', path: absolutePath(ROUTE_PATHS.cafeProduction), kind: 'child' },
@@ -102,6 +111,7 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'cafePlan', path: absolutePath(ROUTE_PATHS.cafePlan), kind: 'child' },
   { id: 'cafeStock', path: absolutePath(ROUTE_PATHS.cafeStock), kind: 'child' },
   { id: 'cafeItems', path: absolutePath(ROUTE_PATHS.cafeItems), kind: 'child' },
+  { id: 'cafeRecipes', path: absolutePath(ROUTE_PATHS.cafeRecipes), kind: 'child' },
   { id: 'cafeReview', path: absolutePath(ROUTE_PATHS.cafeReview), kind: 'child' },
   { id: 'cafePushes', path: absolutePath(ROUTE_PATHS.cafePushes), kind: 'child' },
   { id: 'adminPeople', path: absolutePath(ROUTE_PATHS.adminPeople), kind: 'visible-root' },

@@ -9,8 +9,7 @@ import type React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { useDocumentTitle } from '@/shell/use-document-title'
+import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { Button } from '@/components/ui/button'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import {
@@ -29,7 +28,6 @@ import { cafeDraftCount, clearCafeDraftCount } from '@/lib/cafe-capture-draft'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
 import { canPushCafe } from '@/lib/kitchen-gates'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { CAFE_OPENING_ENABLED } from '@/lib/cafe-opening-enabled'
 import { KitchenLogPage } from './kitchen-log-page'
 import './cafe-opening-page.css'
@@ -114,7 +112,6 @@ export function CafeRootPage() {
 
 function CafeRootPageBody() {
   const t = useT()
-  useDocumentTitle(t('common.docTitle', { page: t('doc.cafeOps') }))
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
@@ -376,12 +373,10 @@ function CafeRootPageBody() {
   }
 
   return (
-    // V3 Workspace family (Issue 11): the shared frame owns the h1 + job sentence;
-    // "today" rides in the head meta slot as before.
-    <PageFamilyFrame
-      family="workspace"
-      title={t('nav.cafe')}
-      meta={formatWeekdayDayMonth(wibToday())}
+    <CafePageFrame
+      page="production"
+      date={wibToday()}
+      streamBar={{ options: [], stream: null, onChange: () => undefined }}
       state={frameState}
     >
       {state === 'loading' && <LoadingShell count={2} />}
@@ -395,7 +390,7 @@ function CafeRootPageBody() {
       {state === 'choice' && (
         <LocationChoices choices={teamChoices} onChoose={selectLocation} />
       )}
-    </PageFamilyFrame>
+    </CafePageFrame>
   )
 }
 

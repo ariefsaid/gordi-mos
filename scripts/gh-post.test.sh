@@ -13,7 +13,11 @@ pass=0; fail=0
 mkdir -p "$tmp/bin"
 cat > "$tmp/bin/gh" <<EOF
 #!/usr/bin/env bash
-if [ "\$1" = issue ] && [ "\$2" = view ]; then
+if [ "\$1" = repo ] && [ "\$2" = view ]; then
+  printf '%s\n' "\$*" >> "$tmp/gh-reads"
+  [ "\${GH_REPO_VIEW_FAIL:-0}" != 1 ] || exit 1
+  cat "$tmp/default-branch"
+elif [ "\$1" = issue ] && [ "\$2" = view ]; then
   printf '%s\n' "\$*" >> "$tmp/gh-reads"
   cat "$tmp/issue-body"
 else
@@ -33,6 +37,7 @@ cat > "$tmp/repo/docs/gh-denylist.txt" <<'EOF'
 secretword
 missing (auth|rls)
 EOF
+printf 'dev\n' > "$tmp/default-branch"
 
 envcheck() { # $1 name · $2 VAR=value · $3 expected rc · $4 expect-gh-called · args…
   local name="$1" kv="$2" want="$3" ghwant="$4"; shift 4
@@ -116,6 +121,7 @@ check_message "REST issue PATCH with -F labels[] is refused" 1 no "$issue_label_
 check_message "REST issue PATCH with --raw-field labels[] is refused" 1 no "$issue_label_message" api repos/x/y/issues/17 --method PATCH --raw-field 'labels[]=ready-for-agent'
 printf '{"labels":["ready-for-agent"]}\n' > "$tmp/repo/labels.json"
 check_message "REST issue PATCH with --input is refused" 1 no "$issue_label_message" api repos/x/y/issues/17 -X PATCH --input "$tmp/repo/labels.json"
+check_message "REST issue --input follows the implied POST label rule" 1 no "$issue_label_message" api repos/x/y/issues/17 --input "$tmp/repo/labels.json"
 check_message "REST issue POST with labels at collection is refused" 1 no "$issue_label_message" api repos/x/y/issues -X POST -f title=t -f 'labels[]=ready-for-agent'
 check_message "REST issue PATCH through leading-slash path is refused" 1 no "$issue_label_message" api /repos/x/y/issues/17 -X PATCH -f 'labels[]=ready-for-agent'
 check "REST issue PATCH state=closed remains allowed" 0 yes api repos/x/y/issues/17 -X PATCH -f state=closed
@@ -160,12 +166,19 @@ printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
 printf '%s security reviewer-x now art.md\n' "$head" > "$gitdir/independent-review-security-ok"
 printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok"
 check "a PR into main needs no Reused: line (release)" 0 yes pr create --base main --title t --body "release package"
+printf 'main\n' > "$tmp/default-branch"
+rm -f "$gitdir/independent-review-security-release-ok"
+check "default main PR requires the release security stamp" 1 no pr create --title t --body "release package"
+printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok"
+check "default main PR passes with the release security stamp" 0 yes pr create --title t --body "release package"
+envcheck "default branch read failure refuses pr create" GH_REPO_VIEW_FAIL=1 1 no pr create --title t --body "release package"
+printf 'dev\n' > "$tmp/default-branch"
 rm -f "$gitdir/pre-pr-verify-ok"
 check "a **Reused:** line in a body file passes" 0 yes pr create --base dev --title t --body-file "$tmp/reused-body.md"
 check "lens stamps without any verify stamp: --base dev passes" 0 yes pr create --base dev --title t --body "Reused: x"
 check "lens stamps without any verify stamp: equals-form --base=dev passes" 0 yes pr create --base=dev --title t --body "Reused: x"
 check "-B dev is recognized as the base and passes without full verify" 0 yes pr create -B dev --title t --body "Reused: x"
-check_message "base-like title value cannot impersonate the dev base" 1 no "no full verify stamp" pr create --title -Bdev --body clean
+check_message "title value leaves the explicit main base unchanged" 1 no "no full verify stamp" pr create --base main --title -Bdev --body clean
 check_message "-Bmain is recognized as a non-dev base" 1 no "no full verify stamp" pr create -Bmain --title t --body "Reused: x"
 check_message "conflicting --base and -B values refuse with name-one-base guidance" 1 no "name one base" pr create --base dev -B main --title t --body "Reused: x"
 check_message "concatenated -Bmain conflicts with a dev base" 1 no "name one base" pr create --base dev -Bmain --title t --body "Reused: x"
@@ -175,7 +188,7 @@ check "main PR without the full verify stamp refuses" 1 no pr create --base main
 printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
 check "main PR with only the --dev verify stamp refuses" 1 no pr create --base main --title t --body "Reused: x"
 check "--dev verify stamp is not needed for --base dev" 0 yes pr create --base dev --title t --body "Reused: x"
-check "light stamp: no --base named refused" 1 no pr create --title t --body "Reused: x"
+check "no --base resolves to default dev without full verify" 0 yes pr create --title t --body "Reused: x"
 check_message "conflicting --base values refuse rather than using the last value" 1 no "name one base" pr create --base dev --base main --title t --body "Reused: x"
 rm -f "$gitdir/pre-pr-verify-dev-ok"; printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
 check "full stamp still passes --base main" 0 yes pr create --base main --title t --body "Reused: x"
@@ -286,7 +299,17 @@ check "issue comment creation is allowlisted" 0 yes api repos/x/y/issues/17/comm
 check "issue PATCH without labels is allowlisted" 0 yes api repos/x/y/issues/17 --method PATCH -f state=closed
 check "contents GET remains allowed" 0 yes api /repos/x/y/contents/README.md --method get
 check "contents GET with no method or fields remains allowed" 0 yes api repos/x/y/contents/README.md
-check "contents GET with input and no fields remains implied GET" 0 yes api repos/x/y/contents/README.md --input "$tmp/repo/body.md"
+check "api --input implies POST on a non-allowlisted path" 1 no api repos/x/y/contents/README.md --input "$tmp/repo/body.md"
+check "api --input implies POST on an allowlisted write path" 0 yes api repos/x/y/security-advisories --input "$tmp/repo/body.md"
+check_message "REST PR with --input follows POST stamp checks" 1 no "REST PR create must pass base/head as -f fields" api repos/x/y/pulls --input "$tmp/repo/body.md"
+check "api -F alone implies POST" 1 no api repos/x/y/issues -F title=t
+check "api glued -F implies POST" 1 no api repos/x/y/issues -Ftitle=t
+check "api glued -f implies POST" 1 no api repos/x/y/issues -ftitle=t
+check "api equals-form -f implies POST" 1 no api repos/x/y/issues -f=title=t
+check "api --field equals form implies POST" 1 no api repos/x/y/issues --field=title=t
+check "api --raw-field equals form implies POST" 1 no api repos/x/y/issues --raw-field=title=t
+check "api repeated fields imply POST" 1 no api repos/x/y/issues -F title=t -f body=x
+check "explicit GET with --input remains GET" 0 yes api repos/x/y/contents/README.md -X GET --input "$tmp/repo/body.md"
 head="$(g "$tmp/repo" rev-parse HEAD)"
 for lens in spec code-quality security; do printf '%s %s reviewer-x now art.md\n' "$head" "$lens" > "$gitdir/independent-review-$lens-ok"; done
 check_message "REST pr create without a Reused: body refused (stamped)" 1 no "Reused:" api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev -f body=plain
@@ -305,10 +328,17 @@ printf '%s security claude-opus-5 now art.md\n' "$head" > "$gitdir/independent-r
 printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok"
 check "REST main PR passes with a release security stamp" 0 yes api repos/x/y/pulls -f head=feat-rest -f base=main
 check "REST staging PR passes with a release security stamp" 0 yes api repos/x/y/pulls -f head=feat-rest -f base=staging
+printf 'main\n' > "$tmp/default-branch"
+check "REST PR without base uses default main release stamps" 0 yes api repos/x/y/pulls -f head=feat-rest -f body="Reused: x"
+rm -f "$gitdir/independent-review-security-release-ok"
+check "REST PR default main requires the release security stamp" 1 no api repos/x/y/pulls -f head=feat-rest -f body="Reused: x"
+printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok"
+envcheck "REST PR default branch read failure is refused" GH_REPO_VIEW_FAIL=1 1 no api repos/x/y/pulls -f head=feat-rest -f body="Reused: x"
+printf 'dev\n' > "$tmp/default-branch"
 rm -f "$gitdir/pre-pr-verify-ok"; printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
 check "REST pr create, cluster -ifbase=main after base=dev refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -ifbase=main
 check "REST pr create, -F head=@file refused" 1 no api repos/x/y/pulls -F head=@"$tmp/repo/body.md" -f base=dev
-check "REST pr create, light stamp, no base refused" 1 no api repos/x/y/pulls -f head=feat-rest
+check "REST PR without base resolves default dev and requires a body reuse line" 1 no api repos/x/y/pulls -f head=feat-rest
 check "REST pr create, base dev then main (last wins) refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -f base=main
 check "REST pr create, head naming another branch refused" 1 no api repos/x/y/pulls -f head=other -f base=dev
 check "REST pr create, head naming another owner refused" 1 no api repos/x/y/pulls -f head=evil:feat-rest -f base=dev

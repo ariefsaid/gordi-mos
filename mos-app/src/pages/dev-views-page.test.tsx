@@ -68,6 +68,8 @@ describe('DevViewsPage — AC-UV-018', () => {
     const heading = await screen.findByRole('heading', { level: 1 })
     expect(heading.closest('[data-testid="page-head"]')).toBeTruthy()
     expect(container.querySelector('main')).toHaveAttribute('data-page-family', 'management')
+    expect(heading).toHaveTextContent('User Views')
+    expect(screen.getByRole('region', { name: 'Saved views' })).toBeInTheDocument()
   })
 
   it('renders the title + the seeded sample spec in the textarea', async () => {

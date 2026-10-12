@@ -17,6 +17,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
+import { REAUTHENTICATION_REQUIRED, SetPasswordForm } from '@/auth/set-password-form'
+import { passwordRefusal } from '@/auth/password-error'
+import { supabase } from '@/lib/supabase'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useAccountLocale } from '@/i18n/account-locale'
 import type { Locale } from '@/i18n/messages'
@@ -91,6 +94,7 @@ export function ProfilePage() {
   const accountLocale = useAccountLocale()
   const [savingLocale, setSavingLocale] = useState(false)
   const [localeSaveFailed, setLocaleSaveFailed] = useState(false)
+  const [googleOnly, setGoogleOnly] = useState(false)
   useDocumentTitle(t('common.docTitle', { page: t('dest.profile') }))
 
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
@@ -102,6 +106,18 @@ export function ProfilePage() {
   useEffect(() => {
     setHomeLayoutState(personId ? resolveHomeLayout(personId) : 'focused')
   }, [personId])
+
+  useEffect(() => {
+    let active = true
+    void supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!active) return
+      const providers = Array.isArray(user?.app_metadata.providers)
+        ? user.app_metadata.providers as string[]
+        : user?.identities?.map((identity) => identity.provider) ?? []
+      setGoogleOnly(providers.includes('google') && !providers.includes('email'))
+    }).catch(() => {})
+    return () => { active = false }
+  }, [])
 
   // The select keeps showing the language in use until the account has stored the new one; a
   // failed save leaves it there and says so, rather than showing a choice that was not saved.
@@ -121,6 +137,12 @@ export function ProfilePage() {
   function handleHomeLayoutChange(next: HomeLayout) {
     setHomeLayoutState(next)
     if (personId) setHomeLayout(personId, next)
+  }
+
+  async function handlePasswordChange(password: string, nonce?: string) {
+    const { error } = await supabase.auth.updateUser({ password, ...(nonce ? { nonce } : {}) })
+    if (error?.code === 'reauthentication_needed' && !nonce) return REAUTHENTICATION_REQUIRED
+    return error ? t(passwordRefusal(error)) : null
   }
 
   return (
@@ -147,6 +169,20 @@ export function ProfilePage() {
                 {t('profile.managedByAdmin')}
               </p>
             </div>
+          </ProfileCard>
+        )}
+
+        {viewer && (
+          <ProfileCard title={t(googleOnly ? 'profile.password.setTitle' : 'profile.password.title')}>
+            <SetPasswordForm
+              subtitle={t(googleOnly ? 'profile.password.googleSubtitle' : 'profile.password.subtitle')}
+              onSubmit={handlePasswordChange}
+              onReauthenticationRequired={async () => {
+                const { error } = await supabase.auth.reauthenticate()
+                return error ? t(passwordRefusal(error)) : null
+              }}
+              successMessage={t('profile.password.success')}
+            />
           </ProfileCard>
         )}
 

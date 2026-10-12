@@ -1,6 +1,5 @@
-/* DayRevenueChart — readout line, plot, legend. Series colours come from the palette (DESIGN.md
-   charts rule): bars --primary, the comparison line --muted-foreground dashed, axes/grid --border
-   and --muted-foreground. Token-only. */
+/* DayRevenueChart — readout line, plot, legend. Series colours come from the palette: accent and
+   muted tokens only. */
 
 .money-chart {
   display: flex;
@@ -65,7 +64,7 @@
 
 .money-chart__key--line {
   height: 0;
-  border-top: 2px dashed var(--muted-foreground);
+  border-top: 2px solid var(--text-light);
 }
 
 .money-chart__key--missing {

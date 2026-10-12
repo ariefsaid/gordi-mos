@@ -13,7 +13,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 // three assertions should check — mirrors the render harness pages/tasks-layout.test.tsx already
 // uses for the same component.
 
-vi.mock('../lib/db/tasks', () => ({ listTasks: vi.fn(() => new Promise(() => {})), getTaskTitlesByIds: vi.fn(() => Promise.resolve([])) }))
+vi.mock('../lib/db/tasks', () => ({ listTasks: vi.fn(() => new Promise(() => {})), hasOlderDoneTasks: vi.fn(() => new Promise(() => {})), listOlderDoneTasks: vi.fn(), getTaskTitlesByIds: vi.fn(() => Promise.resolve([])) }))
 vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn(() => new Promise(() => {})) }))
 vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn(() => new Promise(() => {})) }))
 vi.mock('../lib/comments/postComment', () => ({

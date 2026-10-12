@@ -1062,20 +1062,24 @@ describe('issue #770 — Save view, phone door, and empty states (AC-028/029/030
     expect(screen.queryByRole('button', { name: 'Share Signal' })).not.toBeInTheDocument()
   })
 
-  it('AC-030: a viewer who cannot post reads true-empty "No Signals yet." with no door; a poster also gets "Share the first one"', async () => {
+  it('AC-030: first-use Signals is short, keeps only the header Share action, and is not an all-clear', async () => {
     mockListReadableSignals.mockResolvedValue([])
     composerCanPost.value = false
     const { unmount } = renderPage()
     const empty = await screen.findByTestId('empty-state')
     expect(within(empty).getByText('No Signals yet.')).toBeInTheDocument()
     expect(within(empty).queryByRole('button')).not.toBeInTheDocument()
+    expect(empty).toHaveAttribute('data-empty-variant', 'next-step')
+    expect(empty.querySelector('.empty-state-glyph')).toBeNull()
     unmount()
 
     composerCanPost.value = true
     renderPage()
-    const emptyWithDoor = await screen.findByTestId('empty-state')
-    expect(within(emptyWithDoor).getByText('No Signals yet.')).toBeInTheDocument()
-    expect(within(emptyWithDoor).getByRole('button', { name: 'Share the first one' })).toBeInTheDocument()
+    const emptyWithShare = await screen.findByTestId('empty-state')
+    expect(within(emptyWithShare).getByText('No Signals yet.')).toBeInTheDocument()
+    expect(within(emptyWithShare).getByText('Share a Signal above.')).toBeInTheDocument()
+    expect(within(emptyWithShare).queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Share Signal' })).toBeInTheDocument()
   })
 })
 
@@ -1197,21 +1201,21 @@ describe('Signals archive — server paging', () => {
     mockListReadableSignals.mockResolvedValueOnce(page(1, 50)).mockResolvedValueOnce(page(51, 50)).mockResolvedValueOnce(page(101, 1))
     renderPage()
     await screen.findByText('Paged signal 1')
-    await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await userEvent.click(screen.getByRole('button', { name: /Load more/ }))
     await screen.findByText('Paged signal 100')
     expect(mockListReadableSignals).toHaveBeenLastCalledWith(expect.objectContaining({ before: expect.objectContaining({ id: 'paged-signal-50' }) }))
-    await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await userEvent.click(screen.getByRole('button', { name: /Load more/ }))
     await screen.findByText('Paged signal 101')
     expect(screen.getByText('101 items loaded · end of list')).toBeInTheDocument()
     expect(screen.getAllByText('Paged signal 1')).toHaveLength(1)
-    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Load more/ })).not.toBeInTheDocument()
   })
 
   it('next-page errors preserve the list and retry the same window', async () => {
     mockListReadableSignals.mockResolvedValueOnce(page(1, 50)).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(page(51, 1))
     renderPage()
     await screen.findByText('Paged signal 1')
-    await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await userEvent.click(screen.getByRole('button', { name: /Load more/ }))
     await screen.findByText(/couldn’t load more/i)
     expect(screen.getByText('Paged signal 1')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
@@ -1229,6 +1233,6 @@ describe('Signals archive — server paging', () => {
     await screen.findByText('Historical record')
     expect(screen.queryByText('Paged signal 1')).not.toBeInTheDocument()
     expect(mockListReadableSignals).toHaveBeenLastCalledWith({ includeRetracted: true, retractedOnly: true })
-    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Load more/ })).not.toBeInTheDocument()
   })
 })

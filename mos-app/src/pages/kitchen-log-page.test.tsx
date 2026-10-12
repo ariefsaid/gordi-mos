@@ -15,12 +15,15 @@ import userEvent from '@testing-library/user-event'
 import { Profiler, StrictMode, Suspense, type ReactNode } from 'react'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { MemoryRouter, Route, Routes, createMemoryRouter, RouterProvider, Link } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import * as kitchenItemList from '@/lib/kitchen-item-list'
 
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
+
+const mockFetchLatestItemLogDates = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/db/kitchen-logs', async () => {
   // `streamCatalogFrom` is pure catalog arithmetic, not IO — the page uses it to build the
@@ -35,12 +38,14 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     fetchPlanMap: vi.fn(),
     fetchStockMap: vi.fn(),
     fetchActualsMap: vi.fn(),
+    fetchLatestItemLogDates: mockFetchLatestItemLogDates,
     listStreamPairs: vi.fn(),
     listCafeDestinations: vi.fn(),
     resolveKitchenBuId: vi.fn(),
     insertKitchenLogBatch: vi.fn(),
     listStreamItemIds: vi.fn(),
     isItemNotOnStreamError: actual.isItemNotOnStreamError,
+    isItemUnitNotShownError: actual.isItemUnitNotShownError,
   }
 })
 // The person's own default stream — the ONE shape-validated resolver (default-stream.ts,
@@ -158,7 +163,7 @@ function startsWith(label: string) {
 }
 
 async function chooseStream(optionName: string) {
-  const switchButton = screen.queryByRole('button', { name: /^(?:change stream|switch (?:bar|kitchen) stream)$/i })
+  const switchButton = screen.queryByRole('button', { name: /^switch (bar|kitchen)$/i })
   if (switchButton) {
     fireEvent.click(switchButton)
     fireEvent.click(await screen.findByRole('option', { name: startsWith(optionName) }))
@@ -256,26 +261,33 @@ async function renderPage(
   initialPath = appUrl('/cafe'),
   location?: { activeBranchId: string; activeBranchName: string },
   leading?: ReactNode,
+  locale: 'en' | 'id' = 'en',
 ) {
   mockUseAuth.mockReturnValue(auth)
   let utils!: ReturnType<typeof render>
   await act(async () => {
     utils = render(
-      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[initialPath]}>
-        <Routes>
-          <Route path="/cafe" element={<KitchenLogPage mode="production" leading={leading} {...location} />} />
-          <Route path="/cafe/transfer" element={<KitchenLogPage mode="transfer" leading={leading} {...location} />} />
-          <Route path="/cafe/success" element={<div>Submitted</div>} />
-        </Routes>
-      </MemoryRouter>,
+      <I18nProvider initialLocale={locale}>
+        <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[initialPath]}>
+          <Routes>
+            <Route path="/cafe" element={<KitchenLogPage mode="production" leading={leading} {...location} />} />
+            <Route path="/cafe/transfer" element={<KitchenLogPage mode="transfer" leading={leading} {...location} />} />
+            <Route path="/cafe/success" element={<div>Submitted</div>} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
     )
     await Promise.resolve()
   })
   return utils
 }
 
-async function renderTransferPage(auth: AuthState = VIEWER_MEMBER, location?: { activeBranchId: string; activeBranchName: string }) {
-  return renderPage(auth, appUrl('/cafe/transfer'), location)
+async function renderTransferPage(
+  auth: AuthState = VIEWER_MEMBER,
+  location?: { activeBranchId: string; activeBranchName: string },
+  locale: 'en' | 'id' = 'en',
+) {
+  return renderPage(auth, appUrl('/cafe/transfer'), location, undefined, locale)
 }
 
 import { KitchenLogPage } from './kitchen-log-page'
@@ -300,6 +312,7 @@ beforeEach(() => {
   mockFetchPlanMap.mockResolvedValue(PLAN_MAP)
   mockFetchStockMap.mockResolvedValue(STOCK_MAP)
   mockFetchActualsMap.mockResolvedValue({})
+  mockFetchLatestItemLogDates.mockResolvedValue({})
   mockResolveKitchenBuId.mockResolvedValue(BU_ID)
   // Default: online
   Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true })
@@ -590,10 +603,14 @@ describe('Populated state — WIP items loaded', () => {
 
   // AC-013 (FR-012): an item absent under the DD-WAY-29 gate must never read as a bug with
   // no exit — the capture surface carries a visible route to report it missing.
-  it('AC-013: offers a visible route to report a missing item on the loaded surface', async () => {
+  it('AC-013: keeps the missing-item route beside search on the loaded surface', async () => {
     await renderPage()
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /report it/i })).toBeInTheDocument()
+      const action = screen.getByRole('button', { name: /report it/i })
+      const search = screen.getByRole('searchbox', { name: /find an item/i })
+      const filters = document.querySelector('.ktb-filters')
+      expect(filters).toContainElement(action)
+      expect(filters).toContainElement(search)
     })
   })
 
@@ -601,7 +618,7 @@ describe('Populated state — WIP items loaded', () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /log production/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Production' })).toBeInTheDocument()
   })
 
   it('shows the unitless plan quantity as a placeholder without entering it as a value', async () => {
@@ -836,25 +853,34 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     viewer: { ...VIEWER_MEMBER.viewer, affiliated: [] },
   }
 
-  it.each([false, true])('states the read-only reason once (wide=%s)', async (wide) => {
+  it.each([
+    [false, appUrl('/cafe')],
+    [true, appUrl('/cafe')],
+    [false, appUrl('/cafe/transfer')],
+    [true, appUrl('/cafe/transfer')],
+  ])('shows read-only facts without capture controls (wide=%s, path=%s)', async (wide, path) => {
     setWideMatchMedia(wide)
-    await renderPage(UNAFFILIATED)
+    await renderPage(UNAFFILIATED, path)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // Read-only, not hidden: the capture form and its rows render, but write controls are closed.
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    expect(qtyInput).toBeVisible()
-    expect(qtyInput).toBeDisabled()
+    expect(screen.getByText('Read-only — your Café access does not allow capture')).toBeVisible()
+    expect(screen.getAllByText('Not recorded').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: /capture/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^submit/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+  })
 
-    // The ONE line stating why capture is closed.
-    expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
-    expect(screen.getAllByText(/you can read café records/i)).toHaveLength(1)
+  it.each([
+    [appUrl('/cafe'), PRODUCE_KEY, loggedUnit('u1-porsi', 7, 'porsi'), '7 porsi'],
+    [appUrl('/cafe/transfer'), TRANSFER_RADIANT_KEY, loggedUnit('u1-batch', 5, 'batch'), '5 batch'],
+  ] as const)('shows recorded amounts as read-only text on %s', async (path, movement, entry, amount) => {
+    mockFetchActualsMap.mockResolvedValue({ w1: { [movement]: [entry] } })
+    await renderPage(UNAFFILIATED, path)
+    await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // No enabled submit control, even with a staged line.
-    fireEvent.change(qtyInput, { target: { value: '20' } })
-    const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
-    expect(submit).toBeDisabled()
+    expect(screen.getByText(amount)).toBeVisible()
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
   })
 
   it('an affiliated viewer gets capture active — no reason line, submit enabled on an on-plan line', async () => {
@@ -907,38 +933,40 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     expect(screen.getByRole('button', { name: /report it/i })).toBeInTheDocument()
   })
 
-  // #744 review: with capture closed the footer's stream hint and tally describe a submit
-  // path the viewer cannot take — the reason line is the ONE message.
-  it('with capture closed and no stream, the stream hint and the tally are suppressed', async () => {
-    mockFetchDefaultStream.mockResolvedValue(null) // FR-002: the state that would hint
+  it('with capture closed and no eligible stream, shows empty guidance without a tally or editable quantities', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null)
     await renderPage(UNAFFILIATED)
-    await waitFor(() => screen.getByText('Ayam Bakar'))
+    await screen.findByRole('heading', { name: 'Choose a production stream to see this screen.' })
 
-    expect(screen.queryByText(/choose a production stream/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /production stream/i })).toBeNull()
+    expect(screen.queryByRole('spinbutton')).toBeNull()
     expect(screen.queryByText(/pending review/i)).not.toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
+    expect(screen.queryByRole('button', { name: /^submit/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: /capture/i })).not.toBeInTheDocument()
   })
 
-  it('with capture open, the same missing-stream state shows the hint but no misleading tally', async () => {
+  it('with capture open and no eligible stream, shows empty guidance without a misleading tally', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
-    await renderPage() // affiliated
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await renderPage()
+    await screen.findByRole('heading', { name: 'Choose a production stream to see this screen.' })
 
-    // Two things now say "choose a production stream" (the top guidance and the footer's
-    // own reason) — both present is fine, but there must be no stale/misleading tally.
-    expect(screen.getAllByText(/choose a production stream/i).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('group', { name: /production stream/i })).toBeNull()
     expect(screen.queryByText(/pending review/i)).not.toBeInTheDocument()
   })
 
   it.each([
     ['Log', appUrl('/cafe')],
     ['Transfer', appUrl('/cafe/transfer')],
-  ])('a read-only viewer with no selected stream sees that there is nothing to log on %s', async (_surface, path) => {
+  ])('a read-only viewer with no eligible stream sees empty guidance without editable quantities on %s', async (_surface, path) => {
     mockFetchDefaultStream.mockResolvedValue(null)
     mockListCaptureFormItems.mockResolvedValue([])
     await renderPage(UNAFFILIATED, path)
 
-    expect(await screen.findByText('No production stream is selected, so there is nothing to log.')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Choose a production stream to see this screen.' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /production stream/i })).toBeNull()
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^submit/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: /capture/i })).not.toBeInTheDocument()
     expect(screen.queryByText('No items match your filter.')).not.toBeInTheDocument()
   })
 
@@ -1033,6 +1061,45 @@ describe('F3b: disabled Submit shows a note-missing pointer when a variance note
 // Parity with the OLD app (app/main.py ~L618-661): an over-`tersedia` transfer is a
 // HARD STOP ("Produksi dulu sebelum transfer"), NOT a silent clamp. The typed qty is
 // kept; Submit is blocked + the offending line shows the produce-first cue.
+describe('Issue 1702: transfer availability explains the date cutoff without changing its gate', () => {
+  it.each([
+    {
+      locale: 'en' as const,
+      explanation: "Available uses approved logs dated before today. Today's approved production can be transferred tomorrow.",
+      capCue: 'Insufficient stock — produce first',
+    },
+    {
+      locale: 'id' as const,
+      explanation: 'Tersedia dihitung dari catatan yang disetujui sebelum hari ini. Produksi yang disetujui hari ini bisa ditransfer besok.',
+      capCue: 'Stok kurang — produksi dulu',
+    },
+  ])('explains positive Stock with zero Available in the empty and blocked states ($locale)', async ({ locale, explanation, capCue }) => {
+    mockFetchStockMap.mockResolvedValue({
+      w1: { stok: 1, tersedia: 0 },
+      w2: { stok: 0, tersedia: 0 },
+    })
+    await renderTransferPage(VIEWER_MEMBER, undefined, locale)
+    await waitFor(() => expect(screen.getByText('Ayam Bakar')).toBeInTheDocument())
+    expect(screen.getByText(explanation)).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /radiant/i }))
+      await Promise.resolve()
+    })
+    const qtyInput = screen.getByRole('spinbutton', { name: /ayam bakar/i })
+    await act(async () => {
+      fireEvent.change(qtyInput, { target: { value: '1' } })
+      await Promise.resolve()
+    })
+
+    const rowExplanation = await screen.findByText(explanation)
+    expect(rowExplanation).toHaveClass('kls-availability-note')
+    expect(screen.getByText(capCue)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: locale === 'en' ? /^submit/i : /^kirim/i })).toBeDisabled()
+    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+  })
+})
+
 describe('AC-022: transfer over-availability rejects submit — "Insufficient stock — produce first" (FR-023)', () => {
   it('AC-022: an over-tersedia Transfer qty is NOT clamped — keeps the typed value + shows the cue', async () => {
     await renderTransferPage()
@@ -1560,6 +1627,66 @@ describe('Submit error state', () => {
     expect(screen.getByRole('button', { name: /^submit/i })).toBeEnabled()
   })
 
+  it.each([
+    { wide: false, path: appUrl('/cafe'), quantityLabel: /quantity produced for nasi goreng/i, amount: '12' },
+    { wide: true, path: appUrl('/cafe'), quantityLabel: /quantity produced for nasi goreng/i, amount: '12' },
+    { wide: false, path: appUrl('/cafe/transfer'), quantityLabel: /quantity to transfer to radiant for ayam baka/i, amount: '1' },
+  ])('explains an unconfigured unit beside its row without offering retry ($path, wide=$wide)', async ({ wide, path, quantityLabel, amount }) => {
+    setWideMatchMedia(wide)
+    mockInsertKitchenLogBatch.mockRejectedValue(new Error(
+      'insertKitchenLogBatch failed — CAFE_ITEM_UNIT_NOT_SHOWN: the selected ERP detail is not shown for this stream item',
+    ))
+    await renderPage(VIEWER_MEMBER, path)
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const quantity = screen.getByRole('spinbutton', { name: quantityLabel })
+    fireEvent.change(quantity, { target: { value: amount } })
+    if (path === appUrl('/cafe/transfer')) {
+      fireEvent.change(screen.getByRole('textbox', { name: /note for ayam baka/i }), { target: { value: 'unit refusal test' } })
+    }
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /submit/i }))
+      await Promise.resolve()
+    })
+
+    const row = quantity.closest('tr, .dt-card') as HTMLElement | null
+    expect(row).not.toBeNull()
+    expect(within(row!).getByRole('alert')).toHaveTextContent(
+      "This unit isn't set up for Café yet — ask your Café lead to set it in Items",
+    )
+    expect(quantity).toHaveValue(amount)
+    expect(screen.queryByText(/check the connection and try again|try again|retry/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: /try again|retry/i })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Submit 1 entry' })).toBeDisabled()
+  })
+
+  it('uses a batch-level unit refusal when the server cannot identify one row', async () => {
+    mockInsertKitchenLogBatch.mockRejectedValue(new Error(
+      'insertKitchenLogBatch failed — CAFE_ITEM_UNIT_NOT_SHOWN: the selected ERP detail is not shown for this stream item',
+    ))
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const ayam = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    const nasi = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(ayam, { target: { value: '20' } })
+    fireEvent.change(nasi, { target: { value: '12' } })
+    fireEvent.change(screen.getByRole('textbox', { name: /note for ayam baka/i }), { target: { value: 'unit refusal test' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /submit/i }))
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "At least one unit in this submission isn't set up for Café yet — ask your Café lead to check Items.",
+    )
+    expect(ayam).toHaveValue('20')
+    expect(nasi).toHaveValue('12')
+    expect(screen.queryByText(/check the connection and try again|try again|retry/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: /try again|retry/i })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Submit 2 entries' })).toBeDisabled()
+  })
+
   it.each([false, true])('announces a successful submit once in the pinned action bar (wide=%s)', async (wide) => {
     setWideMatchMedia(wide)
     mockInsertKitchenLogBatch.mockResolvedValue(['log-ok'])
@@ -1659,7 +1786,7 @@ describe('capture retry identity and saved drafts', () => {
     })
 
     await renderPage(OPS_LEAD)
-    await screen.findByText(/choose a production stream to start logging/i)
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
     await chooseStream('Radiant · Bar')
 
     expect(await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })).toHaveValue('7')
@@ -1866,8 +1993,8 @@ describe('#3: Kitchen-and-Bar BU resolution', () => {
 // ── I3: S1 uses the ONE shared content PageHead (not a bespoke .kl-head) ───────
 describe('I3: shared PageHead variant="content"', () => {
   it.each([
-    { route: 'production', path: appUrl('/cafe'), title: 'Log production' },
-    { route: 'transfer', path: appUrl('/cafe/transfer'), title: 'Log transfer' },
+    { route: 'production', path: appUrl('/cafe'), title: 'Production' },
+    { route: 'transfer', path: appUrl('/cafe/transfer'), title: 'Transfer' },
   ])('$route keeps its stream action in statusRow and the date in PageHead metadata', async ({ path, title }) => {
     await renderPage(VIEWER_MEMBER, path)
     await waitFor(() => screen.getByText('Ayam Bakar'))
@@ -1876,19 +2003,19 @@ describe('I3: shared PageHead variant="content"', () => {
     expect(head).toHaveClass('content-header')
     const h1 = within(head).getByRole('heading', { level: 1 })
     expect(h1).toHaveTextContent(title)
-    const context = head.querySelector('.cafe-capture-context') as HTMLElement
+    const context = head.querySelector('.ch-status-row') as HTMLElement
     expect(context).toBeInTheDocument()
     expect(context.querySelector('[data-testid="cafe-stream"]')).toBeInTheDocument()
     expect(context.querySelector('time')).toBeNull()
-    const date = head.querySelector('time.cafe-capture-date')
+    const date = head.querySelector('.ch-meta time.cafe-page-date')
     expect(date).toBeInTheDocument()
     expect(date?.closest('.ch-meta, .page-head-meta')).toBeInTheDocument()
     expect(date?.getAttribute('datetime')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     expect(date).toHaveTextContent(/\d/)
     const actionName = context.querySelector('.cafe-stream__value')?.textContent?.endsWith('· Bar')
-      ? 'Switch bar stream'
-      : 'Switch kitchen stream'
-    const actionText = actionName.replace(' stream', '')
+      ? 'Switch bar'
+      : 'Switch kitchen'
+    const actionText = actionName
     const switchButton = within(context).getByRole('button', { name: actionName })
     expect(switchButton).toHaveTextContent(actionText)
     expect(context).not.toHaveTextContent(date?.textContent ?? '')
@@ -2104,6 +2231,46 @@ describe('OD-K-5: Planned/Off-plan group split (desktop)', () => {
     expect(screen.queryByText('Sambal Matah')).toBeNull()
   })
 
+  it('orders planned items first, then recent off-plan logs newest-first, then unlogged names', async () => {
+    setDesktopMatchMedia(true)
+    mockListCaptureFormItems.mockResolvedValue([
+      { id: 'plan-alpha', name: 'Alpha planned', category: null, units: [{ id: 'u1', name: 'each', is_default: true }] },
+      { id: 'never-bacon', name: 'Bacon', category: null, units: [{ id: 'u2', name: 'each', is_default: true }] },
+      { id: 'old-curry', name: 'Curry', category: null, units: [{ id: 'u3', name: 'each', is_default: true }] },
+      { id: 'second-rice', name: 'Rice', category: null, units: [{ id: 'u4', name: 'each', is_default: true }] },
+      { id: 'new-tostada', name: 'Tostada', category: null, units: [{ id: 'u5', name: 'each', is_default: true }] },
+      { id: 'never-zucchini', name: 'Zucchini', category: null, units: [{ id: 'u6', name: 'each', is_default: true }] },
+      { id: 'plan-zulu', name: 'Zulu planned', category: null, units: [{ id: 'u7', name: 'each', is_default: true }] },
+    ])
+    mockFetchPlanMap.mockResolvedValue({
+      'plan-alpha': { [PRODUCE_KEY]: 1 },
+      'plan-zulu': { [PRODUCE_KEY]: 1 },
+    })
+    mockFetchLatestItemLogDates.mockResolvedValue({
+      'old-curry': '2026-10-10T10:00:00Z',
+      'second-rice': '2026-10-11T10:00:00Z',
+      'new-tostada': '2026-10-12T10:00:00Z',
+    })
+    await renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /expand not planned today/i }))
+
+    const content = screen.getByRole('main').textContent ?? ''
+    const order = ['Alpha planned', 'Zulu planned', 'Tostada', 'Rice', 'Curry', 'Bacon', 'Zucchini']
+      .map(name => content.indexOf(name))
+    expect(order.every(index => index >= 0)).toBe(true)
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+  })
+
+  it('keeps capture available when the optional recent-log read fails', async () => {
+    setDesktopMatchMedia(true)
+    mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
+    mockFetchLatestItemLogDates.mockRejectedValue(new Error('history read failed'))
+    await renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /expand not planned today/i }))
+
+    expect(screen.getByRole('spinbutton', { name: /quantity produced for sambal matah/i })).toBeInTheDocument()
+  })
+
   it('omits a zero-row group and opens Off-plan when Planned is empty', async () => {
     setDesktopMatchMedia(true)
     mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
@@ -2233,7 +2400,7 @@ describe('OD-K-5: category filter narrows rows', () => {
     expect(screen.queryByText('Nasi Goreng')).toBeNull()
 
     await user.click(screen.getByRole('combobox', { name: /item kind/i }))
-    await user.click(await screen.findByRole('option', { name: 'WIP' }))
+    await user.click(await screen.findByRole('option', { name: 'Prepared item (WIP)' }))
     expect(screen.getByText('No items match your filter.')).toBeInTheDocument()
 
     await chooseCategory('All categories')
@@ -2242,7 +2409,7 @@ describe('OD-K-5: category filter narrows rows', () => {
     expect(screen.queryByText('Fresh milk')).toBeNull()
 
     await user.click(screen.getByRole('combobox', { name: /item kind/i }))
-    await user.click(await screen.findByRole('option', { name: 'RAW' }))
+    await user.click(await screen.findByRole('option', { name: 'Raw material (RAW)' }))
     expect(screen.getByText('Fresh milk')).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
     expect(screen.queryByText('Nasi Goreng')).toBeNull()
@@ -2597,7 +2764,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     // The page lists ESB items per stream, so with no stream the read returns nothing (#1456).
     mockListCaptureFormItems.mockImplementation(async stream => (stream ? WIP_ITEMS : []))
     await renderPage(OPS_LEAD)
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
 
     // #781 item 2 / B5: with no default resolved the head states nothing (B12 — an empty
     // control must never sit above the page's own content), and the guidance state offers the
@@ -2628,7 +2795,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     mockFetchDefaultStream.mockResolvedValue(null)
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
     await renderPage(OPS_LEAD)
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
 
     await chooseStream('Radiant · Bar')
     await waitFor(() => screen.getByText('Nasi Goreng'))
@@ -2667,7 +2834,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
       },
     ])
     await renderPage()
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
 
     // Nothing preselected — the office Team is still not a stream.
     expect(screen.queryByText('Nasi Goreng')).toBeNull()
@@ -2694,7 +2861,7 @@ describe('OD-CAFE-6: Log opens by the one stream rule, with one look', () => {
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     expect(within(screen.getByTestId('cafe-stream')).getByText('Gordi HQ · Kitchen')).toBeInTheDocument()
-    expect(screen.queryByText(/choose a production stream to start logging/i)).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Choose a kitchen or bar' })).toBeNull()
     expect(mockFetchPlanMap.mock.calls[0][1]).toMatchObject({ branch: BRANCH_GORDI_HQ, activity: 'kitchen' })
   })
 
@@ -2711,7 +2878,7 @@ describe('OD-CAFE-6: Log opens by the one stream rule, with one look', () => {
 
     const bar = screen.getByTestId('cafe-stream')
     expect(within(bar).getByRole('heading', { name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
-    expect(within(bar).getByRole('button', { name: /^switch kitchen stream$/i })).toHaveTextContent('Switch kitchen')
+    expect(within(bar).getByRole('button', { name: /^switch kitchen$/i })).toHaveTextContent('Switch kitchen')
     expect(within(bar).queryByText(/^stream:?$/i)).toBeNull()
   })
 })
@@ -2789,7 +2956,7 @@ describe('FR-005: the picker offers exactly the catalog pairs it is given — th
     await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    fireEvent.click(screen.getByRole('button', { name: /^switch (?:bar|kitchen) stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch (bar|kitchen)$/i }))
     const listbox = screen.getByRole('listbox')
     const options = within(listbox).getAllByRole('option')
     // Exactly STREAM_PAIRS minus the stream already in view — no placeholder (a default
@@ -2984,7 +3151,7 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
 
     // While switch #1 is in flight the Switch action MUST stay mounted (FR-003 — a slow
     // stream is never a dead end; getByRole throws here if the switch unmounts it).
-    const switchDuringLoad = screen.getByRole('button', { name: /^switch (?:bar|kitchen) stream$/i })
+    const switchDuringLoad = screen.getByRole('button', { name: /^switch (bar|kitchen)$/i })
 
     // Switch #2 → (Gordi HQ, kitchen): the LATEST read — resolves immediately (w2 → 33).
     mockFetchPlanMap.mockResolvedValueOnce({ w2: { [PRODUCE_KEY]: 33 } })
@@ -3070,7 +3237,7 @@ describe('AC-007: destinations cover both movement classes from both activity su
   it('AC-007: with no resolved stream (FR-002) nothing is intra-branch yet, so no option is qualified', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     await renderTransferPage()
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a production stream to see this screen.' })
 
     expect(screen.queryByRole('tab')).toBeNull()
     expect(screen.queryByRole('tablist')).toBeNull()
@@ -3138,7 +3305,7 @@ function cafeDocTitle(leaf: keyof typeof messages.en): string {
 describe('issue 455: document title', () => {
   it('titles the tab from the Café nav label, not the retired kitchen one', async () => {
     await renderPage()
-    await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.production')))
+    await waitFor(() => expect(document.title).toBe(cafeDocTitle('cafe.pageTitle.production')))
   })
 })
 
@@ -3475,7 +3642,7 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
     await renderPage(VIEWER_MEMBER, appUrl('/cafe'), HQ)
     // The remembered default (Rumah Rames) is outside HQ, so this opens on the no-stream
     // guidance state (OD-CAFE-1) — the one-step choice itself is still reachable (#781 item 2).
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
 
     const group = screen.getByRole('group', { name: /production stream/i })
     const offered = within(group).getAllByRole('button').map(o => o.textContent?.trim() ?? '')
@@ -3489,7 +3656,7 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
   it('treats a remembered stream from another location as stale, and says which location this is', async () => {
     // The person's own default stream is Rumah Rames; they are standing at Gordi HQ.
     await renderPage(VIEWER_MEMBER, appUrl('/cafe'), HQ)
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
 
     // #781/B12: with nothing resolved the head states NOTHING — not silently re-pointed at an
     // HQ stream, and not left showing Rumah Rames either.
@@ -3540,7 +3707,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    fireEvent.click(screen.getByRole('button', { name: /^switch (?:bar|kitchen) stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch (bar|kitchen)$/i }))
     const offered = labels(await screen.findAllByRole('option'))
     expect(offered).toEqual(['Rumah Rames · Bar'])
   })
@@ -3551,7 +3718,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
       team(BRANCH_RUMAH_RAMES.id, 'kitchen'), team(BRANCH_RUMAH_RAMES.id, 'bar'),
     ])
     await renderPage()
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
     expect(document.querySelector('.msr')).toBeNull()
 
     const group = screen.getByRole('group', { name: /production stream/i })
@@ -3566,7 +3733,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
       team(BRANCH_RUMAH_RAMES.id, 'kitchen'), team(BRANCH_GORDI_HQ.id, 'bar'),
     ])
     await renderPage()
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
 
     const group = screen.getByRole('group', { name: /production stream/i })
     const offered = labels(within(group).getAllByRole('button')).map(label => label.replace(/Your Team$/, '').trim())
@@ -3577,7 +3744,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar', produces: true })
     rememberCafeLocation(PERSON, { branchId: BRANCH_RUMAH_RAMES.id, branchName: BRANCH_RUMAH_RAMES.name })
     await renderPage()
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })
 
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
     const group = screen.getByRole('group', { name: /production stream/i })
@@ -3592,7 +3759,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
     expect(activeCafeLocation(PERSON)?.branchId).not.toBe(BRANCH_RADIANT.id)
 
     // Another location's stream is marked as such before it is chosen.
-    fireEvent.click(screen.getByRole('button', { name: /^switch (?:bar|kitchen) stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch (bar|kitchen)$/i }))
     expect(labels(await screen.findAllByRole('option'))).toContain('Radiant · Bar — Other location')
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
 
@@ -3601,7 +3768,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
 
     expect(activeCafeLocation(PERSON)?.branchId).toBe(BRANCH_RADIANT.id)
     // The picker is now bounded to the NEW location: Radiant's other stream, plus other locations.
-    fireEvent.click(screen.getByRole('button', { name: /^switch (?:bar|kitchen) stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch (bar|kitchen)$/i }))
     const offered = labels(await screen.findAllByRole('option'))
     expect(offered).toContain('Radiant · Kitchen — Receiving only')
     expect(offered).not.toContain('Radiant · Bar')
@@ -3610,7 +3777,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
   it('a person with no Team at another branch is not offered it (no silent mixing)', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    fireEvent.click(screen.getByRole('button', { name: /^switch (?:bar|kitchen) stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch (bar|kitchen)$/i }))
     const offered = labels(await screen.findAllByRole('option'))
     expect(offered.some(label => /Radiant|Gordi HQ/.test(label))).toBe(false)
   })

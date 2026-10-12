@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { TASK_EVENTS_PAGE_SIZE, taskDoneRecentCutoff } from './task-paging'
 import { containsPattern } from './like-pattern'
+import { keysetBeforeFilter, keysetPageFromProbe } from './keyset-filter'
 import { announceOpenTaskCountChanged } from '@/lib/open-task-count-store'
 import { getReadScope, sharePending } from '@/lib/scoped-reads'
 import type { ReadLease } from '@/lib/scoped-reads'
@@ -90,17 +91,20 @@ export async function listTasks(
 export type TaskEventsCursor = Pick<TaskEventRow, 'created_at' | 'id'>
 
 /** Newest-first page of task history. */
-export async function listTaskEvents(
+export async function listTaskEventsPage(
   taskId: string, before?: TaskEventsCursor,
-): Promise<TaskEventRow[]> {
+): Promise<{ rows: TaskEventRow[]; nextCursor: TaskEventsCursor | null; hasMore: boolean }> {
   let q = mos().from('task_events').select(EVENT_COLUMNS).eq('task_id', taskId)
-  if (before) {
-    q = q.or(`created_at.lt.${before.created_at},and(created_at.eq.${before.created_at},id.lt.${before.id})`)
-  }
+  if (before) q = q.or(keysetBeforeFilter('created_at', before.created_at, before.id))
   const { data, error } = await q.order('created_at', { ascending: false })
-    .order('id', { ascending: false }).limit(TASK_EVENTS_PAGE_SIZE)
+    .order('id', { ascending: false }).limit(TASK_EVENTS_PAGE_SIZE + 1)
   if (error) throw new Error(`listTaskEvents failed — ${error.message}`)
-  return (data ?? []) as unknown as TaskEventRow[]
+  return keysetPageFromProbe((data ?? []) as unknown as TaskEventRow[], TASK_EVENTS_PAGE_SIZE,
+    (event) => ({ created_at: event.created_at, id: event.id }))
+}
+
+export async function listTaskEvents(taskId: string, before?: TaskEventsCursor): Promise<TaskEventRow[]> {
+  return (await listTaskEventsPage(taskId, before)).rows
 }
 
 export type OlderDoneTaskCursor = Pick<TaskListRow, 'completed_at' | 'id'>
@@ -108,6 +112,27 @@ export type OlderDoneTaskPage = {
   rows: TaskListRow[]
   nextCursor: OlderDoneTaskCursor | null
   hasMore: boolean
+}
+
+/** Check whether the explicit older-Done continuation has anything to show. */
+export async function hasOlderDoneTasks(
+  filters: Pick<TaskListFilters, 'businessUnitId' | 'includeArchived'> = {},
+  cutoff = taskDoneRecentCutoff(),
+  readLease?: ReadLease,
+): Promise<boolean> {
+  const load = async () => {
+    let q = mos().from('tasks').select('id').eq('status', 'Done')
+    if (!filters.includeArchived) q = q.is('archived_at', null)
+    if (filters.businessUnitId) q = q.eq('business_unit_id', filters.businessUnitId)
+    q = q.or(`completed_at.lt.${cutoff},completed_at.is.null`).limit(1)
+    const { data, error } = await q
+    if (error) throw new Error(`hasOlderDoneTasks failed — ${error.message}`)
+    return (data ?? []).length > 0
+  }
+  const key = `mos.tasks:older-done-exists:${JSON.stringify({ businessUnitId: filters.businessUnitId ?? null, includeArchived: Boolean(filters.includeArchived), cutoff })}`
+  if (readLease) return readLease.read(key, load)
+  const scope = getReadScope()
+  return scope ? sharePending(scope, key, load) : load()
 }
 
 /** Fetch older completed Tasks only when the operator asks to show completion history. */
@@ -144,6 +169,7 @@ export interface TaskDetail {
   task: TaskRow
   checklist: ChecklistItemRow[]
   events: TaskEventRow[]
+  eventsHasMore?: boolean
 }
 
 /** A PostgREST error carries a `code` (e.g. `PGRST116` — `.single()` matched 0 or >1 rows) the UI
@@ -166,14 +192,15 @@ export async function getTask(id: string): Promise<TaskDetail> {
     mos().from('tasks').select(DETAIL_SELECT).eq('id', id).single(),
     mos().from('task_checklist_items').select(CHECKLIST_COLUMNS).eq('task_id', id)
       .order('position', { ascending: true }),
-    listTaskEvents(id),
+    listTaskEventsPage(id),
   ])
   if (taskRes.error) throw dbError(`getTask failed — ${taskRes.error.message}`, taskRes.error.code)
   if (checklistRes.error) throw new Error(`getTask checklist failed — ${checklistRes.error.message}`)
   return {
     task: taskRes.data as unknown as TaskRow,
     checklist: (checklistRes.data ?? []) as unknown as ChecklistItemRow[],
-    events: eventsRes,
+    events: eventsRes.rows,
+    eventsHasMore: eventsRes.hasMore,
   }
 }
 

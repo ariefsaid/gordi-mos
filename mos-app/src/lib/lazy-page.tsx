@@ -6,16 +6,8 @@ import { lazy, useState, type ComponentProps, type ComponentType, type LazyExoti
 // somewhere to hook in. `withSuspense` wraps each split element in the app's one sanctioned
 // loading grammar (LoadingShell), so no route invents its own spinner.
 //
-// **Why the wrapper around React.lazy isn't just `lazy()`** (#802): `React.lazy` caches the
-// resolved OR REJECTED module promise forever. If the browser was offline when a chunk import
-// first ran, that lazy holds the rejection, and every later render — including the
-// `ContentErrorBoundary`'s Retry remount — re-throws the same `TypeError: Failed to fetch
-// dynamically imported module`. Offline is supposed to be recoverable inside the frame, so a
-// rejected import drops the shared `React.lazy`: the boundary's Retry bumps its remount key, the
-// wrapper mounts anew, `useState`'s initializer finds no lazy and creates a fresh one, which
-// re-runs the import. Every other mount reuses the one shared lazy, including React's own retry
-// of a first mount that suspended: once it has resolved, later mounts render synchronously, and a
-// retry never starts a new pending load (which an open `act` scope would wait on forever).
+// Share the lazy wrapper across React's retries of a suspended first mount, including rejection.
+// Failed page downloads reach the error boundary; its Retry starts a new document.
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- mirrors React.lazy's own type parameter */
 type Preloadable<T extends ComponentType<any>> = ComponentType<ComponentProps<T>> & {
@@ -36,12 +28,7 @@ export function lazyPage<T extends ComponentType<any>>(
     })
   }
   const sharedLazy = (): LazyExoticComponent<T> => {
-    shared ??= lazy(() =>
-      cachingLoader().catch((error: unknown) => {
-        shared = undefined
-        throw error
-      }),
-    )
+    shared ??= lazy(cachingLoader)
     return shared
   }
 

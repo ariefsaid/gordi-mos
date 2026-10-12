@@ -32,7 +32,9 @@ test.describe('bounded visual and interaction acceptance', () => {
     let activeSignalId = ''
     await page.route('**/rest/v1/signals*', async (route) => {
       const url = new URL(route.request().url())
-      if (url.pathname.endsWith('/signals')) return mutateSignalBody(route, activeSignalId)
+      if (url.pathname.endsWith('/signals') && route.request().method() === 'GET') {
+        return mutateSignalBody(route, activeSignalId)
+      }
       return route.continue()
     })
     await loginAs(page, MANAGER.email, MANAGER.password)

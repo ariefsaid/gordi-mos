@@ -143,9 +143,9 @@ describe('InboxPage — shared state kit', () => {
     renderPage('id')
 
     expect(screen.getByText('1 item dimuat')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Muat lebih banyak' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Muat item lainnya' }))
     expect(loadMore).toHaveBeenCalledOnce()
-    expect(screen.getByRole('button', { name: 'Muat lebih banyak' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Muat item lainnya' })).toBeInTheDocument()
   })
 
   it('preserves the Inbox rows and offers localized retry after a continuation error', () => {

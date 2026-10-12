@@ -113,9 +113,8 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
   const { scopes } = useWorkWriteAuthority(open)
   const t = useT()
   const { openPanel } = useAgentRuntime()
-  // AC-032 (#748 delta): search-only vs GO TO/ACT is a WIDTH decision — the same `useIsNarrow()`
-  // seam (≤919.98px) that renders the bottom tab bar and the `+` launcher. A touch device at
-  // desktop width still sees the rail, so its palette rests on the same GO TO roots.
+  // AC-032 uses the shell width seam: narrow palettes stay search-only, with an empty-state prompt
+  // at rest and record results after typing beside the phone's existing navigation and launcher.
   const isNarrow = useIsNarrow()
   // OD-REDESIGN-91 #41 (G5): the ⌘K keyboard hints (footer + the esc chip) are meaningless on a
   // touch device — hide them on a coarse pointer so no viewport shows an un-pressable key. This
@@ -357,9 +356,8 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
         })
       }
     }
-    // AC-032: the narrow/full-width branch, not the pointer — below 920px the palette carries
-    // results ONLY (navigation is the tab bar's job, actions the `+` launcher's); at desktop
-    // width it keeps GO TO + ACT whatever the pointer modality (#41 owns the keyboard hints).
+    // AC-032: typed searches stay results-only below 920px; at desktop width, matching
+    // destinations and actions join the record results.
     if (isNarrow) return out
     const nav = navigateItems.filter((i) => matches(i.label, trimmed))
     if (nav.length) out.push({ key: 'navigate', label: t('commandMenu.group.goTo'), items: nav })
@@ -469,6 +467,9 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
         </div>
 
         <div className="cm-body">
+          {!visibleGroups.length && !isSearching && (
+            <div className="cm-empty" role="status">{t('commandMenu.empty.prompt')}</div>
+          )}
           <div
             className="cm-group-list"
             id="cm-list"

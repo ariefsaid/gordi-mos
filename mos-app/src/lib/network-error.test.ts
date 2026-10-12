@@ -1,5 +1,23 @@
 import { describe, it, expect } from 'vitest'
-import { isNetworkError } from './network-error'
+import { isModuleLoadError, isNetworkError } from './network-error'
+
+describe('isModuleLoadError', () => {
+  it.each([
+    new TypeError('Failed to fetch dynamically imported module: /assets/page.js'), // Chromium
+    new TypeError('error loading dynamically imported module: /assets/page.js'), // Firefox
+    new TypeError('Importing a module script failed.'), // Safari
+  ])('recognises %o as a module download failure', (error) => {
+    expect(isModuleLoadError(error)).toBe(true)
+  })
+
+  it.each([
+    new TypeError('Failed to fetch'),
+    new Error('Importing a module was rejected by the page'),
+    { message: 'Network request failed' },
+  ])('leaves %o as an ordinary failure', (error) => {
+    expect(isModuleLoadError(error)).toBe(false)
+  })
+})
 
 describe('isNetworkError', () => {
   it.each([

@@ -70,8 +70,8 @@ vi.mock('@/lib/supabase', async () => {
 })
 import { listReadableSignals } from './signals'
 import { fetchActualsMap, listSubmittedKitchenLogs } from './kitchen-logs'
-import { listFollowUpEvents, listFollowUps } from './follow-ups'
-import { listOlderDoneTasks, listTaskEvents, TASKS_OLDER_DONE_PAGE_SIZE, type OlderDoneTaskCursor } from './tasks'
+import { listFollowUpEvents, listFollowUpEventsPage, listFollowUps, listFollowUpsPage, listFollowUpsWindow } from './follow-ups'
+import { hasOlderDoneTasks, listOlderDoneTasks, listTaskEvents, listTaskEventsPage, TASKS_OLDER_DONE_PAGE_SIZE, type OlderDoneTaskCursor } from './tasks'
 
 function fixture(index: number) {
   return {
@@ -191,7 +191,41 @@ describe('server list paging boundaries', () => {
     }
     expect(ids).toEqual(expected)
     expect(new Set(ids).size).toBe(1103)
-    expect(harness.requests.every(url => url.searchParams.get('limit') === '50')).toBe(true)
+    expect(harness.requests.every(url => url.searchParams.get('limit') === '51')).toBe(true)
+  })
+
+  it('follow-up and task history pages use a page-plus-one probe at exact boundaries', async () => {
+    harness.rows = Array.from({ length: 50 }, (_, index) => ({
+      ...fixture(index + 1), task_id: 'task-1', follow_up_id: 'fu-1', due_date: '2026-10-06', state: 'open',
+    }))
+    const followUps = await listFollowUpsPage()
+    const followUpEvents = await listFollowUpEventsPage('fu-1')
+    const taskEvents = await listTaskEventsPage('task-1')
+    for (const page of [followUps, followUpEvents, taskEvents]) {
+      expect(page.rows).toHaveLength(50)
+      expect(page.hasMore).toBe(false)
+      expect(page.nextCursor).toBeNull()
+    }
+    expect(harness.requests.map(url => url.searchParams.get('limit'))).toEqual(['51', '51', '51'])
+
+    harness.rows.push({ ...fixture(51), task_id: 'task-1', follow_up_id: 'fu-1', due_date: '2026-10-06', state: 'open' })
+    const extra = await listFollowUpsPage()
+    expect(extra.rows).toHaveLength(50)
+    expect(extra.hasMore).toBe(true)
+    expect(extra.nextCursor).toEqual({ created_at: extra.rows.at(-1)?.created_at, id: extra.rows.at(-1)?.id })
+  })
+
+  it('reloads a follow-up window through its already-loaded keyset range', async () => {
+    harness.rows = Array.from({ length: 123 }, (_, index) => ({
+      ...fixture(index + 1), due_date: '2026-10-06', state: 'open',
+    }))
+    expect(await listFollowUpsWindow({}, 0)).toEqual({ rows: [], nextCursor: null, hasMore: false })
+    expect(harness.requests).toHaveLength(0)
+    const window = await listFollowUpsWindow({}, 75)
+    expect(window.rows).toHaveLength(75)
+    expect(window.hasMore).toBe(true)
+    expect(window.nextCursor).toEqual({ created_at: window.rows.at(-1)?.created_at, id: window.rows.at(-1)?.id })
+    expect(harness.requests).toHaveLength(2)
   })
 
   it('Task and follow-up child histories: newest-first cursors retain tied timestamps across pages', async () => {
@@ -211,7 +245,19 @@ describe('server list paging boundaries', () => {
       expect(ids).toEqual(expected)
       expect(new Set(ids).size).toBe(103)
     }
-    expect(harness.requests.every(url => url.searchParams.get('limit') === '50')).toBe(true)
+    expect(harness.requests.every(url => url.searchParams.get('limit') === '51')).toBe(true)
+  })
+
+  it('probes older Done availability with one row and respects archive and recency filters', async () => {
+    const cutoff = '2026-09-05T00:00:00Z'
+    harness.rows = [{ ...fixture(1), status: 'Done', completed_at: '2026-09-04T00:00:00Z', archived_at: null }]
+    expect(await hasOlderDoneTasks({}, cutoff)).toBe(true)
+    expect(harness.requests.at(-1)?.searchParams.get('limit')).toBe('1')
+
+    harness.rows = [{ ...fixture(2), status: 'Done', completed_at: '2026-09-10T00:00:00Z', archived_at: null }]
+    expect(await hasOlderDoneTasks({}, cutoff)).toBe(false)
+    harness.rows = [{ ...fixture(3), status: 'Done', completed_at: '2026-09-04T00:00:00Z', archived_at: '2026-09-04T01:00:00Z' }]
+    expect(await hasOlderDoneTasks({}, cutoff)).toBe(false)
   })
 
   it('Older Done Tasks owns exact-page, page-size-plus-one, empty, and error boundaries', async () => {

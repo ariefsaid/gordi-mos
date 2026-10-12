@@ -15,7 +15,7 @@ import {
 // observed section-order vector from the rendered DOM, asserts observed === declared, and evaluates
 // the five FAIL gates F1–F5. A green mechanical guard does NOT substitute for this recorded pass.
 
-const DECLARED = ['message', 'reach', 'discussion', 'facts', 'history'] as const
+const DECLARED = ['message', 'facts', 'reach', 'discussion', 'history'] as const
 
 const LONG_BODY =
   'HQ bar espresso volumes are down about 15% this week versus last week — corrected count. Investigating the grinder over the next two mornings.'
@@ -70,7 +70,7 @@ function observedVector(container: HTMLElement): string[] {
 }
 
 describe('Census Step 2.5 — Signal record anatomy conformance (AC-ANAT-009)', () => {
-  it('observed section-order vector === declared [message, reach, discussion, facts, history]', () => {
+  it('renders Facts immediately after the message, before Reach & response and Discussion', () => {
     const { container } = composeAndRender(makeSignal())
     expect(observedVector(container)).toEqual([...DECLARED])
   })

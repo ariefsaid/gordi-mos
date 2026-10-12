@@ -43,8 +43,8 @@ test.describe('shell aria-current', () => {
       // instead, since the bottom-tab-bar doesn't cover it. This supersedes the old "non-primary
       // destinations mark More" rule. The poll above already proves exactly one aria-current="page"
       // exists per route; here we additionally prove it's on the breadcrumb, not on More.
-      // 'money' was here until issue 444 gated it — a gated path forwards to Home, which IS a
-      // primary tab, so it can no longer stand for "a destination the bottom bar does not cover".
+      // Money is omitted for this admin-only viewer by its revenue-view role gate, so Profile
+      // remains the non-primary destination used to assert breadcrumb current ownership.
       const nonPrimaryCases = ['profile'].filter((path) => !isShipGated(`/${path}`))
       for (const path of nonPrimaryCases) {
         await page.goto(path)

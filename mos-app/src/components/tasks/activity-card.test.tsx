@@ -24,7 +24,7 @@ describe('ActivityCard', () => {
     }))
     const onLoadMore = vi.fn()
     render(<ActivityCard events={events} people={people} now={new Date()} hasMore onLoadMore={onLoadMore} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    fireEvent.click(screen.getByRole('button', { name: /Load more/ }))
     expect(onLoadMore).toHaveBeenCalledOnce()
   })
 

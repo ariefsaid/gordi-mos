@@ -861,4 +861,8 @@
     max-width: none;
   }
   .collection-toolbar.tasks-collection-toolbar .collection-toolbar__search { min-width: 200px; }
+  .collection-toolbar.tasks-collection-toolbar .collection-toolbar__desktop-door-panel {
+    inset-inline-start: 0;
+    inset-inline-end: auto;
+  }
 }

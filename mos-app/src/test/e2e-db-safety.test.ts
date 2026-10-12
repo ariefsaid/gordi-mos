@@ -17,6 +17,7 @@ import {
   notificationCleanupSql,
   objectiveCleanupSql,
   personPreferenceCleanupSql,
+  pendingBillsFixtureCleanupSql,
   processRunCleanupSql,
   signalCleanupSql,
   taskCleanupSql,
@@ -183,6 +184,23 @@ test('SQL guard rejects broad and disguised deletes and allows the owned cleanup
   const runCleanup = processRunCleanupSql(['a1000000-0000-0000-0000-000000000006'])
   expect(() => assertFixtureSqlSafe(runCleanup)).not.toThrow()
   expect(() => processRunCleanupSql(['not-a-uuid'])).toThrow(/UUID-owned/)
+  const pendingBillCleanup = pendingBillsFixtureCleanupSql({
+    orgId: '10000000-0000-0000-0000-000000000001',
+    esbCode: 'E2E-1468',
+    branchCode: 'e2e-1468',
+    billNumbers: ['E2E-PB-1468-001', 'E2E-PB-1468-002'],
+    snapshotAsOf: '2026-10-08T02:00:00.000Z',
+    idempotencyKey: 'a1468000-0000-4000-8000-000000000001',
+  })
+  expect(() => assertFixtureSqlSafe(pendingBillCleanup)).not.toThrow()
+  expect(() => pendingBillsFixtureCleanupSql({
+    orgId: 'not-a-uuid', esbCode: 'E2E-1468', branchCode: 'e2e-1468',
+    billNumbers: ['E2E-PB-1468-001', 'E2E-PB-1468-002'],
+    snapshotAsOf: '2026-10-08T02:00:00.000Z', idempotencyKey: 'a1468000-0000-4000-8000-000000000001',
+  })).toThrow(/fixed fixture identities/)
+  expect(() => assertFixtureSqlSafe(pendingBillCleanup.replace('ENABLE TRIGGER', 'ENABLE TRIGGERS'))).toThrow(/fixed local fixture boundary/)
+  expect(() => assertFixtureSqlSafe('ALTER TABLE mos.pending_bill_payments DISABLE TRIGGER pending_bill_payments_append_only;'))
+    .toThrow(/fixed local fixture boundary/)
   expect(() => assertFixtureSqlSafe(
     "INSERT INTO mos.tasks (title) VALUES ('-- quoted text') ON CONFLICT (id) DO NOTHING",
   )).not.toThrow()

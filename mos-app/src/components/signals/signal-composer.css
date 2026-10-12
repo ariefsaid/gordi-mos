@@ -143,11 +143,14 @@
   margin: 0; font-size: var(--font-size-label); color: var(--muted-foreground);
 }
 
-/* Only the primary action (+ its Shift+Enter hint) lives here — right-aligned on desktop; the
-   phone override below makes the primary full-width instead. */
+/* The current audience stays beside the primary action in both the desktop footer and phone bar. */
 .signal-composer-foot {
   display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 12px;
   border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.signal-composer-audience {
+  margin-right: auto; color: var(--muted-foreground); font-size: var(--font-size-label);
+  overflow-wrap: anywhere;
 }
 
 /* OD-REDESIGN-91 #10: Send button + its quiet Shift+Enter hint. Hidden without a real keyboard —
@@ -199,8 +202,9 @@
     background: color-mix(in srgb, var(--card) 94%, transparent);
     backdrop-filter: blur(8px);
   }
-  .signal-composer-send { width: 100%; }
-  .signal-composer-send .btn { flex: 1; min-height: 44px; }
+  .signal-composer-audience { flex: 1 1 auto; min-width: 0; }
+  .signal-composer-send { flex: 0 0 auto; width: auto; }
+  .signal-composer-send .btn { min-height: 44px; white-space: nowrap; }
 }
 
 /* A required choice that has not been made, marked the same way the Café capture surface marks

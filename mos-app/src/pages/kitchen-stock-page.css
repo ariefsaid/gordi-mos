@@ -10,14 +10,6 @@
   box-sizing: border-box;
 }
 
-.ks-date {
-  font-size: var(--font-size-control);
-  color: var(--muted-foreground);
-  background: var(--muted);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-}
-
 .ks-item {
   display: inline-flex;
   flex-direction: column;

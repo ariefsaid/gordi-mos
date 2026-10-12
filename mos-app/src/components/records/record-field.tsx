@@ -435,10 +435,8 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
               // `attachFieldEscapeIsolation` above; React's synthetic handler is not needed.
             }}
             onBlur={() => {
-              // D1 fix: while the host's leave-guard dialog is open, a blur here is the
-              // dialog's own auto-focus stealing focus away — NOT a deliberate commit
-              // intent. Skip the commit; the draft stays put until Retain/Discard resolves.
-              if (commitsFrozen) return
+              // Leave-guard autofocus and post-failure blur are not commit intents; preserve the draft.
+              if (commitsFrozen || statusRef.current === 'error') return
               void commit(draft, false)
             }}
           />

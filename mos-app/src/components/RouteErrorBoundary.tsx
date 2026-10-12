@@ -8,7 +8,7 @@
 
 import { useRevalidator, useRouteError } from 'react-router-dom'
 import { reportError } from '@/lib/telemetry'
-import { isNetworkError } from '@/lib/network-error'
+import { isModuleLoadError, isNetworkError } from '@/lib/network-error'
 import { PageFrame } from '@/shell/page-frame'
 import { NetworkErrorState } from '@/components/ui/state-kit'
 import { ErrorFallback } from './ErrorFallback'
@@ -38,8 +38,14 @@ export function RouteErrorBoundary() {
     }),
   })
 
-  // Network read → in-frame NetworkErrorState with Retry; anything else → the crash screen.
-  // See lib/network-error.ts.
+  // A failed module download needs a new document; other network reads can revalidate in place.
+  if (isModuleLoadError(error)) {
+    return (
+      <PageFrame>
+        <NetworkErrorState onRetry={() => window.location.reload()} />
+      </PageFrame>
+    )
+  }
   if (isNetworkError(error)) {
     return (
       <PageFrame>

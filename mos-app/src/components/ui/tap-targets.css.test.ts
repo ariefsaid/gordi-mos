@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const buttonCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Button.css'), 'utf8')
+const setPasswordFormTsx = readFileSync(resolve(process.cwd(), 'src/auth/set-password-form.tsx'), 'utf8')
 const segmentedTrackCss = readFileSync(resolve(process.cwd(), 'src/styles/segmented-track.css'), 'utf8')
 const branchTableCss = readFileSync(resolve(process.cwd(), 'src/components/money/branch-table.css'), 'utf8')
 const textInputCss = readFileSync(resolve(process.cwd(), 'src/components/ui/TextInput.css'), 'utf8')
@@ -17,6 +18,7 @@ const iconButtonCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Ico
 const commandMenuCss = readFileSync(resolve(process.cwd(), 'src/components/command/command-menu.css'), 'utf8')
 const signalComposerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-composer.css'), 'utf8')
 const tasksWorkspaceCss = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+const toastTsx = readFileSync(resolve(process.cwd(), 'src/components/admin/toast.tsx'), 'utf8')
 const mentionPickerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-mention-picker.css'), 'utf8')
 const helpTipCss = readFileSync(resolve(process.cwd(), 'src/components/ui/help-tip.css'), 'utf8')
 const helpTipTsx = readFileSync(resolve(process.cwd(), 'src/components/ui/help-tip.tsx'), 'utf8')
@@ -37,6 +39,13 @@ const signalFeedRowsTsx = readFileSync(resolve(process.cwd(), 'src/components/si
 // can't slip back in the way TaskSurface.css's did.
 const recordViewerCss = readFileSync(resolve(process.cwd(), 'src/components/records/record-viewer.css'), 'utf8')
 const recordPageChromeCss = readFileSync(resolve(process.cwd(), 'src/shell/record-page-chrome.css'), 'utf8')
+const cafeStreamBarCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-stream-bar.css'), 'utf8')
+const cafeCaptureControlsCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-controls.css'), 'utf8')
+const cafeItemSettingsCss = readFileSync(resolve(process.cwd(), 'src/pages/cafe-item-settings-page.css'), 'utf8')
+const kitchenReviewCss = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-review-page.css'), 'utf8')
+const kitchenToolbarCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/kitchen-toolbar.css'), 'utf8')
+const eventsCalendarCss = readFileSync(resolve(process.cwd(), 'src/components/events/events-calendar-presentation.css'), 'utf8')
+const homeStreamCss = readFileSync(resolve(process.cwd(), 'src/components/home/home-stream.css'), 'utf8')
 
 // EVERY block for the query, joined — a stylesheet may open the same breakpoint more than once,
 // and reading only the first one silently misses rules that are in force.
@@ -66,6 +75,13 @@ function mediaBody(css: string, query: string): string {
 }
 
 describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
+  it('issue 1544: Events day expansion and Home drill links keep a 44px target on coarse pointers', () => {
+    const eventsTouch = mediaBody(eventsCalendarCss, '@media (pointer: coarse)')
+    expect(eventsTouch).toMatch(/\.events-calendar__more\s*\{[^}]*min-height:\s*44px/)
+    const homeTouch = mediaBody(homeStreamCss, '@media (pointer: coarse)')
+    expect(homeTouch).toMatch(/\.stream-band-link\s*\{[^}]*min-height:\s*44px/)
+  })
+
   it('raises shared buttons, chips, touch-target markers, and icon-only utility controls to 44px on phone', () => {
     const body = mediaBody(buttonCss, '@media (max-width: 767.98px)')
     expect(body).toMatch(/\.btn[\s\S]*min-height:\s*44px/)
@@ -75,6 +91,15 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(body).toMatch(/\.tap-target-phone--icon[\s\S]*min-height:\s*44px/)
     expect(body).toMatch(/\.tap-floor[\s\S]*min-width:\s*44px/)
     expect(body).toMatch(/\.tap-floor[\s\S]*min-height:\s*44px/)
+  })
+
+  it('keeps the Toast dismiss icon compact inside the shared phone tap floor', () => {
+    expect(toastTsx).toMatch(/className="toast-dismiss[^"]*\btap-floor\b[^"]*"/)
+    expect(toastTsx).toMatch(/data-touch-target="true"/)
+    const desktopRule = buttonCss.match(/\.toast-dismiss\s*\{([^}]+)\}/)?.[1]
+    expect(desktopRule).toMatch(/min-width:\s*24px/)
+    expect(desktopRule).toMatch(/min-height:\s*24px/)
+    expect(buttonCss).not.toMatch(/\[data-touch-target='true'\]\.toast-dismiss/)
   })
 
   // M41: Money's targets keep the 44px floor through the tablet band, up to where the rail appears.
@@ -101,6 +126,30 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(selectBody).toMatch(/\.mk-select__field\s*\{[^}]*min-height:\s*44px/)
     expect(mediaBody(dateFieldCss, '@media (max-width: 767.98px)'))
       .toMatch(/\.mk-date__box[\s\S]*min-height:\s*44px/)
+  })
+
+  it('M03: keeps Café controls at 44px on coarse-pointer tablets', () => {
+    const coarse = '@media (pointer: coarse)'
+    const touch = '@media (max-width: 767.98px), (pointer: coarse)'
+    expect(mediaBody(cafeStreamBarCss, touch)).toMatch(/\.cafe-stream__switch[\s\S]*min-height:\s*44px/)
+    const toolbar = mediaBody(kitchenToolbarCss, coarse)
+    expect(toolbar).toMatch(/\.ktb-search[\s\S]*min-height:\s*44px/)
+    expect(toolbar).toMatch(/\.mk-select__box[\s\S]*min-height:\s*44px/)
+    const captureTouch = mediaBody(cafeCaptureControlsCss, touch)
+    expect(captureTouch).toMatch(/--cafe-capture-control-height:\s*44px/)
+    const capture = mediaBody(cafeCaptureControlsCss, coarse)
+    expect(capture).toMatch(/\.cafe-capture-content \.mk-select__box[\s\S]*min-height:\s*44px/)
+    expect(capture).toMatch(/\.cafe-capture-content \.dt-group-toggle[\s\S]*min-width:\s*44px/)
+    const items = mediaBody(cafeItemSettingsCss, coarse)
+    expect(items).toMatch(/\.cafe-items__name-input \.mk-textinput__box[\s\S]*min-height:\s*44px/)
+    expect(items).toMatch(/\.cafe-items__table \.mk-select__box[\s\S]*min-height:\s*44px/)
+    expect(items).toMatch(/\.cafe-items \.picker__trigger[\s\S]*min-height:\s*44px/)
+    expect(items).toMatch(/\.cafe-items \.dt-sort-button[\s\S]*min-width:\s*44px/)
+    expect(items).toMatch(/\.cafe-items \.dt-sort-button[\s\S]*min-height:\s*44px/)
+    const review = mediaBody(kitchenReviewCss, coarse)
+    expect(review).toMatch(/\.kr-date-filter \.mk-date__box[\s\S]*min-height:\s*44px/)
+    expect(review).toMatch(/\.kr-date-clear[\s\S]*min-height:\s*44px/)
+    expect(review).toMatch(/\.kr-refresh[\s\S]*min-height:\s*44px/)
   })
 
   it("DO-15(a): raises the task-create form's non-primitive fields (textarea, loading field) to 44px on phone", () => {
@@ -302,5 +351,24 @@ describe('B-i: phone tap-target markers are applied at the inline/Tailwind touch
   it('auth-card marker (ticket 403): the shared AuthCard carries the class every auth page renders through)', () => {
     const shellTsx = readFileSync(resolve(process.cwd(), 'src/auth/auth-shell.tsx'), 'utf8')
     expect(shellTsx).toMatch(/className="auth-card /)
+  })
+})
+
+describe('issue 1677: set-password controls use shared phone tap targets', () => {
+  it('raises both password fields and the verification-code field with the shared phone floor', () => {
+    expect(setPasswordFormTsx).toMatch(/id=\{newPasswordId\}[\s\S]*?className="[^"]*tap-target-phone/)
+    expect(setPasswordFormTsx).toMatch(/id=\{confirmPasswordId\}[\s\S]*?className="[^"]*tap-target-phone/)
+    expect(setPasswordFormTsx).toMatch(/id=\{verificationCodeId\}[\s\S]*?className="[^"]*tap-target-phone/)
+  })
+
+  it('raises Save password with the shared phone floor while retaining its desktop height', () => {
+    expect(setPasswordFormTsx).toMatch(/type="submit"[\s\S]*?className="[^"]*tap-target-phone/)
+    expect(setPasswordFormTsx).toMatch(/type="submit"[\s\S]*?style=\{\{[\s\S]*?height:\s*32/)
+  })
+
+  it('gives each reveal icon a shared 44×44 phone target', () => {
+    expect(setPasswordFormTsx).toMatch(/className="absolute top-0 right-0 h-full px-2 tap-target-phone--icon/)
+    expect(mediaBody(buttonCss, '@media (max-width: 767.98px)'))
+      .toMatch(/\.tap-target-phone--icon\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px/)
   })
 })

@@ -247,9 +247,9 @@ describe('compact rail glyphs (issue 457 part 1)', () => {
     expect(hrefs.some((h) => h.startsWith('/admin'))).toBe(true)
     expect(hrefs.filter((href) => href.startsWith('/cafe/'))).toHaveLength(0)
 
-    // THE GATE IS OFF. These four are in SHIP_GATED_PATHS today; each is the twin of a mark the
-    // reverted attempt borrowed. If this assertion ever fails, the mock has stopped working and
-    // the uniqueness claim below has quietly shrunk back to today's visible rail.
+    // THE GATE IS MOCKED OFF. Ecommerce and Roastery remain ship-gated; Money is included because
+    // this omniscient viewer holds a revenue-view role. If the hidden entries disappear, the mock
+    // has stopped working and the uniqueness claim below has shrunk back to today's visible rail.
     expect(hrefs, 'ship-gate mock is not in effect').toEqual(
       expect.arrayContaining(['/money', '/ecommerce', '/roastery']),
     )
@@ -287,10 +287,10 @@ describe('phone drawer glyphs (issue 457 part 1, the More drawer)', () => {
     // alongside all Café child screens. If a promoted module ever crept back into the fixture this
     // would go red rather than quietly shrinking the sweep.
     expect(hrefs).toEqual(
-      expect.arrayContaining(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/request', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes']),
+      expect.arrayContaining(['/cafe', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/request', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes']),
     )
-    // Same ship-gate vacuity check the rail carries: without it, "unique" would be a claim about
-    // today's visible drawer rather than the one switch day produces.
+    // Same ship-gate vacuity check the rail carries: without the remaining hidden modules, "unique"
+    // would be a claim about today's visible drawer rather than the one switch day produces.
     expect(hrefs, 'ship-gate mock is not in effect').toEqual(
       expect.arrayContaining(['/money', '/ecommerce', '/roastery']),
     )
@@ -308,7 +308,7 @@ describe('phone drawer glyphs (issue 457 part 1, the More drawer)', () => {
     expect(cup, 'the Café module row is missing from the drawer').toBeTruthy()
     const children = links.filter((l) => l.href.startsWith('/cafe/'))
     expect(children.map((c) => c.href).sort()).toEqual(
-      ['/cafe/count', '/cafe/items', '/cafe/plan', '/cafe/production', '/cafe/pushes', '/cafe/receive', '/cafe/request', '/cafe/review', '/cafe/stock', '/cafe/transfer', '/cafe/waste'],
+      ['/cafe/count', '/cafe/items', '/cafe/plan', '/cafe/pushes', '/cafe/receive', '/cafe/recipes', '/cafe/request', '/cafe/review', '/cafe/stock', '/cafe/transfer', '/cafe/waste'],
     )
     for (const child of children) {
       expect(child.glyph, `${child.href} draws the Café cup`).not.toBe(cup)

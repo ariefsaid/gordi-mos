@@ -9,14 +9,13 @@
 // AC-026: at 1280px — the company row and every branch row above the fold; every figure cell
 //         tabular; numeric columns right-aligned.
 //
-// Both reporting read-models are mocked so the journey is deterministic; the ADMIN persona clears
-// the route's role gate (the tier contract is the unit layer's: money-page.test.tsx).
+// Both reporting read-models are mocked so the journey is deterministic; the MANAGER persona
+// holds a revenue-view role (the tier contract is owned by money-page.test.tsx).
 
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { ADMIN } from './fixtures/users'
+import { MANAGER } from './fixtures/users'
 import { loginAs } from './helpers/login'
-import { isShipGated } from './helpers/ship-gate'
 
 // Sample fixture rows — realistic Gordi data (GHQ/SKC POS branches + GRI Roastery B2B,
 // per docs/specs/dashboard.spec.md Resolved owner decisions + CONTEXT.md). Dates are
@@ -107,14 +106,11 @@ async function mockDashboardReporting(page: Page) {
 }
 
 test.describe('AC-025: Money — phone layout (390px)', () => {
-  // The surface is ship-gated (issue 444): every entry point forwards home. Skipped on the gate
-  // itself, not deleted: the journey comes back the moment /money leaves SHIP_GATED_PATHS.
-  test.skip(isShipGated('/money'), 'ship-gated surface (issue 444) — no route, no nav')
   test.use({ viewport: { width: 390, height: 844 } })
 
   test('AC-025: the branch table reflows to stacked rows with no horizontal page scroll', async ({ page }) => {
     await mockDashboardReporting(page)
-    await loginAs(page, ADMIN.email, ADMIN.password)
+    await loginAs(page, MANAGER.email, MANAGER.password)
     await page.goto('money')
 
     const table = page.getByRole('table')
@@ -135,12 +131,11 @@ test.describe('AC-025: Money — phone layout (390px)', () => {
 })
 
 test.describe('AC-026: Money — desktop layout (≥1280px)', () => {
-  test.skip(isShipGated('/money'), 'ship-gated surface (issue 444) — no route, no nav')
   test.use({ viewport: { width: 1280, height: 900 } })
 
   test('AC-026: every row is above the fold and every figure is tabular', async ({ page }) => {
     await mockDashboardReporting(page)
-    await loginAs(page, ADMIN.email, ADMIN.password)
+    await loginAs(page, MANAGER.email, MANAGER.password)
     await page.goto('money')
 
     const table = page.getByRole('table')
@@ -158,7 +153,7 @@ test.describe('AC-026: Money — desktop layout (≥1280px)', () => {
 
   test('AC-026: a sort survives a period change and a reload', async ({ page }) => {
     await mockDashboardReporting(page)
-    await loginAs(page, ADMIN.email, ADMIN.password)
+    await loginAs(page, MANAGER.email, MANAGER.password)
     await page.goto('money')
     const header = page.getByRole('columnheader', { name: /^vs same day last week/ })
     await header.getByRole('button').click()

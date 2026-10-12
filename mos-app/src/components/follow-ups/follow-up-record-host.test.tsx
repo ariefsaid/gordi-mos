@@ -6,16 +6,16 @@ import type { FollowUpRow, FollowUpEvent } from '@/lib/db/follow-ups'
 
 vi.mock('@/lib/db/follow-ups', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/follow-ups')>('@/lib/db/follow-ups')
-  return { ...actual, getFollowUp: vi.fn(), listFollowUpEvents: vi.fn() }
+  return { ...actual, getFollowUp: vi.fn(), listFollowUpEventsPage: vi.fn() }
 })
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
 
-import { getFollowUp, listFollowUpEvents } from '@/lib/db/follow-ups'
+import { getFollowUp, listFollowUpEventsPage } from '@/lib/db/follow-ups'
 import { getPeople } from '@/lib/db/directory'
 import { FollowUpRecordHost } from './follow-up-record-host'
 
 const mockGet = vi.mocked(getFollowUp)
-const mockEvents = vi.mocked(listFollowUpEvents)
+const mockEvents = vi.mocked(listFollowUpEventsPage)
 const mockPeople = vi.mocked(getPeople)
 
 const row: FollowUpRow = {
@@ -25,6 +25,9 @@ const row: FollowUpRow = {
   notes: null, created_at: '2026-07-01T00:00:00Z', updated_at: '2026-07-10T00:00:00Z',
 }
 const events: FollowUpEvent[] = []
+function eventPage(rows: FollowUpEvent[], hasMore = false) {
+  return { rows, hasMore, nextCursor: hasMore ? rows.at(-1)! : null }
+}
 function historyEvent(index: number, note: string): FollowUpEvent {
   return {
     id: `event-${index}`, org_id: 'org-1', follow_up_id: 'fu-1', transition: 'chase',
@@ -40,7 +43,7 @@ function wrapper({ children }: { children: ReactNode }) {
 beforeEach(() => {
   vi.clearAllMocks()
   mockGet.mockResolvedValue(row)
-  mockEvents.mockResolvedValue(events)
+  mockEvents.mockResolvedValue(eventPage(events))
   mockPeople.mockResolvedValue([{ id: 'p-1', full_name: 'Sari' }] as never)
 })
 
@@ -61,11 +64,11 @@ describe('FollowUpRecordHost', () => {
 
   it('loads older lifecycle history without replacing the newest events', async () => {
     const firstPage = Array.from({ length: 50 }, (_, index) => historyEvent(index + 1, `note-${index + 1}`))
-    mockEvents.mockResolvedValueOnce(firstPage).mockResolvedValueOnce([historyEvent(51, 'older-entry')])
+    mockEvents.mockResolvedValueOnce(eventPage(firstPage, true)).mockResolvedValueOnce(eventPage([historyEvent(51, 'older-entry')]))
     render(<FollowUpRecordHost followUpId="fu-1" mode="page" />, { wrapper })
     expect(await screen.findByRole('heading', { name: 'PT Big Buyer' })).toBeInTheDocument()
     expect(await screen.findByText(/note-1$/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Load more items' }))
     expect(await screen.findByText(/older-entry$/)).toBeInTheDocument()
     expect(screen.getByText(/note-1$/)).toBeInTheDocument()
     expect(mockEvents.mock.calls[1][1]).toEqual(firstPage.at(-1))

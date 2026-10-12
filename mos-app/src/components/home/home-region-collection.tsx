@@ -170,12 +170,17 @@ function HomeRegionCollectionInstance({ region, items }: Required<HomeRegionColl
     accessRoles: [],
   })
   const hidden = (region.totalItemCount ?? region.items.length) - items.length
+  const empty = region.state === 'ready' && items.length === 0
 
   return (
     <div className="home-region-collection" data-home-region={region.id} data-testid={`home-region-collection-${region.id}`}>
       <RecordCollectionSurface
         controller={controller}
-        empty={{ title: t(EMPTY_KEY[region.id]) }}
+        empty={{
+          title: t(EMPTY_KEY[region.id]),
+          className: 'stream-all-clear',
+          create: empty ? <RegionDrillLink region={region} shown={0} /> : undefined,
+        }}
         filteredEmpty={{ items: t(region.labelKey).toLowerCase(), clear: () => {} }}
         error={{ message: t('home.attention.laneError'), retry: region.onRetry ?? (() => {}) }}
         loadingLabel={t(region.labelKey)}
@@ -183,7 +188,7 @@ function HomeRegionCollectionInstance({ region, items }: Required<HomeRegionColl
       {hidden > 0 && !region.drillTo ? (
         <p className="stream-band-more">{t('home.region.more', { count: hidden })}</p>
       ) : null}
-      <RegionDrillLink region={region} shown={items.length} more={hidden > 0 ? hidden : undefined} />
+      {!empty && <RegionDrillLink region={region} shown={items.length} more={hidden > 0 ? hidden : undefined} />}
     </div>
   )
 }

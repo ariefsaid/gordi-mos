@@ -22,6 +22,11 @@ import type { AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 
+vi.mock('@/lib/format/date', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/format/date')>()
+  return { ...actual, wibToday: () => '2026-10-10' }
+})
+
 // PageFamilyFrame (the v4 shell chrome this page ports to — #197) calls useLocation()
 // unconditionally, so every render needs Router context, not just the ones that render a
 // <Link>. Mirrors kitchen-log-page.test.tsx's own wrapper.
@@ -108,7 +113,7 @@ const OWN_STREAM = { branch: BRANCHES[0], activity: 'kitchen' as const, produces
 const RADIANT_KITCHEN = { branch: BRANCHES[1], activity: 'kitchen' as const, produces: false }
 const OWN_STREAM_BAR = { branch: BRANCHES[0], activity: 'bar' as const, produces: true }
 const RADIANT_BAR = { branch: BRANCHES[1], activity: 'bar' as const, produces: true }
-// #781: CafeStreamBar states a resolved stream as text with a quiet "Change" beside it on Plan (opens a
+// #781: CafeStreamBar states a resolved stream as an activity-specific Switch beside it on Plan (opens a
 // portaled listbox) — or, with no default resolved at all, offers the location's streams as
 // direct one-click buttons (CafeStreamChoices), no separate open step. `startsWith` rather than
 // an exact match because an option carries an appended tag ("— Your Team" / "— Receiving only")
@@ -118,7 +123,7 @@ function startsWith(label: string) {
 }
 
 function chooseStream(optionName: string) {
-  const switchButton = screen.queryByRole('button', { name: /^change/i })
+  const switchButton = screen.queryByRole('button', { name: /^switch (kitchen|bar)$/i })
   if (switchButton) {
     fireEvent.click(switchButton)
     fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
@@ -234,14 +239,13 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
     expect(mockPlans.mock.calls[0][1]).toEqual(RADIANT_BAR)
   })
 
-  it('Plan opens straight on its stream as a heading, with a Change link and no "Stream" label', async () => {
+  it('Plan opens straight on its stream as a heading, with an action-specific Switch and no "Stream" label', async () => {
     mockDefaultStream.mockResolvedValue(OWN_STREAM)
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByRole('heading', { level: 2, name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
     expect(screen.queryByText(/^stream$/i)).toBeNull()
-    expect(screen.getByRole('button', { name: /^change/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^switch/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /^switch kitchen$/i })).toBeInTheDocument()
     // No chooser first: the stream is already resolved, so no stream buttons precede the list.
     expect(screen.queryByText(/choose a production stream/i)).toBeNull()
   })
@@ -256,10 +260,10 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
     expect(mockPlans.mock.calls[1][1]).toEqual(OWN_STREAM_BAR)
   })
 
-  it('offers another working branch through Change without adding a Location field', async () => {
+  it('offers another working branch through Switch without adding a Location field', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    fireEvent.click(screen.getByRole('button', { name: /^change/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     const offered = screen.getAllByRole('option').map(o => o.textContent?.trim() ?? '')
 
     expect(offered.some(label => label.includes('Radiant') && /other location/i.test(label))).toBe(true)
@@ -332,6 +336,61 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(screen.getAllByRole('spinbutton').length).toBeGreaterThanOrEqual(2)
     // pre-filled with the existing plan qty for Ayam Bakar / Production
     expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue('12')
+  })
+
+  it('opens tomorrow for the selected stream and states which day is being edited', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    chooseStream('Radiant · Bar')
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next day' }))
+    await screen.findByText('Ayam Bakar')
+
+    expect(mockPlans.mock.calls.at(-1)).toEqual(['2026-10-11', RADIANT_BAR])
+    expect(screen.getByRole('group', { name: 'Plan date' })).toHaveTextContent('Sun 11 Oct · Tomorrow')
+    expect(screen.getByRole('heading', { level: 2, name: 'Radiant · Bar' })).toBeInTheDocument()
+
+    const quantity = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(quantity, { target: { value: '15' } })
+    fireEvent.blur(quantity)
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledOnce())
+    expect(mockUpsert.mock.calls[0][0]).toMatchObject({ log_date: '2026-10-11', branch_id: 'branch-2', activity: 'bar' })
+  })
+
+  it('keeps planning within today through day 13 and returns to today', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const previous = screen.getByRole('button', { name: 'Previous day' })
+    const next = screen.getByRole('button', { name: 'Next day' })
+    const today = screen.getByRole('button', { name: 'Today' })
+    const date = screen.getByRole('group', { name: 'Plan date' })
+    expect(previous).toBeDisabled()
+    expect(today).toBeDisabled()
+
+    for (let day = 0; day < 13; day += 1) fireEvent.click(next)
+    expect(date).toHaveTextContent('Fri 23 Oct · In 13 days')
+    expect(next).toBeDisabled()
+    fireEvent.click(today)
+    expect(date).toHaveTextContent('Sat 10 Oct · Today')
+    expect(previous).toBeDisabled()
+    await waitFor(() => expect(mockPlans).toHaveBeenLastCalledWith('2026-10-10', OWN_STREAM))
+  })
+
+  it('steps back to today but never to a past planning day', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const previous = screen.getByRole('button', { name: 'Previous day' })
+    const next = screen.getByRole('button', { name: 'Next day' })
+    const date = screen.getByRole('group', { name: 'Plan date' })
+
+    fireEvent.click(next)
+    await waitFor(() => expect(mockPlans).toHaveBeenLastCalledWith('2026-10-11', OWN_STREAM))
+    expect(previous).toBeEnabled()
+    fireEvent.click(previous)
+    await waitFor(() => expect(mockPlans).toHaveBeenLastCalledWith('2026-10-10', OWN_STREAM))
+    expect(date).toHaveTextContent('Sat 10 Oct · Today')
+    expect(previous).toBeDisabled()
   })
 
   it('FR-031: typing an amount + blur commits — upsertKitchenPlan with qty_porsi (no org_id/plan_by)', async () => {
@@ -556,8 +615,8 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(screen.getByText('Ayam Bakar').parentElement).toHaveTextContent('WIP - Ayam Bakar')
     fireEvent.click(screen.getByRole('combobox', { name: /kind/i }))
     const listbox = screen.getByRole('listbox', { name: /kind/i })
-    expect(within(listbox).getByRole('option', { name: 'WIP' })).toBeInTheDocument()
-    expect(within(listbox).queryByRole('option', { name: 'RAW' })).toBeNull()
+    expect(within(listbox).getByRole('option', { name: 'Prepared item (WIP)' })).toBeInTheDocument()
+    expect(within(listbox).queryByRole('option', { name: 'Raw material (RAW)' })).toBeNull()
   })
 
   it('empty: ops_lead sees an editable blank grid — unplanned reads BLANK (greyed "0" placeholder), not a hard zero', async () => {
@@ -693,17 +752,17 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    // PLAN_CELLS has one Production cell: Ayam Bakar qty 12 → total 12, dishes 1
+    // PLAN_CELLS has one planned Production item.
     const band = screen.getByRole('group', { name: /planning summary/i })
     expect(document.querySelector('.msr')).not.toBeNull()
     // never the retired tile strip (KitchenKpiStrip stays for Stock, not here)
     expect(document.querySelector('.kks')).toBeNull()
-    const values = Array.from(band.querySelectorAll('.msr-value')).map(el => el.textContent)
-    expect(values).toEqual(['12', '1'])
-    expect(values.every(v => /^\d+$/.test(v ?? ''))).toBe(true)
+    expect(Array.from(band.querySelectorAll('.msr-value')).map(el => el.textContent)).toEqual(['1'])
+    expect(within(band).getByText('Items planned')).toBeInTheDocument()
+    expect(within(band).queryByText('Planned total')).toBeNull()
   })
 
-  it('renders the two plan metrics under their catalog labels — never the retired word-tiles', async () => {
+  it('renders the planned-item count without a unitless planned quantity total', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       configurable: true,
@@ -718,8 +777,8 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    expect(screen.getByText(/planned total/i)).toBeInTheDocument()
     expect(screen.getByText(/items planned/i)).toBeInTheDocument()
+    expect(screen.queryByText(/planned total/i)).toBeNull()
     expect(screen.queryByText(/active action/i)).toBeNull()
     expect(screen.queryByText(/plan status/i)).toBeNull()
     expect(screen.queryByText(/write surface/i)).toBeNull()
@@ -745,7 +804,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const band = screen.getByRole('group', { name: /planning summary/i })
-    expect(Array.from(band.querySelectorAll('.msr-value')).map(el => el.textContent)).toEqual(['0', '0'])
+    expect(Array.from(band.querySelectorAll('.msr-value')).map(el => el.textContent)).toEqual(['0'])
     expect(screen.queryByText(/no plan created yet/i)).toBeNull()
   })
 
@@ -1063,7 +1122,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
 
-  it('Pesanan Change reaches another readable branch when the active branch has one stream', async () => {
+  it('Pesanan Switch reaches another readable branch when the active branch has one stream', async () => {
     mockUseAuth.mockReturnValue(viewer(['member']))
     mockDefaultStream.mockResolvedValue(RADIANT_KITCHEN)
     mockStreamPairs.mockResolvedValue([STREAM_PAIRS[2], STREAM_PAIRS[0]])
@@ -1075,7 +1134,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
 
     render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByText('Nasi Goreng')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /^change/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     const otherLocation = screen.getByRole('option', {
       name: /Rumah Rames · Kitchen.*Other location/i,
     })
@@ -1156,12 +1215,12 @@ describe('KitchenPlanPage — locale id (#401)', () => {
     mockPlans.mockResolvedValue(PLAN_CELLS)
   })
 
-  it('the summary band renders Indonesian (reused plannedTotal key + the new label)', async () => {
+  it('the summary band renders the planned-item count in Indonesian', async () => {
     render(<KitchenPlanPage />, { wrapper: idWrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByRole('group', { name: 'Ringkasan perencanaan' })).toBeInTheDocument()
-    expect(screen.getByText('Total rencana')).toBeInTheDocument()
     expect(screen.getByText('Item direncanakan')).toBeInTheDocument()
+    expect(screen.queryByText(/Total rencana/i)).toBeNull()
     expect(screen.queryByText(/planned total/i)).toBeNull()
   })
 
@@ -1204,7 +1263,7 @@ function cafeDocTitle(leaf: keyof typeof messages.en): string {
 describe('issue 455: document title', () => {
   it('titles the tab from the Café nav label, not the retired kitchen one', async () => {
     render(<KitchenPlanPage />, { wrapper })
-    await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.plan')))
+    await waitFor(() => expect(document.title).toBe(cafeDocTitle('cafe.pageTitle.plan')))
   })
 })
 
@@ -1215,28 +1274,28 @@ describe('KitchenPlanPage — no primary stream (#1142)', () => {
     branch_id: BRANCHES[branchIdx].id, activity, effective_to: null,
   })
 
-  it('one Café team, not primary: Plan opens on its stream, with the Change link', async () => {
+  it('one Café team, not primary: Plan opens on its stream, with the Switch action', async () => {
     mockDefaultStream.mockResolvedValue(null)
     vi.mocked(listCafeViewerTeams).mockResolvedValue([cafeTeam('t-rr-kitchen', 0, 'kitchen')])
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByRole('heading', { level: 2, name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
-    expect(screen.queryByText(/choose a production stream/i)).toBeNull()
-    expect(screen.getByRole('button', { name: /^change/i })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Choose a kitchen or bar' })).toBeNull()
+    expect(screen.getByRole('button', { name: /^switch kitchen$/i })).toBeInTheDocument()
     expect(mockPlans.mock.calls[0][1]).toEqual(OWN_STREAM)
   })
 
-  it('several Café teams, none primary: Plan makes stream choice the job, not an unscoped catalog', async () => {
+  it('several Café teams, none primary: Plan uses the shared stream-choice state, not an unscoped catalog', async () => {
     mockDefaultStream.mockResolvedValue(null)
     vi.mocked(listCafeViewerTeams).mockResolvedValue([
       cafeTeam('t-rr-kitchen', 0, 'kitchen'), cafeTeam('t-rr-bar', 0, 'bar'),
     ])
     render(<KitchenPlanPage />, { wrapper })
-    expect(await screen.findByText(/choose a production stream before planning/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
     expect(screen.queryByRole('combobox', { name: /category/i })).toBeNull()
     expect(screen.queryByRole('spinbutton')).toBeNull()
-    expect(screen.queryByRole('button', { name: /^change/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^switch/i })).toBeNull()
     expect(mockPlans).not.toHaveBeenCalled()
   })
 })
@@ -1245,7 +1304,7 @@ describe('KitchenPlanPage — no primary stream (#1142)', () => {
 describe('KitchenPlanPage — Pesanan default follows the one stream rule (OD-CAFE-6)', () => {
   beforeEach(() => mockUseAuth.mockReturnValue(viewer(['member'])))
 
-  it('no home stream, ONE Café stream Team: Pesanan opens on it, heading + Change', async () => {
+  it('no home stream, ONE Café stream Team: Pesanan opens on it, heading + Switch', async () => {
     mockDefaultStream.mockResolvedValue(null)
     mockPesanan.mockResolvedValue(PESANAN)
     vi.mocked(listCafeViewerTeams).mockResolvedValue([{
@@ -1256,16 +1315,16 @@ describe('KitchenPlanPage — Pesanan default follows the one stream rule (OD-CA
     await waitFor(() => expect(mockPesanan).toHaveBeenCalled())
     expect(mockPesanan.mock.calls[0][2]).toEqual(OWN_STREAM)
     expect(screen.getByRole('heading', { level: 2, name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^change/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^switch kitchen$/i })).toBeInTheDocument()
   })
 })
 
 // ── #548 FR-006/AC-006: the stream precondition is quiet at rest, alerts on attempt ──
 describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar', () => {
-  it('AC-006: no stream → stream choice is the only planning task; no unscoped catalog appears', async () => {
+  it('AC-006: no stream → the shared stream choice is the only planning task; no unscoped catalog appears', async () => {
     mockDefaultStream.mockResolvedValue(null)
     render(<KitchenPlanPage />, { wrapper })
-    expect(await screen.findByText(/choose a production stream before planning/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).toBeNull()
     expect(document.querySelector('.msr')).toBeNull()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
@@ -1277,11 +1336,11 @@ describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar
   it('AC-006: choosing a stream reveals its catalog and enables planning', async () => {
     mockDefaultStream.mockResolvedValue(null)
     render(<KitchenPlanPage />, { wrapper })
-    expect(await screen.findByText(/choose a production stream before planning/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
     chooseStream('Rumah Rames · Kitchen')
     await waitFor(() =>
-      expect(screen.queryByText(/choose a production stream before planning/i)).toBeNull(),
+      expect(screen.queryByRole('heading', { name: 'Choose a kitchen or bar' })).toBeNull(),
     )
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })

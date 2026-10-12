@@ -12,6 +12,7 @@ const layoutCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/ca
   .replace(/\/\*[\s\S]*?\*\//g, '')
 const stepperCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/wip-item-stepper.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
+const wasteSource = readFileSync(resolve(process.cwd(), 'src/pages/cafe-waste-page.tsx'), 'utf8')
 
 function rule(selector: string, last = false): string {
   const index = last ? css.lastIndexOf(selector) : css.indexOf(selector)
@@ -42,8 +43,11 @@ describe('Waste capture controls stay paired and complete', () => {
     expect(photo).toMatch(/justify-self:\s*stretch/)
   })
 
-  it('left-aligns fixed unit labels with the quantity-to-unit track', () => {
+  it('left-aligns fixed unit labels and shares their quiet typography', () => {
     expect(rule('.cwl-unit-label {')).toMatch(/text-align:\s*left/)
+    expect(rule('.cwl-unit-label {')).not.toMatch(/font-size|color:/)
+    expect(layoutCss).toMatch(/\.cafe-count__unit,\s*\.cafe-capture-unit-label,\s*\.kls-unit\s*\{[^}]*font-size:\s*var\(--font-size-label\)[^}]*color:\s*var\(--muted-foreground\)/)
+    expect(wasteSource).toMatch(/cwl-unit-label cafe-capture-unit cafe-capture-unit-label/)
     expect(selectCss).toMatch(/\.mk-select__field\s*\{[^}]*text-align:\s*left/)
   })
 
@@ -74,9 +78,8 @@ describe('Waste capture controls stay paired and complete', () => {
     expect(css).not.toContain('.cwl-quantity-input[aria-invalid="true"]')
   })
 
-  it('keeps the per-item quantity-before-photo hint inside the control row', () => {
-    expect(css).toMatch(/\.cwl-field-error,[\s\S]*?\.cwl-photo-hint\s*\{\s*grid-column:\s*1\s*\/\s*-1/)
-    expect(css).toMatch(/\.cwl-lock-note,[\s\S]*?\.cwl-photo-hint\s*\{[^}]*font-size:\s*var\(--font-size-label\)/)
+  it('removes the repeated per-item quantity-before-photo hint style', () => {
+    expect(css).not.toContain('.cwl-photo-hint')
   })
 
   it('uses in-gamut semantic warning tokens for the held banner', () => {

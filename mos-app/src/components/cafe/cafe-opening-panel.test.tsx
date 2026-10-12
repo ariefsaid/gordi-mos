@@ -296,10 +296,8 @@ describe('AC-715 — pending "to assign" resolution', () => {
 })
 
 // ── issue 457: the team caption must not read as the chosen production stream ────────────
-// The Café root's head shows "Choose stream…" with this caption directly beneath it. A bare
-// team name in that slot ("Radiant") sits exactly where a stream name ("Radiant · Bar") is
-// expected, and is read as one. The panel is Team-scoped by design (DD-WAY-34 keeps the root
-// picker); the caption must therefore SAY what it scopes.
+// The root's Opening panel is Team-scoped by design, while its shared head names production
+// streams separately. The caption must say what it scopes so it cannot be mistaken for a stream.
 describe('issue 457: the Café root team caption says what it scopes', () => {
   it('is never the bare team name — in either opening state', async () => {
     setAuthAs(['ops_lead'])

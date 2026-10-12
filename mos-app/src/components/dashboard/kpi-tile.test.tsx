@@ -13,11 +13,16 @@ describe('KPITile — ready state', () => {
     expect(screen.getByText('4 branches')).toBeInTheDocument()
   })
 
-  it('applies .tabular to the value', () => {
+  it('keeps generic tile values tabular by default', () => {
     const { container } = render(<KPITile label="Trailing 7-day revenue" value="Rp 128,4jt" />)
     const value = screen.getByText('Rp 128,4jt')
     expect(value).toHaveClass('tabular')
     expect(container).toBeTruthy()
+  })
+
+  it('renders proportional figures when the composition requests them', () => {
+    render(<KPITile label="Trailing 7-day revenue" value="Rp 128,4jt" valueVariant="proportional" />)
+    expect(screen.getByText('Rp 128,4jt')).not.toHaveClass('tabular')
   })
 
   it('the value carries the no-mid-value-wrap class (fits one line, incl. long IDR/channel-mix strings)', () => {

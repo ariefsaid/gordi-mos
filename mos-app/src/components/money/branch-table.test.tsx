@@ -30,7 +30,7 @@ function Harness({ period, sort, onCommit }: { period: MoneyPeriod; sort: MoneyS
     <I18nProvider initialLocale="en">
       <MemoryRouter>
         <Profiler id="table" onRender={onCommit}>
-          <BranchTable data={buildBranchTable(ROWS, null, 30)!} period={period} sort={sort} onSortChange={() => {}} />
+          <BranchTable data={buildBranchTable(ROWS, null, 30)!} selection={{ period, range: null, branchCode: null, channel: 'all' }} sort={sort} onSortChange={() => {}} />
         </Profiler>
       </MemoryRouter>
     </I18nProvider>
@@ -54,21 +54,52 @@ describe('BranchTable — re-render after a change from outside', () => {
   })
 })
 
-describe('BranchTable — one term for recipe coverage (#1453)', () => {
+describe('BranchTable — one term for recipe vs stock cost (#1453)', () => {
   const margin = ROWS.filter((r) => r.branch_code === 'alpha').map((r) => ({
     margin_date: r.revenue_date, esb_code: 'X', branch_code: 'alpha', branch_name: 'Alpha', branch_id: null,
     revenue: r.clean_revenue, cogs_interim_sm: 700_000, cogs_budget_bom: 650_000, margin_interim: r.clean_revenue - 700_000,
     bom_coverage_pct: 0.9, snapshot_as_of: r.snapshot_as_of, source_contract_version: 'v1',
   }))
-  it.each([['en', 'Recipe coverage'], ['id', 'Cakupan resep']] as const)('the phone company line uses the column header term (%s)', (locale, term) => {
+  it.each([['en', 'Recipe vs stock cost'], ['id', 'Resep vs biaya stok']] as const)('the phone company line uses the column header term (%s)', (locale, term) => {
     const { container } = render(
       <I18nProvider initialLocale={locale}>
         <MemoryRouter>
-          <BranchTable data={buildBranchTable(ROWS, margin, 30)!} period={30} sort={{ column: 'revenue', desc: true }} onSortChange={() => {}} />
+          <BranchTable data={buildBranchTable(ROWS, margin, 30)!} selection={{ period: 30, range: null, branchCode: null, channel: 'all' }} sort={{ column: 'revenue', desc: true }} onSortChange={() => {}} />
         </MemoryRouter>
       </I18nProvider>,
     )
     expect(screen.getByRole('columnheader', { name: new RegExp(`^${term}`) })).toBeInTheDocument()
     expect(container.querySelector('.money-table__company-margin')?.textContent?.toLowerCase()).toContain(term.toLowerCase())
+  })
+})
+
+describe('BranchTable — filter link persistence', () => {
+  it('a branch link carries the custom range and channel so the back link can restore them', () => {
+    const range = { from: day(6), to: day(0) }
+    const data = buildBranchTable(ROWS, null, 30, undefined, { latestDate: LATEST, range, branchCode: 'alpha', channel: 'POS' })!
+    render(
+      <I18nProvider initialLocale="en">
+        <MemoryRouter>
+          <BranchTable data={data} selection={{ period: 30, range, branchCode: 'alpha', channel: 'POS' }} sort={{ column: 'revenue', desc: true }} onSortChange={() => {}} />
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    expect(screen.getByRole('link', { name: 'Alpha' })).toHaveAttribute(
+      'href', `/money/branch/alpha?period=custom&from=${range.from}&to=${range.to}&branch=alpha&channel=POS&sort=revenue.desc`,
+    )
+  })
+})
+
+describe('BranchTable — trend endpoint size', () => {
+  it('draws the sparkline unscaled, so the visible endpoint (inside its surface ring) is at least 8px', () => {
+    const { container } = render(<Harness period={30} sort={{ column: 'revenue', desc: true }} onCommit={() => {}} />)
+    const svg = container.querySelector('.money-table__cell--trend svg')!
+    const viewBoxWidth = Number(svg.getAttribute('viewBox')!.split(' ')[2])
+    const scale = Number(svg.getAttribute('width')) / viewBoxWidth
+    expect(svg.getAttribute('class') ?? '').not.toMatch(/\bw-/)
+    const dot = svg.querySelector('circle')!
+    // The ring stroke is centred on the edge, so it covers half its width of the fill.
+    const visible = (2 * Number(dot.getAttribute('r')) - Number(dot.getAttribute('stroke-width'))) * scale
+    expect(visible).toBeGreaterThanOrEqual(8)
   })
 })

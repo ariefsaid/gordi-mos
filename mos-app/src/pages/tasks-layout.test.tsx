@@ -11,6 +11,7 @@ import type { TaskRow } from '@/lib/db/tasks.types'
 // ── Mock the data layer (table + drawer both pull from it) ────────────────────
 vi.mock('../lib/db/tasks', () => ({
   listTasks: vi.fn(),
+  hasOlderDoneTasks: vi.fn(),
   listOlderDoneTasks: vi.fn(),
   listTaskEvents: vi.fn(),
   getTask: vi.fn(),
@@ -43,7 +44,7 @@ vi.mock('../lib/comments/postComment', () => ({
 }))
 
 import {
-  listTasks, listOlderDoneTasks, listTaskEvents,
+  listTasks, hasOlderDoneTasks, listOlderDoneTasks, listTaskEvents,
   getTask, updateTaskStatus, createTask, archiveTask,
 } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
@@ -61,6 +62,7 @@ import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
 
 const mockListTasks = vi.mocked(listTasks)
+const mockHasOlderDoneTasks = vi.mocked(hasOlderDoneTasks)
 const mockListOlderDoneTasks = vi.mocked(listOlderDoneTasks)
 const mockGetTask = vi.mocked(getTask)
 const mockUpdateTaskStatus = vi.mocked(updateTaskStatus)
@@ -192,6 +194,7 @@ beforeEach(() => {
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
+  mockHasOlderDoneTasks.mockResolvedValue(false)
   mockListOlderDoneTasks.mockResolvedValue({ rows: [], nextCursor: null, hasMore: false })
   vi.mocked(listTaskEvents).mockResolvedValue([])
   vi.mocked(listComments).mockResolvedValue([])
@@ -354,6 +357,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
 
   it('loads older Done Tasks only after the operator asks and stops when the last page is reached', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Open task' })])
+    mockHasOlderDoneTasks.mockResolvedValue(true)
     mockListOlderDoneTasks.mockResolvedValueOnce({
       rows: [makeTask({ id: 'older-done', title: 'Older complete', status: 'Done', completed_at: '2026-06-01T00:00:00Z' })],
       nextCursor: null,
@@ -844,10 +848,9 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     renderAt('/work/tasks?create=1')
     // The draft row mounts with its editor focused.
     const titleInput = await screen.findByLabelText('Title')
-    // Initially the table is empty. The count reads inside the ONE muted meta sentence
-    // ("N tasks · M open") — the content-header count pill was removed.
+    // The meta sentence names the open count and the server window scope.
     await waitFor(() => {
-      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('0 tasks · 0 open')
+      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('0 open in this view · Active + Done in the last 30 days')
     })
 
     // Type the title and press Enter — the draft commits through the same createTask path.
@@ -874,7 +877,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(screen.getByText('Freshly created')).toBeInTheDocument()
     })
     await waitFor(() => {
-      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 task · 1 open')
+      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open in this view · Active + Done in the last 30 days')
     })
     // Inline create never navigates — the draft was already on the table — so there is no
     // ?highlight= flash (that belonged to the retired create-form door).
@@ -986,6 +989,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
         completed_at: '2020-01-01T00:00:00Z',
       }))
     mockListTasks.mockResolvedValue(currentRows)
+    mockHasOlderDoneTasks.mockResolvedValue(true)
     mockListOlderDoneTasks.mockResolvedValueOnce({
       rows: olderRows,
       nextCursor: { completed_at: '2020-01-01T00:00:00Z', id: 'older-24' },
@@ -1093,7 +1097,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockArchiveTask.mockResolvedValue()
     renderAt('/work/tasks/task-2')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
-    await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 tasks · 2 open'))
+    await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 open in this view · Active + Done in the last 30 days'))
 
     // Archive is grouped with the record's other secondary actions.
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
@@ -1113,7 +1117,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(screen.queryByText('Archive me')).toBeNull()
     }, { timeout: 4000 })
     expect(screen.getByText('Keep me')).toBeInTheDocument()
-    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 task · 1 open')
+    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open in this view · Active + Done in the last 30 days')
   }, 10_000)
 })
 

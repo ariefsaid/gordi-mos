@@ -127,7 +127,7 @@
      Indonesian labels included (#1453). */
   .branch-money-table .money-table__head,
   .branch-money-table .money-table__cell {
-    padding: 0 6px;
+    padding: 0 4px;
   }
 
   .branch-money-table .money-table__cell--branch {
@@ -168,6 +168,10 @@
 
   .branch-money-table .money-table__row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .branch-money-table .money-table__row--link :is(.money-table__cell--vs-weekday, .money-table__cell--margin, .money-table__cell--cogs-vs-budget, .money-table__cell--coverage) {
+    display: none;
   }
 
   /* Re-establish the shared phone-cell reset after the branch's desktop alignment. */

@@ -24,6 +24,8 @@ import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 // ── Mock data layer ──────────────────────────────────────────────────────────
 vi.mock('../../lib/db/tasks', () => ({
   listTasks: vi.fn(),
+  hasOlderDoneTasks: async () => false,
+  listOlderDoneTasks: async () => ({ rows: [], nextCursor: null, hasMore: false }),
   getTask: vi.fn(),
   createTask: vi.fn(),
   updateTaskStatus: vi.fn(),

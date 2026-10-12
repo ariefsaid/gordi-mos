@@ -26,6 +26,9 @@ is_release_candidate() {
     && git merge-base --is-ancestor HEAD origin/main
 }
 
+# Test files never trigger a design pass: *.test.* / *.spec.* (including *.css.test.ts) and __tests__/.
+is_test_file() { [[ "$1" =~ \.(test|spec)\.[jt]sx?$ || "$1" == */__tests__/* ]]; }
+
 design_pass_reason() {
   local merge_base="$1" changed_files="$2" release_base="${3:-}" path added deleted lines=0 numstat route_diff
   if is_release_candidate "$release_base"; then
@@ -35,7 +38,7 @@ design_pass_reason() {
 
   while IFS= read -r path; do
     [ -n "$path" ] || continue
-    if [[ "$path" == mos-app/src/pages/* ]] && [[ "$path" != *.test.tsx ]] \
+    if [[ "$path" == mos-app/src/pages/* ]] && ! is_test_file "$path" \
       && ! git cat-file -e "$merge_base:$path" 2>/dev/null; then
       printf 'adds a page (%s)' "$path"
       return 0
@@ -53,7 +56,7 @@ design_pass_reason() {
   while IFS= read -r path; do
     [ -n "$path" ] || continue
     git cat-file -e "$merge_base:$path" 2>/dev/null && continue
-    if [[ "$path" =~ ^mos-app/src/(components|shell)/.+\.tsx$ ]] && [[ "$path" != *.test.tsx ]]; then
+    if [[ "$path" =~ ^mos-app/src/(components|shell)/.+\.tsx$ ]] && ! is_test_file "$path"; then
       printf 'adds a component (%s)' "$path"
       return 0
     fi
@@ -66,7 +69,7 @@ design_pass_reason() {
   numstat="$(git diff --numstat --diff-filter=d "$merge_base" HEAD)" || return 2
   while IFS=$'\t' read -r added deleted path; do
     [[ "$path" =~ ^mos-app/src/(pages|components|shell)/.+\.(tsx|css)$ ]] || continue
-    [[ "$path" == *.test.tsx ]] && continue
+    is_test_file "$path" && continue
     case "$added$deleted" in *[!0-9]*|'') continue ;; esac
     lines=$((lines + added + deleted))
   done <<< "$numstat"
@@ -84,7 +87,7 @@ owner_reported_ui_reason() {
     # Any app .tsx/.css counts here: an owner-reported fix in a shared stylesheet can break a
     # sibling page as easily as a page edit.
     [[ "$path" =~ ^mos-app/src/.+\.(tsx|css)$ ]] || continue
-    [[ "$path" == *.test.tsx ]] && continue
+    is_test_file "$path" && continue
     ui_file=1
     break
   done <<< "$changed_files"

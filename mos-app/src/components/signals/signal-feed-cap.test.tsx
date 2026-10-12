@@ -1,8 +1,7 @@
-// The ambient Signals column is CAPPED with an honest remainder (signed mockup:
-// `const FEED_CAP = 6` + `See ${rest} more →`, docs/design-mockups/home-priority-2026-07-28).
-// "A feed column that grows without limit is the wall of text again, just rotated 90 degrees."
-// The cap is the AMBIENT tail's alone — the /work/signals archive Feed IS the full collection and
-// capping it there would hide records from the surface whose whole job is to show them.
+// The ambient Signals column is capped at 6; its continuation uses an exact archive remainder when
+// available and generic copy when only a loaded-page remainder is known. The /work/signals archive
+// Feed is the full collection, so capping it there would hide records from the surface whose job is
+// to show them.
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -52,9 +51,9 @@ describe('the ambient Signals column caps at 6 and states the remainder', () => 
     expect(container.querySelectorAll('.home-signal-row')).toHaveLength(6)
   })
 
-  it('offers the way through to the rest — a real destination, not a bare fact', async () => {
+  it('keeps the archive door unnumbered when no exact total is available', () => {
     renderFeed('ambient', 11)
-    const more = screen.getByRole('link', { name: /see 5 more/i })
+    const more = screen.getByRole('link', { name: 'See more →' })
     expect(more).toHaveAttribute('href', '/work/signals')
   })
 
@@ -67,7 +66,7 @@ describe('the ambient Signals column caps at 6 and states the remainder', () => 
   it('carries a filtering query through, so the hidden rows are actually findable', async () => {
     renderFeed('ambient', 11, { onShareClick: () => {} })
     await userEvent.type(screen.getByRole('searchbox', { name: /search signals/i }), 'Signal body')
-    expect(screen.getByRole('link', { name: /see 5 more/i }))
+    expect(screen.getByRole('link', { name: 'See more →' }))
       .toHaveAttribute('href', '/work/signals?q=Signal+body')
   })
 

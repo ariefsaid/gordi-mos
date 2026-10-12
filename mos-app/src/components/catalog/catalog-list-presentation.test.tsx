@@ -424,4 +424,17 @@ describe('CatalogListPresentation Objective Task progress', () => {
     })
     expect(screen.getByTestId('catalog-progress')).toHaveTextContent('1 / 2 Tasks done')
   })
+
+  it.each([
+    ['en', 'No tasks linked'],
+    ['id', 'Belum ada tugas yang ditautkan'],
+  ] as const)('says there are no linked tasks instead of showing 0 / 0 in %s', (locale, expected) => {
+    const row: CatalogRow = { id: 'o-empty-progress', name: 'Empty objective', archived_at: null }
+    renderRows([row], {
+      relationsKind: 'objective',
+      progressById: new Map([[row.id, { done: 0, total: 0 }]]),
+    }, locale)
+    expect(screen.getByTestId('catalog-progress')).toHaveTextContent(expected)
+    expect(screen.getByTestId('catalog-progress')).not.toHaveTextContent('0 / 0')
+  })
 })

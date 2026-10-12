@@ -74,6 +74,9 @@ const KitchenReviewPage = lazyPage(() =>
 const KitchenStockPage = lazyPage(() =>
   import('./pages/kitchen-stock-page').then((m) => ({ default: m.KitchenStockPage })),
 )
+const CafeRecipesPage = lazyPage(() =>
+  import('./pages/cafe-recipes-page').then((m) => ({ default: m.CafeRecipesPage })),
+)
 const CafeItemSettingsPage = lazyPage(() =>
   import('./pages/cafe-item-settings-page').then((m) => ({ default: m.CafeItemSettingsPage })),
 )
@@ -426,6 +429,7 @@ const routeTable: RouteObject[] = [
           { path: ROUTE_PATHS.cafeReceiptIssues, element: withSuspense(<CafeReceiptIssuesPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeRequest, element: withSuspense(<CafeRequestPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeItems, element: withSuspense(<CafeItemSettingsPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeRecipes, element: withSuspense(<CafeRecipesPage />), handle: pageHandle('workspace') },
           // #1239 split the former kitchen log into production and transfer; the retired kitchen
           // entry and log alias land directly on production rather than stopping at the Today root.
           { path: 'kitchen', element: <RouteRedirect to="/cafe/production" />, handle: redirectHandle('/cafe/production') },
@@ -593,11 +597,11 @@ function withShellErrorBoundary(routes: RouteObject[]): RouteObject[] {
 //
 // Two kinds of entry are rewritten, and the second is the one that is easy to miss:
 //
-//  1. the gated surface itself (`/money`, `/work/objectives`, …);
-//  2. every RETIRED path whose redirect names a gated surface (`/dashboard` → `/money`,
-//     `/objectives` → `/work/objectives`). Left alone, those forward a viewer onto a path that
-//     forwards them again — the chained redirect the whole table is built to avoid — so they
-//     name the profile landing directly instead, and their `redirect` handle is re-declared to match. A handle
+//  1. the gated surface itself (for example, `/work/events`);
+//  2. every RETIRED path whose redirect names a gated surface, when one exists. Left alone, those
+//     forward a viewer onto a path that forwards them again — the chained redirect the whole table
+//     is built to avoid — so they name the profile landing directly instead, and their `redirect`
+//     handle is re-declared to match. A handle
 //     that disagrees with its element is a comment that lies (route-classification.test.ts).
 //
 // A gated SURFACE keeps its `page` handle: it is still a page, still registered in the page-family

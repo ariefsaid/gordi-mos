@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { StrictMode } from 'react'
 import { createMemoryRouter, Link, MemoryRouter, RouterProvider } from 'react-router-dom'
@@ -42,7 +42,6 @@ import { useAuth } from '@/auth/use-auth'
 import { canManageCafeItemSettings, listCafeItemSettings, saveCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { listCafeMissingItemReports, resolveCafeMissingItemReport } from '@/lib/db/cafe-missing-item-reports'
 import { CafeItemSettingsPage } from './cafe-item-settings-page'
-import { useCafeItemSettingsSorting } from './cafe-item-settings-sorting'
 import { isCafeItemDraftKind } from './cafe-item-settings-kind'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -85,6 +84,7 @@ afterEach(() => { restoreMedia?.(); restoreMedia = null })
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.removeItem('mos.cafe.items.groupByActive')
   selectedActivity.initial = 'kitchen'
   mockUseAuth.mockReturnValue(VIEWER)
   mockCanManage.mockResolvedValue(true)
@@ -95,17 +95,6 @@ beforeEach(() => {
   mockListReports.mockResolvedValue([REPORT])
   mockResolveReport.mockResolvedValue()
   mockSaveItem.mockResolvedValue()
-})
-
-describe('Cafe item table sorting', () => {
-  it('keeps an empty sorting state stable across rerenders', () => {
-    const { result, rerender } = renderHook(() => useCafeItemSettingsSorting(undefined))
-    const initialSorting = result.current
-
-    rerender()
-
-    expect(result.current).toBe(initialSorting)
-  })
 })
 
 it('accepts only the three Café item kind select values', () => {
@@ -197,6 +186,7 @@ describe('CafeItemSettingsPage filters', () => {
     const user = userEvent.setup()
     renderPage()
     const search = await screen.findByRole('searchbox', { name: 'Find an ESB or MOS name' })
+    expect(search).toHaveAttribute('placeholder', 'Find an item')
     await user.type(search, 'oat')
     await waitFor(() => {
       expect(screen.getByText('ERP Oat milk')).toBeInTheDocument()
@@ -234,6 +224,71 @@ describe('CafeItemSettingsPage filters', () => {
   })
 })
 
+describe('CafeItemSettingsPage active grouping', () => {
+  it('groups by active status by default and persists a flat list choice after reload', async () => {
+    const preferenceKey = 'mos.cafe.items.groupByActive'
+    localStorage.removeItem(preferenceKey)
+    const item = (id: string, erpName: string, isActive: boolean, kind: 'RAW' | 'WIP') => ({
+      id, erpName, mosName: erpName, category: 'Sauce', kind, isActive, defaultUnitId: null, units: [],
+    })
+    mockListItems.mockResolvedValue([
+      item('active-1', 'Prepared sauce with roasted vegetables and herbs', true, 'WIP'),
+      item('inactive-1', 'Seasonal herb dressing with citrus', false, 'RAW'),
+      item('active-2', 'House-made vegetable stock', true, 'WIP'),
+    ])
+    const user = userEvent.setup()
+    const first = renderPage()
+    const toggle = await screen.findByRole('checkbox', { name: 'Group by active status' })
+    expect(toggle).toBeChecked()
+    await waitFor(() => {
+      expect(Array.from(first.container.querySelectorAll('.dt-cards-group-label'), node => node.textContent))
+        .toEqual(['Active', 'Not active'])
+      expect(Array.from(first.container.querySelectorAll('.dt-cards-group-count'), node => node.textContent))
+        .toEqual(['2', '1'])
+    })
+    expect(screen.getByText('Prepared sauce with roasted vegetables and herbs')).toBeInTheDocument()
+
+    await user.click(toggle)
+    await waitFor(() => {
+      expect(toggle).not.toBeChecked()
+      expect(localStorage.getItem(preferenceKey)).toBe('false')
+      expect(first.container.querySelectorAll('.dt-cards-group-label')).toHaveLength(0)
+    })
+    first.unmount()
+
+    const second = renderPage()
+    expect(await screen.findByRole('checkbox', { name: 'Group by active status' })).not.toBeChecked()
+    expect(second.container.querySelectorAll('.dt-cards-group-label')).toHaveLength(0)
+  })
+})
+
+describe('CafeItemSettingsPage kinds and table columns', () => {
+  it.each([
+    { locale: 'en' as const, kindName: 'Kind for Oat milk', raw: 'Raw material (RAW)', wip: 'Prepared item (WIP)' },
+    { locale: 'id' as const, kindName: 'Jenis untuk Oat milk', raw: 'Bahan baku (RAW)', wip: 'Item olahan (WIP)' },
+  ])('shows kind codes in the $locale dropdown', async ({ locale, kindName, raw, wip }) => {
+    const user = userEvent.setup()
+    renderPage(locale)
+    await user.click(await screen.findByRole('combobox', { name: kindName }))
+    expect(await screen.findByRole('option', { name: raw })).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: wip })).toBeInTheDocument()
+  })
+
+  it('omits extra units from the wide table while retaining item-level editing', async () => {
+    const mediaSpy = vi.spyOn(window, 'matchMedia').mockImplementation(query => ({
+      matches: query === '(min-width: 1280px)', media: query, onchange: null,
+      addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(() => true),
+    }))
+    restoreMedia = () => mediaSpy.mockRestore()
+    renderPage()
+    const table = await screen.findByRole('table')
+    expect(within(table).queryByRole('columnheader', { name: 'Extra units' })).not.toBeInTheDocument()
+    expect(within(table).queryByRole('button', { name: /Extra units for/ })).not.toBeInTheDocument()
+    expect(table.getAttribute('aria-label')).not.toMatch(/extra unit/i)
+  })
+})
+
 describe('CafeItemSettingsPage unit multiples', () => {
   it('keeps dirty edits after a failed save and retry saves the selected default and factor', async () => {
     mockListItems.mockResolvedValue([{
@@ -261,7 +316,7 @@ describe('CafeItemSettingsPage unit multiples', () => {
     await user.clear(name)
     await user.type(name, 'Oat milk for the bar')
     await user.click(screen.getByRole('combobox', { name: 'Kind for Oat milk for the bar' }))
-    await user.click(await screen.findByRole('option', { name: 'Raw material' }))
+    await user.click(await screen.findByRole('option', { name: 'Raw material (RAW)' }))
     await user.click(screen.getByRole('checkbox', { name: 'Active for Oat milk for the bar' }))
     const defaultUnit = screen.getByRole('combobox', { name: 'Default unit' })
     await user.click(defaultUnit)
@@ -358,7 +413,7 @@ describe('Cafe item permissions per activity', () => {
     render(<StrictMode><MemoryRouter><I18nProvider initialLocale="en"><CafeItemSettingsPage /></I18nProvider></MemoryRouter></StrictMode>)
     await user.click(await screen.findByRole('button', { name: /Gordi HQ · Kitchen/ }))
     expect(await screen.findByRole('textbox', { name: 'MOS name' })).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: /change stream/i }))
+    await user.click(screen.getByRole('button', { name: /switch kitchen/i }))
     await user.click(screen.getByRole('option', { name: /Gordi HQ · Bar/ }))
     await waitFor(() => expect(mockCanManage).toHaveBeenCalledWith('bar'))
     const search = screen.getByRole('searchbox', { name: 'Find an ESB or MOS name' })
@@ -406,7 +461,7 @@ describe('Cafe item permissions per activity', () => {
     await user.clear(name)
     await user.type(name, 'Draft oat milk')
 
-    await user.click(screen.getByRole('button', { name: /change stream/i }))
+    await user.click(screen.getByRole('button', { name: 'Switch kitchen' }))
     await user.click(screen.getByRole('option', { name: /Gordi HQ · Bar/ }))
 
     const switchDialog = await screen.findByRole('dialog', { name: 'Discard item changes and switch stream?' })
@@ -416,7 +471,7 @@ describe('Cafe item permissions per activity', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Gordi HQ · Kitchen' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'MOS name' })).toHaveValue('Draft oat milk')
 
-    await user.click(screen.getByRole('button', { name: /change stream/i }))
+    await user.click(screen.getByRole('button', { name: 'Switch kitchen' }))
     await user.click(screen.getByRole('option', { name: /Gordi HQ · Bar/ }))
     await user.click(screen.getByRole('button', { name: 'Discard and switch' }))
     expect(await screen.findByRole('heading', { level: 2, name: 'Gordi HQ · Bar' })).toBeInTheDocument()
@@ -460,7 +515,7 @@ describe('Cafe item permissions per activity', () => {
     mockCanManage.mockImplementation(async activity => activity === 'kitchen')
     renderPage()
     expect(await screen.findByRole('textbox', { name: 'MOS name' })).toBeEnabled()
-    fireEvent.click(screen.getByRole('button', { name: /change stream/i }))
+    fireEvent.click(screen.getByRole('button', { name: /switch kitchen/i }))
     fireEvent.click(screen.getByRole('option', { name: /Gordi HQ · Bar/ }))
     const item = await screen.findByRole('article', { name: 'ERP Oat milk' })
     await waitFor(() => expect(mockCanManage).toHaveBeenCalledWith('bar'))
@@ -550,7 +605,8 @@ describe('ESB-owned item fields (OD-2026-10-06-ESB-ITEMS)', () => {
     const row = await screen.findByRole('row', { name: /ERP Oat milk/ })
     expect(screen.getByRole('columnheader', { name: 'ESB name' })).toBeInTheDocument()
     expect(within(row).getByText('ERP Oat milk')).toBeInTheDocument()
-    expect(esbField(row, 'ESB category')).toHaveTextContent('Dairy')
+    expect(within(row).getByText('Dairy')).toBeInTheDocument()
+    expect(within(row).queryByText('ESB category')).not.toBeInTheDocument()
     expect(within(row).getAllByRole('textbox')).toEqual([within(row).getByRole('textbox', { name: 'MOS name' })])
   })
 
@@ -570,9 +626,9 @@ describe('ESB-owned item fields (OD-2026-10-06-ESB-ITEMS)', () => {
   })
 
   it.each([
-    { locale: 'en' as const, note: 'ESB names and categories are read-only here; change them in ESB and they update after the next refresh. MOS names and settings are stream-specific.' },
-    { locale: 'id' as const, note: 'Nama dan kategori ESB hanya-baca di sini; ubah di ESB, dan perubahannya muncul setelah pembaruan berikutnya. Nama dan pengaturan MOS khusus untuk stream ini.' },
-  ])('says in $locale where the read-only ESB fields are changed', async ({ locale, note }) => {
+    { locale: 'en' as const, note: 'Item names and categories come from the company catalog and update after each refresh. Choose a name, use, status, and units for your team here.' },
+    { locale: 'id' as const, note: 'Nama dan kategori item berasal dari katalog perusahaan dan diperbarui setelah sinkronisasi. Atur nama, kegunaan, status, dan satuan item untuk tim Anda di sini.' },
+  ])('explains the catalog source and team-owned settings in plain language in $locale', async ({ locale, note }) => {
     renderPage(locale)
     expect(await screen.findByText(note, { exact: true })).toBeInTheDocument()
   })

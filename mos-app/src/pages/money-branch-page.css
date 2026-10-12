@@ -144,7 +144,7 @@
 }
 
 .money-branch__link {
-  color: var(--primary);
+  color: var(--text-on-accent-tint);
   font-weight: 500;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -194,6 +194,36 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.money-findings .money-table {
+  table-layout: fixed;
+}
+
+.money-findings :is(.money-table__head, .money-table__cell) {
+  padding: 12px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  font-weight: 400;
+}
+
+.money-findings :is(p, pre) {
+  margin: 8px 0;
+}
+
+.money-findings summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--text-on-accent-tint);
+  cursor: pointer;
+}
+
+@media (max-width: 767.98px) {
+  .money-findings .money-table__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .money-branch__skeleton-chart {

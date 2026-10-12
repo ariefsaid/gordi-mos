@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase'
 import {
   listSalesDailyRevenue,
   latestReportingDate,
+  latestSalesReportingDate,
   type SalesDailyRevenueRow,
 } from './reporting'
 import { ReportingRowCapError } from './reporting-shared'
@@ -28,6 +29,7 @@ interface Recorder {
   selects: string[]
   eqs: Array<[string, unknown]>
   gtes: Array<[string, unknown]>
+  ltes: Array<[string, unknown]>
   orders: Array<[string, unknown]>
   limits: number[]
   ranges: Array<[number, number]>
@@ -59,6 +61,7 @@ function makeSchema(
       rec.gtes.push([c, v])
       return builder
     })
+    builder.lte = vi.fn((c: string, v: unknown) => { rec.ltes.push([c, v]); return builder })
     builder.order = vi.fn((c: string, o: unknown) => {
       rec.orders.push([c, o])
       return builder
@@ -73,7 +76,7 @@ function makeSchema(
 }
 
 function freshRec(): Recorder {
-  return { schemaNames: [], fromTables: [], selects: [], eqs: [], gtes: [], orders: [], limits: [], ranges: [] }
+  return { schemaNames: [], fromTables: [], selects: [], eqs: [], gtes: [], ltes: [], orders: [], limits: [], ranges: [] }
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -161,6 +164,14 @@ describe('listSalesDailyRevenue', () => {
     expect(rec.ranges).toEqual([[0, 999]])
   })
 
+  it('queries an inclusive custom date window', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ sales_daily_revenue: [{ data: [], error: null }] }, rec) as never)
+    await listSalesDailyRevenue({ fromDate: '2026-01-01', toDate: '2026-01-31' })
+    expect(rec.gtes).toContainEqual(['revenue_date', '2026-01-01'])
+    expect(rec.ltes).toContainEqual(['revenue_date', '2026-01-31'])
+  })
+
   it('passes B2B/Roastery rows through unchanged — AC-006', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
@@ -222,6 +233,16 @@ describe('listSalesDailyRevenue', () => {
 })
 
 // ── latestReportingDate ────────────────────────────────────────────────────────
+describe('latestSalesReportingDate', () => {
+  it('gets the latest RLS-visible date with one descending row read', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ sales_daily_revenue: [{ data: [{ revenue_date: '2026-10-05' }], error: null }] }, rec) as never)
+    await expect(latestSalesReportingDate()).resolves.toBe('2026-10-05')
+    expect(rec.orders).toContainEqual(['revenue_date', { ascending: false }])
+    expect(rec.limits).toEqual([1])
+  })
+})
+
 describe('latestReportingDate', () => {
   it('returns the max revenue_date across rows — FR-004', () => {
     const rows: SalesDailyRevenueRow[] = [

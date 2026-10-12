@@ -1,6 +1,7 @@
 from contextlib import contextmanager, redirect_stdout
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import io
+import json
 import sys
 import types
 import unittest
@@ -18,6 +19,7 @@ from reporting_snapshot import (
     run_pending_bill_snapshot,
     void_bill_keys,
     build_margin_source_query,
+    build_pending_bill_source_query,
     build_margin_upsert_sql,
     build_source_query,
     build_upsert_sql,
@@ -35,6 +37,7 @@ from reporting_snapshot import (
     normalize_usage_row,
     run_usage_snapshot,
 )
+from reporting_snapshot import plan_recipe_versions, run_recipe_history_snapshot
 
 
 class ReportingSnapshotTests(unittest.TestCase):
@@ -139,7 +142,7 @@ class MarginSnapshotTests(unittest.TestCase):
             "revenue": "3000000",
             "cogs_interim_sm": "1800000",
             "cogs_budget_bom": "1700000",
-            "bom_coverage_pct": "0.9",
+            "bom_coverage_pct": "90",
         }
 
         normalized = normalize_margin_row(
@@ -153,6 +156,7 @@ class MarginSnapshotTests(unittest.TestCase):
         self.assertEqual(normalized["branch_name"], "Gordi Roastery")
         self.assertEqual(normalized["margin_interim"], 1200000.0)
         self.assertEqual(normalized["margin_interim_pct"], 0.4)
+        self.assertEqual(normalized["bom_coverage_pct"], 0.9)
 
     def test_normalize_margin_row_computes_margin_interim_and_pct(self):
         """AC-SN02/AC-HK02: Given revenue and cogs_interim_sm, when normalize_margin_row runs,
@@ -165,7 +169,7 @@ class MarginSnapshotTests(unittest.TestCase):
             "revenue": "1250000",
             "cogs_interim_sm": "750000",
             "cogs_budget_bom": "700000",
-            "bom_coverage_pct": "0.95",
+            "bom_coverage_pct": "95",
         }
 
         normalized = normalize_margin_row(
@@ -178,6 +182,48 @@ class MarginSnapshotTests(unittest.TestCase):
         self.assertEqual(normalized["margin_interim"], 500000.0)
         self.assertEqual(normalized["margin_interim_pct"], 0.4)
         self.assertEqual(normalized["bom_coverage_pct"], 0.95)
+
+    def test_normalize_margin_row_converts_warehouse_percentage_points_to_ratio(self):
+        for source_pct, expected_ratio in (("90", 0.9), ("112.5", 1.125), ("200", 2.0)):
+            with self.subTest(source_pct=source_pct):
+                row = {
+                    "margin_date": "2026-07-01",
+                    "esb_code": "GKI",
+                    "branch_code": "BGR",
+                    "branch_name": "Bungur",
+                    "revenue": "1250000",
+                    "cogs_interim_sm": "750000",
+                    "cogs_budget_bom": "700000",
+                    "bom_coverage_pct": source_pct,
+                }
+
+                normalized = normalize_margin_row(
+                    row,
+                    snapshot_as_of="2026-07-01T04:00:00+07:00",
+                    org_id="00000000-0000-0000-0000-0000000000a1",
+                    source_contract_version=DEFAULT_MARGIN_SOURCE_CONTRACT_VERSION,
+                )
+
+                self.assertEqual(normalized["bom_coverage_pct"], expected_ratio)
+
+    def test_normalize_margin_row_rejects_coverage_outside_ratio_range(self):
+        for source_pct in ("-0.1", "1000.1"):
+            with self.subTest(source_pct=source_pct):
+                row = {
+                    "margin_date": "2026-07-01",
+                    "esb_code": "GKI",
+                    "branch_code": "BGR",
+                    "revenue": "1250000",
+                    "bom_coverage_pct": source_pct,
+                }
+
+                with self.assertRaisesRegex(ValueError, "ratio must be between 0 and 10"):
+                    normalize_margin_row(
+                        row,
+                        snapshot_as_of="2026-07-01T04:00:00+07:00",
+                        org_id="00000000-0000-0000-0000-0000000000a1",
+                        source_contract_version=DEFAULT_MARGIN_SOURCE_CONTRACT_VERSION,
+                    )
 
     def test_normalize_margin_row_pct_is_none_when_revenue_not_positive(self):
         """AC-HK02: Given revenue is 0, when pct is computed, then pct is None (not NaN)."""
@@ -200,6 +246,28 @@ class MarginSnapshotTests(unittest.TestCase):
         )
 
         self.assertIsNone(normalized["margin_interim_pct"])
+        self.assertIsNone(normalized["bom_coverage_pct"])
+
+    def test_normalize_margin_row_nulls_unrepresentable_pct_without_dropping_margin(self):
+        row = {
+            "margin_date": "2026-07-01",
+            "esb_code": "GKI",
+            "branch_code": "BGR",
+            "revenue": "1",
+            "cogs_interim_sm": "10001",
+            "cogs_budget_bom": "9000",
+            "bom_coverage_pct": "0.95",
+        }
+
+        normalized = normalize_margin_row(
+            row,
+            snapshot_as_of="2026-07-01T04:00:00+07:00",
+            org_id="00000000-0000-0000-0000-0000000000a1",
+            source_contract_version=DEFAULT_MARGIN_SOURCE_CONTRACT_VERSION,
+        )
+
+        self.assertEqual(normalized["margin_interim"], -10000.0)
+        self.assertIsNone(normalized["margin_interim_pct"])
 
     def test_normalize_margin_row_margin_fields_none_when_cogs_missing(self):
         """AC-SN06: Given a day with revenue but NULL cogs_interim_sm, when normalize_margin_row
@@ -212,7 +280,7 @@ class MarginSnapshotTests(unittest.TestCase):
             "revenue": "1250000",
             "cogs_interim_sm": None,
             "cogs_budget_bom": "700000",
-            "bom_coverage_pct": "0.95",
+            "bom_coverage_pct": "95",
         }
 
         normalized = normalize_margin_row(
@@ -225,6 +293,7 @@ class MarginSnapshotTests(unittest.TestCase):
         self.assertIsNone(normalized["cogs_interim_sm"])
         self.assertIsNone(normalized["margin_interim"])
         self.assertIsNone(normalized["margin_interim_pct"])
+        self.assertEqual(normalized["bom_coverage_pct"], 0.95)
 
     def test_margin_source_query_reads_pos_only_join(self):
         """AC-SN03: Given the margin source query, when built, then it reads
@@ -236,7 +305,7 @@ class MarginSnapshotTests(unittest.TestCase):
         self.assertIn("left join public.fact_daily_cogs_interim c", sql)
         self.assertIn("r.channel = 'POS'", sql)
         self.assertIn("c.sm_total", sql)
-        self.assertIn("c.bom_total", sql)
+        self.assertIn("max(c.cogs_total) as cogs_budget_bom", sql)
         self.assertIn("c.bom_coverage_pct", sql)
 
     def test_margin_source_query_derives_window_in_sql_like_revenue_sibling(self):
@@ -304,8 +373,16 @@ MARGIN_SOURCE_ROW = {
     "revenue": "1000000",
     "cogs_interim_sm": "600000",
     "cogs_budget_bom": "550000",
-    "bom_coverage_pct": "0.9",
+    "bom_coverage_pct": "90",
 }
+
+
+class _UndefinedTableError(Exception):
+    sqlstate = "42P01"
+
+    def __init__(self):
+        # Postgres names no table in the error fields for a missing relation.
+        self.diag = types.SimpleNamespace(table_name=None)
 
 
 class _RecordingCursor:
@@ -319,19 +396,44 @@ class _RecordingCursor:
         return False
 
     def execute(self, sql, params=None):
+        # The table-exists probe is read-only; kept out of calls so write-order assertions stay exact.
+        if sql.startswith("select to_regclass"):
+            self._connection.probed = params[0]
+            return
         self._connection.calls.append(("execute", sql, params))
 
     def executemany(self, sql, params_seq):
+        missing = self._connection.missing_target_table
+        if missing and f"insert into {missing}" in sql.lower():
+            raise _UndefinedTableError()
         self._connection.calls.append(("executemany", sql, list(params_seq)))
 
+    def fetchone(self):
+        regclass = self._connection.probed
+        value = None if regclass == self._connection.missing_target_table else regclass
+        return {"target": value} if self._connection.dict_rows else (value,)
+
     def fetchall(self):
+        sql = self._connection.calls[-1][1] if self._connection.calls else ""
+        if "from public.recipe_observations" in sql:
+            return list(self._connection.recipe_rows)
+        if "from public.sync_state" in sql:
+            return list(self._connection.state_rows)
+        if "from public.v_recipe_deduction_findings" in sql:
+            return list(self._connection.finding_rows)
         return list(self._connection.source_rows)
 
 
 class _RecordingConnection:
-    def __init__(self, dsn, source_rows):
+    def __init__(self, dsn, source_rows, missing_target_table=None):
         self.dsn = dsn
         self.source_rows = source_rows
+        self.missing_target_table = missing_target_table
+        self.probed = None
+        self.dict_rows = False
+        self.recipe_rows = ()
+        self.state_rows = ()
+        self.finding_rows = ()
         self.calls = []
 
     def __enter__(self):
@@ -348,7 +450,8 @@ class _RecordingConnection:
 
 
 @contextmanager
-def _observed_run(source_rows, reporting_rows=()):
+def _observed_run(source_rows, reporting_rows=(), missing_target_table=None, recipe_rows=(),
+                  state_rows=(), finding_rows=()):
     """Stand in for psycopg for the duration of a run, and hand back the connections it opened.
 
     reporting_snapshot imports psycopg inside its run functions, so substituting the module in
@@ -359,7 +462,15 @@ def _observed_run(source_rows, reporting_rows=()):
 
     def connect(dsn, **_kwargs):
         rows = reporting_rows if dsn == REPORTING_DSN else source_rows
-        connection = _RecordingConnection(dsn, rows)
+        connection = _RecordingConnection(
+            dsn,
+            rows,
+            missing_target_table if dsn == REPORTING_DSN else None,
+        )
+        connection.dict_rows = "row_factory" in _kwargs
+        connection.recipe_rows = recipe_rows
+        connection.state_rows = state_rows
+        connection.finding_rows = finding_rows
         connections.append(connection)
         return connection
 
@@ -516,6 +627,17 @@ PENDING_SOURCE_ROWS = [
 ]
 
 
+class PendingBillSourceQueryTests(unittest.TestCase):
+    def test_pending_bill_source_query_uses_the_live_sales_contract(self):
+        sql = " ".join(build_pending_bill_source_query().split())
+
+        self.assertIn("from public.oms_sales_clean s", sql)
+        self.assertIn("left join public.oms_sales o on o.sales_num = s.sales_num", sql)
+        self.assertIn("o.additional_info as counterparty_note", sql)
+        self.assertIn("s.payment_method_name", sql)
+        self.assertIn("s.status_name", sql)
+
+
 class PendingBillNormaliserTests(unittest.TestCase):
     def test_ac1101_only_non_void_deferred_payment_bills_come_out(self):
         """AC-1101: Given till rows of every tender and status, when they are normalised, then only
@@ -632,6 +754,62 @@ class PendingBillFlagTests(unittest.TestCase):
         self.assertEqual(plan, {"void": [], "missing": []})
 
 
+class MissingTargetTableTests(unittest.TestCase):
+    def test_missing_target_table_skips_its_snapshot_and_other_steps_write(self):
+        config = SnapshotConfig(
+            warehouse_db_url=WAREHOUSE_DSN,
+            supabase_reporting_db_url=REPORTING_DSN,
+            org_id=ORG_A,
+        )
+        source_row = {
+            **REVENUE_SOURCE_ROW,
+            **MARGIN_SOURCE_ROW,
+            **USAGE_SOURCE_ROW,
+        }
+
+        with _observed_run(
+            [source_row],
+            missing_target_table="reporting.sales_margin_daily",
+        ) as connections:
+            output = io.StringIO()
+            try:
+                with redirect_stdout(output):
+                    counts = run_all_snapshots(config)
+            except _UndefinedTableError:
+                counts = None
+
+        self.assertIsNotNone(counts, "a missing target table must not abort later snapshots")
+        self.assertIsNone(counts["margin"])
+        self.assertEqual(
+            output.getvalue().splitlines(),
+            ["skipped reporting.sales_margin_daily: not on target"],
+        )
+        written_tables = [
+            sql.split("(", 1)[0].strip().lower()
+            for connection in connections
+            for kind, sql, _params in connection.calls
+            if kind == "executemany"
+        ]
+        self.assertEqual(
+            written_tables,
+            ["insert into reporting.sales_daily_revenue", "insert into reporting.ingredient_usage_daily",
+             "insert into reporting.recipe_versions"],
+        )
+
+        with _observed_run(
+            [],
+            missing_target_table="reporting.sales_margin_daily",
+        ):
+            output = io.StringIO()
+            with redirect_stdout(output):
+                count = run_margin_snapshot(config, datetime(2026, 10, 10, tzinfo=timezone.utc))
+        self.assertIsNone(count)
+        self.assertEqual(
+            output.getvalue().splitlines(),
+            ["skipped reporting.sales_margin_daily: not on target"],
+        )
+
+
 class PendingBillRunTests(unittest.TestCase):
     def _config(self, **overrides):
         return SnapshotConfig(
@@ -675,6 +853,17 @@ class PendingBillRunTests(unittest.TestCase):
         self.assertIn("and source_state <> 'void'", flag_sql)
         self.assertNotIn("source_state = 'present'", flag_sql)
 
+    def test_missing_pending_bill_table_skips_without_writing(self):
+        snapshot = datetime(2026, 10, 6, 19, 5, tzinfo=timezone.utc)
+        output = io.StringIO()
+        with _observed_run(
+            [dict(r) for r in PENDING_SOURCE_ROWS], missing_target_table="reporting.pending_bill_snapshots"
+        ) as connections, redirect_stdout(output):
+            result = run_pending_bill_snapshot(self._config(), snapshot)
+        self.assertEqual(result, (None, None))
+        self.assertEqual(output.getvalue().splitlines(), ["skipped reporting.pending_bill_snapshots: not on target"])
+        self.assertEqual([c.calls for c in connections if c.dsn == REPORTING_DSN], [[]])
+
     def test_run_declares_org_before_writes_in_the_same_transaction(self):
         """Given a pending-bill run, then the org declaration is the first statement, every write
         follows it, and the only commit is the last call."""
@@ -706,7 +895,7 @@ class PendingBillRunTests(unittest.TestCase):
             out = io.StringIO()
             with redirect_stdout(out):
                 main()
-        self.assertEqual(len(connections), 6, "revenue, margin and usage only")
+        self.assertEqual(len(connections), 10, "revenue, margin, usage, recipe history and findings")
         self.assertIn("usage=0 pending_bills=off pending_bills_skipped=off", out.getvalue())
 
     def test_step_runs_after_margin_when_enabled(self):
@@ -719,8 +908,8 @@ class PendingBillRunTests(unittest.TestCase):
         config = SnapshotConfig.from_env(env)
         with _observed_run([]) as connections:
             counts = run_all_snapshots(config)
-        self.assertEqual(len(connections), 8, "revenue, margin, usage, then pending bills")
-        self.assertIn("reporting.pending_bill_snapshots", repr(connections[-1].calls))
+        self.assertEqual(len(connections), 12, "revenue, margin, usage, pending bills, recipe history and findings")
+        self.assertIn("reporting.pending_bill_snapshots", repr(connections[7].calls))
         self.assertEqual(counts["pending_bills"], 0)
 
 
@@ -808,25 +997,16 @@ class UsageSnapshotTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self._normalize(ingredient_detail_id=None)
 
-    def test_usage_query_keeps_soft_deleted_menus_and_zero_price_add_on_lines(self):
-        """AC: soft-deleted menu rows and zero-price add-on lines are included."""
+    def test_usage_query_counts_finished_and_excludes_void_and_print_cancelled_lines(self):
+        """Finished/Preparing items count; warehouse eligibility excludes voids and cancellations."""
         sql = " ".join(build_usage_source_query().split())
 
-        self.assertNotIn("deleted_at", sql, "a soft-deleted menu still carries real usage")
-        self.assertNotIn("price", sql, "a zero-price add-on line still carries real usage")
-        self.assertNotIn("is_package_sub_item", sql, "add-on lines ride as package sub-items")
-        self.assertIn("from oms_sales_items si", sql)
-
-    def test_usage_query_counts_finished_and_void_sales_and_never_cancelled(self):
-        """The warehouse's consumption rule: a voided order was prepared, a cancelled one was not."""
-        sql = " ".join(build_usage_source_query().split())
-
-        self.assertIn("o.status_name in ('Finished', 'Void')", sql)
-        self.assertIn(
-            "select distinct esb_code, bom_id from recipe", sql,
-            "coverage counts each sold line once, however many ingredients its recipe has",
-        )
-        self.assertNotIn("Cancel", sql)
+        self.assertIn("cogs_item_eligibility", sql)
+        self.assertIn("cogs_recipe_lines", sql)
+        self.assertIn("where e.eligible", sql)
+        self.assertIn("where r.eligible", sql)
+        self.assertNotIn("status_name", sql)
+        self.assertNotIn("Print Cancelled", sql)
 
     def test_usage_row_without_a_unit_is_refused_by_the_named_error(self):
         with self.assertRaises(UnknownUnitError):
@@ -835,11 +1015,11 @@ class UsageSnapshotTests(unittest.TestCase):
     def test_usage_query_joins_ingredients_by_product_detail_id_never_by_name(self):
         sql = " ".join(build_usage_source_query().split())
 
-        self.assertIn("bi.product_detail_id", sql)
-        self.assertIn("on b.esb_code = l.esb_code and b.bom_id = l.bom_id", sql)
+        self.assertIn("r.product_detail_id::text as ingredient_detail_id", sql)
+        self.assertIn("group by r.sales_date, r.esb_code, r.branch_code, r.product_detail_id, r.source_unit", sql)
         self.assertNotIn("product_name =", sql)
         self.assertNotIn("menu_name", sql)
-        self.assertIn("si.sales_date >= current_date - ((%s::int - 1) * interval '1 day')", sql)
+        self.assertIn("current_date - (%s::int - 1)", sql)
 
     def test_usage_upsert_is_keyed_on_the_table_grain(self):
         """AC: re-running a day yields the same rows — the upsert key is the table grain."""
@@ -873,6 +1053,146 @@ class UsageSnapshotTests(unittest.TestCase):
                     "2026-08-03T20:30:00+00:00",
                 )
         self.assertEqual([c.dsn for c in connections], [WAREHOUSE_DSN])
+
+
+class RecipeHistorySnapshotTests(unittest.TestCase):
+    SNAPSHOT = datetime(2026, 10, 10, 21, tzinfo=timezone.utc)
+    OBSERVED = datetime(2026, 10, 10, 20, tzinfo=timezone.utc)
+
+    def _source(self, **changes):
+        return {
+            "esb_code": "TEST", "menu_id": 101, "bom_id": 201,
+            "observed_at": self.OBSERVED, "recipe_version_hash": "a" * 32,
+            "recipe": {"active": True, "lines": [
+                {"detail_id": 301, "qty": 25, "unit": "Batch @10porsi", "detail_active": True},
+            ]},
+            **changes,
+        }
+
+    def _previous(self, **changes):
+        return {
+            "esb_code": "TEST", "menu_id": 101, "version": 1,
+            "warehouse_version_hash": "a" * 32,
+            "source_observed_at": datetime(2026, 10, 9, 20, tzinfo=timezone.utc),
+            **changes,
+        }
+
+    def _plan(self, source, previous=()):
+        return plan_recipe_versions(
+            source, previous, org_id=ORG_A, snapshot_as_of=self.SNAPSHOT,
+        )
+
+    def test_changed_ingredient_quantity_unit_or_active_flag_adds_a_version(self):
+        for field, value in (("detail_id", 302), ("qty", 30), ("unit", "GR"),
+                             ("detail_active", False)):
+            with self.subTest(field=field):
+                recipe = self._source()["recipe"]
+                recipe["lines"][0][field] = value
+                versions = self._plan(
+                    [self._source(recipe=recipe, recipe_version_hash="b" * 32)],
+                    [self._previous()],
+                )
+                self.assertEqual(len(versions), 1)
+                self.assertEqual(versions[0]["version"], 2)
+                self.assertEqual(versions[0]["warehouse_version_hash"], "b" * 32)
+                self.assertEqual(json.loads(versions[0]["recipe"]), recipe)
+                self.assertEqual(versions[0]["source_observed_at"], self.OBSERVED)
+
+    def test_unchanged_recipe_adds_nothing_on_a_later_observation(self):
+        self.assertEqual(self._plan([self._source()], [self._previous()]), [])
+
+    def test_return_to_an_earlier_hash_is_a_new_version(self):
+        versions = self._plan(
+            [self._source()], [self._previous(version=2, warehouse_version_hash="b" * 32)],
+        )
+        self.assertEqual([(v["version"], v["warehouse_version_hash"]) for v in versions],
+                         [(3, "a" * 32)])
+
+    def test_stale_observation_cannot_replace_a_newer_mos_version(self):
+        versions = self._plan(
+            [self._source(recipe_version_hash="b" * 32)],
+            [self._previous(source_observed_at=self.SNAPSHOT)],
+        )
+        self.assertEqual(versions, [])
+
+    def test_first_import_starts_on_mos_observation_day_not_source_edit_day(self):
+        versions = self._plan([self._source(bom_id=None)])
+        self.assertEqual(versions[0]["version"], 1)
+        self.assertEqual(versions[0]["first_seen"], date(2026, 10, 11))
+        self.assertEqual(versions[0]["org_id"], ORG_A)
+        self.assertIsNone(versions[0]["bom_id"])
+        self.assertEqual(json.loads(versions[0]["recipe"])["lines"][0]["unit"], "Batch @10porsi")
+
+    def test_menu_identity_is_company_scoped(self):
+        versions = self._plan([self._source(esb_code="OTHER")], [self._previous()])
+        self.assertEqual(versions[0]["version"], 1)
+
+    def test_missing_target_skips_before_opening_the_warehouse(self):
+        output = io.StringIO()
+        with _observed_run([], missing_target_table="reporting.recipe_versions") as connections, \
+                redirect_stdout(output):
+            result = run_recipe_history_snapshot(
+                SnapshotConfig(WAREHOUSE_DSN, REPORTING_DSN, ORG_A), self.SNAPSHOT,
+            )
+        self.assertIsNone(result)
+        self.assertEqual([c.dsn for c in connections], [REPORTING_DSN])
+        self.assertEqual(connections[0].calls, [])
+        self.assertEqual(output.getvalue().splitlines(),
+                         ["skipped reporting.recipe_versions: not on target"])
+
+    def test_run_declares_org_and_serializes_before_reading_and_appending_versions(self):
+        with _observed_run([], recipe_rows=[self._source()]) as connections:
+            count = run_recipe_history_snapshot(
+                SnapshotConfig(WAREHOUSE_DSN, REPORTING_DSN, ORG_A), self.SNAPSHOT,
+            )
+        self.assertEqual(count, 1)
+        reporting = connections[0]
+        self.assertEqual([c[0] for c in reporting.calls],
+                         ["execute", "execute", "execute", "executemany", "commit"])
+        self.assertIn("set_config('app.reporting_org'", reporting.calls[0][1])
+        self.assertEqual(reporting.calls[0][2], (ORG_A,))
+        self.assertIn("pg_advisory_xact_lock", reporting.calls[1][1])
+        self.assertEqual(reporting.calls[1][2], (ORG_A,))
+        self.assertIn("where org_id = %s", reporting.calls[2][1])
+        self.assertEqual(reporting.calls[2][2], (ORG_A,))
+        write_sql, rows = reporting.calls[3][1:]
+        self.assertEqual(rows[0]["org_id"], ORG_A)
+        self.assertNotIn("update", write_sql.lower())
+        self.assertNotIn("delete", write_sql.lower())
+        source_sql, params = connections[1].calls[0][1:]
+        self.assertIn("s.status = 'completed'", source_sql)
+        self.assertIn("o.observed_at <= s.completed_at", source_sql)
+        self.assertEqual(params, (self.SNAPSHOT,))
+
+    def test_unchanged_run_submits_no_insert_rows(self):
+        with _observed_run([], [self._previous()], recipe_rows=[self._source()]) as connections:
+            count = run_recipe_history_snapshot(
+                SnapshotConfig(WAREHOUSE_DSN, REPORTING_DSN, ORG_A), self.SNAPSHOT,
+            )
+        self.assertEqual(count, 0)
+        self.assertEqual(connections[0].calls[-2][2], [])
+
+    def test_nightly_job_copies_a_recipe_observation(self):
+        source_row = {
+            **REVENUE_SOURCE_ROW,
+            **MARGIN_SOURCE_ROW,
+            **USAGE_SOURCE_ROW,
+            "menu_id": 101,
+            "bom_id": 201,
+            "observed_at": datetime(2026, 10, 10, 21, tzinfo=timezone.utc),
+            "recipe_version_hash": "a" * 32,
+            "recipe": {"lines": [{"detail_id": 301, "qty": 25, "unit": "GR"}]},
+        }
+        config = SnapshotConfig(WAREHOUSE_DSN, REPORTING_DSN, ORG_A)
+        with _observed_run([source_row], recipe_rows=[source_row]) as connections:
+            counts = run_all_snapshots(config)
+        self.assertEqual(counts.get("recipe_history"), 1)
+        writes = [
+            params for connection in connections for kind, sql, params in connection.calls
+            if kind == "executemany" and "reporting.recipe_versions" in sql
+        ]
+        self.assertEqual(len(writes), 1)
+        self.assertEqual(json.loads(writes[0][0]["recipe"]), source_row["recipe"])
 
 
 class LocalSnapshotEnvTests(unittest.TestCase):

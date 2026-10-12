@@ -10,6 +10,8 @@ import { shrinkPhoto } from '@/lib/db/signal-photos'
 import {
   listPendingBillPaymentAmounts,
   listPendingBillPaymentHistory,
+  listPendingBillFinanceLabels,
+  setPendingBillFinanceLabel,
   MAX_PENDING_BILL_PROOF_BYTES,
   PendingBillProofError,
   paySeveralPendingBills,
@@ -36,6 +38,57 @@ function query(result: Result, calls: Call[]) {
 }
 
 beforeEach(() => vi.clearAllMocks())
+
+describe('pending-bill Finance labels', () => {
+  it('reads the sparse label overlay in a stable order and leaves org scope to RLS', async () => {
+    const calls: Call[] = []
+    schemaMock.mockImplementation((name) => {
+      expect(name).toBe('mos')
+      return { from: (table: string) => {
+        expect(table).toBe('pending_bill_finance_labels')
+        return query({ data: [{ esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-1', finance_label: 'Owner Sari' }], error: null }, calls)
+      } } as never
+    })
+    await expect(listPendingBillFinanceLabels()).resolves.toEqual([
+      { esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-1', finance_label: 'Owner Sari' },
+    ])
+    expect(calls.find((call) => call.method === 'select')?.args).toEqual(['esb_code,branch_code,bill_no,finance_label'])
+    expect(calls.filter((call) => call.method === 'order').map((call) => call.args[0])).toEqual(['esb_code', 'branch_code', 'bill_no'])
+    expect(calls.find((call) => call.method === 'range')?.args).toEqual([0, 999])
+    expect(JSON.stringify(calls)).not.toContain('org_id')
+  })
+
+  it('normalizes the value and writes set or clear through the SECURITY DEFINER RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: null })
+    schemaMock.mockImplementation(() => ({ rpc } as never))
+    await setPendingBillFinanceLabel({ esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', financeLabel: '\t\nOwner Sari\r\n' })
+    expect(rpc).toHaveBeenNthCalledWith(1, 'set_pending_bill_finance_label', {
+      p_esb_code: 'ESB', p_branch_code: 'BR', p_bill_no: 'PB-1', p_finance_label: 'Owner Sari',
+    })
+    await setPendingBillFinanceLabel({ esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', financeLabel: 'Owner\t\nSari' })
+    expect(rpc).toHaveBeenNthCalledWith(2, 'set_pending_bill_finance_label', {
+      p_esb_code: 'ESB', p_branch_code: 'BR', p_bill_no: 'PB-1', p_finance_label: 'Owner\t\nSari',
+    })
+    await setPendingBillFinanceLabel({ esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', financeLabel: '\t\n\r' })
+    expect(rpc).toHaveBeenNthCalledWith(3, 'set_pending_bill_finance_label', {
+      p_esb_code: 'ESB', p_branch_code: 'BR', p_bill_no: 'PB-1', p_finance_label: null,
+    })
+  })
+
+  it('rejects an overlong value before sending a write and surfaces read/write errors', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'denied' } })
+    schemaMock.mockImplementation(() => ({ rpc } as never))
+    await expect(setPendingBillFinanceLabel({
+      esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', financeLabel: 'x'.repeat(61),
+    })).rejects.toThrow(/60 characters/)
+    expect(rpc).not.toHaveBeenCalled()
+    await expect(setPendingBillFinanceLabel({
+      esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', financeLabel: 'x',
+    })).rejects.toThrow(/setPendingBillFinanceLabel failed — denied/)
+    schemaMock.mockImplementation(() => ({ from: () => query({ data: null, error: { message: 'read denied' } }, []) } as never))
+    await expect(listPendingBillFinanceLabels()).rejects.toThrow(/listPendingBillFinanceLabels failed — read denied/)
+  })
+})
 
 describe('listPendingBillPaymentAmounts', () => {
   it('reads every signed entry in a stable order and lets RLS choose the org', async () => {

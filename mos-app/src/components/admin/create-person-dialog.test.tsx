@@ -141,6 +141,12 @@ describe('CreatePersonDialog (AC-011)', () => {
     })
   })
 
+  it('AC-1503: no-email and access-role options use the shared touch checkbox rows', () => {
+    renderDialog()
+    expect(screen.getByRole('checkbox', { name: 'No email — this person has no email' }).closest('.admin-check-row')).not.toBeNull()
+    expect(screen.getByRole('checkbox', { name: 'Ops Lead' }).closest('.admin-check-row')).not.toBeNull()
+  })
+
   it('AC-011: access-role rows show human labels + descriptions, never raw slugs', () => {
     renderDialog()
     // Human labels for the assignable roles

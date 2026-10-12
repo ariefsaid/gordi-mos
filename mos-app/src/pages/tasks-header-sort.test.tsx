@@ -14,6 +14,8 @@ import type { PeopleRow, RolesRow } from '@/lib/database.types'
 
 vi.mock('../lib/db/tasks', () => ({
   listTasks: vi.fn(),
+  hasOlderDoneTasks: async () => false,
+  listOlderDoneTasks: async () => ({ rows: [], nextCursor: null, hasMore: false }),
   getTask: vi.fn(),
 }))
 vi.mock('../lib/db/directory', () => ({

@@ -14,6 +14,7 @@ export type TaskCreateContextValue = {
   onEditDue: (taskId: string, dueDate: string | null) => Promise<void>
   // Sets the draft's Project/Process; the workspace derives the Objective from it.
   onEditWorkLine: (taskId: string, workLineId: string | null) => Promise<void>
+  supervisorHint?: 'missing' | 'error' | null
 }
 
 const INERT: TaskCreateContextValue = {

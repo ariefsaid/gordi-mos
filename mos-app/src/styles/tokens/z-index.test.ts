@@ -36,8 +36,8 @@ const orderedLayers = [
   ['--z-drawer-popover', 31],
   ['--z-modal', 40],
   ['--z-modal-popover', 41],
-  ['--z-toast', 50],
   ['--z-popover-top', 100],
+  ['--z-toast', 110],
 ] as const
 
 const tokens = readFileSync(tokenFile, 'utf8')
@@ -51,6 +51,17 @@ describe('application z-index layer scale', () => {
     })
     expect(values).toEqual(orderedLayers.map(([, expected]) => expected))
     expect(values).toEqual([...values].sort((a, b) => a - b))
+  })
+
+  it('keeps the shared toast above the panel and overlay layers', () => {
+    const tier = (name: string) => {
+      const match = tokens.match(new RegExp(`${name}:\\s*(-?\\d+)\\s*;`))
+      expect(match, `${name} is defined in the global token file`).not.toBeNull()
+      return Number(match?.[1])
+    }
+
+    expect(tier('--z-toast')).toBeGreaterThan(tier('--z-drawer'))
+    expect(tier('--z-toast')).toBeGreaterThan(tier('--z-popover-top'))
   })
 
   it('rejects raw z-index values outside the token file', () => {

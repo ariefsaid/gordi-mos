@@ -51,8 +51,8 @@
 
 .cafe-count-review__empty {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 12px;
   min-width: 0;
 }
@@ -190,7 +190,6 @@
 
 @media (max-width: 420px) {
   .cafe-count-review__header { display: grid; gap: 6px; }
-  .cafe-count-review__empty { align-items: flex-start; }
   .cafe-count-review__empty .btn { flex: 0 0 auto; }
   .cafe-count-review__facts { gap: 10px 8px; }
   .cafe-count-review__facts dd { font-size: var(--font-size-body); }

@@ -82,7 +82,7 @@ function setOnline(online: boolean) {
   })
 }
 
-function renderShell(page: React.ReactNode, { crashBoundary = false, locale = 'en' as 'en' | 'id' } = {}) {
+function renderShell(page: React.ReactNode, { crashBoundary = false, locale = 'en' as 'en' | 'id', container }: { crashBoundary?: boolean; locale?: 'en' | 'id'; container?: HTMLElement } = {}) {
   authenticate()
   const tree = (
     <I18nProvider initialLocale={locale}>
@@ -97,7 +97,7 @@ function renderShell(page: React.ReactNode, { crashBoundary = false, locale = 'e
   )
   // The app mounts the crash boundary above <App/> in main.tsx; a test that expects a rethrow
   // needs the same catcher, or the exception escapes the run.
-  return render(crashBoundary ? <ErrorBoundary>{tree}</ErrorBoundary> : tree)
+  return render(crashBoundary ? <ErrorBoundary>{tree}</ErrorBoundary> : tree, container ? { container } : undefined)
 }
 
 /** The shell settles once the header's mount-time reads have landed. A test that returns before then
@@ -113,6 +113,7 @@ afterEach(async () => {
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
   localStorage.clear()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -268,26 +269,16 @@ describe('AC-025 — a rejected data read is an error inside the frame', () => {
     expect(screen.queryByText('This screen stopped working')).toBeNull()
   })
 
-  // The regression for the round-1 defect (#802): every route is `React.lazy` (`lazyPage` in
-  // `mos-app/src/router.tsx`), and a plain `React.lazy` caches the REJECTED module promise
-  // forever — so a `ContentErrorBoundary` `key={attempt}` remount re-throws the same
-  // `TypeError: Failed to fetch dynamically imported module` and Retry appears to do nothing.
-  // The AC-025 test above uses a non-lazy `DataPage` and cannot see this; this one exercises the
-  // actual `lazyPage` wrapper the route table uses, on the shape that failed offline:
-  // rejects while the network is out, resolves after the user reconnects and presses Retry.
-  it('a lazy route whose chunk failed to load re-imports the chunk on Retry', async () => {
-    // The network is out for the initial mount; flipped to online just before Retry.
+  // The browser keeps a rejected dynamic-import request in its module map, so asking the same
+  // page to import again is not a reliable retry. Exercise the real lazy-page and shell boundary
+  // seam, and require Retry to start a new document at the current URL instead.
+  it('reloads after a lazy route chunk fails to load', async () => {
     let networkUp = false
     const importer = vi.fn<() => Promise<{ default: ComponentType }>>(() =>
       networkUp
         ? Promise.resolve({ default: () => <div>lazy page rendered</div> })
-        : Promise.reject(
-            new TypeError('Failed to fetch dynamically imported module: /assets/RealPage.js'),
-          ),
+        : Promise.reject(new TypeError('Failed to fetch dynamically imported module: /assets/RealPage.js')),
     )
-
-    // The SAME wrapper the router's split routes use — offline is only recoverable inside the
-    // frame if a Retry through this wrapper actually re-runs the import.
     const LazyPage = lazyPage(importer)
 
     renderShell(
@@ -296,22 +287,51 @@ describe('AC-025 — a rejected data read is an error inside the frame', () => {
       </Suspense>,
     )
 
-    // First render: every import while offline rejects. React exhausts its own Suspense retries
-    // and the shell boundary shows the network state.
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Couldn’t reach the server')
-    const importsWhileOffline = importer.mock.calls.length
-    expect(importsWhileOffline).toBeGreaterThan(0)
+    const importsBeforeRetry = importer.mock.calls.length
+    expect(importsBeforeRetry).toBeGreaterThan(0)
 
-    // Reconnect and click Retry: the wrapper remounts, `useState` creates a fresh `React.lazy`,
-    // the loader runs again against the live network, and the page renders instead of walking
-    // into a cached rejection.
     networkUp = true
+    const reload = vi.fn()
+    vi.stubGlobal('location', { ...window.location, reload })
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
-    await waitFor(() => expect(screen.getByText('lazy page rendered')).toBeInTheDocument())
-    expect(importer.mock.calls.length).toBeGreaterThan(importsWhileOffline)
-    expect(screen.queryByRole('alert')).toBeNull()
+    expect(reload).toHaveBeenCalledOnce()
+    expect(importer).toHaveBeenCalledTimes(importsBeforeRetry)
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['Firefox', 'error loading dynamically imported module: /assets/RealPage.js'],
+    ['Safari', 'Importing a module script failed.'],
+  ])('%s module download errors show in-frame Retry and reload', async (_browser, message) => {
+    const importer = vi.fn<() => Promise<{ default: ComponentType }>>(() =>
+      Promise.reject(new TypeError(message)),
+    )
+    const LazyPage = lazyPage(importer)
+
+    renderShell(
+      <Suspense fallback={<div>loading</div>}>
+        <LazyPage />
+      </Suspense>,
+      { crashBoundary: true },
+    )
+
+    const alert = await screen.findByText('Couldn’t reach the server')
+    expect(alert.closest('[role="alert"]')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByText('This screen stopped working')).toBeNull()
+
+    const importsBeforeRetry = importer.mock.calls.length
+    expect(importsBeforeRetry).toBeGreaterThan(0)
+    const reload = vi.fn()
+    vi.stubGlobal('location', { ...window.location, reload })
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(reload).toHaveBeenCalledOnce()
+    expect(importer).toHaveBeenCalledTimes(importsBeforeRetry)
+    expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t reach the server')
   })
 })
 
@@ -321,25 +341,51 @@ describe('AC-025 — a rejected data read is an error inside the frame', () => {
 describe('AC-026 — the header says offline exactly once, and only while offline', () => {
   it('shows one muted line while the browser reports offline, and none when it returns', async () => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
-    renderShell(<div>page</div>)
+    const { container } = renderShell(<div>page</div>)
 
-    const lines = screen.getAllByText('You’re offline')
-    expect(lines).toHaveLength(1)
-    expect(lines[0]).toHaveClass('text-muted-foreground')
+    const line = container.querySelector('[data-anatomy="offline-line"]') as HTMLElement
+    expect(line).toHaveTextContent('You’re offline')
+    expect(line).toHaveClass('text-muted-foreground')
+    expect(screen.getByRole('status')).toHaveTextContent('You’re offline')
 
     setOnline(true)
-    expect(screen.queryByText('You’re offline')).toBeNull()
+    expect(container.querySelector('[data-anatomy="offline-line"]')).toBeNull()
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
 
     setOnline(false)
-    expect(screen.getAllByText('You’re offline')).toHaveLength(1)
+    expect(container.querySelector('[data-anatomy="offline-line"]')).toHaveTextContent('You’re offline')
+    expect(screen.getByRole('status')).toHaveTextContent('You’re offline')
     await shellSettled()
+  })
+
+  it('keeps the offline live region outside the inert app root', async () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+    const appRoot = document.createElement('div')
+    appRoot.id = 'root'
+    const overlayRoot = document.createElement('div')
+    overlayRoot.id = 'overlay-root'
+    document.body.append(appRoot, overlayRoot)
+    const view = renderShell(<div>page</div>, { container: appRoot })
+
+    try {
+      appRoot.setAttribute('inert', '')
+      const status = screen.getByRole('status')
+      expect(overlayRoot).toContainElement(status)
+      expect(appRoot).not.toContainElement(status)
+      expect(status).toHaveTextContent('You’re offline')
+    } finally {
+      view.unmount()
+      appRoot.remove()
+      overlayRoot.remove()
+    }
   })
 
   it('renders the Indonesian line under locale id', async () => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
     renderShell(<div>page</div>, { locale: 'id' })
 
-    expect(screen.getByText('Anda sedang offline')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Anda sedang offline')
+    expect(document.querySelector('[data-anatomy="offline-line"]')).toHaveTextContent('Anda sedang offline')
     expect(screen.queryByText('You’re offline')).toBeNull()
     await shellSettled()
   })

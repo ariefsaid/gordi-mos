@@ -18,7 +18,7 @@ const mockUseAuth = vi.mocked(useAuth)
 
 import { MobileDrawer } from './mobile-drawer'
 
-function setAuthAs(accessRoles: string[] = []) {
+function setAuthAs(accessRoles: string[] = [], affiliated: string[] = []) {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -26,7 +26,7 @@ function setAuthAs(accessRoles: string[] = []) {
         id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Cahya Cafe',
         email: 'c@example.test', archived_at: null, must_change_password: false, created_at: '', updated_at: '',
       },
-      roles: [], isManager: false, accessRoles, affiliated: [],
+      roles: [], isManager: false, accessRoles, affiliated,
     },
     signOut: vi.fn(),
   })
@@ -37,8 +37,8 @@ function LocationDisplay() {
   return <div data-testid="location">{location.pathname}</div>
 }
 
-function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'], locale }: { open?: boolean; onClose?: () => void; accessRoles?: string[]; locale?: 'id' } = {}) {
-  setAuthAs(accessRoles)
+function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'], locale, affiliated = [] }: { open?: boolean; onClose?: () => void; accessRoles?: string[]; locale?: 'id'; affiliated?: string[] } = {}) {
+  setAuthAs(accessRoles, affiliated)
   return render(
     <ThemeProvider>
       <I18nProvider initialLocale={locale}>
@@ -87,6 +87,14 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
     }
   })
 
+  it('Issue 1673: a promoted Café module keeps its parent row and indents the distinct child routes', () => {
+    renderDrawer({ accessRoles: ['member'], affiliated: ['cafe'] })
+    const cafe = screen.getByRole('link', { name: /^Café$/ })
+    expect(cafe).toHaveAttribute('href', '/cafe')
+    const children = cafe.closest('li')!.querySelector('ul.rail-item-children')!
+    for (const path of ['/cafe/count', '/cafe/receive']) expect(children.querySelector(`a.rail-item--child[href="${path}"]`)).toBeInTheDocument()
+  })
+
   it('a plain member sees Café\'s ungated screens but not Review or Pushes', () => {
     // The gate that should still exist, on the surface where it is easiest to lose.
     renderDrawer({ accessRoles: ['member'] })
@@ -96,18 +104,16 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
     expect(screen.queryByRole('link', { name: /^Pushes$/ })).toBeNull()
   })
 
-  // Was "admin also sees Money (finance/admin)". #444 ship-gates Money, so no viewer does — see
-  // the AC-022 block below, which now carries that claim for every role including admin.
-  it('admin sees the Inbox root, which is the workspace destination that still ships', () => {
+  it('admin sees the Inbox root but not Money without a revenue-view role', () => {
     renderDrawer({ accessRoles: ['admin'] })
     expect(screen.getByRole('link', { name: /Inbox/ })).toHaveAttribute('href', '/inbox')
     expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
   })
 })
 
-describe('AC-022: Money absent for non-finance/admin (from More)', () => {
+describe('AC-022: Money in More follows its revenue-view role gate', () => {
   it('a plain member does NOT see Money in the More menu', () => {
-    renderDrawer({ accessRoles: [] })
+    renderDrawer({ accessRoles: ['member'] })
     expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
   })
 
@@ -116,16 +122,11 @@ describe('AC-022: Money absent for non-finance/admin (from More)', () => {
     expect(screen.queryByRole('link', { name: /Admin Settings/ })).toBeNull()
   })
 
-  // #444 widened this from "non-finance/admin" to EVERYONE: the ship gate sits above the role
-  // gate, so a finance or admin viewer sees exactly what a plain member sees here. The role
-  // policy itself stays asserted on the registry in destinations.test.ts, and comes back the
-  // moment /money leaves SHIP_GATED_PATHS.
-  it.each([['finance', ['finance']], ['admin', ['admin']], ['manager', ['manager']]])(
-    '%s sees no Money link either — the ship gate is above the role gate',
+  it.each([['finance', ['finance']], ['manager', ['manager']]])(
+    '%s sees Money in the More menu',
     (_who, accessRoles) => {
       renderDrawer({ accessRoles })
-      expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
-      // …and the drawer rendered, so this is not passing on nothing.
+      expect(screen.getByRole('link', { name: /^Money$/ })).toHaveAttribute('href', '/money')
       expect(screen.getByRole('link', { name: /Inbox/ })).toBeInTheDocument()
     },
   )
@@ -204,15 +205,22 @@ describe('More menu navigation + a11y', () => {
     const onClose = vi.fn()
     const focusOpener = vi.fn()
     setAuthAs(['admin'])
+    function DrawerHarness() {
+      const [open, setOpen] = useState(true)
+      return (
+        <>
+          <MobileDrawer open={open} onClose={() => { onClose(); setOpen(false) }} focusOpener={focusOpener} />
+          <LocationDisplay />
+        </>
+      )
+    }
+
     render(
       <ThemeProvider>
         <I18nProvider>
           <MemoryRouter initialEntries={['/']}>
             <Routes>
-              <Route
-                path="*"
-                element={<><MobileDrawer open onClose={onClose} focusOpener={focusOpener} /><LocationDisplay /></>}
-              />
+              <Route path="*" element={<DrawerHarness />} />
             </Routes>
           </MemoryRouter>
         </I18nProvider>
@@ -230,19 +238,24 @@ describe('More menu navigation + a11y', () => {
     const user = userEvent.setup()
     const focusOpener = vi.fn()
     setAuthAs(['admin'])
+    function DrawerHarness() {
+      const [open, setOpen] = useState(true)
+      return <MobileDrawer open={open} onClose={() => setOpen(false)} focusOpener={focusOpener} />
+    }
+
     render(
       <ThemeProvider>
         <I18nProvider>
           <MemoryRouter initialEntries={['/']}>
             <Routes>
-              <Route path="*" element={<MobileDrawer open onClose={vi.fn()} focusOpener={focusOpener} />} />
+              <Route path="*" element={<DrawerHarness />} />
             </Routes>
           </MemoryRouter>
         </I18nProvider>
       </ThemeProvider>,
     )
     await user.keyboard('{Escape}')
-    expect(focusOpener).toHaveBeenCalled()
+    expect(focusOpener).toHaveBeenCalledTimes(1)
   })
 
   it('inerts the app while open and restores focus after the drawer closes', async () => {

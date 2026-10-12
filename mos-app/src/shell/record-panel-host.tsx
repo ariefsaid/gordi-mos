@@ -72,6 +72,10 @@ export type RecordPanelHostProps = {
   companion?: boolean
 }
 
+function getToastDismissFocusTargets(): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('[data-focus-trap-target="toast-dismiss"]'))
+}
+
 function OpenPageIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -101,12 +105,13 @@ export function RecordPanelHost({
   const panelRef = useRef<HTMLElement>(null)
   const invokerRef = useRef<HTMLElement | null>(null)
   useInertAppRoot(isModal)
-  useFocusTrap(panelRef, isModal)
+  useFocusTrap(panelRef, isModal, getToastDismissFocusTargets)
   useEscapeLayer(true, panelRef, () => onClose('escape'), {
     deferEscape: (event) => {
       const target = event.target
-      return target instanceof Element
-        && !!panelRef.current?.contains(target)
+      if (!(target instanceof Element)) return false
+      if (target.closest('[data-focus-trap-target="toast-dismiss"]')) return true
+      return !!panelRef.current?.contains(target)
         && !!target.closest('.record-field[data-mode="edit"]')
     },
   }, companion ? 'companion' : 'primary')

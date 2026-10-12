@@ -64,7 +64,7 @@
   white-space: nowrap;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 767.98px), (pointer: coarse) {
   .cafe-capture-content,
   .cafe-count {
     --cafe-capture-quantity-width: 5.5rem;
@@ -79,6 +79,22 @@
   .cafe-capture-unit {
     flex: 1 1 auto;
     text-align: left;
+  }
+}
+
+@media (pointer: coarse) {
+  .cafe-capture-content .mk-select__box,
+  .cafe-capture-content .mk-select__field,
+  .cafe-count .mk-select__box,
+  .cafe-count .mk-select__field,
+  .cafe-capture-content .btn,
+  .cafe-count .btn {
+    min-height: 44px;
+  }
+
+  .cafe-capture-content .dt-group-toggle {
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 

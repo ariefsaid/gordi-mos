@@ -256,6 +256,7 @@ const NO_NAV_ENTRY_BY_DESIGN: Record<string, string> = {
   '/work/tasks/new': 'record door — opened by the create action, not a nav entry',
   '/work/tasks/:taskId': 'record door — opened from the Tasks table or a deep link',
   '/money/detail': 'redirect to /money — kept so old bookmarks and the /dashboard/detail redirect still land on Money',
+  '/money/branch/:code': 'record drilldown from the Money branch table; the Money root is the only nav destination',
   '/money/budget': "flag-gated (SHOW_PLAN_BUDGET, default off). dev's Plan destination linked it when the flag was on; restoring that link belongs to the Money surface port",
   '/money/pricing': 'flag-gated (SHOW_PLAN_BUDGET, default off). Same as /money/budget',
   '/money/follow-ups': 'flag-gated (SHOW_FOLLOWUPS, default off) and deferred past the MVP',
@@ -323,9 +324,8 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
   })
 
   it('the sweep renders real nav and enumerates the real table — it cannot pass on nothing', () => {
-    // Floors lowered with the ship gate (#444): ten page routes now forward home instead of
-    // rendering, so they leave `surfaceRoutes()` and take their nav links with them. The sweep
-    // still measures the whole shipped table; there is simply less of it while the gate holds.
+    // Ship-gated routes forward home instead of rendering, so they leave `surfaceRoutes()` and
+    // take their nav links with them. The sweep still measures the whole shipped table.
     expect(surfaces.length).toBeGreaterThan(10)
     const { rail, phone } = allReachable()
     expect(rail.size).toBeGreaterThan(6)
@@ -443,20 +443,21 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
 
   // ── The role half. Draft 1 ignored `anyOf` entirely, so the Money narrowing was invisible to it.
   describe('role gates: a viewer admitted by the ROUTE sees a link', () => {
-    // AC-128 / AC-327 used to be proven here: manager and supervisor hold a financial VIEW tier
-    // and must therefore see a Money link. #444 ship-gates `/money`, which sits ABOVE the role
-    // gate — so no viewer sees that link, and this surface can no longer distinguish the tiers.
-    // Their policy claim moved to `destinations.test.ts`, where it is asserted on the registry
-    // (`money.anyOf` still contains manager and supervisor) and so still fails if someone
-    // narrows it while the surface is hidden. What is held HERE is the ship gate's own shape:
-    // it closes for the role-holder exactly as it closes for the plain member.
     it.each([
       ['manager', persona('manager')],
+      ['finance', persona('finance')],
       ['supervisor', persona('supervisor')],
+    ] as const)('%s sees Money on the rail and phone', (_name, viewer) => {
+      expect(railLinks(viewer)).toContain('/money')
+      expect(phoneLinks(viewer)).toContain('/money')
+    })
+
+    it.each([
+      ['admin-only', persona('admin')],
       ['a plain member', persona('Café floor member')],
-    ] as const)('%s sees no Money link while /money is ship-gated', (_name, persona) => {
-      expect(railLinks(persona)).not.toContain('/money')
-      expect(phoneLinks(persona)).not.toContain('/money')
+    ] as const)('%s does not see Money on the rail or phone', (_name, viewer) => {
+      expect(railLinks(viewer)).not.toContain('/money')
+      expect(phoneLinks(viewer)).not.toContain('/money')
     })
 
     it('…and the same viewers DO get the surfaces that ship — the negatives are not vacuous', () => {
