@@ -186,6 +186,9 @@ if [ "$app_touched" = 1 ]; then
   else
     bash scripts/with-test-lock.sh bash -c \
       'cd mos-app && npm run typecheck && npm run lint && npm run test:coverage && npm run build'
+    # Deterministic quality ratchets (duplication / dead code / colour tokens) vs the committed
+    # baseline in mos-app/.quality-baseline.json.
+    bash scripts/quality-checks.sh
   fi
 else
   mode=skipped
