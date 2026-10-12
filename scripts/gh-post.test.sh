@@ -370,6 +370,16 @@ g "$tmp/repo" checkout -q -b feat-migration refs/remotes/origin/dev
 mkdir -p "$tmp/repo/db/migrations"; echo z > "$tmp/repo/db/migrations/001.sql"; g "$tmp/repo" add db; g "$tmp/repo" commit -qm mig
 rm -f "$gitdir"/independent-review-*-ok
 check_message "a migration outside supabase/ still needs a security stamp" 1 no "security" pr create --base dev --title t --body "Reused: x"
+g "$tmp/repo" checkout -q -b feat-rename refs/remotes/origin/dev
+mkdir -p "$tmp/repo/supabase/migrations"; echo m > "$tmp/repo/supabase/migrations/001_x.sql"; g "$tmp/repo" add supabase; g "$tmp/repo" commit -qm addmig
+g "$tmp/repo" push -q -f origin HEAD:refs/heads/dev
+g "$tmp/repo" mv supabase/migrations/001_x.sql notes.txt; g "$tmp/repo" commit -qm renamed
+rm -f "$gitdir"/independent-review-*-ok
+check_message "renaming a migration to a neutral path still needs a security stamp" 1 no "security" pr create --base dev --title t --body "Reused: x"
+g "$tmp/repo" checkout -q -b feat-gatescript refs/remotes/origin/dev
+mkdir -p "$tmp/repo/scripts/lib"; echo g > "$tmp/repo/scripts/lib/github-repo.sh"; g "$tmp/repo" add scripts; g "$tmp/repo" commit -qm gatelib
+check_message "editing a gate library needs a security stamp" 1 no "security" pr create --base dev --title t --body "Reused: x"
+g "$tmp/repo" push -q -f origin "$(g "$tmp/repo" rev-parse feat-plain)":refs/heads/dev
 g "$tmp/repo" checkout -q -b feat-stale refs/remotes/origin/dev
 g "$tmp/repo" branch -f dev HEAD
 mkdir -p "$tmp/repo/supabase"; echo s > "$tmp/repo/supabase/stale.sql"; g "$tmp/repo" add supabase; g "$tmp/repo" commit -qm stale

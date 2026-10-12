@@ -197,7 +197,9 @@ require_pr_stamps() { # $1 base branch ('' when none named)
       || die "could not refresh origin/$base_val — the sensitivity check needs the real base (network? branch name?)"
     range_base="$(git merge-base "refs/remotes/origin/$base_val" HEAD 2>/dev/null || true)"
     if [ -z "$range_base" ]; then sensitive=1
-    elif git diff --name-only "$range_base" HEAD | grep -Eiq '^supabase/|migration|\.sql$|rls|policy|^mos-app/src/auth/|auth-|money|payment|billing|pricing|budget|revenue|expense|pending-bills|^\.github/|^scripts/gh-|^\.claude/hooks/|^\.githooks/'; then sensitive=1
+    # --no-renames lists BOTH sides of a rename, so moving a sensitive file to a neutral name still
+    # counts; quotePath=false keeps non-ASCII paths unquoted so the ^-anchored patterns hold.
+    elif git -c core.quotePath=false diff --name-only --no-renames "$range_base" HEAD | grep -Eiq '^supabase/|migration|\.sql$|rls|policy|^mos-app/src/auth/|auth-|money|payment|billing|pricing|budget|revenue|expense|pending-bills|^\.github/|^\.githooks/|^\.claude/|^scripts/(gh-|pre-pr|record-review|carry-stamps|lib/|ci-|setup-hooks|deploy-)'; then sensitive=1
     fi
   fi
   if [ "$base_val" = main ] || [ "$base_val" = staging ]; then
