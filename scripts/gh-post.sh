@@ -187,18 +187,20 @@ require_pr_stamps() { # $1 base branch ('' when none named)
   # CI/gate scripts (or the base cannot be resolved: fail closed). Spec and code quality are machine
   # gates in CI; looks are the owner's call on rendered screens. Main/staging always need the release stamps.
   local range_base="" sensitive=0
-  if [ -n "$base_val" ]; then
-    # Only the remote base counts: refresh it (best effort), never trust a stale local branch.
-    git fetch -q origin "+refs/heads/$base_val:refs/remotes/origin/$base_val" >/dev/null 2>&1 || true
-    if git rev-parse -q --verify "refs/remotes/origin/$base_val^{commit}" >/dev/null 2>&1; then
-      range_base="$(git merge-base "refs/remotes/origin/$base_val" HEAD 2>/dev/null || true)"
+  if [ "$base_val" = main ] || [ "$base_val" = staging ]; then
+    sensitive=1   # release bases always need the stamps; no path scan
+  elif [ -z "$base_val" ]; then
+    sensitive=1   # no base named: fail closed
+  else
+    # Only the freshly fetched remote base counts; a stale or local branch never decides.
+    git fetch -q origin "+refs/heads/$base_val:refs/remotes/origin/$base_val" >/dev/null 2>&1 \
+      || die "could not refresh origin/$base_val — the sensitivity check needs the real base (network? branch name?)"
+    range_base="$(git merge-base "refs/remotes/origin/$base_val" HEAD 2>/dev/null || true)"
+    if [ -z "$range_base" ]; then sensitive=1
+    elif git diff --name-only "$range_base" HEAD | grep -Eiq '^supabase/|migration|\.sql$|rls|policy|^mos-app/src/auth/|auth-|money|payment|billing|pricing|budget|revenue|expense|pending-bills|^\.github/|^scripts/gh-|^\.claude/hooks/|^\.githooks/'; then sensitive=1
     fi
   fi
-  if [ -z "$range_base" ]; then sensitive=1
-  elif git diff --name-only --diff-filter=ACDMR "$range_base" HEAD | grep -Eiq '^supabase/|migration|\.sql$|rls|policy|^mos-app/src/auth/|auth-|money|payment|billing|pricing|budget|revenue|expense|pending-bills|^\.github/|^scripts/gh-|^\.claude/hooks/|^\.githooks/'; then sensitive=1
-  fi
   if [ "$base_val" = main ] || [ "$base_val" = staging ]; then
-    sensitive=1
     release_stamp_file="$gitdir/independent-review-security-release-ok"
     release_sha="$(cat "$release_stamp_file" 2>/dev/null || true)"
     [ "$release_sha" = "$head" ] \

@@ -31,6 +31,10 @@ g() { git -C "$1" -c user.email=t@t -c user.name=t "${@:2}"; }
 git init -q "$tmp/repo"
 git -C "$tmp/repo" remote add origin https://github.com/x/y.git
 g "$tmp/repo" commit -qm init --allow-empty
+# A real local origin behind the GitHub URL, so the gate's base fetch is exercised, not faked.
+git init -q --bare "$tmp/origin.git"
+git -C "$tmp/repo" config "url.$tmp/origin.git.insteadOf" https://github.com/x/y.git
+g "$tmp/repo" push -q origin HEAD:refs/heads/dev
 mkdir -p "$tmp/repo/docs"
 cat > "$tmp/repo/docs/gh-denylist.txt" <<'EOF'
 # test policy
@@ -150,12 +154,12 @@ mv "$tmp/repo/docs/gone.txt" "$tmp/repo/docs/gh-denylist.txt"
 # ── PR stamps
 head="$(g "$tmp/repo" rev-parse HEAD)"
 gitdir="$(g "$tmp/repo" rev-parse --absolute-git-dir)"
-check "pr create without stamps refused" 1 no pr create --title t --body "Reused: x"
+check "pr create, default base dev, non-sensitive diff: no stamps needed" 0 yes pr create --title t --body "Reused: x"
 printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
-check "pr create with verify stamp only refused" 1 no pr create --title t --body "Reused: x"
+check "pr create with verify stamp only, default base dev: passes" 0 yes pr create --title t --body "Reused: x"
 printf '%s spec reviewer-x now art.md\n' "$head" > "$gitdir/independent-review-spec-ok"
 printf '%s code-quality reviewer-x now art.md\n' "$head" > "$gitdir/independent-review-code-quality-ok"
-check "spec+code-quality stamps without security refused (base unresolvable = fail closed)" 1 no pr create --title t --body "Reused: x"
+check "spec and code-quality stamps are not required" 0 yes pr create --title t --body "Reused: x"
 printf '%s security reviewer-x now art.md\n' "$head" > "$gitdir/independent-review-security-ok"
 check "verify + all three lens stamps passes" 0 yes pr create --title t --body "Reused: x"
 # PRs into dev rely on CI verify and need no local verify stamp; all other bases need the full stamp.
@@ -352,7 +356,7 @@ printf 'deadbeef security reviewer-x now art.md\n' > "$gitdir/independent-review
 check "REST pr create, one lens on the wrong sha refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev
 
 # ── Security lens is path-triggered: only auth / schema / migrations / money diffs need it
-g "$tmp/repo" update-ref refs/remotes/origin/dev HEAD
+g "$tmp/repo" push -q -f origin HEAD:refs/heads/dev
 g "$tmp/repo" checkout -q -b feat-plain
 echo x > "$tmp/repo/plain.txt"; g "$tmp/repo" add plain.txt; g "$tmp/repo" commit -qm plain
 rm -f "$gitdir"/independent-review-*-ok
@@ -370,6 +374,8 @@ g "$tmp/repo" branch -f dev HEAD
 mkdir -p "$tmp/repo/supabase"; echo s > "$tmp/repo/supabase/stale.sql"; g "$tmp/repo" add supabase; g "$tmp/repo" commit -qm stale
 g "$tmp/repo" branch -f dev HEAD
 check_message "a local base branch moved to HEAD cannot hide a sensitive diff (remote base decides)" 1 no "security" pr create --base dev --title t --body "Reused: x"
+printf '%s' "$(g "$tmp/repo" rev-parse HEAD)" > "$gitdir/pre-pr-verify-ok"
+check_message "a base that does not exist on origin is refused (no stale fallback)" 1 no "could not refresh" pr create --base no-such-branch --title t --body "Reused: x"
 check_message "an option-like base is refused" 1 no "looks like an option" pr create --base --upload-pack=x --title t --body "Reused: x"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
