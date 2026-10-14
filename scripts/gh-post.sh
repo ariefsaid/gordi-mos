@@ -128,10 +128,13 @@ done
 while IFS= read -r pat; do
   case "$pat" in ''|'#'*) continue ;; esac
   for t in "${texts[@]}"; do
-    if printf '%s' "$t" | grep -Eiq -e "$pat"; then
+    # Here-string, not a pipe: see the changed-path check. A pattern grep cannot use refuses.
+    grep -Eiq -e "$pat" <<<"$t"; rc=$?
+    if [ "$rc" -eq 0 ]; then
       die "REFUSED — text matches posting-policy pattern: $pat
   This repo is public. Reword, or escalate to the owner. (Policy: $denylist)"
     fi
+    [ "$rc" -eq 1 ] || die "REFUSED — posting-policy pattern is unusable (grep exit $rc): $pat"
   done
 done < "$denylist"
 # ── Repo scope: every write through this door lands in THIS checkout's repo. An `api` path must
