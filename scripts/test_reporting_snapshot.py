@@ -37,7 +37,9 @@ from reporting_snapshot import (
     normalize_usage_row,
     run_usage_snapshot,
 )
-from reporting_snapshot import plan_recipe_versions, run_recipe_history_snapshot
+from reporting_snapshot import (
+    build_recipe_history_source_query, plan_recipe_versions, run_recipe_history_snapshot,
+)
 
 
 class ReportingSnapshotTests(unittest.TestCase):
@@ -1122,6 +1124,19 @@ class RecipeHistorySnapshotTests(unittest.TestCase):
         self.assertEqual(versions[0]["org_id"], ORG_A)
         self.assertIsNone(versions[0]["bom_id"])
         self.assertEqual(json.loads(versions[0]["recipe"])["lines"][0]["unit"], "Batch @10porsi")
+
+    def test_wip_recipe_is_its_own_chronology_beside_a_menu_with_the_same_bom(self):
+        versions = self._plan(
+            [self._source(menu_id=-201, recipe_version_hash="b" * 32)], [self._previous()],
+        )
+        self.assertEqual([(v["menu_id"], v["bom_id"], v["version"]) for v in versions],
+                         [(-201, 201, 1)])
+
+    def test_source_reads_wip_recipes_from_assembly_boms(self):
+        sql = build_recipe_history_source_query()
+        self.assertIn("h.bom_type_name = 'Assembly'", sql)
+        self.assertIn("-h.bom_id as menu_id", sql)
+        self.assertEqual(sql.count("%s"), 1)
 
     def test_menu_identity_is_company_scoped(self):
         versions = self._plan([self._source(esb_code="OTHER")], [self._previous()])

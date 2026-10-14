@@ -25,7 +25,7 @@ echo "warehouse: local gordi-esb-pg (127.0.0.1:5432/gordi_esb)"
 echo "target:    local Supabase (127.0.0.1:44322, reporting schema)"
 
 # Build the three required env vars via the testable helper (AC-030).
-ENV_JSON="$("$PYTHON" -m reporting_local_env 2>/dev/null || python3 -m reporting_local_env 2>/dev/null || true)"
+ENV_JSON="$("${PYTHON:-python3}" -m reporting_local_env 2>/dev/null || python3 -m reporting_local_env 2>/dev/null || true)"
 if [ -z "$ENV_JSON" ]; then
   # Fall back to plain defaults if the python helper isn't importable from here.
   ENV_JSON="$(cd "$SCRIPTS" && python3 -m reporting_local_env)"
@@ -42,18 +42,7 @@ echo
 
 cd "$SCRIPTS"
 set +e
-python3 -c '
-import os, sys
-sys.path.insert(0, ".")
-from reporting_snapshot import SnapshotConfig, run_all_snapshots
-config = SnapshotConfig.from_env(os.environ)
-counts = run_all_snapshots(config)
-print(
-    "reporting_snapshot-local END "
-    f"revenue={counts[\"revenue\"]} margin={counts[\"margin\"]} usage={counts[\"usage\"]} "
-    f"window_days={config.window_days}"
-)
-'
+"${PYTHON:-python3}" reporting_snapshot.py
 rc=$?
 set -e
 
