@@ -13,7 +13,7 @@ test('AC-001: password login journey', async ({ page }) => {
 
   // Fill in VIEWER credentials
   await page.getByLabel('Email').fill(VIEWER.email)
-  await page.getByLabel('Password').fill(VIEWER.password)
+  await page.getByLabel('Password', { exact: true }).fill(VIEWER.password)
   await page.getByRole('button', { name: /sign in/i }).click()
 
   // Goal-oracle: Home renders (FR-013 page head) + chip shows viewer's name (FR-006).
