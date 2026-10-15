@@ -1,102 +1,18 @@
-.agent-connections-self {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 16px;
-}
-
-.agent-connections-self__back {
-  align-self: flex-start;
-  color: var(--primary);
-  font-size: var(--font-size-body);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.agent-connections-self__intro,
-.agent-connections-self__next-request {
-  max-width: 780px;
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-body);
-  line-height: 1.5;
-}
-
-.agent-connections-self__next-request {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 8px 12px;
-  background: color-mix(in srgb, var(--primary) 5%, var(--card));
-}
-
-.agent-connections-self__success {
-  margin: 0;
-  color: var(--status-won-text);
-  font-size: var(--font-size-body);
-}
-
-.agent-connections-self__list {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.agent-connections-self__item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 16px;
-  background: var(--card);
-  box-shadow: var(--shadow-rest);
-}
-
-.agent-connections-self__details {
-  min-width: 0;
-}
-
-.agent-connections-self__details h2 {
-  margin: 0;
-  color: var(--foreground);
-  font-size: var(--font-size-heading);
-  font-weight: 600;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-
-.agent-connections-self__details p {
-  margin: 6px 0 0;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-  line-height: 1.4;
-}
-
-.agent-connections-self__client-id {
-  overflow-wrap: anywhere;
-}
-
-.agent-connections-self__item .btn {
-  min-width: 44px;
-  min-height: 44px;
-  flex: 0 0 auto;
-}
-
-@media (max-width: 640px) {
-  .agent-connections-self {
-    padding: 12px;
-  }
-
-  .agent-connections-self__item {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .agent-connections-self__item .btn {
-    width: 100%;
-  }
+/* Connected agents (own): one row per app, scopes beside it, Revoke at the end. */
+.agent-connections-self { min-width: 0; }
+.agent-connections-self__success { margin: 0 0 var(--mos-space-3); color: var(--mos-success-text); font: var(--mos-type-body); }
+.agent-connections-self__list { margin: 0; padding: 0; list-style: none; }
+.agent-connections-self__item { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto; align-items: start; gap: var(--mos-gutter); padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--mos-line); }
+.agent-connections-self__identity, .agent-connections-self__grant, .agent-connections-self__decision { min-width: 0; }
+.agent-connections-self__identity h2 { margin: 0; color: var(--mos-ink); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); overflow-wrap: anywhere; }
+.agent-connections-self__date, .agent-connections-self__scopes, .agent-connections-self__client-id { margin: 0; color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
+.agent-connections-self__scopes { margin-top: var(--mos-space-1); color: var(--mos-ink); }
+.agent-connections-self__scopes span { color: var(--mos-muted); }
+.agent-connections-self__decision { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--mos-field-gap); }
+.agent-connections-self__next-request { max-width: 72ch; margin: 0 0 var(--mos-space-3); color: var(--mos-muted); font: var(--mos-type-body); }
+.agent-connections-self__item .btn { min-width: 44px; flex: none; }
+@media (max-width: 760px) {
+  .agent-connections-self__item { grid-template-columns: minmax(0, 1fr); gap: var(--mos-inline-gap); padding: var(--mos-row-pad-y) 0; }
+  .agent-connections-self__decision { align-items: stretch; flex-direction: column; gap: var(--mos-row-gap); }
+  .agent-connections-self__item .btn { width: 100%; }
 }

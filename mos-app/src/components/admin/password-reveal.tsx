@@ -8,8 +8,7 @@
 import { useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
-
-// Button is still used for the Done button below
+import { Notice } from '@/components/ui/notice'
 
 export interface PasswordRevealProps {
   personName: string
@@ -59,55 +58,24 @@ export function PasswordReveal({
 
   return (
     <div>
-      <h2 id={headingId} className="heading text-xl font-semibold">
-        {heading}
-      </h2>
+      <h2 id={headingId} className="password-reveal__title">{heading}</h2>
 
       {/* Warning banner — "copy this now" — the most important sentence.
           aria-describedby on the parent alertdialog points here so AT announces it on open. */}
-      <div
-        id={warningId}
-        className="my-3 flex items-start gap-2 rounded-md px-3 py-2"
-        style={{
-          background: 'color-mix(in srgb, var(--warning) 18%, transparent)',
-          border: '1px solid color-mix(in srgb, var(--warning) 45%, transparent)',
-          color: 'var(--warning-foreground)',
-        }}
-        role="status"
-      >
-        <span className="font-medium text-sm">
-          {t('admin.reveal.warning')}
-        </span>
-      </div>
+      <Notice tone="attention" id={warningId} role="status" className="password-reveal__warning">{t('admin.reveal.warning')}</Notice>
 
       {/* Credential block */}
-      <div
-        className="rounded-md p-3 space-y-3"
-        style={{ background: 'var(--secondary)' }}
-      >
+      <div className="password-reveal__credentials">
         {email && (
           <div>
-            <div className="text-xs font-medium text-muted-foreground mb-1">{t('admin.create.signInName')}</div>
-            <code
-              className="select-text text-sm"
-              style={{ fontFamily: 'var(--font-mono)', userSelect: 'text' }}
-            >
-              {email}
-            </code>
+            <div className="password-reveal__label">{t('admin.create.signInName')}</div>
+            <code className="password-reveal__value">{email}</code>
           </div>
         )}
 
         <div>
-          <div className="text-xs font-medium text-muted-foreground mb-1" id="pw-label">
-            {t('admin.reveal.tempPassword')}
-          </div>
-          <code
-            aria-labelledby="pw-label"
-            className="select-text text-sm tracking-widest block"
-            style={{ fontFamily: 'var(--font-mono)', userSelect: 'text' }}
-          >
-            {password}
-          </code>
+          <div className="password-reveal__label" id="pw-label">{t('admin.reveal.tempPassword')}</div>
+          <code aria-labelledby="pw-label" className="password-reveal__value password-reveal__value--secret">{password}</code>
         </div>
 
         {/* aria-live region for copy confirmation (design-plan §4.4) */}
@@ -116,9 +84,7 @@ export function PasswordReveal({
         </div>
 
         {clipboardBlocked ? (
-          <p className="text-xs text-muted-foreground">
-            {t('admin.reveal.clipboardBlocked')}
-          </p>
+          <p className="password-reveal__blocked">{t('admin.reveal.clipboardBlocked')}</p>
         ) : (
           // Native button is the first focusable control, so ModalShell focuses it.
           <button
@@ -133,7 +99,7 @@ export function PasswordReveal({
       </div>
 
       {/* Done — the ONLY dismiss path (no Esc, no backdrop, design-plan §4.4) */}
-      <div className="mt-4 flex justify-end">
+      <div className="password-reveal__done">
         <Button variant="outline" onClick={onDone}>
           {t('admin.reveal.done')}
         </Button>

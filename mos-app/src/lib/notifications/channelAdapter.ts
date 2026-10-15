@@ -20,7 +20,7 @@ export interface NotificationRow {
   metadata?: Record<string, unknown>
 }
 
-export interface PushResult {
+interface PushResult {
   ok: boolean
   reason?: string
 }

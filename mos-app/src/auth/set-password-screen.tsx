@@ -28,23 +28,17 @@ export function SetPasswordScreen({ signOut }: { signOut: () => void | Promise<v
     <AuthShell>
       <AuthCard>
         <SetPasswordForm
-          title="Set a new password"
-          subtitle="Someone else set the password you just used. Choose one only you know."
+          title={t('auth.password.setTitle')}
+          subtitle={t('auth.password.gateSubtitle')}
           onSubmit={handleSubmit}
           footer={(busy) => (
             // Escape hatch — without it, anyone who can't choose a password right now is trapped
-            // in the gate with no way back out of the app. Deliberately NOT full-width and set well
-            // clear of the primary: it drops the session with no confirmation, so it must not sit in
-            // the thumb-miss zone of the button above it.
-            <div className="flex justify-center" style={{ marginTop: 20 }}>
-              <button
-                type="button"
-                disabled={busy}
-                className="text-primary font-medium rounded-sm px-3 hover:underline focus-visible:underline"
-                style={{ height: 32, fontSize: 16, opacity: busy ? 0.5 : 1 }}
-                onClick={() => void signOut()}
-              >
-                Sign out
+            // in the gate with no way back out of the app. A text action, not full-width, set clear
+            // of the primary: it drops the session with no confirmation, so it must not sit in the
+            // thumb-miss zone of the button above it.
+            <div className="password-gate-exit">
+              <button type="button" disabled={busy} className="auth-link" onClick={() => void signOut()}>
+                {t('auth.password.signOut')}
               </button>
             </div>
           )}

@@ -14,11 +14,7 @@
  * `OverlayOwner` now includes the page-owned `'inbox'` slot as well as the shell quick-triage slot;
  * page and bell doors therefore share the host without sharing the wrong geometry regime.
  */
-import type { To } from 'react-router-dom'
-import type { OverlayEntry, OverlayTenant } from '@/shell/overlay-host'
-import type { OverlayOwner } from '@/shell/overlay-navigation'
-
-export type { To, OverlayOwner, OverlayTenant, OverlayEntry }
+import type { OverlayEntry,  } from '@/shell/overlay-host'
 
 /** The subset of `OverlayEntry` a notification target resolves to (identity + canonical door + content). */
 export type OverlayEntryDraft = Pick<

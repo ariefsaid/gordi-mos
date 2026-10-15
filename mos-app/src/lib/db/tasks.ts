@@ -48,7 +48,7 @@ export interface TaskListFilters {
   includeArchived?: boolean
 }
 
-export const TASKS_LIST_MAX_ROWS = 1000
+const TASKS_LIST_MAX_ROWS = 1000
 export const TASKS_OLDER_DONE_PAGE_SIZE = 50
 
 function taskListReadKey(filters: TaskListFilters, cutoff: string): string {
@@ -175,7 +175,7 @@ export interface TaskDetail {
 /** A PostgREST error carries a `code` (e.g. `PGRST116` — `.single()` matched 0 or >1 rows) the UI
  * needs to tell "this record doesn't exist" apart from a transport failure; a plain `Error` drops
  * it, so callers that must distinguish (task-surface.tsx's isMissingTaskError) read it back off. */
-export interface DbError extends Error {
+interface DbError extends Error {
   code?: string
 }
 

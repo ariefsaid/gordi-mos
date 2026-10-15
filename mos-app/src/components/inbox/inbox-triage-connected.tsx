@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParamState } from '@/lib/use-search-param-state'
-import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import { useAuth } from '@/auth/use-auth'
 import { APP_RELEASE_PROFILE } from '@/config/app-build-settings'
@@ -10,6 +9,9 @@ import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import type { OverlayOwner } from '@/shell/overlay-navigation'
 import type { OverlayEntry } from '@/shell/overlay-host'
 import { InboxTriage, type InboxPendingAction, type InboxTriageState } from './inbox-triage'
+import { Toast } from '@/components/admin/toast'
+import { useDeferredCommit } from '@/hooks/useDeferredCommit'
+import { useT } from '@/i18n/use-t'
 import { ListPaging } from '@/components/ui/list-paging'
 import { matchesFilter, isHandled, type InboxFilter, type TriageNotificationRow } from './read-handled-semantics'
 import { resolveNotificationTarget } from './inbox-target'
@@ -32,17 +34,19 @@ import { isSessionExpiredMessage } from './session-expired'
  * An unavailable/denied/malformed target never opens a record; it surfaces honest, localized copy.
  *
  * Handled is live (OD-WAY-88 / #549): an explicit 'Mark handled' stamps the viewer's private
- * `handled_at` — opening still marks read only.
+ * `handled_at` — opening still marks read only. It is undoable without any database change: the row
+ * hides at once and a polite "Marked handled · Undo" notice shows for six seconds; the write goes to the
+ * database only when that window ends, or at once if the person leaves the page (lib/deferred-commit.ts).
  */
 export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' : 'shell' }: {
   mode: 'page' | 'quick'
   owner?: OverlayOwner
 }) {
-  const t = useT()
   const {
     notifications, loading, error, hasMore, loadingMore, loadMoreError,
     loadMore, refresh, markRead, markHandled,
   } = useNotifications()
+  const t = useT()
   const host = useOptionalOverlayHost()
   const auth = useAuth()
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
@@ -58,7 +62,14 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
     if (mode === 'page') setFilterParam(next)
     else setLocalFilter(next)
   }
-  const [unavailableKey, setUnavailableKey] = useState<string | null>(null)
+  // Rows marked handled stay hidden here until the undo window ends and the write goes out.
+  const markHandledRef = useRef(markHandled)
+  markHandledRef.current = markHandled
+  const handled = useDeferredCommit<string>(async (ids) => {
+    await Promise.all(ids.map((id) => markHandledRef.current(id)))
+  })
+  const hiddenIds = new Set(handled.pending)
+  const [unavailable, setUnavailable] = useState<{ notificationId: string; messageKey: MessageKey } | null>(null)
   // One row can be acted on through several affordances (open, keyboard-read, Mark handled).
   // Keep the guard here, at the connected boundary, so every door shares the same in-flight
   // semantics and a slow write cannot be double-submitted by a fast double-click. The action kind
@@ -111,7 +122,7 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
   }, [isAuthError, authRetried, refresh])
 
   const availableNotifications = notifications.filter((n) => notificationAvailableInProfile(n, APP_RELEASE_PROFILE))
-  const rows = availableNotifications.filter((n) => matchesFilter(n, filter))
+  const rows = availableNotifications.filter((n) => matchesFilter(n, filter) && !hiddenIds.has(n.id))
   // F13 (OD-91 #26): notifications the active (non-All) filter is hiding — the count behind the
   // filter-aware empty copy. On the All view this is 0 (nothing is hidden by a filter).
   const hiddenCount = filter === 'all' ? 0 : availableNotifications.length - rows.length
@@ -120,8 +131,8 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
   // of the active filter. `hasMore` makes the UI identify these as partial counts.
   const counts = {
     all: availableNotifications.length,
-    unread: availableNotifications.filter((n) => n.read_at == null).length,
-    handled: availableNotifications.filter(isHandled).length,
+    unread: availableNotifications.filter((n) => n.read_at == null && !hiddenIds.has(n.id)).length,
+    handled: availableNotifications.filter((n) => isHandled(n) || hiddenIds.has(n.id)).length,
   }
 
   const state: InboxTriageState = loading || (isAuthError && !authRetried)
@@ -139,14 +150,14 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
 
   const onOpen = (row: TriageNotificationRow) => {
     void runPending(row.id, 'open', async () => {
-      setUnavailableKey(null)
+      setUnavailable(null)
       const resolution = resolveNotificationTarget(row, buildInboxTargetDeps(row, accessRoles, owner))
       // Opening marks READ only (never handled) — the queue truth updates even when the target
       // cannot be shown, because the person has now seen the notification. Keep the promise in
       // the pending boundary so a slow read write cannot permit a duplicate action.
       const readPromise = Promise.resolve(markRead(row.id))
       if (resolution.status !== 'available') {
-        setUnavailableKey(resolution.messageKey)
+        setUnavailable({ notificationId: row.id, messageKey: resolution.messageKey as MessageKey })
         await readPromise
         return
       }
@@ -184,14 +195,18 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
         onQuickMarkRead={(row) => {
           void runPending(row.id, 'read', () => markRead(row.id)).catch(() => {})
         }}
-        onMarkHandled={(row) => {
-          void runPending(row.id, 'handled', () => markHandled(row.id)).catch(() => {})
-        }}
+        onMarkHandled={(row) => handled.start([row.id])}
         pendingActions={pendingActions}
+        unavailable={unavailable}
         onRetry={() => void refresh()}
         onSignInAgain={onSignInAgain}
       />
+      <Toast
+        toast={handled.pending.length > 0 ? { id: 1, message: t('inbox.handledToast'), action: { label: t('record.undo'), onClick: () => { handled.undo() } } } : null}
+        onDismiss={() => { void handled.flush() }}
+      />
       {(state === 'ready' || (state === 'empty' && (hasMore || notifications.length > 0))) ? (
+        <div className={`inbox-paging inbox-paging--${mode}`}>
         <ListPaging
           count={availableNotifications.length}
           hasMore={hasMore}
@@ -199,11 +214,7 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
           error={loadMoreError}
           onLoadMore={() => void loadMore()}
         />
-      ) : null}
-      {unavailableKey ? (
-        <p className="inbox-triage__unavailable" role="status" aria-live="polite">
-          {t(unavailableKey as MessageKey)}
-        </p>
+        </div>
       ) : null}
     </>
   )

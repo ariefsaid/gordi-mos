@@ -1,13 +1,24 @@
+import { CafeNoMatch } from '@/components/kitchen/cafe-no-match'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
-import { CafeCaptureQuantityControl, CafeCaptureTable } from '@/components/kitchen/cafe-capture-table'
+import { LocationLineField } from '@/components/preview/location-preview-fields'
+import { CaptureQuantityControl, CaptureRow, CaptureTable, type CaptureGroup } from '@/components/kitchen/capture-row'
+import { ActionBar } from '@/components/ui/action-bar'
+import { CafeCountSheet, type CafeCountSection } from '@/components/cafe/redesign/cafe-count-sheet'
+import { Notice } from '@/components/ui/notice'
+import '@/components/ui/Disclosure.css'
+import '@/components/cafe/redesign/cafe-count-sheet.css'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { QuantityFieldError } from '@/components/ui/quantity-field'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
+import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
+import { useSearchParamState } from '@/lib/use-search-param-state'
+import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
+import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import {
   listCafeCountableItems,
   newCafeCountClientKey,
@@ -19,8 +30,8 @@ import {
 import { wibToday } from '@/lib/db/cafe-opening'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { recordsHref } from '@/lib/cafe-records/url-state'
 import { useIsOffline } from '@/shell/use-is-offline'
-import { useIsDesktop } from '@/shell/use-is-desktop'
 
 type CountEntry = {
   quantity: string
@@ -59,14 +70,20 @@ export function CafeCountPage() {
   })
   const logDate = useMemo(() => wibToday(), [])
   const [catalogReady, setCatalogReady] = useState(false)
+  const [collapsedSections, setCollapsedSections] = useState<ReadonlySet<string>>(new Set())
+  const toggleSection = (key: string) => setCollapsedSections(current => {
+    const next = new Set(current)
+    if (!next.delete(key)) next.add(key)
+    return next
+  })
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [retryKey, setRetryKey] = useState(0)
   const [items, setItems] = useState<CafeCountableItem[]>([])
   const [entries, setEntries] = useState<Record<string, CountEntry>>({})
+  const [search, setSearch] = useSearchParamState('q', '')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(false)
   const isOnline = !useIsOffline()
-  const isDesktop = useIsDesktop()
   const requestGeneration = useRef(0)
 
   useEffect(() => {
@@ -113,7 +130,39 @@ export function CafeCountPage() {
     return quantity === null ? [] : [{ item, entry, quantity }]
   })
   const enteredCount = entered.length
-  const hasMixedCategories = new Set(items.map(item => item.category).filter(Boolean)).size > 1
+  const submittedCount = items.filter(item => entries[item.id]?.outcome).length
+  const refusedCount = items.filter(item => entries[item.id]?.refusal).length
+  const sections = useMemo<CafeCountSection[]>(() => {
+    const grouped = new Map<string, CafeCountSection>()
+    const needle = search.trim().toLocaleLowerCase()
+    for (const item of items) {
+      if (needle && !item.name.toLocaleLowerCase().includes(needle)) continue
+      const label = item.category?.trim() || item.kind || 'RAW/WIP'
+      const key = `${item.category?.trim() ? 'category' : 'kind'}-${label.toLocaleLowerCase()}`
+      const section = grouped.get(key) ?? { key, label, rows: [] }
+      section.rows.push(item)
+      grouped.set(key, section)
+    }
+    return [...grouped.values()].sort((a, b) => {
+      const aFallback = a.key.startsWith('kind-')
+      const bFallback = b.key.startsWith('kind-')
+      if (aFallback !== bFallback) return aFallback ? 1 : -1
+      if (aFallback) return a.label.localeCompare(b.label)
+      return a.label.localeCompare(b.label)
+    })
+  }, [items, search])
+  // One group needs no header of its own: the list is the group.
+  const singleGroup = new Set(items.map(item => item.category?.trim() || item.kind || 'RAW/WIP')).size <= 1
+  const mixedKinds = new Set(items.map(item => item.kind)).size > 1
+  const groups = useMemo<CaptureGroup<CafeCountableItem>[]>(() => sections.map(section => ({
+    key: section.key,
+    label: singleGroup ? null : section.key.startsWith('category-') ? kitchenCategoryLabel(t, section.label) : section.label,
+    count: `${section.rows.filter(item => entries[item.id]?.quantity.trim()).length} / ${section.rows.length}`,
+    rows: section.rows,
+    anchorId: `cafe-count-section-${section.key}`,
+  })), [sections, singleGroup, entries, t])
+  const shownCount = sections.reduce((total, section) => total + section.rows.length, 0)
+  const showRowCategory = new Set(items.map(item => item.category?.trim()).filter((category): category is string => Boolean(category))).size > 1
   const invalidCount = items.filter(item => {
     const entry = entries[item.id]
     return Boolean(entry && !entry.outcome && parseCafeCountQuantity(entry.quantity).kind === 'invalid')
@@ -184,8 +233,10 @@ export function CafeCountPage() {
     : submitting ? 'saving' : hasSubmitted && entered.length === 0 && !hasUnsubmittedInput ? 'saved' : 'default'
 
   return (
-    <CafePageFrame page="count" date={logDate} streamBar={streamBar} state={pageState}>
+    <CafePageFrame page="count" date={logDate} streamBar={streamBar} state={pageState}
+      recordsHref={recordsHref({ question: 'counted', reading: 'entries', from: logDate, to: logDate, stream: stream ? { branchId: stream.branch.id, activity: stream.activity } : null, today: logDate })}>
       <div className="cafe-capture-page cafe-count">
+        <RouteLeaveGuard when={hasUnsubmittedInput} message={t('kitchen.log.leave.confirm')} />
         {loadState === 'loading' && <LoadingShell count={3} />}
         {loadState === 'error' && (
           <ErrorState
@@ -204,79 +255,89 @@ export function CafeCountPage() {
           />
         )}
         {loadState === 'ready' && stream && !canCapture && (
-          <p className="cafe-count__notice" role="status">{t('cafe.count.readOnly')}</p>
+          <Notice tone="info">{t('cafe.count.readOnly')}</Notice>
         )}
         {loadState === 'ready' && stream && canCapture && (
           <>
-            <div className="cafe-count__intro">
-              <p>{t('cafe.count.blindHelp')}</p>
-              {hasUnsubmittedInput && <p className="cafe-count__switch-note" role="status">{t('cafe.count.streamLocked')}</p>}
-              {!isOnline && <p className="cafe-count__notice" role="alert">{t('cafe.count.offline')}</p>}
-              {submitError && <p className="cafe-count__notice" role="alert">{t('cafe.count.submitFailed')}</p>}
-            </div>
+            <p className="cafe-count__intro">{t('cafe.count.blindShort')}</p>
             {items.length === 0 ? (
               <CafeItemsEmptyState stream={stream} requiresStockUnit />
             ) : (
               <>
-                <CafeCaptureTable
-                  rows={items}
-                  caption={t('cafe.count.listAria')}
-                  quantityHeader={t('cafe.count.quantityHeader')}
-                  isDesktop={isDesktop}
-                  showCategory={hasMixedCategories}
-                  renderControls={item => {
-                    const entry = entries[item.id]
-                    const invalid = parseCafeCountQuantity(entry?.quantity ?? '').kind === 'invalid'
-                    const errorId = `cafe-count-${item.id}-quantity-error`
-                    return (
-                      <CafeCaptureQuantityControl
-                        id={`cafe-count-${item.id}`}
-                        itemName={item.name}
-                        quantityFor={t('cafe.count.quantityFor', { item: item.name })}
-                        value={entry?.quantity ?? ''}
-                        unitName={item.unitName}
-                        invalid={invalid}
-                        describedById={invalid ? errorId : undefined}
-                        disabled={submitting || Boolean(entry?.outcome)}
-                        onQuantityChange={value => patchQuantity(item.id, value)}
-                      />
-                    )
-                  }}
-                  renderFeedback={item => {
-                    const entry = entries[item.id]
-                    const parsed = parseCafeCountQuantity(entry?.quantity ?? '')
-                    const errorId = `cafe-count-${item.id}-quantity-error`
-                    return (
-                      <>
-                        {parsed.kind === 'invalid' && (
-                          <QuantityFieldError id={errorId} reason={parsed.reason} rawValue={entry?.quantity ?? ''} maxFractionDigits={2} className="cafe-count__field-error" />
-                        )}
-                        {entry?.outcome && <p className="cafe-count__line-success" role="status">{t('cafe.count.lineSubmitted')}</p>}
-                        {entry?.refusal && <p className="cafe-count__field-error" role="alert">{refusalText(entry.refusal, t)}</p>}
-                      </>
-                    )
-                  }}
+                <KitchenToolbar
+                  search={search}
+                  onSearchChange={setSearch}
+                  searchPlaceholder={t('kitchen.log.searchPlaceholder')}
+                  ariaLabel={t('kitchen.log.toolbarAria')}
+                  resultCount={{ shown: shownCount, total: items.length }}
+                  sortLabel={t('cafe.toolbar.sorted.az')}
                 />
-                <div className="cafe-capture-footer cafe-count__footer">
-                  <div className="cafe-count__footer-copy">
-                    <p className="cafe-count__tally" aria-live="polite">
-                      {t(enteredCount === 1 ? 'cafe.count.entered.one' : 'cafe.count.entered.other', { count: enteredCount })}
-                    </p>
-                    {invalidCount > 0 && (
-                      <p className="cafe-count__fixing" role="status" aria-live="polite">
-                        {t(invalidCount === 1 ? 'quantityField.fixing.one' : 'quantityField.fixing.other', { count: invalidCount })}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-primary cafe-count__submit"
+                <CafeCountSheet sections={sections} caption={t('cafe.count.listAria')} sectionLabel={t('cafe.count.sections')}>
+                  <CaptureTable
+                    caption={t('cafe.count.listAria')}
+                    columns={{ item: t('kitchen.log.col.item'), itemSort: 'asc', controls: [{ label: t('cafe.count.quantityHeader') }] }}
+                    groups={groups}
+                    collapsedGroupKeys={collapsedSections}
+                    onToggleGroup={toggleSection}
+                    state={shownCount > 0 ? 'ready' : 'empty'}
+                    emptyLabel={<CafeNoMatch bare onClear={() => setSearch('')} />}
+                    renderRow={item => {
+                      const entry = entries[item.id]
+                      const parsed = parseCafeCountQuantity(entry?.quantity ?? '')
+                      const invalid = parsed.kind === 'invalid'
+                      const errorId = `cafe-count-${item.id}-quantity-error`
+                      return <CaptureRow
+                        id={item.id}
+                        name={item.name}
+                        kind={mixedKinds ? item.kind : null}
+                        category={showRowCategory ? item.category : null}
+                        controls={[{ node: <CaptureQuantityControl
+                          id={`cafe-count-${item.id}`}
+                          itemName={item.name}
+                          quantityFor={t('cafe.count.quantityAccessibleName', { item: item.name, unit: item.unitName })}
+                          value={entry?.quantity ?? ''}
+                          unitName={item.unitName}
+                          invalid={invalid}
+                          describedById={invalid ? errorId : undefined}
+                          disabled={submitting || Boolean(entry?.outcome)}
+                          enterKeyHint="next"
+                          onQuantityChange={value => patchQuantity(item.id, value)}
+                        /> }]}
+                        detail={<>
+                          {/* Which storage was counted is decided on its own line, once the line has an amount (preview only). */}
+                          {Boolean(entry?.quantity?.trim()) && <LocationLineField kind="count" />}
+                          {invalid && <QuantityFieldError id={errorId} reason={parsed.reason} rawValue={entry?.quantity ?? ''} maxFractionDigits={2} className="cafe-count__field-error" />}
+                          {entry?.outcome && <p className="cafe-count__line-success" role="status">{t('cafe.count.lineSubmitted')}</p>}
+                          {entry?.refusal && <p className="cafe-count__field-error" role="alert">{refusalText(entry.refusal, t)}</p>}
+                        </>}
+                      />
+                    }}
+                  />
+                </CafeCountSheet>
+                <ActionBar
+                  className="cafe-capture-footer"
+                  alert={<>
+                    {!isOnline && <Notice tone="attention" role="alert">{t('cafe.count.offline')}</Notice>}
+                    {submitError && <Notice tone="urgent">{t('cafe.count.submitFailed')}</Notice>}
+                  </>}
+                  summary={<span className="cafe-count__progress" aria-live="polite">
+                    <span>{t('cafe.count.progress.entered', { count: enteredCount, eligible: items.length })}</span>
+                    <span>{t('cafe.count.progress.submitted', { count: submittedCount })}</span>
+                    <span>{t('cafe.count.progress.refused', { count: refusedCount })}</span>
+                  </span>}
+                  reason={<>
+                    {invalidCount > 0 && <span className="cafe-count__fixing" role="status" aria-live="polite">
+                      {t(invalidCount === 1 ? 'quantityField.fixing.one' : 'quantityField.fixing.other', { count: invalidCount })}
+                    </span>}
+                    {hasUnsubmittedInput && <span className="cafe-count__bar-status" role="status">{t('cafe.count.streamLocked')}</span>}
+                    {enteredCount === 0 && !submitting && isOnline && <span className="cafe-count__bar-status" role="status">{t('cafe.count.needsEntry')}</span>}
+                  </>}
+                  primary={<button type="button" className="btn btn-primary cafe-count__submit"
                     disabled={!canCapture || !isOnline || submitting || entered.length === 0}
-                    onClick={() => void handleSubmit()}
-                  >
+                    onClick={() => void handleSubmit()}>
                     {submitting ? t('common.working') : t('cafe.count.submit')}
-                  </button>
-                </div>
+                  </button>}
+                />
               </>
             )}
           </>

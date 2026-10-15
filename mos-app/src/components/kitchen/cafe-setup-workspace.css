@@ -1,0 +1,7 @@
+/* Setup lists (Items, Recipes): the list fills the content track. A record opens beside it, and only then
+   do the two share the track (phone: the record replaces the list). One rule for both pages. */
+.cafe-setup-workspace { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: var(--mos-group-above); min-width: 0; }
+.cafe-setup-workspace > * { min-width: 0; }
+@media (min-width: 768px) {
+  .cafe-setup-workspace--selected { grid-template-columns: minmax(0, 1.4fr) minmax(22rem, 1fr); }
+}

@@ -116,7 +116,7 @@ describe('AdminRoute (AC-070 route arm)', () => {
     renderAdminRoute()
     expect(screen.queryByTestId('admin-content')).not.toBeInTheDocument()
     expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
-    expect(screen.getByText('Admin Settings is outside your access')).toBeInTheDocument()
+    expect(screen.getByText('Admin settings is outside your access')).toBeInTheDocument()
   })
 
   it('AC-070/#800: ops_lead without admin role meets the access boundary', () => {
@@ -145,7 +145,7 @@ describe('AdminRoute (AC-070 route arm)', () => {
     renderAdminRoute()
     expect(screen.queryByTestId('admin-content')).not.toBeInTheDocument()
     expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
-    expect(screen.getByText('Admin Settings is outside your access')).toBeInTheDocument()
+    expect(screen.getByText('Admin settings is outside your access')).toBeInTheDocument()
   })
 
   it('AC-070: loading state redirects to / (no admin content shown)', () => {

@@ -2,11 +2,11 @@ import { useLayoutEffect, useState, type CSSProperties } from 'react'
 
 const GAP = 12
 
-export function findRecordIdentityHeader(record: ParentNode): HTMLElement | null {
+function findRecordIdentityHeader(record: ParentNode): HTMLElement | null {
   return record.querySelector<HTMLElement>('[data-record-header]')
 }
 
-export function recordColumnPlacement(
+function recordColumnPlacement(
   record: Pick<DOMRect, 'left' | 'right' | 'top' | 'width'>,
   identityHeaderBottom: number,
   viewportWidth: number,

@@ -14,11 +14,6 @@ import { LoadingShell } from '@/components/ui/state-kit'
 import { RequireAccessRole } from '@/auth/require-access-role'
 import { AdminRoute } from '@/auth/admin-route'
 
-/** Every route entry in the table, flattened depth-first (pathless layout routes included). */
-export function allRoutes(routes: RouteObject[] = routeConfig): RouteObject[] {
-  return routes.flatMap((r) => [r, ...(r.children ? allRoutes(r.children) : [])])
-}
-
 export interface FlatRoute {
   /** The route's FULL path, resolved through its ancestors (`new` → `/work/tasks/new`). */
   path: string
@@ -63,7 +58,7 @@ export function isRedirect(element: ReactNode): boolean {
  * go Back, and land where you came from rather than back on the retired path). Reading `true` off
  * the component's identity here would be circular if that test did not exist; it does.
  */
-export function redirectProps(element: ReactNode): { to: string; replace: boolean } {
+function redirectProps(element: ReactNode): { to: string; replace: boolean } {
   if (!isRedirect(element)) throw new Error('route element is not a redirect')
   const el = element as ReactElement<{ to: string; replace?: boolean }>
   if (el.type === RouteRedirect) return { to: String(el.props.to), replace: true }
@@ -138,13 +133,13 @@ export async function resolvePageAt(path: string): Promise<ComponentType<unknown
  * match. `undefined` means nothing matched at all; a leaf whose `path` is `'*'` means it fell
  * through to the not-found catch-all — i.e. the path is a dead end, not a live surface.
  */
-export function leafInThisTable(path: string) {
+function leafInThisTable(path: string) {
   const matches = matchRoutes(routeConfig, path)
   return matches?.[matches.length - 1]
 }
 
 /** The pathname half of a redirect target — `matchRoutes` matches paths, not query strings. */
-export function pathnameOf(to: string): string {
+function pathnameOf(to: string): string {
   return to.split('#')[0].split('?')[0]
 }
 
@@ -156,7 +151,7 @@ export function pathnameOf(to: string): string {
  * a SUBSET of authenticated viewers — an access-role gate or the admin gate.
  * Each of those bounces is a second navigation, which is exactly what "one hop" has to exclude.
  */
-export function gatesOnPath(path: string): string[] {
+function gatesOnPath(path: string): string[] {
   const matches = matchRoutes(routeConfig, pathnameOf(path)) ?? []
   return matches.flatMap(({ route }) => {
     const el = route.element
@@ -167,31 +162,6 @@ export function gatesOnPath(path: string): string[] {
     }
     if (el.type === AdminRoute) return ['admin']
     return []
-  })
-}
-
-/**
- * Does the ROUTE admit a viewer holding these access roles? (OD-WAY-51.)
- *
- * Evaluates the same gates `gatesOnPath` enumerates, with the same logic the gate
- * components themselves use — membership for an access-role gate and `admin` for the admin gate.
- * `ProtectedRoute` is not consulted: every path here is behind it, so
- * it can never distinguish two authenticated viewers.
- *
- * This is what lets the nav guard derive what SHOULD be rendered from the route table, instead of
- * from a hand-picked list of personas that can only ever confirm what someone already thought of.
- */
-export function routeAdmits(path: string, accessRoles: readonly string[]): boolean {
-  const matches = matchRoutes(routeConfig, pathnameOf(path)) ?? []
-  return matches.every(({ route }) => {
-    const el = route.element
-    if (!isValidElement(el)) return true
-    if (el.type === RequireAccessRole) {
-      const { anyOf } = el.props as { anyOf: readonly string[] }
-      return anyOf.some((r) => accessRoles.includes(r))
-    }
-    if (el.type === AdminRoute) return accessRoles.includes('admin')
-    return true
   })
 }
 
@@ -214,7 +184,7 @@ export function routeAdmits(path: string, accessRoles: readonly string[]): boole
  * new bounce when the destination introduces no gate the source does not already carry. So the
  * check is differential. For a source carrying no gates at all it collapses to #220's literal rule.
  */
-export function expectOneHop(sourcePath: string, to: string): void {
+function expectOneHop(sourcePath: string, to: string): void {
   const dest = pathnameOf(to)
   const leaf = leafInThisTable(dest)
   expect(leaf, `nothing in the route table matches ${dest}`).toBeDefined()

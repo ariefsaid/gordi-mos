@@ -1,3 +1,4 @@
+import { SearchField } from '@/components/ui/search-field'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useHref, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
@@ -10,7 +11,6 @@ import { Toast } from '@/components/admin/toast'
 import { useToast } from '@/components/admin/use-toast'
 import { copyCanonicalLink } from '@/lib/copy-canonical-link'
 import { Picker } from '@/components/ui/picker'
-import { TextInput } from '@/components/ui/text-input'
 import { EmptyState, ErrorState, FilteredEmptyIcon, SkeletonRows } from '@/components/ui/state-kit'
 import { TaskSurface } from '@/components/tasks/task-surface'
 import { TaskOverlayContent } from '@/components/tasks/task-drawer'
@@ -30,18 +30,18 @@ import { getTaskTitlesByIds, searchTasksByTitle, type TaskTitleRef } from '@/lib
 import { listComments, postComment, type CommentRow } from '@/lib/comments/postComment'
 import { formatWibDateTime } from '@/lib/format/date'
 import {
-  SignalReach, SignalDiscussion, SignalFacts, SignalHistory, SignalOverflowMenu,
+  SignalReach, SignalDiscussion, SignalFacts, SignalHistory, SignalMessage, SignalRecordHeader,
   type SignalMentionView, type LinkedTaskView,
 } from './signal-record'
-import { RecordViewer } from '@/components/records/record-viewer'
-import { wrapSignalRecord, firstLine } from './signal-record-adapter'
+import { RecordPageLayout } from '@/components/record/record-page-layout'
+import type { RecordMenuItem } from '@/components/record/record-menu'
+import { firstLine, remainingBody, signalTitle } from './signal-record-adapter'
 import './signal-record-host.css'
 
-// C3 (KNOWN GAP 2): signal-record.tsx is a set of presentational region renderers — this host is
-// the fetch+mutate layer for the Signal record. It builds the five JTBD region nodes (Message /
-// Reach & response / Discussion / Facts / History — docs/specs/record-page-anatomy.spec.md §2.1)
-// and hands them to wrapSignalRecord, which orders them into the shared RecordViewer's content
-// slots. It is the CONTENT of the shared RecordPanelHost (chrome-free: the host owns the
+// signal-record.tsx is a set of presentational region renderers — this host is the fetch+mutate
+// layer for the Signal record. It composes the regions (Message / Reach & response / Discussion /
+// History, with Facts in the About aside) on the shared record page layout, the same anatomy the
+// Task, Objective and Project/Process records use. It is the CONTENT of the shared RecordPanelHost (chrome-free: the host owns the
 // ✕ Close / "Open full page" / modal regime; the STANDALONE page owns the Back via the shared
 // RecordPageChrome). `mode` mirrors the Task renderer: "panel" (in-list drawer) or "page".
 
@@ -655,31 +655,24 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     )
   }
 
-  const recordActionControls = !retracted ? (
-    <div className="signal-record-action-controls" data-signal-actions="true">
-      <Button
-        variant="primary"
-        onClick={openTaskComposer}
-        disabled={!viewerId}
-      >
-        {t('signals.record.createFollowUpTask')}
-      </Button>
-      <SignalOverflowMenu
-        onLinkExistingTask={toggleLinkPicker}
-        onRetract={canRetract ? () => setRetractOpen(true) : undefined}
-        onCopyLink={copySignalLink}
-        onOpenFullPage={mode === 'panel' ? () => {
-          // Inside the overlay host the entry carries where the panel came from (Home sets
-          // pageState {from:'home'}); a route-mounted panel carries it on the location instead.
-          const entry = host?.session?.frames.at(-1)?.entry
-          const to = `/work/signals/${signal.id}`
-          if (onPromote) onPromote(to, entry?.pageState ?? location.state)
-          else if (host && entry) void host.openPage(to, entry.pageState)
-          else navigate(to, { state: location.state })
-        } : undefined}
-      />
-    </div>
-  ) : null
+  const openFullPage = mode === 'panel' ? () => {
+    // Inside the overlay host the entry carries where the panel came from (Home sets
+    // pageState {from:'home'}); a route-mounted panel carries it on the location instead.
+    const entry = host?.session?.frames.at(-1)?.entry
+    const to = `/work/signals/${signal.id}`
+    if (onPromote) onPromote(to, entry?.pageState ?? location.state)
+    else if (host && entry) void host.openPage(to, entry.pageState)
+    else navigate(to, { state: location.state })
+  } : undefined
+  const recordMenu: RecordMenuItem[] = !retracted ? [
+    { id: 'link', label: t('signals.record.linkExistingTask'), onSelect: toggleLinkPicker },
+    ...(canRetract ? [{ id: 'retract', label: t('signals.record.retract'), onSelect: () => setRetractOpen(true), destructive: true }] : []),
+    { id: 'copy', label: t('signals.record.copyLink'), onSelect: copySignalLink },
+    ...(openFullPage ? [{ id: 'page', label: t('record.openFullPage'), onSelect: openFullPage }] : []),
+  ] : [
+    { id: 'copy', label: t('signals.record.copyLink'), onSelect: copySignalLink },
+    ...(openFullPage ? [{ id: 'page', label: t('record.openFullPage'), onSelect: openFullPage }] : []),
+  ]
 
   // Link-existing remains record-local; Task creation uses the one canonical Tasks composer.
   const actionForms = (
@@ -690,14 +683,12 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
           aria-label={t('signals.record.linkExistingTask')}
           onSubmit={(e) => { e.preventDefault(); void submitLink() }}
         >
-          <TextInput
-            type="search"
+          <SearchField
             label={t('tasks.filter.search')}
             placeholder={t('tasks.filter.searchPlaceholder')}
             value={linkSearch}
-            onChange={(event) => { setLinkSearch(event.target.value); setLinkTaskId('') }}
+            onChange={(value) => { setLinkSearch(value); setLinkTaskId('') }}
             autoFocus
-            fullWidth
             aria-busy={linkSearchLoading || undefined}
           />
           {linkSearchError ? (
@@ -779,39 +770,51 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     ? <SignalHistory edited revisions={revisionViews} />
     : null
 
+  const title = retracted ? t('signals.record.retractedTitle') : signalTitle(signal.body)
+  // A cut heading leaves the full text to the message; an intact one owns the first line.
+  const headingIsCut = !retracted && title !== firstLine(signal.body)
+  const messageBody = retracted || headingIsCut ? signal.body : remainingBody(signal.body)
+  const headingLevel = mode === 'page' ? 1 : 2
+
   return (
     <div className="signal-record-host">
-      <RecordViewer
-        adapter={wrapSignalRecord({
-          detail,
-          occurredLabel: formatWibDateTime(signal.occurred_at),
-          reach,
-          discussion,
-          facts,
-          history,
-          onAttentionChange,
-          actionControls: recordActionControls,
-          onRepost: retracted ? openRepost : undefined,
-          retractedBy: retracted
+      <RecordPageLayout
+        label={title}
+        kind="signal"
+        mode={mode}
+        headingLevel={headingLevel}
+        header={(
+          <SignalRecordHeader
+            title={title}
+            headingLevel={headingLevel}
+            attention={retracted ? null : signal.attention}
+            onAttentionChange={onAttentionChange}
+            occurredLabel={formatWibDateTime(signal.occurred_at)}
+            primary={retracted ? undefined : { label: t('signals.record.createFollowUpTask'), onClick: openTaskComposer, disabled: !viewerId }}
+            menu={recordMenu}
+            menuLabel={t('signals.record.moreActions')}
+            factsLabel={t('record.page.facts')}
+          />
+        )}
+        about={{ title: t('signals.record.region.facts'), node: facts }}
+      >
+        <SignalMessage
+          signalId={signal.id}
+          body={messageBody}
+          retracted={retracted}
+          retractReason={signal.retract_reason}
+          retractedBy={retracted
             ? signal.retracted_by_name ?? (signal.retracted_by
               ? personName(people, signal.retracted_by, t('signals.record.retractorUnknown'))
               : null)
-            : null,
-          retractedAtLabel: retracted && signal.retracted_at ? formatWibDateTime(signal.retracted_at) : null,
-          // DO-13/I18N-2: the identity type-kicker localizes with the rest of the record chrome.
-          typeLabel: t('signals.record.title'),
-          // The heading carries a distinct noun-phrase title; the message-region tombstone
-          // sentence (tested standalone in signal-record.test.tsx) owns the declarative copy, so
-          // the record never prints the same sentence twice.
-          tombstoneLabel: t('signals.record.retractedTitle'),
-        })}
-        mode={mode}
-        canonicalHref={canonicalHref}
-        // SR-8 (mirrors TaskRecordPage): in page mode the RecordViewer identity IS the page's h1
-        // (the generic PageFamilyFrame head is hidden), so promote it from the default h2. The
-        // in-list panel/drawer keeps h2 (its host chrome owns the surrounding hierarchy).
-        headingLevel={mode === 'page' ? 1 : 2}
-      />
+            : null}
+          retractedAtLabel={retracted && signal.retracted_at ? formatWibDateTime(signal.retracted_at) : null}
+          onRepost={retracted ? openRepost : undefined}
+        />
+        {reach}
+        {discussion}
+        {history}
+      </RecordPageLayout>
       {actionError ? <p className="signal-record-action-error" role="alert">{actionError}</p> : null}
       {localTaskSession && (
         <RecordPanelHost

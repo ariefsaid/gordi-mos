@@ -12,7 +12,7 @@
 .stream-group {
   display: flex;
   flex-direction: column;
-  gap: var(--ds-spacing-6, 24px);
+  gap: var(--mos-section-gap);
   min-width: 0;
 }
 
@@ -29,14 +29,14 @@
   flex-direction: column;
   min-width: 0;
   border-top: 1px solid var(--border);
-  padding-top: var(--ds-spacing-3, 12px);
+  padding-top: var(--mos-inline-gap);
 }
 
 .stream-band-head {
   display: flex;
   align-items: baseline;
-  gap: 12px;
-  margin-bottom: 6px;
+  gap: var(--mos-row-gap);
+  margin-bottom: var(--mos-group-below);
 }
 
 /* The region's name — a GROUP HEADER, not an overline divider. It was a muted 12px
@@ -61,21 +61,21 @@
   min-width: 0;
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--font-size-body-lg);
+  font-size: var(--mos-size-3);
   font-weight: 600;
   color: var(--foreground);
 }
 
 .stream-band-link {
   flex: none;
-  font-size: var(--font-size-mono);
+  font-size: var(--mos-size-2);
   font-weight: 600;
   color: var(--text-on-accent-tint);
   text-decoration: none;
   white-space: nowrap;
 }
 .stream-band-link:hover { text-decoration: underline; }
-.stream-band-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
+.stream-band-link:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-radius: var(--radius-xs); }
 
 .stream-band-list {
   list-style: none;
@@ -89,8 +89,8 @@
 .stream-band-more {
   display: block;
   margin: 0;
-  padding: 6px 4px 0;
-  font-size: var(--font-size-label);
+  padding: var(--mos-inline-gap) 0 0;
+  font-size: var(--mos-size-1);
   color: var(--muted-foreground);
 }
 
@@ -102,31 +102,33 @@
 .stream-row-link {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: var(--row-min-h, 50px);
-  padding: var(--row-pad-y, 10px) 4px;
+  gap: var(--mos-row-gap);
+  min-height: var(--mos-row-min);
+  padding: var(--mos-row-pad-y) 0;
   color: inherit;
   text-decoration: none;
   border-radius: var(--radius-sm);
 }
 .stream-row-link:hover,
 .stream-row-link:focus-visible {
-  background: var(--secondary);
+  background: var(--mos-hover);
 }
 .stream-row-link:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: var(--mos-focus-offset);
 }
 
 .stream-row-body {
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--mos-row-gap);
 }
+.stream-row-body > .stream-row-title { flex: 0 0 100%; }
 .stream-row-title {
-  font-size: var(--font-size-body-lg);
+  font-size: var(--mos-size-3);
   font-weight: 600;
   color: var(--foreground);
   /* DO-16(c) (census home F5): 2-line clamp instead of single-line nowrap — the Urgent
@@ -145,9 +147,10 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
-  font-size: var(--font-size-mono);
-  color: var(--muted-foreground);
+  gap: var(--mos-inline-gap);
+  /* Secondary line: subnav role (14/400 muted), a step under the 16/600 title. */
+  font: var(--mos-type-subnav);
+  color: var(--mos-muted);
   min-width: 0;
 }
 /* The person is their NAME (owner, 2026-07-28) — the 20px initials disc that used to lead this
@@ -156,27 +159,31 @@
    flat run of grey. Same treatment as the mockup's `.row-meta .name`. */
 .stream-row-pic-name {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-weight: 600; color: var(--foreground);
+  font-weight: 400; color: var(--mos-ink);
 }
-.stream-row-seg { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.stream-row-seg { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); min-width: 0; }
 .stream-row-sep { color: var(--muted-foreground); }
 .stream-row-tail-seg { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Trailing tail: the reason chip (why this is ranked here) then the status pill. */
+/* Trailing decision column: status and the direct record action. Reason sits on its own line. */
 .stream-row-tail {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
 }
 
-/* Optional action label used by the daily brief. It lives inside the canonical row link so the
-   whole row remains one predictable target instead of creating nested controls. */
+/* Reason is a dedicated explanation line; the action stays aligned in the decision column. */
+.stream-row-reason-line { display: inline-flex; align-items: center; }
 .stream-row-action {
-  font-size: var(--font-size-control);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mos-inline-gap);
+  font-size: var(--mos-size-3);
   font-weight: 600;
   white-space: nowrap;
 }
+.stream-row-action > svg { flex: none; width: var(--mos-icon-sm); height: var(--mos-icon-sm); }
 
 /* ── Reason chip — the ranking-legibility cue. Flat, borderless, tinted by tone
    (mirrors the Pill tint recipe but one ramp step smaller so the status pill stays
@@ -186,20 +193,16 @@
 .stream-reason {
   display: inline-flex;
   align-items: center;
-  height: 20px;
-  padding: 0 8px;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-overline);
-  font-weight: 600;
+  padding: var(--mos-space-1) var(--mos-space-2);
+  border-radius: var(--radius-xs);
+  font: var(--mos-type-label);
   white-space: nowrap;
 }
 
-.stream-reason--urgent    { background: color-mix(in srgb, var(--destructive) 16%, transparent); color: var(--status-lost-text); }
-.stream-reason--attention { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); }
-.stream-reason--overdue { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); }
-.stream-reason--due     { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--status-open-text); }
-.stream-reason--blocked { background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text); }
-.stream-reason--check   { background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text); }
+.stream-reason-icon { flex: none; margin-right: 4px; }
+.stream-reason--overdue { background: var(--mos-danger-tint); color: var(--mos-error-text); }
+.stream-reason--due     { background: var(--mos-accent-tint); color: var(--mos-info-text); }
+.stream-reason--check   { background: var(--mos-danger-tint); color: var(--mos-error-text); }
 
 /* Row status as text (DESIGN.md § Row status as text, v4): where the reason is true of
    EVERY row in the band at rest, the tone semantics stay and the FILL is dropped — a
@@ -211,7 +214,7 @@
   padding: 0;
   background: none;
   border-radius: 0;
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-3);
   font-weight: 500;
 }
 
@@ -223,18 +226,17 @@
   justify-content: flex-start;
   align-items: center;
   min-height: 0;
-  padding: 4px;
+  padding: 0;
 }
 .stream-all-clear .empty-state-frame {
   flex-direction: row;
   align-items: center;
   text-align: left;
-  gap: 10px;
-  width: auto;
+  gap: var(--mos-space-3);
+  width: 100%;
 }
-.stream-all-clear .empty-state-icon { width: 28px; height: 28px; flex: none; }
-.stream-all-clear .empty-state-glyph { font-size: var(--font-size-mono); }
-.stream-all-clear .empty-title { font-size: var(--font-size-body-lg); }
+.stream-all-clear .empty-state-icon { flex: none; }
+.stream-all-clear .empty-state-body { flex-direction: row; align-items: center; flex-wrap: wrap; gap: var(--mos-label-gap) var(--mos-row-gap); }
 
 /* Phone (Luna P0-1(b), ≤390 measured): the row becomes a single column — the metadata
    subline AND the attention tail (reason chip + status pill) stack BENEATH the primary
@@ -243,11 +245,18 @@
    horizontal scroll (impeccable ban-text-overflow). Applied across the phone range so the
    ≤390 fix isn't a lone island above a still-squeezed 391–480. */
 @media (max-width: 480px) {
+  /* Three lines, not four: title, meta, then the reason and the status badge side by side
+     (badge at the right end; it wraps under the reason only when both cannot fit). */
   .stream-row-link {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
+    flex-flow: row wrap;
+    align-items: center;
+    gap: var(--mos-label-gap) var(--mos-row-gap);
   }
+  .stream-row-body { display: contents; }
+  .stream-row-body > .stream-row-title,
+  .stream-row-meta { order: 0; flex: 0 0 100%; }
+  .stream-row-body > .stream-row-reason-line { order: 1; flex: 0 1 auto; }
+  .stream-row-tail { order: 2; margin-inline-start: auto; }
   .stream-row-title {
     white-space: normal;
     overflow: visible;
@@ -259,8 +268,9 @@
   }
   .stream-row-tail {
     flex-wrap: wrap;
-    row-gap: 6px;
+    row-gap: var(--mos-label-gap);
   }
+  .stream-row-action { min-height: 44px; display: inline-flex; align-items: center; }
 }
 
 @media (pointer: coarse) {
@@ -268,6 +278,6 @@
     display: inline-flex;
     align-items: center;
     min-width: 44px;
-    min-height: 44px;
+    min-height: var(--mos-control-height);
   }
 }

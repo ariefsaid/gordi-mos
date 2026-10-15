@@ -42,6 +42,9 @@ import {
 import {
   canCreateForScope, canEditObjectiveContentForScope, canManageForScope, useWorkWriteAuthority,
 } from './use-work-write-authority'
+import { Notice } from '@/components/ui/notice'
+import { OfflineNotice } from '@/components/ui/offline-notice'
+import { useIsOffline } from '@/shell/use-is-offline'
 
 export type CatalogRecordKind = 'work-line' | 'objective'
 export type { CatalogRelatedKind }
@@ -63,7 +66,7 @@ export type CatalogRecordDocumentProps = {
 
 const STEPS_ADD_CONTROL = '[data-record-section="steps"] .rp-section__action, [data-record-section="steps"] .catalog-step-add'
 
-type Notice = { message: string; undo?: () => Promise<void> }
+type RecordNotice = { message: string; undo?: () => Promise<void> }
 type LinkFailure = { operation: 'link' | 'unlink'; retry: () => Promise<void> }
 type Chooser =
   | { purpose: 'link'; status: 'loading' | 'error' | 'empty' | 'ready'; options: PickerOption[]; objectiveOf: Map<string, string | null>; names: Map<string, string>; facts: Map<string, CatalogWorkLineFact> }
@@ -128,7 +131,8 @@ export function CatalogRecordDocument({
   const [chooser, setChooser] = useState<Chooser | null>(null)
   const [moving, setMoving] = useState<{ id: string; name: string; from: string; fact?: CatalogWorkLineFact } | null>(null)
   const [linkError, setLinkError] = useState<LinkFailure | null>(null)
-  const [notice, setNotice] = useState<Notice | null>(null)
+  const [notice, setNotice] = useState<RecordNotice | null>(null)
+  const offline = useIsOffline()
   const [keyResultsAction, setKeyResultsAction] = useState<({ objectiveId: string } & ObjectiveKeyResultsActionState) | null>(null)
   const reportKeyResultsAction = useCallback((objectiveId: string, next: ObjectiveKeyResultsActionState) => {
     setKeyResultsAction((current) => current?.objectiveId === objectiveId
@@ -203,7 +207,7 @@ export function CatalogRecordDocument({
   }, [fieldDirty, leaveGuard, onLeaveGuardChange])
 
   useEffect(() => () => clearTimeout(noticeTimer.current), [])
-  const announce = useCallback((next: Notice | null) => {
+  const announce = useCallback((next: RecordNotice | null) => {
     clearTimeout(noticeTimer.current)
     setNotice(next)
     if (next) noticeTimer.current = setTimeout(() => setNotice(null), 10_000)
@@ -355,8 +359,6 @@ export function CatalogRecordDocument({
   const keyResultsState: ObjectiveKeyResultsActionState = keyResultsAction?.objectiveId === id
     ? keyResultsAction
     : { status: 'loading', count: 0, editorOpen: false }
-  const needsKeyResult = isObjective && canManage && scopesKnown && !archived
-    && keyResultsState.status === 'ready' && keyResultsState.count === 0
   const emptyOption = { value: '', label: t('catalog.notSet') }
   const editable = (needsDirectory: boolean) => canManage && !archived && (!needsDirectory || editDirectory !== null)
   const readOnlyReason = (needsDirectory: boolean) => (canManage && needsDirectory && !editDirectory
@@ -403,8 +405,21 @@ export function CatalogRecordDocument({
 
   const facts: RecordFact[] = [
     ...(isObjective ? [] : [{ type: 'state', key: 'type', label: t(isProcess ? 'catalog.tag.process' : 'catalog.tag.project'), tone: 'neutral', dot: false } satisfies RecordFact]),
-    archived ? { type: 'state', key: 'state', label: t('catalog.record.archived'), tone: 'warning' } : { type: 'state', key: 'state', label: t('catalog.record.active'), tone: 'neutral' },
+    archived ? { type: 'state', key: 'state', label: t('catalog.record.archived'), tone: 'neutral' } : { type: 'state', key: 'state', label: t('catalog.record.active'), tone: 'success' },
   ]
+  // Lead with what exists: how much of the work is done, then what is still missing.
+  const progress = context.progressById.get(id)
+  if (progress && progress.total > 0) {
+    facts.push({ type: 'state', key: 'progress', label: t('catalog.progress.tasksDone', { done: String(progress.done), total: String(progress.total) }), tone: 'neutral', dot: false })
+  }
+  const missingFacts = archived ? 0 : [
+    !row.accountablePersonId,
+    !isObjective && !row.responsiblePersonId,
+    isObjective && row.periodYear == null,
+    isProcess && !process?.cadence,
+    !isObjective && !isProcess && !(context.relationsById.get(id)?.groups ?? []).some((group) => !group.synthetic && group.entity === 'objective'),
+  ].filter(Boolean).length
+  if (missingFacts > 0) facts.push({ type: 'state', key: 'setup', label: t('catalog.setup.missing', { count: String(missingFacts) }), tone: 'warning', dot: false })
   if (isObjective) {
     const owner = personFact('accountable', 'accountable', t('catalog.record.accountable'), row.accountablePersonId)
     if (owner) facts.push(owner)
@@ -534,7 +549,7 @@ export function CatalogRecordDocument({
     announce({ message: t('catalog.link.unlinkedNotice', { name: workLine.name }), undo: async () => { await link(workLine.id, id) } })
     // The row that held focus is gone: focus moves to the Undo it just earned, else to the section's action.
     requestAnimationFrame(() => {
-      const next = document.querySelector<HTMLElement>('.rp-notice button') ?? document.querySelector<HTMLElement>('[data-record-section="linked-work"] .rp-section__action')
+      const next = document.querySelector<HTMLElement>('.notice button') ?? document.querySelector<HTMLElement>('[data-record-section="linked-work"] .rp-section__action')
       next?.focus()
     })
   }
@@ -557,9 +572,8 @@ export function CatalogRecordDocument({
     }
   }
   const setupTitle = t(isObjective ? 'catalog.setup.title.objective' : isProcess ? 'catalog.setup.title.process' : 'catalog.setup.title.project')
-  const setupActions: RecordSetupItem[] = isObjective && (needsKeyResult || keyResultsState.editorOpen)
-    ? setup.map((item) => ({ ...item, action: { ...item.action, variant: 'outline' } }))
-    : setup
+  // The record header owns the one filled primary; the Get started rows repeat their actions quietly.
+  const setupActions: RecordSetupItem[] = setup.map((item) => ({ ...item, action: { ...item.action, variant: 'outline' } }))
   // The record header owns Start. One ready Team is a single click; several require a type-to-find choice.
   const startReady = isProcess && process !== null && process.steps.length > 0 && occurrences.state === 'ready' && occurrences.startable.length > 0
   const startFromHeader = () => {
@@ -570,12 +584,12 @@ export function CatalogRecordDocument({
       options: occurrences.startable.map((run) => ({ value: `${run.owning_team_id}:${run.period_key}`, label: run.team_name })),
     })
   }
-  const primary: RecordPrimaryAction | undefined = archived || setup.length > 0 || (isObjective && keyResultsState.editorOpen) ? undefined
-    : isProcess ? (startReady ? { id: 'start-occurrence', label: t('catalog.record.startOccurrence'), onClick: startFromHeader, busy: occurrences.startingKey !== null } : undefined)
-      : (isObjective ? linkedWork.length > 0 : true) ? {
-        id: 'add-task', label: t('catalog.record.addTask'), onClick: startAddTask,
-        ...(isObjective && needsKeyResult ? { variant: 'outline' as const } : {}),
-      } : undefined
+  // The header carries the single primary: the first thing still missing, else the record's own next step.
+  const firstSetup = setup[0]
+  const primary: RecordPrimaryAction | undefined = archived || (isObjective && keyResultsState.editorOpen) ? undefined
+    : firstSetup ? { id: `setup-${firstSetup.id}`, label: firstSetup.action.label, onClick: firstSetup.action.onClick, disabled: firstSetup.action.disabled }
+      : isProcess ? (startReady ? { id: 'start-occurrence', label: t('catalog.record.startOccurrence'), onClick: startFromHeader, busy: occurrences.startingKey !== null } : undefined)
+        : (isObjective ? linkedWork.length > 0 : true) ? { id: 'add-task', label: t('catalog.record.addTask'), onClick: startAddTask } : undefined
 
   const accountableName = row.accountablePersonId ? allPeople.get(row.accountablePersonId) : undefined
   // The line says what the viewer can do: "View only" is for a viewer with nothing to add.
@@ -610,7 +624,7 @@ export function CatalogRecordDocument({
       onSelect: () => openPanel(`About ${isObjective ? t('catalog.record.objective') : t(isProcess ? 'catalog.tag.process' : 'catalog.tag.project')}: ${row.name}`),
     }] : []),
     ...(canManage ? [{
-      id: 'archive', label: archived ? t('catalog.unarchive') : t('catalog.archive'), separatorBefore: true, disabled: busy,
+      id: 'archive', label: archived ? t('catalog.unarchive') : t('catalog.archive'), separatorBefore: true, disabled: busy || offline,
       onSelect: () => { void setArchived(!archived, row.name).catch(() => {}) },
     }] : []),
   ]
@@ -675,20 +689,22 @@ export function CatalogRecordDocument({
 
   const noticeNode = (
     <>
-      {mutationError ? <p className="catalog-record-document__error" role="alert">{mutationError}</p> : null}
+      {(canManage || canContent) && !archived ? <OfflineNotice /> : null}
+      {mutationError ? <Notice tone="urgent">{mutationError}</Notice> : null}
       {editDirectoryError ? <ErrorState message={t('catalog.record.editChoicesError')} onRetry={() => setEditDirectoryRetry((value) => value + 1)} /> : null}
-      {isProcess && occurrences.startError ? <p className="catalog-record-document__error" role="alert">{t('processes.due.startError')}</p> : null}
+      {isProcess && occurrences.startError ? <Notice tone="urgent">{t('processes.due.startError')}</Notice> : null}
       {linkError ? (
-        <p className="catalog-record-document__error" role="alert">
-          {t(linkError.operation === 'unlink' ? 'catalog.link.unlinkFailed' : 'catalog.link.failed')}{' · '}
-          <button type="button" className="objective-key-results__retry" onClick={() => { void linkError.retry().catch(() => {}) }}>{t('record.field.retry')}</button>
-        </p>
+        <Notice tone="urgent" action={<button type="button" className="objective-key-results__retry" onClick={() => { void linkError.retry().catch(() => {}) }}>{t('record.field.retry')}</button>}>
+          {t(linkError.operation === 'unlink' ? 'catalog.link.unlinkFailed' : 'catalog.link.failed')}
+        </Notice>
       ) : null}
       {notice ? (
-        <p className="rp-notice" role="status">
-          <span>{notice.message}</span>
-          {notice.undo ? <Button variant="ghost" onClick={() => { const undo = notice.undo; setNotice(null); void undo?.().catch(() => {}) }}>{t('record.undo')}</Button> : null}
-        </p>
+        <Notice
+          tone="success"
+          action={notice.undo ? <Button variant="ghost" onClick={() => { const undo = notice.undo; setNotice(null); void undo?.().catch(() => {}) }}>{t('record.undo')}</Button> : undefined}
+        >
+          {notice.message}
+        </Notice>
       ) : null}
     </>
   )
@@ -719,6 +735,10 @@ export function CatalogRecordDocument({
     || (occurrences.state === 'ready' && occurrences.occurrences.length > 0)
   )
 
+  // Existing work leads: the Get started rows follow the Tasks when there are any.
+  const getStartedLast = derived.relationTasks.length > 0
+  const getStarted = <RecordGetStarted title={setupTitle} why={t(isObjective ? 'catalog.setup.why.objective' : isProcess ? 'catalog.setup.why.process' : 'catalog.setup.why.project')} items={setupActions} />
+
   return (
     <>
       {mode === 'page' ? <RouteLeaveGuard when={fieldDirty} message={t('catalog.record.unsaved.copy')} /> : null}
@@ -743,12 +763,7 @@ export function CatalogRecordDocument({
           />
         )}
         notice={noticeNode}
-        setup={(
-          <>
-            {chooserNode}
-            <RecordGetStarted title={setupTitle} why={t(isObjective ? 'catalog.setup.why.objective' : isProcess ? 'catalog.setup.why.process' : 'catalog.setup.why.project')} items={setupActions} />
-          </>
-        )}
+        setup={<>{chooserNode}{getStartedLast ? null : getStarted}</>}
         about={about}
         history={hideEmptyWideHistory ? undefined : {
           title: t('catalog.history.title'),
@@ -758,16 +773,6 @@ export function CatalogRecordDocument({
       >
         {isObjective ? (
           <>
-            <ObjectiveKeyResultsSection
-              objectiveId={id}
-              businessUnitId={row.businessUnitId}
-              isCompanyWide={row.isCompanyWide}
-              archived={archived}
-              scopes={scopes}
-              scopesStatus={scopesError ? 'error' : scopesLoading ? 'loading' : 'ready'}
-              onRetryScopes={retryScopes}
-              onActionStateChange={reportKeyResultsAction}
-            />
             <LinkedWorkSection
               objectiveId={id}
               groups={linkedWork}
@@ -780,6 +785,16 @@ export function CatalogRecordDocument({
               onLink={() => { void startLink() }}
               onOpenRelated={onOpenRelated}
               onUnlink={(workLine) => { void unlink(workLine) }}
+            />
+            <ObjectiveKeyResultsSection
+              objectiveId={id}
+              businessUnitId={row.businessUnitId}
+              isCompanyWide={row.isCompanyWide}
+              archived={archived}
+              scopes={scopes}
+              scopesStatus={scopesError ? 'error' : scopesLoading ? 'loading' : 'ready'}
+              onRetryScopes={retryScopes}
+              onActionStateChange={reportKeyResultsAction}
             />
           </>
         ) : null}
@@ -802,6 +817,7 @@ export function CatalogRecordDocument({
           onOpenRelated={onOpenRelated}
           today={today}
         />
+        {getStartedLast ? getStarted : null}
         {stepsFirst ? null : stepsSection}
         {isObjective ? <WriteUpSection objectiveId={id} canEdit={writeUpEditable} archived={archived} onDirtyChange={setFieldDirty} onSaved={() => setHistoryVersion((v) => v + 1)} /> : null}
       </RecordPageLayout>

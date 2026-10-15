@@ -1,109 +1,21 @@
-/* BottomTabBar — phone-first primary nav (plan §4.3, ADR-0019 D8). Token-only. */
-
+/* Phone tab bar: Home - Work - Module - More. 68px + safe area, 20px icons, meta labels. */
+.bottom-tab-shell { position: sticky; bottom: 0; z-index: var(--z-sticky); display: flex; flex-direction: row; min-width: 0; min-height: 0; background: var(--mos-surface); border-top: 1px solid var(--mos-line); }
 .bottom-tab-bar {
-  display: flex;
-  align-items: stretch;
-  height: var(--tabbar-h);
-  border-top: 1px solid var(--border);
-  background: var(--background);
+  box-sizing: border-box; flex: 1 1 auto; min-width: 0; display: flex; align-items: stretch;
+  height: var(--mos-tabbar-height); background: var(--mos-surface);
   padding-bottom: env(safe-area-inset-bottom);
 }
-
-/* Task 6: the right gutter reserved for the fixed + Action Launcher — applied ONLY while the
-   launcher renders. Absent (Task 6/capture surfaces), the bar reclaims the full width for tabs.
-   76px, not the launcher's raw 64px inset (right:8px + 56px width), so the last tab (More) and
-   the launcher stay >=8px apart (Task 5 target-spacing floor), not the ~4px the raw inset left. */
-.bottom-tab-bar--with-launcher {
-  padding-right: 76px;
-}
-
-.bottom-tab-list {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  align-items: stretch;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  /* Phone touch-separation floor: adjacent primary tabs are separate actionable controls,
-     so their hit targets need >=8px between them (the same floor the launcher gutter meets).
-     Five tabs at 390px still leaves every tab well above the 44px target width. */
-  gap: 8px;
-}
-
-.bottom-tab-list > li {
-  display: flex;
-  flex: 1 1 0;
-  min-width: 0;
-}
-
+.bottom-tab-list { display: flex; flex: 1; min-width: 0; align-items: stretch; list-style: none; margin: 0; padding: 0 var(--mos-space-2); gap: var(--mos-label-gap); }
+.bottom-tab-list > li { display: flex; flex: 1 1 0; min-width: 0; }
 .bottom-tab {
-  display: flex;
-  flex: 1 1 auto;
-  width: 100%;
-  min-width: 0;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  text-decoration: none;
-  color: var(--muted-foreground);
-  border: 0;
-  border-top: 2px solid transparent;
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
-  min-height: 44px;
+  display: flex; flex: 1 1 auto; width: 100%; min-width: 0; min-height: 44px;
+  flex-direction: column; align-items: center; justify-content: center; gap: var(--mos-space-1);
+  text-decoration: none; color: var(--mos-muted);
+  border: 0; border-radius: var(--radius-sm); background: transparent; font: inherit; cursor: pointer;
 }
-
-.bottom-tab-icon {
-  display: flex;
-  color: inherit;
-}
-
-.bottom-tab-icon svg {
-  width: 22px;
-  height: 22px;
-}
-
-.bottom-tab-label {
-  font-family: var(--font-sans);
-  /* Phone contract: labels stay one line at the overline size and yield with an ellipsis. */
-  font-size: var(--font-size-overline);
-  font-weight: 600;
-  letter-spacing: normal;
-  color: inherit;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-
-.bottom-tab--active {
-  color: var(--text-on-accent-tint);
-  border-top-color: var(--primary);
-}
-
-/* OD-61 / OD-REDESIGN-46 — thumb-reachable plus opens the shared Action Launcher. */
-.mobile-action-launcher {
-  position: fixed;
-  right: 8px;
-  bottom: calc(4px + env(safe-area-inset-bottom));
-  z-index: var(--z-sticky);
-  width: 56px;
-  height: 56px;
-  min-width: 44px;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: var(--primary);
-  color: var(--primary-foreground);
-  box-shadow: var(--shadow-rest);
-  font: 500 28px/1 var(--font-sans);
-  cursor: pointer;
-}
-.mobile-action-launcher:hover { background: var(--accent-hover); }
-.mobile-action-launcher:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.bottom-tab-icon { position: relative; display: flex; color: inherit; }
+.bottom-tab-icon svg { width: var(--mos-icon-md); height: var(--mos-icon-md); flex: none; }
+.bottom-tab-label { font: var(--mos-type-meta); font-weight: var(--mos-weight-semibold); color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.bottom-tab:hover { color: var(--mos-ink); }
+.bottom-tab--active { color: var(--mos-accent); background: var(--mos-accent-tint); }
+.bottom-tab:focus-visible { outline-offset: calc(-1 * var(--mos-focus-width)); }

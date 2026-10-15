@@ -1,532 +1,127 @@
-/* PendingBillsPage — typed cells only; MoneyTableShell owns the table and phone-card skin. */
-.pending-bills-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-}
+.page-frame--v3:has(.pending-bills-body) { background-color: var(--background); }
+.pending-bills-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pending-bills-awaiting { display: grid; justify-items: start; gap: 10px; max-width: 680px; padding: 18px 0; border-top: 1px solid var(--border); }
+.pending-bills-awaiting h2 { margin: 0; font-size: var(--mos-size-4); font-weight: 600; }
+.pending-bills-awaiting p { max-width: 62ch; margin: 0; color: var(--muted-foreground); line-height: 1.5; }
+.pending-bills-awaiting .btn { min-height: var(--mos-control-height); }
+.pending-bills-awaiting__facts { display: grid; gap: var(--mos-label-gap); margin: 0; }
+.pending-bills-awaiting__facts > div { display: flex; flex-wrap: wrap; gap: var(--mos-label-gap) var(--mos-inline-gap); }
+.pending-bills-awaiting__facts dt { color: var(--muted-foreground); }
+.pending-bills-awaiting__facts dd { margin: 0; font-weight: 600; }
+.pending-bills__muted, .pb-muted { color: var(--muted-foreground); }
+.pb-code { font-variant-numeric: tabular-nums; }
 
-.pending-bills__nowrap {
-  white-space: nowrap;
-}
+/* Tabs: the shared strip, set flush left under the figures. */
+.pending-bills-view-toolbar > .view-tabs { flex: 1 1 auto; min-width: 0; }
+.pending-bills-view-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap); min-width: 0; }
 
-.pending-bills__code {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-label);
-  overflow-wrap: anywhere;
-}
+/* Toolbar: search, then the filters; the count sits above the list at its right edge. */
+.pending-bills-filter-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--mos-inline-gap) var(--mos-row-gap); min-width: 0; }
+.pending-bills-branch-filter { flex: 0 1 240px; min-width: 180px; max-width: 280px; }
+.pending-bills-branch-filter .mk-select__field { min-height: var(--mos-control-height); }
+.pending-bills-filters-trigger { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; min-height: var(--mos-control-height); padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--foreground); font: inherit; cursor: pointer; }
+.pending-bills-filters-trigger:hover, .pending-bills-filters-trigger[aria-expanded='true'] { background: var(--surface-tertiary); }
+.pending-bills-filters-trigger:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.pending-bills-filters-trigger .view-options-disclosure__active-dot { display: none; }
+.pending-bills-filters-chevron--open { transform: rotate(180deg); }
+.pending-bills-filter-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--mos-row-gap); padding: var(--mos-gutter) var(--mos-row-pad-x); }
+.pending-bills-filter-empty p { margin: 0; color: var(--muted-foreground); }
+.pending-bills-mobile-select-all { display: none; }
 
-.pending-bills__muted {
-  color: var(--muted-foreground);
-}
+.pending-bills-listbar { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-row-gap); min-height: var(--mos-control-height); margin-bottom: var(--mos-label-gap); }
+.pending-bills-count { margin: 0 0 0 auto; white-space: nowrap; color: var(--muted-foreground); font-size: var(--mos-size-3); font-variant-numeric: tabular-nums; }
+.pending-bills-hint { margin: 0; color: var(--muted-foreground); font-size: var(--mos-size-1); }
+.pending-bills-sort-phone { display: flex; align-items: center; gap: var(--mos-inline-gap); flex: 1 1 auto; min-width: 0; font-size: var(--mos-size-2); color: var(--muted-foreground); font-weight: 600; }
+.pending-bills-sort-phone .mk-select { min-width: 150px; }
 
-.pending-bills__owes {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-}
+/* The list takes the full track until a bill is open; then the record sits beside it. */
+.pending-bills-list-column { min-width: 0; }
+.pending-bills-results--workbench { grid-template-columns: minmax(0, 1fr); align-items: start; gap: var(--mos-group-above); }
+.pending-bills-results--workbench.has-record { grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; }
+.has-record .pb-cell, .has-record .pb-head { padding-inline: 8px; }
+.has-record .pb-cell--identity { min-width: 96px; }
 
-.pending-bills__owes-source {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* Table */
+.pending-bills-table .money-table { table-layout: auto; }
+.pb-head--start { text-align: start; }
+/* The shared table head sets text-align: start with :root specificity; numeric headers sit over their figures. */
+:root .page-frame--v3 .pending-bills-table .money-table thead th.pb-head--end { text-align: end; }
+.pb-head--end .pb-sort { justify-content: flex-end; }
+:root .page-frame--v3 .pending-bills-table .money-table thead th:last-child { padding-inline-end: var(--mos-row-pad-x); }
+.pb-head--select { width: 44px; padding: 0 0 0 4px; text-align: left; }
+.pb-head--select .pending-bills__checkbox-target { min-height: 40px; }
+.pb-sort { all: unset; display: inline-flex; align-items: center; gap: 3px; min-height: var(--mos-control-height); cursor: pointer; }
+.pb-sort:hover { color: var(--foreground); }
+.pb-sort:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-radius: var(--radius-sm); }
+.pb-row { cursor: pointer; }
+.pb-row:hover .pb-cell { background: var(--mos-hover); }
+.pb-row[data-open] .pb-cell { background: var(--surface-secondary); }
+.pb-cell { height: var(--mos-row-min); padding: var(--mos-row-pad-y) var(--mos-row-pad-x); border-bottom: 1px solid var(--row-divider); vertical-align: middle; text-align: start; }
+.pb-cell--select { width: 44px; padding: 0 0 0 4px; }
+.pb-cell--num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pb-cell--balance { font-weight: 600; }
+.pb-cell--identity { min-width: 96px; }
+.pb-cell--date { white-space: nowrap; }
+.pb-cell--date > span:not(.pill) { display: block; }
+.pb-cell--date .pill { margin-top: var(--mos-stack-gap); }
+.pb-cell--date .pb-muted, .pb-cell--date .pending-bills__age-old { margin-top: var(--mos-stack-gap); font-size: var(--mos-size-1); }
+.pb-cell--state { white-space: normal; }
+.pb-open { display: inline-flex; align-items: center; min-height: 24px; max-width: 100%; padding: 0; border: 0; background: transparent; color: var(--foreground); font: inherit; font-weight: 600; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.pb-open:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+.pb-open:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-radius: var(--radius-sm); }
+.pb-sub { display: block; color: var(--muted-foreground); font-size: var(--mos-size-1); line-height: 1.4; overflow-wrap: anywhere; }
+.pending-bills-view-toolbar .view-tabs__tab { min-width: 44px; justify-content: center; }
+.pending-bills__checkbox-target { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; cursor: pointer; }
 
-.pending-bills__finance-label-line {
-  display: block;
-  min-width: 0;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-}
+/* Cards (phone) */
+.pb-cards { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--border); }
+.pb-card { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: start; padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--row-divider); cursor: pointer; }
+.pb-card[data-open] { background: var(--surface-secondary); }
+.pb-card__body { display: flex; flex-direction: column; gap: var(--mos-stack-gap); min-width: 0; padding-top: var(--mos-row-pad-y); }
+.pb-card__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--mos-row-gap); min-width: 0; }
+.pb-card__head .pb-open { min-height: var(--mos-control-height); margin-top: -10px; align-items: center; }
+.pb-card__balance { font-size: var(--mos-size-3); white-space: nowrap; }
+.pb-card__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-label-gap) var(--mos-inline-gap); margin: 0; color: var(--muted-foreground); font-size: var(--mos-size-2); line-height: 1.5; }
+.pb-card__meta .pill { margin-inline-end: 6px; }
+.pb-card__select { grid-row: 1; }
 
-.pending-bills__finance-label {
-  display: -webkit-box;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--foreground);
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  white-space: normal;
-  text-overflow: ellipsis;
-}
-
-.pending-bills-list-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.pending-bills-summary {
-  color: var(--muted-foreground);
-  font-size: var(--font-size-control);
-  font-variant-numeric: tabular-nums;
-}
-
-.pending-bills-filter-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.pending-bills-view-toolbar {
-  display: contents;
-}
-
-.pending-bills-filters-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--card);
-  color: var(--foreground);
-  font: inherit;
-  cursor: pointer;
-}
-
-.pending-bills-filters-trigger:hover,
-.pending-bills-filters-trigger[aria-expanded='true'] {
-  background: var(--surface-tertiary);
-}
-
-.pending-bills-filters-trigger:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
-.pending-bills-filters-trigger .view-options-disclosure__active-dot {
-  display: none;
-}
-
-.pending-bills-filters-chevron--open {
-  transform: rotate(180deg);
-}
-
-.pending-bills-filter-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: var(--radius-pill);
-  background: var(--secondary);
-  color: var(--muted-foreground);
-  font-size: var(--font-size-overline);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.pending-bills-branch-filter {
-  flex: 0 1 280px;
-  min-width: 180px;
-  max-width: 280px;
-}
-
-.pending-bills-branch-filter .mk-select__field {
-  min-height: 44px;
-}
-
-.pending-bills-age-filters button:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
-.pending-bills-age-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.pending-bills-age-filters button {
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted-foreground);
-  font: inherit;
-  cursor: pointer;
-}
-
-.pending-bills-age-filters button:hover {
-  background: var(--surface-tertiary);
-}
-
-.pending-bills-age-filters button[aria-pressed='true'] {
-  border-color: var(--border-strong);
-  background: var(--background);
-  color: var(--foreground);
-  font-weight: 600;
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent);
-}
-
-.pending-bills-filter-bar .collection-toolbar__query {
-  flex: 1 1 220px;
-  min-width: 0;
-  padding: 0;
-  background: transparent;
-}
-
-.pending-bills-filter-bar .collection-toolbar__search {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: none;
-  min-width: 0;
-  min-height: 44px;
-  height: 44px;
-}
-
-.pending-bills-filter-bar .collection-toolbar__search input {
-  min-height: 44px;
-}
-
-.pending-bills-filter-empty {
-  margin: 8px 0;
-  color: var(--muted-foreground);
-}
-
-.pending-bills-mobile-select-all {
-  display: none;
-}
-
-.pending-bills-selection-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 8px;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--card);
-  box-shadow: var(--shadow-rest);
-}
-
-.pending-bills-selection-bar p {
-  margin: 0;
-  color: var(--foreground);
-  font-size: var(--font-size-control);
-  font-variant-numeric: tabular-nums;
-}
-
-.pending-bills-selection-bar__actions {
-  display: flex;
-  gap: 8px;
-}
-
-.pending-bills-list-column {
-  container: pending-bills-list / inline-size;
-  min-width: 0;
-}
-
-.pending-bills-table .money-table {
-  table-layout: fixed;
-}
-
-.pending-bills-table .money-table__head,
-.pending-bills-table .money-table__cell {
-  text-align: left;
-}
-
-.pending-bills-table .money-table__cell--select {
-  width: 48px;
-  text-align: center;
-}
-
-.pending-bills-table .money-table__cell--age,
-.pending-bills-table .money-table__cell--amount,
-.pending-bills-table .money-table__cell--balance {
-  text-align: right;
-}
-
-.pending-bills-table .money-table__cell--date .money-table__cell-value,
-.pending-bills-table .money-table__cell--age .money-table__cell-value,
-.pending-bills-table .money-table__cell--bill .money-table__cell-value,
-.pending-bills-table .money-table__cell--amount .money-table__cell-value,
-.pending-bills-table .money-table__cell--balance .money-table__cell-value {
-  white-space: nowrap;
-}
-
-.pending-bills-table .money-table__cell--owes {
-  overflow-wrap: anywhere;
-}
-
-.pending-bills__tablet-age-cue {
-  display: none;
-}
-
-.pending-bills__record-trigger {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  min-height: 32px;
-  max-width: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--primary);
-  font: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-
-.pending-bills__record-trigger:hover {
-  text-decoration: underline;
-}
-
-.pending-bills__record-trigger:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
-}
-
-@media (min-width: 768px) {
-  .pending-bills-table .money-table-scroll {
-    overflow-x: hidden;
-  }
-
-  @container pending-bills-list (max-width: 979.98px) {
-    .pending-bills__branch {
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-      overflow: hidden;
-      overflow-wrap: anywhere;
-    }
-
-    .pending-bills__state-pill {
-      min-width: 0;
-      max-width: 100%;
-      height: auto;
-      min-height: 22px;
-      padding-block: 2px;
-      white-space: normal;
-    }
-
-    .pending-bills__state-label {
-      min-width: 0;
-      overflow-wrap: anywhere;
-      white-space: normal;
-    }
-
-    .pending-bills__tablet-age-cue {
-      display: inline-flex;
-    }
-
-    .pending-bills-table .money-table__cell--date,
-    .pending-bills-table .money-table__cell--age,
-    .pending-bills-table .money-table__head.money-table__cell--date,
-    .pending-bills-table .money-table__head.money-table__cell--age {
-      display: none;
-    }
-
-    .pending-bills-table .money-table__head,
-    .pending-bills-table .money-table__cell {
-      padding: 0 6px;
-    }
-
-    .pending-bills-table .money-table__cell--select { width: 6%; }
-    .pending-bills-table .money-table__cell--branch { width: 8%; }
-    .pending-bills-table .money-table__cell--owes { width: 19%; }
-    .pending-bills-table .money-table__cell--state { width: 13%; }
-    .pending-bills-table .money-table__cell--bill { width: 18%; padding-right: 8px; }
-    .pending-bills-table .money-table__cell--amount { width: 18%; min-width: 120px; }
-    .pending-bills-table .money-table__cell--balance { width: 18%; min-width: 120px; }
-    .pending-bills-table .money-table__cell--amount .money-table__cell-value,
-    .pending-bills-table .money-table__cell--balance .money-table__cell-value {
-      white-space: nowrap;
-      font-variant-numeric: tabular-nums;
-    }
-  }
-
-  @container pending-bills-list (min-width: 980px) {
-    .pending-bills-table .money-table__cell--select { width: 4%; }
-    .pending-bills-table .money-table__cell--date { width: 10%; }
-    .pending-bills-table .money-table__cell--age { width: 7%; }
-    .pending-bills-table .money-table__cell--branch { width: 10%; }
-    .pending-bills-table .money-table__cell--owes { width: 20%; }
-    .pending-bills-table .money-table__cell--state { width: 11%; }
-    .pending-bills-table .money-table__cell--bill { width: 12%; padding-right: 8px; }
-    .pending-bills-table .money-table__cell--amount { width: 13%; min-width: 120px; }
-    .pending-bills-table .money-table__cell--balance { width: 13%; min-width: 120px; }
-    .pending-bills-table .money-table__cell--amount .money-table__cell-value,
-    .pending-bills-table .money-table__cell--balance .money-table__cell-value {
-      white-space: nowrap;
-      font-variant-numeric: tabular-nums;
-    }
-  }
-
-  @container pending-bills-list (max-width: 679.98px) {
-    .pending-bills-table .money-table__cell--branch,
-    .pending-bills-table .money-table__cell--owes,
-    .pending-bills-table .money-table__head.money-table__cell--branch,
-    .pending-bills-table .money-table__head.money-table__cell--owes {
-      display: none;
-    }
-
-    .pending-bills-table .money-table__cell--select { width: 10%; }
-    .pending-bills-table .money-table__cell--state { width: 27%; }
-    .pending-bills-table .money-table__cell--bill { width: 24%; }
-    .pending-bills-table .money-table__cell--amount { width: 20%; }
-    .pending-bills-table .money-table__cell--balance { width: 19%; }
-  }
-}
+/* Record panel: sentence-case section titles (no tracked uppercase), tighter rows. */
+.pending-bills-record .record-viewer__type,
+.pending-bills-record .record-viewer__eyebrow,
+.pending-bills-record .record-viewer__section-title { font-size: var(--mos-size-3); font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--foreground); }
+/* The panel's own bar already says "Pending bill"; the body leads with the bill number. */
+.pending-bills-record .record-viewer__type { display: none; }
+.pending-bills-record .record-field__label { padding-top: 12px; }
 
 @media (max-width: 767.98px) {
-  .page-frame--v3:has(.pending-bills-body) {
-    overflow-x: hidden;
-    overflow-y: auto;
-  }
+  /* A finger needs the whole 44px square, not the 16px box inside it. */
+  .pending-bills-body .mk-checkbox { width: 44px; height: 44px; }
+  .pending-bills-body .mk-checkbox__visual { width: 16px; height: 16px; }
+    .pending-bills-summary .money-figure--lead .money-figure__value { font-size: var(--mos-size-4); }
+  .page-frame--v3:has(.pending-bills-body) { overflow-x: hidden; overflow-y: auto; }
+  .pending-bills-body { gap: 10px; }
+  .pending-bills-view-toolbar { gap: var(--mos-label-gap); }
+  .pending-bills-mobile-select-all { display: flex; align-items: center; flex: 0 0 auto; gap: 4px; min-height: var(--mos-control-height); padding: 0 4px; border-radius: var(--radius-sm); color: var(--foreground); font-size: var(--mos-size-2); white-space: nowrap; cursor: pointer; }
+  .pending-bills-filter-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+  .pending-bills-filters-disclosure { display: contents; }
+  .pending-bills-filters-trigger { grid-column: 2; grid-row: 1; }
+  .pending-bills-filter-panel { display: flex; grid-column: 1 / -1; flex-direction: column; gap: var(--mos-inline-gap); min-width: 0; }
+  .pending-bills-branch-filter { flex: none; min-width: 0; max-width: none; width: 100%; }
+      }
 
-  .pending-bills-body {
-    gap: 4px;
-  }
+/* Desktop selection bar: docked to the foot of the viewport (the page's own bottom padding is under it),
+   with the list given room so the last row is never behind it. */
+@media (min-width: 768px) {
+  /* The frame pads 32px under its content; the bar sticks to the very foot of the scroller. */
+  .pending-bills-selection-bar { bottom: calc(-1 * var(--mos-space-8)); }
+  .pending-bills-body:has(.pending-bills-selection-bar) .pending-bills-results { padding-bottom: var(--mos-space-2); }
+}
 
-  .pending-bills-table .money-table-scroll {
-    overflow: visible;
-  }
-
-  .pending-bills-list-toolbar {
-    align-items: center;
-  }
-
-  .pending-bills-summary {
-    min-width: 0;
-    overflow: hidden;
-    font-size: var(--font-size-label);
-    line-height: 1.25;
-    white-space: nowrap;
-  }
-
-  .pending-bills-view-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-width: 0;
-  }
-
-  .pending-bills-view-toolbar > .view-tabs {
-    position: static;
-    top: auto;
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .pending-bills-mobile-select-all {
-    display: flex;
-    align-items: center;
-    flex: 0 0 auto;
-    gap: 4px;
-    min-height: 44px;
-    padding: 0 4px;
-    border-radius: var(--radius-sm);
-    color: var(--foreground);
-    font-size: var(--font-size-label);
-    white-space: nowrap;
-    cursor: pointer;
-  }
-
-  .pending-bills-filter-bar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-  }
-
-  .pending-bills-filters-disclosure {
-    display: contents;
-  }
-
-  .pending-bills-filters-trigger {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .pending-bills-filter-panel {
-    display: flex;
-    grid-column: 1 / -1;
-    flex-direction: column;
-    gap: 8px;
-    min-width: 0;
-  }
-
-  .pending-bills-branch-filter {
-    flex: none;
-    min-width: 0;
-    max-width: none;
-    width: 100%;
-  }
-
-  .pending-bills-age-filters {
-    flex: none;
-    flex-wrap: wrap;
-    min-width: 0;
-    overflow: visible;
-  }
-
-  .pending-bills-age-filters button {
-    flex: 0 0 auto;
-    padding: 0 10px;
-  }
-
-  .pending-bills-filter-bar .collection-toolbar__query {
-    grid-column: 1;
-    grid-row: 1;
-    flex-basis: auto;
-    padding: 0;
-    background: transparent;
-  }
-
-  .pending-bills-table .money-table__row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .pending-bills-table .money-table__cell--select {
-    grid-column: 1 / -1;
-  }
-
-  .pending-bills-table .money-table__cell--select .money-table__cell-label {
-    display: none;
-  }
-
-  .pending-bills__checkbox-target {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 44px;
-    min-height: 44px;
-  }
-
-  .pending-bills-selection-bar {
-    flex-direction: column;
-    align-items: stretch;
-    background: var(--card);
-  }
-
-  .pending-bills-selection-bar__actions > button {
-    flex: 1;
-  }
-
-  .pending-bills__owes {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: normal;
-  }
-
-  .pending-bills__record-trigger {
-    min-height: 44px;
-  }
+/* Phone record: compact label / value rows, and the primary in a bar at the panel's foot. */
+@media (max-width: 767.98px) {
+  .pending-bills-record .record-field { grid-template-columns: minmax(96px, 38%) minmax(0, 1fr); align-items: baseline; gap: 0 var(--mos-row-gap); }
+  .pending-bills-record .record-field__label { padding-top: 8px; }
+  .pending-bills-record .record-field--readonly .record-field__value { min-height: 0; padding: 8px 0; }
+  .pending-bills-record .record-field__edit { margin-inline-start: 0; padding-inline-start: 0; min-height: var(--mos-control-height); }
+  .pending-bills-record-bar { flex: none; padding-inline: 16px; }
 }

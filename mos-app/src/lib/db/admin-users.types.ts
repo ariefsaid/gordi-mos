@@ -35,12 +35,12 @@ export const ASSIGNABLE_ROLES = ['member', 'ops_lead', 'admin', 'finance', 'mana
 // DISPLAY uses these. Use ROLE_META everywhere a role renders (create-dialog checkboxes,
 // RoleEditor toggles, RoleChips/Tag in the table) so slugs never leak to the UI.
 export const ROLE_META: Record<string, { label: string; description: string }> = {
-  member: { label: 'Member', description: 'Submits logs and updates' },
-  ops_lead: { label: 'Ops Lead', description: 'Plans and approves' },
-  admin: { label: 'Admin', description: 'Manages users and settings' },
+  member: { label: 'Member', description: 'Logs their own work and files updates' },
+  ops_lead: { label: 'Ops Lead', description: 'Plans and approves Café work' },
+  admin: { label: 'Admin', description: "Adds people and changes anyone's access" },
   finance: { label: 'Finance', description: 'Sees financial reports' },
-  manager: { label: 'Manager', description: 'Company-wide revenue & margin' },
-  supervisor: { label: 'Supervisor (access)', description: 'Revenue visibility within a granted channel and branch scope' },
+  manager: { label: 'Manager', description: 'Sees revenue and margin for the whole company' },
+  supervisor: { label: 'Supervisor (access)', description: 'Sees revenue only for the branches you pick' },
 }
 
 /** Human label for a role slug; falls back to the slug itself for unknown roles. */
@@ -96,7 +96,7 @@ export interface RevenueScopeOption {
 }
 
 /** A supervisor's granted scope; branch_code null = the whole channel. */
-export interface RevenueScopeGrant {
+interface RevenueScopeGrant {
   channel: string
   branch_code: string | null
 }
@@ -127,7 +127,7 @@ export interface TeamMembership {
 }
 
 /** True when this team is a (branch, activity) production stream rather than plain org structure. */
-export function isStreamTeam(team: TeamOption): boolean {
+function isStreamTeam(team: TeamOption): boolean {
   return team.branch_name !== null && team.activity !== null
 }
 

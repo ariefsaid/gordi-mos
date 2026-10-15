@@ -6,7 +6,7 @@ type SupervisorDraft = { id: string; responsible_person_id: string; accountable_
 export type SupervisorHint = { taskId: string; picId: string; businessUnitId: string; status: 'missing' | 'error' }
 export type SupervisorResolution = { supervisorId: string | null; status: 'ready' | 'missing' | 'error' }
 
-export function defaultSupervisorId(
+function defaultSupervisorId(
   managerIds: readonly string[],
   picId: string,
   activePersonIds: readonly string[],

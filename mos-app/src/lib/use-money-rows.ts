@@ -10,7 +10,7 @@ import { ReportingRowCapError } from '@/lib/db/reporting-shared'
 import { isValidMoneyRange, resolveMoneyWindow, type MoneyChannel, type MoneyPeriod, type MoneyRange, type MoneyView } from '@/lib/money-branch-table'
 import { isoDaysBefore } from '@/lib/trailing-window'
 
-export interface MoneyRows {
+interface MoneyRows {
   latestDate: string | null
   period: MoneyPeriod
   range: MoneyRange | null

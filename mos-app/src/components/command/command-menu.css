@@ -1,210 +1,63 @@
-/* ── Command palette (⌘K) — ADR-0013 D4 / design-plan §5. All raw values are
-   DESIGN.md CSS-var tokens (no hex/rgb/hsl literals). Mirrors mock-command-menu.html. */
-
 .cm-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: inherit;
   overflow: hidden;
-  /* Themed scope sets color explicitly so children don't inherit a body-baked
-     light value (dark = invisible). ADR-0013 D2. */
-  color: var(--text-primary);
+  color: var(--mos-ink);
+  background: var(--mos-surface);
 }
-
+/* Anchored near the top, never centred: the panel grows and shrinks with its results, and a centred
+   one would jump on every keystroke. */
 .modal-shell__surface.cm-modal-surface {
-  align-self: center;
-  width: min(100%, 560px);
-  background: var(--surface-primary);
-  border-color: var(--border-light);
-  box-shadow: var(--shadow-strong);
-}
-
-/* ── Input row ── */
-.cm-input {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 16px;
-  height: 48px;
-  border-bottom: 1px solid var(--border-light);
-}
-.cm-input-icon { color: var(--text-tertiary); display: flex; }
-.cm-input input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  outline: none;
-  font-family: inherit;
-  font-size: var(--font-size-control);
-  color: var(--text-primary); /* explicit — see ADR-0013 D2 */
-  background: transparent;
-}
-.cm-input input::placeholder { color: var(--text-tertiary); }
-
-/* ── Body / listbox ── */
-.cm-body {
-  padding: 6px;
-}
-
-/* The combobox owns the listbox; the listbox owns scrolling and is programmatically
-   focusable for axe/keyboard scrolling without stealing the input's active focus. */
-.cm-group-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-#cm-list {
-  max-height: min(700px, 75dvh);
-  overflow: auto;
-}
-
-/* Narrow palettes carry record previews only; give those kind groups enough room to fit. */
-@media (max-width: 919.98px) {
-  #cm-list { max-height: 80dvh; }
-  /* Mobile Safari zooms focused controls below 16px. Keep page zoom enabled and size the
-     actual launcher/search input to the touch-input floor. */
-  .cm-input input { font-size: var(--font-size-touch-input); }
-}
-
-/* Group label — muted-foreground clears WCAG-AA in dark while reading as a label. */
-.cm-group {
-  font-size: var(--font-size-overline);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 500;
-  color: var(--muted-foreground);
-  padding: 4px 10px 0;
-}
-
-.cm-empty {
-  padding: 18px 12px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-control);
-}
-
-.cm-records-error {
-  padding: 8px 10px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-control);
-}
-
-/* ── Item ── */
-.cm-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 36px;
-  padding: 0 10px;
+  align-self: start;
+  margin-top: clamp(var(--mos-space-4), 10dvh, 96px);
+  width: min(100%, 620px);
+  max-height: calc(100dvh - clamp(var(--mos-space-4), 10dvh, 96px) - var(--mos-space-10));
+  overflow: hidden;
+  background: var(--mos-surface);
+  border: 1px solid var(--mos-line);
   border-radius: var(--radius-sm);
-  font-size: var(--font-size-control);
-  cursor: pointer;
-  color: var(--text-primary); /* explicit — see ADR-0013 D2 */
+  box-shadow: var(--shadow-overlay);
 }
-.cm-item:hover { background: var(--surface-tertiary); }
-.cm-item.active { background: var(--surface-tertiary); color: var(--text-primary); outline: 2px solid var(--ring); outline-offset: -2px; }
-
-.cm-item-glyph {
-  color: var(--text-tertiary);
-  width: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-}
-.cm-item.action .cm-item-glyph { color: var(--text-accent); }
-
-.cm-item-label {
-  flex: 1;
-  min-width: 0;
-}
-.cm-item-meta {
-  margin-left: auto;
-  padding-left: 8px;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-control);
-  flex: none;
-}
-
-/* ── Child rung (DESIGN.md § The Rail Type Ladder) ──────────────────────────
-   The palette lists Work's PARENT row ("Work" → /work/tasks) and its Tasks CHILD row
-   (→ /work/tasks) back to back. The rail and the drawer can carry that pair because the
-   parent is a section header there and the children sit in an indented list; the palette is
-   a FLAT list, so without a rung the two rows are indistinguishable — same
-   target, same weight, no reason for a second one to exist.
-
-   DESIGN.md is explicit that "the ladder is per-level, not per-surface": a child wears the
-   same rung wherever it is listed. So this is the ladder's Child rung — 13px
-   (`--font-size-mono`, the ramp's dense-compact step, not a monospace face) /
-   `muted-foreground`, 15px icon and tokenized indent — read from the same type ramp and
-   `--rail-*` geometry tokens as the rail rules. No vertical rule or value is minted here.
-
-   `data-child` is the marker (the palette renders divs, so it has no class ladder of its
-   own; the same attribute the cross-surface order guard reads).
-
-   ONE part of the rung is deliberately NOT imported: its `font-weight: 500`. That number is
-   a step DOWN from the rail's Destination rung at 600; the palette's rows carry no weight of
-   their own (400), so copying the child's 500 in isolation would render Tasks HEAVIER than
-   the Work row above it and invert the very hierarchy this rule exists to state. Size, colour,
-   icon and indent carry the rung here, and a child is never bolder than its parent
-   (`command-menu.css.test.ts` holds that). Whether the palette's destination rows should take
-   the ladder's 600 is a separate question about the whole surface, not about children.
-
-   The indent and type step-down carry the hierarchy without a vertical rule beside every row. */
-.cm-item[data-child='true'] {
-  margin-left: var(--rail-child-guide-x);
-  border-left-width: 0;
-  border-left-style: none;
-  padding-left: var(--rail-child-pad);
-  font-size: var(--font-size-mono);
-  color: var(--muted-foreground);
-}
-.cm-item[data-child='true'] .cm-item-glyph svg {
-  width: var(--rail-icon-child);
-  height: var(--rail-icon-child);
-}
-/* Active outranks the rung, and does it on SPECIFICITY (compound selector), never on source
-   order — two single-class rules on one element have no tie-break. Only the COLOUR returns to
-   primary: size, weight and indent state where the row sits in the tree, which selection does
-   not change. */
-.cm-item[data-child='true'].active {
-  color: var(--text-primary);
-}
-
-/* Skeleton row while records are loading. */
-.cm-skeleton {
-  background: var(--surface-tertiary);
-  border-radius: var(--radius-xs);
-  height: 12px;
-  width: 180px;
-  display: inline-block;
-}
-
-/* ── Footer key hints ── */
-.cm-foot {
+.cm-input {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
-  gap: 14px;
-  padding: 8px 14px;
-  border-top: 1px solid var(--border-light);
-  font-size: var(--font-size-control);
-  color: var(--text-tertiary);
+  align-items: center;
+  gap: var(--mos-row-gap);
+  flex: none;
+  min-height: calc(var(--mos-control-height) + var(--mos-space-5));
+  padding: 0 var(--mos-space-4);
+  border-bottom: 1px solid var(--mos-line);
+  background: var(--mos-surface);
 }
-.cm-foot-key { font-family: var(--ds-code-font-family); }
-
-/* `useIsCoarsePointer` already unmounts this copy for `(pointer: coarse)`; this CSS rule is the
-   second, independent hiding path for a touch device that reports a fine pointer but no hover
-   (`(hover: none)`), which the JS check alone does not cover. No un-pressable "esc" chip or
-   "↑↓ navigate · ↵ open · esc close" line on a screen with no keyboard. */
-@media (hover: none), (pointer: coarse) {
-  .cm-foot,
-  .cm-input .cm-foot-key {
-    display: none;
-  }
-}
-
-/* SYS-2 phone tap-target floor: the command rows are the primary touch surface of the ⌘K
-   palette on phone; their 36px height is below the 44px touch minimum. min-height (not height)
-   raises the floor on phone without disturbing the desktop rhythm. Covers the record-search
-   skeleton row too (it shares .cm-item).
-
-   Lost in the port along with `tap-targets.css.test.ts`, the guard that names it; restoring that
-   guard is what surfaced this. */
+.cm-input-icon { display: flex; color: var(--mos-muted); }
+.cm-input-icon > svg { width: var(--mos-icon-md); height: var(--mos-icon-md); }
+.cm-input input { flex: 1; min-width: 0; min-height: var(--mos-control-height); border: 0; outline: 0; background: transparent; color: var(--mos-ink); font: var(--mos-type-control); }
+.cm-input input::placeholder { color: var(--mos-muted); }
+.cm-body { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: var(--mos-inline-gap) var(--mos-row-pad-x); }
+.cm-group-list { list-style: none; margin: 0; padding: 0; }
+#cm-list { max-height: none; overflow: visible; }
+.cm-group-list[role='listbox'] > [role='group'] { padding: var(--mos-menu-pad) 0 var(--mos-inline-gap); }
+.cm-group-list[role='listbox'] > [role='group'] + [role='group'] { border-top: 1px solid var(--mos-line); }
+.cm-group { padding: var(--mos-group-above) var(--mos-row-pad-x) var(--mos-group-below); color: var(--mos-ink); font: var(--mos-type-navgroup); }
+.cm-empty { padding: var(--mos-group-above) var(--mos-row-pad-x); color: var(--mos-muted); font: var(--mos-type-body); }
+.cm-records-error { padding: var(--mos-space-3); color: var(--mos-ink); font: var(--mos-type-body); }
+.cm-item { display: flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height); padding: var(--mos-control-pad-y) var(--mos-row-pad-x); border-radius: var(--radius-sm); color: var(--mos-ink); font: var(--mos-type-control); cursor: pointer; }
+.cm-item:hover { background: var(--mos-hover); }
+.cm-item.active { background: var(--mos-accent-tint); color: var(--mos-accent); outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: calc(-1 * var(--mos-focus-width)); }
+.cm-item-glyph { display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--mos-icon-md); color: var(--mos-muted); }
+.cm-item.action .cm-item-glyph { color: var(--mos-accent); }
+.cm-item-glyph > svg { width: var(--mos-icon-md); height: var(--mos-icon-md); }
+.cm-item-label { flex: 1; min-width: 0; }
+.cm-item-meta { margin-left: auto; padding-left: var(--mos-inline-gap); color: var(--mos-muted); font: var(--mos-type-body); }
+.cm-item[data-child='true'] { margin-left: var(--mos-space-4); font: var(--mos-type-subnav); color: var(--mos-muted); }
+.cm-item[data-child='true'].active { color: var(--mos-accent); }
+.cm-skeleton { display: inline-block; width: 180px; height: var(--mos-space-3); border-radius: var(--radius-xs); background: var(--mos-hover); }
+.cm-foot { display: flex; flex: none; gap: var(--mos-field-gap); padding: var(--mos-inline-gap) var(--mos-bar-pad-x); border-top: 1px solid var(--mos-line); color: var(--mos-muted); font: var(--mos-type-meta); }
+.cm-foot-key { font-family: var(--font-sans); }
 @media (max-width: 767.98px) {
-  .cm-item { min-height: 44px; }
+  .cm-item { min-height: var(--mos-control-height); }
 }
+@media (hover: none), (pointer: coarse) { .cm-foot, .cm-input .cm-foot-key { display: none; } }

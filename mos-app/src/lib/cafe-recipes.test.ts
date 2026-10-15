@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { diffRecipes, latestRecipes, recipeKey, searchRecipes, type RecipeVersion } from './cafe-recipes'
+import { diffRecipes, filterRecipesByActivity, latestRecipes, recipeActivity, recipeKey, searchRecipes, type RecipeVersion } from './cafe-recipes'
 
 const original: RecipeVersion = {
   esb_code: 'TEST', menu_id: 1, bom_id: 10, version: 1, first_seen: '2026-10-01', source_observed_at: '2026-10-01T01:00:00Z',
@@ -64,5 +64,36 @@ describe('retained ERP recipe changes', () => {
       { kind: 'removed', name: 'Salt', before: '2 GR' },
       { kind: 'added', name: 'Butter', after: '20 GR' },
     ])
+  })
+})
+
+describe('recipe active status', () => {
+  const make = (menu_id: number, bom_id: number | null, recipe: Partial<RecipeVersion['recipe']>): RecipeVersion =>
+    ({ ...original, menu_id, bom_id, recipe: { ...original.recipe, ...recipe } })
+  const flags = new Map([['10', true], ['11', false]])
+
+  it("trusts the recipe's own ESB flag over the linked item", () => {
+    expect(recipeActivity(make(1, 11, { active: true }), flags)).toBe('active')
+    expect(recipeActivity(make(2, 10, { active: false }), flags)).toBe('inactive')
+  })
+  it('treats a deleted menu as inactive even when marked active', () => {
+    expect(recipeActivity(make(3, 10, { active: true, menu_deleted: true }), flags)).toBe('inactive')
+    expect(recipeActivity(make(4, 10, { menu_deleted: true }), flags)).toBe('inactive')
+  })
+  it('falls back to the linked item (bom_id = esb_bom_id) only when the recipe carries no flag', () => {
+    expect(recipeActivity(make(5, 10, {}), flags)).toBe('active')
+    expect(recipeActivity(make(6, 11, {}), flags)).toBe('inactive')
+  })
+  it('is Unknown, never active, with no flag, no link or no item read', () => {
+    expect(recipeActivity(make(7, null, {}), flags)).toBe('unknown')
+    expect(recipeActivity(make(8, 99, {}), flags)).toBe('unknown')
+    expect(recipeActivity(make(9, 10, {}))).toBe('unknown')
+  })
+  it('filters Active, Inactive and All; Unknown shows only under All', () => {
+    const rows = [make(1, 10, { active: true }), make(2, 10, { active: false }), make(3, 99, {})]
+    const ids = (filter: 'Active' | 'Inactive' | 'All') => filterRecipesByActivity(rows, filter, flags).map(row => row.menu_id)
+    expect(ids('Active')).toEqual([1])
+    expect(ids('Inactive')).toEqual([2])
+    expect(ids('All')).toEqual([1, 2, 3])
   })
 })

@@ -19,7 +19,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
 
 // Gitignored (mos-app/.gitignore) — these are live sessions, not fixtures.
-export const AUTH_STATE_DIR = resolve(__dir, '../.auth')
+const AUTH_STATE_DIR = resolve(__dir, '../.auth')
 
 export function storageStatePath(email: string): string {
   return resolve(AUTH_STATE_DIR, `${email}.json`)

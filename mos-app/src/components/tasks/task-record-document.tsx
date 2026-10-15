@@ -11,12 +11,15 @@ import { RecordAbout, RecordPageLayout, RecordSection } from '@/components/recor
 import type { RecordMenuItem } from '@/components/record/record-menu'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { dueStatus } from '@/lib/due-status'
+import { overdueDays } from './task-formatters'
 import type { PersonOption } from '@/lib/db/directory'
 import type { ChecklistItemRow, TaskEventRow, TaskRow, TaskStatus } from '@/lib/db/tasks.types'
 import { ActivityCard } from './activity-card'
 import { ChecklistCard } from './checklist-card'
 import { CommentThread, type TaskComment } from './CommentThread'
 import './task-record-document.css'
+import { useIsOffline } from '@/shell/use-is-offline'
+import { OfflineNotice } from '@/components/ui/offline-notice'
 
 type TaskRecordDocumentProps = {
   // Adapter output: fields, edit rights and actions.
@@ -51,9 +54,9 @@ type TaskRecordDocumentProps = {
 }
 
 const STATUS_TONE: Record<TaskStatus, RecordFactTone> = {
-  Open: 'warning',
+  Open: 'neutral',
   'In Progress': 'primary',
-  Blocked: 'destructive',
+  Blocked: 'warning',
   Done: 'success',
 }
 
@@ -65,6 +68,7 @@ export function TaskRecordDocument({
   notice, onCommitField, onDirtyChange, fieldCommitsFrozen,
 }: TaskRecordDocumentProps) {
   const t = useT()
+  const offline = useIsOffline()
   const { toast, showToast, clearToast } = useToast()
   const { runtime, openPanel } = useAgentRuntime()
   const editable = !adapter.permission.readOnly
@@ -80,7 +84,7 @@ export function TaskRecordDocument({
 
   // ── Header facts: status · PIC · Supervisor · Due · Project/Process · Objective ──────────────
   const facts: RecordFact[] = []
-  if (archived) facts.push({ type: 'state', key: 'status', label: t('tasks.archivedLabel'), tone: 'warning' })
+  if (archived) facts.push({ type: 'state', key: 'status', label: t('tasks.archivedLabel'), tone: 'neutral' })
   else if (editable) facts.push({ type: 'field', key: 'status', field: statusSpec })
   else facts.push({ type: 'state', key: 'status', label: statusSpec.displayValue, tone: STATUS_TONE[task.status] })
   facts.push({ type: 'person', key: 'pic', role: 'neutral', field: pic })
@@ -94,7 +98,7 @@ export function TaskRecordDocument({
   if (task.due_date !== null) {
     facts.push({
       type: 'field', key: 'dueDate', tone: dueKind === 'overdue' || dueKind === 'soon' ? dueKind : undefined,
-      field: dueKind === 'overdue' ? { ...due, displayValue: t('tasks.due.overdueOn', { date: due.displayValue }) } : due,
+      field: dueKind === 'overdue' && task.due_date ? { ...due, displayValue: `${due.displayValue} · ${t(overdueDays(task.due_date, now) === 1 ? 'tasks.due.overdueDays.one' : 'tasks.due.overdueDays', { days: overdueDays(task.due_date, now) })}` } : due,
     })
   } else if (editable) {
     facts.push({ type: 'field', key: 'dueDate', field: { ...due, displayValue: t('tasks.due.set') } })
@@ -114,7 +118,7 @@ export function TaskRecordDocument({
   // ── Primary: the one lifecycle action, quiet while the task is not ready to complete ──────────
   const lifecycle = adapter.actions.find((action) => action.id === 'complete' || action.id === 'reopen')
   const primary = lifecycle
-    ? { label: lifecycle.label, variant: lifecycle.intent === 'primary' ? 'primary' as const : 'outline' as const, onClick: () => { void lifecycle.run() } }
+    ? { label: lifecycle.label, variant: lifecycle.intent === 'primary' ? 'primary' as const : 'outline' as const, disabled: offline, onClick: () => { void lifecycle.run() } }
     : undefined
 
   // ── ⋯ menu: Copy link · Ask Deputy · (separator) Archive / Unarchive ──────────────────────────
@@ -134,7 +138,7 @@ export function TaskRecordDocument({
       onSelect: () => openPanel(t('assistant.askAbout.task', { title: task.title })),
     }] : []),
     ...(archiveAction ? [{
-      id: archiveAction.id, label: archiveAction.label, destructive: archiveAction.id === 'archive', separatorBefore: true,
+      id: archiveAction.id, label: archiveAction.label, destructive: archiveAction.id === 'archive', separatorBefore: true, disabled: offline,
       onSelect: () => { void Promise.resolve(archiveAction.run()).catch(() => {}) },
     }] : []),
   ]
@@ -192,7 +196,7 @@ export function TaskRecordDocument({
           fieldCommitsFrozen={fieldCommitsFrozen}
         />
       )}
-      notice={notice}
+      notice={<>{editable ? <OfflineNotice /> : null}{notice}</>}
       about={{ title: t('record.page.about'), node: <RecordAbout items={aboutItems} /> }}
       history={events.length > 0 ? {
         title: t('tasks.history.title'),
@@ -201,13 +205,6 @@ export function TaskRecordDocument({
           loadingMore={eventsLoadingMore} moreError={eventsMoreError} onLoadMore={onLoadMoreEvents} />,
       } : undefined}
     >
-      {showDescription ? (
-        <RecordSection id="description" title={t('tasks.description.title')}>
-          <div className="task-description">
-            {field(hasDescription ? description : { ...description, displayValue: t('tasks.description.add') })}
-          </div>
-        </RecordSection>
-      ) : null}
       {showChecklist ? (
         <RecordSection
           id="checklist"
@@ -216,7 +213,7 @@ export function TaskRecordDocument({
         >
           <ChecklistCard
             items={checklist}
-            canEdit={editable}
+            canEdit={editable && !offline}
             onAdd={onAddChecklist}
             onToggle={onToggleChecklist}
             onReorder={onReorderChecklist}
@@ -225,13 +222,20 @@ export function TaskRecordDocument({
           />
         </RecordSection>
       ) : null}
+      {showDescription ? (
+        <RecordSection id="description" title={t('tasks.description.title')}>
+          <div className="task-description">
+            {field(hasDescription ? description : { ...description, displayValue: t('tasks.description.add') })}
+          </div>
+        </RecordSection>
+      ) : null}
       {showComments ? (
         <RecordSection id="comments" title={t('tasks.commentsTitle')} count={comments.length > 0 ? comments.length : undefined}>
           <CommentThread
             variant="record"
             comments={comments}
             people={people}
-            canPost={editable}
+            canPost={editable && !offline}
             onPost={onPostComment}
             draftValue={commentDraft}
             onDraftChange={onCommentDraftChange}

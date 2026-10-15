@@ -42,7 +42,7 @@ export type SignalCollectionGroup = 'none' | 'team' | 'attention' | 'category'
 export type SignalCollectionSort = 'occurredAt' | 'attention'
 export type SignalCollectionAction = never
 
-export type SignalCollectionView = 'all' | 'needs-attention' | 'retracted' | 'i-posted'
+type SignalCollectionView = 'all' | 'needs-attention' | 'retracted' | 'i-posted'
 
 export interface SignalCollectionQuery {
   layout: SignalCollectionPresentation
@@ -70,7 +70,7 @@ const ATTENTIONS: readonly Attention[] = ['FYI', 'Needs attention', 'Urgent']
 // still works from it. Only the UNINITIALIZED default flips: an explicit ?layout=, a saved view, and
 // a Table choice all still win and persist. The Home ambient embed asks for Feed explicitly, so it is
 // unaffected either way.
-export const SIGNAL_COLLECTION_NEUTRAL_QUERY: SignalCollectionQuery = {
+const SIGNAL_COLLECTION_NEUTRAL_QUERY: SignalCollectionQuery = {
   layout: 'feed',
   view: 'all',
   q: '',
@@ -389,7 +389,7 @@ const signalCollectionViewStore: CollectionViewStore = {
   archive: (id) => archiveCollectionView(id),
 }
 
-export const signalCollectionSavedViews: CollectionSavedViewDescriptor<
+const signalCollectionSavedViews: CollectionSavedViewDescriptor<
   SignalCollectionQuery,
   SignalCollectionPresentation
 > = {

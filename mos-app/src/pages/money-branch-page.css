@@ -2,109 +2,15 @@
    from 1100px, below it under that. The page shares .money-body and the period control with /money
    (money-page.css). Token-only. */
 
-.money-branch__back {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 44px;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-control);
-  text-decoration: none;
-}
+.money-branch__panel { display: flex; flex-direction: column; gap: var(--mos-inline-gap); min-width: 0; padding-top: var(--mos-panel-pad); border-top: 1px solid var(--border); }
 
-.money-branch__back:hover {
-  color: var(--foreground);
-  text-decoration: underline;
-}
+.money-branch__h2 { margin: 0; font-size: var(--mos-size-3); font-weight: 600; line-height: 1.3; }
 
-.money-branch .money-branch__back {
-  align-self: flex-start;
-}
-
-.money-branch__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  min-width: 0;
-}
-
-@media (min-width: 1100px) {
-  .money-branch__grid:not(.money-branch__grid--single) {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-    align-items: start;
-  }
-}
-
-.money-branch__side {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-}
-
-.money-branch__panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--card);
-  box-shadow: var(--shadow-rest);
-}
-
-.money-branch__panel-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 4px 12px;
-}
-
-.money-branch__h2 {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--font-size-heading);
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.money-branch__total {
-  color: var(--muted-foreground);
-  font-size: var(--font-size-control);
-  white-space: nowrap;
-}
-
-.money-branch__sentence {
-  margin: 0;
-  font-size: var(--font-size-control);
-  line-height: 1.5;
-}
-
-.money-branch__figures {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin: 0;
-}
-
-.money-branch__figures dt {
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-}
-
-.money-branch__figures dd {
-  margin: 2px 0 0;
-  font-size: var(--font-size-heading);
-  font-weight: 600;
-}
-
-.money-branch__note,
 .money-branch__muted {
+  max-width: 52ch;
   margin: 0;
   color: var(--muted-foreground);
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
 }
 
 .money-branch__items {
@@ -122,10 +28,10 @@
 .money-branch__item {
   display: flex;
   align-items: center;
-  min-height: 44px;
-  padding: 8px 0;
+  min-height: var(--mos-control-height);
+  padding: var(--mos-row-pad-y) 0;
   color: var(--primary);
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
   text-decoration: none;
 }
 
@@ -133,59 +39,52 @@
   text-decoration: underline;
 }
 
-.money-branch__ask-status {
-  margin: 0;
-  font-size: var(--font-size-control);
-}
+.money-check-basis { display: grid; gap: 12px; min-width: 0; scroll-margin-top: 1rem; }
 
 /* Takes focus when the ask answers; the text inside is the message, not a control. */
 .money-branch__ask-result:focus {
   outline: none;
 }
 
-.money-branch__link {
-  color: var(--text-on-accent-tint);
-  font-weight: 500;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
 
-.money-branch__days summary {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  color: var(--primary);
-  font-size: var(--font-size-control);
-  cursor: pointer;
-}
 
 .money-branch__days-scroll {
   overflow-x: auto;
 }
 
+.money-branch__caption {
+  position: static;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 .money-branch__days-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
 }
 
 .money-branch__days-table :is(th, td) {
-  height: 40px;
-  padding: 0 8px;
+  height: var(--mos-row-min);
+  padding: var(--mos-row-pad-y) var(--mos-row-pad-x);
   border-bottom: 1px solid var(--row-divider);
   text-align: right;
   white-space: nowrap;
 }
 
-.money-branch__days-table :is(thead th) {
-  white-space: normal;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-  font-weight: 600;
-}
+.money-branch__days-table :is(thead th) { white-space: normal; }
+/* The shared table head sets text-align: start with :root specificity; figure columns sit over their figures. */
+:root .page-frame--v3 .money-branch__days-table thead th:not(:first-child) { text-align: end; }
+:root .page-frame--v3 .money-branch__days-table thead th:last-child { padding-inline-end: var(--mos-row-pad-x); }
 
 .money-branch__days-table :is(th:first-child) {
-  padding-left: 0;
   text-align: left;
   font-weight: 500;
 }
@@ -196,43 +95,26 @@
   gap: 16px;
 }
 
-.money-findings .money-table {
-  table-layout: fixed;
-}
-
-.money-findings :is(.money-table__head, .money-table__cell) {
-  padding: 12px;
-  text-align: left;
-  vertical-align: top;
-  overflow-wrap: anywhere;
-  font-weight: 400;
-}
-
-.money-findings :is(p, pre) {
-  margin: 8px 0;
-}
-
-.money-findings summary {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  color: var(--text-on-accent-tint);
-  cursor: pointer;
-}
-
-@media (max-width: 767.98px) {
-  .money-findings .money-table__row {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 .money-branch__skeleton-chart {
   height: 240px;
   border-radius: var(--radius);
 }
 
 @media (max-width: 767.98px) {
+  .money-body.money-branch { gap: var(--mos-space-2); }
   .money-branch__skeleton-chart {
     height: 200px;
   }
 }
+
+.money-branch__day-cards { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.money-branch__day-card { padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--row-divider); }
+.money-branch__day-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--mos-row-gap); }
+.money-branch__day-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 2px 0 0; color: var(--muted-foreground); font-size: var(--mos-size-2); line-height: 1.5; }
+
+.money-branch__link {
+  color: var(--primary);
+  font-weight: 500;
+  text-decoration: none;
+}
+.money-branch__link:hover { text-decoration: underline; text-underline-offset: 2px; }

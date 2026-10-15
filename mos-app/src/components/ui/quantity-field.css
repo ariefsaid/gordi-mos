@@ -17,7 +17,7 @@
 .quantity-field-control--inline {
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
 }
 
 .quantity-field-suffix { min-width: 0; }
@@ -25,7 +25,7 @@
 .quantity-field-error {
   margin: 0;
   color: var(--status-lost-text);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   line-height: 1.35;
   overflow-wrap: anywhere;
 }

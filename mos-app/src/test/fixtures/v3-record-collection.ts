@@ -11,46 +11,9 @@ import type {
   RecordCollectionDescriptor,
 } from '@/lib/record-collection/types'
 
-// --- Realistic domain fixtures (distinct PIC/Supervisor, real Business Units, occurrence caption) --
-
-export interface TaskFixtureRow {
-  id: string
-  title: string
-  status: 'Open' | 'In Progress' | 'Blocked' | 'Done'
-  picId: string
-  picName: string
-  supervisorId: string
-  supervisorName: string
-  businessUnit: 'Café Operations' | 'B2B Sales'
-  occurrenceLabel: string | null
-}
-
-export const TASK_FIXTURES: readonly TaskFixtureRow[] = [
-  { id: 't-1', title: 'Fix the coffee machine', status: 'Open', picId: 'p-raka', picName: 'Raka', supervisorId: 'p-sari', supervisorName: 'Sari', businessUnit: 'Café Operations', occurrenceLabel: 'Café Opening · 17 Jul 2026' },
-  { id: 't-2', title: 'Finalise Q3 roastery output forecast', status: 'In Progress', picId: 'p-sari', picName: 'Sari', supervisorId: 'p-adi', supervisorName: 'Adi', businessUnit: 'B2B Sales', occurrenceLabel: null },
-  { id: 't-3', title: 'SOP stock opname mingguan', status: 'Open', picId: 'p-raka', picName: 'Raka', supervisorId: 'p-adi', supervisorName: 'Adi', businessUnit: 'Café Operations', occurrenceLabel: 'Café Opening · 17 Jul 2026' },
-]
-
-export interface SignalFixtureRow {
-  id: string
-  body: string
-  authorName: string
-  team: string
-  attention: 'FYI' | 'Needs attention' | 'Urgent'
-  category: string | null
-  occurredAt: string
-  retractedAt: string | null
-}
-
-export const SIGNAL_FIXTURES: readonly SignalFixtureRow[] = [
-  { id: 's-1', body: 'Walk-in freezer reading 8°C', authorName: 'Raka', team: 'Café Floor', attention: 'Urgent', category: 'Equipment/facility', occurredAt: '2026-07-19T09:00:00Z', retractedAt: null },
-  { id: 's-2', body: 'New vendor for oat milk', authorName: 'Sari', team: 'Procurement', attention: 'FYI', category: 'Supply/vendor', occurredAt: '2026-07-18T12:00:00Z', retractedAt: null },
-  { id: 's-3', body: 'Duplicate — ignore', authorName: 'Adi', team: 'Café Floor', attention: 'FYI', category: null, occurredAt: '2026-07-17T08:00:00Z', retractedAt: '2026-07-17T09:00:00Z' },
-]
-
 // --- Test-only Inbox Triage Queue conformance descriptor -----------------------------------------
 
-export type InboxSeverity = 'low' | 'medium' | 'high'
+type InboxSeverity = 'low' | 'medium' | 'high'
 
 /** Inbox's distinct row — unread state, severity, notification title/body, route-to-source-record. */
 export interface NotificationRow {
@@ -77,7 +40,7 @@ const INBOX_NEUTRAL: InboxTriageQuery = { layout: 'queue', view: 'all', sort: 'u
 
 const SEVERITY_WEIGHT: Record<InboxSeverity, number> = { high: 3, medium: 2, low: 1 }
 
-export const NOTIFICATION_FIXTURES: readonly NotificationRow[] = [
+const NOTIFICATION_FIXTURES: readonly NotificationRow[] = [
   { id: 'n-1', title: 'Task overdue', body: 'Fix the coffee machine is overdue', severity: 'high', unread: false, source: { type: 'task', id: 't-1' } },
   { id: 'n-2', title: 'Urgent signal', body: 'Walk-in freezer reading 8°C', severity: 'high', unread: true, source: { type: 'signal', id: 's-1' } },
   { id: 'n-3', title: 'Mentioned you', body: 'Sari mentioned you', severity: 'low', unread: true, source: { type: 'signal', id: 's-2' } },

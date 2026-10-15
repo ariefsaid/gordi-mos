@@ -1,225 +1,41 @@
-/* SignalComposer — the FB-style capture-minimal panel (PORT convergence `sigComposer` @ the
-   e7 visual bar, design-review step-4 CRITICAL-1). Panel padding + vertical rhythm, labeled
-   fields with real space between label and value (MINOR-7/8), and a bordered foot row. */
-.signal-composer {
-  display: flex; flex-direction: column; gap: 12px; padding: 16px;
-}
-
-/* Radix renders the mention picker in a portal anchored to the textarea; this wrapper keeps the
-   textarea's local layout and focus styles together. */
-.signal-composer-mention-anchor {
-  position: relative;
-}
-.signal-composer-mention-anchor textarea {
-  width: 100%; min-height: 96px; padding: 12px;
-  border: 1px solid var(--border); border-radius: var(--radius-lg);
-  background: var(--card); font: inherit; font-size: var(--font-size-body); color: var(--foreground);
-  resize: vertical; line-height: 1.5;
-}
-.signal-composer-mention-anchor textarea::placeholder { color: var(--text-light); }
-.signal-composer-mention-anchor textarea:focus-visible {
-  outline: 2px solid var(--ring); outline-offset: 1px; border-radius: var(--radius-lg);
-}
-.signal-composer-targets {
-  display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; min-width: 0;
-}
-.signal-composer-targets-label {
-  flex: 0 0 auto; padding-top: 8px; color: var(--muted-foreground);
-  font-size: var(--font-size-label); font-weight: 600; line-height: 1.4;
-}
-.signal-composer-targets-list {
-  display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 6px; min-width: 0;
-  margin: 0; padding: 0; list-style: none;
-}
-.signal-composer-target {
-  display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0;
-  padding: 0 4px 0 9px; border: 1px solid var(--border); border-radius: var(--radius-pill);
-  background: var(--secondary); color: var(--foreground); font-size: var(--font-size-label);
-}
+/* Signal capture: write first, target second, then one field row (attention, occurred-at, photos), then the action row.
+   Every field: label above, control at the control height, one baseline, no box inside a box. */
+.signal-composer { display: flex; flex-direction: column; gap: var(--mos-space-4); padding: var(--mos-space-4) var(--mos-space-6); color: var(--mos-ink); }
+.signal-composer-writing, .signal-composer-targeting { display: flex; flex-direction: column; gap: var(--mos-space-1); min-width: 0; }
+.signal-composer-mention-hint { margin: 0; color: var(--mos-muted); font: var(--mos-type-meta); }
+.signal-composer-mention-anchor { position: relative; margin-top: var(--mos-space-1); }
+.signal-composer-mention-anchor textarea { min-height: 112px; }
+.signal-composer-targets-list { display: flex; flex-wrap: wrap; gap: var(--mos-inline-gap); min-width: 0; margin: 0; padding: 0; list-style: none; }
+.signal-composer-target { display: inline-flex; align-items: center; gap: var(--mos-space-1); max-width: 100%; min-height: var(--mos-control-height); padding: 0 0 0 var(--mos-space-3); border-radius: var(--radius-sm); background: var(--mos-band); color: var(--mos-ink); font: var(--mos-type-label); font-weight: 500; }
 .signal-composer-target-name { min-width: 0; overflow-wrap: anywhere; }
-.signal-composer-target-remove {
-  display: grid; flex: 0 0 auto; place-items: center; width: 32px; height: 32px; padding: 0;
-  border: 0; border-radius: 50%; background: transparent; color: var(--muted-foreground); cursor: pointer;
-}
-.signal-composer-target-remove:hover { background: var(--surface-tertiary); color: var(--foreground); }
-.signal-composer-target-remove:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
-
-.signal-composer-row { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
-.signal-composer-row > * { flex: 1; min-width: 180px; }
-
-.signal-composer-context {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  min-width: 0;
-}
-.signal-composer-context-pill {
-  position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 32px;
-  padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-pill);
-  background: var(--background); color: var(--muted-foreground); font-size: var(--font-size-label);
-  white-space: nowrap;
-}
-.signal-composer-context-pill:hover { background: var(--surface-tertiary); color: var(--foreground); }
-.signal-composer-occurred-pill { padding-right: 4px; align-items: flex-start; }
-/* Error copy gets its own second grid row on desktop. The date box, label, time, and WIB hint
-   stay aligned in the first row instead of the error making the neighboring controls ride high. */
-@media (min-width: 768px) {
-  .signal-composer-occurred-pill {
-    display: grid;
-    grid-template-columns: max-content max-content max-content max-content;
-    grid-template-rows: auto auto;
-    grid-template-areas:
-      "label date time hint"
-      ". error . .";
-    align-items: center;
-  }
-  .signal-composer-occurred-pill > span:first-child { grid-area: label; }
-  .signal-composer-occurred-pill .mk-date { display: contents; }
-  .signal-composer-occurred-pill .mk-date__box { grid-area: date; }
-  .signal-composer-occurred-pill .mk-date__error { grid-area: error; }
-  .signal-composer-occurred-pill .signal-composer-time { grid-area: time; }
-  .signal-composer-occurred-pill .signal-composer-field-hint { grid-area: hint; margin-left: 0; }
-}
-
-/* The occurrence pill holds two real fields. Keep the date legible, and let validation occupy
-   its own line instead of crossing the pill's border. */
-.signal-composer-occurred-pill .mk-date { min-width: 0; }
-.signal-composer-occurred-pill .mk-date__box {
-  min-width: 0; width: 176px; border-color: transparent; background: transparent; padding-left: 4px;
-}
-.signal-composer-occurred-pill .mk-date--error .mk-date__box { border-color: var(--destructive); }
-.signal-composer-occurred-pill .mk-date__field { font-size: var(--font-size-label); }
-.signal-composer-occurred-pill .mk-date__error { display: block; }
-.signal-composer-time {
-  height: 24px; padding: 0 4px; border: 1px solid transparent; border-radius: var(--radius-sm);
-  background: transparent; font: inherit; font-size: var(--font-size-label); color: var(--foreground);
-  font-variant-numeric: tabular-nums;
-}
-.signal-composer-time:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
-/* `inset: 0` lands inside the pill's own border, so the input measured 42px against a pill
-   that is 44. Pressing the border presses the pill either way; the control now covers it. */
-.signal-composer-photo-pill input {
-  position: absolute; inset: -1px; width: calc(100% + 2px); height: calc(100% + 2px);
-  opacity: 0; cursor: pointer;
-}
-.signal-composer-photo-pill { cursor: pointer; }
-.signal-composer-photo-pill[data-disabled] { opacity: 0.5; cursor: default; }
-.signal-composer-photo-pill:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; }
-.signal-composer-photos { display: flex; gap: 8px; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
+.signal-composer-target-remove { display: grid; flex: 0 0 auto; place-items: center; width: var(--mos-control-height); height: var(--mos-control-height); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--mos-ink); cursor: pointer; }
+.signal-composer-target-remove:hover { background: var(--mos-hover); }
+.signal-composer-target-remove > svg { width: var(--mos-icon-sm); height: var(--mos-icon-sm); }
+.signal-composer-context { padding-top: var(--mos-space-4); border-top: 1px solid var(--mos-line); }
+.signal-composer-time { width: 144px; }
+.signal-composer-photo-pill { position: relative; }
+.signal-composer-photo-pill input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; opacity: 0; cursor: pointer; }
+.signal-composer-photo-pill:focus-within { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.signal-composer-photo-pill[data-disabled] { color: var(--mos-muted); cursor: not-allowed; }
+.signal-composer-photos { display: flex; gap: var(--mos-space-2); flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
 .signal-composer-photos li { position: relative; width: 72px; height: 72px; }
-.signal-composer-photos img {
-  width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md); border: 1px solid var(--border);
-}
-/* A 44px press area around a 24px badge. */
-.signal-composer-photos button {
-  position: absolute; top: -10px; right: -10px; width: 44px; height: 44px; padding: 0;
-  display: grid; place-items: center; border: 0; background: none; cursor: pointer;
-}
-.signal-composer-photos button span {
-  display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
-  background: var(--foreground); color: var(--background); font-size: var(--font-size-body-lg); line-height: 1;
-}
-.signal-composer-photos li[data-failed] img { border: 2px solid var(--destructive); opacity: 0.6; }
-.signal-composer-team-choice { width: min(100%, 420px); }
-.signal-composer-team-choice .picker { width: 100%; }
-.signal-composer-identity {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0; margin: 0;
-  color: var(--muted-foreground); font-size: var(--font-size-label); line-height: 1.4;
-}
-.signal-composer-identity > span:first-child { color: var(--foreground); font-weight: 600; }
-
-/* OD-REDESIGN-91 #20: the WIB timezone hint sits beside the "Occurred at" label — quiet, caption. */
-.signal-composer-field-hint {
-  margin-left: 6px; font-size: var(--font-size-overline); font-weight: 600;
-  letter-spacing: 0.04em; color: var(--muted-foreground);
-}
-.signal-composer-pill {
-  /* typeset: was 11.5px off-ramp — matches DESIGN.md's `label` role (dense metadata pill). */
-  display: inline-flex; align-items: center; gap: 5px; min-height: 32px; height: auto; padding: 0 10px;
-  border-radius: var(--radius-pill); background: var(--secondary); color: var(--muted-foreground);
-  font-size: var(--font-size-label); width: fit-content;
-}
-
-/* One metadata line (audience → notify → author) directly under the chips. */
-.signal-composer-vis {
-  margin: 0; font-size: var(--font-size-label); color: var(--muted-foreground);
-}
-
-/* The current audience stays beside the primary action in both the desktop footer and phone bar. */
-.signal-composer-foot {
-  display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 12px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-}
-.signal-composer-audience {
-  margin-right: auto; color: var(--muted-foreground); font-size: var(--font-size-label);
-  overflow-wrap: anywhere;
-}
-
-/* OD-REDESIGN-91 #10: Send button + its quiet Shift+Enter hint. Hidden without a real keyboard —
-   a coarse (touch) pointer, or ANY pointer with no hover (some phones report hover: none on a
-   fine/stylus pointer too), never just "pointer: coarse" alone. */
-.signal-composer-send { display: flex; align-items: center; gap: 8px; }
-.signal-composer-send-hint {
-  font-size: var(--font-size-overline); color: var(--muted-foreground); white-space: nowrap;
-}
-@media (hover: none), (pointer: coarse) {
-  .signal-composer-send-hint { display: none; }
-}
-
-/* Phone controls keep the shared 44px touch floor and the 16px input rung to avoid Safari zoom. */
+.signal-composer-photos img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-sm); box-shadow: 0 0 0 1px var(--mos-line); }
+.signal-composer-photos button { position: absolute; top: calc(-1 * var(--mos-space-2)); right: calc(-1 * var(--mos-space-2)); width: 44px; height: 44px; padding: 0; display: grid; place-items: center; border: 0; background: transparent; cursor: pointer; }
+.signal-composer-photos button > svg { box-sizing: content-box; width: var(--mos-icon-sm); height: var(--mos-icon-sm); padding: var(--mos-space-1); border-radius: var(--radius-round); background: var(--mos-ink); color: var(--mos-primary-ink); }
+.signal-composer-photos li[data-failed] img { box-shadow: 0 0 0 2px var(--mos-danger); }
+.signal-composer-vis { margin: 0; color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
+.signal-composer-send-hint { color: var(--mos-muted); font: var(--mos-type-meta); }
+/* The action row sits inside the form's own width and padding. */
+.signal-composer-foot.action-bar { padding-inline: 0; padding-bottom: 0; }
+@media (hover: none), (pointer: coarse) { .signal-composer-send-hint { display: none; } }
 @media (max-width: 767.98px) {
-  .signal-composer-mention-anchor textarea { font-size: var(--font-size-touch-input); }
-  .signal-composer-occurred-pill {
-    display: grid; grid-template-columns: minmax(0, 1fr) auto;
-    width: 100%; padding: 6px 10px; box-sizing: border-box; border-radius: var(--radius-lg);
-    white-space: normal; row-gap: 4px;
+  .signal-composer { flex: 1 1 auto; min-height: 0; padding: var(--mos-space-4); overflow-y: auto; }
+  .signal-composer-context > * { flex: 1 1 100%; }
+  .signal-composer-context .field-controls { flex-wrap: wrap; }
+  .signal-composer-attention, .signal-attention-picker-trigger { width: 100%; }
+  /* The one action sits in a bar pinned to the foot of the sheet, edge to edge, not after the last field. */
+  .signal-composer-host-panel .signal-composer-foot.action-bar {
+    width: auto; margin: auto calc(-1 * var(--mos-space-4)) calc(-1 * var(--mos-space-4));
+    padding: var(--mos-space-2) var(--mos-space-4) max(var(--mos-space-2), env(safe-area-inset-bottom, 0px));
   }
-  .signal-composer-occurred-pill > span:first-child { grid-column: 1 / -1; }
-  .signal-composer-occurred-pill .mk-date { grid-column: 1; width: 100%; }
-  .signal-composer-occurred-pill .mk-date__box { width: 100%; }
-  .signal-composer-occurred-pill .signal-composer-time { grid-column: 2; }
-  .signal-composer-occurred-pill .signal-composer-field-hint { grid-column: 2; margin-left: 0; }
-  .signal-composer-occurred-pill .mk-date__field,
-  .signal-composer-time { font-size: var(--font-size-touch-input); }
-  .signal-composer-time { min-height: 44px; }
-  .signal-composer {
-    min-height: 100%; padding: 16px;
-    /* The sheet is its own scroll container: short content still lands the footer at the true
-       bottom via margin-top: auto below, and content taller than the viewport gets a real
-       scrollport for the footer to stick in. */
-    overflow-y: auto;
-  }
-  .signal-composer-context { align-items: stretch; }
-  .signal-composer-context > * { min-height: 44px; }
-  .signal-composer-targets-label { padding-top: 12px; }
-  .signal-composer-target { min-height: 44px; }
-  .signal-composer-target-remove { width: 44px; height: 44px; }
-  .signal-composer-foot {
-    position: sticky; bottom: 0; z-index: var(--z-inline-raised);
-    /* margin-top: auto claims all leftover flex space so the footer sits at the true bottom
-       instead of right after the content; the negative inline/bottom margins bleed it past the
-       container's own 16px padding so ITS OWN padding (below) is the only space under the bar. */
-    margin: auto -16px -16px;
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
-    background: color-mix(in srgb, var(--card) 94%, transparent);
-    backdrop-filter: blur(8px);
-  }
-  .signal-composer-audience { flex: 1 1 auto; min-width: 0; }
-  .signal-composer-send { flex: 0 0 auto; width: auto; }
-  .signal-composer-send .btn { min-height: 44px; white-space: nowrap; }
-}
-
-/* A required choice that has not been made, marked the same way the Café capture surface marks
-   its stream. Share Signal is disabled until this is set, and the trigger gave no sign it was
-   the reason — the same defect, on the other surface, so it gets the same answer rather than a
-   second grammar. Where there is only one team the composer states it instead of asking, so
-   this never fires for someone with nothing to choose. */
-/* Keyed off the placeholder span the Picker renders while nothing is chosen. `data-full-value`
-   is NOT empty in that state — it carries the placeholder text — so a `[data-full-value='']`
-   selector matched nothing and the cue never appeared. */
-.signal-composer-team-choice .picker__trigger[aria-required='true']:has(.picker__placeholder) {
-  border-color: var(--warning-foreground);
-  box-shadow: 0 0 0 1px var(--warning-foreground);
-}
-.signal-composer-team-choice:has(.picker__trigger[aria-required='true'] .picker__placeholder)
-  .picker__label {
-  color: var(--warning-foreground);
 }

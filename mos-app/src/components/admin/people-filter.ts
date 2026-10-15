@@ -2,6 +2,7 @@
 
 import type { MessageKey } from '@/i18n/messages'
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
+import type { SortDir } from './sort-button'
 import { matchesTokens } from '@/lib/token-search'
 
 // ── Segment filter types ──────────────────────────────────────────────────────
@@ -54,3 +55,42 @@ export function isLastActiveAdmin(person: AdminPersonRow, people: readonly Admin
   const isActiveAdmin = (p: AdminPersonRow) => p.access_roles.includes('admin') && p.login === 'active' && !p.archived_at
   return isActiveAdmin(person) && people.filter(isActiveAdmin).length === 1
 }
+
+// ── Sort ──────────────────────────────────────────────────────────────────────
+// Default is the job: find a person by name. Login sorts by how much attention it asks (active
+// first); a person with no Team always sorts last, whichever way the list runs.
+
+export type PeopleSort = 'name' | 'login' | 'team'
+
+export const SORT_OPTIONS: { value: PeopleSort; labelKey: MessageKey }[] = [
+  { value: 'name', labelKey: 'admin.people.sort.name' },
+  { value: 'login', labelKey: 'admin.people.sort.login' },
+  { value: 'team', labelKey: 'admin.people.sort.team' },
+]
+
+export function toSort(param: string): PeopleSort {
+  return SORT_OPTIONS.some((o) => o.value === param) ? (param as PeopleSort) : 'name'
+}
+
+export function toDir(param: string): SortDir {
+  return param === 'desc' ? 'desc' : 'asc'
+}
+
+const LOGIN_RANK = { active: 0, disabled: 1, none: 2 } as const
+
+export function sortPeople(rows: AdminPersonRow[], sort: PeopleSort, dir: SortDir, teamName: (person: AdminPersonRow) => string | null): AdminPersonRow[] {
+  const sign = dir === 'desc' ? -1 : 1
+  const byName = (a: AdminPersonRow, b: AdminPersonRow) => a.full_name.localeCompare(b.full_name)
+  return [...rows].sort((a, b) => {
+    if (sort === 'login') return sign * (LOGIN_RANK[a.login] - LOGIN_RANK[b.login]) || byName(a, b)
+    if (sort === 'team') {
+      const [x, y] = [teamName(a), teamName(b)]
+      if (x === null || y === null) return x === y ? byName(a, b) : x === null ? 1 : -1
+      return sign * x.localeCompare(y) || byName(a, b)
+    }
+    return sign * byName(a, b)
+  })
+}
+
+/** The People list's view (filters, search, sort): carried to a person's page so its Back link returns to it. */
+export const LIST_PARAMS = ['status', 'q', 'sort'] as const

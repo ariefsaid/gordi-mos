@@ -62,6 +62,7 @@ import { HomeDailyBrief } from '@/components/home/home-daily-brief'
 import { resolveHomeLayout, type HomeLayout } from '@/lib/home-layout'
 import { HomeCafeDoor } from '@/components/home/home-cafe-door'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
+import { useSignalComposer } from '@/shell/signal-composer-host'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
 import { CAFE_OPENING_ENABLED } from '@/lib/cafe-opening-enabled'
 import { loadHomeCafeDoor, type HomeCafeDoorData } from '@/lib/db/home-cafe'
@@ -85,6 +86,7 @@ export function HomePage() {
   useDocumentTitle(t('common.docTitle', { page: t('nav.home') }))
   const { locale } = useI18n()
   const auth = useAuth()
+  const { open: openSignalComposer, canPost } = useSignalComposer()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   // Keep the Indonesian day-part grammar (siang <15, sore 15+) while giving English users the
   // ordinary afternoon window through 18:00. The catalogs intentionally reuse the evening key for
@@ -533,7 +535,16 @@ export function HomePage() {
       // to "what is this page for right now" is the tally itself. A sentence here would be the
       // third line the header was just cut back from (ruling #6).
       meta={headMeta}
-      action={<HomeHeadCounts tally={tally} />}
+      action={(
+        <div className="home-head-actions">
+          <HomeHeadCounts tally={tally} />
+          {canPost !== false && (
+            <button type="button" className="btn btn-outline home-head-share" onClick={() => openSignalComposer()}>
+              {t('signals.feed.addSignal')}
+            </button>
+          )}
+        </div>
+      )}
       // One line at every width (guard-home-day-header.css.test.ts pins the wrap): `--compact`
       // is the shared head grammar's stepped-down-title + phone-inline-meta mode — the winning
       // mockup's greeting rung (`--fs-md` = subheading) and the rule that keeps the chip beside

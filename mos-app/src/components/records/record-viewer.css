@@ -13,8 +13,8 @@
    comment was already asking for) — same rendered values (12px / 13.5px), no longer a
    parallel local scale that happens to match by coincidence. */
 .record-viewer {
-  --rec-kv-label-size: var(--font-size-label);
-  --rec-kv-value-size: var(--font-size-control);
+  --rec-kv-label-size: var(--mos-size-2); /* field label role: 14/600 ink */
+  --rec-kv-value-size: var(--mos-size-3);
   --rec-kv-label-w: 148px;
 }
 
@@ -22,23 +22,21 @@
 .record-field {
   display: grid;
   grid-template-columns: var(--rec-kv-label-w, 148px) minmax(0, 1fr);
-  gap: 4px 16px;
+  gap: var(--mos-label-gap) var(--mos-field-gap);
   align-items: start;
   min-width: 0;
 }
 
 .record-field__label {
-  padding-top: 11px;
-  font-size: var(--rec-kv-label-size);
-  font-weight: 600;
-  color: var(--muted-foreground);
-  line-height: 1.3;
+  padding-top: calc((var(--mos-control-height) - 1lh) / 2);
+  font: var(--mos-type-label);
+  color: var(--mos-ink);
 }
 
 .record-field__value-cell {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--mos-stack-gap);
   min-width: 0;
 }
 
@@ -50,10 +48,10 @@
 .record-field__edit {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
   align-self: start;
   max-width: 100%;
-  min-height: 44px;
+  min-height: var(--mos-control-height);
   margin: 0 0 0 -9px;
   padding: 6px 8px;
   border: 1px solid transparent;
@@ -71,8 +69,8 @@
 }
 
 .record-field__edit:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: var(--mos-focus-offset);
 }
 
 /* Desktop fine-pointer density — the E7 kv rhythm (~34-40px per row). The 44px min-height on the
@@ -84,19 +82,19 @@
    shift with the target so label↔value stay baseline-aligned. */
 @media (pointer: fine) and (min-width: 768px) {
   .record-field__edit {
-    min-height: 32px;
+    min-height: var(--mos-control-height);
     padding-top: 4px;
     padding-bottom: 4px;
   }
 
   .record-field__label {
-    padding-top: 7px;
+    padding-top: calc((var(--mos-control-height) - 1lh) / 2);
   }
 
   .record-field--readonly .record-field__value {
-    padding-top: 6px;
+    padding-top: calc((var(--mos-control-height) - 1lh) / 2);
     /* DO-23(a): fine-pointer tier matches the editable 32px target + 2px border. */
-    min-height: 34px;
+    min-height: var(--mos-control-height);
   }
 }
 
@@ -105,7 +103,7 @@
   flex: none;
   color: var(--muted-foreground);
   opacity: 0;
-  transition: opacity var(--dur-fast) ease;
+  transition: opacity var(--mos-duration-fast) ease;
 }
 
 .record-field__edit:hover .record-field__edit-affordance,
@@ -122,11 +120,11 @@
 }
 
 .record-field--readonly .record-field__value {
-  padding-top: 9px;
+  padding-top: calc((var(--mos-control-height) - 1lh) / 2);
   /* DO-23(a) (census-sweep R2 task-record P3-1): permission-invariant row rhythm — the read-only
      value floors at the SAME pitch as the editable activation target (44px + 2px border), so a
      read-only viewer (e.g. Kitchen persona) sees the same document cadence as an editor. */
-  min-height: 46px;
+  min-height: var(--mos-control-height);
 }
 
 /* F4 fix: an unpopulated relation row (the Task's Project/Process or Objective, both real
@@ -149,28 +147,14 @@
   margin-inline-start: -9px;
   padding: 2px 8px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-xs);
   background: var(--card);
   font-size: var(--rec-kv-value-size);
   color: var(--foreground);
 }
 
-/* Status pill. −9px inline-start margin (item 16) cancels the pill's 9px left padding so its TEXT
-   aligns on the value-column line; font-size matches the one value size (item 17). */
-.record-field__pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 22px;
-  margin-inline-start: -9px;
-  padding: 0 9px;
-  border-radius: var(--radius-pill);
-  background: var(--muted);
-  color: var(--muted-foreground);
-  font-size: var(--rec-kv-value-size);
-  font-weight: 600;
-  white-space: nowrap;
-}
+/* Status pill: the shared Pill shell (ui/Pill.css); this only aligns its text on the value-column line. */
+.record-field__pill { margin-inline-start: -9px; font-size: var(--rec-kv-value-size); }
 
 .record-field__inline-pill {
   display: inline-flex;
@@ -179,30 +163,17 @@
   margin-inline-start: -9px;
   padding: 2px 9px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-xs);
   background: var(--card);
   color: var(--foreground);
   font-size: var(--rec-kv-value-size);
   white-space: nowrap;
 }
 
-.record-field__pill-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: var(--radius-pill);
-  background: currentColor;
-  flex: none;
-}
-
-.record-field__pill[data-status='Open'] { color: var(--warning-foreground); }
-.record-field__pill[data-status='In Progress'] { color: var(--status-open-text); }
-.record-field__pill[data-status='Blocked'] { color: var(--status-lost-text); }
-.record-field__pill[data-status='Done'] { color: var(--status-won-text); }
-
 /* Read-only provenance note (E7's "· Inherited from parent work" register). */
 .record-field__reason {
   margin: 0;
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   color: var(--muted-foreground);
 }
 .record-field__value-stack {
@@ -210,12 +181,12 @@
   flex-direction: column;
   align-items: flex-start;
   min-width: 0;
-  gap: 2px;
+  gap: var(--mos-stack-gap);
 }
 .record-field__value-main { min-width: 0; }
 .record-field__subline {
   color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   font-weight: 400;
 }
 .record-field__link {
@@ -228,10 +199,10 @@
 
 /* ── Field: edit mode — the existing controls (unchanged 44px floor / NFR-V3-006) ───────── */
 .record-field__control {
-  min-height: 44px;
+  min-height: var(--mos-control-height);
   width: 100%;
   box-sizing: border-box;
-  padding: 8px 12px;
+  padding: var(--mos-control-pad-y) var(--mos-row-pad-x);
   font: inherit;
   color: var(--foreground);
   background: var(--card);
@@ -240,12 +211,13 @@
 }
 
 .record-field__control:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: var(--mos-focus-offset);
 }
 
 .record-field__control[aria-busy='true'] {
-  opacity: 0.6;
+  color: var(--mos-muted);
+  cursor: progress;
 }
 
 .record-field__control--textarea {
@@ -263,7 +235,7 @@
 .record-field__picker,
 .record-field__picker-trigger {
   width: 100%;
-  min-height: 44px;
+  min-height: var(--mos-control-height);
 }
 
 /* F2 fix: same 44px-floor override as the Select primitive above, for the DateField
@@ -273,7 +245,7 @@
 }
 
 .record-field__date .mk-date__box {
-  width: 100%; min-height: 44px; box-sizing: border-box;
+  width: 100%; min-height: var(--mos-control-height); box-sizing: border-box;
 }
 
 .record-field__date .mk-date__hint {
@@ -303,7 +275,7 @@
 }
 
 .record-field__status {
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   color: var(--muted-foreground);
 }
 
@@ -315,19 +287,19 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: var(--mos-label-gap);
   max-width: 100%;
   min-width: 0;
   overflow-wrap: anywhere;
   white-space: normal;
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   /* I4: error TEXT at small size uses the AA-darkened red, never base --destructive
      (3.82:1 on cream at 12px — the axe finding from the record-field stories). */
   color: var(--field-error-text);
 }
 
 .record-field__retry {
-  min-height: 44px;
+  min-height: var(--mos-control-height);
 }
 
 /* ── RecordViewer shell ─────────────────────────────────────────────────────────────────── */
@@ -375,8 +347,8 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 12px;
-  padding: 14px 20px 12px;
+  gap: var(--mos-row-gap);
+  padding: var(--mos-row-pad-y) var(--mos-panel-pad);
   background: var(--card);
   border-bottom: 1px solid var(--border);
 }
@@ -393,14 +365,14 @@
 .record-viewer__pinned-title .record-field__edit {
   width: 100%;
   margin: 0;
-  min-height: 44px;
+  min-height: var(--mos-control-height);
   padding: 4px 0;
   white-space: normal;
 }
 .record-viewer__pinned-title .record-field__heading {
   margin: 0;
   font: inherit;
-  font-size: var(--font-size-heading);
+  font-size: var(--mos-size-4);
   font-weight: 600;
   line-height: 1.3;
   white-space: normal;
@@ -418,7 +390,7 @@
 .record-viewer__header-context {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 20px;
+  gap: var(--mos-inline-gap) var(--mos-panel-pad);
   margin: 0;
   padding: 0;
   color: var(--muted-foreground);
@@ -427,8 +399,8 @@
   display: inline-flex;
   min-width: 0;
   align-items: baseline;
-  gap: 6px;
-  font-size: var(--font-size-label);
+  gap: var(--mos-inline-gap);
+  font-size: var(--mos-size-1);
   line-height: 1.35;
 }
 .record-viewer__header-context-item dt {
@@ -449,12 +421,12 @@
   min-width: 0;
 }
 .record-viewer[data-record-kind='task'] .record-viewer__header-context {
-  gap: 4px 12px;
+  gap: var(--mos-label-gap) var(--mos-row-gap);
 }
 .record-viewer[data-record-kind='task'] .record-viewer__header-context-item[data-header-context-key='overdue'] dd {
   padding: 4px 8px;
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--status-lost-text) 10%, var(--card));
+  border-radius: var(--radius-xs);
+  background: var(--mos-danger-tint);
   color: var(--status-lost-text);
   font-weight: 700;
 }
@@ -503,7 +475,7 @@
   }
 
   .record-viewer--panel[data-record-kind='task'] [data-content-slot='ownership'] .record-field--readonly .record-field__value {
-    min-height: 32px;
+    min-height: var(--mos-control-height);
     padding-top: 4px;
   }
 }
@@ -525,34 +497,34 @@
   }
 
   .record-viewer[data-record-kind='task'] [data-content-slot='ownership'] .record-field--readonly .record-field__value {
-    min-height: 32px;
+    min-height: var(--mos-control-height);
     padding-top: 4px;
   }
 }
 .record-viewer__pinned-status { display: flex; align-items: center; min-width: 0; }
 .record-viewer__pinned-status .record-field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.record-viewer__header-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
-.record-viewer__header-actions .btn { min-height: 36px; }
+.record-viewer__header-actions { display: flex; flex-wrap: wrap; gap: var(--mos-inline-gap); margin-left: auto; }
+.record-viewer__header-actions .btn { min-height: var(--mos-control-height); }
 .record-viewer__overflow { position: relative; flex: none; }
 .record-viewer__overflow-trigger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 36px;
-  min-height: 36px;
+  min-height: var(--mos-control-height);
   padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--foreground);
   font: inherit;
-  font-size: var(--font-size-heading);
+  font-size: var(--mos-size-4);
   line-height: 1;
   cursor: pointer;
 }
 .record-viewer__overflow-trigger:hover,
 .record-viewer__overflow-trigger[aria-expanded='true'] { background: var(--secondary); }
-.record-viewer__overflow-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.record-viewer__overflow-trigger:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 .record-viewer__overflow-menu {
   position: absolute;
   z-index: var(--z-popover);
@@ -560,15 +532,15 @@
   right: 0;
   display: grid;
   min-width: 180px;
-  padding: 5px;
+  padding: var(--mos-menu-pad);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--popover);
   box-shadow: var(--shadow-overlay);
 }
 .record-viewer__overflow-menu button {
-  min-height: 40px;
-  padding: 8px 10px;
+  min-height: var(--mos-control-height);
+  padding: var(--mos-control-pad-y) var(--mos-row-pad-x);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -578,12 +550,9 @@
   cursor: pointer;
 }
 .record-viewer__overflow-menu button:hover { background: var(--surface-tertiary); }
-.record-viewer__overflow-menu button:focus-visible { background: var(--surface-tertiary); outline: 2px solid var(--ring); outline-offset: -2px; }
+.record-viewer__overflow-menu button:focus-visible { background: var(--surface-tertiary); outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: calc(-1 * var(--mos-focus-width)); }
 .record-viewer__overflow-menu button:disabled { color: var(--muted-foreground); cursor: not-allowed; }
-.record-field__pill-caret { display: inline-block; width: 0; height: 0; margin-inline-start: 4px; border-inline: 4px solid transparent; border-block-start: 5px solid currentColor; }
-.record-viewer__tabs { display: flex; gap: 2px; padding: 0 20px; background: var(--card); border-bottom: 1px solid var(--border); }
-.record-viewer__tabs button { min-height: 44px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted-foreground); font: inherit; cursor: pointer; }
-.record-viewer__tabs button.is-active { color: var(--foreground); font-weight: 600; border-bottom-color: var(--primary); }
+.record-field__pill-caret { display: inline-block; flex: none; width: 0; height: 0; margin-inline-start: 4px; margin-block: calc((1lh - 5px) / 2); border-inline: 4px solid transparent; border-block-start: 5px solid currentColor; }
 
 /* E7 record anatomy: one identity block, then quiet typed sections. The live Task and Signal
  * tenants may differ in fields/content, but never in the title/type/section rhythm. */
@@ -592,7 +561,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px 20px 16px;
+  padding: var(--mos-row-pad-y) var(--mos-panel-pad);
   border-bottom: 1px solid var(--border);
 }
 
@@ -608,17 +577,15 @@
 .record-viewer__type {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: var(--font-size-overline);
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  font-size: var(--mos-size-1);
+  font-weight: 600;
   line-height: 1.2;
-  text-transform: uppercase;
 }
 
 .record-viewer__title {
   margin: 2px 0 0;
   color: var(--foreground);
-  font-size: var(--font-size-heading);
+  font-size: var(--mos-size-4);
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.3;
@@ -628,8 +595,8 @@
 .record-viewer__section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px 20px;
+  gap: var(--mos-row-gap);
+  padding: var(--mos-panel-pad);
   border-bottom: 1px solid var(--border);
 }
 
@@ -639,34 +606,32 @@
   margin: 0;
   font-size: var(--rec-kv-label-size);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
+  color: var(--foreground);
 }
 
 /* Document rows stack vertically (the row itself is the label/value grid). */
 .record-viewer__fields {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--mos-inline-gap);
 }
 
 .record-viewer__relations,
 .record-viewer__activity {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .record-viewer__relation {
-  min-height: 44px;
+  min-height: var(--mos-control-height);
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: var(--mos-inline-gap);
+  padding: var(--mos-inline-gap) var(--mos-row-pad-x);
   text-align: left;
   width: 100%;
   background: var(--card);
@@ -677,7 +642,7 @@
 }
 
 .record-viewer__activity-item {
-  font-size: var(--font-size-mono);
+  font-size: var(--mos-size-2);
   color: var(--foreground);
 }
 
@@ -698,14 +663,14 @@
 
 .record-viewer__activity-time {
   margin-left: 6px;
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   color: var(--muted-foreground);
 }
 
 .record-viewer__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
 }
 
 .record-viewer__section[data-viewer-region='actions'] {
@@ -713,12 +678,12 @@
 }
 
 .record-viewer__actions .btn {
-  min-height: 44px;
+  min-height: var(--mos-control-height);
 }
 
 .record-deputy-footer {
   display: grid;
-  gap: 4px;
+  gap: var(--mos-label-gap);
   padding: 10px 0 2px;
   border-top: 1px solid var(--border);
 }
@@ -726,9 +691,9 @@
   display: inline-flex;
   align-items: center;
   align-self: start;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
   width: fit-content;
-  min-height: 44px;
+  min-height: var(--mos-control-height);
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -739,16 +704,16 @@
   cursor: pointer;
 }
 .record-deputy-footer__trigger:hover { background: var(--secondary); }
-.record-deputy-footer__trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.record-deputy-footer__trigger:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 .record-deputy-footer__helper {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
 }
 
 .record-viewer__permission-note {
   margin: 0;
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   color: var(--muted-foreground);
 }
 
@@ -756,7 +721,7 @@
   .record-viewer__header-actions .btn,
   .record-viewer__overflow-trigger {
     min-width: 44px;
-    min-height: 44px;
+    min-height: var(--mos-control-height);
   }
 
   .record-viewer__identity,
@@ -768,7 +733,7 @@
   /* Phone: the label/value row stacks to a single column. */
   .record-field {
     grid-template-columns: minmax(0, 1fr);
-    gap: 2px;
+    gap: var(--mos-label-gap);
   }
 
   .record-field__label {
@@ -807,7 +772,7 @@
     align-items: center;
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--mos-inline-gap);
   }
   .record-viewer[data-record-kind='task'] .record-viewer__pinned-status,
   .record-viewer[data-record-kind='task'] .record-viewer__header-actions {
@@ -818,15 +783,15 @@
   }
   .record-viewer[data-record-kind='task'] .record-viewer__header-actions .btn {
     width: auto;
-    min-height: 44px;
+    min-height: var(--mos-control-height);
     padding-inline: 12px;
   }
   .record-viewer[data-record-kind='task'] .record-viewer__overflow-trigger {
     min-width: 44px;
-    min-height: 44px;
+    min-height: var(--mos-control-height);
   }
 }
-.record-field__linked-value { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.record-field__linked-value { display: flex; align-items: center; gap: var(--mos-inline-gap); min-width: 0; }
 .record-field__linked-value > .record-field__value { min-width: 0; }
 .record-field__linked-value .record-field__edit { width: 44px; min-width: 44px; flex: none; justify-content: center; }
 .record-field__linked-value .record-field__edit-affordance { opacity: 1; }
@@ -840,11 +805,14 @@
    very viewport it exists for — and the audit, which measures at 390px in a desktop
    headless browser, went on reading 2px gaps and 17px links with the rule in place. */
 @media (max-width: 767.98px) {
-  .record-viewer__tabs { gap: 8px; }
-  .record-field__value > a,
+    .record-field__value > a,
   .record-field__value > span > a {
     display: inline-flex;
     align-items: center;
-    min-height: 44px;
+    min-height: var(--mos-control-height);
   }
 }
+
+/* In the record's facts line an editable status badge starts on the page's left edge (box, not text, aligns). */
+.rp .rp-facts .record-field__edit:has(> .record-field__value > .record-field__pill) { margin-inline-start: -6px; }
+.rp .rp-facts .record-field__edit > .record-field__value > .record-field__pill { margin-inline-start: 0; }

@@ -1,4 +1,4 @@
-import { Chevron } from '@/shell/icons'
+import { GroupHeader } from '@/components/ui/group-header'
 import { Tag } from '@/components/ui/tag'
 import { useT } from '@/i18n/use-t'
 import { ObjectiveHint } from './objective-hint'
@@ -59,7 +59,7 @@ type GroupHeaderRowProps = {
 
 /**
  * Work-line type label tag (FR-233 / WCAG 1.4.1 compliance).
- * Uses the existing Tag component (--ds-tag-background/text-{color} tokens).
+ * Uses the existing Tag component (semantic tone tokens).
  * Text label is ALWAYS present — never color-only.
  * project → blue categorical tag; process → gray calm tag.
  */
@@ -100,33 +100,16 @@ export function GroupHeaderRow({
   return (
     <tr className="grp">
       <td colSpan={colSpan}>
-        <div className="gbar collection-grammar-group-bar">
-          <button
-            type="button"
-            className="caret collection-grammar-group-toggle"
-            aria-expanded={!collapsed}
-            aria-label={collapsed ? t('tasks.group.expand', { label }) : t('tasks.group.collapse', { label })}
-            onClick={onToggle}
-          >
-            {/* IXD-1: ONE shared Chevron, rotated −90° when collapsed (down = expanded). */}
-            <Chevron className={`grp-chev${collapsed ? ' grp-chev-collapsed' : ''}`} />
-          </button>
-          {objectiveHint && (
-            <ObjectiveHint hint={objectiveHint} className="gobjective collection-grammar-group-hint" />
-          )}
-          <span className="glabel collection-grammar-group-label">{label}</span>
-          {/* FR-233: work-line type label — text always present, never color-only (WCAG 1.4.1) */}
-          {workLineType != null && (
-            <WorkLineTypeTag type={workLineType} />
-          )}
-          {occurrenceRollup ? (
-            <span className="gcount collection-grammar-group-count tabular-nums">
-              {/* Design fix wave item 6 (MINOR — "1 to assign" stutter): when the "N to assign"
-                  button ALSO renders just below, the summary drops the pending clause entirely
-                  (the button already carries the count); a non-capable viewer (no button) keeps
-                  a clause, but neutral "N unassigned" wording — never actionable-sounding text
-                  with nothing to click. */}
-              {t(
+        <GroupHeader
+          className="gbar"
+                    label={<>
+            {objectiveHint && <ObjectiveHint hint={objectiveHint} className="gobjective collection-grammar-group-hint" />}
+            <span className="glabel">{label}</span>
+            {/* FR-233: work-line type label — text always present, never color-only (WCAG 1.4.1) */}
+            {workLineType != null && <WorkLineTypeTag type={workLineType} />}
+          </>}
+          count={occurrenceRollup
+              ? t(
                 occurrenceRollup.pendingUnresolved === 0
                   ? 'processes.rollup.summary'
                   : onAssignPending
@@ -136,46 +119,32 @@ export function GroupHeaderRow({
                   done: occurrenceRollup.done, total: occurrenceRollup.total,
                   overdue: occurrenceRollup.overdue, pending: occurrenceRollup.pendingUnresolved,
                 },
-              )}
-            </span>
-          ) : (
-            <span className="gcount collection-grammar-group-count tabular-nums">{count}</span>
-          )}
-          {occurrenceRollup && occurrenceRollup.pendingUnresolved > 0 && onAssignPending && (
-            <button
-              type="button"
-              className="gsub gsub-pending"
-              onClick={onAssignPending}
-            >
-              {t('processes.pending.assignCount', { count: occurrenceRollup.pendingUnresolved })}
-            </button>
-          )}
-          {!occurrenceRollup && overdue > 0 && (
-            readOnly
-              ? <span>· {t('tasks.filter.overdueCount', { count: overdue })}</span>
-              : (
-                  <button
-                    type="button"
-                    className="gsub"
-                    aria-label={t('tasks.filter.overdueAria', { count: overdue })}
-                    onClick={onOverdueFilter}
-                  >
-                    · {t('tasks.filter.overdueCount', { count: overdue })}
+              )
+              : count}
+          open={!collapsed}
+          onToggle={onToggle}
+          trailing={<>
+            {occurrenceRollup && occurrenceRollup.pendingUnresolved > 0 && onAssignPending && (
+              <button type="button" className="gsub gsub-pending" onClick={onAssignPending}>
+                {t('processes.pending.assignCount', { count: occurrenceRollup.pendingUnresolved })}
+              </button>
+            )}
+            {!occurrenceRollup && overdue > 0 && (
+              readOnly
+                ? <span>{t('tasks.filter.overdueCount', { count: overdue })}</span>
+                : (
+                  <button type="button" className="gsub" aria-label={t('tasks.filter.overdueAria', { count: overdue })} onClick={onOverdueFilter}>
+                    {t('tasks.filter.overdueCount', { count: overdue })}
                   </button>
                 )
-          )}
-          {!readOnly && (
-            <button
-              type="button"
-              className="gadd"
-              aria-label={t('tasks.group.add', { label })}
-              data-prefill={prefill}
-              onClick={onAddTask}
-            >
-              {t('tasks.add')}
-            </button>
-          )}
-        </div>
+            )}
+            {!readOnly && (
+              <button type="button" className="gadd" aria-label={t('tasks.group.add', { label })} data-prefill={prefill} onClick={onAddTask}>
+                {t('tasks.add')}
+              </button>
+            )}
+          </>}
+        />
       </td>
     </tr>
   )

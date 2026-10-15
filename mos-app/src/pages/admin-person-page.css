@@ -1,0 +1,66 @@
+/* Person page: who they are in the head, then what they have (left) beside what it adds up to (right). */
+
+/* Head: email · login · Home team under the name; account actions top-right. */
+.person-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap); }
+.person-facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap) var(--mos-space-4); margin: 0; padding: 0; list-style: none; color: var(--mos-muted); font: var(--mos-type-body); }
+.person-facts > li { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); min-width: 0; }
+.person-facts__email { overflow-wrap: anywhere; }
+.person-facts__email--mono { font-family: var(--font-mono); }
+.person-facts__home { color: var(--mos-ink); }
+.person-facts__saved { color: var(--mos-success-text); font: var(--mos-type-label); }
+.person-page__error { margin-bottom: var(--mos-space-4); }
+.person-page__missing { max-width: 65ch; margin: 0; color: var(--mos-muted); font: var(--mos-type-body); }
+
+.person-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--mos-space-4); margin-bottom: var(--mos-section-gap); }
+.person-page__column { display: flex; flex-direction: column; gap: var(--mos-space-4); min-width: 0; }
+@media (min-width: 1024px) {
+  .person-page { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--mos-space-6); align-items: start; }
+}
+
+/* Card: title + Change on one line, then the value in words, then one line of meaning. */
+.person-card { min-width: 0; padding: var(--mos-space-4) var(--mos-space-5) var(--mos-space-5); border: 1px solid var(--mos-line); border-radius: var(--radius-sm); background: var(--mos-surface); }
+.person-card__head { display: flex; align-items: center; gap: var(--mos-row-gap); min-height: var(--mos-control-height); margin-bottom: var(--mos-space-2); }
+.person-card__title { flex: 1 1 auto; min-width: 0; margin: 0; color: var(--mos-ink); font: var(--mos-type-group); }
+.person-card__change { flex: none; }
+.person-card__notice { margin-bottom: var(--mos-space-3); }
+.person-card__list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.person-card__item { display: flex; align-items: center; gap: var(--mos-row-gap); min-height: var(--mos-control-height); padding: var(--mos-space-2) 0; }
+.person-card__item + .person-card__item { border-top: 1px solid var(--mos-line); }
+.person-card__item--solo { flex-wrap: wrap; padding: 0; }
+.person-card__item-text { display: flex; flex: 1 1 12rem; flex-direction: column; gap: 2px; min-width: 0; }
+.person-card__name { color: var(--mos-ink); font: var(--mos-type-control); overflow-wrap: anywhere; }
+.person-card__meta { color: var(--mos-muted); font: var(--mos-type-subnav); }
+.person-card__item-end { display: inline-flex; flex: none; align-items: center; gap: var(--mos-inline-gap); margin-inline-start: auto; }
+.person-card__meaning { margin: var(--mos-space-3) 0 0; color: var(--mos-muted); font: var(--mos-type-subnav); }
+.person-card__empty { margin: 0; color: var(--mos-muted); font: var(--mos-type-body); }
+.person-card__link-button {
+  min-height: var(--mos-control-height); margin-inline-end: calc(-1 * var(--mos-space-2)); padding: 0 var(--mos-space-2);
+  border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--mos-accent); font: var(--mos-type-label); cursor: pointer;
+}
+.person-card__link-button:hover:not(:disabled), .person-card__link:hover { text-decoration: underline; }
+.person-card__link-button:disabled { color: var(--mos-muted); cursor: not-allowed; }
+.person-card__link { display: inline-flex; align-items: center; color: var(--mos-accent); font: var(--mos-type-label); text-decoration: none; white-space: nowrap; }
+
+/* What they can do: who they lead and head, then each allowed action with where and why. */
+.person-cando-facts { display: grid; gap: var(--mos-space-2); margin: 0 0 var(--mos-space-4); }
+.person-cando-facts__row { display: grid; grid-template-columns: 6rem minmax(0, 1fr); gap: var(--mos-row-gap); align-items: baseline; }
+.person-cando-facts dt { color: var(--mos-muted); font: var(--mos-type-label); }
+.person-cando-facts dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--mos-space-1) var(--mos-row-gap); margin: 0; color: var(--mos-ink); font: var(--mos-type-body); }
+.person-cando { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--mos-line); }
+.person-cando__row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'action scope' 'why why';
+  gap: 2px var(--mos-row-gap); padding: var(--mos-space-3) 0; border-bottom: 1px solid var(--mos-line);
+}
+.person-cando__action { grid-area: action; color: var(--mos-ink); font: var(--mos-type-control); }
+.person-cando__scope { grid-area: scope; color: var(--mos-ink); font: var(--mos-type-label); text-align: end; }
+.person-cando__why { grid-area: why; color: var(--mos-muted); font: var(--mos-type-subnav); }
+
+@media (max-width: 767.98px) {
+  .content-header.person-head { margin-bottom: var(--mos-space-5); }
+  .person-head .ch-status-row { order: 2; }
+  .person-head .ch-action { order: 3; flex: 1 1 100%; margin-left: 0; }
+  .person-card { padding: var(--mos-space-3) var(--mos-space-4) var(--mos-space-4); }
+  .person-card__link { min-height: 44px; }
+  .person-cando__row { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'action' 'scope' 'why'; }
+  .person-cando__scope { text-align: start; }
+}

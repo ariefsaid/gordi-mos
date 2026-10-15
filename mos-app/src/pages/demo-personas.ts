@@ -1,5 +1,6 @@
 import { APP_RELEASE_PROFILE } from '@/config/app-build-settings'
 import type { ReleaseProfile } from '@/config/build-settings'
+import { localViewAsPassword } from '@/config/local-view-as'
 
 // Demo-login data, shared by DemoLogin.tsx + LoginPage.tsx.
 // Kept in its own (non-component) module so react-refresh stays happy and the
@@ -25,9 +26,9 @@ export const DEMO_PERSONAS: ReadonlyArray<{ label: string; email: string }> = [
 
 // The staging importer rewrites each seeded address to <local>@sample.gordi.test and assigns
 // these accounts to the separate Gordi Sample organisation; never use live staff addresses.
-export const SAMPLE_ORG_ID = '5a000000-0000-0000-0000-000000000001'
+const SAMPLE_ORG_ID = '5a000000-0000-0000-0000-000000000001'
 const SAMPLE_EMAIL_DOMAIN = '@sample.gordi.test'
-export const SAMPLE_PERSONAS: ReadonlyArray<{ label: string; email: string }> = DEMO_PERSONAS.map(
+const SAMPLE_PERSONAS: ReadonlyArray<{ label: string; email: string }> = DEMO_PERSONAS.map(
   ({ label, email }) => ({ label, email: email.replace(/\.dev@example\.test$/, SAMPLE_EMAIL_DOMAIN) }),
 )
 
@@ -42,10 +43,17 @@ function personasForProfile(
 }
 
 export function demoLoginMode(
-  env: { DEV?: boolean; PROD?: boolean; VITE_SAMPLE_ONE_CLICK_LOGIN?: string; VITE_SAMPLE_LOGIN_PASSWORD?: string },
+  env: {
+    DEV?: boolean; PROD?: boolean; VITE_SAMPLE_ONE_CLICK_LOGIN?: string; VITE_SAMPLE_LOGIN_PASSWORD?: string
+    VITE_LOCAL_VIEW_AS_PASSWORD?: string
+  },
   hostname: string,
   profile: ReleaseProfile = APP_RELEASE_PROFILE,
 ): { kind: 'dev' | 'sample'; password: string; personas: ReadonlyArray<{ label: string; email: string }> } | null {
+  // A local database loaded with the sample org has no dev accounts: sign the buttons in as the
+  // matching sample accounts with the local password (dev server only; builds refuse that variable).
+  const localSample = localViewAsPassword(Boolean(env.DEV), env.VITE_LOCAL_VIEW_AS_PASSWORD)
+  if (localSample) return { kind: 'sample', password: localSample, personas: personasForProfile(SAMPLE_PERSONAS, profile) }
   if (env.DEV) return { kind: 'dev', password: DEMO_PASSWORD, personas: personasForProfile(DEMO_PERSONAS, profile) }
   if (
     env.PROD && SAMPLE_LOGIN_HOSTS.has(hostname) &&

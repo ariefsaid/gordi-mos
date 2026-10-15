@@ -24,6 +24,7 @@ import { LoadingShell } from './components/ui/state-kit'
 import { APP_RELEASE_PROFILE, APP_ROUTER_BASENAME } from './config/app-build-settings'
 import { profileLandingPath, type ReleaseProfile } from './config/build-settings'
 import { ROUTE_PATHS } from './shell/route-parity'
+import { reviewQueuePath } from './lib/cafe-review-queues'
 import { lazyPage } from './lib/lazy-page'
 // Eager, deliberately: LoginPage is what a logged-out visitor lands on, an above-the-fold first
 // paint; splitting it trades a bundle-size win for a visible blank frame.
@@ -37,12 +38,13 @@ import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 //
 
 
-function withSuspense(element: ReactNode, fallback: ReactNode = <LoadingShell />) {
+function withSuspense(element: ReactNode, fallback: ReactNode = <LoadingShell routeTitle />) {
   return <Suspense fallback={fallback}>{element}</Suspense>
 }
 
-export { lazyPage }
+
 const HomePage = lazyPage(() => import('./pages/home-page').then((m) => ({ default: m.HomePage })))
+const WorkHomePage = lazyPage(() => import('./pages/work-home-page').then((m) => ({ default: m.WorkHomePage })))
 const TasksLayout = lazyPage(() => import('./pages/tasks-layout').then((m) => ({ default: m.TasksLayout })))
 const TaskDrawer = lazyPage(() => import('./components/tasks/task-drawer').then((m) => ({ default: m.TaskDrawer })))
 // Signals replaces Weekly Updates (v4): `/updates` redirects here and the retired page is not routed.
@@ -68,8 +70,8 @@ const KitchenLogPage = lazyPage(() =>
   import('./pages/kitchen-log-page').then((m) => ({ default: m.KitchenLogPage })),
 )
 const KitchenPlanPage = lazyPage(() => import('./pages/kitchen-plan-page').then((m) => ({ default: m.KitchenPlanPage })))
-const KitchenReviewPage = lazyPage(() =>
-  import('./pages/kitchen-review-page').then((m) => ({ default: m.KitchenReviewPage })),
+const CafeReviewPage = lazyPage(() =>
+  import('./pages/cafe-review-page').then((m) => ({ default: m.CafeReviewPage })),
 )
 const KitchenStockPage = lazyPage(() =>
   import('./pages/kitchen-stock-page').then((m) => ({ default: m.KitchenStockPage })),
@@ -77,11 +79,23 @@ const KitchenStockPage = lazyPage(() =>
 const CafeRecipesPage = lazyPage(() =>
   import('./pages/cafe-recipes-page').then((m) => ({ default: m.CafeRecipesPage })),
 )
+const CafeTransferRoutesPage = lazyPage(() =>
+  import('./pages/cafe-transfer-routes-page').then((m) => ({ default: m.CafeTransferRoutesPage })),
+)
+const CafeLocationsPage = lazyPage(() =>
+  import('./pages/cafe-locations-page').then((m) => ({ default: m.CafeLocationsPage })),
+)
+const CafeMoveStockPage = lazyPage(() =>
+  import('./pages/cafe-move-stock-page').then((m) => ({ default: m.CafeMoveStockPage })),
+)
 const CafeItemSettingsPage = lazyPage(() =>
   import('./pages/cafe-item-settings-page').then((m) => ({ default: m.CafeItemSettingsPage })),
 )
 const CafeWastePage = lazyPage(() =>
   import('./pages/cafe-waste-page').then((m) => ({ default: m.CafeWastePage })),
+)
+const CafeRecordsPage = lazyPage(() =>
+  import('./pages/cafe-records-page').then((m) => ({ default: m.CafeRecordsPage })),
 )
 const CafeCountPage = lazyPage(() =>
   import('./pages/cafe-count-page').then((m) => ({ default: m.CafeCountPage })),
@@ -89,14 +103,8 @@ const CafeCountPage = lazyPage(() =>
 const CafeReceivePage = lazyPage(() =>
   import('./pages/cafe-receive-page').then((m) => ({ default: m.CafeReceivePage })),
 )
-const CafeReceiptReviewPage = lazyPage(() =>
-  import('./pages/cafe-receipt-review-page').then((m) => ({ default: m.CafeReceiptReviewPage })),
-)
 const CafeRequestPage = lazyPage(() =>
   import('./pages/cafe-request-page').then((m) => ({ default: m.CafeRequestPage })),
-)
-const CafeRequestReviewPage = lazyPage(() =>
-  import('./pages/cafe-request-review-page').then((m) => ({ default: m.CafeRequestReviewPage })),
 )
 const CafeReceiptIssuesPage = lazyPage(() =>
   import('./pages/cafe-receipt-issues-page').then((m) => ({ default: m.CafeReceiptIssuesPage })),
@@ -110,8 +118,12 @@ const PendingBillsPage = lazyPage(() => import('./pages/pending-bills-page').the
 const BudgetPage = lazyPage(() => import('./pages/budget-page').then((m) => ({ default: m.BudgetPage })))
 const PricingPage = lazyPage(() => import('./pages/pricing-page').then((m) => ({ default: m.PricingPage })))
 const AdminUsersPage = lazyPage(() => import('./pages/admin-users-page').then((m) => ({ default: m.AdminUsersPage })))
+const AdminPersonPage = lazyPage(() => import('./pages/admin-person-page').then((m) => ({ default: m.AdminPersonPage })))
 const AdminTeamsPage = lazyPage(() => import('./pages/admin-teams-page').then((m) => ({ default: m.AdminTeamsPage })))
 const AdminAccessPage = lazyPage(() => import('./pages/admin-access-page').then((m) => ({ default: m.AdminAccessPage })))
+const AdminModulesPage = lazyPage(() =>
+  import('./pages/admin-modules-page').then((m) => ({ default: m.AdminModulesPage })),
+)
 const AdminAgentConnectionsPage = lazyPage(() => import('./pages/admin-agent-connections-page').then((m) => ({ default: m.AdminAgentConnectionsPage })))
 const SliceStubPage = lazyPage(() => import('./pages/slice-stub-page').then((m) => ({ default: m.SliceStubPage })))
 const ProfilePage = lazyPage(() => import('./pages/profile-page').then((m) => ({ default: m.ProfilePage })))
@@ -208,8 +220,8 @@ const routeTable: RouteObject[] = [
           // ── Work ────────────────────────────────────────────────────────────────────────
           {
             path: 'work',
-            element: <RouteRedirect to="/work/tasks" />,
-            handle: redirectHandle('/work/tasks'),
+            element: withSuspense(<WorkHomePage />),
+            handle: pageHandle('workspace'),
           },
           {
             path: ROUTE_PATHS.workTasks,
@@ -424,12 +436,19 @@ const routeTable: RouteObject[] = [
           { path: ROUTE_PATHS.cafePlan, element: withSuspense(<KitchenPlanPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeStock, element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeWaste, element: withSuspense(<CafeWastePage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeRecords, element: withSuspense(<CafeRecordsPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeCount, element: withSuspense(<CafeCountPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeReceive, element: withSuspense(<CafeReceivePage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeReceiptIssues, element: withSuspense(<CafeReceiptIssuesPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeRequest, element: withSuspense(<CafeRequestPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeItems, element: withSuspense(<CafeItemSettingsPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeRecipes, element: withSuspense(<CafeRecipesPage />), handle: pageHandle('workspace') },
+          // Preview ship state: the transform below swaps this for a forward unless the dev launch opted in.
+          { path: ROUTE_PATHS.cafeTransferRoutes, element: withSuspense(<CafeTransferRoutesPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeLocations, element: withSuspense(<CafeLocationsPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeMoveStock, element: withSuspense(<CafeMoveStockPage />), handle: pageHandle('workspace') },
+          // The preview page was first at /cafe/locations/move; it is now Change location.
+          { path: 'cafe/locations/move', element: <RouteRedirect to="/cafe/locations/change-location" />, handle: redirectHandle('/cafe/locations/change-location') },
           // #1239 split the former kitchen log into production and transfer; the retired kitchen
           // entry and log alias land directly on production rather than stopping at the Today root.
           { path: 'kitchen', element: <RouteRedirect to="/cafe/production" />, handle: redirectHandle('/cafe/production') },
@@ -454,9 +473,10 @@ const routeTable: RouteObject[] = [
             element: <RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} scope="link" />,
             handle: infrastructureHandle('capability'),
             children: [
-              { path: ROUTE_PATHS.cafeReview, element: withSuspense(<KitchenReviewPage />), handle: pageHandle('workspace') },
-              { path: ROUTE_PATHS.cafeReceiptReview, element: withSuspense(<CafeReceiptReviewPage />), handle: pageHandle('workspace') },
-              { path: ROUTE_PATHS.cafeRequestReview, element: withSuspense(<CafeRequestReviewPage />), handle: pageHandle('workspace') },
+              { path: ROUTE_PATHS.cafeReview, element: withSuspense(<CafeReviewPage />), handle: pageHandle('workspace') },
+              // One Review page with queues: the old Receipt review and Request review doors land on their queue.
+              { path: ROUTE_PATHS.cafeReceiptReview, element: <RouteRedirect to={reviewQueuePath('receipts')} />, handle: redirectHandle(reviewQueuePath('receipts')) },
+              { path: ROUTE_PATHS.cafeRequestReview, element: <RouteRedirect to={reviewQueuePath('requests')} />, handle: redirectHandle(reviewQueuePath('requests')) },
               // Inside the gate, for the same reason as the catalog redirects above.
               {
                 path: 'kitchen/review',
@@ -531,6 +551,11 @@ const routeTable: RouteObject[] = [
                 handle: pageHandle('management'),
               },
               {
+                path: 'admin/people/:personId',
+                element: withSuspense(<AdminPersonPage />),
+                handle: pageHandle('management'),
+              },
+              {
                 path: ROUTE_PATHS.adminTeams,
                 element: withSuspense(<AdminTeamsPage />),
                 handle: pageHandle('management'),
@@ -539,6 +564,18 @@ const routeTable: RouteObject[] = [
                 path: ROUTE_PATHS.adminAccess,
                 element: withSuspense(<AdminAccessPage />),
                 handle: pageHandle('management'),
+              },
+              // Preview ship state: the transform below swaps this for a forward unless the dev launch opted in.
+              {
+                path: ROUTE_PATHS.adminModules,
+                element: withSuspense(<AdminModulesPage />),
+                handle: pageHandle('management'),
+              },
+              // Modules was a tab of Access before it became its own Admin page; old links forward (and close with it).
+              {
+                path: 'admin/access/modules',
+                element: <RouteRedirect to="/admin/modules" />,
+                handle: redirectHandle('/admin/modules'),
               },
               {
                 path: ROUTE_PATHS.adminAgents,

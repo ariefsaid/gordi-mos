@@ -3,8 +3,8 @@ import type { TagColor } from '@/components/ui/tag'
 
 const STATUS_COLOR: Record<TaskStatus, TagColor> = {
   'In Progress': 'blue',
-  'Blocked': 'red',
-  'Open': 'amber',
+  'Blocked': 'amber',
+  'Open': 'gray',
   'Done': 'green',
 }
 

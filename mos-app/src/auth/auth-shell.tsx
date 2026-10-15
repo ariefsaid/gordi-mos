@@ -1,7 +1,13 @@
 // Shared auth chrome used by LoginPage, RecoveryPage, and OrphanScreen.
-// Design-plan §2: centered viewport + brand block + foot line.
+// Masthead + one left-edged task column + contextual help line.
 
+import { GordiLogoMark } from '@/shell/logo-mark'
+import { PageBackLink } from '@/shell/page-back-link'
+import { IconButton } from '@/components/ui/icon-button'
+import { SegmentedControl } from '@/components/ui/segmented-control'
+import '@/shell/page-head.css'
 import { useT } from '@/i18n/use-t'
+import { useI18n } from '@/i18n/I18nProvider'
 import './auth.css'
 
 // Inline spinner — aria-hidden; button label carries meaning (design-plan §5)
@@ -34,61 +40,68 @@ export function Spinner({ className }: { className?: string }) {
   )
 }
 
-// AuthShell — centered viewport + brand block + foot line
+// Show/hide toggle for a password field: the one implementation, rendered in TextInput's trailing slot.
+export function PasswordToggle({ shown, onToggle, showLabel, hideLabel, controls, disabled }: {
+  shown: boolean
+  onToggle: () => void
+  showLabel: string
+  hideLabel: string
+  controls?: string
+  disabled?: boolean
+}) {
+  return (
+    <IconButton
+      variant="tertiary"
+      ariaLabel={shown ? hideLabel : showLabel}
+      aria-pressed={shown}
+      aria-controls={controls}
+      disabled={disabled}
+      onClick={onToggle}
+    >
+      <svg aria-hidden="true" width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2">
+        <path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8Z" />
+        <circle cx="8" cy="8" r="1.8" />
+        {shown && <path d="M2 14 14 2" strokeLinecap="round" />}
+      </svg>
+    </IconButton>
+  )
+}
+
+// AuthShell — masthead, task column, foot line
 export function AuthShell({ children }: { children: React.ReactNode }) {
   const t = useT()
+  const { locale, setLocale } = useI18n()
 
   return (
-    <div className="min-h-dvh bg-background flex flex-col items-center justify-center px-4">
-      {/* Brand block — mirrors IA-8 rail brand */}
-      <div className="w-full max-w-[360px] mb-6 flex items-center gap-2">
-        {/* Logo square: 28px, primary bg, primary-foreground glyph, rounded-sm */}
-        <div
-          className="flex items-center justify-center bg-primary text-primary-foreground rounded-sm font-bold select-none"
-          style={{ width: 28, height: 28, fontSize: 16, letterSpacing: '-0.01em' }}
-          aria-hidden="true"
-        >
-          G
+    <div className="auth-shell">
+      <header className="auth-masthead">
+        <div className="auth-brand">
+          <GordiLogoMark />
+          <div className="auth-brand__text">
+            <span className="auth-brand__name">Gordi MOS</span>
+            <span className="auth-brand__tag">Management OS</span>
+          </div>
         </div>
-        <div className="flex flex-col leading-none">
-          {/* Brand name: 14px/700, ls -0.01em (heading weight, not page-title) */}
-          <span
-            className="text-foreground font-bold"
-            style={{ fontSize: 16, letterSpacing: '-0.01em' }}
-          >
-            Gordi MOS
-          </span>
-          {/* Overline: 11px/600, ls 0.06em, uppercase, muted-foreground */}
-          <span
-            className="text-muted-foreground font-semibold uppercase tracking-[0.06em]"
-            style={{ fontSize: 'var(--font-size-overline)' }}
-          >
-            Management OS
-          </span>
-        </div>
-      </div>
-
-      <main className="w-full max-w-[360px]">{children}</main>
-
-      {/* Foot line: body 13px, muted-foreground */}
-      <p
-        className="mt-6 text-muted-foreground text-center"
-        style={{ fontSize: 'var(--font-size-body-lg)' }}
-      >
-        {t('auth.footer')}
-      </p>
+        <SegmentedControl
+          className="auth-locale"
+          ariaLabel={t('auth.login.language')}
+          options={[{ value: 'en', label: 'EN' }, { value: 'id', label: 'ID' }]}
+          value={locale}
+          onChange={setLocale}
+        />
+      </header>
+      <main className="auth-main">{children}</main>
+      <aside className="auth-help">{t('auth.footer')}</aside>
     </div>
   )
 }
 
-// AuthCard — card surface: rounded-lg (12px, OD-P3-10) + shadow-rest (OD-P3-11), spacing.6 (24px)
+// The one back link (shared PageBackLink), above the title on the column's left edge.
+export function AuthBackLink({ to, onClick, label }: { to?: string; onClick?: () => void; label: string }) {
+  return <div className="auth-back"><PageBackLink to={to} onClick={onClick} label={label} /></div>
+}
+
+// Compatibility wrapper for existing auth callers; it is a task body, not a nested card.
 export function AuthCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="auth-card w-full max-w-[360px] bg-card border border-border rounded-lg shadow-rest"
-      style={{ padding: 24 }}
-    >
-      {children}
-    </div>
-  )
+  return <section className="auth-card">{children}</section>
 }

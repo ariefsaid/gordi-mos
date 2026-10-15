@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { canManageCafeReceiptIssues, countCafeReceiptIssuesNeedingPo } from '@/lib/db/cafe-receipt-issues'
-import { RailCountBadge } from '@/shell/rail-nav'
+import { CountBadge } from '@/shell/count-badge'
+import { ArrowRightIcon } from '@/shell/icons'
 
 /**
  * The Receipt issues entry point with FR-1034's badge: what waits for a PO, as the viewer may read
@@ -32,7 +33,8 @@ export function CafeReceiptIssuesLink({ canReview, receiverId }: { canReview: bo
   return (
     <Link to="/cafe/receive/issues" className="cafe-receipt-issues-link">
       {t('cafe.receipts.issues.title')}
-      <RailCountBadge count={count} label={count ? t('cafe.receipts.issues.badge', { count }) : undefined} />
+      <CountBadge count={count} label={count ? t('cafe.receipts.issues.badge', { count }) : undefined} />
+      <ArrowRightIcon />
     </Link>
   )
 }

@@ -10,20 +10,19 @@
   max-height: min(280px, var(--radix-popover-content-available-height, calc(100vh - 24px)));
   overflow-y: auto; overscroll-behavior: contain; border-radius: inherit;
 }
-.mention-group { padding: 4px; }
+.mention-group { padding: var(--mos-menu-pad); }
 .mention-group + .mention-group {
-  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-top: 1px solid var(--mos-line);
 }
 .mention-group-head {
   /* typeset: was 10.5px off-ramp — uppercase + 0.06em tracking is literally DESIGN.md's
      `overline` role (11px/600) already; only the size had drifted off it. */
-  padding: 6px 10px 2px; font-size: var(--font-size-overline); font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-foreground);
+  padding: var(--mos-group-below) var(--mos-row-pad-x) var(--mos-stack-gap); font-size: var(--mos-size-1); font-weight: 600; color: var(--muted-foreground);
 }
 .mention-row {
-  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px;
-  padding: 8px 10px; border: none; background: none; font: inherit; text-align: left;
-  border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-mono); color: inherit;
+  display: flex; align-items: center; gap: var(--mos-inline-gap); width: 100%; min-height: var(--mos-control-height);
+  padding: var(--mos-control-pad-y) var(--mos-row-pad-x); border: none; background: none; font: inherit; text-align: left;
+  border-radius: var(--radius-sm); cursor: pointer; font-size: var(--mos-size-2); color: inherit;
 }
 .mention-row:hover { background: var(--secondary); }
 /* GAP-8 (OD-91 #13): the shared listbox cursor — the combobox keeps focus on the textarea, so the
@@ -35,11 +34,11 @@
    too makes the active wash win structurally instead of by rule ORDER (a later edit that moved
    `:hover` below this would otherwise silently flip which one painted). */
 .mention-row.is-active,
-.mention-row.is-active:hover { background: var(--accent-subtle); outline: 2px solid var(--ring); outline-offset: -2px; }
-.mention-row:disabled { opacity: 0.5; cursor: not-allowed; }
+.mention-row.is-active:hover { background: var(--accent-subtle); outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: calc(-1 * var(--mos-focus-width)); }
+.mention-row:disabled { color: var(--mos-muted); cursor: not-allowed; }
 .mention-row .nm { min-width: 0; overflow-wrap: anywhere; font-weight: 500; color: var(--foreground); }
 
-.mention-empty { padding: 10px 12px; font-size: var(--font-size-mono); color: var(--muted-foreground); } /* typeset: was 12.5px off-ramp; matches the .mention-row list it replaces when empty */
+.mention-empty { padding: 10px 12px; font-size: var(--mos-size-2); color: var(--muted-foreground); } /* typeset: was 12.5px off-ramp; matches the .mention-row list it replaces when empty */
 
 /* SYS-2 phone tap-target floor: mention rows are 36px; raise to the 44px touch minimum on phone
    (the picker is a primary touch surface while composing on a phone). */

@@ -1,0 +1,1 @@
+.money-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap); margin: 0; padding: 0; list-style: none; }

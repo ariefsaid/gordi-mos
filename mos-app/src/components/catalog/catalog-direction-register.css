@@ -1,0 +1,55 @@
+/* Objectives and Projects & Processes registers. The table itself is the shared DataTable; these
+   rules size the columns, skin the name cell and the phone card. */
+.direction-register { min-width: 0; container: direction-register / inline-size; }
+.direction-register__section + .direction-register__section { margin-top: var(--mos-section-gap); }
+
+.direction-register__table { table-layout: auto; }
+.direction-register__table td { vertical-align: top; padding-block: var(--mos-row-pad-y); border-bottom: 1px solid var(--row-divider); font-size: var(--mos-size-3); }
+.direction-register__table th.dr-col-name, .direction-register__table td.dr-col-name { width: 32%; }
+.direction-register__table th.dr-col-status, .direction-register__table td.dr-col-status { width: 120px; }
+.direction-register__table th.dr-col-owner, .direction-register__table td.dr-col-owner { width: 150px; }
+.direction-register__table th.dr-col-period, .direction-register__table td.dr-col-period { width: 110px; }
+.direction-register__table th.dr-col-links, .direction-register__table td.dr-col-links { width: 24%; }
+.direction-register__table th.dr-col-progress, .direction-register__table td.dr-col-progress { width: 150px; text-align: right; font-variant-numeric: tabular-nums; }
+.direction-register__table th.dr-col-progress { text-align: right; }
+.direction-register__table td.dr-col-progress { white-space: normal; }
+
+.direction-register__identity { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.direction-register__name { display: inline-flex; align-items: center; min-height: 28px; color: var(--foreground); text-decoration: none; font-size: var(--mos-size-3); font-weight: 600; overflow-wrap: anywhere; }
+.direction-register__name:hover { text-decoration: underline; text-underline-offset: 3px; }
+.direction-register a:focus-visible, .direction-register summary:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+
+.direction-register__links { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.direction-register__link { color: var(--text-on-accent-tint); text-underline-offset: 3px; overflow-wrap: anywhere; }
+.direction-register__blank, .direction-register__muted { color: var(--muted-foreground); }
+.direction-register__note { display: block; color: var(--mos-muted); font: var(--mos-type-subnav); }
+
+/* Setup shortfall: amber text under the name, opening to say which facts are missing. */
+.direction-register__setup { color: var(--warning-foreground); font-size: var(--mos-size-1); font-weight: 600; }
+.direction-register__setup summary { display: inline-flex; align-items: center; min-height: 24px; cursor: pointer; gap: 6px; }
+.direction-register__setup summary::before { content: ''; width: 6px; height: 6px; border: solid currentColor; border-width: 0 1px 1px 0; transform: rotate(-45deg); }
+.direction-register__setup[open] summary::before { transform: rotate(45deg); }
+.direction-register__setup p { margin: 4px 0; color: var(--muted-foreground); font-weight: 400; }
+.direction-register__setup a { display: inline-flex; align-items: center; min-height: 24px; color: var(--text-on-accent-tint); text-underline-offset: 3px; font-weight: 600; }
+
+/* Phone rows: ruled lines, not boxes. Name and setup share a row, then one muted meta line, then links. */
+.direction-register .dt-cards { gap: 0; }
+.direction-register .dt-card { padding: var(--mos-row-pad-y) 0; border: 0; border-bottom: 1px solid var(--row-divider); border-radius: 0; background: transparent; }
+.direction-register__card { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
+.direction-register__card .direction-register__identity { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; column-gap: var(--mos-row-gap); width: 100%; }
+.direction-register__card .direction-register__name { min-height: var(--mos-control-height); }
+.direction-register__card .direction-register__setup summary, .direction-register__card .direction-register__setup a { min-height: var(--mos-control-height); }
+.direction-register__card .direction-register__links { flex-direction: row; flex-wrap: wrap; gap: 0 var(--mos-field-gap); }
+.direction-register__card .direction-register__link { display: inline-flex; align-items: center; gap: var(--mos-label-gap); min-height: var(--mos-control-height); }
+.direction-register__meta { margin: 0; color: var(--muted-foreground); font-size: var(--mos-size-3); }
+
+/* A record panel beside the list narrows it: drop the link column, then the period. */
+@container direction-register (max-width: 860px) {
+  .direction-register__table th.dr-col-links, .direction-register__table td.dr-col-links { display: none; }
+}
+@container direction-register (max-width: 640px) {
+  .direction-register__table th.dr-col-period, .direction-register__table td.dr-col-period { display: none; }
+}
+
+/* A closed setup note takes no space and paints nothing (the group bars above never sit over its text). */
+.direction-register__setup:not([open]) > :not(summary) { display: none; }

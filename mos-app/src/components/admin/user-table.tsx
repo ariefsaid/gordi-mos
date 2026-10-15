@@ -13,10 +13,11 @@
 // PeopleToolbar (§2.1): search-mini + ViewTabs status filter, both URL-synced (I7 / D-E1).
 // No-match empty state (§4.1): distinct from org-empty "Just you so far".
 // Access + Position columns (ADR-0050, AC-126): "Access" = access roles (RoleChips), "Position" =
-//   Jabatan (JabatanChips) — neither ever labeled "Role".
+//   Jabatan (PositionText, plain words) — neither ever labeled "Role".
 // A row (or card) opens the person: click anywhere on it, or Enter on the name. The ⋯ menu's
 //   "Manage person" opens the same panel; the menu's own clicks never reach the row.
 
+import { CheckIcon } from '@/shell/icons'
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useId, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { shouldFlipUp } from './menu-position'
@@ -25,19 +26,22 @@ import { clampPopoverGeometry } from '@/components/ui/clamp-popover-offset'
 import { usePopoverReflow } from '@/components/ui/use-popover-reflow'
 import { useSearchParamState, useSearchParamReset } from '@/lib/use-search-param-state'
 import { Pill } from '@/components/ui/pill'
-import type { PillTone } from '@/components/ui/pill'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { SearchField } from '@/components/ui/search-field'
+import { FilterChip } from '@/components/ui/filter-chip'
+import { Select } from '@/components/ui/select'
 import { Tag } from '@/components/ui/tag'
 import type { TagColor } from '@/components/ui/tag'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
-import { ViewTabs } from '@/components/ui/view-tabs'
 import { usePeopleListPresentsCards } from './use-people-list-presents-cards'
 import { localizedRoleMeta } from '@/lib/db/admin-users.types'
-import { SEGMENT_OPTIONS, filterPeople, isLastActiveAdmin, toSegment, type StatusSegment } from './people-filter'
+import { SEGMENT_OPTIONS, SORT_OPTIONS, filterPeople, isLastActiveAdmin, sortPeople, toDir, toSegment, toSort, type PeopleSort, type StatusSegment } from './people-filter'
+import { SortButton, type SortDir } from './sort-button'
 import type { AdminPersonRow, LoginStatus, TeamOption } from '@/lib/db/admin-users.types'
 import { useT } from '@/i18n/use-t'
-import type { MessageKey } from '@/i18n/messages'
+import { useIsOffline } from '@/shell/use-is-offline'
 import './people-toolbar.css'
 
 // ── PersonAction union type (item 12) ────────────────────────────────────────
@@ -51,27 +55,17 @@ export type PersonAction =
   | 'archive'
   | 'restore'
 
+// Synthetic sign-in names (people without an email) read as data, in the mono face.
+const isSyntheticEmail = (email: string) => email.includes('@ops.gordi.local')
+const emailClass = (email: string) => `people-email${isSyntheticEmail(email) ? ' people-email--mono' : ''}`
+
 // ── LoginStatusPill ───────────────────────────────────────────────────────────
-
-const LOGIN_TONE: Record<LoginStatus, PillTone> = {
-  none: 'neutral',
-  active: 'success',
-  disabled: 'warning',
-}
-
-const LOGIN_LABEL_KEY: Record<LoginStatus, MessageKey> = {
-  none: 'admin.people.login.none',
-  active: 'admin.people.login.active',
-  disabled: 'admin.people.login.disabled',
-}
 
 function LoginStatusPill({ status }: { status: LoginStatus }) {
   const t = useT()
-  return (
-    <Pill tone={LOGIN_TONE[status]}>
-      {t(LOGIN_LABEL_KEY[status])}
-    </Pill>
-  )
+  // The shared status map: Active green, Disabled neutral. "No login" is not a status, so it stays a plain neutral word.
+  if (status === 'none') return <Pill tone="neutral" dot={false}>{t('admin.people.login.none')}</Pill>
+  return <StatusBadge status={status === 'active' ? 'active' : 'disabled'} />
 }
 
 // ── RoleChips ─────────────────────────────────────────────────────────────────
@@ -94,13 +88,13 @@ function RoleChips({ roles }: { roles: string[] }) {
   const t = useT()
   if (roles.length === 0) {
     return (
-      <span style={{ color: 'var(--muted-foreground)' }} aria-label={t('admin.people.roles.none')}>
+      <span className="people-none" aria-label={t('admin.people.roles.none')}>
         —
       </span>
     )
   }
   return (
-    <span className="flex flex-wrap gap-1">
+    <span className="people-roles">
       {roles.map((role) => (
         <Tag key={role} color={ROLE_COLOR[role] ?? 'gray'}>
           {localizedRoleMeta(role, t).label}
@@ -110,29 +104,20 @@ function RoleChips({ roles }: { roles: string[] }) {
   )
 }
 
-// ── JabatanChips — mirrors RoleChips, but for shared.roles (Position) names ──
-// Jabatan names are org-authored free text, so they are NOT catalog strings — only the
-// empty-state label is localized. Kept neutral-gray throughout: a Position carries no
-// permission, so it must never read as louder than the access chips beside it.
+// ── PositionText — shared.roles (Position) names as plain text ──
+// Position names are org-authored free text, so they are NOT catalog strings — only the empty-state
+// label is localized. A Position is not a status and carries no permission, so it is words, never a pill.
 
-function JabatanChips({ jabatan }: { jabatan: { role_id: string; role_name: string }[] }) {
+function PositionText({ jabatan }: { jabatan: { role_id: string; role_name: string }[] }) {
   const t = useT()
   if (jabatan.length === 0) {
     return (
-      <span style={{ color: 'var(--muted-foreground)' }} aria-label={t('admin.people.position.none')}>
+      <span className="people-none" aria-label={t('admin.people.position.none')}>
         —
       </span>
     )
   }
-  return (
-    <span className="flex flex-wrap gap-1">
-      {jabatan.map((j) => (
-        <Tag key={j.role_id} color="gray">
-          {j.role_name}
-        </Tag>
-      ))}
-    </span>
-  )
+  return <span className="people-position">{jabatan.map((j) => j.role_name).join(', ')}</span>
 }
 
 // ── Primary Team name ─────────────────────────────────────────────────────────
@@ -169,6 +154,8 @@ function PersonActionMenu({
   labelledById,
 }: PersonActionMenuProps) {
   const t = useT()
+  // Network-only actions are unavailable offline; the reason sits at the foot of the menu (ST2).
+  const offline = useIsOffline()
   const lastAdmin = isLastActiveAdmin(person, people)
 
   function dispatch(action: PersonAction) {
@@ -180,31 +167,27 @@ function PersonActionMenu({
     <div
       role="menu"
       aria-labelledby={labelledById}
-      className="rounded-lg py-1"
-      style={{
-        background: 'var(--card)',
-        border: '1px solid var(--border)',
-        boxShadow: 'var(--shadow-overlay)',
-      }}
+      className="person-menu"
     >
       <button
         role="menuitem"
         type="button"
         tabIndex={0}
-        className="person-menu-item w-full px-3 py-1.5 text-left text-sm"
+        className="person-menu-item"
         onClick={() => dispatch('manage-person')}
       >
         {t('admin.people.action.manageAccess')}
       </button>
 
-      <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+      <div className="person-menu-rule" role="separator" />
 
       {person.login !== 'none' && (
         <button
           role="menuitem"
           type="button"
           tabIndex={0}
-          className="person-menu-item w-full px-3 py-1.5 text-left text-sm"
+          className="person-menu-item"
+          disabled={offline}
           onClick={() => dispatch('reset-password')}
         >
           {t('admin.people.action.resetPassword')}
@@ -218,10 +201,8 @@ function PersonActionMenu({
           tabIndex={0}
           aria-disabled={lastAdmin ? 'true' : undefined}
           title={lastAdmin ? t('admin.people.lastAdmin') : undefined}
-          className={[
-            'person-menu-item w-full px-3 py-1.5 text-left text-sm',
-            lastAdmin ? 'opacity-50 cursor-not-allowed' : '',
-          ].filter(Boolean).join(' ')}
+          className={lastAdmin ? 'person-menu-item person-menu-item--blocked' : 'person-menu-item'}
+          disabled={offline}
           onClick={() => !lastAdmin && dispatch('disable-login')}
         >
           {t('admin.people.action.disableLogin')}
@@ -233,7 +214,8 @@ function PersonActionMenu({
           role="menuitem"
           type="button"
           tabIndex={0}
-          className="person-menu-item w-full px-3 py-1.5 text-left text-sm"
+          className="person-menu-item"
+          disabled={offline}
           onClick={() => dispatch('enable-login')}
         >
           {t('admin.people.action.enableLogin')}
@@ -245,21 +227,23 @@ function PersonActionMenu({
           role="menuitem"
           type="button"
           tabIndex={0}
-          className="person-menu-item w-full px-3 py-1.5 text-left text-sm"
+          className="person-menu-item"
+          disabled={offline}
           onClick={() => dispatch('create-login')}
         >
           {t('admin.people.action.createLogin')}
         </button>
       )}
 
-      <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+      <div className="person-menu-rule" role="separator" />
 
       {person.archived_at ? (
         <button
           role="menuitem"
           type="button"
           tabIndex={0}
-          className="person-menu-item w-full px-3 py-1.5 text-left text-sm"
+          className="person-menu-item"
+          disabled={offline}
           onClick={() => dispatch('restore')}
         >
           {t('admin.people.action.restore')}
@@ -271,16 +255,17 @@ function PersonActionMenu({
           tabIndex={0}
           aria-disabled={lastAdmin ? 'true' : undefined}
           title={lastAdmin ? t('admin.people.lastAdmin') : undefined}
-          className={[
-            'person-menu-item w-full px-3 py-1.5 text-left text-sm',
-            lastAdmin ? 'opacity-50 cursor-not-allowed' : '',
-          ].filter(Boolean).join(' ')}
-          style={{ color: lastAdmin ? undefined : 'var(--status-lost-text)' }}
+          className={lastAdmin ? 'person-menu-item person-menu-item--blocked' : 'person-menu-item person-menu-item--danger'}
+          disabled={offline}
           onClick={() => !lastAdmin && dispatch('archive')}
         >
           {t('admin.people.action.archive')}
         </button>
       )}
+
+      {/* AC6: a disabled action says why beside itself, not in a tooltip. */}
+      {lastAdmin && <p className="person-menu-note" role="note">{t('admin.people.lastAdmin')}</p>}
+      {offline && <p className="person-menu-note" role="note">{t('common.offline.reconnect')}</p>}
     </div>
   )
 }
@@ -392,24 +377,17 @@ function PersonActions({ person, people, onAction, presentation = 'row' }: Perso
         // DO-22(a) (census admin-people P2-A): persistent low-emphasis rest state — the old
         // `opacity-0` hover-reveal made the row's ONLY action door invisible at rest and
         // unreachable without hover.
-        className={
-          isCard
-            ? 'rounded-sm inline-flex items-center justify-center shrink-0'
-            : 'rounded-sm p-1 opacity-60 group-hover/row:opacity-100 focus:opacity-100 hover:opacity-100'
-        }
-        style={
-          isCard
-            ? { color: 'var(--muted-foreground)', minWidth: 44, minHeight: 44 }
-            : { color: 'var(--muted-foreground)' }
-        }
+        className="people-actions-trigger"
         onClick={() => setOpen((v) => !v)}
       >
-        ⋯
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 18 18" fill="currentColor">
+          <circle cx="4" cy="9" r="1.4" /><circle cx="9" cy="9" r="1.4" /><circle cx="14" cy="9" r="1.4" />
+        </svg>
       </button>
       {open && createPortal(
         <div
           ref={menuContainerRef}
-          className="flex flex-col gap-1"
+          className="person-menu-host"
           style={{
             position: 'fixed',
             zIndex: 'var(--z-popover)',
@@ -425,29 +403,10 @@ function PersonActions({ person, people, onAction, presentation = 'row' }: Perso
           {isCard && (
             <div
               data-testid="person-sheet-header"
-              className="rounded-lg px-3 py-2"
-              style={{
-                background: 'var(--card)',
-                border: '1px solid var(--border)',
-                boxShadow: 'var(--shadow-overlay)',
-              }}
+              className="person-sheet-header"
             >
-              <div className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-                {person.full_name}
-              </div>
-              {person.email && (
-                <div
-                  className="text-xs"
-                  style={{
-                    color: 'var(--muted-foreground)',
-                    fontFamily: person.email.includes('@ops.gordi.local')
-                      ? 'var(--font-mono)'
-                      : undefined,
-                  }}
-                >
-                  {person.email}
-                </div>
-              )}
+              <div className="person-sheet-header__name">{person.full_name}</div>
+              {person.email && <div className={`person-sheet-header__email${isSyntheticEmail(person.email) ? ' people-email--mono' : ''}`}>{person.email}</div>}
             </div>
           )}
           <PersonActionMenu
@@ -475,37 +434,43 @@ function InlineSaved() {
     <span
       role="status"
       aria-live="polite"
-      className="people-row-saved inline-flex items-center gap-1 text-xs font-medium"
-      style={{ color: 'var(--success)' }}
+      className="people-row-saved"
     >
-      <span aria-hidden="true">✓</span> {t('record.field.saved')}
+      <CheckIcon /> {t('record.field.saved')}
     </span>
   )
 }
 
-// Column widths. DO-22(c) rebalance: Person carries the dense two-line content and must never
-// be narrower than the chip columns beside it (the guard pins Person ≥ Access). While the person
-// panel is open beside the list every column stays; the chip columns give up width.
-const COL_WIDTH = { person: '30%', team: '16%', login: '12%', access: '21%', position: '21%' } as const
-const COMPACT_COL_WIDTH = { person: '30%', team: '16%', login: '13%', access: '20%', position: '21%' } as const
+// Column widths. Person carries the dense two-line content and is never narrower than the columns
+// beside it (the guard pins Person ≥ Access).
+const COL_WIDTH = { person: '27%', team: '19%', login: '12%', access: '19%', position: '23%' } as const
+
+/** A column header that sorts: the current column carries its direction, the others offer ascending. */
+function SortHeader({ column, sort, dir, onSort, className, style, children }: {
+  column: PeopleSort; sort: PeopleSort; dir: SortDir; onSort: (column: PeopleSort) => void
+  className: string; style: React.CSSProperties; children: React.ReactNode
+}) {
+  const active = sort === column
+  return (
+    <th scope="col" className={className} style={style} aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}>
+      <SortButton dir={active ? dir : null} onClick={() => onSort(column)}>{children}</SortButton>
+    </th>
+  )
+}
 
 /** The person's name as the row's keyboard door: Enter or Space on it opens the person. */
-function PersonName({ person, onOpen }: { person: AdminPersonRow; onOpen: () => void }) {
+function PersonName({ person, onOpen, email }: { person: AdminPersonRow; onOpen: () => void; email?: string | null }) {
   return (
     <button
       type="button"
-      className="people-row-open font-medium text-sm"
-      style={{
-        color: 'var(--foreground)',
-        textDecoration: person.archived_at ? 'line-through' : undefined,
-        opacity: person.archived_at ? 0.6 : undefined,
-      }}
+      className={person.archived_at ? 'people-row-open people-row-open--archived' : 'people-row-open'}
       onClick={(event) => {
         event.stopPropagation()
         onOpen()
       }}
     >
-      {person.full_name}
+      <span className="people-row-open__name">{person.full_name}</span>
+      {email && <span className={`people-card__email${isSyntheticEmail(email) ? ' people-email--mono' : ''}`}>{email}</span>}
     </button>
   )
 }
@@ -515,42 +480,43 @@ function DesktopTable({
   teams,
   onAction,
   justSavedId,
-  selectedId,
+  sort,
+  dir,
+  onSort,
 }: {
   people: AdminPersonRow[]
   teams: TeamOption[]
   onAction: (action: PersonAction, person: AdminPersonRow) => void
   justSavedId: string | null
-  selectedId: string | null
+  sort: PeopleSort
+  dir: SortDir
+  onSort: (column: PeopleSort) => void
 }) {
   const t = useT()
-  const compact = selectedId !== null
-  const pad = compact ? 'px-2' : 'px-4'
-  const headClass = `text-left ${pad} text-xs font-semibold uppercase`
-  const headStyle = { color: 'var(--muted-foreground)', letterSpacing: '0.06em' }
-  const width = compact ? COMPACT_COL_WIDTH : COL_WIDTH
+  const headClass = 'people-head'
+  const width = COL_WIDTH
   return (
-    <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+    <table className="people-table">
       <thead>
-        <tr style={{ borderBottom: '1px solid var(--border)', height: 38 }}>
-          <th scope="col" className={headClass} style={{ ...headStyle, width: width.person }}>
+        <tr>
+          <SortHeader column="name" sort={sort} dir={dir} onSort={onSort} className={headClass} style={{ width: width.person }}>
             {t('admin.people.col.person')}
-          </th>
-          <th scope="col" className={headClass} style={{ ...headStyle, width: width.team }}>
-            {t('admin.people.col.team')}
-          </th>
-          <th scope="col" className={headClass} style={{ ...headStyle, width: width.login }}>
+          </SortHeader>
+          <SortHeader column="login" sort={sort} dir={dir} onSort={onSort} className={headClass} style={{ width: width.login }}>
             {t('admin.people.col.login')}
-          </th>
-          <th scope="col" className={headClass} style={{ ...headStyle, width: width.access }}>
+          </SortHeader>
+          <SortHeader column="team" sort={sort} dir={dir} onSort={onSort} className={headClass} style={{ width: width.team }}>
+            {t('admin.people.col.team')}
+          </SortHeader>
+          <th scope="col" className={headClass} style={{ width: width.access }}>
             {t('admin.people.col.access')}
           </th>
-          <th scope="col" className={headClass} style={{ ...headStyle, width: width.position }}>
+          <th scope="col" className={headClass} style={{ width: width.position }}>
             {t('admin.people.col.position')}
           </th>
           {/* No dedicated Status column: archived rows are signalled inline on the name
               (line-through + 0.6 opacity). */}
-          <th scope="col" className="w-10"><span className="sr-only">{t('admin.people.col.actions')}</span></th>
+          <th scope="col" className="people-actions-col"><span className="sr-only">{t('admin.people.col.actions')}</span></th>
         </tr>
       </thead>
       <tbody>
@@ -559,53 +525,38 @@ function DesktopTable({
           return (
             <tr
               key={person.id}
-              className="people-row group/row hover:bg-accent/60"
-              data-selected={person.id === selectedId ? 'true' : undefined}
+              className="people-row"
               onClick={open}
-              // 52px is DESIGN.md's Data Table row spec.
-              style={{ height: 52, borderBottom: '1px solid var(--border)' }}
             >
-              <td className={pad}>
-                <div className="flex items-center gap-2 min-w-0">
+              <td>
+                <div className="people-identity">
                   <Avatar placeholder={person.full_name} size="md" />
-                  <div className="min-w-0">
+                  <div className="people-identity__text">
                     <PersonName person={person} onOpen={open} />
-                    {person.email && (
-                      <div
-                        className="text-xs truncate"
-                        style={{
-                          color: 'var(--muted-foreground)',
-                          fontFamily: person.email.includes('@ops.gordi.local')
-                            ? 'var(--font-mono)'
-                            : undefined,
-                        }}
-                      >
-                        {person.email}
-                      </div>
-                    )}
+                    {person.email && <div className={emailClass(person.email)}>{person.email}</div>}
                   </div>
                 </div>
               </td>
-              <td className={`${pad} text-sm`} style={{ color: 'var(--foreground)' }}>
-                {primaryTeamName(person, teams) ?? (
-                  <span style={{ color: 'var(--muted-foreground)' }} aria-label={t('admin.people.team.none')}>
-                    —
-                  </span>
-                )}
-              </td>
-              <td className={pad}>
-                <div className="flex items-center gap-2">
+              <td>
+                <div className="people-login">
                   <LoginStatusPill status={person.login} />
                   {justSavedId === person.id && <InlineSaved />}
                 </div>
               </td>
-              <td className={pad}>
+              <td className="people-team">
+                {primaryTeamName(person, teams) ?? (
+                  <span className="people-none" aria-label={t('admin.people.team.none')}>
+                    —
+                  </span>
+                )}
+              </td>
+              <td>
                 <RoleChips roles={person.access_roles} />
               </td>
-              <td className={pad}>
-                <JabatanChips jabatan={person.jabatan} />
+              <td>
+                <PositionText jabatan={person.jabatan} />
               </td>
-              <td className="px-2 text-right">
+              <td className="people-actions-cell">
                 <PersonActions person={person} people={people} onAction={onAction} />
               </td>
             </tr>
@@ -623,50 +574,34 @@ function MobileCardList({
   teams,
   onAction,
   justSavedId,
-  selectedId,
 }: {
   people: AdminPersonRow[]
   teams: TeamOption[]
   onAction: (action: PersonAction, person: AdminPersonRow) => void
   justSavedId: string | null
-  selectedId: string | null
 }) {
+  const t = useT()
   return (
-    <div className="people-card-list flex flex-col gap-3 py-3">
+    <div className="people-card-list">
       {people.map((person) => {
         const open = () => onAction('manage-person', person)
         return (
-          <article
-            key={person.id}
-            className="people-card rounded-lg p-3"
-            data-selected={person.id === selectedId ? 'true' : undefined}
-            onClick={open}
-            style={{
-              background: 'var(--card)',
-              border: '1px solid var(--border)',
-              boxShadow: 'var(--shadow-rest)',
-            }}
-          >
-            {/* Head row: identity, status, and the card's ONE action door. */}
-            <div className="flex items-center gap-2">
-              <Avatar placeholder={person.full_name} size="lg" initials={2} />
-              <div className="flex-1 min-w-0">
-                <PersonName person={person} onOpen={open} />
+          <article key={person.id} className="people-card" onClick={open}>
+            <div className="people-card__identity">
+              <Avatar placeholder={person.full_name} size="md" />
+              <div className="people-identity__text">
+                <PersonName person={person} onOpen={open} email={person.email} />
               </div>
-              <LoginStatusPill status={person.login} />
-              {justSavedId === person.id && <InlineSaved />}
               <PersonActions person={person} people={people} onAction={onAction} presentation="card" />
             </div>
-
-            {/* Team · Position — the two org facts, as one quiet line rather than a field grid. */}
-            <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
-              {[primaryTeamName(person, teams), person.jabatan.map((j) => j.role_name).join(', ')]
-                .filter(Boolean)
-                .join(' · ') || '—'}
-            </p>
-
-            <div className="mt-2">
-              <RoleChips roles={person.access_roles} />
+            <div className="people-card__facts">
+              <p className="people-card__context" aria-label={`${t('admin.people.col.team')}: ${primaryTeamName(person, teams) ?? '—'}; ${t('admin.people.col.position')}: ${person.jabatan.map((j) => j.role_name).join(', ') || '—'}`}>
+                {primaryTeamName(person, teams) ?? '—'} <span aria-hidden="true">·</span> {person.jabatan.map((j) => j.role_name).join(', ') || '—'}
+              </p>
+              <p className="people-card__access-line" aria-label={`${t('admin.people.col.login')}: ${t(person.login === 'none' ? 'admin.people.login.none' : person.login === 'active' ? 'admin.people.login.active' : 'admin.people.login.disabled')}; ${t('admin.people.col.access')}: ${person.access_roles.map((role) => localizedRoleMeta(role, t).label).join(', ') || t('admin.people.roles.none')}`}>
+                <LoginStatusPill status={person.login} /> <span aria-hidden="true">·</span> <RoleChips roles={person.access_roles} />
+                {justSavedId === person.id && <InlineSaved />}
+              </p>
             </div>
           </article>
         )
@@ -686,64 +621,63 @@ interface PeopleToolbarProps {
   onSegmentChange: (s: StatusSegment) => void
   searchQuery: string
   onSearchChange: (q: string) => void
+  /** Phone/coarse cards have no column headers, so sorting is offered here. */
+  sort: PeopleSort
+  dir: SortDir
+  onSortChange: (sort: PeopleSort, dir: SortDir) => void
+  showSort: boolean
+  /** "30 people" / "3 of 30 people" — the result count, at the toolbar's right end. */
+  countLabel: string
+  onRemoveSegment: () => void
+  onRemoveSearch: () => void
+  onClearAll: () => void
 }
 
-function SearchIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      width="14"
-      height="14"
-      viewBox="0 0 15 15"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-    >
-      <circle cx="6.5" cy="6.5" r="4.5" />
-      <path d="M10.5 10.5L13.5 13.5" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function PeopleToolbar({ flush, segment, onSegmentChange, searchQuery, onSearchChange }: PeopleToolbarProps) {
-  const searchId = useId()
+function PeopleToolbar({
+  flush, segment, onSegmentChange, searchQuery, onSearchChange, sort, dir, onSortChange, showSort,
+  countLabel, onRemoveSegment, onRemoveSearch, onClearAll,
+}: PeopleToolbarProps) {
   const t = useT()
+  const query = searchQuery.trim()
+  const segmentLabel = t(SEGMENT_OPTIONS.find((option) => option.value === segment)?.labelKey ?? 'admin.people.seg.all')
 
   return (
-    <div className={flush ? 'people-toolbar people-toolbar--flush' : 'people-toolbar'}>
-      {/* Search-mini: filter by name or email */}
-      <label className="people-search-mini" htmlFor={searchId}>
-        <SearchIcon />
-        <input
-          id={searchId}
-          type="search"
-          role="searchbox"
-          aria-label={t('admin.people.search.label')}
+    <div className={flush ? 'people-toolbar-block people-toolbar-block--flush' : 'people-toolbar-block'}>
+      <div className={flush ? 'people-toolbar people-toolbar--flush' : 'people-toolbar'}>
+        <SearchField
+          label={t('admin.people.search.label')}
           placeholder={t('admin.people.search.placeholder')}
-          className="people-search-input"
           value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={onSearchChange}
           autoComplete="off"
           spellCheck={false}
         />
-      </label>
 
-      <div className="people-tb-spacer" />
+        <Select className="people-status-filter" label={t('admin.people.statusFilter')} value={segment} onChange={(event) => onSegmentChange(event.target.value as StatusSegment)}>
+          {SEGMENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{t(option.labelKey)}</option>)}
+        </Select>
 
-      {/* Segmented status filter — the shared ViewTabs primitive (interaction-contract
-          I7): roving tabindex + Arrow/Home/End across the segments, same grammar as
-          every other tab strip in the app (Rule 11 — never a bespoke tablist). The
-          `.people-status-tabs` reset mirrors the collection-toolbar's own `.view-tabs`
-          reset (static/no border/transparent) since this strip sits inline in a
-          compact toolbar row, not as the full-bleed sticky page strip. */}
-      <div className="people-status-tabs">
-        <ViewTabs
-          ariaLabel={t('admin.people.statusFilter')}
-          tabs={SEGMENT_OPTIONS.map((opt) => ({ id: opt.value, label: t(opt.labelKey) }))}
-          active={segment}
-          onChange={(id) => onSegmentChange(id as StatusSegment)}
-        />
+        {showSort && (
+          <Select className="people-status-filter" label={t('admin.people.sort.label')} value={`${sort}:${dir}`}
+            onChange={(event) => { const [next, nextDir] = event.target.value.split(':'); onSortChange(toSort(next), toDir(nextDir)) }}>
+            {SORT_OPTIONS.flatMap((option) => (['asc', 'desc'] as const).map((d) => (
+              <option key={`${option.value}:${d}`} value={`${option.value}:${d}`}>{t(option.labelKey)} · {t(d === 'asc' ? 'admin.people.sort.asc' : 'admin.people.sort.desc')}</option>
+            )))}
+          </Select>
+        )}
+
+        <p className="people-count" data-testid="people-count-line" role="status">{countLabel}</p>
       </div>
+
+      {(segment !== 'all' || query !== '') && (
+        <ul className="people-chips" aria-label={t('admin.people.chips.label')}>
+          {segment !== 'all' && <li><FilterChip label={`${t('admin.people.statusFilter')}: ${segmentLabel}`} onRemove={onRemoveSegment} /></li>}
+          {query !== '' && <li><FilterChip label={`${t('admin.people.search.label')}: ${query}`} onRemove={onRemoveSearch} /></li>}
+          {segment !== 'all' && query !== '' && (
+            <li><button type="button" className="collection-toolbar__clear" onClick={onClearAll}>{t('admin.people.empty.noMatch.clear')}</button></li>
+          )}
+        </ul>
+      )}
     </div>
   )
 }
@@ -761,8 +695,6 @@ export interface UserTableProps {
   loading?: boolean
   /** GAP-7: the person whose in-place edit just committed → shows an inline "Saved". */
   justSavedId?: string | null
-  /** The person open in the panel: their row is marked, and the table drops to its compact columns. */
-  selectedId?: string | null
 }
 
 export function UserTable({
@@ -773,7 +705,6 @@ export function UserTable({
   teams = [],
   loading = false,
   justSavedId = null,
-  selectedId = null,
 }: UserTableProps) {
   const presentsCards = usePeopleListPresentsCards()
   const t = useT()
@@ -785,12 +716,28 @@ export function UserTable({
   const segment = toSegment(statusParam)
   const setSegment = (next: StatusSegment) => setStatusParam(next)
   const [searchQuery, setSearchQuery] = useSearchParamState('q', '')
+  // One key holds column and direction ("login", "-login" for descending): two keys written in
+  // one handler would clobber each other on the URL.
+  const [sortParam, setSortParam] = useSearchParamState('sort', 'name')
+  const sort = toSort(sortParam.replace(/^-/, ''))
+  const dir = toDir(sortParam.startsWith('-') ? 'desc' : 'asc')
   const resetFilterParams = useSearchParamReset(['status', 'q'])
 
-  const { rows: filteredPeople, filtered: isFiltered } = useMemo(
+  const { rows: matched, filtered: isFiltered } = useMemo(
     () => filterPeople(people, statusParam, searchQuery),
     [people, statusParam, searchQuery],
   )
+  const filteredPeople = useMemo(
+    () => sortPeople(matched, sort, dir, (person) => primaryTeamName(person, teams)),
+    [matched, sort, dir, teams],
+  )
+  function changeSort(next: PeopleSort, nextDir: SortDir) { setSortParam(`${nextDir === 'desc' ? '-' : ''}${next}`) }
+  function sortBy(column: PeopleSort) { changeSort(column, column === sort && dir === 'asc' ? 'desc' : 'asc') }
+  const countLabel = loading
+    ? '—'
+    : isFiltered
+      ? t('admin.people.count.filtered', { shown: filteredPeople.length, count: people.length })
+      : t(filteredPeople.length === 1 ? 'admin.people.count.one' : 'admin.people.count.other', { count: filteredPeople.length })
 
   // Clear all filters
   function clearFilters() {
@@ -809,11 +756,19 @@ export function UserTable({
     <>
       {/* Toolbar always renders (seamed to table top, flat utility surface) */}
       <PeopleToolbar
-        flush={presentsCards}
+        flush
         segment={segment}
         onSegmentChange={setSegment}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        sort={sort}
+        dir={dir}
+        onSortChange={changeSort}
+        showSort={presentsCards}
+        countLabel={countLabel}
+        onRemoveSegment={() => setSegment('all')}
+        onRemoveSearch={() => setSearchQuery('')}
+        onClearAll={clearFilters}
       />
 
       {loading ? (
@@ -822,34 +777,35 @@ export function UserTable({
         <LoadingShell count={6} />
       ) : isOrgEmpty ? (
         /* Org has only the admin — "Just you so far" */
-        <div className="py-16 px-4">
+        <div>
           <EmptyState
+            variant="next-step"
             title={t('admin.people.empty.org.title')}
             copy={t('admin.people.empty.org.copy')}
           >
-            <Button variant="primary" onClick={onAddPerson}>
+            <Button variant="outline" onClick={onAddPerson}>
               {t('admin.people.addPerson')}
             </Button>
           </EmptyState>
         </div>
       ) : isNoMatch ? (
         /* Filter applied but no rows match */
-        <div className="py-12 px-4">
+        <div>
           <EmptyState
             // A filter that matched nothing is not an earned all-clear, so never the ✓ glyph.
             variant="blank"
             title={t('admin.people.empty.noMatch.title')}
             copy={t('admin.people.empty.noMatch.copy')}
           >
-            <Button variant="ghost" onClick={clearFilters}>
+            <Button variant="outline" onClick={clearFilters}>
               {t('admin.people.empty.noMatch.clear')}
             </Button>
           </EmptyState>
         </div>
       ) : presentsCards ? (
-        <MobileCardList people={filteredPeople} teams={teams} onAction={onAction} justSavedId={justSavedId} selectedId={selectedId} />
+        <MobileCardList people={filteredPeople} teams={teams} onAction={onAction} justSavedId={justSavedId} />
       ) : (
-        <DesktopTable people={filteredPeople} teams={teams} onAction={onAction} justSavedId={justSavedId} selectedId={selectedId} />
+        <DesktopTable people={filteredPeople} teams={teams} onAction={onAction} justSavedId={justSavedId} sort={sort} dir={dir} onSort={sortBy} />
       )}
     </>
   )

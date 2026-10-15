@@ -26,7 +26,7 @@ export interface MoneySort { column: MoneyColumn; desc: boolean }
 export interface MoneyView extends MoneySelection { sort: MoneySort }
 export interface MoneyDateWindow { from: string; to: string; days: number }
 
-export const DEFAULT_MONEY_VIEW: MoneyView = {
+const DEFAULT_MONEY_VIEW: MoneyView = {
   period: 30, range: null, branchCode: null, channel: 'all', sort: { column: 'revenue', desc: true },
 }
 

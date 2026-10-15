@@ -21,6 +21,7 @@ import type {
   KitchenMovement,
   KitchenLogMovement,
   MovementKey,
+  PlanMap,
   ProductionActivity,
   ProductionStream,
 } from '@/lib/db/kitchen-logs.types'
@@ -171,20 +172,6 @@ export function deriveActionLabel(
   })
 }
 
-/** The same label, abbreviated for the phone-width segmented control. */
-export function deriveActionShortLabel(
-  t: Translate,
-  movement: KitchenLogMovement,
-  branches: readonly BranchOption[],
-): string {
-  if (movement.action === 'waste') return t('kitchen.actionType.waste')
-  if (movement.action === 'produce') return t('kitchen.actionType.production')
-  const branch = branches.find((b) => b.id === movement.destinationBranchId)
-  return t('kitchen.actionType.transferTo.short', {
-    branch: branch ? branchDisplayName(branch) : t('kitchen.actionType.transferTo.fallback'),
-  })
-}
-
 /**
  * Localized label for the activity half of a stream. The key map is TOTAL over
  * ProductionActivity via `satisfies` — adding an activity to the vocabulary without
@@ -216,4 +203,19 @@ export function activityLabel(t: Translate, activity: ProductionActivity): strin
 export function streamLabel(t: Translate, stream: ProductionStream | null): string {
   if (!stream) return '—'
   return `${stream.branch.name} · ${activityLabel(t, stream.activity)}`
+}
+
+/**
+ * Where a transfer starts: a destination with something planned today, else the other stream of the
+ * viewer's own branch (the usual hand-off), else the first offered. Never another branch just because
+ * it is listed first.
+ */
+export function defaultTransferMovement(
+  moves: readonly KitchenMovement[],
+  origin: ProductionStream | null | undefined,
+  plan: PlanMap,
+): KitchenMovement | undefined {
+  const transfers = moves.filter(move => move.action === 'transfer')
+  const planned = transfers.find(move => Object.values(plan).some(byMovement => (byMovement[movementKey(move)] ?? 0) > 0))
+  return planned ?? transfers.find(move => isIntraBranch(move, origin)) ?? transfers[0]
 }

@@ -3,8 +3,8 @@ import { wibToday } from '@/lib/format/date'
 import { containsPattern } from './like-pattern'
 import { keysetBeforeFilter, keysetPageFromProbe } from './keyset-filter'
 
-export type FollowUpKind = 'b2b_ar' | 'retail_pending'
-export type FollowUpLane = 'b2b_sales' | 'retail_ops'
+type FollowUpKind = 'b2b_ar' | 'retail_pending'
+type FollowUpLane = 'b2b_sales' | 'retail_ops'
 export type FollowUpState = 'open' | 'chased' | 'promised' | 'partial' | 'settled' | 'confirmed'
 export type FollowUpTransition = 'chase' | 'promise' | 'partial' | 'settle' | 'confirm'
 
@@ -43,17 +43,15 @@ export interface FollowUpEvent {
   created_at: string
 }
 
-export type FollowUpCursor = Pick<FollowUpRow, 'created_at' | 'id'>
+type FollowUpCursor = Pick<FollowUpRow, 'created_at' | 'id'>
 export interface FollowUpFilters { overdue?: boolean; state?: FollowUpState; before?: FollowUpCursor }
-export const FOLLOW_UPS_PAGE_SIZE = 50
+const FOLLOW_UPS_PAGE_SIZE = 50
 export interface FollowUpTransitionOptions { amount?: number; cash_in_date?: string; evidence?: string; promise_date?: string; note?: string }
-export interface FollowUpReconDrift { org_id: string; counterparty: string; period: string; mos_amount: number; esb_amount: number; drift: number; is_drift: boolean }
 
 const mos = () => supabase.schema('mos')
 
 const FOLLOW_UP_COLUMNS = 'id,org_id,counterparty,kind,lane,source_invoice_ref,original_amount,running_balance,state,promise_date,issued_date,due_date,assigned_to,notes,created_at,updated_at'
 const FOLLOW_UP_EVENT_COLUMNS = 'id,org_id,follow_up_id,transition,from_state,to_state,amount,cash_in_date,evidence,promise_date,note,actor_person_id,created_at'
-const RECON_DRIFT_COLUMNS = 'org_id,counterparty,period,mos_amount,esb_amount,drift,is_drift'
 
 export interface FollowUpPage {
   rows: FollowUpRow[]
@@ -154,12 +152,6 @@ export async function transitionFollowUp(id: string, transition: FollowUpTransit
   const { data, error } = await supabase.schema('mos').rpc('transition_follow_up', { p_follow_up_id: id, p_transition: transition, p_options: options })
   if (error) throw new Error(`${error.code ?? 'FOLLOW_UP_RPC'}: ${error.message}`)
   return data as FollowUpRow
-}
-
-export async function listReconDrift(): Promise<FollowUpReconDrift[]> {
-  const { data, error } = await mos().from('follow_up_recon_drift').select(RECON_DRIFT_COLUMNS).eq('is_drift', true).order('period', { ascending: false })
-  if (error) throw new Error(`listReconDrift failed — ${error.message}`)
-  return (data ?? []) as FollowUpReconDrift[]
 }
 
 export function isOverdue(row: Pick<FollowUpRow, 'due_date' | 'state'>, today = new Date()): boolean {

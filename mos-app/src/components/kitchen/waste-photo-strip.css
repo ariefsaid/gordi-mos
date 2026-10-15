@@ -22,8 +22,8 @@
 }
 
 .waste-photo-strip a:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: var(--mos-focus-offset);
 }
 
 .waste-photo-strip img {

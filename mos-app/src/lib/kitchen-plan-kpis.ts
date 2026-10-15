@@ -10,7 +10,7 @@ import type { MessageKey } from '@/i18n/messages'
 import type { KitchenMovement, PlanCell } from '@/lib/db/kitchen-logs.types'
 import { movementKey } from '@/lib/kitchen-action-label'
 
-export interface PlanSummaryMetric {
+interface PlanSummaryMetric {
   key: string
   label: MessageKey
   value: string

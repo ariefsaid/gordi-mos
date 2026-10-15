@@ -1,0 +1,18 @@
+/* Failed ESB sends: a plain list of stuck pushes, each row one link into Sent to ESB. */
+.cafe-failed-sends { min-width: 0; }
+.cafe-failed-sends__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--mos-row-gap); padding-bottom: var(--mos-row-pad-y); border-bottom: 1px solid var(--mos-line); }
+.cafe-failed-sends__head p { margin: 0; color: var(--mos-muted); font: var(--mos-type-body); }
+.cafe-failed-sends__all, .cafe-failed-sends__open { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); color: var(--mos-accent); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); text-decoration: none; }
+.cafe-failed-sends__all { min-height: var(--mos-control-height); }
+.cafe-failed-sends__list { margin: 0; padding: 0; list-style: none; }
+.cafe-failed-sends__row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--mos-label-gap) var(--mos-row-gap);
+  min-height: var(--mos-row-min); padding: var(--mos-row-pad-y) var(--mos-row-pad-x);
+  border-bottom: 1px solid var(--mos-line); color: var(--mos-ink); text-decoration: none;
+}
+.cafe-failed-sends__row:hover { background: var(--mos-hover); }
+.cafe-failed-sends__row--stopped { background: var(--mos-warning-tint); }
+.cafe-failed-sends__row small { grid-column: 1 / -1; color: var(--mos-muted); font: var(--mos-type-meta); }
+.cafe-failed-sends__ref { max-width: 100%; overflow-wrap: anywhere; font: var(--mos-type-meta); font-variant-numeric: tabular-nums; }
+.cafe-failed-sends__error { grid-column: 1 / -1; color: var(--mos-ink); font: var(--mos-type-subnav); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.cafe-failed-sends__open { grid-column: 1 / -1; min-height: var(--mos-control-height); }

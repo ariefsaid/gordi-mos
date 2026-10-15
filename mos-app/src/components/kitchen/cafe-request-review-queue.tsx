@@ -5,7 +5,7 @@ import {
   reviewCafePurchaseRequest,
   type CafePurchaseRequest,
 } from '@/lib/db/cafe-purchase-requests'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatWeekdayDayMonth, formatWibShortDateTime } from '@/lib/format/date'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { CafeDecisionQueue, type CafeDecisionCopy } from './cafe-decision-queue'
 import { CafeRequestState } from './cafe-request-state'
@@ -40,23 +40,27 @@ export function CafeRequestReviewQueue(props: {
   const t = useT()
   const load = useCallback(() => listCafePurchaseRequests(['Submitted']).then(rows => [...rows].sort(byNeededBy)), [])
   return (
-    <CafeDecisionQueue<CafePurchaseRequest>
-      {...props}
-      copy={COPY}
-      load={load}
-      decide={(request, decision, note) => reviewCafePurchaseRequest(request.id, decision, request.row_version, note)}
-      ownerOf={request => request.requested_by}
-      title={(_, person) => t('cafe.request.review.requestedBy', { person })}
-      meta={request => [
-        <span key="needed">{t('cafe.request.review.neededBy', { date: formatWeekdayDayMonth(request.required_by) })}</span>,
-      ]}
-      detail={request => request.note
-        ? <p className="cafe-decision-queue__detail">{t('cafe.request.review.note', { note: request.note })}</p>
-        : null}
-      lines={request => request.lines.map(line => ({ id: line.id, name: line.item_name, quantity: line.quantity, unit: line.unit_name }))}
-      state={request => request.status === 'Rejected'
-        ? <span className="cafe-receipt-state">{t('cafe.request.review.rejected')}</span>
-        : <CafeRequestState request={request} />}
-    />
+    <div className="cafe-request-review">
+      <CafeDecisionQueue<CafePurchaseRequest>
+        {...props}
+        copy={COPY}
+        load={load}
+        decide={(request, decision, note) => reviewCafePurchaseRequest(request.id, decision, request.row_version, note)}
+        ownerOf={request => request.requested_by}
+        title={(_, person) => t('cafe.request.review.requestedBy', { person })}
+        meta={request => [
+          <span key="needed">{t('cafe.request.review.neededBy', { date: formatWeekdayDayMonth(request.required_by) })}</span>,
+          <span key="sent">{t('cafe.request.review.sentAt', { date: formatWibShortDateTime(request.requested_at) })}</span>,
+        ]}
+        detail={request => request.note
+          ? <p className="cafe-decision-queue__detail">{t('cafe.request.review.note', { note: request.note })}</p>
+          : null}
+        lines={request => request.lines.map(line => ({ id: line.id, name: line.item_name, quantity: line.quantity, unit: line.unit_name }))}
+        state={request => request.status === 'Rejected'
+          ? <span className="cafe-receipt-state">{t('cafe.request.review.rejected')}</span>
+          : <CafeRequestState request={request} />}
+        groupLabel={request => t('cafe.request.review.neededBy', { date: formatWeekdayDayMonth(request.required_by) })}
+      />
+    </div>
   )
 }

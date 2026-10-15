@@ -1,0 +1,30 @@
+/* Next up: one row per job — name, where it stands, and a quiet "Continue" when something is waiting. */
+.cafe-today-next__list { list-style: none; margin: 0; padding: 0; }
+.cafe-today-next__list li { display: flex; align-items: stretch; border-bottom: 1px solid var(--mos-line); }
+.cafe-today-next__job { flex: 1 1 auto; min-width: 0; }
+.cafe-today-next__list a.cafe-today-next__job {
+  display: grid; grid-template-columns: minmax(6rem, 9rem) minmax(0, 1fr) auto; align-items: center; gap: var(--mos-row-gap);
+  min-height: var(--mos-row-min); padding: var(--mos-row-pad-y) var(--mos-row-pad-x);
+  color: var(--mos-ink); text-decoration: none;
+}
+.cafe-today-next__list a.cafe-today-next__job:hover { background: var(--mos-hover); }
+.cafe-today-next__list a:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: calc(-1 * var(--mos-focus-width)); }
+.cafe-today-next__name { font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); }
+.cafe-today-next__state { color: var(--mos-muted); font: var(--mos-type-body); min-width: 0; overflow-wrap: anywhere; }
+.cafe-today-next__continue { color: var(--mos-accent); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); white-space: nowrap; }
+.cafe-today-next__end { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); justify-self: end; font: var(--mos-type-control); block-size: 1lh; }
+.cafe-today-next__unavailable { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-row-gap); padding: var(--mos-row-pad-y) var(--mos-row-pad-x); }
+@media (max-width: 767.98px) {
+  .cafe-today-next__list a.cafe-today-next__job { grid-template-columns: minmax(0, 1fr) auto; row-gap: var(--mos-stack-gap); }
+  .cafe-today-next__name { grid-column: 1; }
+  .cafe-today-next__state { grid-column: 1; grid-row: 2; }
+  /* The trailing arrow sits on the first line (the job's name), not the middle of the two-line row. */
+  .cafe-today-next__end { grid-column: 2; grid-row: 1; align-self: start; }
+}
+
+/* Each job's own Records link: a quiet 44px accent link at the row's end, separate from the job link. */
+.cafe-today-next__records {
+  display: inline-flex; flex: none; align-items: center; justify-content: center; min-width: var(--mos-control-height); min-height: var(--mos-row-min);
+  padding-inline: var(--mos-row-pad-x); color: var(--mos-accent); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); text-decoration: none;
+}
+.cafe-today-next__records:hover { color: var(--mos-accent-hover); text-decoration: underline; text-underline-offset: 3px; background: var(--mos-hover); }

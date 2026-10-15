@@ -1,0 +1,2 @@
+/* Recovery: verifying state is a bounded status row, not a form skeleton. */
+.recovery-verifying { display: flex; align-items: center; gap: var(--mos-space-3); min-height: 56px; padding: var(--mos-space-3) 0; border-block: 1px solid var(--mos-line); }

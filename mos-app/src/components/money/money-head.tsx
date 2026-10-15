@@ -4,6 +4,7 @@ import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { formatWeekdayDayMonth, formatWibWeekdayTime } from '@/lib/format/date'
 import { DateField } from '@/components/ui/date-field'
+import { Select } from '@/components/ui/select'
 import { isValidMoneyRange, MONEY_PERIODS, type MoneyPeriod, type MoneyRange } from '@/lib/money-branch-table'
 import { isoDaysBefore } from '@/lib/trailing-window'
 import './money-freshness.css'
@@ -33,14 +34,26 @@ export function PeriodControl({ period, range, latestDate, onChange, onRangeChan
     if (isValidMoneyRange(next.from, next.to, latestDate ?? undefined)) { setInvalid(false); onRangeChange(next) }
     else if (next.from && next.to) setInvalid(true)
   }
+  const chosen = range || customOpen ? 'custom' : String(period)
+  const choose = (value: string) => {
+    if (value === 'custom') {
+      setCustomOpen(true)
+      if (!range && isValidMoneyRange(draft.from, draft.to, latestDate ?? undefined)) onRangeChange(draft)
+    } else {
+      setCustomOpen(false)
+      onChange(Number(value) as MoneyPeriod)
+    }
+  }
+  const options = [
+    ...MONEY_PERIODS.map((p) => ({ value: String(p), label: t('money.period.days', { days: String(p) }) })),
+    { value: 'custom', label: t('money.period.custom'), disabled: !latestDate },
+  ]
   return (
     <div className="money-period-control">
-      <div className="money-period" role="group" aria-label={t('money.period.label')}>
-        {MONEY_PERIODS.map((p) => <button key={p} type="button" className="money-period__option" aria-pressed={!range && p === period} disabled={disabled} onClick={() => { setCustomOpen(false); onChange(p) }}>{t('money.period.days', { days: String(p) })}</button>)}
-        <button type="button" className="money-period__option" aria-pressed={Boolean(range)} aria-expanded={customOpen} disabled={disabled || !latestDate} onClick={() => {
-          setCustomOpen(true)
-          if (!range && isValidMoneyRange(draft.from, draft.to, latestDate ?? undefined)) onRangeChange(draft)
-        }}>{t('money.period.custom')}</button>
+      <div className="money-period__select">
+        <Select label={t('money.period.label')} value={chosen} disabled={disabled} onChange={(event) => choose(event.target.value)} fullWidth>
+          {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </Select>
       </div>
       {customOpen && <div className="money-period__range">
         <DateField compact required label={t('money.period.from')} value={draft.from} max={latestDate ?? undefined} disabled={disabled || !latestDate} onChange={(value) => edit('from', value)} />
@@ -63,7 +76,7 @@ export function MoneyFreshness({ latestDate, syncedAt, freshMessage, staleMessag
   const { locale } = useI18n()
   const stale = syncedAt !== null && Date.now() - new Date(syncedAt).getTime() > STALE_AFTER_MS
   return (
-    <span className={`ch-meta-line money-freshness${stale ? ' money-freshness--stale' : ''}`}>
+    <span className="money-freshness" data-stale={stale ? 'true' : undefined}>
       {stale
         ? staleMessage ?? t('money.freshness.stale', {
           through: formatWeekdayDayMonth(latestDate, locale),

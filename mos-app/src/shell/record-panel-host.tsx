@@ -1,6 +1,7 @@
 import './record-panel-host.css'
 import { useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { useIsWideOverlayWidth } from './use-is-wide-overlay-width'
+import { useIsRecordSplit } from './use-is-split-width'
 import { useIsDesktop } from './use-is-desktop'
 import { useIsNarrow } from './use-is-narrow'
 import { CloseIcon, BackIcon } from './icons'
@@ -94,7 +95,11 @@ export function RecordPanelHost({
   onBack, canGoBack, owner, entryKey, transitionPending, layout = 'standard',
   companion = false, focusOnOpen = true,
 }: RecordPanelHostProps) {
-  const isSplit = useIsWideOverlayWidth()
+  // A shell-docked panel floats over the main region (always non-modal on a wide viewport); every
+  // in-page panel needs the content track to hold list + panel, else it is a modal sheet.
+  const wideViewport = useIsWideOverlayWidth()
+  const recordSplit = useIsRecordSplit()
+  const isSplit = rootClassName?.includes('drawer-shell-split') ? wideViewport : recordSplit
   const isDesktop = useIsDesktop()
   const isNarrow = useIsNarrow()
   const isModal = layout === 'companion' ? isNarrow : !isSplit

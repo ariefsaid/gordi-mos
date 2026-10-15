@@ -1,0 +1,42 @@
+/* Personal profile: who you are (read-only), then preferences on the left and security on the right. */
+.profile-page { color: var(--mos-ink); }
+.profile-page__identity { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--mos-inline-gap) var(--mos-group-above); padding: 0 0 var(--mos-field-gap); border-bottom: 1px solid var(--mos-line); }
+.profile-page__identity dl { display: flex; flex-wrap: wrap; gap: var(--mos-space-2) var(--mos-space-6); margin: 0; }
+.profile-page__identity dt { color: var(--mos-muted); font: var(--mos-type-label); }
+.profile-page__identity dd { margin: var(--mos-space-1) 0 0; font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); }
+.profile-page__managed { margin: 0; color: var(--mos-muted); font: var(--mos-type-body); }
+.profile-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: var(--mos-section-gap); align-items: start; }
+.profile-preferences { display: flex; min-width: 0; flex-direction: column; gap: var(--mos-gutter); }
+.profile-section { min-width: 0; }
+.profile-section h2 { margin: var(--mos-group-above) 0 var(--mos-group-below); font: var(--mos-type-group); }
+.profile-preferences__security { padding-inline-start: var(--mos-space-6); border-inline-start: 1px solid var(--mos-line); }
+.profile-row { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-field-gap); min-height: var(--mos-row-min); padding: var(--mos-row-pad-y) 0; border-top: 1px solid var(--mos-line); }
+.profile-row:last-child { border-bottom: 1px solid var(--mos-line); }
+.profile-row__copy { min-width: 0; }
+.profile-row__title { font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); }
+.profile-row__copy p { margin: var(--mos-stack-gap) 0 0; color: var(--mos-muted); font: var(--mos-type-subnav); }
+.profile-row__status { color: var(--mos-muted); font: var(--mos-type-label); }
+.profile-row__notice { margin-top: var(--mos-inline-gap); }
+.profile-row:has(#profile-language) { justify-content: flex-start; }
+.profile-password { max-width: 560px; padding: var(--mos-field-gap) 0; }
+.profile-home-layout h2 { margin-bottom: var(--mos-group-below); }
+.profile-page .btn { flex: none; }
+.profile-page .mk-select__native { visibility: hidden; }
+/* The embedded password form (shared with sign-in recovery, which styles its own variant): rule line, field labels and a padded Save in the profile's rhythm. */
+.profile-password .password-rule { margin: 0 0 var(--mos-space-3); color: var(--mos-muted); font: var(--mos-type-body); }
+.profile-password label { margin-bottom: var(--mos-label-gap); }
+.profile-password input { min-height: var(--mos-control-height); }
+.profile-password .password-action { position: static; min-height: 0; padding: var(--mos-space-1) 0 0; border-top: 0; background: transparent; }
+.profile-password .password-action button { padding-inline: var(--mos-space-5); font-weight: var(--mos-weight-semibold); }
+@media (max-width: 760px) {
+  .profile-layout { grid-template-columns: minmax(0, 1fr); gap: var(--mos-gutter); }
+  .profile-preferences { gap: var(--mos-group-above); }
+  .profile-section h2 { margin: var(--mos-group-above) 0 var(--mos-group-below); }
+  .profile-page__identity { display: block; padding-bottom: var(--mos-space-3); }
+  .profile-page__identity dl { gap: var(--mos-space-3) var(--mos-space-5); }
+  .profile-page__managed { margin-top: var(--mos-space-3); }
+  .profile-preferences__security { padding: var(--mos-space-5) 0 0; border-inline-start: 0; border-top: 1px solid var(--mos-line); }
+  .profile-row { align-items: flex-start; flex-direction: column; padding: var(--mos-row-pad-y) 0; }
+  .profile-row .btn { width: 100%; }
+  .profile-password .password-action button { width: 100%; }
+}

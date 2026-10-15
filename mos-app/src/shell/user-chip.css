@@ -1,11 +1,26 @@
-/* User-chip popover items (user-chip.tsx): the shared state grammar (#1179). Hover keeps the
-   popover's quiet fill (shadcn --color-accent aliases --surface-secondary); the keyboard
-   cursor is a --surface-tertiary fill PLUS the focus ring drawn inside the item — a tint
-   alone is ~1.1:1 against the menu, not a state cue (WCAG 1.4.11). */
-.user-chip-menu-item:hover { background: var(--surface-secondary); }
+/* Account chip: avatar (ink on band) + name/role, opening a menu. Rail foot, drawer head, collapsed rail. */
+.user-chip { position: relative; display: flex; align-items: center; padding-block: var(--mos-space-1); gap: var(--mos-space-2); box-sizing: border-box; min-height: var(--mos-control-height); padding-inline: var(--mos-space-2); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--mos-ink); cursor: pointer; text-align: left; font: inherit; }
+.user-chip:hover { background: var(--mos-hover); }
+.user-chip--full { width: 100%; min-height: calc(var(--mos-control-height) + var(--mos-space-2)); }
+.user-chip--compact { justify-content: center; padding-inline: 0; }
+.user-chip__avatar { width: var(--mos-icon-md); height: var(--mos-icon-md); box-sizing: content-box; padding: var(--mos-space-1); border-radius: var(--radius-round); box-shadow: inset 0 0 0 1px var(--mos-line); font: var(--mos-type-meta); font-weight: var(--mos-weight-bold); }
+.user-chip__text { flex: 1; min-width: 0; text-align: left; }
+.user-chip__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); }
+.user-chip__role { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--mos-type-meta); color: var(--mos-muted); }
+.user-chip__chevron { flex: none; align-self: flex-start; margin-block: calc((1lh - var(--mos-icon-sm)) / 2 + var(--mos-space-1)); color: var(--mos-muted); }
 
-.user-chip-menu-item:focus-visible {
-  background: var(--surface-tertiary);
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
-}
+.user-chip-menu { position: absolute; z-index: var(--z-popover); box-sizing: border-box; max-height: min(70vh, 480px); overflow-y: auto; padding: var(--mos-menu-pad); border-radius: var(--radius-sm); background: var(--mos-surface); box-shadow: inset 0 0 0 1px var(--mos-line), var(--shadow-overlay); }
+/* A full-width chip's menu is exactly as wide as the chip, so the sidebar never clips it. */
+.user-chip-menu--left { left: 0; width: 100%; }
+.user-chip-menu--right { right: 0; }
+.user-chip-menu--up { bottom: 100%; margin-bottom: var(--mos-space-1); }
+.user-chip-menu--down { top: 100%; margin-top: var(--mos-space-1); }
+.user-chip-menu__sep { margin-block: var(--mos-space-1); border-top: 1px solid var(--mos-line); }
+.user-chip-menu__heading { padding: var(--mos-group-below) var(--mos-row-pad-x); color: var(--mos-ink); font: var(--mos-type-label); }
+.user-chip-menu__note { padding: var(--mos-inline-gap) var(--mos-row-pad-x); color: var(--mos-muted); font: var(--mos-type-body); }
+.user-chip-menu__note--error { color: var(--mos-error-text); }
+.user-chip-menu-item { display: flex; align-items: center; width: 100%; min-height: var(--mos-control-height); padding: var(--mos-control-pad-y) var(--mos-row-pad-x); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--mos-ink); text-align: left; text-decoration: none; font: var(--mos-type-control); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-chip-menu-item:hover { background: var(--mos-hover); }
+.user-chip-menu-item:focus-visible { background: var(--mos-hover); outline-offset: calc(-1 * var(--mos-focus-width)); }
+.user-chip-menu-item:disabled { color: var(--mos-muted); cursor: not-allowed; }
+.user-chip__avatar::before { content: attr(data-initials); }

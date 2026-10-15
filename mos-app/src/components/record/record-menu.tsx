@@ -4,6 +4,8 @@
 //   items   RecordMenuItem[]  { id, label, onSelect, destructive?, separatorBefore?, disabled? }
 //   label   string            accessible name of the trigger and the menu
 //   minItems number = 2       renders nothing below this count (a one-item menu is a button's job)
+//   triggerLabel string       visible trigger text ("More") instead of the bare ⋯ icon
+//   note     string           one line at the menu's foot saying why an item is disabled (UX AC6)
 //
 // The popover renders in a portal (it escapes the panel's overflow clip), anchors to the trigger (above it when there is no room below),
 // moves with its trigger on scroll and resize, closes on Escape / outside click / Tab, and
@@ -13,6 +15,7 @@ import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent } fr
 import { createPortal } from 'react-dom'
 import { useMenuPopover } from '@/lib/use-menu-popover'
 import { usePopoverReflow } from '@/components/ui/use-popover-reflow'
+import { Chevron } from '@/shell/icons'
 import './record-page.css'
 
 export type RecordMenuItem = {
@@ -28,9 +31,11 @@ export type RecordMenuProps = {
   items: readonly RecordMenuItem[]
   label: string
   minItems?: number
+  triggerLabel?: string
+  note?: string
 }
 
-export function RecordMenu({ items, label, minItems = 2 }: RecordMenuProps) {
+export function RecordMenu({ items, label, minItems = 2, triggerLabel, note }: RecordMenuProps) {
   const [open, setOpen] = useState(false)
   const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -73,15 +78,20 @@ export function RecordMenu({ items, label, minItems = 2 }: RecordMenuProps) {
       <button
         ref={triggerRef}
         type="button"
-        className="rp-icon-btn"
-        aria-label={label}
+        className={triggerLabel ? 'btn btn-outline rp-menu-trigger' : 'rp-icon-btn'}
+        aria-label={triggerLabel ? undefined : label}
+        title={triggerLabel ? label : undefined}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => { place(); setOpen((value) => !value) }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
-        </svg>
+        {triggerLabel ? (
+          <><span>{triggerLabel}</span><Chevron size={16} className="rp-menu-trigger__chevron" /></>
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
+          </svg>
+        )}
       </button>
       {open ? createPortal(
         <div
@@ -108,6 +118,7 @@ export function RecordMenu({ items, label, minItems = 2 }: RecordMenuProps) {
               </button>
             </div>
           ))}
+          {note ? <p className="rp-menu__note" role="note">{note}</p> : null}
         </div>,
         document.body,
       ) : null}

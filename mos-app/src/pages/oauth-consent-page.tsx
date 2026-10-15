@@ -8,6 +8,8 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { Button } from '@/components/ui/button'
+import { Notice } from '@/components/ui/notice'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { agentRedirectLabel, isSafeAgentRedirect, redirectToAgent } from '@/lib/agent-redirect'
@@ -76,8 +78,11 @@ export function OAuthConsentPage() {
   if (framed) return null
   const title = t('consent.title')
   const frame = (state: 'default' | 'loading' | 'empty' | 'error' | 'permission', body: React.ReactNode) => (
-    <PageFamilyFrame family="management" title={title} state={state}>
-      {body}
+    <PageFamilyFrame family="management" title={title} state={state} hideHead>
+      <div className="consent-page">
+        <h1 className="page-title consent-page__title">{title}</h1>
+        {body}
+      </div>
     </PageFamilyFrame>
   )
 
@@ -180,11 +185,13 @@ function ConsentCard({ request, gate, onDone }: { request: ConsentRequest; gate:
       <h2 id={headingId} ref={headingRef} tabIndex={-1} className="consent__heading">
         {t('consent.heading', { agent: name })}
       </h2>
-      {!gate.trustedName && <p className="consent__tag">{t('consent.notTrusted')}</p>}
-      <p className="consent__line consent__line--strong">{t('consent.actsAs', { name: person, email: request.userEmail })}</p>
-      <p className="consent__line">
-        {t('consent.returnsTo')} <strong className="consent__host">{agentRedirectLabel(request.redirectUri)}</strong>
-      </p>
+      {!gate.trustedName && <StatusBadge status="needsAttention" label={t('consent.notTrusted')} className="consent__tag" />}
+      <div className="consent__verification">
+        <p className="consent__line consent__line--strong">{t('consent.actsAs', { name: person, email: request.userEmail })}</p>
+        <p className="consent__line">
+          {t('consent.returnsTo')} <strong className="consent__host">{agentRedirectLabel(request.redirectUri)}</strong>
+        </p>
+      </div>
       <div className="consent__lists">
         <div>
           <h3 className="consent__subheading">{t('consent.can.title')}</h3>
@@ -201,7 +208,7 @@ function ConsentCard({ request, gate, onDone }: { request: ConsentRequest; gate:
           </ul>
         </div>
       </div>
-      {reason && <p className="consent__reason">{reason}</p>}
+      {reason && <Notice tone="urgent" className="consent__reason">{reason}</Notice>}
       {failed && <FocusOnMount><ErrorState message={t('consent.decideError')} /></FocusOnMount>}
       <div className="consent__actions">
         {canDecide ? (

@@ -22,12 +22,20 @@ import { messages } from './messages'
  */
 const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'common.docTitle', // ${page} — Gordi MOS
+  'admin.modules.scope.org', // Org — the tenant term is the same in both languages (module-switches spec)
+  'cafe.routes.col.status', // Status
+  'cafe.locations.status', // Status
+  'cafe.locations.col.status', // Status
+  'cafe.moveStock.item', // Item — the same loanword as kitchen.stock.col.item
   'money.overview.moverSuffix', //  (${change}). — punctuation only
+  'nav.cafe', // Café — the name of the module, the same in both languages
+  'dest.cafe', // Café — the name of the module, the same in both languages
   'locale.en', // English — the language's own name in its own language
   'locale.id', // Bahasa Indonesia
+  'auth.login.email', // Email — the same loanword in Indonesian
   'pendingBills.form.multiTotal', // Total — the same word in Indonesian
+  'money.short.margin', // Margin — the same word in Indonesian (as money.table.col.margin's lead word)
   'dev.views.render', // Render (dev-only surface)
-  'inbox.severity.info', // Info
   'signals.archive.attentionFyi', // FYI — the borrowed initialism stays in id (FR-024 "FYI kept", AC-031/AC-066)
   'inbox.target.type.followUp', // AR Follow-up — product term
   'followUps.counterparty', // Counterparty — domain term, no adopted id label yet
@@ -37,13 +45,17 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'inbox.quickTitle', // Inbox
   'nav.ecommerce', // Ecommerce
   'nav.roastery', // Roastery
-  'rail.b2bOps', // B2B Ops
+  'rail.short.admin', // Admin — the rail's short name, the same in both languages
   'money.filter.pos', // POS — channel acronym
   'money.filter.b2b', // B2B — channel acronym
   'kitchen.actionType.transferTo.short', // → ${branch} — symbol template
   'kitchen.activity.bar', // Bar
   // #1366 Café Count preserves its feature, lifecycle and inventory terms in Indonesian copy.
   'nav.cafe.count', // Count — feature name
+  'records.chip.item', // Item: ${item} — the same word and template in Indonesian
+  'records.field.posting', // ESB — the system's name, the same in both languages
+  'records.source.counts', // Count — feature name (CONTEXT.md)
+  'nav.cafe.transfer', // Transfer — the Café job name is shared across locales (CONTEXT.md)
   'cafe.count.lineSubmitted', // Submitted — lifecycle state
   'cafe.count.review.title', // Count — section name
   'cafe.count.review.count', // Count — inventory fact
@@ -85,6 +97,7 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'signals.mention.group.bu', // BU
   'signals.record.revisionDiff', // “${from}” → “${to}” — symbol template
   'admin.people.col.login', // Login
+  'admin.people.sort.login', // Login
   'admin.role.admin', // Admin
   'admin.role.supervisor', // Supervisor
   'admin.create.email', // Email
@@ -95,7 +108,9 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'kitchen.plan.col.item', // Item — same word in both locales (OD-WAY-85)
   'kitchen.stock.col.item', // Item — same word in both locales (OD-WAY-85)
   'kitchen.plan.pesanan.col.item', // Item — same word in both locales (OD-WAY-85)
+  'cafe.request.review.itemColumn', // Item — Café production noun shared across locales (OD-WAY-85)
   'kitchen.log.footer.item.one', // ${count} item — same word in both locales (OD-WAY-85)
+  'cafe.toolbar.count.one', // 1 item — same word in both locales (OD-WAY-85)
   'kitchen.pushes.tally.push.one', // push — shared borrowed vocabulary
   'inbox.filter.withCount', // ${label} · ${count} — separator is punctuation, locale-neutral
 ])
@@ -132,10 +147,8 @@ describe('id catalog values are Indonesian (#410 inverse of the parity test)', (
     expect(messages.id['nav.work.objectives']).toBe('Tujuan')
     // Café Log label — the production record.
     expect(messages.id['nav.cafe.log']).toBe('Catatan')
-    // RETAIL OPS group overline.
-    expect(messages.id['rail.retailOps']).toBe('Operasi Ritel')
-    // Pushes — named for its job, never 'Antrean'.
-    expect(messages.id['nav.cafe.pushes']).toBe('Kirim Log')
+    // The ESB sends page — named for its job (what was sent, and where), never 'Antrean'.
+    expect(messages.id['nav.cafe.pushes']).toBe('Terkirim ke ESB')
     expect(messages.id['nav.cafe.pushes']).not.toBe('Antrean')
   })
 })
@@ -183,18 +196,25 @@ describe('id catalog: "Tujuan" is the Objective term only', () => {
     expect(bare.filter((key) => !/objective/i.test(key)), 'bare Tujuan on a non-Objective key').toEqual([])
     expect(id['kitchen.pushes.col.target']).toBe('Dikirim ke')
   })
-  it('Task and Objective/Project role labels do not mix', () => {
+  it('Tasks say PIC / Supervisor; Objective and Project/Process say Responsible / Accountable', () => {
     const en = messages.en as Record<string, string>
-    for (const key of ['tasks.pic', 'tasks.supervisor']) {
-      expect(en[key]).toMatch(/^(PIC|Supervisor)$/)
-    }
+    expect(en['tasks.pic']).toBe('PIC')
+    expect(en['tasks.supervisor']).toBe('Supervisor')
+    expect(id['tasks.pic']).toBe('PIC')
+    expect(id['tasks.supervisor']).toBe('Supervisor')
     expect(en['catalog.column.accountable']).toBe('Accountable')
     expect(en['catalog.record.accountable']).toBe('Accountable')
     expect(en['catalog.record.responsible']).toBe('Responsible')
     expect(id['catalog.column.accountable']).toBe('Accountable')
     expect(id['catalog.record.responsible']).toBe('Responsible')
-    // The Tasks help text names PIC and Supervisor only — never the Objective-side pair.
-    expect(en['job.tasksHelp']).not.toMatch(/Responsible|Accountable/)
-    expect(id['job.tasksHelp']).not.toMatch(/Responsible|Accountable/)
+    // Tasks copy never borrows the Objective-side words; Objectives and Projects never borrow the Task words.
+    for (const key of Object.keys(en).filter((k) => k.startsWith('tasks.') || k === 'job.tasksHelp')) {
+      expect(en[key], key).not.toMatch(/\b(Responsible|Accountable)\b/)
+      expect(id[key], key).not.toMatch(/\b(Responsible|Accountable)\b/)
+    }
+    for (const key of ['job.objectivesHelp', 'job.projectsHelp']) {
+      expect(en[key], key).not.toMatch(/\b(PIC|Supervisor)\b/)
+      expect(id[key], key).not.toMatch(/\b(PIC|Supervisor)\b/)
+    }
   })
 })

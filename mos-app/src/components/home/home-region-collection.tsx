@@ -40,12 +40,6 @@ const EMPTY_KEY = {
   'my-work': 'home.stream.myWorkEmpty',
 } as const
 
-const ACTION_KEY = {
-  'needs-you': 'home.brief.openTask',
-  'failed-checks': 'home.brief.review',
-  'my-work': 'home.brief.openTask',
-} as const
-
 const HOME_QUERY: CollectionQuerySchema<HomeCollectionQuery> = {
   keys: ['region'],
   neutral: { region: 'needs-you' },
@@ -84,7 +78,7 @@ function HomeRows({ projection, context }: { projection: HomeCollectionProjectio
           item={item}
           hidePic={HIDE_PIC[context.regionId]}
           reasonStyle={REASON_STYLE[context.regionId]}
-          actionLabel={t(ACTION_KEY[context.regionId])}
+          actionLabel={context.regionId === 'failed-checks' ? t('home.brief.review') : undefined}
         />
       ))}
     </ul>
@@ -145,10 +139,11 @@ function homeRegionDescriptor(
 export interface HomeRegionCollectionProps {
   region: HomeRegion
   items?: readonly StreamItem[]
+  liftedCount?: number
 }
 
-function collectionKey(region: HomeRegion, items: readonly StreamItem[]) {
-  return `${region.state}:${JSON.stringify(items)}`
+function collectionKey(region: HomeRegion, items: readonly StreamItem[], liftedCount: number) {
+  return `${region.state}:${liftedCount}:${JSON.stringify(items)}`
 }
 
 /** Hosts one Home region in the existing RecordCollection engine.
@@ -156,10 +151,11 @@ function collectionKey(region: HomeRegion, items: readonly StreamItem[]) {
  * choose the host shape and, for Overview, the number of records passed to this collection. */
 export function HomeRegionCollection(props: HomeRegionCollectionProps) {
   const items = props.items ?? props.region.items
-  return <HomeRegionCollectionInstance key={collectionKey(props.region, items)} {...props} items={items} />
+  const liftedCount = props.liftedCount ?? 0
+  return <HomeRegionCollectionInstance key={collectionKey(props.region, items, liftedCount)} {...props} items={items} liftedCount={liftedCount} />
 }
 
-function HomeRegionCollectionInstance({ region, items }: Required<HomeRegionCollectionProps>) {
+function HomeRegionCollectionInstance({ region, items, liftedCount }: Required<HomeRegionCollectionProps>) {
   const t = useT()
   const descriptor = useMemo(() => homeRegionDescriptor(region, items), [region, items])
   const controller = useRecordCollection({
@@ -169,7 +165,7 @@ function HomeRegionCollectionInstance({ region, items }: Required<HomeRegionColl
     viewerId: null,
     accessRoles: [],
   })
-  const hidden = (region.totalItemCount ?? region.items.length) - items.length
+  const hidden = (region.totalItemCount ?? region.items.length) - items.length - liftedCount
   const empty = region.state === 'ready' && items.length === 0
 
   return (
@@ -179,7 +175,7 @@ function HomeRegionCollectionInstance({ region, items }: Required<HomeRegionColl
         empty={{
           title: t(EMPTY_KEY[region.id]),
           className: 'stream-all-clear',
-          create: empty ? <RegionDrillLink region={region} shown={0} /> : undefined,
+          create: empty ? <RegionDrillLink region={region} shown={liftedCount} /> : undefined,
         }}
         filteredEmpty={{ items: t(region.labelKey).toLowerCase(), clear: () => {} }}
         error={{ message: t('home.attention.laneError'), retry: region.onRetry ?? (() => {}) }}
@@ -188,7 +184,7 @@ function HomeRegionCollectionInstance({ region, items }: Required<HomeRegionColl
       {hidden > 0 && !region.drillTo ? (
         <p className="stream-band-more">{t('home.region.more', { count: hidden })}</p>
       ) : null}
-      {!empty && <RegionDrillLink region={region} shown={items.length} more={hidden > 0 ? hidden : undefined} />}
+      {!empty && <RegionDrillLink region={region} shown={items.length + liftedCount} more={hidden > 0 ? hidden : undefined} />}
     </div>
   )
 }

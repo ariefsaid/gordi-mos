@@ -87,21 +87,6 @@ export interface KitchenLogMovement {
 }
 
 export type KitchenLogStatus = 'Submitted' | 'Approved' | 'Rejected'
-export type KitchenLogRecordStatus = KitchenLogStatus | 'Draft'
-
-// ── ops.wip_items (active items listed for logging) ──────────────────────────
-export interface WipItemRow {
-  id: string
-  org_id: string
-  name: string
-  category: string | null
-  flag_active: boolean
-  esb_bom_id: string | null
-  esb_product_detail_id_porsi: string | null
-  esb_product_id: string | null
-  created_at: string
-  updated_at: string
-}
 
 // Lean display shape for the capture form (only what the UI needs)
 export interface WipItemOption {
@@ -136,25 +121,6 @@ export interface CaptureFormItem extends WipItemOption {
   units: ItemUnitOption[]
   /** Stream manager-defined factors relative to the sole default ERP unit. */
   unit_multiples?: number[]
-}
-
-// ── ops.kitchen_plans (plan qty per date/item/action) ────────────────────────
-export interface KitchenPlanRow {
-  id: string
-  org_id: string
-  date: string // 'YYYY-MM-DD' WIB
-  /** origin half of the (branch, activity) stream — NOT NULL at the DB (OD-WAY-28) */
-  branch_id: string
-  activity: ProductionActivity
-  wip_item_id: string
-  /** the movement (DD-WAY-13) — there is no stored action_type */
-  action: KitchenAction
-  /** null for produce, required for transfer (kitchen_plans_destination_matches_action) */
-  destination_branch_id: string | null
-  qty_porsi: number
-  notes: string | null
-  plan_by: string | null
-  updated_at: string
 }
 
 /**
@@ -244,35 +210,6 @@ export interface CreateKitchenLogInput {
   entry_quantity?: number | null
   entry_unit_factor?: number | null
   notes?: string | null
-}
-
-// Full row shape (returned by selects, used by review surfaces)
-export interface KitchenLogRow {
-  id: string
-  org_id: string
-  business_unit_id: string
-  log_date: string
-  branch_id: string
-  activity: ProductionActivity
-  action: KitchenLogAction
-  destination_branch_id: string | null
-  wip_item_id: string
-  qty_porsi: number
-  entry_quantity?: number | null
-  entry_unit_factor?: number | null
-  entry_unit_name?: string | null
-  notes: string | null
-  status: KitchenLogRecordStatus
-  submitted_by: string | null
-  review_note: string | null
-  reviewed_by: string | null
-  reviewed_at: string | null
-  batch_id: string | null
-  posted_to_esb: boolean
-  esb_doc_num: string | null
-  posted_at: string | null
-  created_at: string
-  updated_at: string
 }
 
 // ── Review queue (S3) — Submitted log + display fields ───────────────────────

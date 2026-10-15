@@ -1,0 +1,11 @@
+.cafe-transfer-context { display: flex; flex-wrap: wrap; align-items: end; gap: var(--mos-inline-gap) var(--mos-gutter); width: 100%; min-width: 0; margin: 0 0 var(--mos-toolbar-gap); }
+.cafe-transfer-context > div { display: grid; gap: var(--mos-space-1); min-width: 0; }
+.cafe-transfer-context > div span { color: var(--mos-ink); font: var(--mos-type-label); }
+.cafe-transfer-context > div strong { overflow-wrap: anywhere; color: var(--mos-ink); font: var(--mos-type-body); font-weight: var(--mos-weight-semibold); }
+.cafe-transfer-context .kl-scope { flex: 1 1 18rem; }
+.cafe-transfer-context .cafe-transfer-select { width: min(100%, 30rem); }
+.cafe-transfer-context .cafe-transfer-select__control { min-height: var(--mos-control-height); font-size: var(--mos-size-3); }
+@media (max-width: 767.98px) {
+ .cafe-transfer-context { display: grid; gap: var(--mos-inline-gap); margin-bottom: var(--mos-inline-gap); }
+ .cafe-transfer-context .cafe-transfer-select { width: 100%; }
+}

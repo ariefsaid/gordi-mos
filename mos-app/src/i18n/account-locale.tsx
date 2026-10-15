@@ -14,7 +14,7 @@ import type { Locale } from './messages'
  * and `unavailable` when the read failed and the default is standing in. `save` resolves only after
  * the value is stored, and only then changes the language.
  */
-export type AccountLocaleStatus = 'loading' | 'ready' | 'unavailable'
+type AccountLocaleStatus = 'loading' | 'ready' | 'unavailable'
 
 type AccountLocaleValue = {
   status: AccountLocaleStatus

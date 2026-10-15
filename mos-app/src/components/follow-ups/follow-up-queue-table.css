@@ -1,0 +1,24 @@
+.follow-up-queue-table__open-record,
+.follow-up-queue-card__identity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mos-row-gap);
+  width: 100%;
+  min-height: var(--mos-control-height);
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.follow-up-queue-table__open-record:hover,
+.follow-up-queue-card__identity:hover { color: var(--primary); }
+.follow-up-queue-table__open-record:focus-visible,
+.follow-up-queue-card__identity:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.follow-up-queue-card__top span { color: var(--foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.follow-up-queue-card__identity { color: var(--muted-foreground); font-size: var(--mos-size-1); overflow-wrap: anywhere; }
+.follow-up-queue-row.is-selected { background: var(--surface-secondary); }
+.follow-up-queue-table--master-detail tbody tr { cursor: default; }

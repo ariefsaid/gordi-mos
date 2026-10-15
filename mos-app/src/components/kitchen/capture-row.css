@@ -1,0 +1,195 @@
+/* Capture row: the one row and list every Café entry screen wears (see capture-row.tsx).
+   Tracks are fixed once per list, so the n-th box, unit and figure of every row start at the same x.
+   Wide: item | figures... | [box][unit] ... | action.  Narrow (the list is too narrow for that): the same cells stack. */
+
+.cap-table {
+  --cap-gap: var(--mos-inline-gap);
+  --cap-qty-w: 7.5rem;
+  --cap-unit-w: 8.5rem;
+  --cap-control-w: calc(var(--cap-qty-w) + var(--cap-gap) + var(--cap-unit-w));
+  --cap-fig-num-w: 3.25rem;
+  --cap-fig-unit-w: 4.5rem;
+  --cap-fig-w: calc(var(--cap-fig-num-w) + var(--cap-gap) + var(--cap-fig-unit-w));
+  --cap-act-w: 11rem;
+  --cap-item-min: 14rem;
+  --cap-clearance: 16px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding-bottom: calc(var(--cap-clearance) + env(safe-area-inset-bottom, 0px));
+}
+.cap-table[data-figures='1'] { --cap-figs-cols: var(--cap-fig-w); }
+.cap-table[data-figures='2'] { --cap-figs-cols: var(--cap-fig-w) var(--cap-fig-w); }
+.cap-table[data-figures='3'] { --cap-figs-cols: var(--cap-fig-w) var(--cap-fig-w) var(--cap-fig-w); }
+.cap-table[data-controls='1'] { --cap-ctl-cols: var(--cap-control-w); }
+.cap-table[data-controls='2'] { --cap-ctl-cols: var(--cap-control-w) var(--cap-control-w); }
+.cap-table[data-controls='3'] { --cap-ctl-cols: var(--cap-control-w) var(--cap-control-w) var(--cap-control-w); }
+.cap-table[data-controls='4'] { --cap-ctl-cols: var(--cap-control-w) var(--cap-control-w) var(--cap-control-w) var(--cap-control-w); }
+.cap-table[data-action] { --cap-act-col: var(--cap-act-w); }
+@media (max-width: 767.98px) { .cap-table { --cap-qty-w: 5.5rem; } }
+
+.cap-vh { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ── Header band: the shared table-head look, one row of labels ── */
+.cap-head {
+  box-sizing: border-box;
+  align-items: center;
+  padding: var(--mos-band-pad-y) var(--mos-row-pad-x);
+  background: var(--mos-band);
+  border-bottom: 1px solid var(--mos-line);
+  color: var(--mos-muted);
+  font: var(--mos-type-label);
+}
+.cap-table .cap-head--hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
+.cap-head__control { display: grid; grid-template-columns: var(--cap-qty-w) minmax(0, 1fr); column-gap: var(--cap-gap); }
+.cap-head__unit { color: var(--mos-muted); }
+.cap-head__control--label { grid-template-columns: minmax(0, 1fr); }
+.cap-head__figures { display: contents; }
+.cap-head__figure { text-align: end; }
+/* The header row sticks while its table is in view: stickiness sits on the header's rowgroup (a sticky row alone is held inside its own one-row group and never sticks).
+   -24px cancels the page padding so the header sits flush under the top bar. */
+@media (min-width: 768px) { .cap-table > [role=rowgroup]:first-child { position: sticky; top: -24px; z-index: var(--z-sticky); } }
+
+/* ── Row ── */
+.cap-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mos-stack-gap) var(--cap-gap);
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--mos-row-min);
+  padding: var(--mos-row-pad-ctl) var(--mos-row-pad-x);
+  border-bottom: 1px solid var(--row-divider);
+  color: var(--foreground);
+}
+.cap-row:hover { background: var(--mos-hover); }
+.cap-row__item { display: flex; flex-direction: column; gap: var(--mos-stack-gap); min-width: 0; }
+.cap-row__line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--mos-row-gap); min-width: 0; }
+.cap-row__cat { min-width: 0; color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
+.cap-row__name { min-width: 0; font: var(--mos-type-control); font-weight: 600; overflow-wrap: anywhere; }
+.cap-row__kind {
+  display: inline-block; margin-inline-end: var(--mos-inline-gap); padding: 0 6px; border-radius: var(--radius-xs);
+  background: var(--mos-band); color: var(--mos-muted); font: var(--mos-type-meta); font-weight: 600; vertical-align: 0.08em; white-space: nowrap;
+}
+.cap-row__meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--mos-stack-gap) var(--mos-inline-gap); min-width: 0; color: var(--mos-muted); font: var(--mos-type-meta); }
+.cap-row__meta > * { min-width: 0; }
+.cap-row__meta p { margin: 0; }
+.cap-row__figures { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--mos-row-gap); min-width: 0; color: var(--mos-muted); font: var(--mos-type-meta); }
+.cap-row__figures:not(:has(.cap-fig__num, .cap-row__cat)) { display: none; }
+.cap-fig { display: inline-flex; align-items: baseline; gap: var(--mos-stack-gap); min-width: 0; }
+.cap-fig:not(:has(.cap-fig__num)) { display: none; }
+.cap-fig__num { color: var(--mos-ink); font-weight: 600; }
+.cap-fig__unit { min-width: 0; overflow-wrap: anywhere; }
+.cap-row__control { display: flex; flex-direction: column; gap: var(--mos-stack-gap); min-width: 0; }
+.cap-row__control-label { color: var(--mos-muted); font: var(--mos-type-meta); }
+.cap-row__action { display: flex; align-items: center; min-width: 0; }
+.cap-row__action:empty { display: none; }
+.cap-row__action > .btn, .cap-row__action > button { min-height: var(--mos-control-height); max-width: 100%; white-space: normal; text-align: center; line-height: 1.25; }
+.cap-row__detail { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--mos-stack-gap); min-width: 0; font: var(--mos-type-meta); }
+.cap-row__detail > p { margin: 0; }
+
+/* ── The box + unit pair ── */
+.cap-control { display: grid; grid-template-columns: var(--cap-qty-w) minmax(0, 1fr); align-items: center; gap: var(--mos-stack-gap) var(--cap-gap); min-width: 0; }
+.cap-control :is(.quantity-field, .quantity-field-control, .pqf) { display: contents; }
+.cap-control > * { grid-column: 1 / -1; }
+.cap-control > :is(.cap-qty, .cap-unit, .cap-unit-slot, .quantity-field-suffix) { grid-column: auto; }
+.cap-qty,
+.cap-control input[inputmode='decimal'],
+.cap-control input[inputmode='numeric'] {
+  grid-column: 1;
+  width: 100%;
+  min-width: 0;
+  height: var(--mos-control-height);
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 1px solid var(--mos-control);
+  border-radius: var(--radius-sm);
+  background: var(--mos-surface);
+  color: var(--mos-ink);
+  font: inherit;
+  font-size: var(--mos-size-3);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.cap-qty:disabled, .cap-control input:disabled { cursor: not-allowed; background: var(--mos-band); color: var(--mos-muted); }
+.cap-qty[aria-invalid='true'], .cap-control input[aria-invalid='true'] { border-color: var(--destructive); }
+.cap-qty:focus-visible, .cap-control input:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.cap-unit, .cap-control .quantity-field-suffix { grid-column: 2; min-width: 0; color: var(--mos-muted); font: var(--mos-type-body); overflow-wrap: anywhere; }
+.cap-control .quantity-field-suffix .mk-select, .cap-control .quantity-field-suffix .mk-select__box, .cap-control .quantity-field-suffix .mk-select__field { width: 100%; max-width: 100%; }
+.cap-control .quantity-field-error { grid-column: 1 / -1; }
+.cap-link {
+  justify-self: start; min-height: var(--mos-control-height); padding: 0; border: 0; background: none; color: var(--foreground);
+  font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.cap-units { display: flex; flex-wrap: wrap; gap: var(--mos-label-gap) var(--mos-field-gap); min-width: 0; margin: 0; padding: 0; border: 0; font-size: var(--mos-size-3); }
+.cap-units legend { margin-bottom: var(--mos-label-gap); padding: 0; color: var(--muted-foreground); }
+.cap-units label { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height); }
+
+/* ── Group header row ── */
+.cap-group__cell { display: block; }
+
+/* ── Narrow: header shows the item and the first box + unit labels once ── */
+.cap-table:not([data-layout='wide']) .cap-head { display: flex; justify-content: space-between; gap: var(--mos-row-gap); }
+.cap-table:not([data-layout='wide']) .cap-head__figures,
+.cap-table:not([data-layout='wide']) .cap-head__action,
+.cap-table:not([data-layout='wide']) .cap-head__control--extra { display: none; }
+.cap-table:not([data-layout='wide']) .cap-head__control:not(.cap-head__control--extra) { display: inline-flex; gap: var(--mos-inline-gap); }
+/* One quantity group (every list but Plan's side-by-side movements): the row stays ONE row. Left: the name (2 lines at most) with the
+   muted figures under it. Right, a fixed column: box + unit, centred on the row, under the header's two cells; a unit too long to sit
+   beside the box drops under it, still in that column; the action sits under the box. */
+.cap-table:not([data-layout='wide'])[data-controls='1'] { --cap-qty-w: 5rem; --cap-unit-w: 3.25rem; }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-head { display: grid; grid-template-columns: minmax(0, 1fr) var(--cap-control-w); column-gap: var(--cap-gap); justify-content: normal; }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-head__control:not(.cap-head__control--extra) { display: grid; grid-template-columns: var(--cap-qty-w) var(--cap-unit-w); column-gap: var(--cap-gap); }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-head__control > span { min-width: 0; overflow-wrap: anywhere; }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-row { grid-template-columns: minmax(0, 1fr) var(--cap-control-w); align-items: center; }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-row__item { grid-column: 1; grid-row: 1; align-self: start; }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-row__name { display: flex; align-items: flex-start; }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-row__name > span:not(.cap-row__kind) {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; min-width: 0; overflow: hidden;
+}
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-row__kind { flex: none; }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-row__figures { grid-column: 1; grid-row: 2; align-self: start; gap: 0 var(--mos-inline-gap); }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-row__control { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-row:has(> .cap-row__action:not(:empty)) .cap-row__control { grid-row: 1; }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-row__action { grid-column: 2; grid-row: 2; justify-content: flex-start; align-self: start; }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-row__detail { grid-column: 1 / -1; }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-row__control > .cap-control { display: flex; flex-wrap: wrap; align-items: center; }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-control :is(.cap-qty, input[inputmode='decimal'], input[inputmode='numeric']) { flex: 0 0 var(--cap-qty-w); width: var(--cap-qty-w); }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-control :is(.cap-unit, .quantity-field-suffix) { flex: 0 1 auto; }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-control > :not(.cap-qty, .cap-unit, .cap-unit-slot, .quantity-field-suffix, .quantity-field, .quantity-field-control, .pqf) { flex: 1 1 100%; }
+.cap-table:not([data-layout='wide']):not([data-controls='1']) .cap-head__control { display: none; }
+/* Several quantity groups (Plan): stacked, each under its own name, side by side while the list has room. */
+.cap-table:not([data-layout='wide']):not([data-controls='1']) .cap-row { grid-template-columns: repeat(auto-fit, minmax(16.5rem, 1fr)); }
+.cap-table:not([data-layout='wide']):not([data-controls='1']) :is(.cap-row__item, .cap-row__figures, .cap-row__action, .cap-row__detail) { grid-column: 1 / -1; }
+.cap-table:not([data-layout='wide']) .cap-row__control-label { font: var(--mos-type-label); color: var(--mos-ink); }
+.cap-table:not([data-layout='wide'])[data-controls='1'] .cap-row__control-label { display: none; }
+.cap-table:not([data-layout='wide']) .cap-fig__label::after { content: ''; }
+.cap-table:not([data-layout='wide']) :is(.cap-row__cat, .cap-fig) + .cap-fig::before { content: '·'; margin-inline-end: var(--mos-row-gap); }
+.cap-table:not([data-layout='wide']) .cap-fig { gap: var(--mos-stack-gap); }
+
+/* ── Wide: one row of fixed tracks ── */
+.cap-table[data-layout='wide'] :is(.cap-head, .cap-row) {
+  display: grid;
+  grid-template-columns: minmax(var(--cap-item-min), 1fr) var(--cap-figs-cols, ) var(--cap-ctl-cols, ) var(--cap-act-col, );
+  column-gap: var(--cap-gap);
+  align-items: center;
+}
+.cap-table[data-layout='wide'] .cap-row__figures { display: contents; }
+.cap-table[data-layout='wide'] .cap-fig {
+  display: grid; grid-template-columns: var(--cap-fig-num-w) minmax(0, var(--cap-fig-unit-w)); column-gap: var(--cap-gap); align-items: baseline;
+  color: var(--mos-ink); font: var(--mos-type-body);
+}
+.cap-table[data-layout='wide'] .cap-fig:not(:has(.cap-fig__num)) { display: grid; }
+.cap-table[data-layout='wide'] .cap-fig__label { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.cap-table[data-layout='wide'] .cap-fig__num { grid-column: 1; text-align: end; font-weight: 400; }
+.cap-table[data-layout='wide'] .cap-fig__unit { grid-column: 2; color: var(--mos-muted); font: var(--mos-type-meta); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.cap-table[data-layout='wide'] .cap-head__figure { padding-inline-end: calc(var(--cap-fig-unit-w) + var(--cap-gap)); }
+.cap-table[data-layout='wide'] .cap-head__control:not(.cap-head__control--label), .cap-table[data-layout='wide'] .cap-control { grid-template-columns: var(--cap-qty-w) var(--cap-unit-w); }
+.cap-table[data-layout='wide'] .cap-row__control { display: block; }
+.cap-table[data-layout='wide'] .cap-row__control-label { display: none; }
+.cap-table[data-layout='wide'] .cap-row__action:empty { display: block; }
+.cap-table[data-layout='wide'] .cap-row__action > .btn, .cap-table[data-layout='wide'] .cap-row__action > button { width: 100%; }
+.cap-table[data-layout='wide'] .cap-row__detail { grid-column: 1 / -1; }
+
+@media (hover: none) { .cap-row:hover { background: transparent; } }

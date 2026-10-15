@@ -1,7 +1,7 @@
 import { matchPath, useLocation } from 'react-router-dom'
 import { jobKeyForPath } from './job-sentences'
 import { PAGE_FAMILY_FRAME_ROUTES } from './page-family-migration'
-import { primaryModuleForViewer } from './destinations'
+import { primaryModuleForViewer } from './module-registry'
 import { useBoundaryLabel } from './breadcrumb-title'
 import { useAuth } from '@/auth/use-auth'
 import { useT, type Translate } from '@/i18n/use-t'
@@ -88,7 +88,7 @@ export function ContextRow({ routeIsNotFound = false }: { routeIsNotFound?: bool
       {!headOwnsContext && !scopeless && scope && (
         <span
           className="ctx-scope truncate text-muted-foreground"
-          style={{ fontSize: 13, flex: 'none', maxWidth: '60%' }}
+          style={{ fontSize: 'var(--mos-size-2)', flex: 'none', maxWidth: '60%' }}
         >
           {scope}
         </span>
@@ -96,7 +96,7 @@ export function ContextRow({ routeIsNotFound = false }: { routeIsNotFound?: bool
       {!headOwnsContext && (
         <b
           className="ctx-job text-foreground"
-          style={{ fontSize: 13, fontWeight: 500, flex: '1 1 auto', minWidth: 0, paddingBlock: 4 }}
+          style={{ fontSize: 'var(--mos-size-2)', fontWeight: 500, flex: '1 1 auto', minWidth: 0, paddingBlock: 4 }}
         >
           {t(jobKey)}
         </b>

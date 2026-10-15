@@ -1,0 +1,30 @@
+:root { --mos-fab-size: 56px; }
+/* Phone quick create: one 56px floating button above the tab bar, bottom-right, on the page gutter.
+   Hidden wherever the page shows a bottom action bar; everywhere else the page reserves its height
+   (56px + 16px above + 16px below) so it never covers the last row. */
+.mobile-action-fab {
+  position: fixed; z-index: var(--z-sticky);
+  inset-inline-end: var(--mos-gutter);
+  bottom: calc(var(--mos-tabbar-height) + env(safe-area-inset-bottom, 0px) + var(--mos-space-4));
+  display: inline-flex; align-items: center; justify-content: center;
+  box-sizing: border-box; width: var(--mos-fab-size); height: var(--mos-fab-size); padding: 0;
+  border: 0; border-radius: var(--radius-round); background: var(--mos-accent); color: var(--mos-primary-ink);
+  box-shadow: var(--shadow-popover); cursor: pointer;
+}
+.mobile-action-fab:hover { background: var(--mos-accent-hover); }
+.mobile-action-fab:focus-visible { outline: var(--mos-focus-width) solid var(--mos-ink); outline-offset: var(--mos-focus-offset); }
+.mobile-action-fab > svg { width: var(--mos-icon-md); height: var(--mos-icon-md); }
+@media (prefers-reduced-motion: no-preference) {
+  .mobile-action-fab { transition: background-color var(--mos-duration-fast) ease-out; }
+}
+/* A page with its own bottom action bar owns the thumb zone. */
+body:has([data-testid='action-bar']) .mobile-action-fab { display: none; }
+body:has(.not-found-workbench) .mobile-action-fab { display: none; }
+/* Editing one person: no quick create over the Change buttons. */
+body:has(.person-page) .mobile-action-fab { display: none; }
+/* Reserve the button's height at the foot of the scrolling page. */
+@media (max-width: 767.98px) {
+  body:has(.mobile-action-fab):not(:has([data-testid='action-bar'], .person-page)) .page-frame--v3 {
+    padding-bottom: calc(var(--mos-fab-size) + var(--mos-space-4) * 2);
+  }
+}

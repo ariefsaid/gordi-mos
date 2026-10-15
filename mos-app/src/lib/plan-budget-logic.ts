@@ -61,7 +61,7 @@ export interface CertifiedMetric {
 }
 
 /** A BOM ingredient costed against its linked cost line (the link-never-copy join result). */
-export interface CostedBomLine {
+interface CostedBomLine {
   ingredient_esb_code: string
   ingredient_name: string
   recipe_qty: number

@@ -46,15 +46,11 @@ export function CheckboxRow({
   title,
   trailing,
 }: CheckboxRowProps) {
+  const labelClass = ['admin-check-row__label', indent && 'admin-check-row__label--indent', (disabled || busy) && 'admin-check-row__label--locked'].filter(Boolean).join(' ')
   return (
-    <div className="admin-check-row" style={divider ? { borderTop: '1px solid var(--input)' } : undefined}>
-      <label
-        className={`flex min-w-0 flex-1 items-start gap-3 py-2.5 select-none ${indent ? 'pl-6 pr-3' : 'px-3'} ${
-          disabled ? 'cursor-not-allowed' : busy ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-accent/60'
-        }`}
-        title={title}
-      >
-        <span className="mt-0.5">
+    <div className={divider ? 'admin-check-row admin-check-row--divided' : 'admin-check-row'}>
+      <label className={labelClass} title={title}>
+        <span className="admin-check-row__box">
           <Checkbox
             checked={checked}
             disabled={disabled}
@@ -64,21 +60,9 @@ export function CheckboxRow({
             aria-label={ariaLabel ?? label}
           />
         </span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span
-            className={`text-sm leading-tight ${emphasis ? 'font-semibold' : 'font-medium'}`}
-            style={{ color: 'var(--foreground)' }}
-          >
-            {label}
-          </span>
-          {description && (
-            <span
-              className="text-xs leading-snug"
-              style={{ color: 'var(--muted-foreground)' }}
-            >
-              {description}
-            </span>
-          )}
+        <span className="admin-check-row__text">
+          <span className={emphasis ? 'admin-check-row__name admin-check-row__name--emphasis' : 'admin-check-row__name'}>{label}</span>
+          {description && <span className="admin-check-row__description">{description}</span>}
         </span>
       </label>
       {trailing && <div className="admin-check-row__trailing">{trailing}</div>}

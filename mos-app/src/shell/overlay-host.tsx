@@ -105,7 +105,7 @@ export type OverlayEntry = {
   leaveGuard?: OverlayLeaveGuard
 }
 
-export type OverlayFrame = {
+type OverlayFrame = {
   entry: OverlayEntry
   returnFocus: HTMLElement | null
 }
@@ -115,7 +115,7 @@ export type OverlayFrame = {
 // compatible with the public `OverlayFrame` (the marker is extra, non-public data).
 type HostFrame = OverlayFrame & { marker?: OverlayHistoryMarker }
 
-export type OverlaySession = {
+type OverlaySession = {
   id: string
   mode: 'route' | 'ephemeral'
   frames: readonly OverlayFrame[]
@@ -127,7 +127,7 @@ export type OverlaySession = {
 }
 
 /** Whether `session` belongs on `pathname`: ephemeral sessions float over any route. */
-export function sessionBelongsTo(session: OverlaySession, pathname: string): boolean {
+function sessionBelongsTo(session: OverlaySession, pathname: string): boolean {
   return session.mode !== 'route' || session.pathname === undefined || session.pathname === pathname
 }
 

@@ -1,0 +1,33 @@
+/* MoneyFigures — open ruled cells; the first (lead) figure is the largest. Token-only. */
+.money-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0; margin: 0; border-block: 1px solid var(--border); min-width: 0; }
+.money-figure { display: flex; flex-direction: column; align-items: flex-start; gap: var(--mos-label-gap); min-width: 0; padding: var(--mos-row-pad-y) var(--mos-panel-pad); border-inline-end: 1px solid var(--border); }
+.money-figure:first-child { padding-inline-start: 0; }
+.money-figure:last-child { border-inline-end: 0; }
+.money-figure > * { margin: 0; }
+.money-figure__label { color: var(--muted-foreground); font-size: var(--mos-size-2); line-height: 1.35; }
+.money-figure__value { color: var(--foreground); font-size: var(--mos-size-4); font-weight: 650; line-height: 1.2; overflow-wrap: anywhere; }
+.money-figure--lead .money-figure__value { font-size: var(--mos-size-6); font-weight: 700; line-height: 1.15; }
+.money-figure__change { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.money-figure__basis { color: var(--muted-foreground); font-size: var(--mos-size-2); line-height: 1.35; }
+.money-figure__extra { width: 100%; }
+
+.cogs-meter { display: flex; flex-direction: column; gap: var(--mos-space-2); width: 100%; }
+.cogs-meter__track { position: relative; display: block; width: 100%; height: 8px; border-radius: var(--radius-xs); background: var(--secondary); }
+.cogs-meter__fill, .cogs-meter__over { position: absolute; top: 0; bottom: 0; }
+.cogs-meter__fill { left: 0; border-radius: var(--radius-xs) 0 0 var(--radius-xs); background: var(--text-light); }
+.cogs-meter__over { background: var(--warning); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; }
+.cogs-meter__budget { position: absolute; top: -4px; width: 2px; height: 16px; background: var(--foreground); transform: translateX(-50%); }
+.cogs-meter__text { color: var(--muted-foreground); font-size: var(--mos-size-2); line-height: 1.35; }
+
+/* Phone and tablet: two columns, so a row of four never leaves one orphan with a different left edge. */
+@media (max-width: 1023.98px) {
+  .money-figures { grid-template-columns: 1fr 1fr; }
+  .money-figure { padding: var(--mos-row-pad-y); border-inline-end: 0; border-bottom: 1px solid var(--border); }
+  .money-figure:nth-child(odd) { padding-inline-start: 0; border-inline-end: 1px solid var(--border); }
+  .money-figure:nth-last-child(-n + 2):nth-child(odd), .money-figure:last-child { border-bottom: 0; }
+}
+@media (max-width: 767.98px) {
+  .money-figure--lead .money-figure__value { font-size: var(--mos-size-5); }
+  .money-figure__value { font-size: var(--mos-size-4); }
+  .money-figure__label, .money-figure__basis, .cogs-meter__text { font-size: var(--mos-size-2); }
+}

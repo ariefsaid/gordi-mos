@@ -1,3 +1,4 @@
+import { useWorkHomeBack } from '@/shell/work-collection-switcher'
 import { ListPaging } from '@/components/ui/list-paging'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -5,26 +6,24 @@ import { useT } from '@/i18n/use-t'
 import { useAuth } from '@/auth/use-auth'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
-import { useIsWideOverlayWidth } from '@/shell/use-is-wide-overlay-width'
+import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
+import { useIsRecordSplit } from '@/shell/use-is-split-width'
 import { useIsDesktop } from '@/shell/use-is-desktop'
-import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
-import { useSignalComposer } from '@/shell/signal-composer-host'
+import { useSignalComposer, type SignalComposerPrefill } from '@/shell/signal-composer-host'
 import { Button } from '@/components/ui/button'
 import { correctSignal } from '@/lib/db/signals'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
-import { collectionDisclosureSummary } from '@/lib/record-collection/disclosure-summary'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
 import {
   CollectionToolbar,
-  CollectionToolbarSearchField,
+  type CollectionToolbarChip,
   type CollectionToolbarSearch,
 } from '@/components/record-collection/collection-toolbar'
 import { SIGNAL_CATEGORIES } from '@/lib/db/signals.types'
 import { signalCategoryLabel } from '@/components/signals/signal-labels'
 import {
   signalCollectionDescriptor,
-  SIGNAL_COLLECTION_NEUTRAL_QUERY,
   type SignalCollectionQuery,
 } from '@/components/signals/signal-collection-adapter'
 import {
@@ -32,8 +31,8 @@ import {
   type SignalCollectionActions,
 } from '@/components/signals/signal-collection-actions'
 import { SignalRecordHost } from '@/components/signals/signal-record-host'
+import { SignalInlineComposer } from '@/components/signals/signal-inline-composer'
 import { signalTitle } from '@/components/signals/signal-record-adapter'
-import { getActiveSignalView } from '@/components/signals/signal-collection-view'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import { RecordPageChrome } from '@/shell/record-page-chrome'
 import { BOOT_SIGNAL_RECORD_ID } from '@/components/signals/signal-page-mode'
@@ -75,15 +74,20 @@ function SignalsArchiveCollection() {
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const navigate = useNavigate()
-  const isSplit = useIsWideOverlayWidth()
+  const isSplit = useIsRecordSplit()
   const isDesktop = useIsDesktop()
-  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const savedViewRetryRef = useRef<SignalSavedViewRetry | null>(null)
   const [params, setParams] = useSearchParams()
   const recordId = params.get('record')
   const hadSignalSession = useRef(false)
   const suppressNextOpen = useRef(false)
-  const { open: openSignalComposer, postCount, canPost } = useSignalComposer()
+  const { open: openSignalComposer, postCount, canPost, canTag, registerInline } = useSignalComposer()
+  // Writing happens on this page, above the list: every Share-signal entry point lands here.
+  const [composer, setComposer] = useState<{ prefill?: SignalComposerPrefill } | null>(null)
+  useEffect(() => {
+    registerInline((prefill) => setComposer({ prefill }))
+    return () => registerInline(null)
+  }, [registerInline])
 
   const controller = useRecordCollection({
     descriptor: signalCollectionDescriptor,
@@ -107,45 +111,6 @@ function SignalsArchiveCollection() {
     retryCollection()
   }, [postCount, retryCollection])
 
-  // The active Signals view as a readable label — shared by the result header and the phone
-  // "View & filters" disclosure summary so the two never drift (OD-REDESIGN-72/79 convergence).
-  // Mirrors task-collection-view.ts's getActiveTaskView (tasks-workspace.tsx's activeView): a
-  // fetched saved-view name wins over the built-in view label, so a custom Signals saved view
-  // names itself here too instead of collapsing to its underlying view's generic label.
-  const signalViewLabel = (view: SignalCollectionQuery['view']) =>
-    view === 'needs-attention' ? t('signals.archive.viewAttention')
-      : view === 'retracted' ? t('signals.archive.viewRetracted')
-        : view === 'i-posted' ? t('signals.archive.viewMine')
-        : t('signals.archive.viewAll')
-  const activeSignalView = getActiveSignalView({
-    query,
-    savedViews: controller.state.savedViews.items,
-    labels: {
-      all: signalViewLabel('all'),
-      'needs-attention': signalViewLabel('needs-attention'),
-      retracted: signalViewLabel('retracted'),
-      'i-posted': signalViewLabel('i-posted'),
-    },
-  })
-
-  function signalDisclosureSummary(): { summary: string; hasActiveFilters: boolean } {
-    return collectionDisclosureSummary({
-      query,
-      neutralQuery: SIGNAL_COLLECTION_NEUTRAL_QUERY,
-      excludedKeys: ['layout', 'groupBy', 'sort', 'direction'],
-      base: activeSignalView.label,
-      // One source for "is this off the default view": activeSignalView.hasNonDefaultView (same
-      // savedViewId/view check getActiveSignalView already made), not a second view!=='all' here.
-      hasNonDefaultView: activeSignalView.hasNonDefaultView,
-      filterLabel: (currentQuery) => currentQuery.attention ? t('signals.archive.filterAttention')
-        : currentQuery.category ? t('signals.archive.filterCategory')
-          : currentQuery.teamId ? t('signals.archive.filterTeam')
-            : currentQuery.q.trim() ? t('signals.archive.searchLabel')
-              : currentQuery.savedViewId ? t('common.savedView')
-                : undefined,
-    })
-  }
-
   function setQuery(patch: Partial<SignalCollectionQuery>) {
     controller.setQuery({ ...query, ...patch })
   }
@@ -158,7 +123,9 @@ function SignalsArchiveCollection() {
     // swallowed by the previous session's suppression flag.
     suppressNextOpen.current = false
     hadSignalSession.current = false
-    if (!isDesktop) {
+    // No room for list + panel (phone, or a content track under the split threshold): the Signal
+    // opens as its full page, as a Task does.
+    if (!isDesktop || !isSplit) {
       const next = new URLSearchParams(params)
       next.delete('record')
       const search = next.toString()
@@ -172,6 +139,18 @@ function SignalsArchiveCollection() {
     next.set('record', record.id)
     setParams(next)
   }
+
+  // A record already open (deep link, or the track shrank under an open panel) promotes to the
+  // full page the same way, so a squeezed panel never lingers beside a squeezed list.
+  useEffect(() => {
+    if (!recordId || !isDesktop || isSplit) return
+    suppressNextOpen.current = true
+    const next = new URLSearchParams(params)
+    next.delete('record')
+    const search = next.toString()
+    navigate({ pathname: `/work/signals/${recordId}`, search: search ? `?${search}` : '' }, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordId, isDesktop, isSplit])
 
   async function handleCategorize(signalId: string, category: SignalCollectionQuery['category']) {
     if (!category) return
@@ -219,6 +198,7 @@ function SignalsArchiveCollection() {
       title: t('signals.record.title'),
       actions: (
         <AskDeputyAction
+          labelled
           draft={t('assistant.askAbout.signal', {
             title: openSignalBody ? signalTitle(openSignalBody) : t('signals.record.title'),
           })}
@@ -291,13 +271,21 @@ function SignalsArchiveCollection() {
     onChange: (q) => setQuery({ q }),
   }
 
+  const signalChips: CollectionToolbarChip[] = []
+  if (query.teamId) signalChips.push({ key: 'team', label: `${t('signals.archive.filterTeam')}: ${context?.teamNamesById.get(query.teamId) ?? ''}`, onRemove: () => setQuery({ teamId: null }) })
+  if (query.category) signalChips.push({ key: 'category', label: `${t('signals.archive.filterCategory')}: ${signalCategoryLabel(t, query.category)}`, onRemove: () => setQuery({ category: null }) })
+  if (query.attention) signalChips.push({ key: 'attention', label: t('signals.archive.filterAttention'), onRemove: () => setQuery({ attention: null }) })
+
   const signalToolbar = (
     <CollectionToolbar
       className="signals-archive-toolbar"
-      // #770: the Share Signal primary lives in the PAGE HEAD (D-D2, AC-021) — layout-independent
-      // across Table and Feed, and never inside the phone door. The in-feed "Share a Signal" row
-      // is ambient-only (Home tail) — see SignalFeedRows.
-      hideSearchRow={!isDesktop}
+      // The Share signal primary lives in the PAGE HEAD — layout-independent across Table and
+      // Feed. The in-feed "Share a Signal" row is ambient-only (Home tail) — see SignalFeedRows.
+      exposedFilterIds={isDesktop ? ['category', 'sort'] : ['sort']}
+      presentationIn={isDesktop ? 'bar' : 'panel'}
+      resultSummary={projection ? t(projection.visibleRecords.length === 1 ? 'signals.archive.count.one' : 'signals.archive.count.other', { count: projection.visibleRecords.length }) : '—'}
+      chips={signalChips}
+      onClearAll={clearFilters}
       presentation={{
         label: t('signals.archive.presentationLabel'),
         value: controller.state.presentation,
@@ -353,11 +341,7 @@ function SignalsArchiveCollection() {
         },
         ...(controller.state.presentation === 'table' ? [
           {
-            // AC-022 (#770, per Tasks AC-005): the active group carries the structural-navy tint
-            // and the trigger reads "Group: Team" / "Kelompok: Tim" — visually distinct from the
-            // Team FILTER beside it, which has no prefix and no tint.
-            id: 'group', label: t('signals.archive.groupLabel'), triggerPrefix: t('signals.archive.groupLabel'), value: query.groupBy,
-            tinted: query.groupBy !== 'none',
+            id: 'group', label: t('signals.archive.groupLabel'), value: query.groupBy,
             options: [
               { value: 'none', label: t('signals.archive.groupNone') },
               { value: 'team', label: t('signals.archive.filterTeam') },
@@ -382,7 +366,18 @@ function SignalsArchiveCollection() {
               })
             },
           },
-        ] : []),
+        ] : [
+          {
+            // The feed is chronological: its one sort is the direction of time, and it is shown.
+            id: 'sort', label: t('signals.archive.sortLabel'),
+            value: `occurredAt:${query.direction}`,
+            options: [
+              { value: 'occurredAt:descending', label: t('signals.archive.sortNewest') },
+              { value: 'occurredAt:ascending', label: t('signals.archive.sortOldest') },
+            ],
+            onChange: (value: string) => setQuery({ sort: 'occurredAt', direction: value.endsWith('ascending') ? 'ascending' : 'descending' }),
+          },
+        ]),
       ]}
       savedViews={{
         label: t('signals.archive.savedViews'),
@@ -419,44 +414,34 @@ function SignalsArchiveCollection() {
   // (#581): the archive's job is search-and-revisit, so on phone the search input renders
   // OUTSIDE that door — findable without opening it — while view options stay behind it. The
   // collection toolbar itself stays unchanged for desktop, which keeps the full E7 control row.
-  const signalDisclosure = signalDisclosureSummary()
-  const signalControls = isDesktop ? signalToolbar : (
-    <>
-      <CollectionToolbarSearchField search={signalSearch} />
-      <ViewOptionsDisclosure
-        open={mobileOptionsOpen}
-        onToggle={() => setMobileOptionsOpen((open) => !open)}
-        onClose={() => setMobileOptionsOpen(false)}
-        label={t('signals.archive.viewAndFilters')}
-        summary={signalDisclosure.summary}
-        hasActiveFilters={signalDisclosure.hasActiveFilters}
-        panelId="mobile-signal-options-panel"
-        className="collection-mobile-options"
-        triggerClassName="collection-mobile-options-trigger"
-        summaryClassName="collection-mobile-options-summary"
-        chevronClassName="collection-mobile-options-chevron"
-        panelClassName="collection-mobile-options-panel"
-      >
-        {signalToolbar}
-      </ViewOptionsDisclosure>
-    </>
-  )
 
+  const workBack = useWorkHomeBack()
   return (
     <PageFamilyFrame
       family="workspace"
+      back={workBack}
       title={t('nav.work.signals')}
-      jobSentence={t('job.signals')}
-      count={projection ? projection.visibleRecords.length : null}
+      phoneActionBar
       // AC-021 (#770): the head holds the ONE .btn-primary on the surface — the same head-action
       // slot Tasks uses for "New task", at every width.
-      action={canPost === false ? undefined : (
+      // While the composer is open it carries its own Share, so the page head offers nothing second.
+      action={canPost === false || composer ? undefined : (
         <Button variant="primary" onClick={() => openSignalComposer()}>
           {t('signals.action.share')}
         </Button>
       )}
     >
       <SignalCollectionActionsProvider actions={actions}>
+        {composer && viewerId && auth.status === 'authenticated' ? (
+          <SignalInlineComposer
+            authorId={viewerId}
+            authorName={auth.viewer.person.full_name}
+            canTag={canTag === true}
+            prefill={composer.prefill}
+            onShared={() => { setComposer(null); controller.retry() }}
+            onClose={() => setComposer(null)}
+          />
+        ) : null}
         {/* #930 — work-collection always renders (record open or not) so the page frame stays
             at the shared wide operating measure in both states; record-split is added only
             when a record is open, same as before. */}
@@ -464,12 +449,7 @@ function SignalsArchiveCollection() {
           <div className={`record-collection-view signals-archive-main record-collection-view--${controller.state.presentation}`}>
             <RecordCollectionSurface
               controller={controller}
-              resultHeader={{
-                collectionLabel: t('nav.work.signals'),
-                viewLabel: activeSignalView.label,
-                count: projection ? projection.visibleRecords.length : null,
-              }}
-              controls={signalControls}
+              controls={signalToolbar}
               empty={{
                 title: query.q.trim()
                   ? t('signals.archive.empty', { query: query.q })
@@ -477,7 +457,11 @@ function SignalsArchiveCollection() {
                 copy: query.q.trim() || canPost === false ? undefined : t('signals.archive.emptyShareAbove'),
                 variant: 'next-step',
               }}
-              filteredEmpty={{ items: t('collection.items.signals'), clear: clearFilters }}
+              filteredEmpty={{
+                items: t('collection.items.signals'),
+                clear: clearFilters,
+                clearLabel: query.q.trim() && !query.attention && !query.category && !query.teamId && query.view === 'all' && !query.showRetracted ? t('common.clearSearch') : undefined,
+              }}
               error={{ message: t('signals.archive.error'), retry: () => controller.retry() }}
               loadingLabel={t('signals.archive.loading')}
               onOpenRecord={onOpenRecord}
@@ -522,6 +506,8 @@ export function SignalRecordPage() {
   const location = useLocation()
   const [title, setTitle] = useState<string | null>(null)
   const fromHome = (location.state as { from?: string } | null)?.from === 'home'
+  // The shell breadcrumb ends on the record's own name once it resolves (UX-STANDARD NV1).
+  useSetBreadcrumbTitle(title ? signalTitle(title) : '')
   // R6-P2 parity with TaskRecordPage: reflect the resolved record name in the browser tab.
   useDocumentTitle(t('common.docTitle', { page: title ? `${title} · ${t('nav.signals')}` : t('nav.signals') }))
   if (!signalId) return <Navigate to="/work/signals" replace />

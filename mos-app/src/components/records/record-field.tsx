@@ -42,8 +42,10 @@
 // stays exactly as typed, still in edit mode, until the dialog resolves. On Retain, ModalShell
 // returns focus to the same field (its own invoker-refocus contract) and commits resume
 // normally; on Discard the tenant unmounts the field, dropping the draft with it.
+import { STATUS_MAP, TASK_STATUS_KEY } from '@/components/ui/status-badge'
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
+import { useIsOffline } from '@/shell/use-is-offline'
 import { Button } from '@/components/ui/button'
 import { Picker } from '@/components/ui/picker'
 import { Link, useInRouterContext } from 'react-router-dom'
@@ -87,6 +89,8 @@ function toInputValue(value: RecordValue): string {
 }
 
 export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFrozen = false, heading = false, headingLevel = 1 }: RecordFieldProps) {
+  // Editing saves to the network: offline the edit control is disabled (the record says why once, in its OfflineNotice).
+  const offline = useIsOffline()
   const Heading = headingLevel === 1 ? 'h1' : 'h2'
   const t = useT()
   const labelId = useId()
@@ -268,9 +272,11 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
         ref={editButtonRef}
         className={`record-field__edit tap-floor record-field__edit--${spec.control}`}
         data-field-edit={spec.key}
-        aria-label={t('record.field.edit', { label: spec.label })}
+        // The name starts with the value the button shows (WCAG 2.5.3 label in name), then says what it does.
+        aria-label={!linked && spec.displayValue ? `${spec.displayValue}, ${t('record.field.edit', { label: spec.label })}` : t('record.field.edit', { label: spec.label })}
         aria-describedby={labelId}
         aria-haspopup={spec.control === 'status' ? 'listbox' : undefined}
+        disabled={offline}
         onClick={beginEdit}
       >
         {!linked && <span id={`${controlId}-value`} className="record-field__value">{renderValueNode(spec)}</span>}
@@ -471,13 +477,15 @@ function isEmptyValue(spec: RecordFieldSpec): boolean {
 function renderValueNode(spec: RecordFieldSpec): ReactNode {
   const empty = isEmptyValue(spec)
   if (spec.control === 'status') {
-    // A token-themed pill (records/ stays decoupled from the Task-typed StatusPill); the
-    // data-status attribute drives the semantic hue in record-viewer.css. It carries the RAW
-    // enum `value` (stable, English) — `displayValue` is the locale-facing text (DO-13/I18N-2),
-    // so keying the hue off it would break the pill colors outside `en`.
+    // The shared status shell (Pill) with the tone from the one status map; the record's status
+    // picker only adds its caret. It reads the RAW enum `value` (stable, English), never the
+    // locale-facing `displayValue`, so the hue is the same in every language.
+    const raw = typeof spec.value === 'string' ? spec.value : undefined
+    const statusKey = raw === undefined ? undefined : TASK_STATUS_KEY[raw as keyof typeof TASK_STATUS_KEY] ?? (raw.startsWith('bill') && raw in STATUS_MAP ? raw as keyof typeof STATUS_MAP : undefined)
+    const tone = statusKey ? STATUS_MAP[statusKey].tone : 'neutral'
     return wrapValue(spec, (
-      <span className="record-field__pill" data-status={typeof spec.value === 'string' ? spec.value : spec.displayValue}>
-        <span className="record-field__pill-dot" aria-hidden="true" />
+      <span className={`record-field__pill pill pill--${tone}`}>
+        <span className="dot" aria-hidden="true" />
         {spec.displayValue}
         {spec.editable ? <span aria-hidden="true" className="record-field__pill-caret" /> : null}
       </span>

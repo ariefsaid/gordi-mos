@@ -10,7 +10,7 @@
 import type { CafeReceiptCondition } from '@/lib/db/cafe-receipts'
 
 export type CafeReceiptExplanation = { conditions: CafeReceiptCondition[]; condition_reason: string | null }
-export type CafeReceiptExplanationDraft = CafeReceiptExplanation & { serverUpdatedAt: string | null }
+type CafeReceiptExplanationDraft = CafeReceiptExplanation & { serverUpdatedAt: string | null }
 type Drafts = Record<string, CafeReceiptExplanationDraft>
 
 const STORAGE_KEY = 'mos.cafe.receiptExplanations'

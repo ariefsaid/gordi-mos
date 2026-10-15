@@ -1,5 +1,6 @@
+import { GordiLogoMark } from './logo-mark'
 import { Breadcrumb } from './breadcrumb'
-import { useRailCompact } from './use-rail-compact'
+import { useNavLayout } from './use-nav'
 import { SHOW_ASSISTANT } from '@/config/features'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
@@ -8,6 +9,7 @@ import { useUnreadCount } from '@/hooks/useUnreadCount'
 import { useIsDesktop } from './use-is-desktop'
 import { useOptionalOverlayHost } from './overlay-host'
 import { InboxTriageConnected } from '@/components/inbox/inbox-triage-connected'
+import { setTopBarBackSlot } from './top-bar-back-slot'
 import './top-bar.css'
 
 type TopBarProps = {
@@ -27,8 +29,8 @@ type TopBarProps = {
 function BellIcon() {
   return (
     <svg
-      width={16}
-      height={16}
+      width={20}
+      height={20}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -45,8 +47,8 @@ function BellIcon() {
 function SearchIcon() {
   return (
     <svg
-      width={15}
-      height={15}
+      width={20}
+      height={20}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -59,12 +61,12 @@ function SearchIcon() {
   )
 }
 
-// Deputy spark icon — 16px, stroke-2, aria-hidden (T28 desktop top-bar button)
+// Deputy spark icon — 20px, stroke-2, aria-hidden (T28 desktop top-bar button)
 export function DeputyIcon() {
   return (
     <svg
-      width={16}
-      height={16}
+      width={20}
+      height={20}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -77,25 +79,6 @@ export function DeputyIcon() {
       <path d="M18 12h3" />
       <circle cx="12" cy="12" r="3" />
     </svg>
-  )
-}
-
-// Gordi logo mark — navy square + orange sprinkle dot (brand identity, ADR-0013 D1)
-function GordiLogoMark() {
-  return (
-    <div className="relative flex-none" style={{ width: 26, height: 26 }}>
-      <div
-        className="flex h-full w-full items-center justify-center rounded-sm bg-brand-navy font-bold text-primary-foreground"
-        style={{ fontSize: 'var(--font-size-body-lg)' }}
-      >
-        G
-      </div>
-      <span
-        className="absolute bottom-0 right-0 rounded-full bg-brand-orange"
-        style={{ width: 5, height: 5, transform: 'translate(30%, 30%)' }}
-        aria-hidden="true"
-      />
-    </div>
   )
 }
 
@@ -112,8 +95,7 @@ function AssistantTopBarButton() {
       type="button"
       aria-label={t('assistant.open')}
       title={t('assistant.open')}
-      className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground flex-none"
-      style={{ width: 32, height: 32 }}
+      className="top-bar__icon-btn"
       onClick={openPanel}
     >
       <DeputyIcon />
@@ -122,8 +104,7 @@ function AssistantTopBarButton() {
 }
 
 // The notification bell (T16) — the Inbox door with an unread badge (ADR-0019 D9). It stays in
-// the compact header as well as desktop, while the bottom-tab Inbox entry remains available on
-// phones. With a mounted overlay host it quick-opens the SAME InboxTriage surface as an ephemeral
+// the compact header as well as desktop; on a phone it is the Inbox's door (no tab; Inbox is also in More). With a mounted overlay host it quick-opens the SAME InboxTriage surface as an ephemeral
 // root (no URL mutation), so a manager triages in context and the host returns focus to the bell
 // on close; without a host (e.g. isolated tests) it falls back to the full `/inbox` route. Uses
 // the dedicated useUnreadCount hook (CQ#2) so the badge is backed by the unread-only index, not
@@ -140,21 +121,7 @@ function NotificationBell() {
     <>
       <BellIcon />
       {unreadCount > 0 ? (
-        <span
-          aria-hidden="true"
-          className="absolute rounded-full bg-primary text-primary-foreground"
-          style={{
-            top: 2,
-            right: 2,
-            minWidth: 15,
-            height: 15,
-            fontSize: 9,
-            lineHeight: '15px',
-            fontWeight: 600,
-            textAlign: 'center',
-            padding: '0 3px',
-          }}
-        >
+        <span aria-hidden="true" className="top-bar__badge tabular-nums">
           {unreadCount > 9 ? '9+' : unreadCount}
         </span>
       ) : null}
@@ -167,8 +134,7 @@ function NotificationBell() {
         to="/inbox"
         aria-label={label}
         title={label}
-        className="tap-target-phone tap-target-phone--icon relative flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground flex-none"
-        style={{ width: 32, height: 32 }}
+        className="top-bar__icon-btn"
       >
         {bellContent}
       </Link>
@@ -188,7 +154,13 @@ function NotificationBell() {
         tenant: 'quick',
         label: t('inbox.quickTitle'),
         title: t('inbox.quickTitle'),
-        content: <InboxTriageConnected mode="quick" />,
+        // One header row: the title, "Open Inbox" and close (no second "Quick triage" row under it).
+        actions: <Link to="/inbox" className="btn btn-outline">{t('shell.openInbox')}</Link>,
+        content: (
+          <div className="top-bar__quick-inbox">
+            <InboxTriageConnected mode="quick" />
+          </div>
+        ),
       },
       'ephemeral',
     )
@@ -199,8 +171,7 @@ function NotificationBell() {
       type="button"
       aria-label={label}
       title={label}
-      className="tap-target-phone tap-target-phone--icon relative flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground flex-none"
-      style={{ width: 32, height: 32 }}
+      className="top-bar__icon-btn"
       onClick={openInbox}
     >
       {bellContent}
@@ -218,33 +189,28 @@ function NotificationBell() {
 // grid-area: topbar — spans full width (set by AppShell grid; no inline style needed here).
 export function TopBar({ onOpenSearch, searchTriggerRef }: TopBarProps) {
   const t = useT()
-  // OD-REDESIGN-84.2 (P1-1): the brand column's width must track the rail's own compact
-  // regime (920–1099.98px) so the divider still lands on the rail boundary; the wordmark
-  // text is dropped at that width too (72px only has room for the mark).
-  // #442: "the rail's own compact regime" now includes the user's collapse choice, so this
-  // reads the SAME `useRailCompact` seam the shell grid does rather than recomputing it.
-  const { isNarrow, compact: railCompact } = useRailCompact()
+  // The brand cell is as wide as the nav's first column: the whole 240px sidebar, or the 64px rail (mark only),
+  // so the header divider lands on the nav boundary.
+  const { isNarrow, brandWide } = useNavLayout()
 
   return (
     <header
       data-anatomy="header"
-      className="top-bar bg-background border-b border-border flex items-stretch flex-none"
-      style={{ height: 'var(--header-h)', gridArea: 'topbar' }}
+      className="top-bar"
+      style={{ gridArea: 'topbar' }}
     >
+      {/* Phone back control: PageBackLink portals the page's back button here below 768px. */}
+      <div className="top-bar__back" ref={setTopBarBackSlot} />
+
       {/* Brand lockup — width = --rail-w so the right divider coincides with the rail boundary (ADR-0013 D1).
           At <920px the rail is gone (drawer-nav), so the brand shrinks to content width (no 224px reserve)
           and drops the divider — otherwise it forces horizontal overflow on phones. */}
       <div
-        className={`flex items-center gap-2 px-3 flex-none${isNarrow ? '' : ' border-r border-border'}${railCompact ? ' justify-center px-0' : ''}`}
-        style={{ width: isNarrow ? 'auto' : railCompact ? 'var(--rail-w-compact)' : 'var(--rail-w)' }}
+        className={`top-bar__brand${isNarrow ? ' top-bar__brand--narrow' : ''}${!brandWide && !isNarrow ? ' top-bar__brand--compact' : ''}`}
       >
         <GordiLogoMark />
-        {!isNarrow && !railCompact && (
-          <span
-            className="truncate font-semibold text-foreground"
-            title="Gordi MOS"
-            style={{ fontSize: 16, letterSpacing: '-0.01em' }}
-          >
+        {!isNarrow && brandWide && (
+          <span className="top-bar__wordmark" title="Gordi MOS">
             Gordi MOS
           </span>
         )}
@@ -254,17 +220,17 @@ export function TopBar({ onOpenSearch, searchTriggerRef }: TopBarProps) {
           v4 shell rebuild (Task 2): now ALSO rendered at <920px, in the space freed by deleting
           the hamburger — it's the phone's only current-location signal once the page's own H1
           scrolls out of view, and it lives in this fixed header row so it survives scrolling. */}
-      <div className={`top-bar__breadcrumb-track flex items-center flex-1 min-w-0${isNarrow ? ' px-2' : ' px-4'}`}>
-        <nav className="top-bar__breadcrumb" aria-label="Breadcrumb">
-          <Breadcrumb />
-        </nav>
+      <div className="top-bar__breadcrumb-track">
+        <div className="top-bar__location">
+          <nav className="top-bar__breadcrumb" aria-label="Breadcrumb">
+            <Breadcrumb />
+          </nav>
+          {import.meta.env.DEV ? <span className="shell-environment-notice">{t('work.localSampleData')}</span> : null}
+        </div>
       </div>
 
-      {/* Phone breadcrumb owns the free width; desktop keeps the spacer between tracks. */}
-      <div className={isNarrow ? 'flex-none' : 'flex-1'} />
-
-      {/* Right cluster — search · bell · deputy */}
-      <div className="flex items-center gap-2 px-3 flex-none">
+      {/* One utility track follows the location track; the breadcrumb takes remaining width. */}
+      <div className="top-bar__utilities">
         {/* ⌘K search trigger — opens the command menu (AC-K02). Below 920px it shrinks to an
             icon-only button (DESIGN.md Navigation·Mobile: "cmdk shrinks to an icon") so the header
             fits a phone width without horizontal overflow. */}
@@ -273,8 +239,7 @@ export function TopBar({ onOpenSearch, searchTriggerRef }: TopBarProps) {
             type="button"
             ref={searchTriggerRef}
             aria-label={t('topBar.search')}
-            className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm border border-input bg-secondary text-muted-foreground hover:border-foreground/70 flex-none"
-            style={{ width: 32, height: 32 }}
+            className="top-bar__icon-btn"
             onClick={onOpenSearch}
           >
             <SearchIcon />
@@ -283,26 +248,20 @@ export function TopBar({ onOpenSearch, searchTriggerRef }: TopBarProps) {
           <button
             type="button"
             ref={searchTriggerRef}
-            aria-label={t('topBar.search')}
-            className="flex items-center gap-2 rounded-sm border border-input bg-secondary px-2 text-muted-foreground hover:border-foreground/70 cursor-text"
-            style={{ height: 34, width: 200 }}
+            className="top-bar__search"
             onClick={onOpenSearch}
           >
             <SearchIcon />
-            <span className="flex-1 text-left" style={{ fontSize: 'var(--font-size-body-lg)' }}>
+            <span className="top-bar__search-text">
               {t('topBar.searchPlaceholder')}
             </span>
-            <kbd
-              className="rounded-xs border border-border px-1 font-medium text-muted-foreground"
-              style={{ fontSize: 11, lineHeight: '16px' }}
-            >
+            <kbd className="top-bar__kbd">
               ⌘K
             </kbd>
           </button>
         )}
 
-        {/* Inbox bell — shared desktop/phone door. The bottom-tab Inbox entry stays as a second
-            phone entry point; both use the same unread-only count seam. */}
+        {/* Inbox bell — shared desktop/phone door with the unread count (the phone has no Inbox tab). */}
         <NotificationBell />
 
         {/* Deputy launcher (T28) — neutral header icon on every viewport (No-FAB Rule).

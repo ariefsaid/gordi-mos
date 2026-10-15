@@ -1,316 +1,168 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { useFollowUpQueue } from '@/components/follow-ups/use-follow-up-queue'
+import { FollowUpQueueTable } from '@/components/follow-ups/follow-up-queue-table'
+import { FollowUpRecordHost } from '@/components/follow-ups/follow-up-record-host'
+import { RecordPanelHost } from '@/shell/record-panel-host'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
-import { useIsDesktop } from '@/shell/use-is-desktop'
-import { getBusinessUnits } from '@/lib/db/directory'
-import { canWorkAnyLane } from '@/lib/follow-up-lanes'
-import { listFollowUpsPage, listFollowUpsWindow, transitionFollowUp, isOverdue, type FollowUpRow, type FollowUpState, type FollowUpTransition } from '@/lib/db/follow-ups'
-import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
-import { ListPaging } from '@/components/ui/list-paging'
-import { Button } from '@/components/ui/button'
-import { DateField } from '@/components/ui/date-field'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { useIsRecordSplit } from '@/shell/use-is-split-width'
+import { isOverdue, type FollowUpRow, type FollowUpState, type FollowUpTransition } from '@/lib/db/follow-ups'
 import { StatusPill, type TaskStatus } from '@/components/tasks/status-pill'
-
-type FetchState = 'loading' | 'ready' | 'error'
-
-const money = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
+import { Button } from '@/components/ui/button'
+import { TextInput } from '@/components/ui/text-input'
+import { DateField } from '@/components/ui/date-field'
+import { ErrorState, EmptyState, SkeletonRows } from '@/components/ui/state-kit'
+import { formatIDR } from '@/lib/format/money'
+import type { MessageKey } from '@/i18n/messages'
+import './follow-ups-page.css'
 
 function nextActions(row: FollowUpRow, canConfirm: boolean, canChase: boolean): FollowUpTransition[] {
   if (row.state === 'settled') return canConfirm ? ['confirm'] : []
-  if (row.state === 'confirmed') return []
-  if (!canChase) return []
-  const basic: FollowUpTransition[] = ['chase', 'promise', 'partial', 'settle']
-  return basic
+  if (row.state === 'confirmed' || !canChase) return []
+  return ['chase', 'promise', 'partial', 'settle']
 }
 
-function followUpStatusTone(state: FollowUpState): TaskStatus {
+const FOLLOW_UP_STATE_KEY: Record<FollowUpState, MessageKey> = {
+  open: 'moneyB.followups.state.open',
+  chased: 'moneyB.followups.state.chased',
+  promised: 'moneyB.followups.state.promised',
+  partial: 'moneyB.followups.state.partial',
+  settled: 'moneyB.followups.state.settled',
+  confirmed: 'moneyB.followups.state.confirmed',
+}
+
+function stateTone(state: FollowUpState): TaskStatus {
   if (state === 'open') return 'Open'
   if (state === 'confirmed') return 'Done'
   return 'In Progress'
 }
 
 export function FollowUpsPage() {
-  useDocumentTitle('Follow-up queue — Gordi MOS')
   const t = useT()
-  const auth = useAuth()
-  const isDesktop = useIsDesktop()
-  const [params] = useSearchParams()
+  const tx = (key: string) => t(key as MessageKey)
+  const wide = useIsRecordSplit()
+  const [params, setParams] = useSearchParams()
   const route = useParams<{ id?: string }>()
-  const viewer = auth.status === 'authenticated' ? auth.viewer : null
-  const accessRoles = useMemo(() => viewer?.accessRoles ?? [], [viewer])
-  const canConfirm = accessRoles.includes('finance') || accessRoles.includes('admin')
-  const [canChase, setCanChase] = useState(accessRoles.includes('admin'))
-  const [rows, setRows] = useState<FollowUpRow[]>([])
-  const [state, setState] = useState<FetchState>('loading')
-  const [hasMore, setHasMore] = useState(false)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [moreError, setMoreError] = useState(false)
-  const cursorRef = useRef<Pick<FollowUpRow, 'created_at' | 'id'> | null>(null)
-  const loadedCountRef = useRef(0)
-  const loadGeneration = useRef(0)
-  const moreInFlight = useRef(false)
-  const [active, setActive] = useState<{ id: string; verb: FollowUpTransition } | null>(null)
-  const [form, setForm] = useState({ amount: '', cash_in_date: '', evidence: '', promise_date: '', note: '' })
-  // Typed date text that is not a usable date: Submit stays off rather than sending the old date.
+  const [selectedId, setSelectedId] = useState<string | null>(route.id ?? null)
   const [dateInvalid, setDateInvalid] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const queue = useFollowUpQueue({ detailId: selectedId ?? undefined })
+  useDocumentTitle(`${t('followUps.title')} — Gordi MOS`)
 
-  const load = useCallback((windowSize = 0) => {
-    const generation = ++loadGeneration.current
-    let cancelled = false
-    setState('loading')
-    setHasMore(false)
-    setLoadingMore(false)
-    setMoreError(false)
-    moreInFlight.current = false
-    if (windowSize === 0) {
-      cursorRef.current = null
-      loadedCountRef.current = 0
-    }
-    const filters = { overdue: params.get('filter') === 'overdue' }
-    const read = windowSize > 0 ? listFollowUpsWindow(filters, windowSize) : listFollowUpsPage(filters)
-    read.then((page) => {
-      if (!cancelled && generation === loadGeneration.current) {
-        setRows(page.rows)
-        loadedCountRef.current = page.rows.length
-        cursorRef.current = page.nextCursor
-        setHasMore(page.hasMore)
-        setState('ready')
-      }
-    }).catch(() => { if (!cancelled && generation === loadGeneration.current) setState('error') })
-    return () => { cancelled = true }
-  }, [params])
+  useEffect(() => setSelectedId(route.id ?? null), [route.id])
+  const selected = queue.detailRow
+  const filterOverdue = params.get('filter') === 'overdue'
+  const loadedCopy = t('moneyB.followups.loaded' as MessageKey, { count: `${queue.rows.length}${queue.hasMore ? '+' : ''}` })
+  const overdueCopy = t('moneyB.followups.overdue' as MessageKey, { count: `${queue.overdueCount}${queue.hasMore ? '+' : ''}` })
+  const frameState = queue.state === 'loading' ? 'loading' : queue.state === 'error' ? 'error' : queue.rows.length === 0 ? 'empty' : 'default'
 
-  useEffect(() => load(), [load])
-
-  useEffect(() => {
-    if (!viewer) return
-    let cancelled = false
-    getBusinessUnits()
-      .then((bus) => {
-        if (!cancelled) setCanChase(canWorkAnyLane(viewer.roles, bus, accessRoles))
-      })
-      .catch(() => setCanChase(accessRoles.includes('admin')))
-    return () => { cancelled = true }
-  }, [accessRoles, viewer])
-
-  const overdueCount = useMemo(() => rows.filter((row) => isOverdue(row)).length, [rows])
-  const frameState = state === 'loading' ? 'loading' : state === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'default'
-
-  async function loadMore() {
-    const before = cursorRef.current
-    if (!before || moreInFlight.current) return
-    const generation = loadGeneration.current
-    moreInFlight.current = true
-    setLoadingMore(true)
-    setMoreError(false)
+  const changeFilter = (overdue: boolean) => {
+    const next = new URLSearchParams(params)
+    if (overdue) next.set('filter', 'overdue')
+    else next.delete('filter')
+    setParams(next)
+    queue.cancelAction()
+    setSelectedId(null)
+  }
+  const openRecord = (row: FollowUpRow) => {
+    queue.cancelAction()
+    setActionError(null)
+    setSelectedId(row.id)
+  }
+  const runAction = async (row: FollowUpRow, verb: FollowUpTransition) => {
+    setActionError(null)
     try {
-      const page = await listFollowUpsPage({ overdue: params.get('filter') === 'overdue', before })
-      if (generation !== loadGeneration.current) return
-      setRows((loaded) => [...loaded, ...page.rows])
-      loadedCountRef.current += page.rows.length
-      cursorRef.current = page.nextCursor
-      setHasMore(page.hasMore)
+      await queue.run(row, verb)
+      setSelectedId(row.id)
     } catch {
-      if (generation === loadGeneration.current) setMoreError(true)
-    } finally {
-      if (generation === loadGeneration.current) {
-        moreInFlight.current = false
-        setLoadingMore(false)
-      }
+      setActionError(t('followUps.error'))
     }
   }
-
-  async function run(row: FollowUpRow, verb: FollowUpTransition) {
-    if (verb === 'partial' || verb === 'settle' || verb === 'promise') {
-      setActive({ id: row.id, verb })
-      setForm({ amount: verb === 'settle' ? String(row.running_balance) : '', cash_in_date: '', evidence: '', promise_date: '', note: '' })
-      return
+  const submit = async (row: FollowUpRow, verb: FollowUpTransition) => {
+    setActionError(null)
+    try {
+      await queue.submit(row, verb)
+    } catch {
+      setActionError(t('followUps.error'))
     }
-    await transitionFollowUp(row.id, verb, {})
-    load(loadedCountRef.current)
   }
-
-  async function submit(row: FollowUpRow, verb: FollowUpTransition) {
-    const payload = verb === 'promise'
-      ? { promise_date: form.promise_date, note: form.note }
-      : { amount: Number(form.amount || row.running_balance), cash_in_date: form.cash_in_date, evidence: form.evidence, note: form.note }
-    await transitionFollowUp(row.id, verb, payload)
-    setActive(null)
-    load(loadedCountRef.current)
+  const cancelForm = () => {
+    queue.cancelAction()
+    setDateInvalid(false)
+    setActionError(null)
   }
+  const transitionForm = selected && queue.active?.id === selected.id && queue.active.verb !== 'chase' && queue.active.verb !== 'confirm'
+    ? (() => {
+        const verb = queue.active!.verb
+        const isPromise = verb === 'promise'
+        const ready = isPromise ? Boolean(queue.form.promise_date) : Boolean(queue.form.cash_in_date && queue.form.evidence && queue.form.amount)
+        return <form className="follow-ups-form" onSubmit={(event) => { event.preventDefault(); void submit(selected, verb) }}>
+          <h3>{t(`followUps.action.${verb}`)}</h3>
+          {isPromise ? <DateField label={t('followUps.promiseDate')} required value={queue.form.promise_date} onChange={(value) => queue.setForm({ ...queue.form, promise_date: value })} onValidityChange={setDateInvalid} /> : <>
+            <TextInput label={tx('moneyB.followups.amountRp')} required type="number" inputMode="decimal" value={queue.form.amount} onChange={(event) => queue.setForm({ ...queue.form, amount: event.target.value })} />
+            <DateField label={t('followUps.cashInDate')} required value={queue.form.cash_in_date} onChange={(value) => queue.setForm({ ...queue.form, cash_in_date: value })} onValidityChange={setDateInvalid} />
+            <TextInput label={t('followUps.evidence')} required value={queue.form.evidence} onChange={(event) => queue.setForm({ ...queue.form, evidence: event.target.value })} />
+          </>}
+          <TextInput label={tx('moneyB.followups.note')} value={queue.form.note} onChange={(event) => queue.setForm({ ...queue.form, note: event.target.value })} />
+          {actionError && <p className="follow-ups-error" role="alert">{actionError}</p>}
+          <div className="follow-ups-form__actions"><Button type="button" variant="outline" onClick={cancelForm}>{t('common.cancel')}</Button><Button type="submit" disabled={!ready || dateInvalid}>{t('followUps.submit')}</Button></div>
+        </form>
+      })()
+    : null
 
-  function renderTransitionForm(row: FollowUpRow, verb: FollowUpTransition) {
-    if (verb === 'chase' || verb === 'confirm') return null
-    const formReady = verb === 'promise'
-      ? !!form.promise_date
-      : !!form.cash_in_date && !!form.evidence && !!form.amount
+  const selectedActions = selected ? nextActions(selected, queue.canConfirm, queue.canChase) : []
+  const startAction = (row: FollowUpRow, verb: FollowUpTransition) => {
+    openRecord(row)
+    void runAction(row, verb)
+  }
+  const closeRecord = () => {
+    queue.cancelAction()
+    setSelectedId(null)
+    setActionError(null)
+  }
+  const recordContent = selected ? <div className="follow-ups-record-workbench">
+    <section className="follow-ups-record-summary">
+      <h2>{selected.counterparty}</h2>
+      <dl>
+        <div><dt>{tx('moneyB.followups.source')}</dt><dd>{selected.source_invoice_ref ?? selected.kind}</dd></div>
+        <div><dt>{tx('moneyB.followups.originalAmount')}</dt><dd className="tabular">{formatIDR(selected.original_amount)}</dd></div>
+        <div><dt>{tx('moneyB.followups.balance')}</dt><dd className="tabular">{formatIDR(selected.running_balance)}</dd></div>
+        <div><dt>{tx('moneyB.followups.due')}</dt><dd>{selected.due_date ?? '—'}{isOverdue(selected) ? ` · ${t('followUps.overdue')}` : ''}</dd></div>
+        <div><dt>{t('followUps.state')}</dt><dd><StatusPill status={stateTone(selected.state)} label={t(FOLLOW_UP_STATE_KEY[selected.state])} /></dd></div>
+        {selected.promise_date && <div><dt>{t('followUps.promiseDate')}</dt><dd>{selected.promise_date}</dd></div>}
+      </dl>
+    </section>
+    <section className="follow-ups-record-actions" aria-label={t('followUps.actions')}>
+      <h3>{t('followUps.actions')}</h3>
+      {selectedActions.length ? <div className="follow-ups-action-list">{selectedActions.map((verb) => <Button key={verb} variant={verb === 'confirm' ? 'primary' : 'outline'} onClick={() => startAction(selected, verb)}>{t(`followUps.action.${verb}`)}</Button>)}</div> : <p>{tx('moneyB.followups.noActions')}</p>}
+      {transitionForm}
+      {actionError && !transitionForm && <p className="follow-ups-error" role="alert">{actionError}</p>}
+    </section>
+    <section className="follow-ups-evidence"><h3>{tx('moneyB.followups.recordDetails')}</h3><FollowUpRecordHost followUpId={selected.id} mode="panel" /></section>
+  </div> : <p className="follow-ups-select-instruction">{tx('moneyB.followups.recordSelect')}</p>
 
-    return (
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {verb === 'promise' ? (
-          <DateField
-            aria-label={t('followUps.promiseDate')}
-            value={form.promise_date}
-            onChange={(promise_date) => setForm({ ...form, promise_date })}
-            onValidityChange={setDateInvalid}
-          />
-        ) : (
-          <>
-            <input
-              aria-label={t('followUps.amountInput')}
-              type="number"
-              value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: e.target.value })}
-            />
-            <DateField
-              aria-label={t('followUps.cashInDate')}
-              value={form.cash_in_date}
-              onChange={(cash_in_date) => setForm({ ...form, cash_in_date })}
-              onValidityChange={setDateInvalid}
-            />
-            <input
-              aria-label={t('followUps.evidence')}
-              placeholder={t('followUps.evidence')}
-              value={form.evidence}
-              onChange={(e) => setForm({ ...form, evidence: e.target.value })}
-            />
-          </>
-        )}
-        <Button variant="primary" disabled={!formReady || dateInvalid} onClick={() => void submit(row, verb)}>
-          {t('followUps.submit')}
-        </Button>
+  return <PageFamilyFrame family="workspace" title={t('followUps.title')} jobSentence={t('job.money')} state={frameState} meta={queue.state === 'ready' ? <span>{loadedCopy} · {overdueCopy}</span> : null}>
+    <div className="follow-ups-page">
+      <div className="follow-ups-filter-row" role="group" aria-label={tx('moneyB.followups.queueFilter')}>
+        <Button type="button" variant={!filterOverdue ? 'primary' : 'outline'} aria-pressed={!filterOverdue} onClick={() => changeFilter(false)}>{tx('moneyB.followups.all')}</Button>
+        <Button type="button" variant={filterOverdue ? 'primary' : 'outline'} aria-pressed={filterOverdue} onClick={() => changeFilter(true)}>{tx('moneyB.followups.filterOverdue')}</Button>
+        <span className="follow-ups-scope-note">{tx('moneyB.followups.serverScope')}</span>
       </div>
-    )
-  }
-
-  const detailRow = rows.find((row) => row.id === (active?.id ?? route.id)) ?? null
-
-  const columns: DataTableColumn<FollowUpRow>[] = [
-    {
-      key: 'counterparty',
-      header: t('followUps.counterparty'),
-      cardLabel: '',
-      render: (row) => (
-        <div>
-          <strong>{row.counterparty}</strong>
-          <br />
-          {row.source_invoice_ref ?? row.kind}
-        </div>
-      ),
-    },
-    {
-      key: 'original_amount',
-      header: t('followUps.amount'),
-      numeric: true,
-      render: (row) => money.format(row.original_amount),
-    },
-    {
-      key: 'running_balance',
-      header: t('followUps.balance'),
-      numeric: true,
-      render: (row) => money.format(row.running_balance),
-    },
-    {
-      key: 'state',
-      header: t('followUps.state'),
-      render: (row) => (
-        <StatusPill status={followUpStatusTone(row.state)} label={row.state} />
-      ),
-    },
-    {
-      key: 'due_date',
-      header: t('followUps.due'),
-      render: (row) => (
-        <>
-          {row.due_date ?? '—'}
-          {isOverdue(row) ? ` · ${t('followUps.overdue')}` : ''}
-        </>
-      ),
-    },
-    {
-      key: 'actions',
-      header: t('followUps.actions'),
-      render: (row) => {
-        const actions = nextActions(row, canConfirm, canChase)
-
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {actions.length === 0 && <span style={{ color: 'var(--muted-foreground)' }}>—</span>}
-              {actions.map((verb) => (
-                <Button key={verb} variant="outline" onClick={() => void run(row, verb)}>
-                  {t(`followUps.action.${verb}`)}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )
-      },
-    },
-  ]
-
-  return (
-    <PageFamilyFrame
-      family="workspace"
-      title={t('followUps.title')}
-      jobSentence={t('job.money')}
-      state={frameState}
-      count={state === 'ready' ? (hasMore ? `${rows.length}+` : rows.length) : null}
-      meta={state === 'ready' ? <span>{t('followUps.overdue')}: {hasMore ? `${overdueCount}+` : overdueCount}</span> : null}
-    >
-      {state === 'loading' && <SkeletonRows count={5} />}
-      {state === 'error' && (
-        <ErrorState
-          message={t('followUps.error')}
-          onRetry={() => { load() }}
-        />
-      )}
-      {state === 'ready' && rows.length === 0 && (
-        <EmptyState title={t('followUps.empty')} />
-      )}
-      {state === 'ready' && rows.length > 0 && (
-        <>
-          <DataTable
-            columns={columns}
-            rows={rows}
-            isDesktop={isDesktop}
-            caption={t('followUps.title')}
-          />
-          <ListPaging count={rows.length} hasMore={hasMore} loading={loadingMore}
-            error={moreError} onLoadMore={() => { void loadMore() }} />
-        </>
-      )}
-      {state === 'ready' && detailRow && (
-        <aside
-          role="complementary"
-          aria-label="Follow-up detail"
-          style={{
-            marginTop: 16,
-            padding: 16,
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            background: 'var(--card)',
-            boxShadow: 'var(--shadow-rest)',
-          }}
-        >
-          <h2 style={{ margin: '0 0 8px', fontSize: 16 }}>{detailRow.counterparty}</h2>
-          <dl style={{ display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '6px 12px', margin: '0 0 12px' }}>
-            <dt style={{ color: 'var(--muted-foreground)' }}>Source</dt>
-            <dd style={{ margin: 0 }}>{detailRow.source_invoice_ref ?? detailRow.kind}</dd>
-            <dt style={{ color: 'var(--muted-foreground)' }}>State</dt>
-            <dd style={{ margin: 0 }}>
-              <StatusPill status={followUpStatusTone(detailRow.state)} label={detailRow.state} />
-            </dd>
-            <dt style={{ color: 'var(--muted-foreground)' }}>Running balance</dt>
-            <dd className="tabular" style={{ margin: 0 }}>{money.format(detailRow.running_balance)}</dd>
-          </dl>
-          {active?.id === detailRow.id && renderTransitionForm(detailRow, active.verb)}
-        </aside>
-      )}
-    </PageFamilyFrame>
-  )
+      {queue.state === 'loading' && <SkeletonRows count={5} />}
+      {queue.state === 'error' && <ErrorState message={t('followUps.error')} onRetry={() => queue.load()} />}
+      {queue.state === 'ready' && queue.rows.length === 0 && <EmptyState title={filterOverdue ? tx('moneyB.followups.filteredEmpty') : t('followUps.empty')}>
+        {filterOverdue && <Button type="button" variant="outline" onClick={() => changeFilter(false)}>{tx('moneyB.followups.all')}</Button>}
+      </EmptyState>}
+      {queue.state === 'ready' && queue.rows.length > 0 && <div className={`follow-ups-workspace${wide ? ' follow-ups-workspace--split' : ''}`}>
+        <section className="follow-ups-queue" aria-label={tx('moneyB.followups.queue')}>
+          <h2>{tx('moneyB.followups.queue')}</h2>
+          <FollowUpQueueTable queue={queue} masterDetail selectedId={selected?.id} onOpenRecord={openRecord} />
+        </section>
+        {wide ? <aside className="follow-ups-detail-pane" aria-label={tx('moneyB.followups.recordDetails')}>{recordContent}</aside> : null}
+      </div>}
+    </div>
+    {!wide && selected && <RecordPanelHost label={`${t('followUps.title')}: ${selected.counterparty}`} title={selected.source_invoice_ref ?? selected.counterparty} closeLabel={t('record.close')} focusKey={selected.id} onClose={closeRecord}>{recordContent}</RecordPanelHost>}
+  </PageFamilyFrame>
 }

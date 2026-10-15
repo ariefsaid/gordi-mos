@@ -18,7 +18,7 @@ export interface PrimitiveDescriptor {
   dataShape: DataShapeDescriptor
 }
 
-export class PrimitiveManifestImpl {
+class PrimitiveManifestImpl {
   private readonly entries: ReadonlyMap<string, PrimitiveDescriptor>
   constructor(entries: PrimitiveDescriptor[]) {
     this.entries = new Map(entries.map((e) => [e.name, e]))

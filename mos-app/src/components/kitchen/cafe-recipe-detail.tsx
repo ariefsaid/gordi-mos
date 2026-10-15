@@ -4,7 +4,8 @@ import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import { Pill } from '@/components/ui/pill'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
-import { diffRecipes, latestRecipes, recipeKey, recipeName, type RecipeVersion } from '@/lib/cafe-recipes'
+import { diffRecipes, latestRecipes, recipeKey, recipeName, type RecipeActivity, type RecipeVersion } from '@/lib/cafe-recipes'
+import { RecipeActivityBadge } from '@/components/kitchen/recipe-activity-badge'
 import { listItemRecipeVersions } from '@/lib/db/cafe-recipes'
 import { formatDayMonthYear } from '@/lib/format/date'
 import { formatQuantityInput } from '@/lib/quantity-parser'
@@ -21,7 +22,7 @@ const OUTPUT_KEYS: Record<string, MessageKey> = {
   active: 'cafe.recipes.status', menu_deleted: 'cafe.recipes.status',
 }
 
-export function CafeRecipeDetail({ versions }: { versions: RecipeVersion[] }) {
+export function CafeRecipeDetail({ versions, activity }: { versions: RecipeVersion[]; activity?: RecipeActivity }) {
   const t = useT()
   const { locale } = useI18n()
   const history = [...versions].sort((a, b) => b.version - a.version)
@@ -34,6 +35,7 @@ export function CafeRecipeDetail({ versions }: { versions: RecipeVersion[] }) {
     <article className="cafe-recipe-detail">
       <header className="cafe-recipe-detail__head">
         <h2>{recipeName(current) || t('cafe.recipes.unnamed')}</h2>
+        {activity && <RecipeActivityBadge activity={activity} />}
         <Pill tone="neutral" dot={false}>{t('cafe.recipes.readOnly')}</Pill>
       </header>
       <dl className="cafe-recipe-detail__facts">

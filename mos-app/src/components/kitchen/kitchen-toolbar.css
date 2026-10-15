@@ -7,11 +7,11 @@
 
 .ktb {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px;
-  padding: 8px 0 12px;
+  padding: var(--mos-inline-gap) 0 var(--mos-toolbar-gap);
   flex-wrap: wrap;
-  background: var(--card);
+  background: transparent;
   border-bottom: 1px solid var(--border);
 }
 
@@ -25,42 +25,24 @@
 .ktb-filters {
   display: flex;
   flex: 1 1 auto;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-end;
+  gap: var(--mos-inline-gap);
   min-width: 0;
 }
 .ktb-search-wrap {
   display: flex;
-  flex: 1 1 var(--control-measure-search);
-  min-width: var(--control-measure-search);
-  max-width: 200px;
+  flex: 1 1 220px;
+  min-width: 180px;
+  max-width: 320px;
 }
+.ktb-search-wrap .search-field { flex: 1 1 auto; min-width: 0; }
 .ktb-filter-selects {
   display: flex;
   flex: 0 1 auto;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-end;
+  gap: var(--mos-inline-gap);
   min-width: 0;
-}
-
-.ktb-search { /* the search input itself */
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--card);
-  color: var(--foreground);
-  font-size: var(--font-size-mono);
-  font-family: inherit;
-}
-.ktb-search:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-color: var(--accent);
 }
 
 .ktb-kind,
@@ -76,12 +58,6 @@
 .ktb-needs-unit .mk-select__box {
   background: var(--card);
   border-color: var(--input);
-}
-.ktb-kind .mk-select__field,
-.ktb-category .mk-select__field,
-.ktb-active .mk-select__field,
-.ktb-needs-unit .mk-select__field {
-  font-size: var(--font-size-mono);
 }
 
 /* ── Leading scope slot (ActionTypeSeg) ───────────────────────────────────────
@@ -113,13 +89,16 @@
   flex: 1 0 100%;
 }
 .ktb-children--band > * {
-  width: 100%;
+  width: auto;
   max-width: 100%;
 }
 
 /* ── Tablet item setup: let search use the remaining toolbar width ────────────── */
-@media (min-width: 640px) and (max-width: 919.98px) {
-  .ktb-filters--setup .ktb-search-wrap { max-width: none; }
+@media (min-width: 640px) {
+  /* Item setup: search takes a full row, the three filters share the next, so the list starts high. */
+  .ktb-filters--setup { display: grid; grid-template-columns: repeat(3, max-content) minmax(0, 1fr); gap: var(--mos-inline-gap) var(--mos-toolbar-gap); align-items: end; }
+  .ktb-filters--setup .ktb-search-wrap { grid-column: 1 / -1; max-width: none; }
+  .ktb-filters--setup .ktb-filter-selects { display: contents; }
 }
 
 /* ── Phone: scope on its own line, search + category on ONE line below (v4) ─────
@@ -139,9 +118,8 @@
    band below it (36px), and the row's height is already set by the 44px select, so the
    floor is free. */
 @media (pointer: coarse) {
-  .ktb-search { min-height: 44px; }
   .ktb .mk-select__box,
-  .ktb .mk-select__field { min-height: 44px; }
+  .ktb .mk-select__field { min-height: var(--mos-control-height); }
 }
 
 @media (max-width: 639px) {
@@ -150,28 +128,82 @@
      8px phone touch floor, though, because the rows either side of it carry live targets.
      So the interval sits ON the floor and the band's padding opens above it to keep the
      hierarchy: 8px inside, 14px around. */
-  .ktb { gap: 8px; flex-wrap: wrap; padding: 8px 0 14px; }
+  .ktb { gap: var(--mos-inline-gap); flex-wrap: wrap; }
   .ktb-children { flex: 1 0 100%; }
   .ktb-children > * { width: 100%; }
   .ktb-filters { flex: 1 1 100%; flex-wrap: wrap; gap: 8px; }
   .ktb-search-wrap { flex: 1 1 100%; min-width: 0; max-width: none; }
-  .ktb-search { height: 44px; }
   .ktb-filter-selects {
     display: grid;
     flex: 1 1 100%;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
+    gap: var(--mos-inline-gap);
   }
   .ktb-kind, .ktb-category, .ktb-active, .ktb-needs-unit { width: 100%; min-width: 0; }
   .ktb-filters--setup {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px 8px;
+    gap: var(--mos-inline-gap);
   }
   .ktb-filters--setup .ktb-search-wrap { grid-column: 1; flex: none; min-width: 0; max-width: none; }
-  .ktb-filters--setup .ktb-search { padding-inline: 7px; font-size: var(--font-size-label); }
   .ktb-filters--setup .ktb-filter-selects { display: contents; }
   .ktb-filters--setup .ktb-kind { grid-column: 2; grid-row: 1; }
   .ktb-filters--setup .ktb-active { grid-column: 1; grid-row: 2; }
   .ktb-filters--setup .ktb-needs-unit { grid-column: 2; grid-row: 2; }
 }
+
+/* ── Phone filter disclosure: search stays in view, the selects fold behind one 44px row that names the active choices. ── */
+.ktb-panel { flex: 1 1 100%; min-width: 0; }
+.ktb-panel > summary { display: flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height); cursor: pointer; font-size: var(--mos-size-3); font-weight: 600; }
+.ktb-panel > summary:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.ktb-panel__summary { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--muted-foreground); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.ktb-panel__body { display: grid; gap: var(--mos-toolbar-gap); padding-bottom: var(--mos-inline-gap); }
+.ktb-panel__body .ktb-filter-selects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+
+/* Result count: the right end of the toolbar (UX-STANDARD CT1). On phone it takes its own muted line. */
+.ktb-count { flex: 0 0 auto; margin-inline-start: auto; color: var(--mos-muted); font: var(--mos-type-body); white-space: nowrap; }
+/* Desktop: the count sits on the controls' centre line, not the toolbar's bottom edge. */
+@media (min-width: 640px) { .ktb-count { align-self: flex-end; line-height: var(--mos-control-height); } }
+@media (max-width: 639px) { .ktb-count { flex: 1 1 100%; text-align: end; } }
+
+/* Active filters as removable chips (the shared FilterChip). */
+.ktb-chips { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap); }
+.ktb-chips__clear { display: inline-flex; align-items: center; min-height: var(--mos-control-height); padding: 0 8px; border: 0; background: none; color: var(--muted-foreground); cursor: pointer; font: inherit; font-size: var(--mos-size-1); text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 767.98px), (pointer: coarse) { .ktb-chips__clear { min-height: var(--mos-control-height); } }
+
+/* Phone (PA4): the result count shares the search label's line instead of taking a line of its own,
+   and the folded Filters disclosure shares the search box's line — both rows the toolbar used to
+   spend above the first entry row. With a leading scope band the count keeps its own line. */
+@media (max-width: 639px) {
+  /* The list's header band never touches the controls above it: 8px under the search and Filters row. */
+  .ktb { padding: var(--mos-label-gap) 0 var(--mos-inline-gap); }
+  .search-field__head .ktb-count { flex: none; margin: 0 0 0 auto; text-align: end; font-size: var(--mos-size-1); line-height: 1.3; }
+  .ktb-filters:has(> .ktb-panel) {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 0 var(--mos-inline-gap);
+  }
+  /* The label line (with the result count) spans both columns; the box and the Filters button share the next line. */
+  .ktb-filters:has(> .ktb-panel) { row-gap: var(--mos-label-gap); }
+  .ktb-filters:has(> .ktb-panel) > .ktb-search-wrap,
+  .ktb-filters:has(> .ktb-panel) > .ktb-search-wrap > .search-field { display: contents; }
+  .ktb-filters:has(> .ktb-panel) .search-field__head,
+  .ktb-filters:has(> .ktb-panel) .search-field__label { grid-column: 1 / -1; grid-row: 1; }
+  .ktb-filters:has(> .ktb-panel) .search-field__box { grid-column: 1; grid-row: 2; }
+  .ktb-filters > .ktb-panel { grid-column: 2; grid-row: 2; flex: none; }
+  .ktb-filters > .ktb-panel[open] { grid-column: 1 / -1; grid-row: 3; padding-top: 4px; }
+  .ktb-panel > summary {
+    box-sizing: border-box; min-width: 44px; padding: 0 var(--mos-row-pad-x); border: 1px solid var(--input);
+    border-radius: var(--radius-sm); background: var(--background); list-style: none;
+  }
+  .ktb-panel > summary::-webkit-details-marker { display: none; }
+  .ktb-panel > summary::after {
+    content: ''; width: 6px; height: 6px; margin-inline-start: 2px; border: solid currentColor;
+    border-width: 0 2px 2px 0; transform: translateY(-2px) rotate(45deg);
+  }
+  .ktb-panel[open] > summary::after { transform: translateY(1px) rotate(-135deg); }
+  /* Closed: the button says "Filters"; the chosen values show as chips below (CT1). */
+  .ktb-panel:not([open]) .ktb-panel__summary { display: none; }
+}
+
+
+/* Phone sort control: its own full-width row directly under the search + Filters row, never folded into Filters. */
+.ktb-sort { flex: 1 1 100%; min-width: 0; }

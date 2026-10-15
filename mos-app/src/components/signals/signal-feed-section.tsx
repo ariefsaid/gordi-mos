@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import type { SignalRow } from '@/lib/db/signals.types'
@@ -6,6 +6,7 @@ import { useSignalComposer } from '@/shell/signal-composer-host'
 import { OverlayHostSlot, useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useT } from '@/i18n/use-t'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { GroupHeader } from '@/components/ui/group-header'
 import { SignalRecordHost } from './signal-record-host'
 import { AMBIENT_CAP, SignalFeedRows } from './signal-feed-rows'
 import './signal-feed-section.css'
@@ -49,9 +50,8 @@ export function SignalFeedSection({
 }: SignalFeedSectionProps) {
   const navigate = useNavigate()
   const host = useOptionalOverlayHost()
-  const { open: openSignalComposer, postCount, canPost } = useSignalComposer()
+  const { postCount } = useSignalComposer()
   const t = useT()
-  const titleId = useId()
 
   // #360 (AC-430): the composer host bumps postCount on each successful Share — turn that bump
   // into a re-run of HomePage's ONE shared read (onReload) so a freshly shared Signal appears
@@ -83,28 +83,10 @@ export function SignalFeedSection({
   }
 
   return (
-    <section className="signal-feed-section" aria-labelledby={titleId}>
-      {/* Peer group-header grammar (F1/F5, Nielsen H4 consistency): same display-face label as the
-          stream's List band headers (OVERDUE / MY WORK TODAY) — Signals is a peer section in the
-          one scroll, not a bolted-on card with its own heading weight. */}
-      <div className="signal-feed-head">
-        {/* The column is named "Signals" — the word the layout picker's help, the destination link
-            and the record type all already use. It was titled "Recent" (F15 / OD-REDESIGN-91 #27),
-            whose stated reason was avoiding an attention-level collision with the ranked stream;
-            under FR-928 this feed is the ONLY home for Signals (Urgent included), so that collision
-            no longer exists. A "N today" count sat here (the signed mockup's `.feed-head`), but that
-            mockup's dataset was a single day, so "today" was tautological there; the app's feed is
-            not day-scoped, so a "today" count next to a feed reaching back further was traceable to
-            nothing a viewer could verify — dropped rather than replaced with a relabelled feed-depth
-            figure (the same falsehood already fixed elsewhere). The archive door carries a number only when
-            an exact total is available. */}
-        {/* h2, matching its peer sections: this renders only on Home, where PageFamilyFrame owns
-            the sole h1 and there is no intermediate level — an h3 skipped one (detector:
-            skipped-heading). Visual weight is unchanged; `.signal-feed-label` still sets it. */}
-        <h2 id={titleId} className="signal-feed-label">
-          {t('signals.feed.title')}{loading || error ? '' : ` · ${Math.min(signals.length, AMBIENT_CAP)}`}
-        </h2>
-      </div>
+    <section className="signal-feed-section" aria-label={t('signals.feed.title')}>
+      {/* The shared GroupHeader (name + muted "(n)"), same as every other grouped list. h2: this renders
+          only on Home, where PageFamilyFrame owns the sole h1 and there is no intermediate level. */}
+      <GroupHeader label={t('signals.feed.title')} count={loading || error ? undefined : Math.min(signals.length, AMBIENT_CAP)} />
       {loading ? <LoadingShell count={3} /> : error ? (
         // The error/retry branch every engine collection has (DIV-G5): a failed load must never
         // read as "No Signals yet".
@@ -115,7 +97,6 @@ export function SignalFeedSection({
           authorNamesById={namesToRecord(authorNamesById)}
           teamNamesById={namesToRecord(teamNamesById)}
           totalCount={totalCount}
-          onShareClick={canPost === false ? undefined : () => openSignalComposer()}
           showSearch={showSearch}
           compactEmpty
           onOpen={(signal) => openRecord(signal.id)}

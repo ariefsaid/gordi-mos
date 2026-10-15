@@ -2,10 +2,8 @@
 // §2). Frozen first (Track B task B1) so the DAL + UI slices can build in parallel without waiting
 // on the live schema — Track A's migrations are the source of truth this mirrors by hand (same
 // convention as tasks.types.ts: kept in sync manually, no live-DB introspection).
-
-export type CadenceKind = 'manual' | 'daily' | 'weekly' | 'monthly'
-export type ProcessRunStatus = 'open' | 'completed' | 'cancelled'
-export type PendingReason = 'none' | 'multiple'
+type ProcessRunStatus = 'open' | 'completed' | 'cancelled'
+type PendingReason = 'none' | 'multiple'
 
 /** A row from `mos.due_process_runs()` — the scheduler-free Start surface (FR-612). */
 export interface DueProcessRun {

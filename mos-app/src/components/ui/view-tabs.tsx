@@ -11,15 +11,15 @@
 // no-op) — the Table/Board/Calendar "soon" placeholders. `count` renders the small
 // tabular pill (the dashboard's "N rows"). The composition owns active-state + URL
 // persistence; this primitive just reports onChange.
-import { useRef, type ReactNode, type KeyboardEvent } from 'react'
+import { useEffect, useRef, type ReactNode, type KeyboardEvent } from 'react'
 import { useT } from '@/i18n/use-t'
 import './view-tabs.css'
 
-export interface ViewTab {
+interface ViewTab {
   id: string
-  label: string
+  label: ReactNode
   /** optional row-count affordance (the "86 rows" pill — cheap signal of size) */
-  count?: number
+  count?: number | string
   /** fully non-interactive tab (muted + aria-disabled, out of the tab order) */
   disabled?: boolean
   /** "coming soon" placeholder — same non-interactive treatment as `disabled` */
@@ -34,11 +34,24 @@ export interface ViewTabsProps {
   trailing?: ReactNode
   /** accessible name for the tablist (e.g. "View", "Dashboard view") */
   ariaLabel?: string
+  /** id of the panel the tabs control (sets aria-controls on every tab). */
+  panelId?: string
+  /** When set, each tab button gets id `${idPrefix}-${tab.id}` so the panel can be labelled by it. */
+  idPrefix?: string
 }
 
-export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel }: ViewTabsProps) {
+export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel, panelId, idPrefix }: ViewTabsProps) {
   const t = useT()
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+  // A strip that scrolls inside itself (phone, many tabs) keeps the active tab in view; only the strip moves, never the page.
+  useEffect(() => {
+    const strip = tabRefs.current.find((el) => el?.getAttribute('aria-selected') === 'true')
+    const row = strip?.parentElement
+    if (!strip || !row || row.scrollWidth <= row.clientWidth) return
+    if (strip.offsetLeft < row.scrollLeft || strip.offsetLeft + strip.offsetWidth > row.scrollLeft + row.clientWidth) {
+      row.scrollLeft = strip.offsetLeft - (row.clientWidth - strip.offsetWidth) / 2
+    }
+  }, [active])
   // Keyboard nav roves across ENABLED tabs only — soon/disabled stubs are skipped.
   const enabledOrder = tabs
     .map((tab, index) => ({ tab, index }))
@@ -71,7 +84,7 @@ export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel }: ViewTa
   }
 
   return (
-    <div role="tablist" aria-label={ariaLabel} className="view-tabs">
+    <div role="tablist" aria-label={ariaLabel} className="view-tabs" data-tabs={tabs.length}>
       {tabs.map((tab, index) => {
         const isActive = tab.id === active
         const inert = tab.soon || tab.disabled
@@ -86,8 +99,10 @@ export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel }: ViewTa
           <button
             ref={(element) => { tabRefs.current[index] = element }}
             key={tab.id}
+            id={idPrefix ? `${idPrefix}-${tab.id}` : undefined}
             type="button"
             role="tab"
+            aria-controls={panelId}
             aria-selected={isActive}
             aria-disabled={inert ? 'true' : undefined}
             disabled={inert}

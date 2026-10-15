@@ -30,7 +30,7 @@ export async function signJwt(
   return `${input}.${b64url(sig)}`
 }
 
-export interface Call { url: string; init: RequestInit }
+interface Call { url: string; init: RequestInit }
 
 /** Recording fetch: serves the key set at JWKS_URL and `dataResponse` for every data-API call. */
 export function makeFetch(keys: Keys, dataResponse: (init: RequestInit) => Response | Promise<Response> = () => Response.json({ item: { ok: true } })) {

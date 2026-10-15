@@ -22,7 +22,7 @@
 .cafe-recipes__open {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: var(--mos-control-height);
   color: var(--text-on-accent-tint);
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -33,14 +33,14 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: var(--mos-toolbar-gap);
 }
 
 .cafe-recipes__pagination { justify-content: space-between; }
 .cafe-recipes__pagination span,
 .cafe-recipe-detail__note {
   color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   line-height: 1.5;
 }
 
@@ -52,12 +52,12 @@
 .cafe-recipe-detail h3 { overflow-wrap: anywhere; }
 .cafe-recipe-detail h2 {
   margin: 0;
-  font-size: var(--font-size-heading);
+  font-size: var(--mos-size-4);
   line-height: 1.35;
 }
 .cafe-recipe-detail h3 {
-  margin: 24px 0 8px;
-  font-size: var(--font-size-subheading);
+  margin: var(--mos-group-above) 0 var(--mos-group-below);
+  font-size: var(--mos-size-3);
   line-height: 1.5;
 }
 
@@ -67,7 +67,7 @@
   gap: 16px 32px;
   margin: 16px 0 0;
 }
-.cafe-recipe-detail__facts dt { color: var(--muted-foreground); font-size: var(--font-size-label); }
+.cafe-recipe-detail__facts dt { color: var(--muted-foreground); font-size: var(--mos-size-1); }
 .cafe-recipe-detail__facts dd { margin: 4px 0 0; overflow-wrap: anywhere; }
 .cafe-recipe-detail__note { margin: 0; max-width: 75ch; }
 
@@ -80,19 +80,19 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, auto);
   align-items: start;
-  gap: 8px 24px;
-  padding-block: 12px;
+  gap: var(--mos-inline-gap) var(--mos-gutter);
+  padding-block: var(--mos-row-pad-y);
   border-bottom: 1px solid var(--border);
   overflow-wrap: anywhere;
 }
 .cafe-recipe-detail__ingredients .cafe-recipe-detail__qty { text-align: right; }
 .cafe-recipe-detail__ingredients small { display: block; color: var(--muted-foreground); }
-.cafe-item-recipe { margin-block: 12px; }
-.cafe-recipe-detail__history { margin-top: 24px; }
-.cafe-item-recipe summary,
+.cafe-item-recipe { margin-block: 0; }
+.cafe-recipe-detail__history { margin-top: var(--mos-group-above); }
+.cafe-item-recipe > summary,
 .cafe-recipe-detail summary {
-  min-height: 44px;
-  padding-block: 12px;
+  min-height: var(--mos-control-height);
+  padding-block: 0;
   color: var(--foreground);
   font-weight: 600;
   cursor: pointer;
@@ -103,9 +103,23 @@
 .cafe-recipe-detail__history li { margin-block: 8px; overflow-wrap: anywhere; }
 .cafe-recipe-detail__history p { color: var(--muted-foreground); }
 
+.cafe-recipes__master-label { font: var(--mos-type-label); color: var(--mos-ink); padding-block: var(--mos-inline-gap); }
+.cafe-recipes__reference { min-width: 0; padding-inline-start: 20px; border-inline-start: 1px solid var(--border); }
+.cafe-recipes__reference .cafe-recipe-detail { max-width: none; padding-top: 0; }
+.cafe-recipes__table th:first-child, .cafe-recipes__table td:first-child { width: 32%; }
+.cafe-recipes__table th, .cafe-recipes__table td { overflow-wrap: anywhere; }
+/* Five columns share the track (fewer when a record is open beside it): let a long header wrap instead of clipping. */
+:root .page-frame--v3 .record-collection-view .cafe-recipes__table thead th { white-space: normal; }
+.cafe-recipe-detail__facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)); gap: 12px; padding: 12px; border-block: 1px solid var(--border); }
+.cafe-recipe-detail__ingredients > li { grid-template-columns: minmax(0, 1fr) minmax(110px, 180px);  }
+.cafe-recipe-detail__ingredients .cafe-recipe-detail__qty { text-align: right; font-variant-numeric: tabular-nums; }
+
 @media (max-width: 767.98px) {
-  .cafe-recipe-detail__ingredients > li { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .cafe-recipes__workspace--selected > .cafe-recipes { display: none; }
+  .cafe-recipes__reference { padding: 0; border: 0; }
+  .cafe-recipes__reference .cafe-recipe-detail { padding-top: 0; }
+  .cafe-recipe-detail__ingredients > li { grid-template-columns: minmax(0, 1fr); gap: var(--mos-label-gap); }
   .cafe-recipe-detail__ingredients .cafe-recipe-detail__qty { text-align: left; }
   .cafe-recipes .btn,
-  .cafe-recipes__back { min-height: 44px; }
+  .cafe-recipes__back { min-height: var(--mos-control-height); }
 }

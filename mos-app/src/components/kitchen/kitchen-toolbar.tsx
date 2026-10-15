@@ -14,7 +14,10 @@
 
 import type { ReactNode } from 'react'
 import { Select } from '@/components/ui/select'
+import { SearchField } from '@/components/ui/search-field'
+import { FilterChip } from '@/components/ui/filter-chip'
 import { useT } from '@/i18n/use-t'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import type {
   KitchenItemActiveFilter,
   KitchenItemKindFilter,
@@ -61,6 +64,20 @@ interface KitchenToolbarProps {
   trailing?: ReactNode
   /** default "Filter" */
   ariaLabel?: string
+  /** Phone only: fold the filter controls into one disclosure whose summary names the active choices. */
+  filtersPanel?: { label: string; summary: string }
+  /** Result count shown at the right end of the toolbar: `shown` rows of `total` (omit `shown` when unfiltered). */
+  resultCount?: { shown: number; total: number }
+  /** The sort the list follows, said next to the result count. */
+  sortLabel?: string
+  /** Replaces the "N items" text of the result count (a list of rows or entries, not items). */
+  countLabel?: string
+  /** Phone only: a sort control that stays on the toolbar beside the folded Filters, not inside them. */
+  sortControl?: ReactNode
+  /** Page-specific active filters shown as removable chips beside the built-in ones. */
+  extraChips?: readonly { key: string; label: string; clear: () => void }[]
+  /** Display text for a non-default kind (chip label); defaults to the raw value. */
+  kindLabel?: (kind: KitchenItemKindFilter) => string
 }
 
 export function KitchenToolbar({
@@ -88,11 +105,20 @@ export function KitchenToolbar({
   children,
   trailing,
   ariaLabel = 'Filter',
+  filtersPanel,
+  resultCount,
+  sortLabel,
+  countLabel,
+  sortControl,
+  extraChips,
+  kindLabel,
 }: KitchenToolbarProps) {
   const t = useT()
+  const desktop = useIsDesktop()
+  const folded = Boolean(filtersPanel) && !desktop
   const placeholder = searchPlaceholder ?? t('kitchen.log.searchPlaceholder')
-  const searchName = searchAriaLabel ?? placeholder
-  const compactSetupFilters = Boolean(
+  const searchName = searchAriaLabel ?? t('cafe.toolbar.searchLabel')
+  const compactSetupFilters = !folded && Boolean(
     activeStates && onActiveChange && needsUnitStates && onNeedsUnitChange,
   )
   // #378: when BOTH filters ride this toolbar (search + category), the scope slot is a
@@ -108,30 +134,13 @@ export function KitchenToolbar({
     || (activeStates && onActiveChange)
     || (needsUnitStates && onNeedsUnitChange),
   )
-  return (
-    <div className="ktb" aria-label={ariaLabel}>
-      {children && (
-        <div className={filtersBand ? 'ktb-children ktb-children--band' : 'ktb-children'}>
-          {children}
-        </div>
-      )}
-      <div className={`ktb-filters${compactSetupFilters ? ' ktb-filters--setup' : ''}`}>
-        <div role="search" className="ktb-search-wrap">
-          <input
-            type="search"
-            className="ktb-search"
-            placeholder={placeholder}
-            aria-label={searchName}
-            value={search}
-            onChange={e => onSearchChange(e.target.value)}
-          />
-        </div>
-        <div className="ktb-filter-selects">
+  const selectsBlock = (
+    <div className="ktb-filter-selects">
           {kinds && onKindChange && (
             <Select
               id={kindId}
               className="ktb-kind"
-              aria-label={t('kitchen.toolbar.kind.ariaLabel')}
+              label={t('kitchen.toolbar.kind.ariaLabel')}
               value={kind}
               onChange={e => onKindChange(e.target.value as KitchenItemKindFilter)}
             >
@@ -152,7 +161,7 @@ export function KitchenToolbar({
             <Select
               id={activeId}
               className="ktb-active"
-              aria-label={t('kitchen.toolbar.active.ariaLabel')}
+              label={t('kitchen.toolbar.active.ariaLabel')}
               value={active}
               onChange={e => onActiveChange(e.target.value as KitchenItemActiveFilter)}
             >
@@ -169,7 +178,7 @@ export function KitchenToolbar({
             <Select
               id={needsUnitId}
               className="ktb-needs-unit"
-              aria-label={t('kitchen.toolbar.needsUnit.ariaLabel')}
+              label={t('kitchen.toolbar.needsUnit.ariaLabel')}
               value={needsUnit}
               onChange={e => onNeedsUnitChange(e.target.value as KitchenItemNeedsUnitFilter)}
             >
@@ -184,7 +193,7 @@ export function KitchenToolbar({
             <Select
               id={categoryId}
               className="ktb-category"
-              aria-label={t('kitchen.toolbar.category.ariaLabel')}
+              label={t('kitchen.toolbar.category.ariaLabel')}
               value={category}
               onChange={e => onCategoryChange(e.target.value)}
             >
@@ -194,8 +203,54 @@ export function KitchenToolbar({
             </Select>
           )}
         </div>
-        {trailing}
+  )
+  const optionLabel = {
+    kind: (value: KitchenItemKindFilter) => kindLabel?.(value) ?? (value === 'Unclassified' ? t('kitchen.filter.kind.notSet') : value === 'RAW' ? t('cafe.items.kindRaw') : value === 'WIP' ? t('cafe.items.kindWip') : value),
+    active: (value: KitchenItemActiveFilter) => value === 'Active' ? t('kitchen.filter.active.active') : t('kitchen.filter.active.inactive'),
+  }
+  // Active filters show as removable chips (UX-STANDARD CT1) — one per non-default choice.
+  const chips: { key: string; label: string; clear: () => void }[] = []
+  if (kinds && onKindChange && kind && kind !== 'All') chips.push({ key: 'kind', label: optionLabel.kind(kind), clear: () => onKindChange('All') })
+  if (activeStates && onActiveChange && active && active !== 'All') chips.push({ key: 'active', label: optionLabel.active(active), clear: () => onActiveChange('All') })
+  if (needsUnitStates && onNeedsUnitChange && needsUnit && needsUnit !== 'All') chips.push({ key: 'needsUnit', label: t('kitchen.filter.needsUnit.needs'), clear: () => onNeedsUnitChange('All') })
+  if (categories && onCategoryChange && category && category !== 'All') chips.push({ key: 'category', label: categoryLabel?.(category) ?? category, clear: () => onCategoryChange('All') })
+  if (extraChips) chips.push(...extraChips)
+  const countText = countLabel ?? (resultCount
+    ? resultCount.shown === resultCount.total
+      ? t(resultCount.total === 1 ? 'cafe.toolbar.count.one' : 'cafe.toolbar.count.other', { count: resultCount.total })
+      : t('cafe.toolbar.countOf', { shown: resultCount.shown, total: resultCount.total })
+    : null)
+  const countNode = countText
+    ? <span className="ktb-count tabular" role="status" aria-live="polite">{countText}{sortLabel && <span className="ktb-count__sort"> · {sortLabel}</span>}</span>
+    : null
+  // Phone, no leading scope band: the count shares the search label's line (PA4: one row less above the first entry).
+  const countOnLabel = !desktop && !children && countNode !== null
+  return (
+    <div className="ktb" aria-label={ariaLabel}>
+      {children && (
+        <div className={filtersBand ? 'ktb-children ktb-children--band' : 'ktb-children'}>
+          {children}
+        </div>
+      )}
+      <div className={`ktb-filters${compactSetupFilters ? ' ktb-filters--setup' : ''}`}>
+        <div role="search" className="ktb-search-wrap">
+          <SearchField label={searchName} placeholder={placeholder} value={search} onChange={onSearchChange} labelEnd={countOnLabel ? countNode : undefined} />
+        </div>
+        {!folded && selectsBlock}
+        {!folded && trailing}
+        {folded && filtersPanel && <details className="ktb-panel">
+          <summary><span>{filtersPanel.label}</span><span className="ktb-panel__summary">{filtersPanel.summary}</span></summary>
+          <div className="ktb-panel__body">{selectsBlock}{trailing}</div>
+        </details>}
       </div>
+      {sortControl && !desktop && <div className="ktb-sort">{sortControl}</div>}
+      {!countOnLabel && countNode}
+      {chips.length > 0 && (
+        <div className="ktb-chips" role="group" aria-label={t('cafe.toolbar.activeFilters')}>
+          {chips.map(chip => <FilterChip key={chip.key} label={chip.label} onRemove={chip.clear} />)}
+          {chips.length > 1 && <button type="button" className="ktb-chips__clear" onClick={() => chips.forEach(chip => chip.clear())}>{t('cafe.toolbar.clearAll')}</button>}
+        </div>
+      )}
     </div>
   )
 }

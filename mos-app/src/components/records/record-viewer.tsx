@@ -11,7 +11,8 @@
 // never renders a confirmation dialog. Field commits route through onCommitField;
 // dirty state forwards to onDirtyChange so the tenant can attach the Issue 4
 // OverlayEntry.leaveGuard. Related links call onOpenRelated (or their href).
-import { useMemo, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { ViewTabs } from '@/components/ui/view-tabs'
+import { useMemo, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Link, useInRouterContext } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -23,6 +24,8 @@ import { useToast } from '@/components/admin/use-toast'
 import { Button, type ButtonVariant } from '@/components/ui/button'
 import { LoadingShell, EmptyState, ErrorState } from '@/components/ui/state-kit'
 import { RecordField } from './record-field'
+import { useIsOffline } from '@/shell/use-is-offline'
+import { OfflineNotice } from '@/components/ui/offline-notice'
 import type {
   RecordAction,
   RecordMetadataSection,
@@ -87,10 +90,12 @@ function RecordDestination({ to, className, onClick, children }: {
 }
 
 function RecordActionButton({ action }: { action: RecordAction }): ReactNode {
+  // Every record action writes to the network: offline it is disabled, and the record says why once (OfflineNotice).
+  const offline = useIsOffline()
   return (
     <Button
       variant={ACTION_VARIANT[action.intent]}
-      disabled={action.disabled}
+      disabled={action.disabled || offline}
       title={action.disabled ? action.disabledReason : undefined}
       data-record-action={action.id}
       onClick={() => {
@@ -118,6 +123,7 @@ function RecordOverflowMenu({
   showToast: (message: string) => void
 }): ReactNode {
   const t = useT()
+  const offline = useIsOffline()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -202,7 +208,7 @@ function RecordOverflowMenu({
             </button>
           )}
           {actions.map((action) => (
-            <button key={action.id} type="button" role="menuitem" disabled={action.disabled} onClick={() => run(action)}>
+            <button key={action.id} type="button" role="menuitem" disabled={action.disabled || offline} onClick={() => run(action)}>
               {action.label}
             </button>
           ))}
@@ -288,22 +294,12 @@ export function RecordViewer({
     ? adapter.actions.filter((action) => allowedActionIds.has(action.id) && headerActionIds.has(action.id))
     : []
   const [activeTab, setActiveTab] = useState('details')
-  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
   useEffect(() => {
     const tabs = customTabs.map((tab) => tab.id)
     if (tabs.length > 0 && !tabs.includes(activeTab)) setActiveTab(tabs[0])
   }, [activeTab, customTabs])
 
   const selectTab = (tab: string) => setActiveTab(tab)
-  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, tab: string, tabs: readonly string[]) => {
-    const index = tabs.indexOf(tab)
-    const nextIndex = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : -1
-    if (nextIndex < 0) return
-    event.preventDefault()
-    const next = tabs[nextIndex]
-    selectTab(next)
-    tabRefs.current[nextIndex]?.focus()
-  }
 
   const body = (() => {
     if (loading) {
@@ -428,26 +424,16 @@ export function RecordViewer({
         </header>
       )}
       {tabbedAnatomy && (
-        <div className="record-viewer__tabs" role="tablist" aria-label={t('catalog.record.tabsLabel')}>
-          {customTabs.map((tab, index) => (
-            <button
-              key={tab.id}
-              ref={(element) => { tabRefs.current[index] = element }}
-              type="button"
-              role="tab"
-              id={`record-tab-${tab.id}`}
-              aria-controls={`record-panel-${tab.id}`}
-              aria-selected={activeTab === tab.id}
-              tabIndex={activeTab === tab.id ? 0 : -1}
-              className={activeTab === tab.id ? 'is-active' : ''}
-              onClick={() => selectTab(tab.id)}
-              onKeyDown={(event) => onTabKeyDown(event, tab.id, customTabs.map((item) => item.id))}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <ViewTabs
+          ariaLabel={t('catalog.record.tabsLabel')}
+          tabs={customTabs.map((tab) => ({ id: tab.id, label: tab.label }))}
+          active={activeTab}
+          onChange={selectTab}
+          idPrefix="record-tab"
+          panelId={`record-panel-${activeTab}`}
+        />
       )}
+      {!loading && adapter.state !== 'error' && !adapter.permission.readOnly ? <OfflineNotice /> : null}
       {tabbedAnatomy ? (
         <div id={`record-panel-${activeTab}`} role="tabpanel" aria-labelledby={`record-tab-${activeTab}`} tabIndex={0}>
           {body}

@@ -1,0 +1,33 @@
+/* Admin › Modules (preview): scope line, toolbar, Org table. Tokens only. */
+.modules { display: grid; gap: var(--mos-field-gap); min-width: 0; align-content: start; }
+.modules__scope { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap) var(--mos-field-gap); }
+.modules__scope-label { color: var(--mos-muted); font: var(--mos-type-label); }
+.modules__scope-value { color: var(--mos-ink); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); }
+.modules__nc::before { content: '\2014\00a0\00b7\00a0'; }
+.modules__hint, .modules__muted { margin: 0; color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
+.modules__toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--mos-inline-gap) var(--mos-field-gap); }
+.modules__toolbar .search-field { flex: 1 1 16rem; max-width: 24rem; }
+.modules__count { margin-inline-start: auto; padding-bottom: var(--mos-control-pad-y); color: var(--mos-muted); font: var(--mos-type-meta); }
+.modules__chips { display: flex; flex-wrap: wrap; gap: var(--mos-inline-gap); }
+.modules__name { color: var(--mos-ink); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); overflow-wrap: anywhere; }
+.modules .record-collection-view { overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.modules__table th, .modules__table td { overflow-wrap: anywhere; vertical-align: middle; }
+.modules__table th:last-child, .modules__table td:last-child { text-align: end; }
+.modules__cell { display: grid; gap: var(--mos-label-gap); max-width: 16rem; }
+.modules__open {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height); min-width: var(--mos-control-height);
+  color: var(--mos-accent); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); text-decoration: none;
+}
+.modules__open:hover { text-decoration: underline; text-underline-offset: 3px; }
+.modules__open-hint { font-weight: var(--mos-weight-medium); }
+.modules__card-overrides { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap); }
+.modules__card { display: grid; gap: var(--mos-inline-gap); }
+.modules__card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap); }
+/* The disabled Save and its reason sit under the table. */
+.modules__actions { margin-top: var(--mos-section-gap); }
+
+@media (max-width: 767.98px) {
+  .modules__toolbar .search-field { max-width: none; flex-basis: 100%; }
+  .modules__count { margin-inline-start: 0; }
+  .modules__cell { max-width: none; }
+}

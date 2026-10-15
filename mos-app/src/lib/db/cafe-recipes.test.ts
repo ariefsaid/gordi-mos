@@ -3,11 +3,11 @@ import type { RecipeVersion } from '@/lib/cafe-recipes'
 const { calls, results } = vi.hoisted(() => ({ calls: [] as Array<[string, string, unknown[]]>, results: {} as Record<string, Array<{ data: unknown; error: unknown }>> }))
 vi.mock('@/lib/supabase', () => ({ supabase: { schema: (schema: string) => ({ from: (table: string) => {
   const chain: Record<string, unknown> = {}
-  for (const method of ['select', 'eq', 'order', 'range', 'single']) chain[method] = (...args: unknown[]) => { calls.push([`${schema}.${table}`, method, args]); return chain }
+  for (const method of ['select', 'eq', 'not', 'order', 'range', 'single']) chain[method] = (...args: unknown[]) => { calls.push([`${schema}.${table}`, method, args]); return chain }
   chain.then = (resolve: (value: unknown) => void) => resolve(results[table]?.shift() ?? { data: [], error: null })
   return chain
 } }) } }))
-import { listItemRecipeVersions, listRecipeVersions } from './cafe-recipes'
+import { listItemRecipeVersions, listRecipeItemFlags, listRecipeVersions } from './cafe-recipes'
 const row: RecipeVersion = { esb_code: 'TEST', menu_id: 100, bom_id: 20, version: 1, first_seen: '2026-10-01', source_observed_at: '2026-10-01T01:00:00Z', recipe: { menu_name: 'ERP coffee', lines: [] } }
 beforeEach(() => { calls.length = 0; for (const key of Object.keys(results)) delete results[key] })
 
@@ -47,4 +47,17 @@ it('labels exact-name associations and never fuzzy-matches an ERP item', async (
 it.each(['wip_items', 'item_units'])('does not turn a failed %s read into a no-recipe claim', async table => {
   results[table] = [{ data: null, error: { message: 'unavailable' } }]
   await expect(listItemRecipeVersions('item', 'ERP coffee')).rejects.toThrow('unavailable')
+})
+
+it('maps each ESB BOM to its item flag, active if any item on that BOM is active', async () => {
+  results.wip_items = [{ data: [
+    { esb_bom_id: '10', flag_active: false }, { esb_bom_id: '10', flag_active: true },
+    { esb_bom_id: '11', flag_active: false }, { esb_bom_id: null, flag_active: true },
+  ], error: null }]
+  expect(await listRecipeItemFlags()).toEqual(new Map([['10', true], ['11', false]]))
+  expect(calls.find(call => call[1] === 'select')?.[2]).toEqual(['esb_bom_id,flag_active'])
+})
+it('fails visibly if the item flags cannot be read', async () => {
+  results.wip_items = [{ data: null, error: { message: 'offline' } }]
+  await expect(listRecipeItemFlags()).rejects.toThrow('offline')
 })

@@ -1,6 +1,7 @@
 import { useT } from '@/i18n/use-t'
 import type { StreamReason as StreamReasonType } from '@/lib/home-stream'
 import type { MessageKey } from '@/i18n/messages'
+import { StatusBadge } from '@/components/ui/status-badge'
 
 const REASON_KEY: Record<StreamReasonType['tone'], MessageKey> = {
   urgent: 'home.stream.reason.urgent',
@@ -28,12 +29,33 @@ const REASON_KEY: Record<StreamReasonType['tone'], MessageKey> = {
  */
 export type ReasonStyle = 'chip' | 'text' | 'none'
 
+// Red exceptions carry a drawn icon beside the word, so the signal is never colour alone (SD1).
+const EXCEPTION_TONES: ReadonlySet<StreamReasonType['tone']> = new Set(['overdue', 'urgent', 'check'])
+
+function ExceptionIcon() {
+  return (
+    <svg className="stream-reason-icon" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor"
+      strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d="M8 2 14.5 13.5h-13L8 2Z" />
+      <path d="M8 6.5v3.2M8 11.7v.1" />
+    </svg>
+  )
+}
+
 export function Reason({ reason, style }: { reason: StreamReasonType; style: ReasonStyle }) {
   const t = useT()
   if (style === 'none') return null
   const label = reason.tone === 'overdue'
-    ? t('home.stream.reason.overdue', { days: reason.days ?? 0 })
+    ? (reason.days === 1 ? t('tasks.due.overdueDays.one') : t('home.stream.reason.overdue', { days: reason.days ?? 0 }))
     : t(REASON_KEY[reason.tone])
+  // Urgent, Needs attention and Blocked are statuses: they wear the one shared badge, never a Home-only chip.
+  if (reason.tone === 'urgent') return <StatusBadge status="urgent" />
+  if (reason.tone === 'attention') return <StatusBadge status="needsAttention" />
+  if (reason.tone === 'blocked') return <StatusBadge status="blocked" />
   const shell = style === 'text' ? 'stream-reason stream-reason--flat' : 'stream-reason'
-  return <span className={`${shell} stream-reason--${reason.tone}`}>{label}</span>
+  return (
+    <span className={`${shell} stream-reason--${reason.tone}`}>
+      {EXCEPTION_TONES.has(reason.tone) ? <ExceptionIcon /> : null}{label}
+    </span>
+  )
 }

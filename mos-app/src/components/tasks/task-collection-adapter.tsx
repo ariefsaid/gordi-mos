@@ -75,7 +75,7 @@ export interface TaskCollectionRecord {
 /** The ONE raw-column mapping: `responsible_person_id → picId`, `accountable_person_id → supervisorId`.
  *  Team is a real owning relation. BU remains the compatibility projection and is checked against
  *  the Team relation by `deriveTaskTeamView` during load. */
-export function toTaskCollectionRecord(row: TaskListRow): TaskCollectionRecord {
+function toTaskCollectionRecord(row: TaskListRow): TaskCollectionRecord {
   return {
     id: row.id,
     title: row.title,
@@ -310,7 +310,7 @@ function countOverdue(rows: readonly TaskCollectionRecord[], now: Date): number 
  * zero-count suppression under an explicit PIC filter), and occurrence (run-captioned roll-up
  * groups + the ad-hoc catch-all tail).
  */
-export function buildTaskGroups(
+function buildTaskGroups(
   rows: readonly TaskCollectionRecord[],
   query: TaskCollectionQuery,
   ctx: TaskCollectionContext,
@@ -418,8 +418,8 @@ export function buildTaskGroups(
   return named
 }
 
-export const NO_WORKLINE_GROUP_KEY = '__no_workline__'
-export const NO_OCCURRENCE_GROUP_KEY = '__no_occurrence__'
+const NO_WORKLINE_GROUP_KEY = '__no_workline__'
+const NO_OCCURRENCE_GROUP_KEY = '__no_occurrence__'
 
 function stripGroupable(r: TaskCollectionRecord & { process_run_id: string | null }): TaskCollectionRecord {
   const { process_run_id: _drop, ...rest } = r
@@ -451,7 +451,7 @@ function partition<T, K>(items: readonly T[], keyOf: (item: T) => K): Map<K, T[]
  * when any client filter is active, so the engine derives filtered-empty (a filter hid every row)
  * distinctly from empty (no rows at all).
  */
-export function projectTaskCollection(
+function projectTaskCollection(
   data: CollectionData<TaskCollectionRecord, TaskCollectionContext>,
   query: TaskCollectionQuery,
 ): CollectionProjection<TaskCollectionRecord, TaskRenderGroup> {
@@ -537,7 +537,7 @@ function applyTaskViewSpec(spec: CollectionViewSpec): {
   return { query, presentation: spec.presentation }
 }
 
-export const taskCollectionSavedViews: CollectionSavedViewDescriptor<
+const taskCollectionSavedViews: CollectionSavedViewDescriptor<
   TaskCollectionQuery,
   TaskCollectionPresentation
 > = {

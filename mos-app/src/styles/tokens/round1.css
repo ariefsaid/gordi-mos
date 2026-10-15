@@ -1,0 +1,209 @@
+/* Round 1 global visual vocabulary: colours, type, geometry, motion. Café's palette and system stack win; light colour values are locked. */
+:root,
+.light {
+  --mos-canvas: #fefbf7;
+  --mos-surface: #fffefb;
+  --mos-band: #f3efe8;
+  --mos-hover: #f8f5ef;
+  --mos-ink: #24221e;
+  --mos-muted: #5e5950;
+  --mos-line: #e6e1d8;
+  --mos-control: #8a8478;
+  --mos-accent: #265fc6;
+  --mos-accent-hover: #1e4da2;
+  --mos-accent-tint: #edf3ff;
+  --mos-danger: #a52836;
+  --mos-danger-fill: #a52836;
+  --mos-danger-tint: #fff0f1;
+  --mos-warning: #785007;
+  --mos-warning-tint: #fff6df;
+  --mos-success: #216145;
+  --mos-success-tint: #eaf4ee;
+  --mos-error-text: #a52836;
+  --mos-warning-text: #785007;
+  --mos-success-text: #216145;
+  --mos-info-text: #254d90;
+  --mos-primary-ink: #ffffff;
+  --mos-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: var(--mos-font);
+  --font-display: var(--mos-font);
+  --font-tabular: var(--mos-font);
+  --control-border: var(--mos-control);
+  --ring: var(--mos-accent);
+  --primary: var(--mos-accent);
+  --accent: var(--mos-accent);
+  --accent-hover: var(--mos-accent-hover);
+  --accent-active: var(--mos-accent-hover);
+  --accent-subtle: var(--mos-accent-tint);
+  --background: var(--mos-canvas);
+  --foreground: var(--mos-ink);
+  --card: var(--mos-surface);
+  --popover: var(--mos-surface);
+  --secondary: var(--mos-band);
+  --muted: var(--mos-band);
+  --muted-foreground: var(--mos-muted);
+  --border: var(--mos-line);
+  --input: var(--mos-control);
+  --destructive: var(--mos-danger);
+  --warning: #b27914;
+  --success: var(--mos-success);
+  --status-lost-text: var(--mos-error-text);
+  --status-won-text: var(--mos-success-text);
+  --warning-foreground: var(--mos-warning-text);
+  --text-on-accent-tint: var(--mos-accent-hover);
+  --brand-orange: var(--mos-accent);
+  --brand-navy: var(--mos-ink);
+  --brand-navy-text: var(--mos-ink);
+  --shadow-rest: none;
+  --shadow-brand-button: none;
+  --gradient-primary-sheen: none;
+  --gradient-surface-wash: none;
+  --radius: 6px;
+  --radius-lg: 6px;
+  --radius-md: 6px;
+  --radius-sm: 6px;
+  --radius-xs: 4px;
+  --pill-inline-pad: 8px;
+  --tag-inline-pad: 8px;
+  --row-divider: var(--mos-line);
+
+  /* T1 type scale — one primitive scale, roles built on it (DESIGN.md Typography). */
+  /* Type scale (owner 2026-10-14: one step smaller on desktop): 12/13/15/18/22/28px. Phone restores a 16px base below. */
+  --mos-size-1: .75rem; --mos-size-2: .8125rem; --mos-size-3: .9375rem;
+  --mos-size-4: 1.125rem; --mos-size-5: 1.375rem; --mos-size-6: 1.75rem;
+  --mos-type-page: 700 var(--mos-size-6)/1.25 var(--mos-font);
+  --mos-type-section: 700 var(--mos-size-5)/1.28 var(--mos-font);
+  --mos-type-group: 700 var(--mos-size-4)/1.4 var(--mos-font);
+  --mos-type-navgroup: 600 var(--mos-size-2)/1.5 var(--mos-font);
+  --mos-type-nav: 500 var(--mos-size-3)/1.5 var(--mos-font);
+  --mos-type-subnav: 400 var(--mos-size-2)/1.5 var(--mos-font);
+  --mos-type-body: 400 var(--mos-size-3)/1.5 var(--mos-font);
+  --mos-type-control: 500 var(--mos-size-3)/1.5 var(--mos-font);
+  --mos-type-label: 600 var(--mos-size-2)/1.5 var(--mos-font);
+  --mos-type-meta: 400 var(--mos-size-1)/1.5 var(--mos-font);
+  --mos-weight-medium: 500; --mos-weight-semibold: 600; --mos-weight-bold: 700;
+  --mos-numeric: tabular-nums lining-nums; --mos-title-tracking: -.02em;
+
+  /* S1 geometry (owner-approved 2026-10-13): 4px base scale. These are RAW steps; density-bearing parts use the density set below. */
+  --mos-space-1: 4px; --mos-space-2: 8px; --mos-space-3: 12px; --mos-space-4: 16px;
+  --mos-space-5: 20px; --mos-space-6: 24px; --mos-space-8: 32px; --mos-space-10: 40px; --mos-space-12: 48px;
+  --mos-icon-sm: 16px; --mos-icon-md: 20px;
+  --mos-rail-width: 240px; --mos-rail-collapsed: 64px;
+  --mos-topbar-height: 64px; --mos-tabbar-height: 68px;
+  --mos-gutter: 24px;
+
+  /* DENSITY — THE single source of vertical rhythm (DESIGN.md Layout "Density", owner 2026-10-13, tuned for 16px text).
+     Every list, table, row, card list, menu, nav, toolbar, form stack, disclosure and action bar takes its spacing from
+     THIS set. Components never carry their own padding/min-height/gap numbers for these jobs: change a value here and
+     every page moves. Phone changes only the control height (44px targets) in the media query below. */
+  --mos-control-height: 40px;                            /* inputs, selects, buttons, menu items, search */
+  --mos-nav-row: 36px;                                   /* sidebar / drawer nav rows */
+  --mos-row-min: 48px;                                   /* table rows, list rows, card-list rows */
+  --mos-row-pad-y: 12px; --mos-row-pad-x: 12px;          /* cell / row padding */
+  --mos-row-content: calc(var(--mos-row-min) - 2 * var(--mos-row-pad-y)); /* least content height of a row: inline-edit doors inside table cells */
+  --mos-row-gap: 12px;                                   /* gap between a row's columns / leading + body + trailing */
+  --mos-row-pad-ctl: 8px;                                /* vertical padding of a row that holds a form control (quantity entry sheets): control + 2 x 8 = 56 */
+  --mos-stack-gap: 2px;                                  /* stacked title -> meta inside a row */
+  --mos-inline-gap: 8px;                                 /* icon <-> text, chip <-> chip, button <-> button */
+  --mos-label-gap: 4px;                                  /* label <-> its field, field <-> hint/error */
+  --mos-field-gap: 16px;                                 /* between form fields / disclosure rows in a form stack */
+  --mos-toolbar-gap: 12px;                               /* between toolbar controls and toolbar <-> content */
+  --mos-group-above: 20px; --mos-group-below: 6px;       /* group heading (inside a section) */
+  --mos-section-above: 32px; --mos-section-below: 8px;   /* section heading */
+  --mos-section-gap: 32px;                               /* between page sections */
+  --mos-bar-pad-y: 12px; --mos-bar-pad-x: 16px;          /* action bar */
+  --mos-band-pad-y: 10px; --mos-band-pad-x: 12px;        /* group header band */
+  --mos-panel-pad: 16px;                                 /* card / panel / popover inset */
+  --mos-menu-pad: 4px;                                   /* inset of a menu / listbox container */
+  --mos-control-pad-y: calc((var(--mos-control-height) - 1lh) / 2);
+  --mos-focus-width: 3px; --mos-focus-offset: 3px;
+  --mos-duration-fast: 150ms; --mos-duration-slow: 200ms;
+  --mos-track-max: 1760px;
+  --scrim: rgb(36 34 30 / 45%);
+  --shadow-strong: 0 4px 14px rgb(36 34 30 / 14%);
+  --shadow-heavy: 0 10px 30px rgb(36 34 30 / 20%);
+  --shadow-popover: 0 4px 16px rgb(36 34 30 / 12%);
+  --shadow-drawer: 0 8px 32px rgb(36 34 30 / 16%);
+  --shadow-overlay: 0 10px 30px rgb(36 34 30 / 16%), 0 2px 6px rgb(36 34 30 / 8%);
+}
+
+.dark {
+  color-scheme: dark;
+  /* D1 warm dark (owner-approved 2026-10-13). */
+  --mos-canvas: #1e1b17; --mos-surface: #28241f; --mos-band: #332e27; --mos-hover: #3d372e;
+  --mos-ink: #f5eee3; --mos-muted: #c3b7a6; --mos-line: #5b5246; --mos-control: #a0927e;
+  --mos-accent: #9bbcff; --mos-accent-hover: #c4d7ff; --mos-accent-tint: #2b3442;
+  --mos-danger: #ff9da5; --mos-danger-fill: #ff9da5; --mos-danger-tint: #44272a;
+  --mos-warning: #f3ca78; --mos-warning-tint: #42351f;
+  --mos-success: #94d7ae; --mos-success-tint: #273a2e;
+  --mos-error-text: var(--mos-danger); --mos-warning-text: var(--mos-warning);
+  --mos-success-text: var(--mos-success); --mos-info-text: var(--mos-accent);
+  --mos-primary-ink: var(--mos-canvas); --warning: var(--mos-warning);
+  --scrim: rgb(30 27 23 / 68%);
+  --control-border: var(--mos-control);
+  --ring: var(--mos-accent);
+  --primary: var(--mos-accent);
+  --accent: var(--mos-accent);
+  --accent-hover: var(--mos-accent-hover);
+  --accent-active: var(--mos-accent-hover);
+  --accent-subtle: var(--mos-accent-tint);
+  --background: var(--mos-canvas);
+  --foreground: var(--mos-ink);
+  --card: var(--mos-surface);
+  --popover: var(--mos-surface);
+  --secondary: var(--mos-band);
+  --muted: var(--mos-band);
+  --muted-foreground: var(--mos-muted);
+  --border: var(--mos-line);
+  --input: var(--mos-control);
+  --destructive: var(--mos-danger);
+  --success: var(--mos-success);
+  --status-lost-text: var(--mos-error-text);
+  --status-won-text: var(--mos-success-text);
+  --warning-foreground: var(--mos-warning-text);
+  --text-on-accent-tint: var(--mos-accent-hover);
+  --brand-orange: var(--mos-accent);
+  --brand-navy: var(--mos-ink);
+  --brand-navy-text: var(--mos-ink);
+  --shadow-strong: 0 4px 14px rgb(0 0 0 / 40%);
+  --shadow-heavy: 0 10px 30px rgb(0 0 0 / 48%);
+  --shadow-popover: 0 4px 16px rgb(0 0 0 / 48%);
+  --shadow-drawer: 0 8px 32px rgb(0 0 0 / 52%);
+  --shadow-overlay: 0 10px 30px rgb(0 0 0 / 52%);
+}
+
+/* Phone: 44px controls (density set otherwise unchanged), 16px gutters, 56px top bar (S1). */
+@media (max-width: 767.98px) {
+  /* Phone: 16px base so fields never trigger iOS zoom; 12/14/16/18/22/28px. */
+  :root, .light, .dark { --mos-size-2: .875rem; --mos-size-3: 1rem; }
+  :root, .light, .dark { --mos-control-height: 44px; --mos-topbar-height: 56px; --mos-gutter: 16px; }
+}
+
+/* Semantic aliases for existing consumers: every one derives from the round-1 tokens above. */
+:root, .light, .dark {
+  --font-sans: var(--mos-font); --font-display: var(--mos-font); --font-tabular: var(--mos-font);
+  --surface-primary: var(--mos-surface); --surface-secondary: var(--mos-band);
+  --surface-tertiary: var(--mos-hover); --surface-quaternary: var(--mos-line);
+  --text-primary: var(--mos-ink); --text-secondary: var(--mos-muted);
+  --text-tertiary: var(--mos-muted); --text-light: var(--mos-muted);
+  --text-inverted: var(--mos-primary-ink); --text-danger: var(--mos-error-text);
+  --border-strong: var(--mos-control); --border-medium: var(--mos-line);
+  --border-light: var(--mos-line); --border-accent: var(--mos-accent);
+  --border-danger: var(--mos-danger); --destructive-action: var(--mos-danger-fill);
+  --primary-foreground: var(--mos-primary-ink); --destructive-foreground: var(--mos-primary-ink);
+  --secondary-foreground: var(--mos-ink); --card-foreground: var(--mos-ink);
+  --popover-foreground: var(--mos-ink); --accent-foreground: var(--mos-ink);
+  --status-open-text: var(--mos-info-text); --status-violet-text: var(--mos-info-text);
+  --field-error-text: var(--mos-error-text); --violet: var(--mos-accent);
+  --shadow-cast: var(--mos-ink); --row-min-h: var(--mos-row-min);
+  --row-pad-y: var(--mos-row-pad-y); --row-pad-x: var(--mos-row-pad-x);
+  --radius-round: 50%;
+  /* Stacking scale. */
+  --z-inline-raised: 2; --z-inline-floating: 3; --z-sticky: 10; --z-popover: 20; --z-drawer: 30;
+  --z-drawer-popover: 31; --z-modal: 40; --z-modal-popover: 41; --z-popover-top: 100; --z-toast: 110;
+  --record-panel-w: clamp(480px, 40%, 640px);
+  --assistant-w: 400px;
+  --control-measure-search: 160px;
+  --cafe-capture-content-measure: 772px;
+  --record-title-max-lines: 2;
+}
