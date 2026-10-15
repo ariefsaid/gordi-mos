@@ -59,6 +59,7 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
   const pageFilter: InboxFilter = filterParam === 'unread' ? 'unread' : filterParam === 'handled' ? 'handled' : 'all'
   const filter: InboxFilter = mode === 'page' ? pageFilter : localFilter
   const setFilter = (next: InboxFilter) => {
+    void handled.flush() // moving on to another view writes the pending group now (one pending group, no surprises)
     if (mode === 'page') setFilterParam(next)
     else setLocalFilter(next)
   }
@@ -122,7 +123,9 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
   }, [isAuthError, authRetried, refresh])
 
   const availableNotifications = notifications.filter((n) => notificationAvailableInProfile(n, APP_RELEASE_PROFILE))
-  const rows = availableNotifications.filter((n) => matchesFilter(n, filter) && !hiddenIds.has(n.id))
+  // A row marked handled but still inside its Undo window counts as handled: it leaves All and Unread
+  // and shows under Handled, matching the counts below.
+  const rows = availableNotifications.filter((n) => filter === 'handled' ? isHandled(n) || hiddenIds.has(n.id) : matchesFilter(n, filter) && !hiddenIds.has(n.id))
   // F13 (OD-91 #26): notifications the active (non-All) filter is hiding — the count behind the
   // filter-aware empty copy. On the All view this is 0 (nothing is hidden by a filter).
   const hiddenCount = filter === 'all' ? 0 : availableNotifications.length - rows.length

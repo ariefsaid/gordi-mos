@@ -16,10 +16,11 @@ export function useDeferredCommit<T>(commit: (items: readonly T[]) => Promise<vo
   )
   useEffect(() => {
     const onHide = () => { if (document.visibilityState === 'hidden') void instance.flush() }
-    window.addEventListener('pagehide', onHide as EventListener)
+    const onLeave = () => { void instance.flush() } // a reload or navigation away: write now, whatever the visibility state says
+    window.addEventListener('pagehide', onLeave)
     document.addEventListener('visibilitychange', onHide)
     return () => {
-      window.removeEventListener('pagehide', onHide as EventListener)
+      window.removeEventListener('pagehide', onLeave)
       document.removeEventListener('visibilitychange', onHide)
       void instance.flush()
     }
