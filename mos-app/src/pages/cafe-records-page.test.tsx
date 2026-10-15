@@ -120,7 +120,7 @@ describe('Café Records page', () => {
   it('says a source could not load, keeps the others, and retries only that source', async () => {
     reads.counts.mockRejectedValueOnce(new Error('network'))
     renderPage('?question=everything&reading=summary')
-    const alert = await screen.findByText(/Could not load Count records/)
+    const alert = await screen.findByText(/Could not load Stock count records/)
     expect(alert).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /Pickled onion.*Opens the item history/ })).toBeInTheDocument()
     reads.logs.mockClear()

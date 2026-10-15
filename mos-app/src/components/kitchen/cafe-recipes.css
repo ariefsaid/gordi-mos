@@ -108,6 +108,9 @@
 .cafe-recipes__reference .cafe-recipe-detail { max-width: none; padding-top: 0; }
 .cafe-recipes__table th:first-child, .cafe-recipes__table td:first-child { width: 32%; }
 .cafe-recipes__table th, .cafe-recipes__table td { overflow-wrap: anywhere; }
+.cafe-recipes__table .pill { white-space: nowrap; }
+/* The ESB status column fits its longest word ("Removed from menu") on one line, so a badge icon never floats between two lines. */
+.cafe-recipes__table th:nth-child(2), .cafe-recipes__table td:nth-child(2) { width: 11rem; }
 /* Five columns share the track (fewer when a record is open beside it): let a long header wrap instead of clipping. */
 :root .page-frame--v3 .record-collection-view .cafe-recipes__table thead th { white-space: normal; }
 .cafe-recipe-detail__facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)); gap: 12px; padding: 12px; border-block: 1px solid var(--border); }
@@ -123,3 +126,33 @@
   .cafe-recipes .btn,
   .cafe-recipes__back { min-height: var(--mos-control-height); }
 }
+
+/* "Show hidden": the preview checkbox beside the filters; the label is the 44px phone target. */
+.cafe-recipes__show-hidden {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mos-inline-gap);
+  min-width: 0;
+  min-height: var(--mos-control-height);
+  color: var(--mos-ink);
+  font: var(--mos-type-control);
+  cursor: pointer;
+}
+
+/* Hide in MOS (preview): state word beside the switch, the preview mark, then the disabled Save with its reason. */
+.cafe-recipe-visibility {
+  display: grid;
+  gap: var(--mos-inline-gap);
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--mos-surface);
+}
+.cafe-recipe-visibility__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mos-inline-gap) var(--mos-toolbar-gap);
+}
+.cafe-recipe-visibility__state { font: var(--mos-type-control); font-weight: 600; }

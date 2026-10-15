@@ -6,7 +6,7 @@ import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
   MoneyIcon, PendingBillIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, PeopleIcon, ShieldIcon,
-  TodayIcon, RecordsIcon, LogIcon, TransferIcon, WasteIcon, PlanIcon, StockIcon, ItemsIcon, RecipesIcon, ReviewIcon, DispatchIcon, CountIcon, ReceiveIcon, RequestIcon, LocationIcon,
+  TodayIcon, RecordsIcon, LogIcon, TransferIcon, WasteIcon, PlanIcon, StockIcon, ItemsIcon, RecipesIcon, ReviewIcon, DispatchIcon, CountIcon, ReceiveIcon, RequestIcon, LocationIcon, StockComparisonIcon,
 } from './icons'
 
 export interface Section {
@@ -83,7 +83,9 @@ export const CAFE_SECTIONS: Section[] = [
   { path: '/cafe/production', label: 'Production', labelKey: 'nav.cafe.production', Icon: LogIcon, group: 'cafe.nav.today' },
   { path: '/cafe/transfer', label: 'Transfer', labelKey: 'nav.cafe.transfer', Icon: TransferIcon, group: 'cafe.nav.today' },
   { path: '/cafe/waste', label: 'Waste', labelKey: 'nav.cafe.waste', Icon: WasteIcon, group: 'cafe.nav.today' },
-  { path: '/cafe/count', label: 'Count', labelKey: 'nav.cafe.count', Icon: CountIcon, group: 'cafe.nav.stock' },
+  { path: '/cafe/count', label: 'Stock count', labelKey: 'nav.cafe.count', Icon: CountIcon, group: 'cafe.nav.stock' },
+  // Preview ship state (lib/ship-gate.ts): `visibleSections` drops it unless the dev launch opted in. Count reviewers only (the Review page's own gate); the page limits a stream reviewer to their streams.
+  { path: '/cafe/stock-comparison', label: 'Stock comparison', labelKey: 'nav.cafe.stockComparison', Icon: StockComparisonIcon, group: 'cafe.nav.stock', anyOf: ['ops_lead', 'admin', 'supervisor'] },
   { path: '/cafe/receive', label: 'Receive', labelKey: 'nav.cafe.receive', Icon: ReceiveIcon, group: 'cafe.nav.stock' },
   { path: '/cafe/receive/issues', label: 'Receipt issues', labelKey: 'cafe.pageTitle.receiptIssues', Icon: ReceiveIcon, group: 'cafe.nav.stock', parentPath: '/cafe/receive' },
   { path: '/cafe/request', label: 'Request', labelKey: 'cafe.request.title', Icon: RequestIcon, group: 'cafe.nav.stock' },

@@ -7,12 +7,12 @@ describe('Café navigation registry', () => {
     expect(new Set(paths).size).toBe(paths.length)
     expect(CAFE_SECTIONS.filter(section => !section.parentPath).map(section => section.path)).toEqual([
       '/cafe', '/cafe/records', '/cafe/plan', '/cafe/production', '/cafe/transfer', '/cafe/waste',
-      '/cafe/count', '/cafe/receive', '/cafe/request', '/cafe/stock',
+      '/cafe/count', '/cafe/stock-comparison', '/cafe/receive', '/cafe/request', '/cafe/stock',
       '/cafe/review', '/cafe/pushes', '/cafe/items', '/cafe/recipes', '/cafe/transfer-routes', '/cafe/locations',
     ])
     expect(CAFE_SECTIONS.filter(section => !section.parentPath).map(section => section.group)).toEqual([
       'cafe.nav.today', 'cafe.nav.today', 'cafe.nav.today', 'cafe.nav.today', 'cafe.nav.today', 'cafe.nav.today',
-      'cafe.nav.stock', 'cafe.nav.stock', 'cafe.nav.stock', 'cafe.nav.stock',
+      'cafe.nav.stock', 'cafe.nav.stock', 'cafe.nav.stock', 'cafe.nav.stock', 'cafe.nav.stock',
       'cafe.nav.close', 'cafe.nav.close', 'cafe.nav.setup', 'cafe.nav.setup', 'cafe.nav.setup', 'cafe.nav.setup',
     ])
   })

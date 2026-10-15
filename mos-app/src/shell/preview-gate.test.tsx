@@ -7,7 +7,7 @@ import { isShipGated } from '@/lib/ship-gate'
 import { admittedModules, destinationForPath, goToEntries, pageGroupsFor } from './module-registry'
 import { ADMIN_SECTIONS, sectionForPath, visibleSections } from './sections'
 
-const PREVIEW_PATHS = ['/cafe/transfer-routes', '/cafe/locations', '/cafe/locations/change-location', '/cafe/locations/move', '/admin/modules', '/admin/access/modules']
+const PREVIEW_PATHS = ['/cafe/transfer-routes', '/cafe/locations', '/cafe/locations/change-location', '/cafe/locations/move', '/cafe/stock-comparison', '/admin/modules', '/admin/access/modules']
 
 function findRoute(routes: RouteObject[], target: string, parent = ''): RouteObject | undefined {
   for (const route of routes) {
@@ -35,6 +35,9 @@ describe('preview ship state without the local opt-in (the default, and every pr
   it('keeps the preview out of the Café menu, the command menu and the route owner lookup', () => {
     expect(cafePaths(['admin'])).not.toContain('/cafe/transfer-routes')
     expect(cafePaths(['admin'])).not.toContain('/cafe/locations')
+    expect(cafePaths(['admin'])).not.toContain('/cafe/stock-comparison')
+    expect(goToEntries(['admin']).map((entry) => entry.path)).not.toContain('/cafe/stock-comparison')
+    expect(sectionForPath('/cafe/stock-comparison')).toBeNull()
     expect(goToEntries(['admin']).map((entry) => entry.path)).not.toContain('/cafe/locations')
     expect(sectionForPath('/cafe/locations')).toBeNull()
     expect(goToEntries(['admin']).map((entry) => entry.path)).not.toContain('/cafe/transfer-routes')
@@ -79,6 +82,20 @@ describe('preview ship state with the full local opt-in', () => {
     expect(sectionForPath('/cafe/transfer-routes')?.labelKey).toBe('nav.cafe.transferRoutes')
     expect(destinationForPath('/admin/modules')?.id).toBe('admin')
     expect(visibleSections(ADMIN_SECTIONS, ['admin']).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/access', '/admin/modules', '/admin/agents'])
+  })
+
+  it('shows Stock comparison right after Count for Count reviewers only', () => {
+    optIn()
+    for (const reviewer of ['ops_lead', 'admin', 'supervisor']) {
+      const paths = cafePaths([reviewer])
+      expect(paths.indexOf('/cafe/stock-comparison')).toBe(paths.indexOf('/cafe/count') + 1)
+      expect(goToEntries([reviewer]).map((entry) => entry.path)).toContain('/cafe/stock-comparison')
+    }
+    for (const other of ['member', 'finance', 'manager']) {
+      expect(cafePaths([other])).not.toContain('/cafe/stock-comparison')
+      expect(goToEntries([other]).map((entry) => entry.path)).not.toContain('/cafe/stock-comparison')
+    }
+    expect(sectionForPath('/cafe/stock-comparison')?.labelKey).toBe('nav.cafe.stockComparison')
   })
 
   it('forwards the old Access › Modules path to the new page', () => {

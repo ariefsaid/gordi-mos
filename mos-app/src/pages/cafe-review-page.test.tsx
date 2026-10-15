@@ -41,7 +41,7 @@ describe('Café Review: one row of tabs', () => {
   it('shows every queue as a tab with its waiting count and no dropdown', async () => {
     counts.value = { logs: 3, counts: 0, receipts: 12, requests: 1, failed: 2 }
     renderAt('/cafe/review?queue=receipts')
-    expect(tabNames()).toEqual(['Logs3', 'Counts0', 'Receipts12', 'Requests1', 'Failed ESB sends2'])
+    expect(tabNames()).toEqual(['Logs3', 'Stock counts0', 'Receipts12', 'Requests1', 'Failed ESB sends2'])
     expect(screen.queryByRole('combobox')).toBeNull()
     expect(screen.getByRole('tab', { name: /receipts/i })).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByText('receipts queue')).toBeInTheDocument()
@@ -57,7 +57,7 @@ describe('Café Review: one row of tabs', () => {
   it('gives a supervisor no Failed ESB sends tab', () => {
     roles.value = ['supervisor']
     renderAt('/cafe/review')
-    expect(tabNames().map((name) => name?.replace(/\d+$/, ''))).toEqual(['Logs', 'Counts', 'Receipts', 'Requests'])
+    expect(tabNames().map((name) => name?.replace(/\d+$/, ''))).toEqual(['Logs', 'Stock counts', 'Receipts', 'Requests'])
   })
 
   it('opens the first tab with something waiting when the address names none', async () => {
@@ -80,7 +80,7 @@ describe('Café Review: one row of tabs', () => {
     expect(screen.queryByText('requests queue')).toBeNull()
   })
 
-  it('sends old Logs & Counts links to their tab, keeping the date', async () => {
+  it('sends old Logs & Stock counts links to their tab, keeping the date', async () => {
     renderAt('/cafe/review?queue=logs-counts&view=counts&date=2026-10-14')
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/cafe/review?queue=counts&date=2026-10-14'))
     expect(await screen.findByText('logs-counts queue showing counts')).toBeInTheDocument()
@@ -92,7 +92,7 @@ describe('Café Review: one row of tabs', () => {
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/cafe/review?queue=counts'))
   })
 
-  it('a tab writes its queue to the address; Logs and Counts share the date, other tabs start clean', async () => {
+  it('a tab writes its queue to the address; Logs and Stock counts share the date, other tabs start clean', async () => {
     const user = userEvent.setup()
     renderAt('/cafe/review?queue=logs&date=2026-10-14&log=abc')
     await user.click(screen.getByRole('tab', { name: /counts/i }))

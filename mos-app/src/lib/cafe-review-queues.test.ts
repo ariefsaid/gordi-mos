@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { defaultReviewQueue, reviewQueueFromParams, reviewQueuesFor } from './cafe-review-queues'
 
 describe('Café Review tabs', () => {
-  it('has one tab per queue: Logs, Counts, Receipts, Requests, Failed ESB sends', () => {
+  it('has one tab per queue: Logs, Stock counts, Receipts, Requests, Failed ESB sends', () => {
     expect(reviewQueuesFor(['ops_lead']).map((queue) => queue.id)).toEqual(['logs', 'counts', 'receipts', 'requests', 'failed-sends'])
   })
 

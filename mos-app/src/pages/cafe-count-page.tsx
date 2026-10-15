@@ -30,6 +30,7 @@ import {
 import { wibToday } from '@/lib/db/cafe-opening'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { useStockComparisonLink } from '@/lib/cafe-stock-comparison-access'
 import { recordsHref } from '@/lib/cafe-records/url-state'
 import { useIsOffline } from '@/shell/use-is-offline'
 
@@ -68,6 +69,7 @@ export function CafeCountPage() {
     affiliated: auth.viewer.affiliated,
     accessRoles: auth.viewer.accessRoles,
   })
+  const comparisonHref = useStockComparisonLink(stream, myStreamKeys)
   const logDate = useMemo(() => wibToday(), [])
   const [catalogReady, setCatalogReady] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState<ReadonlySet<string>>(new Set())
@@ -233,7 +235,7 @@ export function CafeCountPage() {
     : submitting ? 'saving' : hasSubmitted && entered.length === 0 && !hasUnsubmittedInput ? 'saved' : 'default'
 
   return (
-    <CafePageFrame page="count" date={logDate} streamBar={streamBar} state={pageState}
+    <CafePageFrame page="count" date={logDate} streamBar={streamBar} state={pageState} comparisonHref={comparisonHref}
       recordsHref={recordsHref({ question: 'counted', reading: 'entries', from: logDate, to: logDate, stream: stream ? { branchId: stream.branch.id, activity: stream.activity } : null, today: logDate })}>
       <div className="cafe-capture-page cafe-count">
         <RouteLeaveGuard when={hasUnsubmittedInput} message={t('kitchen.log.leave.confirm')} />

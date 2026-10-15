@@ -82,6 +82,9 @@ const CafeRecipesPage = lazyPage(() =>
 const CafeTransferRoutesPage = lazyPage(() =>
   import('./pages/cafe-transfer-routes-page').then((m) => ({ default: m.CafeTransferRoutesPage })),
 )
+const CafeStockComparisonPage = lazyPage(() =>
+  import('./pages/cafe-stock-comparison-page').then((m) => ({ default: m.CafeStockComparisonPage })),
+)
 const CafeLocationsPage = lazyPage(() =>
   import('./pages/cafe-locations-page').then((m) => ({ default: m.CafeLocationsPage })),
 )
@@ -438,6 +441,8 @@ const routeTable: RouteObject[] = [
           { path: ROUTE_PATHS.cafeWaste, element: withSuspense(<CafeWastePage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeRecords, element: withSuspense(<CafeRecordsPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeCount, element: withSuspense(<CafeCountPage />), handle: pageHandle('workspace') },
+          // Preview ship state: the transform below swaps this for a forward unless the dev launch opted in. The page itself admits Count reviewers only.
+          { path: ROUTE_PATHS.cafeStockComparison, element: withSuspense(<CafeStockComparisonPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeReceive, element: withSuspense(<CafeReceivePage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeReceiptIssues, element: withSuspense(<CafeReceiptIssuesPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeRequest, element: withSuspense(<CafeRequestPage />), handle: pageHandle('workspace') },

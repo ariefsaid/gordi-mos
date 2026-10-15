@@ -67,7 +67,7 @@ import {
 // is always committed to match the target marker BEFORE the move lands, the marker-sync effect
 // self-stabilizes even without the flag.
 
-export type OverlayTenant = 'record' | 'deputy' | 'quick'
+type OverlayTenant = 'record' | 'deputy' | 'quick'
 
 /**
  * Abstraction over the browser history's index + relative navigation, so router POP tests can

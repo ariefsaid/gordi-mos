@@ -65,3 +65,6 @@ body:has(.cafe-page-head) details:not([open]) > :not(summary) { display: none; }
 
 /* A queue inside Review: the page's own title and way back live on the host frame; the queue keeps its scope line and content. */
 .cafe-review-queue { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); min-width: 0; }
+
+/* "View records" beside "View stock comparison" (preview): two secondary links on one line, wrapping on a narrow phone. */
+.cafe-page-links { display: flex; flex-wrap: wrap; column-gap: var(--mos-space-5); align-items: center; }

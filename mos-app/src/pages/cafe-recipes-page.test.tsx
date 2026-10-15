@@ -7,7 +7,7 @@ import { CafeRecipesPage } from './cafe-recipes-page'
 import { listRecipeVersions } from '@/lib/db/cafe-recipes'
 import type { RecipeVersion } from '@/lib/cafe-recipes'
 vi.mock('@/auth/use-auth', () => ({ useAuth: () => ({ status: 'loading' }) }))
-vi.mock('@/lib/db/cafe-recipes', () => ({ listRecipeVersions: vi.fn(), listItemRecipeVersions: vi.fn() }))
+vi.mock('@/lib/db/cafe-recipes', () => ({ listRecipeVersions: vi.fn(), listItemRecipeVersions: vi.fn(), listRecipeWipBomIds: vi.fn(async () => new Set<string>()) }))
 const row: RecipeVersion = { esb_code: 'TEST', menu_id: 1, bom_id: 10, version: 1, first_seen: '2026-10-01', source_observed_at: '2026-10-01T01:00:00Z',
   recipe: { active: true, menu_name: 'Long ERP kitchen preparation with preserved batch units', output_unit: 'Batch @10 porsi', output_yield: 1000, lines: [{ line_id: 1, detail_id: 1, name: 'Flour', qty: 250.1234567, unit: 'GR' }] } }
 const second: RecipeVersion = { ...row, version: 2, first_seen: '2026-10-02', recipe: { ...row.recipe, lines: [{ line_id: 1, detail_id: 1, name: 'Flour', qty: 0.3, unit: 'KG' }] } }

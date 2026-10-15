@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { latestRecipes, recipeKey, recipeName, type RecipeItemFlags, type RecipeVersion } from '@/lib/cafe-recipes'
+import { latestRecipes, recipeKey, recipeName, type RecipeVersion, type RecipeWipBomIds } from '@/lib/cafe-recipes'
 
 const SELECT = 'esb_code,menu_id,bom_id,version,first_seen,source_observed_at,recipe'
 const PAGE_SIZE = 500
@@ -18,21 +18,17 @@ export async function listRecipeVersions(): Promise<RecipeVersion[]> {
   }
 }
 
-/** BOM -> item active flag, a plain read of ops.wip_items under the existing org RLS. Several items on one BOM: active if any is. */
-export async function listRecipeItemFlags(): Promise<RecipeItemFlags> {
-  const flags = new Map<string, boolean>()
+/** ESB BOM ids that a MOS item is built from (ops.wip_items.esb_bom_id), a plain read under the existing org RLS: those recipes are preparations. */
+export async function listRecipeWipBomIds(): Promise<RecipeWipBomIds> {
+  const ids = new Set<string>()
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const { data, error } = await supabase.schema('ops').from('wip_items')
-      .select('esb_bom_id,flag_active').not('esb_bom_id', 'is', null).order('id')
+      .select('esb_bom_id').not('esb_bom_id', 'is', null).order('id')
       .range(offset, offset + PAGE_SIZE - 1)
-    if (error) throw new Error(`listRecipeItemFlags failed: ${error.message}`)
-    const page = (data ?? []) as Array<{ esb_bom_id: string | null; flag_active: boolean }>
-    for (const item of page) {
-      if (item.esb_bom_id == null) continue
-      const key = String(item.esb_bom_id)
-      flags.set(key, (flags.get(key) ?? false) || item.flag_active === true)
-    }
-    if (page.length < PAGE_SIZE) return flags
+    if (error) throw new Error(`listRecipeWipBomIds failed: ${error.message}`)
+    const page = (data ?? []) as Array<{ esb_bom_id: string | null }>
+    for (const item of page) if (item.esb_bom_id != null) ids.add(String(item.esb_bom_id))
+    if (page.length < PAGE_SIZE) return ids
   }
 }
 

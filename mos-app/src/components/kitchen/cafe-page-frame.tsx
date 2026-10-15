@@ -19,6 +19,7 @@ type CafePageId =
   | 'transfer'
   | 'waste'
   | 'count'
+  | 'stockComparison'
   | 'receive'
   | 'receiptReview'
   | 'receiptIssues'
@@ -41,6 +42,7 @@ const PAGE_TITLE_KEYS: Record<CafePageId, MessageKey> = {
   transfer: 'cafe.pageTitle.transfer',
   waste: 'cafe.pageTitle.waste',
   count: 'cafe.pageTitle.count',
+  stockComparison: 'cafe.pageTitle.stockComparison',
   receive: 'cafe.pageTitle.receive',
   receiptReview: 'cafe.pageTitle.receiptReview',
   receiptIssues: 'cafe.pageTitle.receiptIssues',
@@ -72,6 +74,8 @@ export interface CafePageFrameProps {
   streamBar?: CafeStreamBarProps
   /** Where "View records" goes: the Records page already scoped to this job, stream and day. Shown under the scope line. */
   recordsHref?: string
+  /** Preview only: "View stock comparison", beside "View records". Callers pass it only for viewers the comparison admits, with the preview on; absent = the page is unchanged. */
+  comparisonHref?: string
   state?: PageFamilyState
   /** The page's one primary action when it is not a capture form: top-right of the title row on desktop. */
   primaryAction?: ReactNode
@@ -81,7 +85,7 @@ export interface CafePageFrameProps {
 }
 
 /** The Café route's single title/date/stream composition, shared by every state and route. */
-export function CafePageFrame({ page, date, meta, description, contextLine, streamBar, recordsHref, state, primaryAction, primaryActionReason, children }: CafePageFrameProps) {
+export function CafePageFrame({ page, date, meta, description, contextLine, streamBar, recordsHref, comparisonHref, state, primaryAction, primaryActionReason, children }: CafePageFrameProps) {
   const t = useT()
   // Change location has two doors; its way back is the page the viewer came from (Locations unless they came from Available to transfer).
   const cameFromStock = (useLocation().state as { changeLocationFrom?: string } | null)?.changeLocationFrom === 'stock'
@@ -96,11 +100,13 @@ export function CafePageFrame({ page, date, meta, description, contextLine, stre
     ? <time className="cafe-page-date tabular" dateTime={date}>{formatWeekdayDayMonth(date)}</time>
     : undefined
   const showStreamBar = streamBar && (streamBar.allStreams || streamBar.stream !== null || !streamBar.onChange)
-  const contextRow = !showStreamBar && !recordsHref && !description ? undefined : (
+  const recordsLink = recordsHref ? <Link className="cafe-page-records-link" to={recordsHref}>{t('records.viewRecords')}<ArrowRightIcon /></Link> : null
+  const comparisonLink = comparisonHref ? <Link className="cafe-page-records-link" to={comparisonHref}>{t('cafe.cmp.view')}<ArrowRightIcon /></Link> : null
+  const contextRow = !showStreamBar && !recordsHref && !comparisonHref && !description ? undefined : (
     <div className="cafe-page-context">
       {description && <p className="cafe-page-description">{description}</p>}
       {showStreamBar && streamBar && <CafeStreamBar {...streamBar} />}
-      {recordsHref && <Link className="cafe-page-records-link" to={recordsHref}>{t('records.viewRecords')}<ArrowRightIcon /></Link>}
+      {comparisonLink ? <div className="cafe-page-links">{recordsLink}{comparisonLink}</div> : recordsLink}
     </div>
   )
   if (embedded) {

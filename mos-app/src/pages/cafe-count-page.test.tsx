@@ -168,7 +168,7 @@ describe('CafeCountPage', () => {
     const wipInput = screen.getByRole('textbox', { name: 'Prepared sauce, counted, tray' })
     fireEvent.change(rawInput, { target: { value: '1.500' } })
     fireEvent.change(wipInput, { target: { value: '2' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit count' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit stock count' }))
 
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
     expect(mockSubmit.mock.calls[0][1]).toEqual([
@@ -186,7 +186,7 @@ describe('CafeCountPage', () => {
 
     expect(input).toHaveAttribute('aria-invalid', 'true')
     expect(screen.getByRole('alert')).toHaveTextContent('Use up to 2 decimals.')
-    expect(screen.getByRole('button', { name: 'Submit count' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Submit stock count' })).toBeDisabled()
     expect(mockSubmit).not.toHaveBeenCalled()
   })
 
@@ -203,7 +203,7 @@ describe('CafeCountPage', () => {
     const messages = errors.map(error => error.textContent)
     expect(messages).toContain('Did you mean 1250 or 1.250? Use up to 2 decimals.')
     expect(messages).toContain('Did you mean 125 or 0.125? Use up to 2 decimals.')
-    expect(screen.getByRole('button', { name: 'Submit count' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Submit stock count' })).toBeDisabled()
     expect(mockSubmit).not.toHaveBeenCalled()
   })
 
@@ -214,11 +214,11 @@ describe('CafeCountPage', () => {
     renderPage()
     const rawInput = await screen.findByRole('textbox', { name: 'Raw flour, counted, kg' })
     fireEvent.change(rawInput, { target: { value: '0' } })
-    const submit = screen.getByRole('button', { name: 'Submit count' })
+    const submit = screen.getByRole('button', { name: 'Submit stock count' })
 
     fireEvent.click(submit)
     expect(await screen.findByText(
-      'This Count could not be submitted. Your quantities are still here; retry when ready.',
+      'This stock count could not be submitted. Your quantities are still here; retry when ready.',
     )).toBeInTheDocument()
     expect(rawInput).toHaveValue('0')
     expect(mockSubmit.mock.calls[0][1]).toEqual([
@@ -254,7 +254,7 @@ describe('CafeCountPage', () => {
     const wipInput = screen.getByRole('textbox', { name: 'Prepared sauce, counted, tray' })
     fireEvent.change(rawInput, { target: { value: '0' } })
     fireEvent.change(wipInput, { target: { value: '0,12' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit count' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit stock count' }))
 
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
     const [stream, lines] = mockSubmit.mock.calls[0]
@@ -263,7 +263,7 @@ describe('CafeCountPage', () => {
     expect(lines.map(line => line.quantity)).toEqual(['0', '0.12'])
     expect(lines.every(line => Object.keys(line).sort().join(',') === 'client_key,item_id,quantity')).toBe(true)
     expect(await screen.findByText('Submitted')).toBeInTheDocument()
-    expect(await screen.findByText('This item already has a Count today.')).toBeInTheDocument()
+    expect(await screen.findByText('This item already has a stock count today.')).toBeInTheDocument()
     expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
 })

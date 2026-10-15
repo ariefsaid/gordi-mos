@@ -21,9 +21,15 @@ import { messages } from './messages'
  * symbols/templates with no words of their own.
  */
 const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
+  'cafe.cmp.sort.item.asc', // Item A–Z — same loanword in both languages
+  'cafe.cmp.sort.item.desc', // Item Z–A
+  'cafe.cmp.panel.scope', // ${stream} · ${unit} — pure interpolation
+  'cafe.cmp.panel.worked', // ${count} − ${expected} = ${difference} ${unit} — pure interpolation
   'common.docTitle', // ${page} — Gordi MOS
   'admin.modules.scope.org', // Org — the tenant term is the same in both languages (module-switches spec)
   'cafe.routes.col.status', // Status
+  'cafe.recipes.type.menu', // Menu — the same word in Indonesian, and ESB's own term
+  'cafe.recipes.type.wip', // WIP / BOM — ESB's own terms for a preparation
   'cafe.locations.status', // Status
   'cafe.locations.col.status', // Status
   'cafe.moveStock.item', // Item — the same loanword as kitchen.stock.col.item
@@ -50,15 +56,11 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'money.filter.b2b', // B2B — channel acronym
   'kitchen.actionType.transferTo.short', // → ${branch} — symbol template
   'kitchen.activity.bar', // Bar
-  // #1366 Café Count preserves its feature, lifecycle and inventory terms in Indonesian copy.
-  'nav.cafe.count', // Count — feature name
+  // #1366 Café stock count preserves its lifecycle and inventory terms in Indonesian copy.
   'records.chip.item', // Item: ${item} — the same word and template in Indonesian
   'records.field.posting', // ESB — the system's name, the same in both languages
-  'records.source.counts', // Count — feature name (CONTEXT.md)
   'nav.cafe.transfer', // Transfer — the Café job name is shared across locales (CONTEXT.md)
   'cafe.count.lineSubmitted', // Submitted — lifecycle state
-  'cafe.count.review.title', // Count — section name
-  'cafe.count.review.count', // Count — inventory fact
   'cafe.count.review.expected', // Expected balance — inventory fact
   'cafe.count.review.variance', // Variance — inventory fact
   'cafe.count.review.submittedAt', // Submitted — lifecycle state

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { diffRecipes, filterRecipesByActivity, latestRecipes, recipeActivity, recipeKey, searchRecipes, type RecipeVersion } from './cafe-recipes'
+import { diffRecipes, esbBomType, esbStatus, filterRecipes, latestRecipes, recipeKey, recipeType, searchRecipes, type RecipeVersion } from './cafe-recipes'
 
 const original: RecipeVersion = {
   esb_code: 'TEST', menu_id: 1, bom_id: 10, version: 1, first_seen: '2026-10-01', source_observed_at: '2026-10-01T01:00:00Z',
@@ -67,33 +67,77 @@ describe('retained ERP recipe changes', () => {
   })
 })
 
-describe('recipe active status', () => {
+describe('ESB status', () => {
   const make = (menu_id: number, bom_id: number | null, recipe: Partial<RecipeVersion['recipe']>): RecipeVersion =>
     ({ ...original, menu_id, bom_id, recipe: { ...original.recipe, ...recipe } })
-  const flags = new Map([['10', true], ['11', false]])
 
-  it("trusts the recipe's own ESB flag over the linked item", () => {
-    expect(recipeActivity(make(1, 11, { active: true }), flags)).toBe('active')
-    expect(recipeActivity(make(2, 10, { active: false }), flags)).toBe('inactive')
+  it("reads ESB's own flags: active, inactive", () => {
+    expect(esbStatus(make(1, 10, { active: true }))).toBe('active')
+    expect(esbStatus(make(2, 10, { active: false }))).toBe('inactive')
   })
-  it('treats a deleted menu as inactive even when marked active', () => {
-    expect(recipeActivity(make(3, 10, { active: true, menu_deleted: true }), flags)).toBe('inactive')
-    expect(recipeActivity(make(4, 10, { menu_deleted: true }), flags)).toBe('inactive')
+  it('a menu removed in ESB wins over an active flag', () => {
+    expect(esbStatus(make(3, 10, { active: true, menu_deleted: true }))).toBe('removed')
+    expect(esbStatus(make(4, 10, { active: false, menu_deleted: true }))).toBe('removed')
+    expect(esbStatus(make(5, 10, { menu_deleted: true }))).toBe('removed')
+    expect(esbStatus(make(6, 10, { active: true, menu_deleted: false }))).toBe('active')
   })
-  it('falls back to the linked item (bom_id = esb_bom_id) only when the recipe carries no flag', () => {
-    expect(recipeActivity(make(5, 10, {}), flags)).toBe('active')
-    expect(recipeActivity(make(6, 11, {}), flags)).toBe('inactive')
+  it('is Unknown, never active, when the copy carries no flag (a linked MOS item does not decide ESB status)', () => {
+    expect(esbStatus(make(7, 10, {}))).toBe('unknown')
+    expect(esbStatus(make(8, null, {}))).toBe('unknown')
   })
-  it('is Unknown, never active, with no flag, no link or no item read', () => {
-    expect(recipeActivity(make(7, null, {}), flags)).toBe('unknown')
-    expect(recipeActivity(make(8, 99, {}), flags)).toBe('unknown')
-    expect(recipeActivity(make(9, 10, {}))).toBe('unknown')
+})
+
+describe('recipe type', () => {
+  const make = (menu_id: number, bom_id: number | null, recipe: Partial<RecipeVersion['recipe']>): RecipeVersion =>
+    ({ ...original, menu_id, bom_id, recipe: { ...original.recipe, ...recipe } })
+  const wip = new Set(['10'])
+
+  it('ESB "Menu" is a menu item; any other ESB value is WIP / BOM and is kept as ESB wrote it', () => {
+    expect(recipeType(make(1, 10, { bom_type: 'Menu' }), wip)).toBe('menu')
+    expect(recipeType(make(2, null, { bom_type: ' menu ' }))).toBe('menu')
+    expect(recipeType(make(3, 99, { bom_type: 'Prep Item' }))).toBe('wip')
+    expect(esbBomType(make(3, 99, { bom_type: ' Prep Item ' }))).toBe('Prep Item')
+    expect(esbBomType(make(4, 99, { bom_type: '  ' }))).toBeNull()
   })
-  it('filters Active, Inactive and All; Unknown shows only under All', () => {
-    const rows = [make(1, 10, { active: true }), make(2, 10, { active: false }), make(3, 99, {})]
-    const ids = (filter: 'Active' | 'Inactive' | 'All') => filterRecipesByActivity(rows, filter, flags).map(row => row.menu_id)
-    expect(ids('Active')).toEqual([1])
-    expect(ids('Inactive')).toEqual([2])
-    expect(ids('All')).toEqual([1, 2, 3])
+  it("ESB's type beats the linked item", () => {
+    expect(recipeType(make(4, 10, { bom_type: 'Menu' }), wip)).toBe('menu')
+  })
+  it('without an ESB type, a recipe whose BOM feeds a MOS item is WIP / BOM', () => {
+    expect(recipeType(make(5, 10, {}), wip)).toBe('wip')
+    expect(recipeType(make(6, 10, { bom_type: null }), wip)).toBe('wip')
+  })
+  it('is Unknown with no ESB type, no BOM or no linked item', () => {
+    expect(recipeType(make(7, 99, {}), wip)).toBe('unknown')
+    expect(recipeType(make(8, null, {}), wip)).toBe('unknown')
+    expect(recipeType(make(9, 10, {}))).toBe('unknown')
+  })
+})
+
+describe('recipe filters', () => {
+  const make = (menu_id: number, bom_id: number | null, recipe: Partial<RecipeVersion['recipe']>): RecipeVersion =>
+    ({ ...original, menu_id, bom_id, recipe: { ...original.recipe, ...recipe } })
+  const rows = [
+    make(1, 1, { active: true, bom_type: 'Menu' }), make(2, 2, { active: false, bom_type: 'Menu' }), make(3, 3, { active: true, menu_deleted: true, bom_type: 'Menu' }),
+    make(4, 4, { active: true, bom_type: 'Prep' }), make(5, 10, {}), make(6, null, {}),
+  ]
+  const wipBomIds = new Set(['10'])
+  const ids = (filters: Partial<Parameters<typeof filterRecipes>[1]>) => filterRecipes(rows, { status: 'All', type: 'All', wipBomIds, ...filters }).map(row => row.menu_id)
+
+  it('filters by ESB status; Unknown shows only under All', () => {
+    expect(ids({ status: 'Active' })).toEqual([1, 4])
+    expect(ids({ status: 'Inactive' })).toEqual([2])
+    expect(ids({ status: 'Removed' })).toEqual([3])
+    expect(ids({ status: 'All' })).toEqual([1, 2, 3, 4, 5, 6])
+  })
+  it('filters by type; Unknown type shows only under All', () => {
+    expect(ids({ type: 'Menu' })).toEqual([1, 2, 3])
+    expect(ids({ type: 'Wip' })).toEqual([4, 5])
+    expect(ids({ type: 'Wip', status: 'Active' })).toEqual([4])
+  })
+  it('hides recipes hidden in MOS unless Show hidden is on, and leaves everything alone with no hidden set', () => {
+    const hidden = new Set([recipeKey(rows[0]), recipeKey(rows[3])])
+    expect(ids({ status: 'Active', hidden })).toEqual([])
+    expect(ids({ status: 'Active', hidden, showHidden: true })).toEqual([1, 4])
+    expect(ids({ status: 'Active' })).toEqual([1, 4])
   })
 })

@@ -6,11 +6,11 @@
 // compile-time guards, `@/` alias). Keep this file free of `@/`, `react`, and `.css`
 // imports — the sibling `registry-manifest.test.ts` asserts it via an import-graph guard.
 
-export type PrimitiveStatus = 'live' | 'stub'
-export type PropSchemaDescriptor = Record<string, unknown>
-export type DataShapeDescriptor = Record<string, unknown>
+type PrimitiveStatus = 'live' | 'stub'
+type PropSchemaDescriptor = Record<string, unknown>
+type DataShapeDescriptor = Record<string, unknown>
 
-export interface PrimitiveDescriptor {
+interface PrimitiveDescriptor {
   name: string
   status: PrimitiveStatus
   description: string

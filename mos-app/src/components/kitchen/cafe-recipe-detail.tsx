@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import { Pill } from '@/components/ui/pill'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
-import { diffRecipes, latestRecipes, recipeKey, recipeName, type RecipeActivity, type RecipeVersion } from '@/lib/cafe-recipes'
-import { RecipeActivityBadge } from '@/components/kitchen/recipe-activity-badge'
+import { diffRecipes, esbBomType, latestRecipes, recipeKey, recipeName, type EsbStatus, type RecipeType, type RecipeVersion } from '@/lib/cafe-recipes'
+import { EsbStatusBadge } from '@/components/kitchen/esb-status-badge'
+import { useRecipeTypeLabel } from '@/components/kitchen/use-recipe-type-label'
 import { listItemRecipeVersions } from '@/lib/db/cafe-recipes'
 import { formatDayMonthYear } from '@/lib/format/date'
 import { formatQuantityInput } from '@/lib/quantity-parser'
@@ -19,11 +20,19 @@ const CHANGE_KEYS = {
 const OUTPUT_KEYS: Record<string, MessageKey> = {
   menu_name: 'cafe.recipes.output', output_unit: 'cafe.recipes.outputUnit', output_yield: 'cafe.recipes.yield',
   output_detail_id: 'cafe.recipes.outputUnit', bom_id: 'cafe.recipes.mapping', branch_codes: 'cafe.recipes.scope',
-  active: 'cafe.recipes.status', menu_deleted: 'cafe.recipes.status',
+  active: 'cafe.recipes.status', menu_deleted: 'cafe.recipes.status', bom_type: 'cafe.recipes.esbType',
 }
 
-export function CafeRecipeDetail({ versions, activity }: { versions: RecipeVersion[]; activity?: RecipeActivity }) {
+export function CafeRecipeDetail({ versions, status, type, visibility }: {
+  versions: RecipeVersion[]
+  /** ESB status and type of the latest version; omitted where the caller has not derived them (the item's own recipe section). */
+  status?: EsbStatus
+  type?: RecipeType
+  /** The Hide in MOS preview switch, when it is on for this viewer. */
+  visibility?: ReactNode
+}) {
   const t = useT()
+  const typeLabel = useRecipeTypeLabel()
   const { locale } = useI18n()
   const history = [...versions].sort((a, b) => b.version - a.version)
   const current = history[0]
@@ -35,15 +44,18 @@ export function CafeRecipeDetail({ versions, activity }: { versions: RecipeVersi
     <article className="cafe-recipe-detail">
       <header className="cafe-recipe-detail__head">
         <h2>{recipeName(current) || t('cafe.recipes.unnamed')}</h2>
-        {activity && <RecipeActivityBadge activity={activity} />}
+        {status && <EsbStatusBadge status={status} />}
         <Pill tone="neutral" dot={false}>{t('cafe.recipes.readOnly')}</Pill>
       </header>
+      {visibility}
       <dl className="cafe-recipe-detail__facts">
+        {type && <div><dt>{t('cafe.recipes.type')}</dt><dd>{typeLabel(type)}</dd></div>}
+        {esbBomType(current) && <div><dt>{t('cafe.recipes.esbType')}</dt><dd>{esbBomType(current)}</dd></div>}
         <div><dt>{t('cafe.recipes.outputUnit')}</dt><dd>{recipe.output_unit || missing}</dd></div>
         <div><dt>{t('cafe.recipes.yield')}</dt><dd>{recipe.output_yield == null ? missing : quantity(recipe.output_yield)}</dd></div>
         {recipe.branch_codes?.length ? <div><dt>{t('cafe.recipes.scope')}</dt><dd>{recipe.branch_codes.join(', ')}</dd></div> : null}
       </dl>
-      {(recipe.active === false || recipe.menu_deleted) && <p>{t('cafe.recipes.inactive')}</p>}
+      {(status ? status === 'inactive' || status === 'removed' : recipe.active === false || recipe.menu_deleted) && <p>{t('cafe.recipes.inactive')}</p>}
       <h3>{t('cafe.recipes.ingredients')}</h3>
       {recipe.lines.length === 0 ? <p>{t('cafe.recipes.noIngredients')}</p> : (
         <ul className="cafe-recipe-detail__ingredients">

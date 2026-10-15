@@ -43,6 +43,7 @@ import { cafeUnitDisplayLabel, listCafeItemSettings } from '@/lib/db/cafe-item-s
 import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
 import { formatQuantityWithUnit } from '@/lib/cafe-unit-multiples'
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { useStockComparisonLink } from '@/lib/cafe-stock-comparison-access'
 import { recordsHref } from '@/lib/cafe-records/url-state'
 import type { KitchenStockRow, ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { streamLabel } from '@/lib/kitchen-action-label'
@@ -93,6 +94,7 @@ function KitchenStockPageForViewer() {
   // OD-CAFE-1: stock is keyed on (org, date, item, branch, activity) — a balance belongs to one
   // branch's books — so the picker offers this location's streams only.
   const { options: streamOptions, locationOptions, stream, homeStream, myStreamKeys } = cafeStream
+  const comparisonHref = useStockComparisonLink(stream, myStreamKeys)
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [rows, setRows] = useState<KitchenStockRow[]>([])
   const [unitNames, setUnitNames] = useState<Record<string, string | null>>({})
@@ -240,6 +242,7 @@ function KitchenStockPageForViewer() {
       description={t('cafe.stock.description')}
       streamBar={streamBar}
       recordsHref={recordsHref({ question: 'everything', reading: 'day', stream: stream ? { branchId: stream.branch.id, activity: stream.activity } : null, today: wibToday() })}
+      comparisonHref={comparisonHref}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
       {load.kind === 'loading' && streamOptions.length === 0 && <LoadingShell count={3} />}

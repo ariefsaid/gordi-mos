@@ -465,6 +465,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
             : !isCoarse && <kbd className="cm-foot-key">esc</kbd>}
         </div>
 
+        {/* Scrolls once the list outgrows the panel; a scroll region must be reachable by keyboard (axe scrollable-region-focusable). */}
         <div className="cm-body" tabIndex={0}>
           {!visibleGroups.length && !isSearching && (
             <div className="cm-empty" role="status">{t('commandMenu.empty.prompt')}</div>

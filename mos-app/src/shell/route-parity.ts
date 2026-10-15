@@ -21,6 +21,7 @@ export const ROUTE_PATHS = {
   cafeWaste: 'cafe/waste',
   cafeRecords: 'cafe/records',
   cafeCount: 'cafe/count',
+  cafeStockComparison: 'cafe/stock-comparison',
   cafeReceive: 'cafe/receive',
   cafeReceiptReview: 'cafe/receive/review',
   cafeReceiptIssues: 'cafe/receive/issues',
@@ -62,6 +63,7 @@ export type RouteParityId =
   | 'cafeWaste'
   | 'cafeRecords'
   | 'cafeCount'
+  | 'cafeStockComparison'
   | 'cafeReceive'
   | 'cafeReceiptIssues'
   | 'cafeRequest'
@@ -111,6 +113,8 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'cafeWaste', path: absolutePath(ROUTE_PATHS.cafeWaste), kind: 'child' },
   { id: 'cafeRecords', path: absolutePath(ROUTE_PATHS.cafeRecords), kind: 'child' },
   { id: 'cafeCount', path: absolutePath(ROUTE_PATHS.cafeCount), kind: 'child' },
+  // Preview ship state: absent from the live table unless the dev launch opted in.
+  { id: 'cafeStockComparison', path: absolutePath(ROUTE_PATHS.cafeStockComparison), kind: 'child' },
   // Receipt issues lives under Receive. Receipt review and Request review are redirects into Review's queues.
   { id: 'cafeReceive', path: absolutePath(ROUTE_PATHS.cafeReceive), kind: 'child' },
   { id: 'cafeReceiptIssues', path: absolutePath(ROUTE_PATHS.cafeReceiptIssues), kind: 'child' },

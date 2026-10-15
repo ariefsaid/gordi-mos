@@ -640,6 +640,26 @@ export function CountIcon() {
   )
 }
 
+// StockComparisonIcon — an up arrow beside a down arrow, two figures set against each other (ESB expected vs the Count).
+export function StockComparisonIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M7 20V5M3.5 8.5 7 5l3.5 3.5" />
+      <path d="M17 4v15M13.5 15.5 17 19l3.5-3.5" />
+    </svg>
+  )
+}
+
 // ReceiveIcon — a box with an arrow coming in, for receiving a delivery (distinct from Count and Stock).
 export function ReceiveIcon() {
   return (

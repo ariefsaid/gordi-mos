@@ -78,6 +78,7 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
   { path: '/cafe/waste', family: 'workspace', sourceFile: 'pages/cafe-waste-page.tsx', symbol: 'CafeWastePage' },
   { path: '/cafe/records', family: 'workspace', sourceFile: 'pages/cafe-records-page.tsx', symbol: 'CafeRecordsPage' },
   { path: '/cafe/count', family: 'workspace', sourceFile: 'pages/cafe-count-page.tsx', symbol: 'CafeCountPage' },
+  { path: '/cafe/stock-comparison', family: 'workspace', sourceFile: 'pages/cafe-stock-comparison-page.tsx', symbol: 'CafeStockComparisonPage' },
   { path: '/cafe/receive', family: 'workspace', sourceFile: 'pages/cafe-receive-page.tsx', symbol: 'CafeReceivePage' },
   { path: '/cafe/receive/issues', family: 'workspace', sourceFile: 'pages/cafe-receipt-issues-page.tsx', symbol: 'CafeReceiptIssuesPage' },
   { path: '/cafe/request', family: 'workspace', sourceFile: 'pages/cafe-request-page.tsx', symbol: 'CafeRequestPage' },

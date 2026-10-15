@@ -78,6 +78,10 @@ interface KitchenToolbarProps {
   extraChips?: readonly { key: string; label: string; clear: () => void }[]
   /** Display text for a non-default kind (chip label); defaults to the raw value. */
   kindLabel?: (kind: KitchenItemKindFilter) => string
+  /** Replaces "Clear all" on the chip row (a page whose chips are all filters says "Clear filters"). */
+  clearAllLabel?: string
+  /** Clears every chip in one step; use when the chips' own clear handlers cannot be called back to back (URL state). */
+  onClearAll?: () => void
 }
 
 export function KitchenToolbar({
@@ -112,6 +116,8 @@ export function KitchenToolbar({
   sortControl,
   extraChips,
   kindLabel,
+  clearAllLabel,
+  onClearAll,
 }: KitchenToolbarProps) {
   const t = useT()
   const desktop = useIsDesktop()
@@ -248,7 +254,7 @@ export function KitchenToolbar({
       {chips.length > 0 && (
         <div className="ktb-chips" role="group" aria-label={t('cafe.toolbar.activeFilters')}>
           {chips.map(chip => <FilterChip key={chip.key} label={chip.label} onRemove={chip.clear} />)}
-          {chips.length > 1 && <button type="button" className="ktb-chips__clear" onClick={() => chips.forEach(chip => chip.clear())}>{t('cafe.toolbar.clearAll')}</button>}
+          {chips.length > 1 && <button type="button" className="ktb-chips__clear" onClick={() => (onClearAll ? onClearAll() : chips.forEach(chip => chip.clear()))}>{clearAllLabel ?? t('cafe.toolbar.clearAll')}</button>}
         </div>
       )}
     </div>

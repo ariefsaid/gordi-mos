@@ -144,7 +144,7 @@ export function leafInThisTable(path: string) {
 }
 
 /** The pathname half of a redirect target — `matchRoutes` matches paths, not query strings. */
-export function pathnameOf(to: string): string {
+function pathnameOf(to: string): string {
   return to.split('#')[0].split('?')[0]
 }
 

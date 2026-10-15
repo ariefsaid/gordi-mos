@@ -1,0 +1,64 @@
+/* Stock comparison (preview): notices, source strip, toolbar toggle, table cells, phone cards, pager. Tokens only. */
+.scmp-page { display: flex; flex-direction: column; gap: var(--mos-field-gap); min-width: 0; }
+.scmp-split { min-width: 0; }
+.scmp-main { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); min-width: 0; }
+.scmp-note { max-width: 65ch; margin: 0; color: var(--mos-muted); font: var(--mos-type-body); }
+.scmp-meta { display: block; color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
+.scmp-qty { font-variant-numeric: var(--mos-numeric); overflow-wrap: anywhere; }
+.scmp-flags { display: inline-flex; flex-wrap: wrap; gap: var(--mos-inline-gap); }
+
+/* ── Source strip: what each side is and how complete it is ── */
+.scmp-source { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--mos-inline-gap) var(--mos-row-gap); padding: var(--mos-row-pad-y) 0; border-block: 1px solid var(--mos-line); }
+.scmp-source__list { display: grid; flex: 1 1 36rem; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--mos-toolbar-gap) var(--mos-row-gap); margin: 0; min-width: 0; }
+.scmp-source__list > div { min-width: 0; }
+.scmp-source__list dt { color: var(--mos-muted); font: var(--mos-type-label); }
+.scmp-source__list dd { margin: var(--mos-label-gap) 0 0; color: var(--mos-ink); font: var(--mos-type-body); overflow-wrap: anywhere; }
+.scmp-source__actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap); }
+.scmp-source__reason { color: var(--mos-muted); font: var(--mos-type-meta); }
+.scmp-source__older { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap) var(--mos-row-gap); flex: 1 0 100%; margin: 0; color: var(--mos-muted); font: var(--mos-type-body); }
+
+/* ── Only differences: a checkbox row at the toolbar's control height ── */
+.scmp-toggle { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height); color: var(--mos-ink); font: var(--mos-type-control); cursor: pointer; }
+.scmp-toggle.is-disabled { cursor: default; }
+.scmp-toggle .scmp-meta { margin-top: var(--mos-label-gap); }
+
+/* ── Table (desktop) ── */
+.scmp-table { table-layout: auto; width: 100%; }
+.scmp-scroll { max-width: 100%; overflow-x: auto; }
+.scmp-table .scmp-col-item { min-width: 10rem; }
+.scmp-table .scmp-col-flag { min-width: 8rem; }
+.scmp-table td.dt-num .scmp-qty { white-space: nowrap; }
+.scmp-table td.dt-num .scmp-meta { text-align: end; white-space: nowrap; }
+.scmp-item {
+  display: inline-block; max-width: 100%; margin: 0; padding: 0; border: 0; background: none; color: var(--mos-ink);
+  font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); text-align: start; overflow-wrap: anywhere; cursor: pointer;
+}
+.scmp-item:hover { color: var(--mos-accent); text-decoration: underline; text-underline-offset: 3px; }
+.scmp-item:focus-visible, .scmp-card:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.scmp-row.is-selected td { background: var(--mos-accent-tint); }
+
+/* ── Phone and narrow list: one heading line once, then flat divided rows ── */
+.scmp-phone-head, .scmp-card__figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--mos-inline-gap); }
+.scmp-phone-head { padding: var(--mos-band-pad-y) var(--mos-band-pad-x); background: var(--mos-band); border-bottom: 1px solid var(--mos-line); color: var(--mos-muted); font: var(--mos-type-label); }
+.scmp-phone-head > span:not(:first-child) { text-align: end; }
+.scmp-card {
+  display: flex; flex-direction: column; align-items: stretch; gap: var(--mos-stack-gap); width: 100%; margin: 0; padding: 0; border: 0; background: none;
+  color: var(--mos-ink); font: var(--mos-type-body); text-align: start; cursor: pointer;
+}
+.scmp-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--mos-inline-gap); }
+.scmp-card__name { font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); overflow-wrap: anywhere; }
+.scmp-card__meta { color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
+.scmp-card__fig { min-width: 0; text-align: end; font: var(--mos-type-control); font-variant-numeric: var(--mos-numeric); overflow-wrap: anywhere; }
+.scmp-card__fig:first-child { text-align: start; }
+.scmp-card__fig:nth-child(2) { text-align: center; }
+.scmp-card__fig .scmp-meta { text-align: inherit; }
+
+/* ── Pager ── */
+.rec-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap) var(--mos-row-gap); padding-top: var(--mos-toolbar-gap); }
+.rec-pager__status { margin: 0; color: var(--mos-muted); font: var(--mos-type-body); }
+.rec-pager__buttons { display: flex; gap: var(--mos-inline-gap); }
+
+/* Phone: an open item replaces the list (the shared host mounts it full-screen), as every record does. */
+@media (max-width: 767.98px) {
+  .scmp-page--selected > :not(.scmp-split), .scmp-page--selected .scmp-main { display: none; }
+}
