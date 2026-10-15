@@ -1,0 +1,350 @@
+/**
+ * The access boundary (#800, OD-WAY-98 (8)) — what a denied deep link meets.
+ *
+ * The three route guards are rendered here rather than the component alone: "the guards render
+ * the ONE boundary" is the claim, and a test that only mounts `<AccessBoundary />` would stay
+ * green through a guard that quietly went back to `<Navigate to="/">`.
+ *
+ * Every panel case is driven from a route that is LIVE — `/cafe/pushes`, `/cafe/review`,
+ * `/admin/people`, `/work/projects`, and `/money` for viewers outside its revenue-view roles.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Route admission is REAL by default. One test overrides it to simulate the registry drifting —
+// a destination whose landing route stops admitting a viewer its child link still reaches.
+const admission = vi.hoisted(() => ({
+  override: null as null | ((path: string, accessRoles: string[]) => boolean),
+}))
+vi.mock('./module-registry', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./module-registry')>()
+  return {
+    ...actual,
+    viewerAdmittedToRoute: (path: string, accessRoles: string[]) =>
+      admission.override ? admission.override(path, accessRoles) : actual.viewerAdmittedToRoute(path, accessRoles),
+  }
+})
+
+import { render, screen, cleanup, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import {
+  MemoryRouter, Route, Routes, RouterProvider, createMemoryRouter, matchRoutes, useLocation,
+  type RouteObject,
+} from 'react-router-dom'
+import { isValidElement, type ReactNode } from 'react'
+
+vi.mock('@/auth/use-auth')
+import { useAuth } from '@/auth/use-auth'
+import { RequireAccessRole } from '@/auth/require-access-role'
+import { AdminRoute } from '@/auth/admin-route'
+import { routeConfig } from '@/router'
+import { I18nProvider } from '@/i18n/I18nProvider'
+import { BreadcrumbTitleProvider } from './breadcrumb-title'
+import { Breadcrumb } from './breadcrumb'
+import { admittedModules, footerAreas, viewerAdmittedToRoute } from './module-registry'
+
+const mockUseAuth = vi.mocked(useAuth)
+
+/** The gate that guards `/cafe/pushes` in the real table — a live route, so the panel is reachable. */
+const CAFE_PUSHES_ROLES = ['ops_lead', 'admin'] as const
+/** The gate that guards `/cafe/review`. */
+const CAFE_REVIEW_ROLES = ['ops_lead', 'admin', 'supervisor'] as const
+
+function setViewer(accessRoles: string[]) {
+  mockUseAuth.mockReturnValue({
+    status: 'authenticated',
+    viewer: {
+      person: {
+        id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'U', email: null,
+        must_change_password: false, archived_at: null, created_at: '', updated_at: '',
+      },
+      roles: [],
+      isManager: false,
+      accessRoles,
+      affiliated: [],
+    },
+    signOut: vi.fn(),
+  } as never)
+}
+
+/** Reports where a navigation landed — mounted so a redirect cannot pass as a rendered boundary. */
+function Landing() {
+  return <div data-testid="landing">{useLocation().pathname}</div>
+}
+
+/** Renders `guard` over `path`, with a live surface behind it and a catch-all in front of it. */
+function renderAt(path: string, guard: React.ReactElement) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route element={guard}>
+          <Route path={path} element={<div data-testid="surface">surface</div>} />
+        </Route>
+        <Route path="*" element={<Landing />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+function panel(): HTMLElement {
+  return screen.getByTestId('empty-state')
+}
+
+describe('access boundary', () => {
+  beforeEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+  })
+
+  // ── AC-019 ────────────────────────────────────────────────────────────────────────────────
+  // Desktop is the default render: jsdom computes no layout, so "at 1440" is the un-narrowed
+  // case, and the phone difference is a CSS contract (AC-021 below).
+  describe('AC-019: a Sales member deep-links to /cafe/pushes', () => {
+    beforeEach(() => {
+      setViewer(['member'])
+      renderAt('/cafe/pushes', <RequireAccessRole anyOf={CAFE_PUSHES_ROLES} scope="link" />)
+    })
+
+    it('stays on the route — no surface, and nothing navigated', () => {
+      expect(screen.queryByTestId('surface')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('landing')).not.toBeInTheDocument()
+    })
+
+    it('renders the page head titled for the page asked for, and states the denial only in the panel', () => {
+      const head = screen.getByTestId('page-head')
+      expect(within(head).getByRole('heading', { level: 1 })).toHaveTextContent('Café · Sent to ESB')
+      expect(within(head).queryByText(/access/i)).toBeNull()
+    })
+
+    it('renders one quiet dashed panel: the area sentence, who to ask, one outline Back', () => {
+      expect(within(panel()).getByRole('heading', { level: 2 }))
+        .toHaveTextContent('Sent to ESB is outside your access')
+      expect(within(panel()).getByText('Ask your lead or an admin to give you access.'))
+        .toBeInTheDocument()
+      expect(within(panel()).getByRole('link', { name: 'Back to Café' })).toBeInTheDocument()
+    })
+
+    it('offers exactly one control in the panel — a wall is not a menu', () => {
+      const controls = [
+        ...within(panel()).queryAllByRole('link'),
+        ...within(panel()).queryAllByRole('button'),
+      ]
+      expect(controls).toHaveLength(1)
+    })
+
+    it('names the area and nothing inside it — the boundary exposes no data', () => {
+      // The whole rendered text is the area label plus the two fixed sentences. Any figure,
+      // record title or count leaking through the guard would show up as an extra digit here.
+      expect(panel().textContent).toBe(
+        'Sent to ESB is outside your accessAsk your lead or an admin to give you access.Back to Café',
+      )
+    })
+  })
+
+  // ── AC-020 ────────────────────────────────────────────────────────────────────────────────
+  it('AC-020: Finance at /admin/people is told the AREA, not the screen', () => {
+    setViewer(['finance'])
+    renderAt('/admin/people', <AdminRoute />)
+    // `Admin settings`, the thing an admin would grant — not `People`, a screen this viewer has
+    // never been shown the name of.
+    expect(screen.getByRole('heading', { level: 2 }))
+      .toHaveTextContent('Admin settings is outside your access')
+    expect(screen.queryByTestId('landing')).not.toBeInTheDocument()
+  })
+
+  it('AC-020: a member at /cafe/review meets the Café panel — a child names its area', () => {
+    setViewer(['member'])
+    renderAt('/cafe/review', <RequireAccessRole anyOf={CAFE_REVIEW_ROLES} scope="link" />)
+    expect(screen.getByRole('heading', { level: 2 }))
+      .toHaveTextContent('Review is outside your access')
+    // The head reads as the page itself does — "Café · Review" — so a denial does not rename it.
+    expect(within(screen.getByTestId('page-head')).getByRole('heading', { level: 1 }))
+      .toHaveTextContent('Café · Review')
+    // Only a link inside Café was denied and this viewer is admitted to Café itself, so the way
+    // back is Café — somewhere they can work — not Home.
+    const back = within(panel()).getByRole('link', { name: 'Back to Café' })
+    expect(back).toHaveAttribute('href', '/cafe')
+    expect(within(panel()).queryByRole('link', { name: 'Back to Home' })).toBeNull()
+  })
+
+  // The way back never names or links a destination the viewer is not admitted to, and never
+  // points at the denied page itself — in both cases it falls back to Home.
+  it('a link-scope denial inside a destination the viewer is NOT admitted to goes Home', () => {
+    // No current route has this exact combination, so simulate the drift: Café's landing route
+    // stops admitting this viewer while its child boundary remains live.
+    admission.override = (path) => path !== '/cafe'
+    try {
+      setViewer(['member'])
+      renderAt('/cafe/review', <RequireAccessRole anyOf={CAFE_REVIEW_ROLES} scope="link" />)
+      expect(within(panel()).getByRole('link', { name: 'Back to Home' })).toHaveAttribute('href', '/')
+      expect(within(panel()).queryByRole('link', { name: 'Back to Café' })).toBeNull()
+    } finally {
+      admission.override = null
+    }
+  })
+
+  it('a link-scope denial ON the destination\'s own landing route goes Home, not back to itself', () => {
+    setViewer(['member'])
+    renderAt('/work', <RequireAccessRole anyOf={['supervisor']} scope="link" />)
+    const links = within(panel()).getAllByRole('link')
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAttribute('href', '/')
+  })
+
+  // ── AC-021 ────────────────────────────────────────────────────────────────────────────────
+  describe('AC-021: the way back', () => {
+    it('Back lands on Café', async () => {
+      setViewer(['member'])
+      renderAt('/cafe/pushes', <RequireAccessRole anyOf={CAFE_PUSHES_ROLES} scope="link" />)
+      await userEvent.click(screen.getByRole('link', { name: 'Back to Café' }))
+      expect(screen.getByTestId('landing')).toHaveTextContent('/cafe')
+    })
+  })
+
+  // ── AC-022 ────────────────────────────────────────────────────────────────────────────────
+  describe('AC-022: navigation is unchanged', () => {
+    // The RENDERED sweep — every persona, every nav surface, both viewports — is owned by
+    // `nav-reachability.test.tsx` and `ship-gate.test.tsx`. What is asserted here is the seam
+    // those sweeps read, so this file fails if the boundary is ever mistaken for a reason to
+    // widen a nav surface.
+    it('member and admin-only viewers are not offered Money, while a manager is admitted', () => {
+      const offersMoney = (roles: string[]) => admittedModules(roles).some((m) => m.id === 'money')
+      const offersAdmin = (roles: string[]) => footerAreas(roles).some((u) => u.id === 'admin')
+      expect(offersMoney(['member'])).toBe(false)
+      expect(offersMoney(['admin'])).toBe(false)
+      expect(offersMoney(['manager'])).toBe(true)
+      expect(offersMoney(['finance'])).toBe(true)
+      expect(offersAdmin(['member'])).toBe(false)
+      expect(viewerAdmittedToRoute('/money', ['member'])).toBe(false)
+      expect(viewerAdmittedToRoute('/money', ['admin'])).toBe(false)
+      expect(viewerAdmittedToRoute('/money', ['manager'])).toBe(true)
+      expect(viewerAdmittedToRoute('/money', ['finance'])).toBe(true)
+      expect(viewerAdmittedToRoute('/admin/people', ['member'])).toBe(false)
+      // Not vacuous: the same authorities DO open the Admin door for an admin.
+      expect(offersAdmin(['admin'])).toBe(true)
+    })
+
+    describe('the Money route uses its revenue-view role gate, not the ship gate', () => {
+      it.each([
+        ['a Sales member', ['member']],
+        ['an admin-only viewer', ['admin']],
+      ])('%s meets the Money access boundary without being forwarded home', (_who, roles) => {
+        setViewer(roles)
+        renderRealChain('/money')
+        expect(screen.queryByTestId('landing')).not.toBeInTheDocument()
+        expect(screen.getByTestId('empty-state')).toBeInTheDocument()
+        expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Money is outside your access')
+      })
+
+    })
+  })
+
+  // ── AC-023 ────────────────────────────────────────────────────────────────────────────────
+  describe('AC-023: both live guards render the ONE boundary', () => {
+    const CASES = [
+      ['RequireAccessRole', '/cafe/pushes', <RequireAccessRole anyOf={CAFE_PUSHES_ROLES} />, 'Café'],
+      ['AdminRoute', '/admin/people', <AdminRoute />, 'Admin settings'],
+    ] as const
+
+    it.each(CASES)('%s renders the boundary in place for an authenticated viewer', (_n, path, guard, area) => {
+      setViewer(['member'])
+      renderAt(path, guard)
+      expect(screen.queryByTestId('landing'), 'a guard navigated away').not.toBeInTheDocument()
+      expect(screen.getByTestId('empty-state')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(`${area} is outside your access`)
+    })
+
+    it.each(CASES)('%s still redirects before the session is authenticated — no boundary flash', (_n, path, guard) => {
+      mockUseAuth.mockReturnValue({ status: 'loading' } as never)
+      renderAt(path, guard)
+      expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
+      expect(screen.getByTestId('landing')).toHaveTextContent('/')
+    })
+  })
+
+  // ── The shell chrome says the same word the panel does ─────────────────────────────────────
+  describe('the chrome does not name what the panel withholds', () => {
+    const CHROME_CASES = [
+      ['/admin/people', 'Admin settings', <AdminRoute />],
+    ] as const
+
+    it.each(CHROME_CASES)('%s: the desktop breadcrumb reads "%s" and nothing else', (path, label, guard) => {
+      setViewer(['member'])
+      renderChrome(path, guard, false)
+      expect(crumbText()).toBe(label)
+    })
+
+    it.each(CHROME_CASES)('%s: the phone header reads "%s"', (path, label, guard) => {
+      setViewer(['member'])
+      renderChrome(path, guard, true)
+      expect(crumbText()).toBe(label)
+    })
+
+  })
+})
+
+// ── Harnesses ────────────────────────────────────────────────────────────────────────────────
+
+function isGuard(element: ReactNode): boolean {
+  return (
+    isValidElement(element) &&
+    (element.type === RequireAccessRole || element.type === AdminRoute)
+  )
+}
+
+/**
+ * Mounts the REAL table's chain for `path`, from its route gate downward.
+ *
+ * Mounting `routeConfig` whole would drag in ProtectedRoute, the shell and every lazy page. What
+ * this needs is the pair the old shape assertion could not see together — the gate route object
+ * and the route element the gate sits above — taken from `routeConfig` itself and re-nested as
+ * they are nested there, so a change to either is a change to what this mounts.
+ */
+function renderRealChain(path: string) {
+  const matches = matchRoutes(routeConfig, path)
+  if (!matches) throw new Error(`${path} matches nothing in the real route table`)
+  const gateIndex = matches.findIndex(({ route }) => isGuard(route.element))
+  if (gateIndex < 0) throw new Error(`${path} passes through no route gate`)
+  let chain: RouteObject[] | undefined
+  for (let i = matches.length - 1; i >= gateIndex; i--) {
+    const route = matches[i].route
+    // Index and non-index routes are a discriminated union — an index route may carry no
+    // children — so they are rebuilt on separate branches, as router.tsx's own gate does.
+    chain = route.index ? [{ ...route }] : [{ ...route, ...(chain ? { children: chain } : {}) }]
+  }
+  const router = createMemoryRouter([...chain!, { path: '*', element: <Landing /> }], {
+    initialEntries: [path],
+  })
+  return render(<RouterProvider router={router} />)
+}
+
+/** The boundary and the shell breadcrumb, sharing one BreadcrumbTitleProvider as the shell does. */
+function renderChrome(path: string, guard: React.ReactElement, narrow: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: narrow, media: query, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
+    }),
+  })
+  return render(
+    <I18nProvider>
+      <BreadcrumbTitleProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <nav aria-label="Breadcrumb"><Breadcrumb /></nav>
+          <Routes>
+            <Route element={guard}>
+              <Route path={path} element={<div data-testid="surface">surface</div>} />
+            </Route>
+            <Route path="*" element={<Landing />} />
+          </Routes>
+        </MemoryRouter>
+      </BreadcrumbTitleProvider>
+    </I18nProvider>,
+  )
+}
+
+function crumbText(): string {
+  const nav = screen.getByRole('navigation', { name: 'Breadcrumb' })
+  return (nav.textContent?.replace(/\s+/g, ' ').replace(/\s*·\s*/g, ' · ').trim() ?? '')
+}

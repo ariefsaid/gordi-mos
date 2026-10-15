@@ -408,7 +408,7 @@ export function CafeWastePage() {
     id: line.item.id,
     name: `${kindPrefix(line.item.kind)}${line.item.name}`,
     quantity: formatWasteQty(line.quantity),
-    unit: line.entry.capturedUnitName ?? wasteEntryUnitLabel(line.item, line.entry, t),
+    unit: line.entry.unitFactor !== 1 ? wasteEntryUnitLabel(line.item, line.entry, t) : line.entry.capturedUnitName ?? wasteEntryUnitLabel(line.item, line.entry, t),
     capturedDate: line.entry.capturedLogDate ? formatDayMonthYear(line.entry.capturedLogDate) : undefined,
     status: line.entry.submitted ? t('cafe.waste.status.submitted')
       : line.entry.logId && line.entry.photoReady ? t('cafe.waste.status.ready')
@@ -676,6 +676,7 @@ export function CafeWastePage() {
     }
     return (
       <WastePhotoCapture
+        key={entry.logId}
         wasteLogId={entry.logId}
         initialPhotos={entry.photos}
         onPhotoUploaded={photoUploadedCallbacks.get(item.id)}

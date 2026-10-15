@@ -44,7 +44,7 @@ export function PeriodControl({ period, range, latestDate, onChange, onRangeChan
       onChange(Number(value) as MoneyPeriod)
     }
   }
-  const options = [
+  const options: { value: string; label: string; disabled?: boolean }[] = [
     ...MONEY_PERIODS.map((p) => ({ value: String(p), label: t('money.period.days', { days: String(p) }) })),
     { value: 'custom', label: t('money.period.custom'), disabled: !latestDate },
   ]
@@ -52,7 +52,7 @@ export function PeriodControl({ period, range, latestDate, onChange, onRangeChan
     <div className="money-period-control">
       <div className="money-period__select">
         <Select label={t('money.period.label')} value={chosen} disabled={disabled} onChange={(event) => choose(event.target.value)} fullWidth>
-          {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {options.map((option) => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
         </Select>
       </div>
       {customOpen && <div className="money-period__range">

@@ -104,7 +104,7 @@ export function PendingBillsPage() {
   const setSort = (next: BillSort) => setParam('sort', billSortKey(next) === DEFAULT_BILL_SORT ? null : billSortKey(next))
   const [selectedBillIds, setSelectedBillIds] = useState<string[]>([])
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const listScrollRef = useRef<HTMLDivElement | null>(null)
+  const listScrollRef = useRef<HTMLElement | null>(null)
   const [historyState, setHistoryState] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; entries: PendingBillPaymentHistoryEntry[] }>({ status: 'idle', entries: [] })
   const [historyRequest, setHistoryRequest] = useState(0)
   const [formMode, setFormMode] = useState<PaymentFormMode | null>(null)
@@ -541,7 +541,7 @@ export function PendingBillsPage() {
         label={recordPanelTitle}
         title={formMode?.kind === 'multi' && !isDesktop ? recordPanelTitle : t('pendingBills.record.type')}
         actions={isDesktop && adapterCanPay && !formMode
-          ? <Button type="button" variant={selectedSummary.count > 0 ? 'outline' : 'primary'} onClick={startSinglePayment}>{t('pendingBills.record.recordPayment')}</Button>
+          ? <span data-viewer-region="actions"><Button type="button" variant={selectedSummary.count > 0 ? 'outline' : 'primary'} onClick={startSinglePayment}>{t('pendingBills.record.recordPayment')}</Button></span>
           : undefined}
         closeLabel={t('record.close')}
         rootClassName="drawer-split--sticky pending-bills-record"
@@ -568,7 +568,7 @@ export function PendingBillsPage() {
             <ActionBar
               className="pending-bills-record-bar"
               summary={`${t('pendingBills.col.balance')} ${formatIDRExact(selectedBill.balance)}`}
-              primary={<Button type="button" variant="primary" onClick={startSinglePayment}>{t('pendingBills.record.recordPayment')}</Button>}
+              primary={<span data-viewer-region="actions"><Button type="button" variant="primary" onClick={startSinglePayment}>{t('pendingBills.record.recordPayment')}</Button></span>}
             />
           </PhoneActionBarContext.Provider>
         )}
@@ -685,7 +685,7 @@ export function PendingBillsPage() {
             <p className="pending-bills-count" role="status">{countText}</p>
           </div>
           {isDesktop ? (
-            <MoneyTableShell className="pending-bills-table" scrollRef={listScrollRef}>
+            <MoneyTableShell className="pending-bills-table" scrollRef={listScrollRef as React.RefObject<HTMLDivElement>}>
               <caption className="sr-only">{t('pendingBills.table.caption')}</caption>
               <thead>
                 <tr>
@@ -704,7 +704,7 @@ export function PendingBillsPage() {
               </tbody>
             </MoneyTableShell>
           ) : (
-            <ul className="pb-cards" aria-label={t('pendingBills.table.caption')}>
+            <ul ref={listScrollRef as React.RefObject<HTMLUListElement>} className="pb-cards" aria-label={t('pendingBills.table.caption')}>
               {visibleBills.map((bill) => <PendingBillCard key={bill.id} {...rowProps(bill)} />)}
             </ul>
           )}

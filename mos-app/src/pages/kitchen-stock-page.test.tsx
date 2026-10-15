@@ -1,0 +1,594 @@
+// KitchenStockPage tests — TDD, AC-tagged.
+// S4 Stock view (/cafe/stock) — read-only, auto-computed, any authed member.
+// Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S4.
+//
+// Proves (unit): AC-011's RENDER half (#237, FR-060/061) — the page reads ONE selected
+// (branch, activity) stream (default from shared.default_stream(), switchable — in the
+// EMPTY state too, FR-003), places the system-quantity column directly beside the ERP
+// inventory comparison column, never renders a stale stream's rows under a newer
+// stream's label, and never labels the central kitchen "HQ"/"Stok HQ" (the CONTEXT.md
+// trap — that label collides with the GHQ branch). The NET itself (approved production
+// − approved transfers, per stream, cross-stream isolated) is owned at pgTAP:
+// supabase/tests/ops_09_daily_log_and_stock.sql + ops_10_carried_contracts.sql block H
+// — this file mocks fetchKitchenStock at that seam. Plus AC-032 (negative balances
+// preserved) and the shared-kit reflow invariants (RI-IXD-6). Covers all states:
+// loading, empty, error+retry, populated, unauthenticated. Read-only is the signal:
+// NO edit affordances anywhere.
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { createElement, type ReactNode } from 'react'
+import type { AuthState } from '@/auth/context'
+import { I18nProvider } from '@/i18n/I18nProvider'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
+
+vi.mock('@/auth/use-auth')
+import { useAuth } from '@/auth/use-auth'
+
+vi.mock('@/lib/db/kitchen-logs', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
+  // listStreamPairs is the enumerable stream catalog read (#440): the head's ONE picker offers the
+  // enumerated streams, never a branch × activity cross-product that can name a pair which is
+  // not a stream. Un-mocked it hits Supabase and every bootstrap lands in the error state.
+  return {
+    ...actual,
+    fetchKitchenStock: vi.fn(),
+    listStreamPairs: vi.fn(),
+    listCafeDestinations: vi.fn(),
+  }
+})
+import { fetchKitchenStock, listCafeDestinations, listStreamPairs } from '@/lib/db/kitchen-logs'
+
+vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
+import { listActiveBranches } from '@/lib/db/branches'
+
+// shared.default_stream() (FR-001) — the viewer's live primary stream Team. Un-mocked
+// it hits Supabase for real and every bootstrap lands in the error state.
+vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
+// #781 coordinator follow-up: useCafeStream now also reads current Team memberships for
+// "Your Team" tagging (myStreamKeys) — empty by default here; tests that care override it.
+vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn().mockResolvedValue([]) }))
+import { fetchDefaultStream } from '@/lib/db/default-stream'
+
+// An empty Stock list is diagnosed from the stream's ESB settings (the shared Café items empty state).
+vi.mock('@/lib/db/cafe-item-settings', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/db/cafe-item-settings')>('@/lib/db/cafe-item-settings')
+  return { ...actual, listCafeItemSettings: vi.fn(async () => []), canManageCafeItemSettings: vi.fn(async () => false) }
+})
+import { listCafeItemSettings, type CafeItemSetting } from '@/lib/db/cafe-item-settings'
+
+import { KitchenStockPage } from './kitchen-stock-page'
+import { rememberStream } from '@/lib/cafe-stream'
+import { rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
+import { branchDisplayName } from '@/lib/kitchen-action-label'
+import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
+
+const mockUseAuth = vi.mocked(useAuth)
+const mockFetchStock = vi.mocked(fetchKitchenStock)
+const mockBranches = vi.mocked(listActiveBranches)
+const mockDefaultStream = vi.mocked(fetchDefaultStream)
+const mockStreamPairs = vi.mocked(listStreamPairs)
+const mockDestinations = vi.mocked(listCafeDestinations)
+
+function wrapper({ children }: { children: ReactNode }) {
+  return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
+}
+
+function idWrapper({ children }: { children: ReactNode }) {
+  return createElement(MemoryRouter, null, createElement(I18nProvider, { initialLocale: 'id' }, children))
+}
+
+function viewer(accessRoles: string[]): AuthState {
+  return {
+    status: 'authenticated',
+    viewer: {
+      person: {
+        id: 'p-1', org_id: 'org-1', user_id: 'auth-1', full_name: 'Budi Santoso',
+        email: 'budi@example.test', must_change_password: false, archived_at: null,
+        created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      },
+      roles: [],
+      isManager: false,
+      accessRoles,
+      affiliated: [],
+    },
+    signOut: vi.fn(),
+  } as AuthState
+}
+
+// The catalog DELIBERATELY contains the GHQ branch: the FR-061 trap is precisely that
+// "Stok HQ" (the incumbent's label for the CENTRAL kitchen, which books to Rumah Rames)
+// collides with this branch. The central kitchen must render under the Rumah Rames
+// display alias ('Bungur'), never "HQ".
+const BRANCH_GHQ = { id: 'branch-ghq', code: 'gordi_hq', name: 'Gordi HQ' }
+const BRANCH_RR = { id: 'branch-rr', code: 'rumah_rames', name: 'Rumah Rames' }
+const BRANCH_RAD = { id: 'branch-rad', code: 'radiant', name: 'Radiant' }
+const CENTRAL_KITCHEN = { branch: BRANCH_RR, activity: 'kitchen' as const, produces: true }
+const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const, produces: true }
+
+const STOCK_ROWS: KitchenStockRow[] = [
+  { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 12, tersedia: 8 },
+  { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', category: null, stok: -3, tersedia: -3 },
+]
+
+// This fixture's stream Teams: {GHQ, Radiant, Rumah Rames} × {kitchen, bar}. A SUBSET of the live
+// catalog, which also has cikal/bar (OD-WAY-79) — nothing here turns on the catalog's size, so the
+// fixture is not grown for it. The roastery is deliberately absent even though it is a branch: it
+// is never a stream.
+const STREAM_PAIRS = [BRANCH_GHQ, BRANCH_RAD, BRANCH_RR].flatMap(b => [
+  { branch_id: b.id, activity: 'kitchen' as const, produces: b !== BRANCH_RAD },
+  { branch_id: b.id, activity: 'bar' as const, produces: true },
+])
+
+// #781: CafeStreamBar states a resolved stream as text with a quiet "Switch" beside it (opens a
+// portaled listbox) — or, with no default resolved at all, offers the location's streams as
+// direct one-click buttons (CafeStreamChoices), no separate open step. `startsWith` rather than
+// an exact match because an option carries an appended tag ("— Your Team" / "— Receiving only")
+// when it applies.
+function startsWith(label: string) {
+  return (accessibleName: string) => accessibleName.startsWith(label)
+}
+
+function chooseStream(optionName: string) {
+  const switchButton = screen.queryByRole('button', { name: /^switch (kitchen|bar)$/i })
+  if (switchButton) {
+    fireEvent.click(switchButton)
+    fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
+    return
+  }
+  fireEvent.click(screen.getByRole('button', { name: startsWith(optionName) }))
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  // #440: the Café stream is remembered for the whole module, in sessionStorage — so a test
+  // that switches streams would otherwise seed the NEXT test's default. Clear it per test.
+  rememberStream(null)
+  resetCafeLocations()
+  mockUseAuth.mockReturnValue(viewer(['member']))
+  mockBranches.mockResolvedValue([BRANCH_GHQ, BRANCH_RAD, BRANCH_RR])
+  mockStreamPairs.mockResolvedValue(STREAM_PAIRS)
+  mockDestinations.mockResolvedValue([])
+  mockDefaultStream.mockResolvedValue(CENTRAL_KITCHEN)
+  mockFetchStock.mockResolvedValue([])
+})
+
+function setDesktop() {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: query === '(min-width: 768px)',
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+}
+function setPhone() {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+}
+afterEach(() => { setPhone() })
+
+/** One item's row of figures (the page lists items as plain rows, not a table). */
+function rowOf(name: string): HTMLElement {
+  return screen.getByText(name).closest('.ks-row') as HTMLElement
+}
+
+describe('KitchenStockPage — auth', () => {
+  it('auth loading: shows a busy state', () => {
+    mockUseAuth.mockReturnValue({ status: 'loading' } as AuthState)
+    render(<KitchenStockPage />, { wrapper })
+    expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
+  })
+
+  it('unauthenticated: prompts sign-in, never reads stock', async () => {
+    mockUseAuth.mockReturnValue({ status: 'unauthenticated' } as AuthState)
+    render(
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/cafe/stock')]}>
+        <I18nProvider>
+          <KitchenStockPage />
+        </I18nProvider>
+      </MemoryRouter>,
+    )
+    const link = await screen.findByRole('link', { name: /sign in/i })
+    expect(link).toBeInTheDocument()
+    // Link must resolve via the SPA router with the configured build base path.
+    expect(link).toHaveAttribute('href', appUrl('/login'))
+    expect(mockFetchStock).not.toHaveBeenCalled()
+    expect(mockDefaultStream).not.toHaveBeenCalled()
+  })
+
+  it('any authenticated member may view stock (read-only — no role gate)', async () => {
+    mockUseAuth.mockReturnValue(viewer(['member']))
+    render(<KitchenStockPage />, { wrapper })
+    await waitFor(() => expect(mockFetchStock).toHaveBeenCalled())
+    expect(screen.queryByText(/available to ops leads/i)).not.toBeInTheDocument()
+  })
+})
+
+describe('KitchenStockPage — states', () => {
+  it('loading: shows a busy skeleton while stock loads', () => {
+    mockFetchStock.mockReturnValue(new Promise(() => {})) // never resolves
+    render(<KitchenStockPage />, { wrapper })
+    expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
+  })
+
+  it('empty: says the stream\'s ESB items are not set up, not that activity is missing', async () => {
+    mockFetchStock.mockResolvedValue([])
+    vi.mocked(listCafeItemSettings).mockResolvedValueOnce([{ id: 'esb-1' }, { id: 'esb-2' }] as CafeItemSetting[])
+    render(<KitchenStockPage />, { wrapper })
+    expect(await screen.findByRole('heading', { name: 'No items set up on Rumah Rames · Kitchen' })).toBeInTheDocument()
+    expect(screen.queryByText(/no approved activity/i)).toBeNull()
+  })
+
+  it('error + retry: surfaces a retry that re-fetches', async () => {
+    mockFetchStock.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    const retry = await screen.findByRole('button', { name: /try again/i })
+    fireEvent.click(retry)
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+  })
+})
+
+describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shared.default_stream(), switchable)', () => {
+  // OD-CAFE-1 bounds the picker to the branch the viewer is working at, and with no explicit
+  // location that branch comes from their own stream. These cases are about switching BETWEEN
+  // streams, so the viewer's own stream is at Radiant — the branch whose two streams they move
+  // between. Cross-branch switching is no longer offered anywhere and has its own test.
+  beforeEach(() => { mockDefaultStream.mockResolvedValue(RADIANT_BAR) })
+
+  it('reads stock for the shared.default_stream() stream, not a hardcoded one', async () => {
+    mockDefaultStream.mockResolvedValue(RADIANT_BAR)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await waitFor(() => expect(mockFetchStock).toHaveBeenCalled())
+    expect(mockFetchStock).toHaveBeenCalledTimes(1)
+    const [, stream] = mockFetchStock.mock.calls[0]
+    expect(stream).toEqual(RADIANT_BAR)
+  })
+
+  // CHANGED by #440 (owner ruling): a viewer with no stream default gets an explicit choice
+  // here, exactly as the capture surface already gave them — not a silent fall back to the
+  // catalog's first branch. This surface answers "how much stock is there"; answering it about
+  // books the viewer never picked is worse than asking which books they mean.
+  it('FR-002 (#440): no stream default → asks for an explicit choice and reads NOTHING', async () => {
+    mockDefaultStream.mockResolvedValue(null)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    expect(await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })).toBeInTheDocument()
+    expect(mockFetchStock).not.toHaveBeenCalled()
+    // #781/B12: nothing is resolved, so the head states NOTHING — the one-step choice (item 2)
+    // is what replaces it, as direct buttons rather than a control that has to be opened first.
+    expect(screen.queryByTestId('cafe-stream')).toBeNull()
+    const group = screen.getByRole('group', { name: /production stream/i })
+    expect(within(group).getAllByRole('button').length).toBeGreaterThan(0)
+  })
+
+  it('issue 440: the head STATES the stream in view — canonical branch · activity', async () => {
+    mockDefaultStream.mockResolvedValue(RADIANT_BAR)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    const { container } = render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const head = container.querySelector('[data-testid="page-head"]')
+    expect(within(head as HTMLElement).getByRole('heading', { name: 'Radiant · Bar' })).toBeInTheDocument()
+    expect(head?.textContent).not.toMatch(/stream:?\s*radiant/i)
+  })
+
+  it('OD-CAFE-6: the home stream wins over a stream chosen elsewhere in Café', async () => {
+    rememberStream({ branch: BRANCH_RAD, activity: 'kitchen', produces: false }, 'p-1', BRANCH_RAD.id)
+    mockDefaultStream.mockResolvedValue(RADIANT_BAR)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await waitFor(() => expect(mockFetchStock).toHaveBeenCalled())
+    const [, stream] = mockFetchStock.mock.calls[0]
+    expect(stream).toEqual(RADIANT_BAR)
+  })
+
+  it('issue 440: with no home stream, the stream chosen elsewhere in Café is the default', async () => {
+    // The person switched to Radiant · Bar on Log; Stock must open on the same books.
+    // OD-CAFE-1: "elsewhere in Café" means elsewhere AT THE SAME LOCATION, so the choice is
+    // remembered against that branch — a slot another branch cannot read.
+    rememberStream(RADIANT_BAR, 'p-1', BRANCH_RAD.id)
+    mockDefaultStream.mockResolvedValue(null)
+    rememberCafeLocation('p-1', { branchId: BRANCH_RAD.id, branchName: BRANCH_RAD.name })
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await waitFor(() => expect(mockFetchStock).toHaveBeenCalled())
+    const [, stream] = mockFetchStock.mock.calls[0]
+    expect(stream).toEqual(RADIANT_BAR)
+  })
+
+  it('AC-011: switching the stream re-reads the net FOR THE SELECTED STREAM (never keeps another stream\'s rows)', async () => {
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const switched: KitchenStockRow[] = [
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 4, tersedia: 4 },
+    ]
+    mockFetchStock.mockResolvedValue(switched)
+
+    chooseStream('Radiant · Kitchen')
+    await waitFor(() => expect(mockFetchStock).toHaveBeenCalledTimes(2))
+    const [, stream] = mockFetchStock.mock.calls[1]
+    expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen', produces: false })
+
+    chooseStream('Radiant · Bar')
+    await waitFor(() => expect(mockFetchStock).toHaveBeenCalledTimes(3))
+    const [, streamAfterActivity] = mockFetchStock.mock.calls[2]
+    expect(streamAfterActivity).toEqual({ branch: BRANCH_RAD, activity: 'bar', produces: true })
+  })
+
+  it('stale-response race: a SLOWER older fetch resolving last never overwrites the newer stream\'s rows', async () => {
+    // Bootstrap lands stream rows; then two switches whose fetches resolve OUT OF
+    // ORDER — the older (stale) one last. Without the generation guard the stale
+    // rows would render under the newer stream's label: this test fails on the
+    // unguarded implementation (verified red before the guard existed).
+    mockFetchStock.mockResolvedValueOnce(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    let resolveStale!: (rows: KitchenStockRow[]) => void
+    const stalePromise = new Promise<KitchenStockRow[]>(res => { resolveStale = res })
+    mockFetchStock.mockReturnValueOnce(stalePromise) // switch #1 — will resolve LAST
+    chooseStream('Radiant · Kitchen')
+
+    mockFetchStock.mockResolvedValueOnce([
+      { wip_item_id: 'w9', wip_item_name: 'Fresh Milk', category: null, stok: 7, tersedia: 7 },
+    ]) // switch #2 — the latest read
+    chooseStream('Radiant · Bar')
+    await screen.findByText('Fresh Milk')
+
+    // NOW the stale response arrives.
+    resolveStale([
+      { wip_item_id: 'w8', wip_item_name: 'Stale Bread', category: null, stok: 99, tersedia: 99 },
+    ])
+    // Flush the stale continuation, then assert the newer stream's rows still win.
+    await waitFor(() => expect(screen.queryByText('Stale Bread')).toBeNull())
+    expect(screen.getByText('Fresh Milk')).toBeInTheDocument()
+  })
+
+  it('FR-003: an EMPTY stream still offers the picker (no implicit wall) and switching away works', async () => {
+    mockFetchStock.mockResolvedValueOnce([]) // default stream is empty
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByRole('heading', { name: /^no esb items on/i })
+
+    // The Switch action is present in the empty state — an empty stream is not a dead end.
+    const switchButton = screen.getByRole('button', { name: /^switch bar$/i })
+    expect(switchButton).toBeInTheDocument()
+    expect(switchButton).not.toBeDisabled()
+
+    mockFetchStock.mockResolvedValueOnce(STOCK_ROWS)
+    chooseStream('Radiant · Kitchen')
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    const [, stream] = mockFetchStock.mock.calls[1]
+    expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen', produces: false })
+  })
+
+  // INVERTED by #238's owner ruling (CONTEXT.md, Production stream). #237 shipped this surface
+  // naming the stream through the 'Bungur' display alias and pinned that here — which encoded the
+  // wrong rule: the capture page's stream picker had always used the canonical catalog name and
+  // explicitly refused the alias, so one stream read under two names depending on which surface
+  // was open. The ruling: a stream is named by its branch's CANONICAL name everywhere it is named
+  // AS A STREAM; the alias names a transfer DESTINATION and the derived action label, which is
+  // where the incumbent used it and where OD-K-1 parity lives.
+  //
+  // The assertion was inverted rather than deleted, and it now pins BOTH halves — canonical for
+  // the stream, alias still alive for the destination — so the DISTINCTION is what is asserted.
+  // Deleting the alias half would have left nothing standing between "the alias moved" and "the
+  // alias was dropped", and dropping it would break incumbent parity.
+  it('AC-011 / FR-061 (#238 ruling): the stream is named CANONICALLY — and never "HQ"/"Stok HQ"', async () => {
+    setDesktop()
+    mockDefaultStream.mockResolvedValue(CENTRAL_KITCHEN)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    // The stated stream for the central kitchen reads the CATALOG name, matching the capture
+    // surface exactly — the two are routinely open side by side.
+    const stated = screen.getByTestId('cafe-stream')
+    expect(stated).toHaveTextContent('Rumah Rames · Kitchen')
+    expect(stated).not.toHaveTextContent(/Bungur/)
+
+    // The incumbent's trap label never renders, anywhere on the surface. Unchanged, and the
+    // reason FR-061 exists: "Stok HQ" means the central kitchen, which books to Rumah Rames.
+    expect(screen.queryByText(/stok hq/i)).toBeNull()
+    // The caption names the stream the same way — canonical, and still never "HQ" for these books.
+    const list = screen.getByRole('region', { name: /^Stock for / })
+    const listName = list.getAttribute('aria-label') ?? ''
+    expect(listName).toContain('Rumah Rames')
+    expect(listName).not.toMatch(/Bungur/)
+    expect(listName).not.toMatch(/HQ/)
+  })
+
+  it('AC-011 (#238 ruling, the other half): the Bungur alias is ALIVE for a transfer DESTINATION', async () => {
+    // The alias was not dropped, only confined. branchDisplayName is what the derived action
+    // label ("Transfer to Bungur") and every destination offer resolve through — the incumbent's
+    // own string, and OD-K-1 parity is behavioural. Pinned at the helper, because that is the one
+    // seam both halves of the rule pass through: a future "cleanup" deleting BRANCH_DISPLAY_ALIAS
+    // would go red here while every stream-naming assertion above stayed green.
+    expect(branchDisplayName(BRANCH_RR)).toBe('Bungur')
+    expect(BRANCH_RR.name).toBe('Rumah Rames')
+  })
+})
+
+describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
+  it('filters to negative balances with the toggle and back', async () => {
+    setDesktop()
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const toggle = screen.getByRole('button', { name: 'Negative balances 1' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByText(/total on-hand|available total/i)).toBeNull()
+    expect(screen.queryByText(/made so far/i)).toBeNull()
+    expect(screen.queryByText(/% complete/i)).toBeNull()
+
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+
+    fireEvent.click(toggle)
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+  })
+
+  it('zero rows stay truthful without a second no-entries provenance note', async () => {
+    setDesktop()
+    mockFetchStock.mockResolvedValue([
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
+      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', category: null, stok: 0, tersedia: 0 },
+    ])
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    expect(screen.queryByText('No entries logged yet today')).toBeNull()
+    expect(screen.getByText(/esb inventory is not connected yet/i)).toBeInTheDocument()
+  })
+
+  it('uses one ERP provenance footnote for the comparison column', async () => {
+    setDesktop()
+    mockFetchStock.mockResolvedValue([
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
+      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', category: null, stok: 0, tersedia: 0 },
+    ])
+    render(<KitchenStockPage />, { wrapper })
+
+    await screen.findByText('Ayam Bakar')
+    expect(screen.queryByText('No entries logged yet today')).toBeNull()
+    expect(screen.getAllByText(/esb inventory is not connected yet/i)).toHaveLength(1)
+  })
+
+  it('AC-011 (render): each item shows its stock and available figures for the selected stream — the net itself is owned by pgTAP ops_09/ops_10', async () => {
+    setDesktop()
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+
+    // The per-stream net values render in the row (12 = Σ produce − Σ transfer for the
+    // selected stream — the DB function's contract, mocked here at its seam).
+    const ayamRow = rowOf('Ayam Bakar')
+    expect(ayamRow).toHaveTextContent('12 Unit not set')
+    expect(ayamRow).toHaveTextContent('8 Unit not set')
+    // The comparison is not connected yet, and the page says so once.
+    expect(screen.getByText(/esb inventory is not connected yet/i)).toBeInTheDocument()
+  })
+
+  it('shows stock quantities with the default unit and labels missing units', async () => {
+    setDesktop()
+    mockFetchStock.mockResolvedValue(STOCK_ROWS.map(row => ({ ...row, stok: 0, tersedia: 0 })))
+    vi.mocked(listCafeItemSettings).mockResolvedValue([
+      { id: 'w1', erpName: 'Ayam Bakar', mosName: 'Ayam Bakar', category: null, kind: 'WIP', isActive: true, defaultUnitId: 'u-porsi', units: [{ id: 'u-porsi', name: 'porsi', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }] },
+      { id: 'w2', erpName: 'Nasi Goreng', mosName: 'Nasi Goreng', category: null, kind: 'WIP', isActive: true, defaultUnitId: null, units: [] },
+    ])
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(rowOf('Ayam Bakar').textContent).toMatch(/0 porsi.*0 porsi/)
+    expect(rowOf('Nasi Goreng').textContent).toMatch(/0 Unit not set.*0 Unit not set/)
+  })
+
+  it('AC-032: preserves negative balances (does not clamp to 0)', async () => {
+    setDesktop()
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    // The negative balance remains visible with an explicit missing-unit state.
+    expect(rowOf('Nasi Goreng')).toHaveTextContent('-3 Unit not set')
+  })
+
+  it('phone rows show stock and available in the default unit', async () => {
+    setPhone()
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    vi.mocked(listCafeItemSettings).mockResolvedValue([
+      { id: 'w1', erpName: 'Ayam Bakar', mosName: 'Ayam Bakar', category: null, kind: 'WIP', isActive: true, defaultUnitId: 'u-porsi', units: [{ id: 'u-porsi', name: 'porsi', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }] },
+    ])
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    expect(rowOf('Ayam Bakar').textContent).toMatch(/12 porsi.*8 porsi/)
+  })
+
+  it('read-only: no edit/save/approve controls anywhere (the stream scope is a read scope, not an edit)', async () => {
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.queryByRole('button', { name: /save|edit|approve|submit/i })).toBeNull()
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+  })
+})
+
+// #400 i18n port: the Stock summary rule renders Indonesian under the id locale — AC "every
+// surface listed renders Indonesian".
+describe('KitchenStockPage — locale seam (#400)', () => {
+  beforeEach(() => {
+    setDesktop()
+    mockFetchStock.mockResolvedValue(STOCK_ROWS) // one negative row → 'perlu ditinjau'
+  })
+
+  it('renders the negative-balance toggle in Bahasa Indonesia', async () => {
+    render(<KitchenStockPage />, { wrapper: idWrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.getByRole('button', { name: 'Saldo minus 1' })).toBeInTheDocument()
+    // the English aggregate labels are gone too
+    expect(screen.queryByText(/total on-hand|available total/i)).toBeNull()
+    expect(screen.queryByText(/negative balances/i)).toBeNull()
+  })
+
+  it('all-zero stock keeps the ESB footnote singular', async () => {
+    mockFetchStock.mockResolvedValue([
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
+    ])
+    render(<KitchenStockPage />, { wrapper: idWrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.getAllByText(/^(esb inventory is not connected|inventori ESB belum terhubung)/i)).toHaveLength(1)
+  })
+})
+
+// ── issue 455: the browser tab names the same module the rail and breadcrumb do ──────────
+// Asserted against the CATALOG, not a literal: pinning "Log · Café — Gordi MOS" here would
+// pass just as happily with the retired `nav.kitchen.*` strings copied into it.
+import { messages } from '@/i18n/messages'
+import { interpolate } from '@/i18n/use-t'
+
+function cafeDocTitle(leaf: keyof typeof messages.en): string {
+  return interpolate(messages.en['common.docTitle'], {
+    page: `${messages.en[leaf]} · ${messages.en['nav.cafe']}`,
+  })
+}
+
+describe('issue 455: document title', () => {
+  it('titles the tab from the Café nav label, not the retired kitchen one', async () => {
+    render(<KitchenStockPage />, { wrapper })
+    await waitFor(() => expect(document.title).toBe(cafeDocTitle('cafe.pageTitle.stock')))
+  })
+})
+
+describe('issue 222: stock keeps every balance, labelling items off the stream\'s list', () => {
+  it('an item off the list still shows its balance, labelled', async () => {
+    mockFetchStock.mockResolvedValue([
+      { ...STOCK_ROWS[0], on_stream: true },
+      { ...STOCK_ROWS[1], on_stream: false },
+    ])
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getAllByText('Not on this stream’s list')).toHaveLength(1)
+    expect(rowOf('Nasi Goreng')).toHaveTextContent('Not on this stream’s list')
+  })
+})

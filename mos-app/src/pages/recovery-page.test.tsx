@@ -1,0 +1,376 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render as rtlRender, screen, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { MemoryRouter } from 'react-router-dom'
+import userEvent from '@testing-library/user-event'
+
+// Mock supabase
+vi.mock('../lib/supabase', () => ({
+  supabase: {
+    auth: {
+      updateUser: vi.fn(),
+      resetPasswordForEmail: vi.fn(),
+    },
+  },
+}))
+
+// Mock react-router-dom navigate
+const mockNavigate = vi.fn()
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
+  return {
+    ...actual,
+    useLocation: () => ({ pathname: '/recovery', search: '', hash: '', state: null, key: 'test' }),
+    useNavigate: () => mockNavigate,
+  }
+})
+
+// Mock useAuth for recovery-state tests
+const mockClearRecovering = vi.fn()
+let mockAuthState: unknown = { status: 'recovering', clearRecovering: mockClearRecovering }
+vi.mock('../auth/use-auth', () => ({
+  useAuth: () => mockAuthState,
+}))
+
+import { appUrl } from '@/config/app-build-settings'
+import { I18nProvider } from '@/i18n/I18nProvider'
+import { RecoveryPage } from './recovery-page'
+import { supabase } from '@/lib/supabase'
+
+const mockUpdateUser = vi.mocked(supabase.auth.updateUser)
+const mockResetPassword = vi.mocked(supabase.auth.resetPasswordForEmail)
+
+// The page links back to sign-in, so it always renders under a router.
+function render(ui: ReactElement) {
+  return rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+}
+
+describe('RecoveryPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockNavigate.mockClear()
+    mockClearRecovering.mockClear()
+    mockAuthState = { status: 'recovering', clearRecovering: mockClearRecovering }
+  })
+
+  // FR-005: form renders a labelled new-password input
+  it('FR-005: recovery set-new-password — form renders labelled new-password input', () => {
+    render(<RecoveryPage />)
+    expect(screen.getByLabelText('New password')).toBeInTheDocument()
+    expect(screen.getByLabelText('Confirm password')).toBeInTheDocument()
+  })
+
+  it('FR-005: recovery link exchange — form waits until PASSWORD_RECOVERY is active', () => {
+    mockAuthState = { status: 'loading' }
+    render(<RecoveryPage />)
+    expect(screen.getByRole('status', { name: /verifying recovery link/i })).toBeInTheDocument()
+    expect(screen.queryByLabelText('New password')).not.toBeInTheDocument()
+  })
+
+  it('FR-005: direct recovery route without a recovery session shows expired notice', () => {
+    mockAuthState = { status: 'unauthenticated' }
+    render(<RecoveryPage />)
+    expect(screen.getByText(/that link has expired/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText('New password')).not.toBeInTheDocument()
+  })
+
+  it('FR-005: recovery set-new-password — on submit calls updateUser with new password', async () => {
+    mockUpdateUser.mockResolvedValue({
+      data: { user: {} as unknown as import('@supabase/supabase-js').User },
+      error: null,
+    })
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    await user.type(screen.getByLabelText('New password'), 'newpassword123')
+    await user.type(screen.getByLabelText('Confirm password'), 'newpassword123')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+
+    await waitFor(() => {
+      expect(mockUpdateUser).toHaveBeenCalledWith({ password: 'newpassword123' })
+    })
+  })
+
+  it('FR-005: recovery set-new-password — on success navigates home', async () => {
+    mockUpdateUser.mockResolvedValue({
+      data: { user: {} as unknown as import('@supabase/supabase-js').User },
+      error: null,
+    })
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    await user.type(screen.getByLabelText('New password'), 'newpassword123')
+    await user.type(screen.getByLabelText('Confirm password'), 'newpassword123')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true })
+    })
+  })
+
+  it('FR-005: recovery set-new-password — password mismatch shows field error', async () => {
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    await user.type(screen.getByLabelText('New password'), 'abc12345')
+    await user.type(screen.getByLabelText('Confirm password'), 'different')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("Passwords don't match.")).toBeInTheDocument()
+    })
+    expect(mockUpdateUser).not.toHaveBeenCalled()
+  })
+
+  it('FR-005: recovery set-new-password — expired/invalid link shows expired notice', async () => {
+    mockUpdateUser.mockResolvedValue({
+      data: { user: null },
+      error: { message: 'invalid claim', status: 422 } as unknown as import('@supabase/supabase-js').AuthError,
+    } as unknown as Awaited<ReturnType<typeof supabase.auth.updateUser>>)
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    await user.type(screen.getByLabelText('New password'), 'newpass123')
+    await user.type(screen.getByLabelText('Confirm password'), 'newpass123')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/that link has expired/i)).toBeInTheDocument()
+    })
+  })
+
+  it('FR-005: weak password error stays on the form instead of showing expired-link notice', async () => {
+    mockUpdateUser.mockResolvedValue({
+      data: { user: null },
+      error: {
+        code: 'weak_password',
+        message: 'Password should contain lower, upper, and digits.',
+        status: 422,
+      } as unknown as import('@supabase/supabase-js').AuthError,
+    } as unknown as Awaited<ReturnType<typeof supabase.auth.updateUser>>)
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    await user.type(screen.getByLabelText('New password'), 'lowercase123')
+    await user.type(screen.getByLabelText('Confirm password'), 'lowercase123')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/not strong enough/i)).toBeInTheDocument()
+    })
+    expect(screen.queryByText(/that link has expired/i)).not.toBeInTheDocument()
+  })
+
+  it('Issue 951: reusing the current password is named on the form, not treated as an expired link', async () => {
+    mockUpdateUser.mockResolvedValue({
+      data: { user: null },
+      error: { code: 'same_password', message: 'refused', status: 422 } as unknown as import('@supabase/supabase-js').AuthError,
+    } as unknown as Awaited<ReturnType<typeof supabase.auth.updateUser>>)
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+    await user.type(screen.getByLabelText('New password'), 'Password1')
+    await user.type(screen.getByLabelText('Confirm password'), 'Password1')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+
+    await waitFor(() => expect(screen.getByText(/that is your current password/i)).toBeInTheDocument())
+    expect(screen.queryByText(/that link has expired/i)).not.toBeInTheDocument()
+  })
+
+  it('Issue 951: a missing recovery session shows the expired-link notice', async () => {
+    const { AuthSessionMissingError } = await import('@supabase/supabase-js')
+    mockUpdateUser.mockResolvedValue({
+      data: { user: null },
+      error: new AuthSessionMissingError(),
+    } as unknown as Awaited<ReturnType<typeof supabase.auth.updateUser>>)
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+    await user.type(screen.getByLabelText('New password'), 'Password1')
+    await user.type(screen.getByLabelText('Confirm password'), 'Password1')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+
+    await waitFor(() => expect(screen.getByText(/that link has expired/i)).toBeInTheDocument())
+  })
+
+  it('FR-005: recovery success — calls clearRecovering before navigating home', async () => {
+    mockUpdateUser.mockResolvedValue({
+      data: { user: {} as unknown as import('@supabase/supabase-js').User },
+      error: null,
+    })
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    await user.type(screen.getByLabelText('New password'), 'newpassword123')
+    await user.type(screen.getByLabelText('Confirm password'), 'newpassword123')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+
+    await waitFor(() => {
+      expect(mockClearRecovering).toHaveBeenCalledOnce()
+      expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true })
+    })
+    // clearRecovering must be called before or alongside navigate
+    const clearOrder = mockClearRecovering.mock.invocationCallOrder[0]
+    const navOrder = mockNavigate.mock.invocationCallOrder[0]
+    expect(clearOrder).toBeLessThanOrEqual(navOrder)
+  })
+
+  it('FR-005: loading state — save button disabled + loading indicator while in flight', async () => {
+    let resolve!: (v: ReturnType<typeof supabase.auth.updateUser> extends Promise<infer R> ? R : never) => void
+    mockUpdateUser.mockReturnValue(
+      new Promise<ReturnType<typeof supabase.auth.updateUser> extends Promise<infer R> ? R : never>((res) => { resolve = res }) as ReturnType<typeof supabase.auth.updateUser>,
+    )
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    await user.type(screen.getByLabelText('New password'), 'newpass123')
+    await user.type(screen.getByLabelText('Confirm password'), 'newpass123')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+
+    // While in flight
+    const saveBtn = screen.getByRole('button', { name: /saving/i })
+    expect(saveBtn).toBeDisabled()
+    expect(screen.getByRole('status')).toBeInTheDocument()
+
+    resolve!({ data: { user: null }, error: null } as unknown as Awaited<ReturnType<typeof supabase.auth.updateUser>>)
+  })
+
+  // ── #799 ── AC-016: the expired dead end offers a way forward ───────────────────────────────
+
+  it('AC-016: the expired card offers Request a new link beside Back to sign in', () => {
+    mockAuthState = { status: 'unauthenticated' }
+    render(<RecoveryPage />)
+
+    expect(screen.getByRole('button', { name: 'Request a new link' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Back to sign in' })).toBeInTheDocument()
+  })
+
+  it('AC-016: requesting a new link sends it and shows the on-its-way result', async () => {
+    mockAuthState = { status: 'unauthenticated' }
+    mockResetPassword.mockResolvedValue({
+      data: {},
+      error: null,
+    } as Awaited<ReturnType<typeof supabase.auth.resetPasswordForEmail>>)
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    await user.type(screen.getByLabelText('Email'), ' user@example.test ')
+    await user.click(screen.getByRole('button', { name: 'Request a new link' }))
+
+    await waitFor(() => {
+      expect(mockResetPassword).toHaveBeenCalledWith('user@example.test', {
+        redirectTo: new URL(appUrl('/recovery'), window.location.origin).href,
+      })
+    })
+    expect(
+      await screen.findByText('If an account exists for that address, a reset link is on its way.'),
+    ).toBeInTheDocument()
+    // The result state replaces the card body — the form is gone, the other way out stays.
+    expect(screen.queryByRole('button', { name: 'Request a new link' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Back to sign in' })).toBeInTheDocument()
+  })
+
+  it.each([
+    ['malformed email on click', 'not-an-email', 'not-an-email', 'click'],
+    ['malformed email on Enter', 'not-an-email', 'not-an-email', 'enter'],
+    ['blank email on click', '', '', 'click'],
+    ['whitespace email on Enter', '   ', '', 'enter'],
+  ] as const)('%s stays editable and explains the field without requesting recovery', async (_case, value, displayedValue, submitBy) => {
+    mockAuthState = { status: 'unauthenticated' }
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    const email = screen.getByLabelText('Email')
+    if (value) await user.type(email, value)
+    if (submitBy === 'click') {
+      await user.click(screen.getByRole('button', { name: 'Request a new link' }))
+    } else {
+      await user.click(email)
+      await user.keyboard('{Enter}')
+    }
+
+    expect(email).toHaveValue(displayedValue)
+    expect(email).toHaveAttribute('aria-invalid', 'true')
+    const errorId = email.getAttribute('aria-describedby')
+    expect(errorId).toBeTruthy()
+    expect(document.getElementById(errorId!)).toHaveTextContent('Enter a valid email address.')
+    expect(screen.getByRole('button', { name: 'Request a new link' })).toBeInTheDocument()
+    expect(mockResetPassword).not.toHaveBeenCalled()
+  })
+
+  it('clears stale recovery guidance when the address is corrected', async () => {
+    mockAuthState = { status: 'unauthenticated' }
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    const email = screen.getByLabelText('Email')
+    await user.type(email, 'not-an-email')
+    await user.click(screen.getByRole('button', { name: 'Request a new link' }))
+    expect(email).toHaveAttribute('aria-invalid', 'true')
+
+    await user.clear(email)
+    await user.type(email, 'person@example.test')
+
+    expect(email).not.toHaveAttribute('aria-invalid', 'true')
+    expect(screen.queryByText('Enter a valid email address.')).not.toBeInTheDocument()
+    expect(mockResetPassword).not.toHaveBeenCalled()
+  })
+
+  it('shows recovery validation guidance in the active locale', async () => {
+    mockAuthState = { status: 'unauthenticated' }
+    const user = userEvent.setup()
+    render(
+      <I18nProvider initialLocale="id">
+        <RecoveryPage />
+      </I18nProvider>,
+    )
+
+    await user.type(screen.getByLabelText('Email'), 'not-an-email')
+    await user.click(screen.getByRole('button', { name: 'Minta tautan baru' }))
+
+    expect(screen.getByText('Masukkan alamat email yang valid.')).toBeInTheDocument()
+    expect(mockResetPassword).not.toHaveBeenCalled()
+  })
+
+  it('AC-016: a refused re-send is indistinguishable from a successful one', async () => {
+    mockAuthState = { status: 'unauthenticated' }
+    mockResetPassword.mockResolvedValue({
+      data: null,
+      error: { message: 'rate limit', status: 429 },
+    } as unknown as Awaited<ReturnType<typeof supabase.auth.resetPasswordForEmail>>)
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
+    await user.click(screen.getByRole('button', { name: 'Request a new link' }))
+
+    expect(
+      await screen.findByText('If an account exists for that address, a reset link is on its way.'),
+    ).toBeInTheDocument()
+  })
+
+  it('a rejected re-send shows the same generic confirmation without server detail', async () => {
+    mockAuthState = { status: 'unauthenticated' }
+    mockResetPassword.mockRejectedValue(new Error('network detail must stay private'))
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
+    await user.click(screen.getByRole('button', { name: 'Request a new link' }))
+
+    expect(
+      await screen.findByText('If an account exists for that address, a reset link is on its way.'),
+    ).toBeInTheDocument()
+    expect(document.body.textContent).not.toContain('network detail must stay private')
+    expect(screen.getByRole('link', { name: 'Back to sign in' })).toBeInTheDocument()
+  })
+})

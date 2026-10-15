@@ -1,0 +1,245 @@
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
+import type { SignalRow } from '@/lib/db/signals.types'
+import type { CollectionPresentationProps, CollectionProjection } from '@/lib/record-collection/types'
+import { SignalTablePresentation } from './signal-table-presentation'
+import { SignalCollectionActionsProvider, type SignalCollectionActions } from './signal-collection-actions'
+import type { SignalCollectionContext, SignalCollectionQuery, SignalRenderGroup } from './signal-collection-adapter'
+import { signalCollectionQuery } from './signal-collection-adapter'
+
+const SIGNAL_COLLECTION_NEUTRAL_QUERY = signalCollectionQuery.neutral
+
+const desktopState = vi.hoisted(() => ({ value: true }))
+vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => desktopState.value }))
+
+function row(overrides: Partial<SignalRow> = {}): SignalRow {
+  return {
+    id: 'signal-1', author_id: 'p-author-a', owning_team_id: 'team-hq', audience: 'team',
+    occurred_at: '2026-07-16T02:00:00Z', body: 'The freezer alarm went off',
+    attention: 'Needs attention', category: null, source: 'human',
+    retracted_at: null, retract_reason: null, edited_at: null,
+    created_at: '2026-07-16T02:00:00Z',
+    ...overrides,
+  }
+}
+
+const CONTEXT: SignalCollectionContext = {
+  authorNamesById: new Map([['p-author-a', 'Author One']]),
+  teamNamesById: new Map([['team-hq', 'HQ Operations']]),
+  siteNamesByTeamId: new Map(),
+  viewerId: 'p-me',
+}
+
+function renderTable(
+  rows: readonly SignalRow[],
+  selectedIds = new Set<string>(),
+  onToggleSelected = vi.fn(),
+  onOpenRecord = vi.fn(),
+  actions: SignalCollectionActions = {},
+  locale: 'en' | 'id' = 'en',
+) {
+  const projection: CollectionProjection<SignalRow, SignalRenderGroup> = {
+    visibleRecords: rows,
+    groups: [{ key: 'all', label: null, rows }],
+    totalRecords: rows.length,
+    visibleRecordsAreFiltered: false,
+  }
+  const props: CollectionPresentationProps<
+    SignalRow,
+    SignalCollectionQuery,
+    CollectionProjection<SignalRow, SignalRenderGroup>,
+    SignalCollectionContext,
+    string
+  > = {
+    query: SIGNAL_COLLECTION_NEUTRAL_QUERY,
+    projection,
+    context: CONTEXT,
+    selectedIds,
+    onToggleSelected,
+    onOpenRecord,
+    onToggleGroup: vi.fn(),
+    isGroupCollapsed: () => false,
+  }
+  const utils = render(
+    <I18nProvider initialLocale={locale}>
+      <MemoryRouter initialEntries={['/work/signals']}>
+        <SignalCollectionActionsProvider actions={actions}>
+          <SignalTablePresentation {...props} />
+        </SignalCollectionActionsProvider>
+      </MemoryRouter>
+    </I18nProvider>,
+  )
+  return { ...utils, onToggleSelected }
+}
+
+describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () => {
+  it('FR-V3-002: renders Signal fields and NEVER a Task PIC / Supervisor / Status column', () => {
+    renderTable([row({ body: 'The freezer alarm went off', category: 'Equipment/facility' })])
+    // Signal-specific content is present.
+    expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument()
+    expect(screen.getByText('Author One')).toBeInTheDocument()
+    expect(screen.getByText('HQ Operations')).toBeInTheDocument()
+    expect(screen.getByText('Needs attention')).toBeInTheDocument()
+    expect(screen.getByText('Equipment/facility')).toBeInTheDocument()
+    // A Signal is never dressed up as a Task.
+    expect(screen.queryByText(/^PIC$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/supervisor/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /status/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'The freezer alarm went off' })).toBeInTheDocument()
+  })
+
+  it('renders localized category and attention labels in Indonesian, not stored enum values', () => {
+    renderTable([
+      row({ category: 'Equipment/facility', attention: 'Urgent' }),
+    ], undefined, undefined, undefined, undefined, 'id')
+    expect(screen.getByText('Peralatan/fasilitas')).toBeInTheDocument()
+    expect(screen.getByText('Mendesak')).toBeInTheDocument()
+    expect(screen.queryByText('Equipment/facility')).not.toBeInTheDocument()
+    expect(screen.queryByText('Urgent')).not.toBeInTheDocument()
+  })
+
+  it('GAP-9 (OD-91 #14): the Signal table inherits the shared j/k row cursor — j moves it, Enter opens the cursor row', async () => {
+    const onOpenRecord = vi.fn()
+    renderTable(
+      [row({ id: 's-1', body: 'First signal' }), row({ id: 's-2', body: 'Second signal' })],
+      new Set<string>(), vi.fn(), onOpenRecord,
+    )
+    const user = userEvent.setup()
+    // j lands the cursor on the first row…
+    await user.keyboard('j')
+    expect(screen.getByText('First signal').closest('tr')).toHaveClass('kfocus')
+    // …a second j moves it to the second row…
+    await user.keyboard('j')
+    expect(screen.getByText('Second signal').closest('tr')).toHaveClass('kfocus')
+    expect(screen.getByText('First signal').closest('tr')).not.toHaveClass('kfocus')
+    // …and Enter opens the cursor row through the shared onOpenRecord seam.
+    await user.keyboard('{Enter}')
+    expect(onOpenRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 's-2' }))
+  })
+
+  it('AC-V3-014: Signal table headers use the same native keyboard-sort contract as Tasks', async () => {
+    const onSort = vi.fn()
+    renderTable([row()], new Set(), vi.fn(), vi.fn(), { onSort })
+
+    const occurredAt = screen.getByRole('button', { name: /^occurred$/i })
+    expect(occurredAt.tagName).toBe('BUTTON')
+    expect(occurredAt.closest('th')).toHaveAttribute('aria-sort', 'descending')
+    await userEvent.click(occurredAt)
+    expect(onSort).toHaveBeenCalledWith('occurredAt', 'ascending')
+
+    const attention = screen.getByRole('button', { name: /^attention$/i })
+    expect(attention.closest('th')).toHaveAttribute('aria-sort', 'none')
+    await userEvent.click(attention)
+    expect(onSort).toHaveBeenCalledWith('attention', 'ascending')
+  })
+
+  // Signals are captured for All Teams, so the Team column is empty on current rows. It
+  // renders only when a visible row actually carries an owning Team (historical team audiences).
+  it('omits the Team column when no visible Signal has an owning Team', () => {
+    renderTable([row({ owning_team_id: null, audience: 'org' })])
+    expect(screen.getByRole('columnheader', { name: /message/i })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: 'Team' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the Team column when a visible Signal has an owning Team', () => {
+    renderTable([row({ owning_team_id: 'team-hq' })])
+    expect(screen.getByRole('columnheader', { name: 'Team' })).toBeInTheDocument()
+    expect(screen.getByText('HQ Operations')).toBeInTheDocument()
+  })
+
+  it('NFR-V3-001: a retracted Signal is an explicit tombstone (message + reason), not a link', () => {
+    renderTable([row({ id: 's-dead', retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'Duplicate' })])
+    expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument()
+    expect(screen.getByText('Duplicate')).toBeInTheDocument()
+    // No canonical link for a tombstone row.
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  // Issue: Grouping must visibly group — the adapter computes projection.groups, but the
+  // table flattens visibleRecords. RED: group headers should render with collapse/expand.
+  it('FR-V3-GROUP: renders group headers with caret toggle when projection.groups is provided', () => {
+    const rows = [
+      row({ id: 's1', owning_team_id: 'team-hq', body: 'Team HQ signal' }),
+      row({ id: 's2', owning_team_id: 'team-radiant', body: 'Team Radiant signal' }),
+    ]
+    const groups: SignalRenderGroup[] = [
+      { key: 'team-hq', label: 'HQ Operations', rows: [rows[0]] },
+      { key: 'team-radiant', label: 'Radiant Operations', rows: [rows[1]] },
+    ]
+    const projection: CollectionProjection<SignalRow, SignalRenderGroup> = {
+      visibleRecords: rows,
+      groups,
+      totalRecords: rows.length,
+      visibleRecordsAreFiltered: false,
+    }
+    const props: CollectionPresentationProps<
+      SignalRow,
+      SignalCollectionQuery,
+      CollectionProjection<SignalRow, SignalRenderGroup>,
+      SignalCollectionContext,
+      string
+    > = {
+      query: SIGNAL_COLLECTION_NEUTRAL_QUERY,
+      projection,
+      context: CONTEXT,
+      selectedIds: new Set(),
+      onToggleSelected: vi.fn(),
+      onOpenRecord: vi.fn(),
+      onToggleGroup: vi.fn(),
+      isGroupCollapsed: (groupId) => groupId === 'team-radiant',
+    }
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/work/signals']}>
+          <SignalTablePresentation {...props} />
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    // Each group header names its group and carries the row count; the collapsed one reports it.
+    const hq = screen.getByRole('button', { name: 'HQ Operations (1)' })
+    expect(hq).toHaveAttribute('aria-expanded', 'true')
+    const radiant = screen.getByRole('button', { name: 'Radiant Operations (1)' })
+    expect(radiant).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  // Issue: Every Signal presentation must use the injected opener and preserve collection query state.
+  // The table currently hardcodes `/work/signals?record=...` instead of calling onOpenRecord.
+  // RED: clicking a row should call onOpenRecord, not navigate via hardcoded link.
+  it('FR-V3-OPENER: clicking a signal row calls the injected onOpenRecord (not a hardcoded link)', async () => {
+    const onOpenRecord = vi.fn()
+    renderTable([row({ id: 'signal-42', body: 'Espresso machine repaired' })], new Set(), vi.fn(), onOpenRecord)
+    // Click the span with role=button (not the text node)
+    const messageCell = screen.getByRole('button', { name: 'Espresso machine repaired' })
+    expect(messageCell).toHaveAttribute('type', 'button')
+    await userEvent.click(messageCell)
+    expect(onOpenRecord).toHaveBeenCalledTimes(1)
+    expect(onOpenRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 'signal-42' }))
+    // The hardcoded link should NOT be present
+    const link = screen.queryByRole('link', { name: 'Espresso machine repaired' })
+    expect(link).not.toBeInTheDocument()
+  })
+
+  // Issue: Remove the phantom selection affordance — descriptor advertises selection and table
+  // renders checkboxes, but no Signal bulk actions exist. RED: selection column should not render.
+  it('NFR-V3-NO-SELECTION: no selection checkbox column is rendered (no bulk actions)', () => {
+    renderTable([row({ id: 'signal-1' })])
+    expect(screen.queryByRole('checkbox', { name: /select signal/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /select/i })).not.toBeInTheDocument()
+  })
+
+  it('phone cards retain the Signal fields', () => {
+    desktopState.value = false
+    try {
+      renderTable([row({ body: 'Phone-readable signal', category: 'Equipment/facility' })])
+      expect(screen.getByRole('button', { name: 'Phone-readable signal' })).toBeInTheDocument()
+      expect(screen.getByText('Author One')).toBeInTheDocument()
+      expect(screen.getByText('Equipment/facility')).toBeInTheDocument()
+    } finally {
+      desktopState.value = true
+    }
+  })
+})

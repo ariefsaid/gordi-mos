@@ -1,0 +1,264 @@
+/**
+ * ProfilePage: identity read-only + language SELECTION.
+ * Goal-oracle: choosing Bahasa Indonesia actually switches the app's language (the rendered page
+ * re-labels), and the choice is saved to the signed-in account (#927), never to the browser.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, cleanup, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
+import { AccountLocaleProvider } from '@/i18n/account-locale'
+import type { Locale } from '@/i18n/messages'
+import { ThemeProvider } from '@/theme/theme-provider'
+import { ProfilePage } from './profile-page'
+
+const { mockGetUser, mockUpdateUser, mockReauthenticate } = vi.hoisted(() => ({
+  mockGetUser: vi.fn(), mockUpdateUser: vi.fn(), mockReauthenticate: vi.fn(),
+}))
+vi.mock('@/lib/supabase', () => ({
+  supabase: { auth: { getUser: mockGetUser, updateUser: mockUpdateUser, reauthenticate: mockReauthenticate } },
+}))
+vi.mock('@/auth/use-auth')
+import { useAuth } from '@/auth/use-auth'
+const mockUseAuth = vi.mocked(useAuth)
+
+// The account's stored language, standing in for shared.person_preferences.
+const accountStore = new Map<string, Locale>()
+vi.mock('@/lib/db/account-locale', () => ({
+  readAccountLocale: vi.fn(async (personId: string) => accountStore.get(personId) ?? null),
+  saveAccountLocale: vi.fn(async (personId: string, locale: Locale) => { accountStore.set(personId, locale) }),
+}))
+import { readAccountLocale, saveAccountLocale } from '@/lib/db/account-locale'
+const mockRead = vi.mocked(readAccountLocale)
+const mockSave = vi.mocked(saveAccountLocale)
+
+function setViewer(positionCount = 2) {
+  const positions = [
+    { id: 'r1', org_id: 'o1', business_unit_id: 'bu1', name: 'Cafe Ops Lead', reports_to_role_id: null, created_at: '', updated_at: '' },
+    { id: 'r2', org_id: 'o1', business_unit_id: 'bu2', name: 'Sales Lead', reports_to_role_id: null, created_at: '', updated_at: '' },
+  ]
+  mockUseAuth.mockReturnValue({
+    status: 'authenticated',
+    viewer: {
+      person: {
+        id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Cahya Cafe',
+        email: 'cahya@example.test', must_change_password: false, archived_at: null,
+        created_at: '', updated_at: '',
+      },
+      roles: positions.slice(0, positionCount),
+      isManager: true,
+      accessRoles: ['ops_lead'],
+      affiliated: [],
+    },
+    signOut: vi.fn(),
+  })
+}
+
+// Settles on the account's saved language: until it loads, the control is disabled.
+async function renderPage() {
+  renderLoading()
+  await waitFor(() => expect(screen.getByRole('combobox', { name: /^(Language|Bahasa)$/ })).toBeEnabled())
+}
+
+function renderLoading() {
+  return render(
+    <ThemeProvider>
+      <I18nProvider>
+        <AccountLocaleProvider>
+          <MemoryRouter initialEntries={['/profile']}>
+            <ProfilePage />
+          </MemoryRouter>
+        </AccountLocaleProvider>
+      </I18nProvider>
+    </ThemeProvider>,
+  )
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  localStorage.clear()
+  accountStore.clear()
+  setViewer()
+  mockGetUser.mockResolvedValue({ data: { user: { app_metadata: { providers: ['email'] } } }, error: null })
+  mockUpdateUser.mockResolvedValue({ data: { user: null }, error: null })
+  mockReauthenticate.mockResolvedValue({ error: null })
+})
+
+// The password form stays folded away until the person asks to change it.
+async function openPasswordForm(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /^(Change password|Set a password)$/ }))
+}
+
+async function chooseLanguage(user: ReturnType<typeof userEvent.setup>, from: string, option: string) {
+  await user.click(screen.getByRole('combobox', { name: from }))
+  await user.click(screen.getByRole('option', { name: option }))
+}
+
+describe('PORT-024: ProfilePage', () => {
+  it('submits a new password through updateUser', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+    await openPasswordForm(user)
+    await user.type(screen.getByLabelText(/new password/i), 'NewPass123!')
+    await user.type(screen.getByLabelText(/confirm password/i), 'NewPass123!')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+    await waitFor(() => expect(mockUpdateUser).toHaveBeenCalledWith({ password: 'NewPass123!' }))
+  })
+
+  it('requests a code when reauthentication is needed and resubmits the code as nonce', async () => {
+    mockUpdateUser.mockResolvedValueOnce({ error: { code: 'reauthentication_needed' } })
+    const user = userEvent.setup()
+    await renderPage()
+    await openPasswordForm(user)
+    for (const name of [/new password/i, /confirm password/i]) await user.type(screen.getByLabelText(name), 'NewPass123!')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+    await user.type(await screen.findByLabelText('Email verification code'), '123456')
+    expect(mockReauthenticate).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+    await waitFor(() => expect(mockUpdateUser).toHaveBeenLastCalledWith({ password: 'NewPass123!', nonce: '123456' }))
+  })
+
+  it('confirms a successful password change and clears the password fields', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+    await openPasswordForm(user)
+    for (const name of [/new password/i, /confirm password/i]) await user.type(screen.getByLabelText(name), 'NewPass123!')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+    expect(await screen.findByRole('status')).toHaveTextContent("Your password was changed. You're still signed in.")
+    expect(screen.getByLabelText(/new password/i)).toHaveValue('')
+    expect(screen.getByLabelText(/confirm password/i)).toHaveValue('')
+  })
+
+  it('offers Set a password for a Google-only account', async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: { app_metadata: { providers: ['google'] } } }, error: null })
+    await renderPage()
+    expect(await screen.findByRole('button', { name: 'Set a password' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Change password' })).toBeNull()
+  })
+
+  it('exposes the personal Home layout picker with Focused as the default', async () => {
+    await renderPage()
+    expect(screen.getByRole('heading', { name: 'Home layout' })).toBeInTheDocument()
+    expect(screen.getAllByRole('radio')).toHaveLength(3)
+    expect(screen.getByRole('radio', { name: /focused/i })).toBeChecked()
+  })
+
+  it('links to the signed-in person’s connected-agent settings', async () => {
+    await renderPage()
+    expect(screen.getByRole('link', { name: 'Manage connected agents' })).toHaveAttribute('href', '/profile/connected-agents')
+  })
+
+  it('FR-921: selecting Overview persists the choice and applies it on a fresh Profile mount', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+
+    await user.click(screen.getByRole('radio', { name: /overview/i }))
+    expect(screen.getByRole('radio', { name: /overview/i })).toBeChecked()
+    expect(localStorage.getItem('gordi.home.layout.p1')).toBe('overview')
+
+    cleanup()
+    await renderPage()
+    expect(screen.getByRole('radio', { name: /overview/i })).toBeChecked()
+  })
+
+  it('FR-921: a storage write failure does not block the session choice', async () => {
+    const user = userEvent.setup()
+    const originalSetItem = localStorage.setItem
+    try {
+      localStorage.setItem = () => { throw new Error('quota') }
+      await renderPage()
+      await user.click(screen.getByRole('radio', { name: /list/i }))
+      expect(screen.getByRole('radio', { name: /list/i })).toBeChecked()
+    } finally {
+      localStorage.setItem = originalSetItem
+    }
+  })
+
+  it('renders read-only Identity — Person and Position as plain text rows (not input-look), managed by Admin', async () => {
+    await renderPage()
+    // Organization Positions are distinct from the viewer's access roles. Read-only identity is
+    // plain labelled text, not an editable/input-styled field.
+    const personTerm = screen.getByText('Person')
+    expect(personTerm.tagName).toBe('DT')
+    expect(screen.getByText('Cahya Cafe').tagName).toBe('DD')
+    expect(screen.getByText('Position').tagName).toBe('DT')
+    expect(screen.getByText('Cafe Ops Lead · Sales Lead').tagName).toBe('DD')
+    expect(screen.queryByText('Roles')).toBeNull()
+    // No input-look: identity is never rendered as a form control.
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(screen.getByText(/Managed by Admin.*position/)).toBeInTheDocument()
+  })
+
+  it('uses the Position label for one organization position', async () => {
+    setViewer(1)
+    await renderPage()
+
+    expect(screen.getByText('Position').tagName).toBe('DT')
+    expect(screen.queryByText('Role')).toBeNull()
+  })
+
+  it('goal (page-scope: this harness mounts ProfilePage only): selecting Bahasa re-renders in Indonesian and is saved to the account', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+    // English baseline
+    expect(screen.getByRole('heading', { name: 'Personal profile' })).toBeInTheDocument()
+    await chooseLanguage(user, 'Language', 'Bahasa Indonesia')
+    // The page itself re-renders in Indonesian — the goal, not the mechanism
+    expect(await screen.findByRole('heading', { name: 'Profil pribadi' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Bahasa' })).toHaveTextContent('Bahasa Indonesia')
+    // …and its BODY re-renders too, not just the title. `useT` falls back to `en` silently when a
+    // key is missing from the `id` catalog, so a page that switches its heading and keeps English
+    // cards passes every title-only assertion. Found by mutation: replacing an `id` card string
+    // with its `en` twin left the rest of this file green. Every card heading is checked.
+    for (const heading of ['Bahasa', 'Tata letak Beranda', 'Keamanan']) {
+      expect(screen.getByRole('heading', { level: 2, name: heading })).toBeInTheDocument()
+    }
+    expect(screen.getByRole('region', { name: 'Identitas' })).toBeInTheDocument()
+    for (const english of ['Home layout', 'Security']) {
+      expect(screen.queryByRole('heading', { name: english })).toBeNull()
+    }
+    expect(screen.getByText('Orang').tagName).toBe('DT')
+    expect(screen.getByText('Jabatan').tagName).toBe('DT')
+    expect(screen.queryByText('Peran')).toBeNull()
+    expect(screen.getByText(/Dikelola Admin.*jabatan/)).toBeInTheDocument()
+    // Saved to the signed-in account (#927) — and honored on a fresh mount, not just in memory.
+    expect(mockSave).toHaveBeenCalledWith('p1', 'id')
+    expect(localStorage.getItem('mos.locale')).toBeNull()
+    cleanup()
+    await renderPage()
+    expect(await screen.findByRole('heading', { name: 'Profil pribadi' })).toBeInTheDocument()
+  })
+
+  it('a failed save says so and keeps the language actually in use', async () => {
+    mockSave.mockRejectedValueOnce(new Error('offline'))
+    const user = userEvent.setup()
+    await renderPage()
+    await chooseLanguage(user, 'Language', 'Bahasa Indonesia')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Your language was not saved. The previous choice is still in use.')
+    expect(screen.getByRole('combobox', { name: 'Language' })).toHaveTextContent('English')
+    expect(screen.getByRole('heading', { name: 'Personal profile' })).toBeInTheDocument()
+    expect(accountStore.size).toBe(0)
+  })
+
+  it('when the saved language cannot be read, it says English is standing in', async () => {
+    mockRead.mockRejectedValueOnce(new Error('offline'))
+    await renderPage()
+    expect(screen.getByRole('status')).toHaveTextContent('Your saved language could not be loaded, so English is shown for now.')
+  })
+
+  it('the language control stays disabled while the account’s saved value loads', async () => {
+    renderLoading()
+    expect(screen.getByRole('combobox', { name: 'Language' })).toBeDisabled()
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Language' })).toBeEnabled())
+  })
+
+  it('sets the document title through the catalog, so an Indonesian session gets an Indonesian tab', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+    expect(document.title).toBe('Personal profile — Gordi MOS')
+    await chooseLanguage(user, 'Language', 'Bahasa Indonesia')
+    await waitFor(() => expect(document.title).toBe('Profil pribadi — Gordi MOS'))
+  })
+
+})

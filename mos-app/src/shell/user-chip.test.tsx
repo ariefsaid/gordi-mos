@@ -1,0 +1,287 @@
+import type { ReactElement } from 'react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
+
+vi.mock('../auth/use-auth')
+vi.mock('../theme/theme-provider')
+import { useAuth } from '@/auth/use-auth'
+import { useThemeContext } from '@/theme/theme-provider'
+
+const mockUseAuth = vi.mocked(useAuth)
+const mockUseThemeContext = vi.mocked(useThemeContext)
+
+// We import after mock to get the mocked version
+import { UserChip } from './user-chip'
+
+/**
+ * The chip's menu now carries a real <Link> to /profile (owner, 2026-08-26 — Personal Profile
+ * moved out of its Utility rail row and into this menu), so every render needs router context.
+ *
+ * A <Link> and not a button + navigate(): `nav-reachability.test.tsx` reads `a[href]` out of the
+ * DOM to prove the surface is still reachable, and a viewer gets ⌘-click and a status-bar preview.
+ */
+function renderChip(ui: ReactElement) {
+  return render(<MemoryRouter>{ui}</MemoryRouter>)
+}
+
+const baseViewer = {
+  person: {
+    id: '40000000-0000-0000-0000-000000000001',
+    org_id: '10000000-0000-0000-0000-000000000001',
+    user_id: 'auth-user-001',
+    full_name: 'Dina Pratiwi',
+    email: 'dina@example.test',
+    archived_at: null,
+    must_change_password: false,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  },
+  isManager: false,
+  accessRoles: [],
+  affiliated: [],
+}
+
+const signOut = vi.fn()
+
+function makeRole(id: string, name: string) {
+  return {
+    id,
+    org_id: '10000000-0000-0000-0000-000000000001',
+    business_unit_id: '20000000-0000-0000-0000-000000000001',
+    name,
+    reports_to_role_id: null,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  }
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  // Provide a default theme context so AppearanceControl renders without throwing
+  mockUseThemeContext.mockReturnValue({
+    theme: 'light',
+    resolvedTheme: 'light',
+    setTheme: vi.fn(),
+  })
+})
+
+// AC-005: user chip + keyboard sign-out menu
+describe('AC-005: UserChip and sign-out menu', () => {
+  it('shows name "Dina Pratiwi" and role "Kitchen Lead"', () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    renderChip(<UserChip />)
+    expect(screen.getByText('Dina Pratiwi')).toBeInTheDocument()
+    expect(screen.getByText('Kitchen Lead')).toBeInTheDocument()
+  })
+
+  // AC-D03 (RI-3, ADR-0013 D2): the identity-bearing user name is a single-line string —
+  // it must ellipsize (truncate) AND carry a `title` so the full name is recoverable on hover
+  // when clipped (no-bleed regression).
+  it('AC-D03: user name carries a title attribute so the full name is recoverable', () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    renderChip(<UserChip />)
+    const name = screen.getByText('Dina Pratiwi')
+    expect(name.getAttribute('title')).toBe('Dina Pratiwi')
+  })
+
+  it('AC-017 pin: opens menu on Enter key and shows Sign out item', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    renderChip(<UserChip />)
+    const chip = screen.getByRole('button', { name: /dina pratiwi/i })
+    chip.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument()
+  })
+
+  it('Escape closes menu and returns focus to chip', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    renderChip(<UserChip />)
+    const chip = screen.getByRole('button', { name: /dina pratiwi/i })
+    chip.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(chip).toHaveFocus()
+  })
+
+  // Convention audit 2026-07-18 — the ONE popover contract (useMenuPopover):
+  it('closes on outside mousedown (was: stuck-open overlay)', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    renderChip(<UserChip />)
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    fireEvent.mouseDown(document.body)
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+  })
+
+  it('WAI-ARIA menu keys: focus enters the menu on open; ArrowDown moves between items', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    renderChip(<UserChip />)
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    // Keep the mixed menuitem/menuitemradio controls in their actual DOM order.
+    const items = Array.from(screen.getByRole('menu').querySelectorAll<HTMLElement>(
+      '[role="menuitem"], [role="menuitemradio"]',
+    ))
+    expect(items.length).toBeGreaterThanOrEqual(4)
+    await waitFor(() => expect(items).toContain(document.activeElement))
+    const first = document.activeElement
+    fireEvent.keyDown(document, { key: 'ArrowDown' })
+    expect(items).toContain(document.activeElement)
+    expect(document.activeElement).not.toBe(first)
+    await user.keyboard('{Home}')
+    expect(items[0]).toHaveFocus()
+    await user.keyboard('{ArrowUp}')
+    expect(items.at(-1)).toHaveFocus()
+    await user.keyboard('{End}')
+    expect(items.at(-1)).toHaveFocus()
+  })
+
+  it('Tab closes the shared menu and moves focus beyond its opener', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    renderChip(<><UserChip /><button type="button">Next control</button></>)
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    await screen.findByRole('menu')
+    await user.keyboard('{Tab}')
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Next control' })).toHaveFocus())
+  })
+
+  it('clicking Sign out calls signOut once', async () => {
+    const mockSignOut = vi.fn().mockResolvedValue(undefined)
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut: mockSignOut,
+    })
+    const user = userEvent.setup()
+    renderChip(<UserChip />)
+    const chip = screen.getByRole('button', { name: /dina pratiwi/i })
+    chip.focus()
+    await user.keyboard('{Enter}')
+    await user.click(screen.getByRole('menuitem', { name: /sign out/i }))
+    expect(mockSignOut).toHaveBeenCalledOnce()
+  })
+})
+
+// AC-006: role-title rule
+describe('AC-006: Role-title rule', () => {
+  it('(a) shows earliest-assigned role (roles[0]) when viewer has two roles', () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: {
+        ...baseViewer,
+        roles: [makeRole('r1', 'Floor Lead'), makeRole('r2', 'Kitchen Lead')],
+      },
+      signOut,
+    })
+    renderChip(<UserChip />)
+    expect(screen.getByText('Floor Lead')).toBeInTheDocument()
+    expect(screen.queryByText('Kitchen Lead')).not.toBeInTheDocument()
+  })
+
+  it('(b) shows only name, no role line when viewer has zero roles', () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [] },
+      signOut,
+    })
+    renderChip(<UserChip />)
+    expect(screen.getByText('Dina Pratiwi')).toBeInTheDocument()
+    // No role text rendered at all
+    expect(screen.queryByText(/Lead|Manager|Director/i)).not.toBeInTheDocument()
+  })
+})
+
+// AC-138 integration: appearance control in the account menu
+describe('AC-138: Appearance control is in the account menu above Sign out', () => {
+  it('menu shows Light / Dark / System radios when opened', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    renderChip(<UserChip />)
+    const chip = screen.getByRole('button', { name: /dina pratiwi/i })
+    chip.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('menuitemradio', { name: /light/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitemradio', { name: /dark/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitemradio', { name: /system/i })).toBeInTheDocument()
+  })
+
+  it('clicking a theme option keeps menu open', async () => {
+    const setThemeMock = vi.fn()
+    mockUseThemeContext.mockReturnValue({
+      theme: 'light',
+      resolvedTheme: 'light',
+      setTheme: setThemeMock,
+    })
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    renderChip(<UserChip />)
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    await user.click(screen.getByRole('menuitemradio', { name: /dark/i }))
+    // Menu stays open after selecting a theme option
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(setThemeMock).toHaveBeenCalledWith('dark')
+  })
+
+  it('Sign out appears below the appearance options (separator present)', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    renderChip(<UserChip />)
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    // Both appearance and sign out are in the menu
+    expect(screen.getByRole('menuitemradio', { name: /light/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument()
+    // Separator present (aria-hidden so not in the accessible tree; verify via DOM)
+    const menu = screen.getByRole('menu')
+    expect(menu.querySelector('[role="separator"]')).toBeInTheDocument()
+  })
+})
