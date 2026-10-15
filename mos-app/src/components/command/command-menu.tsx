@@ -465,7 +465,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
             : !isCoarse && <kbd className="cm-foot-key">esc</kbd>}
         </div>
 
-        <div className="cm-body">
+        <div className="cm-body" tabIndex={0}>
           {!visibleGroups.length && !isSearching && (
             <div className="cm-empty" role="status">{t('commandMenu.empty.prompt')}</div>
           )}
