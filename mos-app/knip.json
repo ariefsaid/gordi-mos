@@ -3,7 +3,8 @@
   "entry": [
     "vite.config.ts",
     "playwright.config.ts",
-    "scripts/ui-check/*.mjs"
+    "scripts/ui-check/*.mjs",
+    "scripts/preview-preflight.mjs"
   ],
   "project": [
     "src/**/*.{ts,tsx}",

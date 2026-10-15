@@ -69,6 +69,7 @@ const detectPromise = (process.env.NO_DETECT || PAGES[area].detect === false) ? 
     return JSON.parse(raw || '[]')
   })
   const byVp = {}; for (const vp of viewports) byVp[vp] = (await batch(vp)) ?? perPage(vp) // one viewport at a time: one detector browser at once by default
+  fs.rmSync(path.dirname(sessionFile), { recursive: true, force: true }) // the session tokens live only for the scan
   const out = []
   for (const [name, { path: p }] of pages) for (const vp of viewports)
     for (const f of byVp[vp].filter((x) => x.file === `${base}${p}`)) out.push({ page: name, viewport: vp, rule: f.antipattern || f.id, where: f.selector || f.file, detail: f.description || f.message })
