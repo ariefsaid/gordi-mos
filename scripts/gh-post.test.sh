@@ -151,6 +151,11 @@ mv "$tmp/repo/docs/gh-denylist.txt" "$tmp/repo/docs/gone.txt"
 check "missing policy file = fail closed" 1 no issue comment 5 --body "anything"
 mv "$tmp/repo/docs/gone.txt" "$tmp/repo/docs/gh-denylist.txt"
 
+cp "$tmp/repo/docs/gh-denylist.txt" "$tmp/repo/docs/saved.txt"
+printf '%s\n' '(unclosed' >> "$tmp/repo/docs/gh-denylist.txt"
+check_message "an unusable policy pattern = fail closed" 1 no "pattern is unusable" issue comment 5 --body "anything"
+mv "$tmp/repo/docs/saved.txt" "$tmp/repo/docs/gh-denylist.txt"
+
 # ── PR stamps
 head="$(g "$tmp/repo" rev-parse HEAD)"
 gitdir="$(g "$tmp/repo" rev-parse --absolute-git-dir)"

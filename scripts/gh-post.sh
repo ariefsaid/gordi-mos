@@ -128,10 +128,13 @@ done
 while IFS= read -r pat; do
   case "$pat" in ''|'#'*) continue ;; esac
   for t in "${texts[@]}"; do
-    if printf '%s' "$t" | grep -Eiq -e "$pat"; then
+    # Here-string, not a pipe: see the changed-path check. A pattern grep cannot use refuses.
+    grep -Eiq -e "$pat" <<<"$t"; rc=$?
+    if [ "$rc" -eq 0 ]; then
       die "REFUSED — text matches posting-policy pattern: $pat
   This repo is public. Reword, or escalate to the owner. (Policy: $denylist)"
     fi
+    [ "$rc" -eq 1 ] || die "REFUSED — posting-policy pattern is unusable (grep exit $rc): $pat"
   done
 done < "$denylist"
 # ── Repo scope: every write through this door lands in THIS checkout's repo. An `api` path must
@@ -198,11 +201,11 @@ require_pr_stamps() { # $1 base branch ('' when none named)
     range_base="$(git merge-base "refs/remotes/origin/$base_val" HEAD 2>/dev/null || true)"
     if [ -z "$range_base" ]; then sensitive=1
     else
-      # The name list is captured first: `grep -q` quitting early would SIGPIPE git under pipefail and
-      # read as "not sensitive". --no-renames lists BOTH sides of a rename; quotePath=false keeps
+      # The name list is captured, then searched from a here-string: no pipe feeds `grep -q`, because a
+      # writer it quits early on would SIGPIPE under pipefail and read as "not sensitive". --no-renames lists BOTH sides of a rename; quotePath=false keeps
       # non-ASCII paths unquoted so the ^-anchored patterns hold. A failed diff fails closed.
       changed_paths="$(git -c core.quotePath=false diff --name-only --no-renames "$range_base" HEAD 2>/dev/null)" || sensitive=1
-      if printf '%s\n' "$changed_paths" | grep -Eiq '^supabase/|migration|\.sql$|rls|policy|auth|login|authority|permission|view-as|session|money|payment|billing|pricing|budget|revenue|expense|pending-bills|package(-lock)?\.json$|^adws/|^\.github/|^\.githooks/|^\.claude/|^scripts/(gh-|pre-pr|record-review|carry-stamps|lib/|ci-|setup-hooks|deploy-)'; then sensitive=1; fi
+      if grep -Eiq '^supabase/|migration|\.sql$|rls|policy|auth|login|authority|permission|view-as|session|money|payment|billing|pricing|budget|revenue|expense|pending-bills|package(-lock)?\.json$|^adws/|^\.github/|^\.githooks/|^\.claude/|^scripts/(gh-|pre-pr|record-review|carry-stamps|lib/|ci-|setup-hooks|deploy-)' <<<"$changed_paths"; then sensitive=1; fi
     fi
   fi
   if [ "$base_val" = main ] || [ "$base_val" = staging ]; then
