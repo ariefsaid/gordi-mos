@@ -39,6 +39,8 @@ export type RecordPanelHostProps = {
   focusKey?: string
   /** Skip initial focus for a persisted-open companion restored during page load. */
   focusOnOpen?: boolean
+  /** The panel came back through browser history (Back/Forward/reload): no control opened it, so Close returns focus to the record's own row link. */
+  openedByHistory?: boolean
   /**
    * Where open-focus lands instead of the content's first control — for a read-first panel whose
    * first control is a side link. Point it at the panel heading (with tabIndex={-1}).
@@ -93,7 +95,7 @@ function OpenPageIcon() {
 export function RecordPanelHost({
   label, onClose, closeLabel, children, focusKey, initialFocusRef, title, actions, onOpenPage, rootClassName, style,
   onBack, canGoBack, owner, entryKey, transitionPending, layout = 'standard',
-  companion = false, focusOnOpen = true,
+  companion = false, focusOnOpen = true, openedByHistory = false,
 }: RecordPanelHostProps) {
   // A shell-docked panel floats over the main region (always non-modal on a wide viewport); every
   // in-page panel needs the content track to hold list + panel, else it is a modal sheet.
@@ -124,15 +126,24 @@ export function RecordPanelHost({
   // The host outlives stacked-frame swaps; only closing the whole panel returns focus to its opener.
   useEffect(() => {
     invokerRef.current = (document.activeElement as HTMLElement) ?? null
-    // A panel restored by history (Back/Forward, reload) has no opener: fall back to the row link
-    // that names the same record in its URL, so Close still returns the user to their place.
-    const restoredId = new URLSearchParams(window.location.search).get('record')
+    // A panel restored by history (Back/Forward, reload) has no opener: whatever held focus then is not
+    // where the user came from, so Close returns to the row link that names the same record in the URL.
+    const url = new URL(window.location.href)
+    const named = url.searchParams.get('record') ?? url.pathname.split('/').pop() ?? ''
+    const restoredId = named.slice(named.lastIndexOf(':') + 1) // "task:<id>" or a bare id or path segment
+    const byHistory = openedByHistory
     return () => {
       const invoker = invokerRef.current
-      if (invoker?.isConnected && invoker !== document.body) { invoker.focus(); return }
-      if (!restoredId || /["\\]/.test(restoredId)) return
-      document.querySelector<HTMLElement>(`a[href*="record=${encodeURIComponent(restoredId)}"]`)?.focus()
+      // A navigation link cannot have opened a record; one holding focus here is left over from the
+      // page change that history just undid, so it does not count as the opener either.
+      const staleNavLink = invoker instanceof HTMLAnchorElement && invoker.closest('nav') !== null
+      const usable = !!invoker?.isConnected && invoker !== document.body && !staleNavLink
+      if (usable && !byHistory) { invoker.focus(); return }
+      const row = /^[A-Za-z0-9_-]{6,}$/.test(restoredId) ? document.querySelector<HTMLElement>(`main a[href*="${restoredId}"]`) : null
+      if (row) row.focus()
+      else if (usable) invoker.focus()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- captured once at mount on purpose
   }, [])
 
   // Move focus into each incoming frame without a cleanup that can steal it back to the opener.

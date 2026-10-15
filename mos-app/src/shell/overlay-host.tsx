@@ -795,6 +795,7 @@ export function OverlayHostSlot({
   onOpenPage?: (to: To, openPage: OverlayHostApi['openPage']) => void
 }): ReactElement {
   const { session, pendingLeave, close, back, openPage } = useOverlayHost()
+  const openedByHistory = useNavigationType() === 'POP'
   const top = session?.frames.at(-1)
   const active = top && top.entry.owner === owner ? top : null
   const canGoBack = (session?.frames.length ?? 0) > 1
@@ -827,6 +828,7 @@ export function OverlayHostSlot({
           owner={owner}
           entryKey={active.entry.key}
           focusKey={active.entry.key}
+          openedByHistory={openedByHistory}
           canGoBack={canGoBack}
           transitionPending={pendingLeave !== null}
           onBack={canGoBack ? () => void back() : undefined}
@@ -880,6 +882,7 @@ export function OverlayCompanionSlot({
 }): ReactElement {
   const session = useOptionalOverlayHost()?.session ?? null
   const isNarrow = useIsNarrow()
+  const openedByHistory = useNavigationType() === 'POP'
   const recordOpen = session?.frames.at(-1)?.entry.tenant === 'record'
   const layout = recordOpen
     ? isNarrow ? 'phone-over-record' : 'with-record'
@@ -916,6 +919,7 @@ export function OverlayCompanionSlot({
       entryKey={entry.key}
       focusKey={entry.key}
       focusOnOpen={focusOnOpen}
+      openedByHistory={openedByHistory}
       layout="companion"
       companion
       // Deputy registers above an open record, so one Escape dismisses only Deputy. Once it
