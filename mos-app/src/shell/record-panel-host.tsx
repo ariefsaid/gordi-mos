@@ -124,9 +124,14 @@ export function RecordPanelHost({
   // The host outlives stacked-frame swaps; only closing the whole panel returns focus to its opener.
   useEffect(() => {
     invokerRef.current = (document.activeElement as HTMLElement) ?? null
+    // A panel restored by history (Back/Forward, reload) has no opener: fall back to the row link
+    // that names the same record in its URL, so Close still returns the user to their place.
+    const restoredId = new URLSearchParams(window.location.search).get('record')
     return () => {
       const invoker = invokerRef.current
-      if (invoker?.isConnected && invoker !== document.body) invoker.focus()
+      if (invoker?.isConnected && invoker !== document.body) { invoker.focus(); return }
+      if (!restoredId || /["\\]/.test(restoredId)) return
+      document.querySelector<HTMLElement>(`a[href*="record=${encodeURIComponent(restoredId)}"]`)?.focus()
     }
   }, [])
 
