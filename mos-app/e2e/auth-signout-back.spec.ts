@@ -20,7 +20,7 @@ test('AC-002: sign-out and back-button guard', async ({ page }) => {
   await expect(page).toHaveTitle('Home — Gordi MOS', { timeout: 10_000 })
 
   // Sign out via the user chip menu (FR-006 — sign-out now in chip menu, T-031)
-  await page.getByRole('button', { name: /cahya cafe/i }).click()
+  await page.getByRole('button', { name: /cahya cafe/i }).and(page.locator('[aria-haspopup="menu"]')).click() // the user chip, not a Home signal row that names the same person
   await page.getByRole('menuitem', { name: /sign out/i }).click()
 
   // Assert we are at /login after sign-out

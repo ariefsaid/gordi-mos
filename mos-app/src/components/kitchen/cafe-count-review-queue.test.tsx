@@ -67,7 +67,7 @@ describe('CafeCountReviewQueue', () => {
   it('shows Count, Expected balance and Variance, while only a ready zero Variance can be confirmed', async () => {
     renderQueue()
     await openRow(/Raw flour/)
-    expect(fact('Count')).toHaveTextContent('2 kg')
+    expect(fact('Stock count')).toHaveTextContent('2 kg')
     expect(fact('Expected balance')).toHaveTextContent('2 kg')
     expect(fact('Variance')).toHaveTextContent('0 kg')
     expect(screen.getByRole('heading', { name: 'Raw flour' }).closest('article')).toHaveTextContent('Pantry')
@@ -86,7 +86,7 @@ describe('CafeCountReviewQueue', () => {
     await openRow(/Chickpeas/)
     expect(screen.getAllByText('Expected balance is not ready yet.').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument()
-    expect(screen.queryByText(/Stock/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /stock/i })).not.toBeInTheDocument() // no door to Stock while the balance is not ready
   })
 
   it('loads Submitted Counts across dates, oldest first, with each date in the shared short format', async () => {
@@ -109,7 +109,7 @@ describe('CafeCountReviewQueue', () => {
   it('says there are no Submitted Counts and leaves page refresh to Review', async () => {
     mockList.mockResolvedValue([])
     renderQueue()
-    expect(await screen.findByText('No Submitted Counts.')).toBeInTheDocument()
+    expect(await screen.findByText('No Submitted stock counts.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
   })
 
