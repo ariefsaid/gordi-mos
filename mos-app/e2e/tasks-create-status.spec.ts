@@ -8,6 +8,9 @@ import { loginAs } from './helpers/login'
 import { createTaskViaUI, selectTaskView } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
 
+// The record opens beside the list only on a wide content track.
+test.use({ viewport: { width: 1920, height: 1080 } })
+
 test('AC-090: create a task → it appears in the list → open detail → change status → persists', async ({ page }) => {
   // ── 1. Login as VIEWER ──────────────────────────────────────────────────────
   await loginAs(page, VIEWER.email, VIEWER.password)

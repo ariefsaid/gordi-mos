@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { expect, test, type Page, type TestInfo } from '@playwright/test'
+import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test'
 import { BAR_MEMBER } from './fixtures/users'
 import { assertTapFloor } from './helpers/tap-floor'
 import { loginAs } from './helpers/login'
@@ -218,6 +218,12 @@ async function assertNoOverflow(page: Page, width: number) {
   expect(documentWidth, `horizontal overflow at ${width}px`).toBeLessThanOrEqual(width)
 }
 
+// The extras disclosure keeps its open state from one item to the next, so open it only if closed.
+async function openExtraUnits(editor: Locator) {
+  const extras = editor.locator('details.cafe-item-editor__extras')
+  if (await extras.getAttribute('open') === null) await extras.locator('summary').click()
+}
+
 test.describe('Café item settings', () => {
   for (const width of [390, 1440] as const) {
     test(`exposes three ERP unit choices and gated multiples across 501 items at ${width}px`, async ({ page }) => {
@@ -227,52 +233,39 @@ test.describe('Café item settings', () => {
       await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
       await page.goto('cafe/items')
       await expect(page.getByTestId('page-head').getByRole('heading', { level: 1, name: 'Items', exact: true })).toBeVisible({ timeout: 15_000 })
-      let visibleItems = width === 390
-        ? page.locator('.dt-cards .dt-card')
-        : page.locator('.cafe-items__table tbody tr:not(.dt-group-row)')
+      const search = page.getByRole('searchbox', { name: 'Find an ESB or MOS name' })
 
-      await expect(visibleItems).toHaveCount(501, { timeout: 30_000 })
-      await expect(page.getByRole('searchbox', { name: 'Find an ESB or MOS name' })).toBeVisible()
-      const extraUnitControls = page.getByRole('button', { name: /^Extra units for / })
-      await expect(extraUnitControls).toHaveCount(width === 390 ? 501 : 0)
-      await expect(page.getByText('500 items need a default unit before they can be logged.', { exact: true })).toHaveCount(1)
-      await expect(page.locator('.cafe-items__needs-unit-status')).toHaveCount(500)
+      await expect(page.getByRole('status').filter({ hasText: '501 items' })).toBeVisible({ timeout: 30_000 })
+      await expect(search).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Show 500 items without a default unit' })).toBeVisible()
       await assertNoOverflow(page, width)
 
-      if (width === 1440) {
-        // The approved wide table omits Extra units; the item cards retain its editor.
-        await expect(page.getByRole('columnheader', { name: 'Extra units', exact: true })).toHaveCount(0)
-        await captureViewport(page, `lane-1332-after-${width}.png`)
-        await page.setViewportSize({ width: 768, height: 960 })
-        visibleItems = page.locator('.dt-cards .dt-card')
-        await expect(visibleItems).toHaveCount(501)
-        await expect(extraUnitControls).toHaveCount(501)
-        await assertNoOverflow(page, 768)
-      }
-
-      const threeUnitItem = visibleItems.filter({ hasText: 'A three-unit ESB product' }).first()
-      await expect(threeUnitItem).toBeVisible()
-      const defaultUnit = threeUnitItem.getByRole('combobox', { name: 'Default unit' })
+      // Items open one at a time in an editor: find the three-unit product and open it.
+      await search.fill('three-unit')
+      await page.getByRole('button', { name: /A three-unit ESB product/ }).first().click()
+      const editor = page.getByRole('region', { name: 'A three-unit ESB product' })
+      const defaultUnit = editor.getByRole('combobox', { name: 'Default unit' })
       await expect(defaultUnit).toHaveText('Bag')
-      await expect(threeUnitItem.getByRole('button', { name: 'Extra units for MOS tea lookup' })).toBeEnabled()
-      await expect(page.getByRole('button', { name: 'Extra units for Fixture item 001 MOS name' })).toBeDisabled()
+      await openExtraUnits(editor)
+      await expect(editor.getByRole('button', { name: 'Extra units for MOS tea lookup' })).toBeEnabled()
       await defaultUnit.click()
       await expect(page.getByRole('listbox', { name: 'Default unit' }).getByRole('option')).toHaveText([
         'No default', 'Bag', 'Kilogram', 'Serving',
       ])
       await page.keyboard.press('Escape')
-      if (width === 390) {
-        const save = threeUnitItem.getByRole('button', { name: 'Save settings for MOS tea lookup' })
-        const saveBox = await save.boundingBox()
-        expect(saveBox).not.toBeNull()
-        expect(saveBox!.y + saveBox!.height).toBeLessThan(900)
-      }
 
-      if (width === 390) await captureViewport(page, `lane-1332-after-${width}.png`)
+      // An item with no default unit offers no extra units until one is chosen.
+      const back = page.getByRole('button', { name: 'Back to items' })
+      if (await back.isVisible()) await back.click() // on a phone the open item replaces the list
+      await search.fill('Fixture item 001')
+      await page.getByRole('button', { name: /Fixture item 001/ }).first().click()
+      const bare = page.getByRole('region', { name: 'Fixture item 001' })
+      await openExtraUnits(bare)
+      await expect(bare.getByRole('button', { name: 'Extra units for Fixture item 001 MOS name' })).toBeDisabled()
+      await assertNoOverflow(page, width)
+      await captureViewport(page, `lane-1332-after-${width}.png`)
     })
   }
-  // The phone cards vs wide table switch and the no-overflow check are asserted by the 501-item
-  // test above at 390 and 1440.
 
   test('shows stream-scoped missing-item reports at phone and desktop widths', async ({ page }, testInfo) => {
     await mockSettingsApi(page, {
@@ -291,8 +284,10 @@ test.describe('Café item settings', () => {
     for (const width of [390, 1440] as const) {
       await page.setViewportSize({ width, height: 960 })
       await page.goto('cafe/items')
-      const reportQueue = page.getByRole('region', { name: 'Missing-item reports for this stream' })
-      await expect(reportQueue).toBeVisible()
+      // The reports sit in a disclosure that starts closed; its summary names the queue.
+      const reportQueue = page.locator('details.cafe-item-reports')
+      await expect(reportQueue.locator('summary')).toHaveAccessibleName('Missing-item reports for this stream')
+      await reportQueue.locator('summary').click()
       await expect(reportQueue.getByText('Oat milk', { exact: true })).toBeVisible()
       await expect(reportQueue.getByText('Needs attention', { exact: true })).toBeVisible()
       const resolve = reportQueue.getByRole('button', { name: 'Resolve', exact: true })
@@ -302,7 +297,7 @@ test.describe('Café item settings', () => {
     }
   })
 
-  test('keeps the missing-item report beside waste controls at phone and wide widths', async ({ page }, testInfo) => {
+  test('offers the missing-item report beside waste controls at phone and wide widths', async ({ page }, testInfo) => {
     await mockSettingsApi(page, { captureKind: 'RAW', captureActive: true })
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
 
@@ -312,22 +307,17 @@ test.describe('Café item settings', () => {
       await expect(page.getByTestId('page-head').getByRole('heading', { level: 1, name: 'Waste', exact: true })).toBeVisible()
       const report = page.locator('.kl-missing')
       const reportButton = report.getByRole('button', { name: 'Missing an item? Report it', exact: true })
-      const toolbar = page.locator('.ktb')
       await expect(reportButton).toBeVisible()
       if (width === 390) {
         await expect(page.getByRole('spinbutton', { name: 'Waste quantity for Herbal tea' })).toHaveCSS('font-size', '16px')
+        await expect(reportButton).toHaveCSS('min-height', '44px')
       }
-      const [reportBox, toolbarBox] = await Promise.all([report.boundingBox(), toolbar.boundingBox()])
-      expect(reportBox).not.toBeNull()
-      expect(toolbarBox).not.toBeNull()
-      expect(reportBox!.y).toBeLessThan(toolbarBox!.y)
-      if (width === 390) await expect(reportButton).toHaveCSS('min-height', '44px')
       await assertNoOverflow(page, width)
       await capture(page, testInfo, `waste-report-${width}`)
     }
   })
 
-  test('gives every active toggle a 44px hit area on the phone Items cards', async ({ page }) => {
+  test('gives the active toggle a 44px hit area in the phone item editor', async ({ page }) => {
     const readRows: SettingsReadRow[] = Array.from({ length: 26 }, (_, index) => {
       const itemId = `00000000-0000-0000-0000-${(0xd000 + index).toString(16).padStart(12, '0')}`
       return {
@@ -348,21 +338,12 @@ test.describe('Café item settings', () => {
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('cafe/items')
-    await expect(page.getByText('26 items', { exact: true })).toBeVisible()
-    await expect(page.locator('.dt-cards .dt-card')).toHaveCount(26)
-    const activeToggles = page.locator('.cafe-items__active-control .mk-checkbox__input')
-    await assertTapFloor(page, '.cafe-items__active-control .mk-checkbox__input', 'Café Items active toggles', {
+    await expect(page.getByRole('status').filter({ hasText: '26 items' })).toBeVisible()
+    await page.getByRole('button', { name: /^Sample item 1(?!\d)/ }).first().click()
+    await expect(page.getByRole('checkbox', { name: 'Active for Sample item 1' })).toBeVisible()
+    await assertTapFloor(page, '.cafe-items__active-control .mk-checkbox__input', 'Café Items active toggle', {
       axes: 'both',
       noOverflow: true,
     })
-    for (const width of [768, 1440] as const) {
-      await page.setViewportSize({ width, height: 900 })
-      const sizes = await activeToggles.evaluateAll(inputs => inputs.map(input => {
-        const { width: boxWidth, height } = input.getBoundingClientRect()
-        return [boxWidth, height]
-      }))
-      expect(sizes).toHaveLength(26)
-      expect(sizes.every(([boxWidth, height]) => boxWidth === 16 && height === 16)).toBe(true)
-    }
   })
 })

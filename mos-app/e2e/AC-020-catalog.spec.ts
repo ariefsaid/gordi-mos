@@ -81,7 +81,7 @@ test('AC-020: admin adds → renames → archives an objective; archived leaves 
   await objective.click()
 
   // ── Rename: the record title is inline editable ─────────────────────────────
-  await page.getByRole('button', { name: 'Edit Name', exact: true }).click()
+  await page.getByRole('button', { name: `${NAME}, Edit Name`, exact: true }).click()
   const nameField = page.getByRole('textbox', { name: 'Name', exact: true })
   await expect(nameField).toHaveValue(NAME)
   await nameField.fill(RENAMED)

@@ -23,6 +23,9 @@ import { loginAs } from './helpers/login'
 import { createTaskViaUI } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
 
+// The record opens beside the list only on a wide content track.
+test.use({ viewport: { width: 1920, height: 1080 } })
+
 test.describe('DO-18 — a clean Task record panel closes and stays closed', () => {
   test('✕ Close dismisses a clean task record and it does NOT re-open (?record= is cleared)', async ({ page }) => {
     await loginAs(page, VIEWER.email, VIEWER.password)
@@ -45,7 +48,7 @@ test.describe('DO-18 — a clean Task record panel closes and stays closed', () 
 
     // Clean record → clicking ✕ Close must dismiss it with no retain/discard dialog.
     await expect(page.getByRole('dialog')).toHaveCount(0)
-    await drawer.getByRole('button', { name: 'Close' }).click()
+    await drawer.getByRole('button', { name: 'Close', exact: true }).click()
 
     // The record closes AND the address bar no longer carries ?record=.
     await expect(drawer).toBeHidden({ timeout: 8_000 })

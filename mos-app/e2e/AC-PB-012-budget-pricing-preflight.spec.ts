@@ -42,7 +42,7 @@ test.describe('AC-PB-012: Plan budget capture → pricing pre-flight', () => {
     await page.getByLabel('Candidate price (Rp)').fill('45000')
 
     await expect(page.getByTestId('pricing-result')).toContainText('Gross margin')
-    await expect(page.getByTestId('pricing-result')).toContainText('Margin %')
+    await expect(page.getByTestId('pricing-result')).toContainText('Gross margin %')
     await expect(page.getByTestId('pricing-freshness-warning')).toContainText(/do not price against this basis/i)
     await expect(page.getByRole('status').filter({ hasText: /stale/i })).toBeVisible()
   })

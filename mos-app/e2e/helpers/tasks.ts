@@ -1,5 +1,6 @@
 // Reusable task helpers for e2e journeys.
 import { expect, type Page } from '@playwright/test'
+import { chooseSelectOption } from './select'
 
 /**
  * Create a task through the real UI and return the new task's detail URL.
@@ -31,9 +32,8 @@ export async function createTaskViaUI(
     await emptyDoor.first().click()
   }
 
-  // The draft row mounts as the one inline create form (task-create-form.tsx) with its title
-  // focused — no route change. Its submit button shares the head door's "Create task" name, so
-  // every control is scoped to the form.
+  // The Create task capture page (?create=1 stays in the URL while the draft is open) has the one
+  // form with its title focused. Its submit button sits in the page's action bar, outside the form.
   const form = page.getByRole('form', { name: 'Create task form' })
   const titleField = form.getByRole('textbox', { name: 'Title', exact: true })
   await expect(titleField).toBeVisible({ timeout: 10_000 })
@@ -42,11 +42,11 @@ export async function createTaskViaUI(
   // through the same picker as the user; never infer it from the displayed business unit.
   const team = form.getByRole('combobox', { name: 'Team', exact: true })
   await expect(team).toBeVisible()
-  if ((await team.innerText()).includes('Select team')) {
+  if ((await team.innerText()).includes('Choose a team')) {
     await team.click()
     await page.getByRole('listbox', { name: 'Team', exact: true })
-      .getByRole('option').filter({ hasNotText: 'Select team' }).first().click()
-    await expect(team).not.toContainText('Select team')
+      .getByRole('option').filter({ hasNotText: 'Choose a team' }).first().click()
+    await expect(team).not.toContainText('Choose a team')
   }
   // Supervisor is deliberately explicit in the current ownership contract.
   const supervisor = form.getByRole('combobox', { name: 'Supervisor', exact: true })
@@ -54,7 +54,7 @@ export async function createTaskViaUI(
   await supervisor.click()
   await page.getByRole('listbox', { name: 'Supervisor', exact: true })
     .getByRole('option', { name: 'Cahya Cafe', exact: true }).click()
-  await form.getByRole('button', { name: 'Create task', exact: true }).click()
+  await page.getByRole('button', { name: 'Create task', exact: true }).click()
 
   // The committed task replaces the draft row: same title, but a real record id in its href
   // (the draft's own id is `new-task-<ts>`), on the table row and the phone card alike.
@@ -70,28 +70,21 @@ export async function createTaskViaUI(
 }
 
 /**
- * #870 shape (collection-toolbar.tsx commits 3b71da46/e59120eb): the Task view chips (the primary
- * view — "All" for org-wide admin viewers, "Relevant" for everyone else per OD-TASK-3 — plus
- * My work / Team work / Overdue and any saved views) live in a role="group" named "Task views"
- * (tasks.toolbar.viewNavigation) — `<button aria-pressed>`, never a tablist/tab. One shared truth
- * so a toolbar shape change is fixed in one place instead of in every spec that clicks a view.
+ * The Task views picker (collection-toolbar.tsx): a combobox named "Task views" whose trigger shows
+ * the chosen scope (the primary view — "All" for org-wide admin viewers, "Relevant" for everyone
+ * else per OD-TASK-3 — My work / Team work / Overdue, or a saved view). One shared truth so a
+ * toolbar shape change is fixed in one place instead of in every spec that picks a view.
  */
-export function taskViewsGroup(page: Page) {
-  return page.getByRole('group', { name: 'Task views' })
+export function taskViewsPicker(page: Page) {
+  return page.getByRole('combobox', { name: 'Task views', exact: true })
 }
 
-/**
- * The "View & filters" disclosure trigger (ViewOptionsDisclosure, common.viewAndFilters) that
- * hides Group/Business unit/Status/Person/Sort/Fields/Save view behind one door — on desktop
- * (collapseOptionsOnDesktop, #870) and on phone alike. Its accessible name grows an active-filter
- * summary suffix ("View & filters, All") once a filter is set, so callers must match by PREFIX,
- * never `exact: true` — an exact match silently stops finding it the moment a filter is applied.
- */
+/** The "Filters & options" disclosure trigger that hides the narrowing filters, fields and saved views. */
 export function viewFiltersDoor(page: Page) {
-  return page.getByRole('button', { name: /^view & filters/i })
+  return page.getByRole('button', { name: /^filters & options/i })
 }
 
-/** Open the "View & filters" door if it is not already open (idempotent). */
+/** Open the "Filters & options" door if it is not already open (idempotent). */
 export async function openViewFilters(page: Page) {
   const door = viewFiltersDoor(page)
   if ((await door.getAttribute('aria-expanded')) === 'true') return
@@ -100,38 +93,12 @@ export async function openViewFilters(page: Page) {
 }
 
 /**
- * Click a Task view chip by its visible label ('Relevant' for non-org-wide viewers, 'All' for
- * admin (OD-TASK-3), 'My work', 'Team work', 'Overdue', or a saved-view name) and wait for it to
- * report pressed. Self-managing: on phone the chips are
- * nested inside the "View & filters" door (#870) and this opens it first; on desktop the chips
- * already ride the exposed view-axis row, so nothing is opened. Either way it leaves the door
- * exactly as it found it — a door left open as a side effect of selecting a view has been seen to
- * intercept later interactions (e.g. the record-collection-toolbar's own group-scoped keydown
- * handler stealing a page-level keyboard shortcut) — so a caller that ALSO needs the door open
- * for Group/Status/etc. should call `openViewFilters` itself, after this returns.
+ * Pick a Task view by its visible label ('Relevant' for non-org-wide viewers, 'All' for admin
+ * (OD-TASK-3), 'My work', 'Team work', 'Overdue', or a saved-view name) and wait for the picker to
+ * show it.
  */
 export async function selectTaskView(page: Page, label: string) {
-  const group = taskViewsGroup(page)
-  const door = viewFiltersDoor(page)
-  // The door button is mounted at every width (desktop's own row 1, or phone's outer copy of the
-  // same disclosure) — wait for IT to settle first, so a not-yet-loaded toolbar right after
-  // navigation can't be misread as "no door, must be phone". `group.or(door)` looked equivalent
-  // but isn't: on desktop BOTH exist at once, and `.or()` matches the union, so `toBeVisible()`
-  // on it throws a strict-mode violation instead of picking either — proven by a real run, not
-  // assumed.
-  await expect(door).toBeVisible()
-  // Two independent signals, not one: a caller may have already opened the door itself (its
-  // aria-expanded says so, regardless of width), and on desktop the chips are visible without the
-  // door ever opening. Only open (and later close) it when NEITHER already holds.
-  const doorAlreadyOpen = (await door.getAttribute('aria-expanded')) === 'true'
-  const groupAlreadyVisible = await group.isVisible()
-  const openedDoor = !doorAlreadyOpen && !groupAlreadyVisible
-  if (openedDoor) await openViewFilters(page)
-  const chip = group.getByRole('button', { name: label, exact: true })
-  await chip.click()
-  await expect(chip).toHaveAttribute('aria-pressed', 'true')
-  if (openedDoor) {
-    await door.click()
-    await expect(door).toHaveAttribute('aria-expanded', 'false')
-  }
+  const picker = taskViewsPicker(page)
+  await chooseSelectOption(page, picker, label)
+  await expect(picker).toContainText(label)
 }

@@ -23,7 +23,7 @@ test('AC-001: password login journey', async ({ page }) => {
   // in src/pages/home-page.tsx.
   await expect(page).toHaveTitle('Home — Gordi MOS', { timeout: 10_000 })
   // user-chip.tsx:71: the viewer identity is the accessible name of the chip button.
-  await expect(page.getByRole('button', { name: 'Cahya Cafe' })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('button', { name: /^Cahya Cafe/ })).toBeVisible({ timeout: 10_000 })
 })
 
 // AC-011 (#799): sign-in returns the person to the route they asked for.
@@ -37,7 +37,9 @@ test('AC-011: sign-in returns to the route that was asked for, at 390', async ({
   await page.goto('work/tasks')
   await expect(page).toHaveURL(/\/login/)
 
-  // The dev-only one-click persona is the fastest real sign-in on this surface.
+  // The dev-only one-click persona is the fastest real sign-in on this surface; the phone
+  // collapses the demo directory behind its summary.
+  await page.getByText('Show demo accounts').click()
   await page.getByRole('button', { name: 'Finance' }).click()
 
   // Goal-oracle: the route asked for, not Home.

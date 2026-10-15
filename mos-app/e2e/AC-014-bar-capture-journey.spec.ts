@@ -204,7 +204,7 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     await expect(streamStatement(page)).toContainText(/Rumah Rames · Bar/i, { timeout: 15_000 })
     await streamSwitch(page).click()
     const streamListbox = page.getByRole('listbox', { name: STREAM_CONTROL_NAME })
-    await expect(streamListbox.getByRole('option')).toHaveCount(1)
+    await expect(streamListbox.getByRole('option')).toHaveText([/Rumah Rames · Bar/i, /Rumah Rames · Kitchen/i])
     await expect(streamListbox.getByRole('option', { name: /Rumah Rames · Kitchen/i })).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(streamListbox).toHaveCount(0)
@@ -306,9 +306,11 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     await page.goto('cafe/stock')
     await page.waitForURL(/\/cafe\/stock$/, { timeout: 15_000 })
     await expect(streamStatement(page)).toContainText(/Rumah Rames · Bar/i, { timeout: 20_000 })
-    const stockRow = page.getByRole('row', { name: new RegExp(ITEM_NAME, 'i') })
-    await expect(stockRow).toBeVisible({ timeout: 15_000 })
-    await expect(stockRow).toContainText(String(PLAN_QTY))
+    // Balances read as item cards: the item name followed by its system quantity.
+    await expect(page.getByRole('region', { name: /^Stock for/i })).toContainText(
+      new RegExp(`${ITEM_NAME}\\s*${PLAN_QTY}`, 'i'),
+      { timeout: 15_000 },
+    )
 
     // FR-061 (CONTEXT.md trap): the central kitchen is never labelled "HQ" on this surface.
     await expect(page.getByText(/\bStok HQ\b/i)).toHaveCount(0)

@@ -165,6 +165,12 @@ async function seedFixture(): Promise<void> {
   `)
 }
 
+// The bills are a table on desktop and a list of cards on phone; both carry the same name.
+function billsList(page: Page) {
+  const name = 'Pending bills, oldest first'
+  return page.getByRole('table', { name }).or(page.getByRole('list', { name }))
+}
+
 async function openPendingBills(page: Page, width: number, height: number): Promise<void> {
   await page.setViewportSize({ width, height })
   await page.route(/\/rest\/v1\/pending_bill_finance_labels(?:\?|$)/, (route) => route.fulfill({
@@ -176,13 +182,15 @@ async function openPendingBills(page: Page, width: number, height: number): Prom
   await page.goto('money/pending-bills')
   await expect(page).toHaveURL(/\/money\/pending-bills$/)
   await expect(page.getByRole('heading', { name: 'Pending bills', exact: true })).toBeVisible()
-  await expect(page.getByRole('table', { name: 'Pending bills, oldest first' })).toBeVisible()
+  await expect(billsList(page)).toBeVisible()
 }
 
 async function filterToFixtureBranch(page: Page): Promise<void> {
   const branchFilter = page.getByLabel('Branch', { exact: true })
-  const openedForSelection = !(await branchFilter.isVisible())
   const filters = page.getByRole('button', { name: /Filters/ })
+  // The branch filter is inline on desktop and behind Filters on phone; wait for whichever rendered.
+  await branchFilter.or(filters).first().waitFor()
+  const openedForSelection = !(await branchFilter.isVisible())
   if (openedForSelection) {
     await filters.click()
     await expect(filters).toHaveAttribute('aria-expanded', 'true')
@@ -200,7 +208,7 @@ async function selectBothBills(page: Page): Promise<void> {
   for (const billNo of BILL_NUMBERS) {
     await page.getByRole('checkbox', { name: `Select bill ${billNo}` }).check()
   }
-  await expect(page.getByRole('region', { name: /2 selected/ })).toBeVisible()
+  await expect(page.getByRole('group', { name: /2 selected/ })).toBeVisible()
 }
 
 async function attachProofAndDate(page: Page): Promise<void> {
@@ -226,9 +234,9 @@ async function assertSettledBills(page: Page): Promise<void> {
   await paidTab.click()
   await expect(paidTab).toHaveAttribute('aria-selected', 'true')
   for (const billNo of BILL_NUMBERS) {
-    await expect(page.getByRole('button', { name: `Open bill ${billNo}`, exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: new RegExp(`Open bill ${billNo}$`) })).toBeVisible()
   }
-  await expect(page.getByRole('button', { name: /^Open bill E2E-PB-1468-/ })).toHaveCount(2)
+  await expect(page.getByRole('button', { name: /Open bill E2E-PB-1468-/ })).toHaveCount(2)
   await expect(page.getByText('Settled', { exact: true })).toHaveCount(2)
 }
 
@@ -285,14 +293,16 @@ test.describe('AC-1141: Finance records one payment for two pending bills', () =
     test.setTimeout(120_000)
     await openPendingBills(page, 1440, 960)
     await filterToFixtureBranch(page)
-    const summary = page.locator('.pending-bills-summary')
-    await expect(summary).toContainText('2 open bills')
+    const summary = page.getByLabel('Pending bills summary')
+    await expect(summary).toContainText(/Open bills\s*2(?!\d)/)
     await expect(summary).toContainText('382.594')
-    await expect(page.getByText(COUNTERPARTY_NOTE, { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: `${COUNTERPARTY_NOTE} · Open bill ${BILL_ONE}`, exact: true })).toBeVisible()
 
     await selectBothBills(page)
     await page.getByRole('button', { name: 'Record payment', exact: true }).click()
-    const panel = page.getByRole('complementary', { name: `Pending bill ${BILL_ONE}` })
+    const panelName = `Pending bill ${BILL_ONE}`
+    // The record opens beside the list when there is room, otherwise as a dialog.
+    const panel = page.getByRole('complementary', { name: panelName }).or(page.getByRole('dialog', { name: panelName }))
     await expect(panel).toBeVisible()
     const form = page.getByRole('form', { name: 'Record payment' })
     await expect(form).toBeVisible()
@@ -302,14 +312,14 @@ test.describe('AC-1141: Finance records one payment for two pending bills', () =
     await form.getByRole('button', { name: 'Record payment', exact: true }).click()
     await expect(page.getByRole('status').filter({ hasText: 'bills settled' })).toContainText('2 bills settled')
 
-    await expect(summary).toContainText('0 open bills')
+    await expect(summary).toContainText(/Open bills\s*0(?!\d)/)
     await expect(summary).toContainText(/Rp\s*0/)
     await assertRecordedPayments(today)
     await assertSettledBills(page)
     await page.reload()
     await expect(page.getByRole('heading', { name: 'Pending bills', exact: true })).toBeVisible()
     await filterToFixtureBranch(page)
-    await expect(page.locator('.pending-bills-summary')).toContainText('0 open bills')
+    await expect(page.getByLabel('Pending bills summary')).toContainText(/Open bills\s*0(?!\d)/)
     await assertSettledBills(page)
   })
 
@@ -317,18 +327,18 @@ test.describe('AC-1141: Finance records one payment for two pending bills', () =
     test.setTimeout(120_000)
     await openPendingBills(page, 390, 844)
     await assertPhoneNoOverflow(page)
-    const summary = page.locator('.pending-bills-summary')
+    const summary = page.getByLabel('Pending bills summary')
     const filters = page.getByRole('button', { name: /Filters/ })
     await filters.click()
     await expect(filters).toHaveAttribute('aria-expanded', 'true')
-    await expect(page.getByRole('table', { name: 'Pending bills, oldest first' })).toBeVisible()
+    await expect(billsList(page)).toBeVisible()
     await filterToFixtureBranch(page)
-    await expect(summary).toContainText('2 bills')
+    await expect(summary).toContainText(/Open bills\s*2(?!\d)/)
     await expect(summary).toContainText('382.594')
     await assertPhoneNoOverflow(page)
     await filters.click()
     await expect(filters).toHaveAttribute('aria-expanded', 'false')
-    await expect(page.getByRole('table', { name: 'Pending bills, oldest first' })).toBeVisible()
+    await expect(billsList(page)).toBeVisible()
     await assertPhoneNoOverflow(page)
 
     await selectBothBills(page)
@@ -347,7 +357,7 @@ test.describe('AC-1141: Finance records one payment for two pending bills', () =
     await expect(page.getByRole('status').filter({ hasText: 'bills settled' })).toContainText('2 bills settled')
     await assertPhoneNoOverflow(page)
 
-    await expect(summary).toContainText('0 bills')
+    await expect(summary).toContainText(/Open bills\s*0(?!\d)/)
     await expect(summary).toContainText(/Rp\s*0/)
     await assertPhoneNoOverflow(page)
     await assertRecordedPayments(today)
@@ -378,7 +388,7 @@ test.describe('AC-1141: Finance records one payment for two pending bills', () =
     for (const billNo of BILL_NUMBERS) {
       await expect(page.getByRole('checkbox', { name: `Select bill ${billNo}` })).toBeChecked()
     }
-    await expect(page.getByRole('region', { name: /2 selected/ })).toBeVisible()
+    await expect(page.getByRole('group', { name: /2 selected/ })).toBeVisible()
     const [row] = await localSqlRead<{ count: number | string }>(`
       SELECT count(*) AS count FROM mos.pending_bill_payments
        WHERE org_id = '${ORG}' AND esb_code = '${ESB_CODE}' AND branch_code = '${BRANCH_CODE}'

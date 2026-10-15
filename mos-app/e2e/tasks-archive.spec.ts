@@ -18,6 +18,9 @@ import { MANAGER, VIEWER } from './fixtures/users'
 import { TASKS } from './fixtures/tasks'
 import { openViewFilters, selectTaskView } from './helpers/tasks'
 
+// The record opens beside the list only on a wide content track.
+test.use({ viewport: { width: 1920, height: 1080 } })
+
 test('OD-WAY-94: the PIC may complete but cannot archive, even when also Supervisor', async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
   await page.goto(`work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}`)
@@ -68,13 +71,8 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   await expect(page.getByText(taskTitle)).not.toBeVisible()
 
   // ── 5. Include archived — task reappears ──────────────────────────────
-  // #743 ruling: "Include archived" now rides the Status popover (additive to the chosen
-  // status), reached through the "View & filters" door — there is no separate "Filters"/"Close
-  // filters" pair any more.
+  // "Include archived" lives in the "Filters & options" panel.
   await openViewFilters(page)
-  // Scoped to the toolbar — the grouped table has its own "Status" column sort button sharing
-  // this accessible name.
-  await page.getByTestId('record-collection-toolbar').getByRole('button', { name: 'Status', exact: true }).click()
   const archivedToggle = page.getByRole('checkbox', { name: 'Include archived', exact: true })
   await archivedToggle.check()
 

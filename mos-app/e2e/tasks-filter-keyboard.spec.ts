@@ -3,12 +3,10 @@ import { loginAs } from './helpers/login'
 import { MANAGER } from './fixtures/users'
 import { openViewFilters, viewFiltersDoor } from './helpers/tasks'
 
-// #743 ruling retired Status as a single-select combobox (arrow-key listbox, one committed
-// value) in favour of a checkbox popover (additive: "Include archived" rides the same control).
-// That premise is gone, but the GOAL this test protects is not: keyboard-driven filtering must
-// keep the task queue mounted (never swap it for a drawer/page) and hand focus back to the
-// trigger it came from when the interaction closes. Re-expressed on the current control: open the
-// door and the Status popover with the keyboard, toggle "Open" with Space, then Escape twice (popover, then door).
+// The GOAL: keyboard-driven filtering must keep the task queue mounted (never swap it for a
+// drawer/page) and hand focus back to the control it came from when the interaction closes.
+// Open "Filters & options" and the Status picker with the keyboard, choose "Open" with the arrow
+// keys and Enter, then Escape from the panel closes the panel and returns focus to its door.
 test('keyboard filtering keeps the task queue in place and restores focus', async ({ page }) => {
   await loginAs(page, MANAGER.email, MANAGER.password)
   await page.goto('work/tasks')
@@ -20,27 +18,21 @@ test('keyboard filtering keeps the task queue in place and restores focus', asyn
 
   await openViewFilters(page)
   const door = viewFiltersDoor(page)
-  // Scoped to the toolbar — the grouped table has its own "Status" column sort button sharing
-  // this accessible name.
-  const statusTrigger = page.getByTestId('record-collection-toolbar').getByRole('button', { name: 'Status', exact: true })
+  const statusTrigger = page.getByTestId('record-collection-toolbar').getByRole('combobox', { name: 'Status', exact: true })
   await statusTrigger.focus()
   await page.keyboard.press('Enter')
-  const openCheckbox = page.getByRole('checkbox', { name: 'Open', exact: true })
-  await expect(openCheckbox).toBeVisible()
+  await expect(page.getByRole('listbox', { name: 'Status', exact: true })).toBeVisible()
   await expect(page.getByText('Task detail', { exact: true })).toHaveCount(0)
 
-  await openCheckbox.focus()
-  await page.keyboard.press('Space')
-  await expect(openCheckbox).toBeChecked()
-
-  // Escape closes the innermost open thing first (collection-toolbar.tsx): the Status popover
-  // closes and focus returns to ITS trigger, with the door still open. The next Escape belongs to
-  // the "View & filters" door's own contract (ViewOptionsDisclosure, #870): it closes the door and
-  // returns focus to ITS trigger.
-  await page.keyboard.press('Escape')
-  await expect(openCheckbox).toHaveCount(0)
+  // Any status -> Open
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('listbox', { name: 'Status', exact: true })).toHaveCount(0)
+  // Choosing closes the picker and returns focus to ITS trigger, with the panel still open.
   await expect(statusTrigger).toBeFocused()
   await expect(door).toHaveAttribute('aria-expanded', 'true')
+  // Escape from a plain panel control closes the panel and returns focus to its door.
+  await page.getByRole('checkbox', { name: 'Include archived', exact: true }).focus()
   await page.keyboard.press('Escape')
   await expect(door).toBeFocused()
   await expect(door).toHaveAttribute('aria-expanded', 'false')
