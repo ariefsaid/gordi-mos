@@ -804,16 +804,77 @@ def run_pending_bill_snapshot(
 
 
 def build_recipe_history_source_query() -> str:
+    # Menu recipes come from the warehouse's recipe observations. WIP (Assembly BOM) recipes have
+    # no menu, so they are built here from the BOM tables in the same envelope shape, keyed by
+    # menu_id = -bom_id.
+    # ponytail: negative menu_id marks a WIP chronology; add a kind column if a consumer must
+    # tell them apart in SQL.
     return """
-        select distinct on (o.esb_code, o.menu_id)
-               o.esb_code::text as esb_code, o.menu_id, o.bom_id, o.observed_at,
-               o.recipe_version_hash, o.recipe
-        from public.recipe_observations o
-        join public.sync_state s on s.esb_code = o.esb_code
-          and s.api_source = 'core' and s.endpoint = 'recipe-observation-pass'
-          and s.sync_key = 'nightly' and s.status = 'completed'
-        where o.observed_at <= s.completed_at and o.observed_at <= %s
-        order by o.esb_code, o.menu_id, o.observed_at desc
+        with asof as (select %s::timestamptz as t),
+        menus as (
+          select distinct on (o.esb_code, o.menu_id)
+                 o.esb_code::text as esb_code, o.menu_id, o.bom_id, o.observed_at,
+                 o.recipe_version_hash, o.recipe
+          from public.recipe_observations o
+          cross join asof
+          join public.sync_state s on s.esb_code = o.esb_code
+            and s.api_source = 'core' and s.endpoint = 'recipe-observation-pass'
+            and s.sync_key = 'nightly' and s.status = 'completed'
+          where o.observed_at <= s.completed_at and o.observed_at <= asof.t
+          order by o.esb_code, o.menu_id, o.observed_at desc
+        ),
+        lines as (
+          select b.esb_code, b.bom_id,
+            jsonb_agg(jsonb_build_object(
+              'line_id', b.detail_id, 'product_id', b.product_id, 'detail_id', b.product_detail_id,
+              'name', b.product_name, 'unit_id', b.uom_id, 'unit', b.uom_name, 'qty', b.qty,
+              'product_active', p.flag_active, 'product_deleted', p.deleted_at is not null,
+              'detail_active', pd.flag_active, 'detail_unit_id', pd.uom_id,
+              'detail_unit', pd.uom_name, 'is_stock', pd.is_stock,
+              'conversion_quantity', pd.raw_json -> 'qty', 'conversion', d.value -> 'convertionQty',
+              'yield', d.value -> 'yieldPercent', 'tolerance', d.value -> 'tolerancePercent',
+              'substitutes', d.value -> 'subtitution',
+              'manufacturing_substitutes', d.value -> 'subtitutionManufacturing'
+            ) order by b.detail_id, b.product_detail_id, b.id) as lines
+          from public.core_bom_items b
+          join public.core_bom h using (esb_code, bom_id)
+          left join public.dim_products p
+            on p.esb_code = b.esb_code and p.product_id = b.product_id
+          left join public.dim_product_details pd
+            on pd.esb_code = b.esb_code and pd.product_detail_id = b.product_detail_id
+          left join lateral (
+            select x.value from jsonb_array_elements(case
+              when jsonb_typeof(h.raw_json -> 'bomDetails') = 'array' then h.raw_json -> 'bomDetails'
+              else '[]'::jsonb end) x
+            where x.value ->> 'ID' = b.detail_id::text limit 1
+          ) d on true
+          where h.bom_type_name = 'Assembly'
+          group by b.esb_code, b.bom_id
+        ),
+        wip as (
+          select h.esb_code::text as esb_code, -h.bom_id as menu_id, h.bom_id,
+                 h.synced_at as observed_at,
+                 jsonb_build_object(
+                   'bom_id', h.bom_id, 'bom_name', h.bom_name, 'bom_type', h.bom_type_name,
+                   'active', h.flag_active, 'output_detail_id', h.product_detail_id,
+                   'output_unit', h.uom_name,
+                   'replacements', coalesce(h.raw_json -> 'bomReplacements', '[]'::jsonb),
+                   'lines', coalesce(l.lines, '[]'::jsonb)
+                 ) as recipe
+          from public.core_bom h
+          cross join asof
+          join public.sync_state s on s.esb_code = h.esb_code
+            and s.api_source = 'core' and s.endpoint = 'recipe-observation-pass'
+            and s.sync_key = 'nightly' and s.status = 'completed'
+          left join lines l on l.esb_code = h.esb_code and l.bom_id = h.bom_id
+          where h.bom_type_name = 'Assembly'
+            and h.raw_json ->> '_detail_incomplete' is distinct from 'true'
+            and jsonb_typeof(h.raw_json -> 'bomDetails') = 'array'
+            and h.synced_at <= s.completed_at and h.synced_at <= asof.t
+        )
+        select * from menus
+        union all
+        select esb_code, menu_id, bom_id, observed_at, md5(recipe::text), recipe from wip
     """
 
 
