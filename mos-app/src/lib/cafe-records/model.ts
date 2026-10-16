@@ -280,6 +280,12 @@ function compareObservation(a: RecordEntry, b: RecordEntry): number {
 
 const byText = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })
 
+/** Unlike units never compare: unit groups stay in a fixed (A–Z) order and the quantity sort works inside each. */
+function byUnitThenQty(a: Pick<RecordEntry, 'unit' | 'qty'>, b: Pick<RecordEntry, 'unit' | 'qty'>, sign: number): number {
+  const unit = byText(a.unit.name ?? '￿', b.unit.name ?? '￿') || a.unit.key.localeCompare(b.unit.key)
+  return unit !== 0 ? unit : sign * compareDec(a.qty ?? ZERO, b.qty ?? ZERO)
+}
+
 export interface SortContext { streamLabel: (key: string) => string; destinationLabel: (streamKey: string, branchId: string | null) => string }
 
 export function sortSummaryRows(rows: readonly SummaryRow[], sort: SortKey, dir: SortDir, ctx: SortContext): SummaryRow[] {
@@ -289,12 +295,7 @@ export function sortSummaryRows(rows: readonly SummaryRow[], sort: SortKey, dir:
     switch (sort) {
       case 'stream': return sign * byText(ctx.streamLabel(a.streamKey), ctx.streamLabel(b.streamKey)) || tie(a, b)
       case 'destination': return sign * byText(ctx.destinationLabel(a.streamKey, a.destinationBranchId), ctx.destinationLabel(b.streamKey, b.destinationBranchId)) || tie(a, b)
-      case 'quantity': {
-        // Unlike units never compare: unit groups stay in a fixed (A–Z) order and the sort works inside each.
-        const unit = byText(a.unit.name ?? '￿', b.unit.name ?? '￿') || a.unit.key.localeCompare(b.unit.key)
-        if (unit !== 0) return unit
-        return sign * compareDec(a.qty ?? ZERO, b.qty ?? ZERO) || tie(a, b)
-      }
+      case 'quantity': return byUnitThenQty(a, b, sign) || tie(a, b)
       case 'entries': return sign * (a.entries - b.entries) || tie(a, b)
       default: return sign * byText(a.itemName, b.itemName) || a.id.localeCompare(b.id)
     }
@@ -307,11 +308,7 @@ export function sortEntries(entries: readonly RecordEntry[], sort: SortKey, dir:
   return [...entries].sort((a, b) => {
     switch (sort) {
       case 'item': return sign * byText(a.itemName, b.itemName) || dateDesc(a, b)
-      case 'quantity': {
-        const unit = byText(a.unit.name ?? '￿', b.unit.name ?? '￿') || a.unit.key.localeCompare(b.unit.key)
-        if (unit !== 0) return unit
-        return sign * compareDec(a.qty ?? ZERO, b.qty ?? ZERO) || dateDesc(a, b)
-      }
+      case 'quantity': return byUnitThenQty(a, b, sign) || dateDesc(a, b)
       default: return sign * (a.date.localeCompare(b.date) || a.at.localeCompare(b.at)) || a.key.localeCompare(b.key)
     }
   })
