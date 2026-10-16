@@ -39,13 +39,13 @@ interface NavData {
 const HOME = FIXED_AREAS[0]
 const WORK = FIXED_AREAS[1]
 
-function pagesOf(destination: Destination, roles: string[]): PageGroup[] {
-  return pageGroupsFor(destination, roles)
+function pagesOf(destination: Destination, roles: string[], isOn: NavLayout['isOn']): PageGroup[] {
+  return pageGroupsFor(destination, roles, isOn)
 }
 
 /** An area is a branch (has a pages list) from two pages up; a single page is the area's own row. */
-function branchGroups(destination: Destination, roles: string[]): PageGroup[] {
-  const groups = pagesOf(destination, roles)
+function branchGroups(destination: Destination, roles: string[], isOn: NavLayout['isOn']): PageGroup[] {
+  const groups = pagesOf(destination, roles, isOn)
   return pageCount(groups) >= 2 ? groups : []
 }
 
@@ -97,11 +97,11 @@ function Sidebar({ data }: { data: NavData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-derived from the route only
   }, [pathname])
 
-  const workGroups = branchGroups(WORK, roles)
+  const workGroups = branchGroups(WORK, roles, layout.isOn)
   const workCurrent = currentPagePath(workGroups, pathname)
   const admin = footer.find((d) => d.id === 'admin')
   const profile = footer.find((d) => d.id === 'profile')
-  const adminGroups = admin ? pagesOf(admin, roles) : []
+  const adminGroups = admin ? pagesOf(admin, roles, layout.isOn) : []
 
   return (
     <aside aria-label={t('nav.sidebar')} className="shell-nav shell-nav--sidebar">
@@ -109,7 +109,7 @@ function Sidebar({ data }: { data: NavData }) {
       <nav id="rail-primary-nav" aria-label={t('nav.primary')} className="nav-primary">
         <div className="nav-fixed nav-list">
           {!isShipGated('/') && <AreaLink destination={HOME} to="/" state={rowState(pathname, '/', '/', undefined)} />}
-          {!isShipGated('/work') && <div>
+          {!isShipGated('/work') && layout.isOn('work') && <div>
             <AreaLink
               destination={WORK}
               to={landingOf(WORK)}
@@ -125,7 +125,7 @@ function Sidebar({ data }: { data: NavData }) {
           {modules.length > 0 && <div className="nav-group-heading nav-group-heading--top">{t('shell.nav.modules')}</div>}
           <div className="nav-list">
             {modules.map((module) => {
-              const groups = branchGroups(module, roles)
+              const groups = branchGroups(module, roles, layout.isOn)
               const open = openModule === module.id
               const current = currentPagePath(groups, pathname)
               const id = `nav-children-${module.id}`
@@ -312,13 +312,13 @@ function RailItem({ destination, to, state, groups, flyouts, badge, pathname, fo
 function Rail({ data, hasPanel }: { data: NavData; hasPanel: boolean }) {
   const t = useT()
   const { layout, pathname, modules, footer, badges } = data
-  const { roles, compact } = layout
+  const { roles, isOn, compact } = layout
   const [openId, setOpenId] = useState<string | null>(null)
   useEffect(() => { setOpenId(null) }, [pathname])
 
   const item = (destination: Destination) => {
     const groups = destination.id === 'work' || destination.id === 'admin' || destination.zone === 'modules'
-      ? branchGroups(destination, roles) : []
+      ? branchGroups(destination, roles, isOn) : []
     // Folded: the pages sit behind a closed flyout, so only the area's own landing can be the current page here.
     const current = compact ? undefined : currentPagePath(groups, pathname)
     const landing = landingOf(destination)
@@ -346,7 +346,7 @@ function Rail({ data, hasPanel }: { data: NavData; hasPanel: boolean }) {
       <nav id="rail-primary-nav" aria-label={t('nav.primary')} className="rail-nav">
         <div className="rail-scroll nav-scroll">
           {!isShipGated('/') && item(HOME)}
-          {!isShipGated('/work') && item(WORK)}
+          {!isShipGated('/work') && isOn('work') && item(WORK)}
           {modules.map(item)}
         </div>
         <div className="rail-foot-links">
@@ -362,7 +362,7 @@ function Rail({ data, hasPanel }: { data: NavData; hasPanel: boolean }) {
 function PagesPanel({ data, area }: { data: NavData; area: Destination }) {
   const t = useT()
   const { layout, pathname, badges } = data
-  const groups = pagesOf(area, layout.roles)
+  const groups = pagesOf(area, layout.roles, layout.isOn)
   const name = t(area.labelKey)
   return (
     <nav className="nav-panel" aria-label={t('shell.nav.pagesOf', { area: name })}>
@@ -384,7 +384,7 @@ export function SideNav() {
   const badges = useNavBadges()
   const rootRef = useRef<HTMLDivElement>(null)
   const roles = layout.roles
-  const modules = admittedModules(roles)
+  const modules = admittedModules(roles, layout.isOn)
   const footer = footerAreas(roles)
 
   // NV1: the active page is always visible. A long menu (Café's grouped pages) scrolls inside its own region,

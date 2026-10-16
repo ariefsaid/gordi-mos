@@ -84,7 +84,7 @@ export const CAFE_SECTIONS: Section[] = [
   { path: '/cafe/transfer', label: 'Transfer', labelKey: 'nav.cafe.transfer', Icon: TransferIcon, group: 'cafe.nav.today' },
   { path: '/cafe/waste', label: 'Waste', labelKey: 'nav.cafe.waste', Icon: WasteIcon, group: 'cafe.nav.today' },
   { path: '/cafe/count', label: 'Stock count', labelKey: 'nav.cafe.count', Icon: CountIcon, group: 'cafe.nav.stock' },
-  // Preview ship state (lib/ship-gate.ts): `visibleSections` drops it unless the dev launch opted in. Count reviewers only (the Review page's own gate); the page limits a stream reviewer to their streams.
+  // Count reviewers only; the page and reporting RPC further limit stream scope.
   { path: '/cafe/stock-comparison', label: 'Stock comparison', labelKey: 'nav.cafe.stockComparison', Icon: StockComparisonIcon, group: 'cafe.nav.stock', anyOf: ['ops_lead', 'admin', 'supervisor'] },
   { path: '/cafe/receive', label: 'Receive', labelKey: 'nav.cafe.receive', Icon: ReceiveIcon, group: 'cafe.nav.stock' },
   { path: '/cafe/receive/issues', label: 'Receipt issues', labelKey: 'cafe.pageTitle.receiptIssues', Icon: ReceiveIcon, group: 'cafe.nav.stock', parentPath: '/cafe/receive' },

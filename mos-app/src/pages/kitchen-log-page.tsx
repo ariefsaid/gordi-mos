@@ -14,7 +14,7 @@ import { CafeNoMatch } from '@/components/kitchen/cafe-no-match'
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
-import { LocationPanelFields } from '@/components/preview/location-preview-fields'
+import { LocationPanelFields, type LocationFieldValues, type LocationChoices } from '@/components/preview/location-preview-fields'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsWide } from '@/shell/use-is-wide'
@@ -35,6 +35,7 @@ import {
 // #440: the stream is the MODULE's selection, not this page's — useCafeStream records it so
 // Plan/Stock/Review open on the same books, and every switch carries across (issue 456).
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { availableCafeLocationDefault, useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
 import { recordsHref } from '@/lib/cafe-records/url-state'
 import { formatUnitMultiple, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
 import { parseQuantityInput } from '@/lib/quantity-parser'
@@ -363,6 +364,42 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   const transferDestinationChosen = mode !== 'transfer' || (
     movement.action === 'transfer' && movementOptions.some(option => movementKey(option) === movementKey(movement))
   )
+  const destinationBranch = movement.action === 'transfer'
+    ? branches.find(branch => branch.id === movement.destinationBranchId) ?? null
+    : null
+  const destinationStream = stream && destinationBranch ? { branch: destinationBranch, activity: stream.activity } : null
+  const sourceLocationChoices = useCafeLocationChoices(canCapture ? stream : null)
+  const destinationLocationChoices = useCafeLocationChoices(canCapture ? destinationStream : null)
+  const locationScope = `${mode}:${stream?.branch.id ?? ''}:${stream?.activity ?? ''}:${movementKey(movement)}`
+  const [selectedLocationState, setSelectedLocationState] = useState<{ scope: string; values: LocationFieldValues } | null>(null)
+  const defaultLocationValues: LocationFieldValues = {
+    production_location_id: sourceLocationChoices.status === 'ready'
+      ? availableCafeLocationDefault(sourceLocationChoices.locations, sourceLocationChoices.defaults?.production_location_id, 'production') : null,
+    from_storage_location_id: sourceLocationChoices.status === 'ready'
+      ? availableCafeLocationDefault(sourceLocationChoices.locations, sourceLocationChoices.defaults?.storage_location_id, 'storage') : null,
+    to_storage_location_id: mode === 'transfer'
+      ? destinationLocationChoices.status === 'ready'
+        ? availableCafeLocationDefault(destinationLocationChoices.locations, destinationLocationChoices.defaults?.storage_location_id, 'storage') : null
+      : sourceLocationChoices.status === 'ready'
+        ? availableCafeLocationDefault(sourceLocationChoices.locations, sourceLocationChoices.defaults?.storage_location_id, 'storage') : null,
+  }
+  const locationValues = selectedLocationState?.scope === locationScope ? selectedLocationState.values : defaultLocationValues
+  const needsDestinationLocations = mode === 'transfer' && transferDestinationChosen
+  const locationLoadState = sourceLocationChoices.status === 'error' || (needsDestinationLocations && destinationLocationChoices.status === 'error')
+    ? 'error'
+    : sourceLocationChoices.status === 'ready' && (!needsDestinationLocations || destinationLocationChoices.status === 'ready')
+      ? 'ready' : 'loading'
+  const locationChoices: LocationChoices = {
+    production: sourceLocationChoices.locations.filter(location => location.use === 'production' || location.use === 'both'),
+    from: sourceLocationChoices.locations.filter(location => location.use === 'storage' || location.use === 'both'),
+    to: (mode === 'transfer' ? destinationLocationChoices.locations : sourceLocationChoices.locations)
+      .filter(location => location.use === 'storage' || location.use === 'both'),
+    storage: sourceLocationChoices.locations.filter(location => location.use === 'storage' || location.use === 'both'),
+  }
+  const retryLocationChoices = () => {
+    sourceLocationChoices.retry()
+    if (needsDestinationLocations) destinationLocationChoices.retry()
+  }
   const writeClosed = !canCapture || streamMissing || streamNonProducing
   const captureClosed = writeClosed || !transferDestinationChosen
   const [logDate] = useState(wibToday) // today WIB; owner-decision: allow past dates flagged
@@ -1205,6 +1242,13 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
           entry_quantity: line.entry_quantity ?? line.qty_porsi,
           entry_unit_factor: line.entry_unit_factor ?? 1,
           notes: line.notes.trim() || null,
+          ...(locationLoadState === 'ready' ? movement.action === 'produce' ? {
+            production_location_id: locationValues.production_location_id ?? null,
+            to_storage_location_id: locationValues.to_storage_location_id ?? null,
+          } : {
+            from_storage_location_id: locationValues.from_storage_location_id ?? null,
+            to_storage_location_id: locationValues.to_storage_location_id ?? null,
+          } : {}),
           // status / source / org_id / submitted_by NOT sent — server-stamped (NFR-003)
         })),
       )
@@ -1919,7 +1963,17 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
               {productionWorksheet && <Panel title={t('cafe.production.stagedEntries')} open={inspectEntriesOpen} className="cafe-production-inspect">{captureDraftContent}</Panel>}
               {mode === 'transfer' && <Panel title={t('kitchen.transfer.draft.title')} open={inspectEntriesOpen} className="cafe-transfer-inspect">{captureDraftContent}</Panel>}
               {/* Where it is made / stored is decided here, above Submit and the entries panel, not in the page header (preview only; nothing when the preview is off). */}
-              {canCapture && (productionWorksheet || (mode === 'transfer' && transferDestinationChosen)) && <LocationPanelFields kind={mode === 'transfer' ? 'transfer' : 'production'} />}
+              {canCapture && (productionWorksheet || (mode === 'transfer' && transferDestinationChosen)) && <LocationPanelFields
+                kind={mode === 'transfer' ? 'transfer' : 'production'}
+                locations={locationChoices}
+                values={locationValues}
+                onChange={(field, value) => setSelectedLocationState({
+                  scope: locationScope, values: { ...locationValues, [field]: value },
+                })}
+                loadState={locationLoadState}
+                onRetry={retryLocationChoices}
+                disabled={status.kind === 'submitting'}
+              />}
             </>
           )}
 

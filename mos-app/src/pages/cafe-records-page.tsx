@@ -155,7 +155,7 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
     const personById = (id: string) => lookups.personName(id) ?? t('records.person.unavailable')
     return {
       t, stream, destination, personById,
-      person: entry => entry.source === 'count' ? t('records.who.notAvailable') : entry.personId ? personById(entry.personId) : t('records.who.notAvailable'),
+      person: entry => entry.personId ? personById(entry.personId) : t('records.who.notAvailable'),
     }
   }, [t, streamByKey, branches, lookups])
 

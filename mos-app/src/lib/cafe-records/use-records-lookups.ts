@@ -57,7 +57,11 @@ export function useRecordsLookups(
       if (log.item_unit_id) units.add(log.item_unit_id)
       if (log.destination_branch_id) branchIds.add(log.destination_branch_id)
     }
-    for (const count of sources.counts.rows) { addStream(count.branch_id, count.activity); if (count.item_unit_id) units.add(count.item_unit_id) }
+    for (const count of sources.counts.rows) {
+      addStream(count.branch_id, count.activity)
+      if (count.item_unit_id) units.add(count.item_unit_id)
+      if (count.submitted_by) people.add(count.submitted_by)
+    }
     for (const receipt of sources.receipts.rows) {
       addStream(receipt.branch_id, receipt.activity)
       if (receipt.received_by) people.add(receipt.received_by)
@@ -68,6 +72,7 @@ export function useRecordsLookups(
       addStream(request.branch_id, request.activity)
       if (request.requested_by) people.add(request.requested_by)
       if (request.reviewed_by) people.add(request.reviewed_by)
+      for (const line of request.lines) if (line.item_unit_id) units.add(line.item_unit_id)
     }
     const sorted = (set: Set<string>) => [...set].sort()
     const result = { streamKeys: sorted(streamKeys), people: sorted(people), units: sorted(units), branchIds: sorted(branchIds) }

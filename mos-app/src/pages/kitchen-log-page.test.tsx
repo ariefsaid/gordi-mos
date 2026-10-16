@@ -19,6 +19,11 @@ import type { AuthState } from '@/auth/context'
 import * as kitchenItemList from '@/lib/kitchen-item-list'
 
 vi.mock('@/auth/use-auth')
+const locationMocks = vi.hoisted(() => ({ choices: vi.fn() }))
+vi.mock('@/lib/use-cafe-location-choices', async importActual => {
+  const actual = await importActual<typeof import('@/lib/use-cafe-location-choices')>()
+  return { ...actual, useCafeLocationChoices: locationMocks.choices }
+})
 import { useAuth } from '@/auth/use-auth'
 
 const mockFetchLatestItemLogDates = vi.hoisted(() => vi.fn())
@@ -318,6 +323,7 @@ beforeEach(() => {
   // switches streams would otherwise seed the NEXT test's opening stream. Clear it per test.
   rememberStream(null)
   resetCafeLocations()
+  locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], defaults: null, retry: vi.fn() })
   mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS)
   mockListActiveBranches.mockResolvedValue(BRANCHES)
   mockListStreamPairs.mockResolvedValue(STREAM_PAIRS)
@@ -1202,6 +1208,33 @@ describe('AC-030: successful submit (increment semantics)', () => {
     await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
     expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
       expect.objectContaining({ action: 'produce', wip_item_id: 'w1', qty_porsi: 1.5, entry_quantity: 1.5 }),
+    ])
+  })
+
+  it('submits optional production and output locations with the capture batch', async () => {
+    mockInsertKitchenLogBatch.mockResolvedValue(['located-log'])
+    locationMocks.choices.mockReturnValue({
+      status: 'ready',
+      locations: [
+        { id: 'kitchen-1', name: 'Kitchen', use: 'production', parent_id: null, branch_ids: [BRANCH_RUMAH_RAMES.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
+        { id: 'shelf-1', name: 'Shelf', use: 'storage', parent_id: null, branch_ids: [BRANCH_RUMAH_RAMES.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
+      ],
+      defaults: { branch_id: BRANCH_RUMAH_RAMES.id, activity: 'kitchen', production_location_id: 'kitchen-1', storage_location_id: 'shelf-1' },
+      retry: vi.fn(),
+    })
+    await renderPage()
+    const productionLocation = await screen.findByRole('combobox', { name: 'Production location' })
+    const outputLocation = screen.getByRole('combobox', { name: 'Store output in' })
+    expect(productionLocation).toHaveTextContent('Kitchen')
+    expect(outputLocation).toHaveTextContent('Shelf')
+    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }), { target: { value: '12' } })
+    fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
+      expect.objectContaining({
+        action: 'produce', wip_item_id: 'w2', production_location_id: 'kitchen-1', to_storage_location_id: 'shelf-1',
+      }),
     ])
   })
 

@@ -33,6 +33,11 @@ import {
 import { isValidElement, type ReactNode } from 'react'
 
 vi.mock('@/auth/use-auth')
+vi.mock('@/lib/db/module-settings', () => ({
+  getViewerModuleAvailability: vi.fn().mockResolvedValue(['work', 'money', 'cafe', 'roastery', 'ecommerce', 'assistant'].map((module_id) => ({
+    module_id, enabled: true, revision: 'test-revision',
+  }))),
+}))
 import { useAuth } from '@/auth/use-auth'
 import { RequireAccessRole } from '@/auth/require-access-role'
 import { AdminRoute } from '@/auth/admin-route'

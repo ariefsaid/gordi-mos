@@ -7,7 +7,7 @@ import { isShipGated } from '@/lib/ship-gate'
 import { admittedModules, destinationForPath, goToEntries, pageGroupsFor } from './module-registry'
 import { ADMIN_SECTIONS, sectionForPath, visibleSections } from './sections'
 
-const PREVIEW_PATHS = ['/cafe/transfer-routes', '/cafe/locations', '/cafe/locations/change-location', '/cafe/locations/move', '/cafe/stock-comparison', '/admin/modules', '/admin/access/modules']
+const PREVIEW_PATHS = ['/admin/people/modules']
 
 function findRoute(routes: RouteObject[], target: string, parent = ''): RouteObject | undefined {
   for (const route of routes) {
@@ -26,30 +26,39 @@ const cafePaths = (roles: string[]) =>
 afterEach(() => vi.unstubAllEnvs())
 
 describe('preview ship state without the local opt-in (the default, and every production build)', () => {
-  it.each(PREVIEW_PATHS)('%s is gated and its route forwards away', (path) => {
+  it.each(PREVIEW_PATHS)('%s is gated', (path) => {
     expect(isShipGated(path)).toBe(true)
-    expect(findRoute(ungatedRouteTable, path)).toBeDefined()
-    expect(closed(findRoute(applyShipGate(ungatedRouteTable), path))).toBe(true)
   })
 
   it('keeps the preview out of the Café menu, the command menu and the route owner lookup', () => {
-    expect(cafePaths(['admin'])).not.toContain('/cafe/transfer-routes')
-    expect(cafePaths(['admin'])).not.toContain('/cafe/locations')
-    expect(cafePaths(['admin'])).not.toContain('/cafe/stock-comparison')
-    expect(goToEntries(['admin']).map((entry) => entry.path)).not.toContain('/cafe/stock-comparison')
-    expect(sectionForPath('/cafe/stock-comparison')).toBeNull()
-    expect(goToEntries(['admin']).map((entry) => entry.path)).not.toContain('/cafe/locations')
-    expect(sectionForPath('/cafe/locations')).toBeNull()
-    expect(goToEntries(['admin']).map((entry) => entry.path)).not.toContain('/cafe/transfer-routes')
-    expect(sectionForPath('/cafe/transfer-routes')).toBeNull()
-    expect(destinationForPath('/admin/modules')).toBeNull()
-    expect(visibleSections(ADMIN_SECTIONS, ['admin']).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/access', '/admin/agents'])
+    expect(cafePaths(['admin'])).toContain('/cafe/transfer-routes')
+    expect(cafePaths(['admin'])).toContain('/cafe/locations')
+    expect(goToEntries(['admin']).map((entry) => entry.path)).toContain('/cafe/locations')
+    expect(sectionForPath('/cafe/locations')?.labelKey).toBe('nav.cafe.locations')
+    expect(goToEntries(['admin']).map((entry) => entry.path)).toContain('/cafe/transfer-routes')
+    expect(sectionForPath('/cafe/transfer-routes')?.labelKey).toBe('nav.cafe.transferRoutes')
+    expect(isShipGated('/admin/people/modules')).toBe(true)
+    expect(isShipGated('/admin/modules')).toBe(false)
+    expect(isShipGated('/admin/access/modules')).toBe(false)
+    expect(destinationForPath('/admin/modules')?.id).toBe('admin')
+    expect(visibleSections(ADMIN_SECTIONS, ['admin']).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/access', '/admin/modules', '/admin/agents'])
   })
 
-  it('keeps the old Access › Modules path closed too: it forwards away, never to the new page', () => {
-    expect(isShipGated('/admin/access/modules')).toBe(true)
+  it('keeps the released Locations route available without the local preview opt-in', () => {
+    for (const path of ['/cafe/locations', '/cafe/locations/change-location', '/cafe/locations/move']) {
+      expect(isShipGated(path)).toBe(false)
+    }
+    expect(findRoute(ungatedRouteTable, '/cafe/locations')).toBeDefined()
+    expect(closed(findRoute(applyShipGate(ungatedRouteTable), '/cafe/locations'))).toBe(false)
+    expect(goToEntries(['member']).map((entry) => entry.path)).toContain('/cafe/locations')
+  })
+
+  it('keeps the old Access › Modules redirect released with the Modules page', () => {
+    expect(isShipGated('/admin/access/modules')).toBe(false)
     expect(findRoute(ungatedRouteTable, '/admin/access/modules')).toBeDefined()
-    expect(closed(findRoute(applyShipGate(ungatedRouteTable), '/admin/access/modules'))).toBe(true)
+    const legacy = findRoute(applyShipGate(ungatedRouteTable), '/admin/access/modules')
+    expect(closed(legacy)).toBe(false)
+    expect(isValidElement(legacy?.element) && (legacy.element.props as { to?: string }).to).toBe('/admin/modules')
   })
 
   it('never gates the existing Transfer and Access routes', () => {
@@ -59,20 +68,35 @@ describe('preview ship state without the local opt-in (the default, and every pr
   })
 })
 
+describe('released stock comparison', () => {
+  it('routes and appears in reviewer navigation without the local preview opt-in', () => {
+    vi.stubEnv('VITE_FUTURE_PREVIEW', '')
+    expect(isShipGated('/cafe/stock-comparison')).toBe(false)
+    expect(closed(findRoute(applyShipGate(ungatedRouteTable), '/cafe/stock-comparison'))).toBe(false)
+    for (const reviewer of ['ops_lead', 'admin', 'supervisor']) {
+      expect(cafePaths([reviewer])).toContain('/cafe/stock-comparison')
+      expect(goToEntries([reviewer]).map((entry) => entry.path)).toContain('/cafe/stock-comparison')
+    }
+    for (const other of ['member', 'finance', 'manager']) {
+      expect(cafePaths([other])).not.toContain('/cafe/stock-comparison')
+    }
+  })
+})
+
 describe('preview ship state with the full local opt-in', () => {
   const optIn = () => {
     vi.stubEnv('MODE', 'development')
     vi.stubEnv('VITE_FUTURE_PREVIEW', '1')
   }
 
-  it.each(PREVIEW_PATHS)('%s routes, and every navigation surface asks the same authority', (path) => {
+  it.each(PREVIEW_PATHS)('%s opens with the local opt-in', (path) => {
     optIn()
     expect(isShipGated(path)).toBe(false)
-    expect(closed(findRoute(applyShipGate(ungatedRouteTable), path))).toBe(false)
   })
 
-  it('shows Transfer routes in the Café Setup group and the command menu, in registry order after Recipes', () => {
-    optIn()
+  it('shows released Transfer routes in the Café Setup group and the command menu', () => {
+    optIn() // Allows neighboring preview entries so the registry order is visible.
+    expect(isShipGated('/cafe/transfer-routes')).toBe(false)
     const paths = cafePaths(['member'])
     expect(paths.indexOf('/cafe/transfer-routes')).toBe(paths.indexOf('/cafe/recipes') + 1)
     expect(paths.indexOf('/cafe/locations')).toBe(paths.indexOf('/cafe/transfer-routes') + 1)
@@ -81,11 +105,11 @@ describe('preview ship state with the full local opt-in', () => {
     expect(goToEntries(['member']).map((entry) => entry.path)).toContain('/cafe/transfer-routes')
     expect(sectionForPath('/cafe/transfer-routes')?.labelKey).toBe('nav.cafe.transferRoutes')
     expect(destinationForPath('/admin/modules')?.id).toBe('admin')
+    expect(isShipGated('/admin/people/modules')).toBe(false)
     expect(visibleSections(ADMIN_SECTIONS, ['admin']).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/access', '/admin/modules', '/admin/agents'])
   })
 
   it('shows Stock comparison right after Count for Count reviewers only', () => {
-    optIn()
     for (const reviewer of ['ops_lead', 'admin', 'supervisor']) {
       const paths = cafePaths([reviewer])
       expect(paths.indexOf('/cafe/stock-comparison')).toBe(paths.indexOf('/cafe/count') + 1)
@@ -108,12 +132,12 @@ describe('preview ship state with the full local opt-in', () => {
   it('is refused again when any one condition of the opt-in is missing', () => {
     optIn()
     vi.stubEnv('VITE_FUTURE_PREVIEW', '')
-    expect(isShipGated('/cafe/transfer-routes')).toBe(true)
+    expect(isShipGated('/admin/people/modules')).toBe(true)
     optIn()
     vi.stubEnv('MODE', 'production')
-    expect(isShipGated('/cafe/transfer-routes')).toBe(true)
+    expect(isShipGated('/admin/people/modules')).toBe(true)
     optIn()
     vi.stubEnv('VITE_FUTURE_PREVIEW_PORT', '4401')
-    expect(isShipGated('/cafe/transfer-routes')).toBe(true)
+    expect(isShipGated('/admin/people/modules')).toBe(true)
   })
 })

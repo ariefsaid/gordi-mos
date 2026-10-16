@@ -91,24 +91,24 @@ describe('Café receipt adapter', () => {
       receipt_id: 'r-1', outcome: 'created', row_version: 1,
       lines: [{
         id: 'line-1', item_unit_id: 'kg', item_name: 'Bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5',
-        conditions: ['damaged_wrong'], condition_reason: null, condition_updated_at: '2026-10-06T02:00:00Z',
+        storage_location_id: 'location-1', conditions: ['damaged_wrong'], condition_reason: null, condition_updated_at: '2026-10-06T02:00:00Z',
       }],
     }, error: null })
     schemaMock.mockReturnValue({ rpc } as never)
-    const line = { item_unit_id: 'kg', quantity: '2.5', damaged_wrong: true, org_id: 'other', status: 'Approved' }
+    const line = { item_unit_id: 'kg', quantity: '2.5', damaged_wrong: true, to_storage_location_id: 'location-1', org_id: 'other', status: 'Approved' }
 
     await expect(submitCafeReceipt(STREAM, '2026-10-06', 'key-1', [line])).resolves
       .toEqual({
         receipt_id: 'r-1', outcome: 'created', row_version: 1,
         lines: [{
           id: 'line-1', item_unit_id: 'kg', item_name: 'Bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5',
-          conditions: ['damaged_wrong'], condition_reason: null, condition_updated_at: '2026-10-06T02:00:00Z',
+          storage_location_id: 'location-1', conditions: ['damaged_wrong'], condition_reason: null, condition_updated_at: '2026-10-06T02:00:00Z',
           po_created_after_delivery: false, photos: [],
         }],
       })
     expect(rpc).toHaveBeenCalledWith('submit_cafe_receipt', {
       p_branch_id: 'branch-1', p_activity: 'kitchen', p_arrival_date: '2026-10-06', p_client_key: 'key-1',
-      p_lines: [{ item_unit_id: 'kg', quantity: '2.5', damaged_wrong: true }],
+      p_lines: [{ item_unit_id: 'kg', quantity: '2.5', damaged_wrong: true, to_storage_location_id: 'location-1' }],
     })
   })
 

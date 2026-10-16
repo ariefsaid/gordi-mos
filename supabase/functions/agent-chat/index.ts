@@ -8,8 +8,8 @@
  *   1. CORS preflight handling for the configured app origins (_shared/cors.ts).
  *   2. requireVerifiedClaims (_shared/claims.ts): Bearer token, agent tokens refused, JWT verified,
  *      then org_id/person_id/access_roles read from it (D1 — no profiles lookup); 401 otherwise.
- *   3. Build the caller-JWT client for business actions and reads (deputy auth — D2/D3) and the
- *      service-role writer that creates owner-bound approval rows (the trusted edge path).
+ *   3. Use the service-role client to enforce the org assistant switch, then build the caller-JWT
+ *      client for business actions and reads and the trusted approval-row writer.
  *   4. Read AGENT_MODEL_API_KEY / AGENT_MODEL_BASE_URL / AGENT_MODEL_DEFAULT from function
  *      secrets — fail loud (502 MODEL_NOT_CONFIGURED) if the model id is unset (D4, FR-CF-001).
  *   5. Cap the JSON body size, then parse into AgentChatRequest.
@@ -53,10 +53,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
     )
   }
   const { jwt, userId, orgId, personId, accessRoles } = verdict.claims
+  const serviceRoleClient = createClient(supabaseUrl, serviceRoleKey)
+  const { data: assistantSetting, error: assistantSettingError } = await serviceRoleClient
+    .schema('mos')
+    .from('org_module_settings')
+    .select('enabled')
+    .eq('org_id', orgId)
+    .eq('module_id', 'assistant')
+    .maybeSingle()
+  if (assistantSettingError) throw assistantSettingError
+  if (assistantSetting?.enabled === false) {
+    return new Response(
+      JSON.stringify({ status: 403, error: 'MODULE_OFF', detail: 'assistant is switched off for this org' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
 
   // ── 3. Build the caller-JWT Supabase client (deputy auth — D2/D3) ────────────
-  // Business actions and reads use callerClient; service_role inserts only authenticated approvals.
-  const serviceRoleClient = createClient(supabaseUrl, serviceRoleKey)
+  // Business actions and reads use callerClient; service_role reads switches and writes approvals.
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
   const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: `Bearer ${jwt}` } },

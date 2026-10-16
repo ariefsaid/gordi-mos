@@ -18,6 +18,9 @@ const mockUseAuth = vi.mocked(useAuth)
  *
  * `markMigrated()` with no arguments is the live state on this branch: nothing migrated.
  */
+const moduleAvailability = vi.hoisted(() => ({ isOn: vi.fn((moduleId: string) => moduleId !== '') }))
+vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => moduleAvailability }))
+
 const migrated = vi.hoisted(() => ({ routes: [] as { path: string }[] }))
 vi.mock('./page-family-migration', () => ({
   PAGE_FAMILY_FRAME_ROUTES: migrated.routes,
@@ -125,6 +128,7 @@ beforeEach(() => {
   // Default = this branch's real state: no page is on a PageFamilyFrame, so ContextRow owns the
   // job sentence everywhere. Cases about suppression opt in with markMigrated(...).
   markMigrated()
+  moduleAvailability.isOn.mockImplementation(() => true)
 })
 
 describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () => {
@@ -193,6 +197,14 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
     const region = screen.getByRole('region', { name: 'Context' })
     expect(region.textContent).toContain('Café')
     expect(region.textContent).not.toContain('Cahya')
+  })
+
+  it('does not use an org-disabled module as the viewer scope', () => {
+    moduleAvailability.isOn.mockImplementation((moduleId) => moduleId !== 'cafe')
+    renderCtx('/admin/roles')
+    const region = screen.getByRole('region', { name: 'Context' })
+    expect(region.textContent).toContain('Barista')
+    expect(region.textContent).not.toContain('Café')
   })
 
   it('F3/P1: an admin-flagged viewer whose role matches no BU-family keyword shows their real role name, never the bare "Admin" label', () => {

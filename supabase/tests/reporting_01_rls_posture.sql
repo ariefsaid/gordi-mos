@@ -24,7 +24,10 @@ select tables_are('reporting', array[
   'pending_bill_snapshots',
   'recipe_versions',
   'recipe_deduction_findings',
-  'recipe_finding_snapshots'
+  'recipe_finding_snapshots',
+  'esb_stock_snapshots',
+  'esb_stock_coverage',
+  'esb_stock_on_hand'
 ], 'reporting table inventory covers every snapshot and scope table');
 
 -- ── AC-005: RLS enabled AND forced on every one of them ──────────────────────────────────────
