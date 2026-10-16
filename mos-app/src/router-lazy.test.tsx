@@ -41,6 +41,7 @@ import { KitchenPlanPage } from './pages/kitchen-plan-page'
 import { KitchenStockPage } from './pages/kitchen-stock-page'
 import { CafeItemSettingsPage } from './pages/cafe-item-settings-page'
 import { CafeRecipesPage } from './pages/cafe-recipes-page'
+import { CafeTransferRoutesPage } from './pages/cafe-transfer-routes-page'
 import { CafeWastePage } from './pages/cafe-waste-page'
 import { CafeCountPage } from './pages/cafe-count-page'
 import { CafeRecordsPage } from './pages/cafe-records-page'
@@ -182,6 +183,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/cafe/stock', KitchenStockPage, 'dev'],
   ['/cafe/items', CafeItemSettingsPage, '1242'],
   ['/cafe/recipes', CafeRecipesPage, '1642'],
+  ['/cafe/transfer-routes', CafeTransferRoutesPage, 'transfer-routes'],
   // One Review page with queues; /cafe/receive/review and /cafe/request/review redirect into it.
   ['/cafe/review', CafeReviewPage, 'dev'],
   ['/cafe/pushes', KitchenPushesPage, 'dev'],
