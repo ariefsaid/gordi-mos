@@ -1,0 +1,12 @@
+/* The shell's generic dead-end sentence repeats this page's title; keep the shell navigation, not the duplicate context/action prompts. */
+body:has(.not-found-workbench) .ctx-row { display: none; }
+.not-found-workbench { display: flex; flex-direction: column; align-items: flex-start; gap: var(--mos-field-gap); max-width: 640px; }
+.not-found-copy { max-width: 65ch; margin: 0; color: var(--foreground); font: var(--mos-type-body); text-wrap: pretty; }
+.not-found-path { display: flex; flex-direction: column; gap: var(--mos-space-1); max-width: 100%; margin: 0; }
+.not-found-path span { color: var(--foreground); font: var(--mos-type-label); }
+.not-found-path code { overflow-wrap: anywhere; white-space: pre-wrap; color: var(--foreground); font: var(--mos-type-body); }
+.not-found-actions { display: flex; flex-wrap: wrap; gap: var(--mos-inline-gap); }
+.not-found-actions .btn { height: auto; min-height: var(--mos-control-height); padding-inline: var(--mos-space-4); display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+@media (max-width: 767.98px) {
+  .not-found-actions { flex-direction: column; align-self: stretch; }
+}

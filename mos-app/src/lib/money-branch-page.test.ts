@@ -3,7 +3,7 @@ import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
 import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { buildBranchPage, readBranchView } from './money-branch-page'
 
-const LATEST = '2026-10-05'
+const LATEST = '2040-03-05'
 function day(offset: number): string {
   const d = new Date(`${LATEST}T00:00:00Z`)
   d.setUTCDate(d.getUTCDate() - offset)
@@ -13,7 +13,7 @@ function rev(date: string, code: string, amount: number, channel = 'POS'): Sales
   return {
     revenue_date: date, channel, esb_code: code, branch_code: code, branch_name: code.toUpperCase(),
     branch_id: code === 'ghq' ? 'b-ghq' : null, transactions: 1, clean_revenue: amount,
-    snapshot_as_of: '2026-10-05T19:05:00Z', source_contract_version: 'v1',
+    snapshot_as_of: '2040-03-05T19:05:00Z', source_contract_version: 'v1',
   }
 }
 // ghq every day for 21 days; ckl misses the latest day; b2b invoices on day 0 only.
@@ -25,13 +25,13 @@ const ROWS: SalesDailyRevenueRow[] = [
 const MARGIN: SalesMarginDailyRow[] = Array.from({ length: 7 }, (_, i) => ({
   margin_date: day(i), esb_code: 'ghq', branch_code: 'ghq', branch_name: 'GHQ', branch_id: 'b-ghq',
   revenue: 1_000_000, cogs_interim_sm: 400_000, cogs_budget_bom: 350_000, margin_interim: 600_000,
-  bom_coverage_pct: 0.8, snapshot_as_of: '2026-10-05T19:05:00Z', source_contract_version: 'v1',
+  bom_coverage_pct: 0.8, snapshot_as_of: '2040-03-05T19:05:00Z', source_contract_version: 'v1',
 }))
 
 describe('readBranchView', () => {
   it('reads the period and a well-formed day, else the defaults', () => {
-    expect(readBranchView(new URLSearchParams('period=7&d=2026-10-03'))).toEqual({ period: 7, day: '2026-10-03' })
-    expect(readBranchView(new URLSearchParams('period=14&d=yesterday'))).toEqual({ period: 30, day: null })
+    expect(readBranchView(new URLSearchParams('period=7&d=2040-03-03'))).toMatchObject({ period: 7, day: '2040-03-03' })
+    expect(readBranchView(new URLSearchParams('period=14&d=yesterday'))).toMatchObject({ period: 30, range: null, day: null })
   })
 })
 
@@ -44,6 +44,7 @@ describe('buildBranchPage', () => {
     expect(page.days.map((d) => d.date)).toEqual([6, 5, 4, 3, 2, 1, 0].map(day))
     expect(page.days[6]).toEqual({ date: LATEST, value: 1_000_000, compare: 1_070_000 })
     expect(page.total).toBe(page.days.reduce((s, d) => s + (d.value ?? 0), 0))
+    expect(page.vsPrevious).toBeCloseTo(7_210_000 / 7_700_000 - 1, 10)
     expect(page.margin).toBeUndefined()
   })
 
@@ -60,9 +61,32 @@ describe('buildBranchPage', () => {
     expect(page.margin).toBeNull()
   })
 
+  it('a custom range bounds the branch chart, comparison and channel data', () => {
+    const page = buildBranchPage(ROWS, null, 'ghq', 30, undefined, {
+      latestDate: LATEST, range: { from: day(2), to: day(0) }, channel: 'POS',
+    })!
+    expect(page.days.map((d) => d.date)).toEqual([day(2), day(1), day(0)])
+    expect(page.total).toBe(3_030_000)
+    expect(page.days[2].compare).toBe(1_070_000)
+    expect(page.daysCount).toBe(3)
+  })
+
+  it('a branch with no current rows in a custom range is empty, not zero revenue', () => {
+    expect(buildBranchPage(ROWS, null, 'ckl', 30, undefined, {
+      latestDate: LATEST, range: { from: day(0), to: day(0) }, channel: 'POS',
+    })).toBeNull()
+  })
+
+  it('a B2B channel filter does not show POS branch data', () => {
+    expect(buildBranchPage(ROWS, null, 'ghq', 7, undefined, {
+      latestDate: LATEST, channel: 'B2B',
+    })).toBeNull()
+  })
+
   it('a margin viewer gets the branch margin for the period', () => {
     const page = buildBranchPage(ROWS, MARGIN, 'ghq', 7)!
     expect(page.margin!.pct).toBeCloseTo(0.6, 10)
+    expect(page.days[0].marginPct).toBeCloseTo(0.6, 10)
     expect(page.margin!.budgetBasis).toEqual({ cogsShare: 0.4, budgetShare: 0.35 })
   })
 

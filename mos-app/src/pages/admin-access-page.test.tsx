@@ -44,6 +44,12 @@ function authorityRows(): RoleAuthorityRow[] {
   ))
 }
 
+// The page edits one access level at a time; the comparison table is opened on request.
+async function openComparison(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: 'Compare access levels' }))
+  return screen.findByRole('table', { name: 'Role access and authority' })
+}
+
 async function selectPicker(user: ReturnType<typeof userEvent.setup>, label: string, option: string) {
   const trigger = screen.getByRole('combobox', { name: label })
   await waitFor(() => expect(trigger).toBeEnabled())
@@ -70,25 +76,24 @@ beforeEach(() => {
 })
 
 describe('AdminAccessPage', () => {
-  it('renders the editable role × action table; Team leads live on the Teams tab, not here', async () => {
+  it('edits one access level at a time; the comparison table is opened on request; Team leads live on the Teams tab, not here', async () => {
+    const user = userEvent.setup()
     renderPage()
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Roles & permissions' })).toBeInTheDocument()
-    const table = screen.getByRole('table', { name: 'Role access and authority' })
-    expect(table).toHaveClass('admin-access-table--responsive')
-    expect(table.parentElement).toHaveClass('admin-access-table-wrap')
-    const values = table.querySelectorAll('.admin-access-table__value')
-    expect(values).toHaveLength(AUTHORITY_ACTIONS.length * AUTHORITY_ROLES.length)
-    expect(values[0]).toHaveClass('admin-access-table__value--wrap-no-ellipsis')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Access levels' })).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Role access and authority' })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Team leads' })).toBeNull()
-    expect(screen.getByRole('combobox', { name: 'Manage Projects & Processes — Member' })).toHaveTextContent('Own Business Unit')
-    expect(screen.getAllByText('Organization-wide — fixed')).toHaveLength(AUTHORITY_ACTIONS.length)
-    expect(screen.getByText(/Everyone in the organization can read Work/)).toBeInTheDocument()
+    expect(await screen.findByRole('combobox', { name: 'Manage Projects & Processes — Member' })).toHaveTextContent('Own Business Unit')
+
+    const table = await openComparison(user)
+    expect(within(table).getAllByRole('row')).toHaveLength(AUTHORITY_ACTIONS.length + 1)
+    expect(within(table).getAllByText('Organization-wide — fixed')).toHaveLength(AUTHORITY_ACTIONS.length)
   })
 
   it('names roles the way the person panel does, and says where the derived columns come from', async () => {
+    const user = userEvent.setup()
     renderPage()
-    const table = await screen.findByRole('table', { name: 'Role access and authority' })
+    const table = await openComparison(user)
     const headers = within(table).getAllByRole('columnheader').map((th) => th.textContent)
     expect(headers).toEqual([
       'Action',
@@ -110,16 +115,16 @@ describe('AdminAccessPage', () => {
     const router = createMemoryRouter(
       [
         { path: '/admin/access', element: <AdminAccessPage /> },
-        { path: '/admin/people', element: <p>People tab</p> },
+        { path: '/admin/teams', element: <p>Teams tab</p> },
       ],
       { initialEntries: ['/admin/access'] },
     )
     render(<I18nProvider><RouterProvider router={router} /></I18nProvider>)
-    await screen.findByRole('table', { name: 'Role access and authority' })
+    await screen.findByRole('combobox', { name: 'Manage Projects & Processes — Member' })
 
     await selectPicker(user, 'Manage Projects & Processes — Member', 'Organization')
-    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
-    await user.click(screen.getByRole('link', { name: 'People' }))
+    expect(screen.getAllByText('Unsaved changes').length).toBeGreaterThan(0)
+    await user.click(screen.getByRole('link', { name: 'From Team leadership' }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Leave without saving?' })
     await user.click(within(dialog).getByRole('button', { name: 'Stay on this page' }))
@@ -133,18 +138,18 @@ describe('AdminAccessPage', () => {
     const router = createMemoryRouter(
       [
         { path: '/admin/access', element: <AdminAccessPage /> },
-        { path: '/admin/people', element: <p>People tab</p> },
+        { path: '/admin/teams', element: <p>Teams tab</p> },
       ],
       { initialEntries: ['/admin/access'] },
     )
     render(<I18nProvider><RouterProvider router={router} /></I18nProvider>)
-    await screen.findByRole('table', { name: 'Role access and authority' })
+    await screen.findByRole('combobox', { name: 'Manage Projects & Processes — Member' })
     await selectPicker(user, 'Manage Projects & Processes — Member', 'Organization')
     await user.click(screen.getByRole('button', { name: 'Save access rules' }))
-    await screen.findByRole('status', { name: 'Access rules saved' })
+    await screen.findByText('Access rules saved')
 
-    await user.click(screen.getByRole('link', { name: 'People' }))
-    expect(await screen.findByText('People tab')).toBeInTheDocument()
+    await user.click(screen.getByRole('link', { name: 'From Team leadership' }))
+    expect(await screen.findByText('Teams tab')).toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: 'Leave without saving?' })).toBeNull()
   })
 
@@ -152,7 +157,7 @@ describe('AdminAccessPage', () => {
     const user = userEvent.setup()
     mockSaveRoleAuthority.mockRejectedValueOnce(new Error('network down')).mockResolvedValueOnce(undefined)
     renderPage()
-    await screen.findByRole('table', { name: 'Role access and authority' })
+    await screen.findByRole('combobox', { name: 'Manage Projects & Processes — Member' })
 
     const manageMember = screen.getByRole('combobox', { name: 'Manage Projects & Processes — Member' })
     await selectPicker(user, 'Manage Projects & Processes — Member', 'Organization')
@@ -167,35 +172,35 @@ describe('AdminAccessPage', () => {
 
     await waitFor(() => expect(mockSaveRoleAuthority).toHaveBeenCalledTimes(2))
     expect(manageMember).toHaveTextContent('Organization')
-    expect(screen.getByRole('status', { name: 'Access rules saved' })).toBeInTheDocument()
+    expect(await screen.findByText('Access rules saved')).toBeInTheDocument()
   })
 
   it('renders the new settings copy in Indonesian', async () => {
     renderPage('id')
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Peran & izin' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Tingkat akses' })).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Bagian pengaturan admin' })
-    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Orang', 'Tim', 'Peran & izin', 'Agen terhubung'])
-    expect(screen.getByRole('link', { name: 'Dari kepemimpinan Tim' })).toBeInTheDocument()
+    expect(within(nav).getByRole('combobox', { name: 'Pengaturan admin' })).toHaveTextContent('Tingkat akses')
+    expect(await screen.findByRole('link', { name: 'Dari kepemimpinan Tim' })).toBeInTheDocument()
   })
 
-  it('lets a phone user choose a role, edit its grant, and save only that change', async () => {
+  it('lets a phone user choose a level, edit its grant, and save only that change', async () => {
     const user = userEvent.setup()
     mockUseIsDesktop.mockReturnValue(false)
     renderPage()
 
-    expect(await screen.findByLabelText('Role to edit')).toBeInTheDocument()
-    expect(document.querySelector('.admin-access-mobile')).toBeInTheDocument()
+    expect(await screen.findByRole('combobox', { name: 'Access level' })).toBeInTheDocument()
     expect(screen.queryByRole('table', { name: 'Role access and authority' })).toBeNull()
-    await selectPicker(user, 'Role to edit', 'Team lead')
+    await selectPicker(user, 'Access level', 'Team lead')
+    await user.click(screen.getByRole('button', { name: 'Projects & Processes' }))
     expect(screen.getByRole('combobox', { name: 'Manage Projects & Processes — Team lead' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Save access rules' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Save access rules' })).toBeDisabled()
     await selectPicker(user, 'Manage Projects & Processes — Team lead', 'Own Business Unit')
     await user.click(screen.getByRole('button', { name: 'Save access rules' }))
     await waitFor(() => expect(mockSaveRoleAuthority).toHaveBeenCalledWith([
       { action: 'workline.manage', role: 'team_lead', scope: 'own_bu' },
     ]))
-    expect(screen.getByRole('status', { name: 'Access rules saved' })).toBeInTheDocument()
+    expect(await screen.findByText('Access rules saved')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save access rules' })).toBeDisabled()
   })
 })

@@ -35,7 +35,7 @@ export interface UseListboxPopoverArgs {
   manageFocus?: boolean
 }
 
-export interface ListboxOptionProps {
+interface ListboxOptionProps {
   id: string
   role: 'option'
   'data-active': boolean | undefined

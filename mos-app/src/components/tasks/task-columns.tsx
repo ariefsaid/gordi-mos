@@ -80,7 +80,7 @@ function taskOf(row: TaskListRow | TaskTreeNode): TaskListRow | null {
 }
 
 // The desktop Tasks table's single column list, in rendered order: the five decision
-// columns (Task · Status · PIC · Supervisor · Due) with each Fields-chooser-optional column
+// columns (Task · Status · Responsible · Accountable · Due) with each Fields-chooser-optional column
 // inserted before Due (Wave 2c / AC-006, #743 — Due MUST stay the last decision column and
 // inside the first paint). Order here is the order both the <thead> and every <tr> render.
 export const TASK_COLUMN_DEFS: TaskColumnDef[] = [
@@ -141,7 +141,7 @@ export const TASK_COLUMN_DEFS: TaskColumnDef[] = [
 // The ONE visibility mapping: a column renders iff it is a decision column (no `field`) or
 // its Fields-chooser field is checked. Both consumers — TanStack's `columnVisibility` state
 // and TaskRow's instance-less filter — read this function, never their own copy.
-export function taskColumnIsVisible(
+function taskColumnIsVisible(
   column: TaskColumnDef,
   visibleFields: readonly TaskCollectionVisibleField[],
 ): boolean {

@@ -17,23 +17,48 @@
   max-width: 100%;
   box-sizing: border-box;
 }
+.kr-review-views { min-width:0; }
+.kr-review-content { padding-top:0; }
+.kr-review-content [hidden] { display:none !important; }
+
+.kr-master-entry { display:flex; align-items:center; gap: var(--mos-inline-gap); border-bottom:1px solid var(--border); }
+.kr-master-row { display:grid; grid-template-columns:minmax(0,1fr) auto; flex:1; gap: var(--mos-stack-gap) var(--mos-row-gap); width:100%; min-height: var(--mos-row-min); padding: var(--mos-row-pad-y) var(--mos-row-pad-x); text-align:left; color:var(--foreground); background:transparent; border:0; cursor:pointer; }
+.kr-master-approve { min-height: var(--mos-control-height); }
+.kr-master-row:hover { background:var(--mos-hover); }
+.kr-master-row[aria-pressed="true"] { background:var(--mos-accent-tint); }
+.kr-master-row:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.kr-master-row__identity { min-width:0; font-weight:600; line-height:1.5; overflow-wrap:anywhere; }
+.kr-master-row__state { color:var(--muted-foreground); font-size:var(--mos-size-1); }
+.kr-master-row__meta { grid-column:1/-1; color:var(--muted-foreground); font-size:var(--mos-size-1); overflow-wrap:anywhere; }
+.kr-workbench { min-width:0; padding: var(--mos-gutter); border:1px solid var(--mos-line); border-radius:var(--radius-sm); background:var(--mos-surface); }
+.kr-workbench h2 { margin: 0 0 var(--mos-inline-gap); font:var(--mos-type-group); color:var(--mos-ink); overflow-wrap:anywhere; }
+.kr-workbench__meta { display:flex; flex-wrap:wrap; align-items:center; gap: var(--mos-inline-gap) var(--mos-row-gap); color:var(--muted-foreground); font-size:var(--mos-size-1); }
+.kr-workbench__submitter { display:inline-flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.kr-workbench__comparison { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin: var(--mos-field-gap) 0; }
+.kr-workbench__comparison div { padding: var(--mos-row-pad-y) 0; border-block:1px solid var(--border); }
+.kr-workbench__comparison dt { color:var(--muted-foreground); font-size:var(--mos-size-1); }
+.kr-workbench__comparison dd { margin:4px 0 0; font-size:var(--mos-size-3); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.kr-workbench__note { margin:14px 0; }
+.kr-workbench__note h3 { margin:0 0 6px; font-size:var(--mos-size-3); }
+.kr-workbench__note p { margin:0; color:var(--muted-foreground); overflow-wrap:anywhere; }
+.kr-workbench__empty { padding:20px 12px; color:var(--muted-foreground); }
 
 .kr-date-filterbar {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
-  gap: 8px 12px;
-  margin-bottom: 12px;
+  gap: var(--mos-inline-gap) var(--mos-row-gap);
+  margin-bottom: var(--mos-toolbar-gap);
 }
 .kr-date-filter { flex: 0 0 auto; min-width: 0; }
 .kr-date-filter .mk-date__box { min-width: 148px; }
-.kr-date-clear { min-height: 40px; }
+.kr-date-clear { min-height: var(--mos-control-height); height: var(--mos-control-height); padding-block: 0; }
 .kr-all-pending {
-  min-height: 40px;
+  min-height: var(--mos-control-height);
   display: inline-flex;
   align-items: center;
   color: var(--muted-foreground);
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
 }
 
 @media (pointer: coarse) {
@@ -41,57 +66,31 @@
   .kr-date-filter .mk-date__field,
   .kr-date-filter .mk-date__cal,
   .kr-date-clear,
-  .kr-refresh { min-height: 44px; }
-  .kr-date-filter .mk-date__field { font-size: var(--font-size-touch-input); }
+  .kr-refresh { min-height: var(--mos-control-height); }
+  .kr-date-filter .mk-date__field { font-size: var(--mos-size-3); }
   .kr-date-filter .mk-date__cal { width: 44px; }
 }
 
-/* ── Banners (offline / notice / error) ── */
-.kr-banner {
-  border-radius: var(--radius-sm);
-  padding: 10px 14px;
-  margin-bottom: 16px;
-  font-size: var(--font-size-control);
-}
-.kr-banner-offline {
-  background: color-mix(in srgb, var(--warning) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
-  color: var(--warning-foreground);
-}
-.kr-banner-notice {
-  background: color-mix(in srgb, var(--success) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
-  color: var(--status-won-text);
-}
-.kr-notice-link {
-  display: inline-block;
-  margin-left: 8px;
-  color: inherit;
-  font-weight: 600;
-}
-.kr-banner-error {
-  background: color-mix(in srgb, var(--destructive) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
-  color: var(--status-lost-text);
-}
 
 /* ── Per-group headerActions (rendered by the shared DataTable group header) ──
    production-first gate banner — calm info text (NOT warning/destructive — it's a
    sequencing rule, not an error). FR-042 / design-plan §S3. */
 .kr-group-gate {
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   color: var(--muted-foreground);
 }
+.kr-group-gate--link {
+  min-height: var(--mos-control-height); padding: 0 var(--mos-label-gap); border: 0; background: transparent;
+  color: var(--mos-accent); font: inherit; font-size: var(--mos-size-3); text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}
+.kr-group-gate--link:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 .kr-info-glyph {
   color: var(--muted-foreground);
 }
 /* Bulk "Approve all (N)" — group-header primary action (FR-043). Sits inside the
    DataTable .dt-group-actions wrapper (desktop: right of the header; phone: under
    the heading). When the gate banner is present it precedes the button. */
-.kr-bulk-btn {
-  font-size: var(--font-size-label);
-  padding: 4px 12px;
-}
+.kr-bulk-btn { min-height: var(--mos-control-height); }
 
 /* ── Queue row cell content (mirrors the retired .krow-* queue-row grammar) ──
    The DataTable owns the <tr>/<td> chrome (padding, hover, dividers); these styles
@@ -129,7 +128,7 @@ td .krow-stream {
   display: inline-block;
   width: 6px;
   height: 6px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-round);
   background: currentColor;
   margin-right: 5px;
   vertical-align: middle;
@@ -153,7 +152,7 @@ td .krow-stream {
 .krow-by {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--mos-inline-gap);
   white-space: nowrap;
 }
 .krow-byname {
@@ -194,25 +193,20 @@ td .krow-stream {
 .krow-decide {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--mos-inline-gap);
   min-width: 240px;
 }
-.krow-note-label {
-  font-size: var(--font-size-overline);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-}
+.krow-note-label { font: var(--mos-type-label); color: var(--mos-ink); letter-spacing: normal;
+  text-transform: none; }
 .krow-note-input {
   width: 100%;
   box-sizing: border-box;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
+  padding: 8px 12px;
+  border: 1px solid var(--mos-control);
   border-radius: var(--radius-sm);
-  background: var(--background);
-  color: var(--foreground);
-  font-size: var(--font-size-control);
+  background: var(--mos-surface);
+  color: var(--mos-ink);
+  font-size: var(--mos-size-3);
   font-family: inherit;
   resize: vertical;
 }
@@ -221,7 +215,7 @@ td .krow-stream {
   border-color: var(--destructive);
 }
 .krow-note-cue {
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   color: var(--status-lost-text);
 }
 /* The confirm names the dish ("Konfirmasi tolak ${dish}"), so its width is set by data, not by
@@ -230,7 +224,7 @@ td .krow-stream {
 .krow-decide-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--mos-inline-gap);
 }
 .krow-decide-actions .krow-btn {
   margin-left: 0;
@@ -246,7 +240,7 @@ td .krow-stream {
   max-width: 100%;
   white-space: normal;
   height: auto;
-  min-height: 32px;
+  min-height: var(--mos-control-height);
   padding-top: 5px;
   padding-bottom: 5px;
   text-align: center;
@@ -264,7 +258,7 @@ td .krow-stream {
   text-align: center;
 }
 .kr-forbidden-title {
-  font-size: var(--font-size-body-lg);
+  font-size: var(--mos-size-3);
   font-weight: 600;
   color: var(--foreground);
   margin-bottom: 8px;
@@ -272,7 +266,7 @@ td .krow-stream {
 .kr-forbidden-msg {
   color: var(--muted-foreground);
   margin-bottom: 16px;
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
 }
 
 /* ── The per-stream completeness row + the not-your-stream decision placeholder.
@@ -286,7 +280,7 @@ td .krow-stream {
      select below its own label width. */
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
+  gap: var(--mos-inline-gap) var(--mos-row-gap);
 }
 /* ── #238 (FR-031): per-stream completeness confirmation ──────────────────────
    Deliberately QUIET. This states a tracked fact and gates nothing, so it must not
@@ -297,7 +291,7 @@ td .krow-stream {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
   min-width: 0;
 }
 .kr-complete-foot {
@@ -309,7 +303,7 @@ td .krow-stream {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 44px;
+  min-height: var(--mos-control-height);
   cursor: pointer;
 }
 .kr-complete-check input {
@@ -322,16 +316,16 @@ td .krow-stream {
   cursor: default;
 }
 .kr-complete-reconfirm {
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   padding: 4px 8px;
   white-space: nowrap;
 }
 .kr-complete-saving {
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   color: var(--muted-foreground);
 }
 .kr-complete-state {
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   color: var(--muted-foreground);
   min-width: 0;
   overflow-wrap: anywhere;
@@ -341,7 +335,7 @@ td .krow-stream {
 }
 .krow-othersstream {
   color: var(--muted-foreground);
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
 }
 
 /* ── States: loading / empty / error are the shared StateKit
@@ -365,39 +359,50 @@ td .krow-stream {
    the Approve/Reject controls were reachable. The card is the row, recomposed:
    head line (identity + variance), ONE muted meta line, the note only when present,
    then the decision block the desktop table mounts unchanged. */
-.krow-card { display: flex; flex-direction: column; gap: 6px; }
+.krow-card { display: flex; flex-direction: column; gap: var(--mos-inline-gap); }
 .krow-card-head {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
-  gap: 6px;
+  gap: var(--mos-inline-gap);
   min-width: 0;
 }
-.krow-card-head .krow-name { min-width: 0; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.krow-card-head .krow-name { min-width: 0; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
 .krow-card-tags {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--mos-inline-gap);
   min-width: 0;
 }
 .krow-card-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  column-gap: 12px;
-  row-gap: 2px;
-  font-size: var(--font-size-label);
+  column-gap: var(--mos-row-gap);
+  row-gap: var(--mos-stack-gap);
+  font-size: var(--mos-size-1);
   color: var(--muted-foreground);
 }
 .krow-card-note {
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   color: var(--muted-foreground);
   font-style: italic;
 }
 
 @media (max-width: 767.98px) {
   .kr-date-clear,
-  .kr-all-pending { min-height: 44px; }
+  .kr-all-pending { min-height: var(--mos-control-height); }
+  .kr-review-views { display:flex; flex-direction:column; gap:10px; }
+  .kr-review-index { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); width:100%; }
+  .kr-review-index button { min-height: var(--mos-control-height); text-align:center; }
+  .kr-review-content { width:100%; }
 }
+
+/* "All streams": one line per stream with pending logs — is its item list complete? [Confirm]. */
+.kr-complete-all ul { list-style: none; margin: 0; padding: 0; }
+.kr-complete-all li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap) var(--mos-row-gap); min-height: var(--mos-row-min); padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--mos-line); }
+.kr-complete-all .kr-complete-state { min-width: 0; overflow-wrap: anywhere; font: var(--mos-type-body); color: var(--mos-ink); }
+.kr-complete-all .kr-complete-yes { color: var(--status-won-text); }
+.kr-complete-confirm { flex: 0 0 auto; min-height: var(--mos-control-height); }

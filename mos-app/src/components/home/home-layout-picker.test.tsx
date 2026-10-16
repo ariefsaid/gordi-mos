@@ -13,9 +13,10 @@ function renderPicker(value: 'focused' | 'overview' | 'list' = 'focused', onChan
   return onChange
 }
 
-const SUITABILITY_CLAUSE: Record<'en' | 'id', RegExp> = {
-  en: /\bBest when\b/,
-  id: /\bPaling cocok\b/,
+// Each choice's accessible name carries what it does, in the person's language, not just its name.
+const DESCRIPTION_CLAUSES: Record<'en' | 'id', RegExp[]> = {
+  en: [/One section at a time/, /Every area at once/, /One continuous list/],
+  id: [/Satu bagian dalam satu waktu/, /Semua area sekaligus/, /Satu daftar berkelanjutan/],
 }
 
 describe('HomeLayoutPicker (OD-V4-9, FR-920)', () => {
@@ -63,27 +64,11 @@ describe('HomeLayoutPicker (OD-V4-9, FR-920)', () => {
     }
   })
 
-  it.each(['en', 'id'] as const)('FR-920: every option says who it suits, not just its shape (%s)', (locale) => {
+  it.each(['en', 'id'] as const)('FR-920: every option says what it does, not just its name (%s)', (locale) => {
     renderPicker('focused', vi.fn(), locale)
-    for (const radio of screen.getAllByRole('radio')) {
-      expect(radio).toHaveAccessibleName(SUITABILITY_CLAUSE[locale])
-    }
-  })
-
-  it('gives each choice a distinct structural preview and a suitability description', () => {
-    renderPicker()
-    const optionCard = (name: RegExp) => screen.getByRole('radio', { name }).nextElementSibling!
-
-    const focused = optionCard(/focused/i)
-    const overview = optionCard(/overview/i)
-    const list = optionCard(/list/i)
-
-    expect(focused.querySelector('.hlp-tabs')).toBeInTheDocument()
-    expect(overview.querySelectorAll('.hlp-box').length).toBeGreaterThanOrEqual(3)
-    expect(list.querySelectorAll('.hlp-pair').length).toBeGreaterThanOrEqual(4)
-    for (const radio of screen.getAllByRole('radio')) {
-      expect(radio).toHaveAccessibleName(/best when/i)
-    }
+    screen.getAllByRole('radio').forEach((radio, index) => {
+      expect(radio).toHaveAccessibleName(DESCRIPTION_CLAUSES[locale][index])
+    })
   })
 
   it('lets the person select a different layout from the picker', async () => {

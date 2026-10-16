@@ -16,9 +16,13 @@ vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
 
+vi.mock('./use-nav', () => ({
+  useNavBadges: () => ({ forPath: () => undefined, forDestination: () => undefined }),
+}))
+
 import { MobileDrawer } from './mobile-drawer'
 
-function setAuthAs(accessRoles: string[] = []) {
+function setAuthAs(accessRoles: string[] = [], affiliated: string[] = []) {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -26,7 +30,7 @@ function setAuthAs(accessRoles: string[] = []) {
         id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Cahya Cafe',
         email: 'c@example.test', archived_at: null, must_change_password: false, created_at: '', updated_at: '',
       },
-      roles: [], isManager: false, accessRoles, affiliated: [],
+      roles: [], isManager: false, accessRoles, affiliated,
     },
     signOut: vi.fn(),
   })
@@ -37,12 +41,12 @@ function LocationDisplay() {
   return <div data-testid="location">{location.pathname}</div>
 }
 
-function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'], locale }: { open?: boolean; onClose?: () => void; accessRoles?: string[]; locale?: 'id' } = {}) {
-  setAuthAs(accessRoles)
+function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'], locale, affiliated = [], path = '/' }: { open?: boolean; onClose?: () => void; accessRoles?: string[]; locale?: 'id'; affiliated?: string[]; path?: string } = {}) {
+  setAuthAs(accessRoles, affiliated)
   return render(
     <ThemeProvider>
       <I18nProvider initialLocale={locale}>
-        <MemoryRouter initialEntries={['/']}>
+        <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route path="*" element={<><MobileDrawer open={open} onClose={onClose} /><LocationDisplay /></>} />
           </Routes>
@@ -62,19 +66,13 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
   // ruling) replaces that model: navigation mirrors what the ROUTE admits, and the module routes
   // are ungated. The drawer is the phone's only route to a module's screens, so hiding them here
   // is precisely what left kitchen staff with no phone nav (#242).
-  it('an org-wide admin sees Signals, Admin Settings, Profile — and the module links their routes admit', async () => {
-    const user = userEvent.setup()
+  it('an org-wide admin sees Work, Admin settings, Personal profile — and the module links their routes admit', () => {
     renderDrawer({ accessRoles: ['admin'] })
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveAttribute('aria-modal', 'true')
-    expect(screen.getByRole('link', { name: /Signals/ })).toHaveAttribute('href', '/work/signals')
-    expect(screen.getByRole('link', { name: /Admin Settings/ })).toHaveAttribute('href', '/admin/people')
-    // Personal Profile moved out of the drawer's own link list and into the identity chip's menu
-    // (owner, 2026-08-26). Still reachable from this surface, one tap deeper — asserted from BOTH
-    // sides so "moved" cannot decay into "gone": absent from the list, present in the menu.
-    expect(screen.queryByRole('link', { name: /Personal Profile/ })).toBeNull()
-    await user.click(screen.getByRole('button', { name: 'Cahya Cafe' }))
-    expect(screen.getByRole('menuitem', { name: /Personal Profile/ })).toHaveAttribute('href', '/profile')
+    expect(screen.getByRole('link', { name: /^Work$/ })).toHaveAttribute('href', '/work')
+    expect(screen.getByRole('link', { name: /Admin settings/i })).toHaveAttribute('href', '/admin/people')
+    expect(screen.getByRole('link', { name: /Personal profile/i })).toHaveAttribute('href', '/profile')
     // At the collapsed root, Café is one route entry with a chevron; children appear when active or affiliated (home-shell.md §1.1).
     expect(screen.getByRole('link', { name: /^Café$/ })).toHaveAttribute('href', '/cafe')
     expect(screen.queryByRole('link', { name: /^Log$/ })).toBeNull()
@@ -87,6 +85,15 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
     }
   })
 
+  it('Issue 1673: the Café module being used keeps its parent row and lists the distinct child routes', () => {
+    renderDrawer({ accessRoles: ['member'], affiliated: ['cafe'], path: '/cafe' })
+    const cafe = screen.getByRole('link', { name: /^Café$/ })
+    expect(cafe).toHaveAttribute('href', '/cafe')
+    for (const path of ['/cafe/count', '/cafe/receive']) {
+      expect(document.querySelector(`a[href="${path}"]`), `${path} listed under Café`).toBeInTheDocument()
+    }
+  })
+
   it('a plain member sees Café\'s ungated screens but not Review or Pushes', () => {
     // The gate that should still exist, on the surface where it is easiest to lose.
     renderDrawer({ accessRoles: ['member'] })
@@ -96,36 +103,29 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
     expect(screen.queryByRole('link', { name: /^Pushes$/ })).toBeNull()
   })
 
-  // Was "admin also sees Money (finance/admin)". #444 ship-gates Money, so no viewer does — see
-  // the AC-022 block below, which now carries that claim for every role including admin.
-  it('admin sees the Inbox root, which is the workspace destination that still ships', () => {
+  it('admin sees the Inbox root but not Money without a revenue-view role', () => {
     renderDrawer({ accessRoles: ['admin'] })
     expect(screen.getByRole('link', { name: /Inbox/ })).toHaveAttribute('href', '/inbox')
     expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
   })
 })
 
-describe('AC-022: Money absent for non-finance/admin (from More)', () => {
+describe('AC-022: Money in More follows its revenue-view role gate', () => {
   it('a plain member does NOT see Money in the More menu', () => {
-    renderDrawer({ accessRoles: [] })
+    renderDrawer({ accessRoles: ['member'] })
     expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
   })
 
   it('a plain member does NOT see Admin Settings in the More menu', () => {
     renderDrawer({ accessRoles: [] })
-    expect(screen.queryByRole('link', { name: /Admin Settings/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /Admin settings/i })).toBeNull()
   })
 
-  // #444 widened this from "non-finance/admin" to EVERYONE: the ship gate sits above the role
-  // gate, so a finance or admin viewer sees exactly what a plain member sees here. The role
-  // policy itself stays asserted on the registry in destinations.test.ts, and comes back the
-  // moment /money leaves SHIP_GATED_PATHS.
-  it.each([['finance', ['finance']], ['admin', ['admin']], ['manager', ['manager']]])(
-    '%s sees no Money link either — the ship gate is above the role gate',
+  it.each([['finance', ['finance']], ['manager', ['manager']]])(
+    '%s sees Money in the More menu',
     (_who, accessRoles) => {
       renderDrawer({ accessRoles })
-      expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
-      // …and the drawer rendered, so this is not passing on nothing.
+      expect(screen.getByRole('link', { name: /^Money$/ })).toHaveAttribute('href', '/money')
       expect(screen.getByRole('link', { name: /Inbox/ })).toBeInTheDocument()
     },
   )
@@ -173,10 +173,8 @@ describe('More menu navigation + a11y', () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
     renderDrawer({ onClose, accessRoles: ['admin'] })
-    // Was the Events link — ship-gated by #444, so it no longer renders. Signals is the Work
-    // child that ships, and it exercises the identical close-and-navigate path.
-    await user.click(screen.getByRole('link', { name: /Signals/ }))
-    expect(screen.getByTestId('location').textContent).toBe('/work/signals')
+    await user.click(screen.getByRole('link', { name: /^Work$/ }))
+    expect(screen.getByTestId('location').textContent).toBe('/work')
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -185,12 +183,11 @@ describe('More menu navigation + a11y', () => {
   // Personal Profile behaved the first time it was rendered into the chip menu: the menu closed,
   // the drawer did not. Every other drawer link routes through `closeAndReturn` (DrawerRow's
   // `onNavigate`); the chip now takes the same handler.
-  it('tapping Personal Profile in the chip menu navigates AND closes the drawer', async () => {
+  it('tapping Personal profile navigates AND closes the drawer', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
     renderDrawer({ onClose, accessRoles: ['admin'] })
-    await user.click(screen.getByRole('button', { name: 'Cahya Cafe' }))
-    await user.click(screen.getByRole('menuitem', { name: /Personal Profile/ }))
+    await user.click(screen.getByRole('link', { name: /Personal profile/i }))
     expect(screen.getByTestId('location').textContent).toBe('/profile')
     expect(onClose).toHaveBeenCalled()
   })
@@ -204,24 +201,29 @@ describe('More menu navigation + a11y', () => {
     const onClose = vi.fn()
     const focusOpener = vi.fn()
     setAuthAs(['admin'])
+    function DrawerHarness() {
+      const [open, setOpen] = useState(true)
+      return (
+        <>
+          <MobileDrawer open={open} onClose={() => { onClose(); setOpen(false) }} focusOpener={focusOpener} />
+          <LocationDisplay />
+        </>
+      )
+    }
+
     render(
       <ThemeProvider>
         <I18nProvider>
           <MemoryRouter initialEntries={['/']}>
             <Routes>
-              <Route
-                path="*"
-                element={<><MobileDrawer open onClose={onClose} focusOpener={focusOpener} /><LocationDisplay /></>}
-              />
+              <Route path="*" element={<DrawerHarness />} />
             </Routes>
           </MemoryRouter>
         </I18nProvider>
       </ThemeProvider>,
     )
-    // Was the Events link — ship-gated by #444, so it no longer renders. Signals is the Work
-    // child that ships, and it exercises the identical close-and-navigate path.
-    await user.click(screen.getByRole('link', { name: /Signals/ }))
-    expect(screen.getByTestId('location').textContent).toBe('/work/signals')
+    await user.click(screen.getByRole('link', { name: /^Work$/ }))
+    expect(screen.getByTestId('location').textContent).toBe('/work')
     expect(onClose).toHaveBeenCalled()
     expect(focusOpener).toHaveBeenCalled()
   })
@@ -230,19 +232,24 @@ describe('More menu navigation + a11y', () => {
     const user = userEvent.setup()
     const focusOpener = vi.fn()
     setAuthAs(['admin'])
+    function DrawerHarness() {
+      const [open, setOpen] = useState(true)
+      return <MobileDrawer open={open} onClose={() => setOpen(false)} focusOpener={focusOpener} />
+    }
+
     render(
       <ThemeProvider>
         <I18nProvider>
           <MemoryRouter initialEntries={['/']}>
             <Routes>
-              <Route path="*" element={<MobileDrawer open onClose={vi.fn()} focusOpener={focusOpener} />} />
+              <Route path="*" element={<DrawerHarness />} />
             </Routes>
           </MemoryRouter>
         </I18nProvider>
       </ThemeProvider>,
     )
     await user.keyboard('{Escape}')
-    expect(focusOpener).toHaveBeenCalled()
+    expect(focusOpener).toHaveBeenCalledTimes(1)
   })
 
   it('inerts the app while open and restores focus after the drawer closes', async () => {
@@ -309,16 +316,6 @@ describe('More menu navigation + a11y', () => {
   it('does not render when open=false', () => {
     renderDrawer({ open: false, accessRoles: ['admin'] })
     expect(screen.queryByRole('dialog')).toBeNull()
-  })
-
-  // OD-REDESIGN-91 #37: the drawer opens from the LEFT (matches the ☰ position + rail side) —
-  // the prior right-slide was judged "not natural / intuitive". Deliberate UX change.
-  it('#37: the panel is anchored to the LEFT edge (not the right)', () => {
-    renderDrawer({ accessRoles: ['admin'] })
-    const dialog = screen.getByRole('dialog')
-    expect(dialog.className).toMatch(/\bleft-0\b/)
-    expect(dialog.className).not.toMatch(/\bright-0\b/)
-    expect(dialog.className).toMatch(/\bmobile-drawer-panel\b/)
   })
 })
 

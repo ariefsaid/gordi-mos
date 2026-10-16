@@ -1,0 +1,13 @@
+/* The one search box: label above, 20px magnifier, same box as every field. Grows from 160px. */
+.search-field { display: flex; flex: 1 1 220px; flex-direction: column; gap: var(--mos-label-gap); min-width: 160px; margin: 0; }
+.search-field__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 var(--mos-inline-gap); }
+.search-field__label { font: var(--mos-type-label); color: var(--mos-ink); }
+.search-field__box { color: var(--mos-muted); }
+.search-field__box > svg { flex: none; width: var(--mos-icon-md); height: var(--mos-icon-md); }
+.search-field__box:focus-within { color: var(--mos-ink); }
+@media (max-width: 767.98px) { .search-field { flex-basis: 100%; } }
+.search-field__clear { display: inline-flex; flex: none; align-items: center; justify-content: center; width: var(--mos-control-height); height: var(--mos-control-height); margin-inline-end: calc(-1 * var(--mos-space-3)); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--mos-muted); cursor: pointer; }
+.search-field__clear:hover { background: var(--mos-hover); color: var(--mos-ink); }
+.search-field__box > input::-webkit-search-cancel-button { display: none; }
+/* A placeholder longer than a narrow field ends in an ellipsis instead of being cut mid-word. */
+.search-field__box > input { min-width: 0; text-overflow: ellipsis; }

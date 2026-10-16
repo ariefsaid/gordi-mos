@@ -98,7 +98,6 @@ supabase/seed.local-*.sql
 .impeccable/*
 !.impeccable/design.json
 .playwright-cli/
-# design-shots render output (scratch; the design-shots workflow publishes a workflow artifact only)
 shots-out/
 # Local render evidence from build briefs.
 mos-app/renders/
@@ -113,3 +112,6 @@ scripts/__pycache__/
 docs/
 adws/adw_data/archive/
 renders/
+
+# vitest cache written beside mos-app
+.vitest/

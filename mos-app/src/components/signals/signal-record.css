@@ -1,11 +1,24 @@
-/* Signal record — Message → Reach & response → Discussion → Facts → History.
-   RecordViewer owns the spacing and separator between the five sections. */
+/* Signal record — Message → Reach & response → Discussion → History, with Facts in the About aside.
+   The shared record page layout (record-page.css) owns the header grid, spacing and sections. */
+
+/* The heading is the Signal's first line, shown whole and wrapping. */
+.rp .rp-title .signal-record-title {
+  margin: 0; font: var(--mos-type-section); letter-spacing: var(--mos-title-tracking);
+  text-wrap: balance; overflow-wrap: anywhere;
+}
+.rp--panel .rp-title .signal-record-title {
+  font-size: var(--mos-size-4);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden;
+}
+/* An empty message region (the heading already shows the whole text) takes no room and no rule. */
+.rp-main > .signal-message:empty { display: none; }
+.rp-main > .signal-message:empty + .rp-section { border-top: 0; margin-top: 0; }
 
 /* ── Region shell — inner content must not add another divider or band. ── */
-.signal-region { margin: 0; padding: 0; border: 0; }
+.signal-region:not(.rp-section) { margin: 0; padding: 0; border: 0; }
+.signal-region.rp-section { margin: 0; border: 0; }
 .signal-region-title {
-  margin: 0 0 12px; font-size: var(--font-size-overline); font-weight: 600;
-  letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground);
+  margin: 0 0 12px; font: var(--mos-type-group); color: var(--mos-ink);
 }
 
 /* ── 1 · Message — identity controls establish the decision seam; body follows once (LAW-2). ── */
@@ -14,114 +27,108 @@
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 32px;
   margin-bottom: 2px;
 }
-.signal-record-control-row .signal-attention,
-.signal-record-control-row .signal-attention-picker .signal-attention { margin-left: 0; }
 .signal-message-urgency { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.signal-message-occurred { margin-left: auto; font-size: var(--font-size-control); color: var(--muted-foreground); }
+.signal-message-occurred { margin-left: auto; font-size: var(--mos-size-3); color: var(--muted-foreground); }
 .signal-message-body {
-  margin: 16px 0 0; max-width: 72ch; font-size: var(--font-size-body); line-height: 1.6;
+  margin: 16px 0 0; max-width: 72ch; font-size: var(--mos-size-3); line-height: 1.6;
   color: var(--foreground); overflow-wrap: anywhere; white-space: pre-wrap;
 }
 .signal-overflow { position: relative; display: inline-flex; }
 .signal-overflow-trigger {
-  display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 32px;
+  display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: var(--mos-control-height);
   padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: transparent; color: var(--muted-foreground); font: inherit; cursor: pointer;
 }
 .signal-overflow-trigger:hover { background: var(--surface-tertiary); color: var(--foreground); }
-.signal-overflow-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.signal-overflow-trigger:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 .signal-overflow-menu {
   position: absolute; z-index: var(--z-popover); top: calc(100% + 6px); right: 0; min-width: 190px;
-  display: flex; flex-direction: column; gap: 2px; padding: 6px;
+  display: flex; flex-direction: column; gap: var(--mos-stack-gap); padding: var(--mos-menu-pad);
   border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card);
   box-shadow: var(--shadow-overlay);
 }
 .signal-overflow-menu button {
-  min-height: 44px; padding: 0 10px; border: 0; border-radius: var(--radius-sm);
-  background: transparent; color: var(--foreground); font: inherit; font-size: var(--font-size-control);
+  min-height: var(--mos-control-height); padding: 0 var(--mos-row-pad-x); border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--foreground); font: inherit; font-size: var(--mos-size-3);
   text-align: left; cursor: pointer;
 }
 .signal-overflow-menu button:hover { background: var(--surface-tertiary); }
-.signal-overflow-menu button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.signal-overflow-menu button:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: calc(-1 * var(--mos-focus-width)); }
 
-/* ── 2 · Reach & response — one action register (LAW-3). ── */
 .signal-reach-audience { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .signal-reach-linked-error {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin: 12px 0 0; padding: 10px 12px;
   border: 1px solid var(--destructive); border-radius: var(--radius-sm);
-  color: var(--field-error-text); font-size: var(--font-size-control);
+  color: var(--field-error-text); font-size: var(--mos-size-3);
 }
 .signal-record-mentions {
   display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none;
 }
 .signal-record-mentions li {
   display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
-  border-radius: var(--radius-pill); background: var(--accent-subtle); color: var(--status-open-text);
-  font-size: var(--font-size-label); font-weight: 600;
+  border-radius: var(--radius-xs); background: var(--accent-subtle); color: var(--status-open-text);
+  font-size: var(--mos-size-1); font-weight: 600;
 }
-.signal-record-vis { margin: 0; font-size: var(--font-size-control); color: var(--muted-foreground); }
+.signal-record-vis { margin: 0; font-size: var(--mos-size-3); color: var(--muted-foreground); }
 
 .signal-reach-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.signal-reach-linked { margin: 14px 0 0; font-size: var(--font-size-control); color: var(--muted-foreground); }
+.signal-reach-linked { margin: 14px 0 0; font-size: var(--mos-size-3); color: var(--muted-foreground); }
 
 .signal-linked-work { margin-top: 16px; }
-.signal-linked-work-title { margin: 0 0 8px; font-size: var(--font-size-label); font-weight: 600; color: var(--muted-foreground); }
-.signal-linked-work-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.signal-linked-work-title { margin: 0 0 8px; font-size: var(--mos-size-1); font-weight: 600; color: var(--muted-foreground); }
+.signal-linked-work-list { display: flex; flex-direction: column; gap: var(--mos-stack-gap); margin: 0; padding: 0; list-style: none; }
 .signal-linked-work-row {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px;
-  width: 100%; min-height: 44px; padding: 7px 10px; border: 1px solid var(--border);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--mos-row-gap);
+  width: 100%; min-height: var(--mos-row-min); padding: var(--mos-row-pad-y) var(--mos-row-pad-x); border: 1px solid var(--border);
   border-radius: var(--radius-sm); background: transparent; color: var(--foreground); font: inherit;
   text-align: left; text-decoration: none; cursor: pointer;
 }
 .signal-linked-work-row:hover { background: var(--surface-tertiary); }
-.signal-linked-work-row:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.signal-linked-work-row:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 .signal-linked-work-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.signal-linked-work-status { color: var(--muted-foreground); font-size: var(--font-size-label); white-space: nowrap; }
+.signal-linked-work-status { color: var(--muted-foreground); font-size: var(--mos-size-1); white-space: nowrap; }
 
 .signal-reach-ack { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
-.signal-reach-ack-label { font-size: var(--font-size-label); color: var(--muted-foreground); }
-.signal-ack-list { display: flex; gap: 6px; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
+.signal-reach-ack-label { font-size: var(--mos-size-1); color: var(--muted-foreground); }
+.signal-ack-list { display: flex; gap: var(--mos-inline-gap); flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
 .signal-ack-name {
   display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
-  border-radius: var(--radius-pill); background: var(--secondary); color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  border-radius: var(--radius-xs); background: var(--secondary); color: var(--muted-foreground);
+  font-size: var(--mos-size-1);
 }
 
-/* ── 3 · Discussion — the comment thread in the document grammar (no nested card, LAW-7). ──
-   The reused CommentThread wraps itself in a bordered .card with a 20px .card-h2. Inside the
-   Signal record DOCUMENT that reads as a nested card; neutralize the chrome so Comments is a quiet
-   peer of the sibling regions. (jsdom cannot compute the border — the guard pins this grammar.) */
 .signal-discussion .card {
   background: transparent; border: 0; border-radius: 0; box-shadow: none;
   margin: 0; padding: 0;
 }
 .signal-discussion .card-h2 {
-  font-size: var(--font-size-mono); font-weight: 600; margin-bottom: 8px; color: var(--foreground);
+  font: var(--mos-type-group); margin-bottom: var(--mos-group-below); color: var(--mos-ink);
 }
 
-/* ── 4 · Facts (provenance) — quiet, compact, last; ONE section note, no per-field captions. ── */
 .signal-facts {
   display: grid; grid-template-columns: 130px 1fr; row-gap: 8px; column-gap: 16px;
-  margin: 0; font-size: var(--font-size-control);
+  margin: 0; font-size: var(--mos-size-3);
 }
 .signal-facts-row { display: contents; }
-.signal-facts-label { color: var(--muted-foreground); }
+.signal-facts-label { font: var(--mos-type-label); color: var(--mos-ink); }
 .signal-facts-value { color: var(--foreground); overflow-wrap: anywhere; }
 .signal-facts-value--category { display: flex; }
-.signal-facts-note { margin: 12px 0 0; font-size: var(--font-size-label); color: var(--muted-foreground); }
+/* A set category reads at the same size and weight as every other value in the list. */
+.signal-facts-value .signal-category-pill { font-size: inherit; font-weight: inherit; color: var(--foreground); }
+.signal-facts-note { margin: 12px 0 0; font-size: var(--mos-size-1); color: var(--muted-foreground); }
 
 /* ── 5 · History (audit) — disclosed, readable, never a raw diff dump in the default view. ── */
 .signal-history-toggle {
-  background: none; border: 0; padding: 0; font: inherit; font-size: var(--font-size-control);
+  background: none; border: 0; padding: 0; font: inherit; font-size: var(--mos-size-3);
   color: var(--status-open-text); cursor: pointer; text-decoration: underline;
 }
-.signal-history-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.signal-history-toggle:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 .signal-history-list {
-  margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px;
+  margin: var(--mos-row-pad-y) 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--mos-row-gap);
 }
 .signal-history-item {
-  padding-left: 14px; border-left: 2px solid var(--border); font-size: var(--font-size-control);
+  padding-left: 14px; border-left: 2px solid var(--border); font-size: var(--mos-size-3);
 }
 .signal-history-who { font-weight: 600; color: var(--foreground); }
 .signal-history-what { color: var(--muted-foreground); }
@@ -129,9 +136,9 @@
 
 /* Retraction tombstone — preserve the original identity, then state who/when/why. */
 .signal-tombstone { margin: 0; max-width: 72ch; color: var(--muted-foreground); }
-.signal-tombstone-original { margin: 0 0 12px; color: var(--foreground); font-size: var(--font-size-body); line-height: 1.5; font-style: italic; }
-.signal-tombstone-status { margin: 0 0 10px; font-size: var(--font-size-control); font-weight: 600; }
-.signal-tombstone-meta { display: grid; gap: 6px; margin: 0 0 16px; font-size: var(--font-size-control); }
+.signal-tombstone-original { margin: 0 0 12px; color: var(--foreground); font-size: var(--mos-size-3); line-height: 1.5; font-style: italic; }
+.signal-tombstone-status { margin: 0 0 10px; font-size: var(--mos-size-3); font-weight: 600; }
+.signal-tombstone-meta { display: grid; gap: 6px; margin: 0 0 16px; font-size: var(--mos-size-3); }
 .signal-tombstone-meta > div { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; }
 .signal-tombstone-meta dt { color: var(--muted-foreground); }
 .signal-tombstone-meta dd { margin: 0; color: var(--foreground); overflow-wrap: anywhere; }
@@ -140,7 +147,7 @@
   .signal-record-control-row { align-items: stretch; }
   .signal-message-occurred { width: 100%; margin-left: 0; }
   .signal-overflow { margin-inline-start: auto; }
-  .signal-overflow-trigger { min-height: 44px; }
+  .signal-overflow-trigger { min-height: var(--mos-control-height); }
   .signal-overflow-menu { position: fixed; inset-inline: 16px auto; right: 16px; top: auto; margin-top: 6px; }
   .signal-reach-linked-error { align-items: flex-start; flex-direction: column; }
   .signal-tombstone-meta > div { grid-template-columns: 96px minmax(0, 1fr); }

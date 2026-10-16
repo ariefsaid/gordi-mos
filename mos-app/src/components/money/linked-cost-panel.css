@@ -1,0 +1,12 @@
+.linked-cost-panel { padding: var(--mos-panel-pad); }
+.linked-cost-panel h2 { margin: 0 0 var(--mos-group-below); color: var(--foreground); font-size: var(--mos-size-4); }
+.linked-cost-panel dl { margin: 0; }
+.linked-cost-panel dl > div { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr); gap: var(--mos-row-gap); padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--border); }
+.linked-cost-panel dt { color: var(--muted-foreground); }
+.linked-cost-panel dd { margin: 0; overflow-wrap: anywhere; font-weight: 600; }
+.linked-cost-panel p { color: var(--muted-foreground); }
+
+@media (max-width: 767.98px) {
+  .linked-cost-panel { padding: var(--mos-panel-pad); }
+  .linked-cost-panel dl > div { grid-template-columns: minmax(96px, 1fr) minmax(0, 1.3fr); }
+}

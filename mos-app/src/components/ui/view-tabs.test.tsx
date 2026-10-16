@@ -6,7 +6,9 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ViewTabs } from './view-tabs'
-import type { ViewTab } from './view-tabs'
+import type { ViewTabsProps } from './view-tabs'
+
+type ViewTab = ViewTabsProps['tabs'][number]
 
 // summary + detail(enabled, with count) + board(soon placeholder) — exercises every
 // tab kind the two consumers surface (dashboard counts; tasks "soon" stubs).

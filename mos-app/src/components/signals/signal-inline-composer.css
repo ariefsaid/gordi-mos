@@ -1,0 +1,20 @@
+/* The Signals page composer: a capture region above the list. */
+.signal-inline-composer {
+  margin: var(--mos-field-gap) 0 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--mos-surface);
+}
+.signal-inline-composer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 0 8px 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+.signal-inline-composer__title { margin: 0; font-size: var(--mos-size-4); font-weight: 600; }
+.signal-inline-composer .signal-composer { max-width: 960px; }
+@media (max-width: 767.98px) {
+  .signal-inline-composer__head { padding-left: 12px; }
+}

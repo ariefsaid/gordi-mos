@@ -35,7 +35,7 @@ import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
 import { chooseSelectOption } from './helpers/select'
 import { MANAGER } from './fixtures/users'
-import { openViewFilters } from './helpers/tasks'
+import { openViewFilters, selectTaskView } from './helpers/tasks'
 
 // ── Supabase direct-SQL helper (mirrors global-setup.ts / AC-134 pattern) ────
 function loadEnvFile(filePath: string): Record<string, string> {
@@ -158,7 +158,7 @@ test(
   // the Person filter alone drives ownership (FR-124 / AC-126).
   // STALE→fixed (#284's repair, mirrored): the saved-view chips are BUTTONS inside the
   // role="group" "Tasks saved views" (tasks-toolbar.tsx) — a 'tab' role never existed here.
-  await page.getByRole('button', { name: 'All', exact: true }).click()
+  await selectTaskView(page, 'All')
 
   // ── 4. Set Group = "Work-line" ───────────────────────────────────────────────
   // #870: Group/Person now live behind the desktop "View & filters" door.
@@ -201,7 +201,7 @@ test(
   await expect(projectRow.locator('xpath=preceding-sibling::tr[contains(@class, "grp")][1]'))
     .toContainText(WL_PROJECT_NAME)
 
-  // The displayed .gcount is cross-checked against the group's OWN rendered member rows (DOM
+  // The displayed count is cross-checked against the group's OWN rendered member rows (DOM
   // siblings between this header and the next), never a hard-coded seed total — proves the count
   // and the visible rows agree, whatever the incidental real total is.
   const memberRowCount = async (header: import('@playwright/test').Locator) => header.evaluate((headerEl) => {
@@ -213,8 +213,8 @@ test(
     }
     return n
   })
-  await expect(processGrp.locator('.gcount')).toHaveText(String(await memberRowCount(processGrp)))
-  await expect(projectGrp.locator('.gcount')).toHaveText(String(await memberRowCount(projectGrp)))
+  await expect(processGrp).toContainText(`(${await memberRowCount(processGrp)})`)
+  await expect(projectGrp).toContainText(`(${await memberRowCount(projectGrp)})`)
 
   // ── Oracle (b): group headers show the work-line type label text ──────────────
   // FR-233 / WCAG 1.4.1: WorkLineTypeTag always renders text (not color-only).

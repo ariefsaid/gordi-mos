@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef } from 'react'
 import './Checkbox.css'
 
 /** Checkbox control backed by a native input with a custom visual indicator. */
-export type CheckboxSize = 'medium' | 'small'
+type CheckboxSize = 'medium' | 'small'
 
 export interface CheckboxProps {
   checked?: boolean

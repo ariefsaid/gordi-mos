@@ -1,0 +1,35 @@
+.cafe-count { max-width: none; }
+.cafe-count-composition { display: block; width: 100%; min-width: 0; }
+.cafe-count-composition--sectioned { display: grid; grid-template-columns: minmax(170px, 220px) minmax(0, 1fr); align-items: start; gap: var(--mos-section-gap); }
+.cafe-count-sheet__index { position: sticky; top: 12px; display: grid; gap: var(--mos-label-gap); min-width: 0; }
+.cafe-count-sheet__index h2 { margin: 0 0 var(--mos-group-below); font-size: var(--mos-size-3); font-weight: 600; }
+.cafe-count-sheet__index a,
+.cafe-count-sheet__phone-index nav a { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-row-gap); min-height: var(--mos-control-height); padding: var(--mos-control-pad-y) var(--mos-inline-gap); border-radius: var(--radius-sm); color: var(--foreground); text-decoration: none; overflow-wrap: anywhere; }
+.cafe-count-sheet__index a:hover,
+.cafe-count-sheet__phone-index nav a:hover { background: var(--muted); }
+.cafe-count-sheet__index a:focus-visible,
+.cafe-count-sheet__phone-index nav a:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.cafe-count-sheet__phone-index { display: none; }
+.cafe-count-sheet { min-width: 0; }
+.cafe-count__progress { display:flex; flex-wrap:wrap; gap: var(--mos-label-gap) var(--mos-inline-gap); margin:0; color:var(--mos-ink); font: var(--mos-type-body); font-variant-numeric:var(--mos-numeric); }
+.cafe-count__bar-status { margin: 0; color: var(--mos-muted); font: inherit; }
+.cafe-count__submit { min-height: var(--mos-control-height); }
+/* Phone: room under the list for the pinned bar. Desktop: the bar is sticky on the window edge, so no empty band is left under it at the end of the list. */
+@media (max-width: 767.98px) {
+  .page-frame--v3:has(.cafe-count) { scroll-padding-bottom: 180px; }
+  .page-frame--v3:has(.cafe-count) .page-frame__content { padding-bottom: 180px; }
+}
+@media (max-width: 767.98px) {
+  .cafe-count-composition,
+  .cafe-count-composition--sectioned { display: flex; flex-direction: column; gap: var(--mos-inline-gap); }
+  .cafe-count-sheet__index { display: none; }
+  .cafe-count-sheet__phone-index { display: block; width: 100%; }
+  .cafe-count-sheet__phone-index > summary { min-height: var(--mos-control-height); }
+  .cafe-count-sheet__phone-index nav { display: grid; }
+  .cafe-count__progress { gap: 0 var(--mos-inline-gap); font: var(--mos-type-label); }
+  .cafe-count__progress span:first-child { flex-basis:100%; }}
+
+
+
+.cafe-count .cafe-count__intro { margin-bottom: var(--mos-label-gap); }
+

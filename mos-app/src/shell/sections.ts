@@ -6,7 +6,7 @@ import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
   MoneyIcon, PendingBillIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, PeopleIcon, ShieldIcon,
-  TodayIcon, LogIcon, TransferIcon, WasteIcon, PlanIcon, StockIcon, ItemsIcon, ReviewIcon, DispatchIcon, CountIcon, ReceiveIcon, RequestIcon,
+  TodayIcon, RecordsIcon, LogIcon, TransferIcon, WasteIcon, PlanIcon, StockIcon, ItemsIcon, RecipesIcon, ReviewIcon, DispatchIcon, CountIcon, ReceiveIcon, RequestIcon, LocationIcon, StockComparisonIcon,
 } from './icons'
 
 export interface Section {
@@ -27,19 +27,30 @@ export interface Section {
    * pointing at a bounce — or a surface ends up with no link at all.
    */
   anyOf?: readonly string[]
+  /** Café's shared grouped navigation metadata. */
+  group?: MessageKey
+  /** Secondary route nested beneath its parent destination on Café navigation. */
+  parentPath?: string
 }
 
-/** Money's Finance-only list; `anyOf` matches its route gate in router.tsx. */
-export const PENDING_BILLS_SECTION: Section = {
-  path: '/money/pending-bills', label: 'Pending bills', labelKey: 'nav.money.pendingBills', Icon: PendingBillIcon, anyOf: ['finance'],
-}
+/** Money leaves. Their role and feature gates mirror router.tsx; route admission is unchanged. */
+export const MONEY_SECTIONS: Section[] = [
+  { path: '/money', label: 'Overview', labelKey: 'money.pages.overview', Icon: MoneyIcon, anyOf: ['finance', 'manager', 'supervisor'] },
+  { path: '/money/pending-bills', label: 'Pending bills', labelKey: 'nav.money.pendingBills', Icon: PendingBillIcon, anyOf: ['finance'] },
+  { path: '/money/budget', label: 'Budget creation', labelKey: 'money.pages.budget', Icon: PlanIcon, anyOf: ['finance', 'admin'] },
+  { path: '/money/pricing', label: 'Pricing pre-flight', labelKey: 'money.pages.pricing', Icon: PlanIcon, anyOf: ['finance', 'admin'] },
+  { path: '/money/follow-ups', label: 'AR Follow-up queue', labelKey: 'money.pages.followUps', Icon: MoneyIcon, anyOf: ['finance', 'admin'] },
+]
+
+/** Backward-compatible named leaf used by existing navigation code. */
+const PENDING_BILLS_SECTION = MONEY_SECTIONS[1]
 
 /**
  * SECTIONS — the flat leaf registry used by the breadcrumb as a fallback for
  * destination-owned roots (Redesign Step 2). Retired `/updates` + `/ops` entries
  * are dropped (those routes redirect to successors — spec §7).
  */
-export const SECTIONS: Section[] = [
+const SECTIONS: Section[] = [
   { path: '/', label: 'Home', labelKey: 'nav.home', Icon: HomeIcon },
   { path: '/work/signals', label: 'Signals', labelKey: 'nav.work.signals', Icon: SignalsIcon },
   { path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon },
@@ -55,40 +66,41 @@ export const SECTIONS: Section[] = [
   { path: '/cafe', label: 'Café', labelKey: 'nav.cafe', Icon: CafeIcon },
   { path: '/ecommerce', label: 'Ecommerce', labelKey: 'nav.ecommerce', Icon: EcommerceIcon },
   { path: '/roastery', label: 'Roastery', labelKey: 'nav.roastery', Icon: RoasteryIcon },
-  { path: '/profile', label: 'Personal Profile', labelKey: 'nav.profile', Icon: ProfileIcon },
+  { path: '/profile', label: 'Personal profile', labelKey: 'nav.profile', Icon: ProfileIcon },
 ]
 
 /**
- * Café Module sections — the Today/capture root, production, transfer, waste, Count, Receive and Request capture routes,
- * Plan, Stock, Items, Review and Pushes. Review/Pushes visibility is enforced in the rail; every label
- * flows through the i18n catalog via its labelKey. All entries remain available for breadcrumb
- * resolution regardless of role. sectionForPath prefers exact and longest-prefix Café matches.
+ * Café Module sections — the Café home root, Records, the Today capture routes, Count, Receive (Receipt issues
+ * nests under it by `parentPath`), Request, Available to transfer, the ONE Review page (its queues are `cafe-review-queues.ts`;
+ * the old Receipt review / Request review paths redirect into it), Sent to ESB, Items and Recipes. Review and Sent to
+ * ESB visibility is enforced by `anyOf`; every label flows through the i18n catalog via its labelKey. All entries
+ * remain available for breadcrumb resolution regardless of role. sectionForPath prefers exact and longest-prefix Café matches.
  */
 export const CAFE_SECTIONS: Section[] = [
-  { path: '/cafe', label: 'Today', labelKey: 'nav.cafe.today', Icon: TodayIcon },
-  { path: '/cafe/production', label: 'Log production', labelKey: 'nav.cafe.production', Icon: LogIcon },
-  { path: '/cafe/transfer', label: 'Log transfer', labelKey: 'nav.cafe.transfer', Icon: TransferIcon },
-  { path: '/cafe/waste', label: 'Log waste', labelKey: 'nav.cafe.waste', Icon: WasteIcon },
-  { path: '/cafe/count', label: 'Count', labelKey: 'nav.cafe.count', Icon: CountIcon },
-  { path: '/cafe/receive', label: 'Receive', labelKey: 'nav.cafe.receive', Icon: ReceiveIcon },
-  { path: '/cafe/request', label: 'Request', labelKey: 'cafe.request.title', Icon: RequestIcon },
-  { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: PlanIcon },
-  { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: StockIcon },
-  { path: '/cafe/items', label: 'Items', labelKey: 'nav.cafe.items', Icon: ItemsIcon },
-  // `anyOf` matches each one's OWN route gate exactly (router.tsx: two RequireAccessRole
-  // branches). Same list in both places or the rail offers a link that bounces — or, as #236
-  // shipped it, withholds a link to a surface the person is entitled to.
-  // Review admits the stream supervisor (#236's FR-040 reviewer, wired through by #238);
-  // Pushes is the dispatch surface and stays ops_lead/admin.
-  { path: '/cafe/review', label: 'Review', labelKey: 'nav.cafe.review', Icon: ReviewIcon, anyOf: ['ops_lead', 'admin', 'supervisor'] },
-  { path: '/cafe/pushes', label: 'Pushes', labelKey: 'nav.cafe.pushes', Icon: DispatchIcon, anyOf: ['ops_lead', 'admin'] },
+  { path: '/cafe', label: 'Café home', labelKey: 'nav.cafe.today', Icon: TodayIcon, group: 'cafe.nav.today' },
+  { path: '/cafe/records', label: 'Records', labelKey: 'nav.cafe.records', Icon: RecordsIcon, group: 'cafe.nav.today' },
+  { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: PlanIcon, group: 'cafe.nav.today' },
+  { path: '/cafe/production', label: 'Production', labelKey: 'nav.cafe.production', Icon: LogIcon, group: 'cafe.nav.today' },
+  { path: '/cafe/transfer', label: 'Transfer', labelKey: 'nav.cafe.transfer', Icon: TransferIcon, group: 'cafe.nav.today' },
+  { path: '/cafe/waste', label: 'Waste', labelKey: 'nav.cafe.waste', Icon: WasteIcon, group: 'cafe.nav.today' },
+  { path: '/cafe/count', label: 'Stock count', labelKey: 'nav.cafe.count', Icon: CountIcon, group: 'cafe.nav.stock' },
+  // Preview ship state (lib/ship-gate.ts): `visibleSections` drops it unless the dev launch opted in. Count reviewers only (the Review page's own gate); the page limits a stream reviewer to their streams.
+  { path: '/cafe/stock-comparison', label: 'Stock comparison', labelKey: 'nav.cafe.stockComparison', Icon: StockComparisonIcon, group: 'cafe.nav.stock', anyOf: ['ops_lead', 'admin', 'supervisor'] },
+  { path: '/cafe/receive', label: 'Receive', labelKey: 'nav.cafe.receive', Icon: ReceiveIcon, group: 'cafe.nav.stock' },
+  { path: '/cafe/receive/issues', label: 'Receipt issues', labelKey: 'cafe.pageTitle.receiptIssues', Icon: ReceiveIcon, group: 'cafe.nav.stock', parentPath: '/cafe/receive' },
+  { path: '/cafe/request', label: 'Request', labelKey: 'cafe.request.title', Icon: RequestIcon, group: 'cafe.nav.stock' },
+  { path: '/cafe/stock', label: 'Available to transfer', labelKey: 'nav.cafe.stock', Icon: StockIcon, group: 'cafe.nav.stock' },
+  { path: '/cafe/review', label: 'Review', labelKey: 'nav.cafe.review', Icon: ReviewIcon, group: 'cafe.nav.close', anyOf: ['ops_lead', 'admin', 'supervisor'] },
+  { path: '/cafe/pushes', label: 'Pushes', labelKey: 'nav.cafe.pushes', Icon: DispatchIcon, group: 'cafe.nav.close', anyOf: ['ops_lead', 'admin'] },
+  { path: '/cafe/items', label: 'Items', labelKey: 'nav.cafe.items', Icon: ItemsIcon, group: 'cafe.nav.setup' },
+  { path: '/cafe/recipes', label: 'Recipes', labelKey: 'nav.cafe.recipes', Icon: RecipesIcon, group: 'cafe.nav.setup' },
+  // Preview ship state (lib/ship-gate.ts): `visibleSections` drops it unless the dev launch opted in.
+  { path: '/cafe/transfer-routes', label: 'Transfer routes', labelKey: 'nav.cafe.transferRoutes', Icon: TransferIcon, group: 'cafe.nav.setup' },
+  // Preview ship state (lib/ship-gate.ts): `visibleSections` drops it unless the dev launch opted in. Café-admitted viewers read; admin manages in the page.
+  { path: '/cafe/locations', label: 'Locations', labelKey: 'nav.cafe.locations', Icon: LocationIcon, group: 'cafe.nav.setup' },
 ]
 
-
-// A section with a deeper sibling needs `end` so its NavLink stops prefix-matching.
-export function sectionHasPrefixChild(section: Section, sections: readonly Section[]): boolean {
-  return sections.some((sibling) => sibling !== section && sibling.path.startsWith(section.path + '/'))
-}
+export const CAFE_ROUTE_SECTIONS: Section[] = CAFE_SECTIONS
 
 /**
  * The links a viewer may actually see: the ship gate first, then capability gates resolved through
@@ -114,8 +126,9 @@ export function visibleSections(sections: readonly Section[], accessRoles: reado
 export const ADMIN_SECTIONS: Section[] = [
   { path: '/admin/people', label: 'People', labelKey: 'nav.admin.people', Icon: PeopleIcon },
   { path: '/admin/teams', label: 'Teams', labelKey: 'nav.admin.teams', Icon: PeopleIcon },
-  { path: '/admin/access', label: 'Roles & permissions', labelKey: 'nav.admin.roles', Icon: ShieldIcon },
-  { path: '/admin/agents', label: 'Connected agents', labelKey: 'admin.settings.nav.agents', Icon: ShieldIcon },
+  { path: '/admin/access', label: 'Access levels', labelKey: 'nav.admin.roles', Icon: ShieldIcon },
+  { path: '/admin/modules', label: 'Modules', labelKey: 'nav.admin.modules', Icon: ItemsIcon },
+  { path: '/admin/agents', label: 'Agent apps', labelKey: 'admin.settings.nav.agents', Icon: ShieldIcon },
 ]
 
 /**
@@ -133,7 +146,7 @@ export function sectionForPath(pathname: string): Section | null {
   // truth waiting to leak one ("Money · Detail" over a page that is not Money). Fail closed here
   // and the breadcrumb, `viewerAdmittedToRoute` and every other reader inherit the same answer.
   if (isShipGated(pathname)) return null
-  const allSections = [...CAFE_SECTIONS, ...ADMIN_SECTIONS, ...SECTIONS]
+  const allSections = [...CAFE_ROUTE_SECTIONS, ...ADMIN_SECTIONS, ...SECTIONS]
   const exact = allSections.find((section) =>
     section.path === '/' ? pathname === '/' : pathname === section.path,
   )

@@ -5,7 +5,7 @@ import {
   type PrivatePhotoEvidence,
 } from './photo-evidence'
 
-export const CAFE_RECEIPT_PHOTO_BUCKET = 'cafe-receipt-photos'
+const CAFE_RECEIPT_PHOTO_BUCKET = 'cafe-receipt-photos'
 const SIGNED_URL_SECONDS = 60 * 60
 
 export interface CafeReceiptPhoto extends PrivatePhotoEvidence {

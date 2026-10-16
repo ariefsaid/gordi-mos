@@ -23,25 +23,3 @@ export interface RolesRow {
   created_at: string
   updated_at: string
 }
-export interface PersonRolesRow {
-  id: string
-  org_id: string
-  person_id: string
-  role_id: string
-  created_at: string
-}
-// Mirrors the shared.access_role domain — the ONE database statement of the set (#216). Six
-// values; grows by migration there first, then here in the same change.
-export type AccessRole = 'admin' | 'ops_lead' | 'finance' | 'member' | 'manager' | 'supervisor'
-export interface PersonAccessRolesRow {
-  id: string
-  org_id: string
-  person_id: string
-  access_role: AccessRole
-  granted_by: string | null
-  granted_at: string
-  revoked_at: string | null
-  revoked_by: string | null
-  created_at: string
-  updated_at: string
-}

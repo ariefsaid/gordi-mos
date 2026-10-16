@@ -8,6 +8,9 @@ import { loginAs } from './helpers/login'
 import { createTaskViaUI, selectTaskView } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
 
+// The record opens beside the list only on a wide content track; narrower, it opens as the full page.
+test.use({ viewport: { width: 1920, height: 1080 } })
+
 test.beforeEach(async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
   await page.goto('work/tasks')
@@ -15,7 +18,7 @@ test.beforeEach(async ({ page }) => {
   await selectTaskView(page, 'Relevant')
 })
 
-test('OD-63-1: direct URL / new-tab / refresh opens the full canonical page (not the table shell)', async ({ page }, testInfo) => {
+test('OD-63-1: direct URL / new-tab / refresh opens the full canonical page (not the table shell)', async ({ page }) => {
   const title = `OD63 Direct ${Date.now()}`
   const detailUrl = await createTaskViaUI(page, title)
 
@@ -24,7 +27,6 @@ test('OD-63-1: direct URL / new-tab / refresh opens the full canonical page (not
 
   await expect(page.getByRole('heading', { level: 1, name: new RegExp(title) })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByRole('link', { name: /back to tasks/i })).toBeVisible()
-  await expect(page.locator('.split')).toHaveCount(0)
   await expect(page.getByRole('region', { name: 'Tasks' })).toHaveCount(0)
   await expect(page.getByRole('complementary', { name: /task detail/i })).toHaveCount(0)
   expect(page.url()).toContain('view=overdue')
@@ -39,7 +41,6 @@ test('OD-63-1: direct URL / new-tab / refresh opens the full canonical page (not
   } finally {
     await newTab.close()
   }
-  await page.screenshot({ path: testInfo.outputPath('canonical-desktop.png') })
 })
 
 test('OD-63-2: an in-list click opens the split drawer (table stays mounted)', async ({ page }) => {

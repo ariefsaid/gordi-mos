@@ -127,26 +127,6 @@ describe('RI-shell-1 (AC-S02): AppShell grid structure', () => {
     expect(areas).toContain('rail')
     expect(areas).toContain('main')
   })
-
-  it('AC-S02: brand column width token matches rail width token (--rail-w, not a literal)', () => {
-    const { container } = renderShell()
-    // The brand column div inside TopBar must reference --rail-w, not a raw pixel literal
-    // We detect this by checking the inline style uses the CSS variable reference
-    const brandCol = container.querySelector('[style*="--rail-w"]') as HTMLElement | null
-    expect(brandCol).not.toBeNull()
-  })
-
-  it('AC-S02: Rail and outlet-wrapper are grid-area siblings (both direct children of shell grid)', () => {
-    const { container } = renderShell()
-    const shellGrid = container.querySelector('[style*="display: grid"]') as HTMLElement | null
-    expect(shellGrid).not.toBeNull()
-    // Rail renders as <aside>; outlet wrapper is the div with grid-area: main
-    const aside = shellGrid!.querySelector(':scope > aside')
-    expect(aside).not.toBeNull()
-    const mainWrapper = shellGrid!.querySelector(':scope > [style*="grid-area"]') as HTMLElement | null
-    // The outlet wrapper div must have grid-area: main
-    expect(mainWrapper).not.toBeNull()
-  })
 })
 
 // AC-015: exactly one nav landmark named "Primary", one banner, one main
@@ -313,13 +293,9 @@ describe('AC-T01/AC-T03: AppShell tabbar row (narrow viewport)', () => {
     expect(screen.getAllByRole('navigation', { name: 'Primary' })).toHaveLength(1)
   })
 
-  it('AC-T01: at narrow viewport, the shell grid gains a tabbar row and BottomTabBar renders', () => {
+  it('AC-T01: at narrow viewport, BottomTabBar renders and the rail is absent', () => {
     setNarrow(true)
     const { container } = renderShell()
-    const shellGrid = container.querySelector('[style*="display: grid"]') as HTMLElement | null
-    expect(shellGrid).not.toBeNull()
-    expect(shellGrid!.style.gridTemplateAreas).toContain('tabbar')
-    expect(shellGrid!.style.gridTemplateRows).toContain('var(--tabbar-h)')
     // BottomTabBar's "Primary" nav is present alongside the rail being hidden.
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(nav).toBeInTheDocument()

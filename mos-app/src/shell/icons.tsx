@@ -207,48 +207,6 @@ export function InboxIcon() {
   )
 }
 
-// BudgetIcon — a calculator/receipt, the Plan budget-capture surface (ADR-0022 D1).
-// NFR-002: no icon library; stroke-2, 18px, aria-hidden.
-export function BudgetIcon() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M5 3h11l3 3v15H5z" />
-      <path d="M8 8h7M8 12h7M8 16h4" />
-    </svg>
-  )
-}
-
-// PricingIcon — a percent tag, the Plan pricing pre-flight surface (ADR-0022 D5).
-// NFR-002: no icon library; stroke-2, 18px, aria-hidden.
-export function PricingIcon() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
-      <path d="M7 7h.01M8.5 8.5l7 7" />
-    </svg>
-  )
-}
-
 // ── Redesign Step 2 (T3) — new rail/icon marks. Each is the Work *parent* or a
 // destination/Module mark that had no counterpart today; all stroke-2, 18px,
 // aria-hidden (NFR-002 convention). Reuse existing marks where a destination
@@ -274,28 +232,6 @@ export function WorkIcon() {
   )
 }
 
-// EventsIcon — calendar. Icon for the Signals destination root (id 'events', legacy internal
-// name — OD-57 original naming; label retired to "Signals" by OD-V4-2). Icon glyph unchanged;
-// out of this fix's scope (not named in OD-V4-2, no icon change requested).
-export function EventsIcon() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path d="M3 9h18M8 3v4M16 3v4" />
-    </svg>
-  )
-}
-
 // SignalsIcon — spark, the Work/Signals child (Rule 1 job).
 export function SignalsIcon() {
   return (
@@ -315,7 +251,7 @@ export function SignalsIcon() {
   )
 }
 
-// MoneyIcon — a banknote, the Money destination (finance/admin gated).
+// MoneyIcon — a banknote, the Money destination (finance/manager/supervisor gated).
 export function MoneyIcon() {
   return (
     <svg
@@ -601,6 +537,15 @@ export function ItemsIcon() {
   )
 }
 
+export function RecipesIcon() {
+  return (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1Z" />
+      <path d="M12 6v14M6 9h3M6 13h3M15 9h3M15 13h3" />
+    </svg>
+  )
+}
+
 // StockIcon — a carton, the Café Stock screen: the goods actually on hand in the stream.
 export function StockIcon() {
   return (
@@ -667,6 +612,15 @@ export function DispatchIcon() {
 }
 
 // CountIcon — a clipboard and check, for the physical Count entry surface (distinct from Stock).
+export function RecordsIcon() {
+  return (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 6h11M9 12h11M9 18h11" />
+      <path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" />
+    </svg>
+  )
+}
+
 export function CountIcon() {
   return (
     <svg
@@ -682,6 +636,26 @@ export function CountIcon() {
     >
       <rect x="5" y="4" width="14" height="17" rx="2" />
       <path d="M9 4.5h6M8 10h3M8 14h3m2-1 1.5 1.5L18 11" />
+    </svg>
+  )
+}
+
+// StockComparisonIcon — an up arrow beside a down arrow, two figures set against each other (ESB expected vs the Count).
+export function StockComparisonIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M7 20V5M3.5 8.5 7 5l3.5 3.5" />
+      <path d="M17 4v15M13.5 15.5 17 19l3.5-3.5" />
     </svg>
   )
 }
@@ -727,8 +701,8 @@ export function RequestIcon() {
   )
 }
 
-// BranchesIcon — a shopfront, Money's branch table (distinct from the Money banknote).
-export function BranchesIcon() {
+// LocationIcon — a map pin, a physical place (Café Locations; distinct from the shopfront Branch).
+export function LocationIcon() {
   return (
     <svg
       width={18}
@@ -741,9 +715,8 @@ export function BranchesIcon() {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M4 10v10h16V10" />
-      <path d="M3 10l2-6h14l2 6z" />
-      <path d="M10 20v-5h4v5" />
+      <path d="M12 21s-6-5.6-6-10.5a6 6 0 0 1 12 0C18 15.4 12 21 12 21z" />
+      <circle cx="12" cy="10.5" r="2.2" />
     </svg>
   )
 }
@@ -766,4 +739,27 @@ export function PendingBillIcon() {
       <path d="M9 8h6M9 12h6" />
     </svg>
   )
+}
+
+const strokeProps = { fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true } as const
+
+/** Saved / done tick. 16px by default, inline-aligned. */
+export function CheckIcon({ className, size = 16 }: { className?: string; size?: number }) {
+  return <svg className={className} width={size} height={size} viewBox="0 0 24 24" {...strokeProps}><path d="m5 12 4 4L19 6" /></svg>
+}
+
+/** Pointing arrow for "go to" links; replaces typed arrow glyphs. */
+export function ArrowRightIcon({ className, size = 16 }: { className?: string; size?: number }) {
+  return <svg className={className ?? 'inline-icon'} width={size} height={size} viewBox="0 0 24 24" {...strokeProps}><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
+}
+
+/** Change direction for deltas: up, down or flat. */
+export function TrendIcon({ direction, className, size = 16 }: { direction: 'up' | 'down' | 'flat'; className?: string; size?: number }) {
+  const d = direction === 'up' ? 'M7 17 17 7M9 7h8v8' : direction === 'down' ? 'M7 7l10 10M17 9v8H9' : 'M5 12h14'
+  return <svg className={className ?? 'inline-icon'} width={size} height={size} viewBox="0 0 24 24" {...strokeProps}><path d={d} /></svg>
+}
+
+/** Refresh / pending. */
+export function RefreshIcon({ className, size = 16 }: { className?: string; size?: number }) {
+  return <svg className={className} width={size} height={size} viewBox="0 0 24 24" {...strokeProps}><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5" /></svg>
 }

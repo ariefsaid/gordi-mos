@@ -4,7 +4,7 @@ import { listCafeReceipts, type CafeReceipt, type CafeReceiptLine } from './cafe
 import { readAllPages } from './reporting-shared'
 
 export type CafeReceiptIssueKind = 'no_po' | 'over' | 'wrong_unit' | 'short' | 'damaged_wrong'
-export type CafeReceiptIssueStatus = 'open' | 'linked' | 'closed'
+type CafeReceiptIssueStatus = 'open' | 'linked' | 'closed'
 
 /** No PO, over and wrong unit keep their part unposted; short and damaged/wrong are information (FR-1034). */
 export const BLOCKING_ISSUE_KINDS: ReadonlySet<CafeReceiptIssueKind> = new Set<CafeReceiptIssueKind>(['no_po', 'over', 'wrong_unit'])
@@ -30,6 +30,8 @@ export type CafeReceiptIssue = {
   /** Linked parts, oldest first; empty for a viewer who reads no portions (a receiver). */
   parts: CafeReceiptIssuePart[]
   closed_note: string | null
+  /** The previous remainder's close note, retained in record history when a linked part re-opens it. */
+  previous_closed_note: string | null
   resolved_by: string | null
   resolved_at: string | null
   receipt: CafeReceipt
@@ -37,7 +39,7 @@ export type CafeReceiptIssue = {
 }
 
 /** A matched part a release could not post: no open PO has room for it (DD-2026-10-06-1429). */
-export type CafeReceiptHeldPortion = {
+type CafeReceiptHeldPortion = {
   id: string
   quantity: string
   created_at: string
@@ -45,8 +47,15 @@ export type CafeReceiptHeldPortion = {
   line: CafeReceiptLine
 }
 
+type CafeReceiptHaltedGroup = {
+  group_id: string
+  po_number: string
+  mos_key: string
+  receipt: CafeReceipt
+}
+
 /** A queued portion ESB permanently refused, with the outbox message and identifying MOS key. */
-export type CafeReceiptEsbRefusedPortion = CafeReceiptHeldPortion & {
+type CafeReceiptEsbRefusedPortion = CafeReceiptHeldPortion & {
   po_number: string
   mos_key: string | null
   esb_message: string | null
@@ -56,12 +65,13 @@ export type CafeReceiptIssueList = {
   /** Every open issue, and the newest resolved ones. */
   issues: CafeReceiptIssue[]
   held: CafeReceiptHeldPortion[]
+  haltedGroups: CafeReceiptHaltedGroup[]
   refused: CafeReceiptEsbRefusedPortion[]
   /** How many issues are resolved in all, when more exist than are listed. */
   resolvedTotal: number
 }
 
-export type CafeReceiptIssueOpenPo = {
+type CafeReceiptIssueOpenPo = {
   po_number: string
   supplier_name: string | null
   po_date: string
@@ -94,9 +104,10 @@ const PART_FIELDS = 'issue_id,po_number,quantity,state,po_created_after_delivery
 const KINDS: readonly CafeReceiptIssueKind[] = ['no_po', 'over', 'wrong_unit', 'short', 'damaged_wrong']
 const STATUSES: readonly CafeReceiptIssueStatus[] = ['open', 'linked', 'closed']
 /** Resolved issues shown at once, newest first; open ones are always read in full. */
-export const RESOLVED_READ_LIMIT = 100
+const RESOLVED_READ_LIMIT = 100
 
 const ops = () => supabase.schema('ops')
+const shared = () => supabase.schema('shared')
 
 /**
  * Every open/resolved issue and held no-longer-fits portion allowed by row security, plus
@@ -104,7 +115,7 @@ const ops = () => supabase.schema('ops')
  * line, evidence and photos from the shared receipt read.
  */
 export async function listCafeReceiptIssues(): Promise<CafeReceiptIssueList> {
-  const [open, resolved, resolvedCount, heldRows, refusedRows] = await Promise.all([
+  const [open, resolved, resolvedCount, heldRows, refusedRows, halted] = await Promise.all([
     readAllPages<Record<string, unknown>>('listCafeReceiptIssues', (from, to) => ops().from('cafe_receipt_issues')
       .select(ISSUE_FIELDS).eq('status', 'open').order('created_at').order('id').range(from, to)),
     ops().from('cafe_receipt_issues').select(ISSUE_FIELDS).neq('status', 'open')
@@ -114,12 +125,18 @@ export async function listCafeReceiptIssues(): Promise<CafeReceiptIssueList> {
       .select(HELD_FIELDS).eq('state', 'held').eq('hold_reason', 'no_longer_fits').order('created_at').order('id').range(from, to)),
     readAllPages<Record<string, unknown>>('listCafeReceiptIssues', (from, to) =>
       ops().rpc('cafe_receipt_esb_refused_portions', { p_offset: from, p_limit: to - from + 1 })),
+    ops().rpc('list_cafe_receipt_halted_groups'),
   ])
   if (resolved.error) throw new Error(`listCafeReceiptIssues failed: ${resolved.error.message}`)
   if (resolvedCount.error) throw new Error(`listCafeReceiptIssues failed: ${resolvedCount.error.message}`)
+  if (halted.error) throw new Error(`listCafeReceiptIssues failed: ${halted.error.message}`)
   const issueRows = [...open, ...((resolved.data ?? []) as Array<Record<string, unknown>>)]
-  const receiptIds = [...new Set([...issueRows, ...heldRows, ...refusedRows].map(row => String(row.receipt_id)))]
-  const [receipts, parts] = await Promise.all([readReceipts(receiptIds), readParts(receiptIds)])
+  const haltedRows = (halted.data ?? []) as Array<Record<string, unknown>>
+  const receiptIds = [...new Set([...issueRows, ...heldRows, ...refusedRows, ...haltedRows].map(row => String(row.receipt_id)))]
+  const reopenedIds = issueRows.filter(row => row.status === 'open' && typeof row.reopened_po_number === 'string').map(row => String(row.id))
+  const [receipts, parts, previousCloseNotes] = await Promise.all([
+    readReceipts(receiptIds), readParts(receiptIds), readPreviousCloseNotes(reopenedIds),
+  ])
   const evidence = (row: Record<string, unknown>) => {
     const receipt = receipts.get(String(row.receipt_id))
     const line = receipt?.lines.find(candidate => candidate.id === row.line_id)
@@ -142,11 +159,19 @@ export async function listCafeReceiptIssues(): Promise<CafeReceiptIssueList> {
         reopened_po_number: nullableString(row.reopened_po_number),
         parts: parts.get(String(row.id)) ?? [],
         closed_note: nullableString(row.closed_note),
+        previous_closed_note: previousCloseNotes.get(String(row.id)) ?? null,
         resolved_by: nullableString(row.resolved_by),
         resolved_at: nullableString(row.resolved_at),
       }
     }),
     held: heldRows.map(row => ({ ...evidence(row), quantity: String(row.quantity) })),
+    haltedGroups: haltedRows.map(row => {
+      const receipt = receipts.get(String(row.receipt_id))
+      if (!receipt || typeof row.group_id !== 'string' || typeof row.po_number !== 'string' || typeof row.mos_key !== 'string') {
+        throw new Error('listCafeReceiptIssues failed: invalid halted group')
+      }
+      return { group_id: row.group_id, po_number: row.po_number, mos_key: row.mos_key, receipt }
+    }),
     refused: refusedRows.map(row => {
       if (typeof row.po_number !== 'string' || row.po_number.trim() === '') {
         throw new Error('listCafeReceiptIssues failed: invalid refused portion row')
@@ -170,6 +195,23 @@ function chunked(ids: readonly string[]): string[][] {
 async function readReceipts(ids: readonly string[]): Promise<Map<string, CafeReceipt>> {
   const read = await Promise.all(chunked(ids).map(chunk => listCafeReceipts(['Approved'], { ids: chunk, limit: chunk.length })))
   return new Map(read.flat().map(receipt => [receipt.id, receipt]))
+}
+
+/** The close note cleared when release re-opened an issue, recovered through its permitted history. */
+async function readPreviousCloseNotes(issueIds: readonly string[]): Promise<Map<string, string>> {
+  if (issueIds.length === 0) return new Map()
+  const reads = await Promise.all(chunked(issueIds).map(issueChunk => readAllPages<Record<string, unknown>>('listCafeReceiptIssues', (from, to) =>
+    shared().from('record_history').select('record_key,old_value')
+      .eq('schema_name', 'ops').eq('table_name', 'cafe_receipt_issues').in('record_key', issueChunk)
+      .eq('field_name', 'closed_note').is('new_value', null).not('old_value', 'is', null)
+      .order('occurred_at', { ascending: false }).order('id', { ascending: false }).range(from, to))))
+  const notes = new Map<string, string>()
+  for (const row of reads.flat()) {
+    if (typeof row.record_key === 'string' && typeof row.old_value === 'string' && !notes.has(row.record_key)) {
+      notes.set(row.record_key, row.old_value)
+    }
+  }
+  return notes
 }
 
 /** The linked parts of the receipts' issues by issue, oldest first; RLS returns none to a receiver. */
@@ -274,6 +316,21 @@ export async function linkCafeReceiptIssue(issueId: string, poNumber: string): P
 export async function closeCafeReceiptIssue(issueId: string, note: string): Promise<void> {
   const { error } = await ops().rpc('close_cafe_receipt_issue', { p_issue_id: issueId, p_note: note.trim() })
   if (error) throw new Error(`closeCafeReceiptIssue failed: ${error.message}`)
+}
+
+export async function resolveCafeReceiptHaltedGroup(
+  groupId: string, resolution: 'record_number' | 'confirm_absent', esbDocNum?: string,
+): Promise<void> {
+  const { data, error } = await ops().rpc('resolve_cafe_receipt_halted_group', {
+    p_group_id: groupId,
+    p_resolution: resolution,
+    p_esb_doc_num: resolution === 'record_number' ? esbDocNum?.trim() ?? null : null,
+  })
+  if (error) throw new Error(`resolveCafeReceiptHaltedGroup failed: ${error.message}`)
+  const result = (data ?? {}) as Record<string, unknown>
+  if (result.group_id !== groupId || result.resolution !== resolution) {
+    throw new Error('resolveCafeReceiptHaltedGroup failed: invalid response')
+  }
 }
 
 /** Admin only: whether a person holds the procurement capability. */

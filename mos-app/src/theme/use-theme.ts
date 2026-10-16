@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useState } from 'react';
 
 /**
  * useTheme — light/dark/system theme controller (ADR-0009, FR-134).
@@ -43,34 +42,4 @@ export function applyClass(resolved: 'light' | 'dark'): void {
   const el = document.documentElement;
   if (resolved === 'dark') el.classList.add(DARK_CLASS);
   else el.classList.remove(DARK_CLASS);
-}
-
-export function useTheme(): [Theme, (next: Theme) => void] {
-  const [theme, setThemeState] = useState<Theme>(readPersisted);
-
-  // Reflect state → DOM + storage whenever it changes (and on mount).
-  useEffect(() => {
-    const resolved = resolveTheme(theme);
-    applyClass(resolved);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, theme);
-    } catch {
-      /* storage full / denied — state still applies to the DOM */
-    }
-
-    // When chosen is 'system', re-apply on OS preference change.
-    if (theme !== 'system') return;
-    const mql = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e: MediaQueryListEvent) => {
-      applyClass(e.matches ? 'dark' : 'light');
-    };
-    mql.addEventListener('change', handler);
-    return () => mql.removeEventListener('change', handler);
-  }, [theme]);
-
-  const setTheme = useCallback((next: Theme) => {
-    setThemeState(next);
-  }, []);
-
-  return [theme, setTheme];
 }

@@ -42,6 +42,8 @@ export type PickerProps = {
   defaultOpen?: boolean
   required?: boolean
   placeholder?: string
+  // Text of the menu's filter field; defaults to "Filter <label>", which reads badly when `label` is an action ("Edit task status").
+  filterLabel?: string
   // Visible prefix for the trigger only; menu option labels stay concise.
   triggerPrefix?: string
   describedBy?: string
@@ -74,6 +76,7 @@ export function Picker({
   defaultOpen = false,
   required = false,
   placeholder,
+  filterLabel: filterLabelProp,
   triggerPrefix,
   describedBy,
   className,
@@ -171,7 +174,7 @@ export function Picker({
     return runs
   }, [])
 
-  const filterLabel = t('ui.picker.filter', { label })
+  const filterLabel = filterLabelProp ?? t('ui.picker.filter', { label })
   const selectedLabel = options.find((option) => option.value === value)?.label
   const selectedValue = selectedLabel ?? placeholder ?? label
   const fullValue = triggerPrefix ? `${triggerPrefix}: ${selectedValue}` : selectedValue
@@ -208,6 +211,7 @@ export function Picker({
             data-full-value={fullValue}
             disabled={disabled || busy}
             autoFocus={autoFocus}
+            onPointerDown={(event) => event.currentTarget.focus()}
             onBlur={onBlur}
             onClick={(event) => { event.preventDefault(); togglePicker() }}
             onKeyDown={(event) => {
@@ -396,6 +400,7 @@ export function MultiPicker({
             title={triggerText}
             data-full-value={triggerText}
             disabled={disabled}
+            onPointerDown={event => event.currentTarget.focus()}
             onClick={event => {
               event.preventDefault()
               if (disabled) return

@@ -4,6 +4,7 @@
 // and that the price is never written (MOS is the pre-flight, not the price-setter — ADR-0022 D5).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('@/lib/db/plan-budget', () => ({
@@ -28,7 +29,9 @@ const STALE = daysAgo(200)  // unambiguously outside it
 function renderPage() {
   return render(
     <I18nProvider>
-      <PricingPage />
+      <MemoryRouter>
+        <PricingPage />
+      </MemoryRouter>
     </I18nProvider>,
   )
 }

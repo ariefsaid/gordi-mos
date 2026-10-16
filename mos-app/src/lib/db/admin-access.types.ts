@@ -27,7 +27,7 @@ export const AUTHORITY_ROLES = [
 ] as const
 export type AuthorityRole = typeof AUTHORITY_ROLES[number]
 
-export const AUTHORITY_SCOPES = ['none', 'org', 'own_bu', 'own_team', 'own'] as const
+const AUTHORITY_SCOPES = ['none', 'org', 'own_bu', 'own_team', 'own'] as const
 export type AuthorityScope = typeof AUTHORITY_SCOPES[number]
 
 export interface RoleAuthorityRow {

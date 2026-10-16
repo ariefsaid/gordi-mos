@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useNavigate, useSearchParams, type To } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
-import { useIsWideOverlayWidth } from '@/shell/use-is-wide-overlay-width'
+import { useIsRecordSplit } from '@/shell/use-is-split-width'
 import { OverlayHostSlot, useOptionalOverlayHost, type OverlayEntry } from '@/shell/overlay-host'
 import type { OverlayOwner } from '@/shell/overlay-navigation'
 import { TaskOverlayContent } from '@/components/tasks/task-drawer'
@@ -171,7 +171,7 @@ export function useCatalogRecordOverlay({
   onCollectionChanged: () => void
 }): CatalogRecordOverlayController {
   const host = useOptionalOverlayHost()
-  const isSplit = useIsWideOverlayWidth()
+  const isSplit = useIsRecordSplit()
   const isDesktop = useIsDesktop()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
@@ -278,7 +278,7 @@ export function useCatalogRecordOverlay({
     if (!restoreRecordFocus.current || recordId || sessionActive || !recordInvoker.current) return
     const id = recordInvoker.current
     const frame = requestAnimationFrame(() => {
-      const row = document.querySelector<HTMLElement>(`.catalog-collection__row-link[href$="/${CSS.escape(id)}"]`)
+      const row = document.querySelector<HTMLElement>(`.direction-register__identity[href$="/${CSS.escape(id)}"]`)
       if (row) {
         row.focus()
         restoreRecordFocus.current = false

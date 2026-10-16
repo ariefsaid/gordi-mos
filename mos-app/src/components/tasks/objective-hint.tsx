@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { isShipGated } from '@/lib/ship-gate'
 
 /** The Objective a task group belongs to. `id: null` = named but not actually joined to one. */
-export type ObjectiveHintValue = { id: string | null; name: string }
+type ObjectiveHintValue = { id: string | null; name: string }
 
 type ObjectiveHintProps = {
   hint: ObjectiveHintValue

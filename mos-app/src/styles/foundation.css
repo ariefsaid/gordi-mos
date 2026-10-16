@@ -1,0 +1,138 @@
+/* Shared parts every screen uses: the icon+text row, field labels, the one control box, link focus.
+   Component files add only what is theirs; heights, borders, text and radius come from here. */
+
+/* Icon + text row. The icon centres on the FIRST text line (1lh = that line's height), never on
+   the whole wrapped row. Direct svg children and .iconrow__icon wrappers both qualify. */
+.iconrow { --icon: var(--mos-icon-sm); display: flex; align-items: flex-start; gap: var(--mos-inline-gap); min-width: 0; }
+.iconrow--md { --icon: var(--mos-icon-md); }
+.iconrow > svg,
+.iconrow > .iconrow__icon {
+  flex: none;
+  width: var(--icon);
+  height: 1lh;
+  display: block;
+}
+.iconrow > svg { height: var(--icon); margin-block: calc((1lh - var(--icon)) / 2); }
+.iconrow > .iconrow__icon { display: flex; align-items: center; justify-content: center; }
+.iconrow > .iconrow__icon > svg { width: var(--icon); height: var(--icon); flex: none; }
+.iconrow--center { align-items: center; }
+.iconrow--center > svg { margin-block: 0; height: var(--icon); }
+
+/* Field label: visible above the control, label role, 4px to the control. */
+.field-label {
+  font: var(--mos-type-label);
+  color: var(--mos-ink);
+}
+
+/* One control box: input, select, search and date share height, border, text and radius.
+   The 1px border is an inset shadow so the native input inside measures the full control height. */
+:is(.mk-textinput__box, .mk-date__box, .search-field__box) {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--mos-inline-gap);
+  min-height: var(--mos-control-height);
+  padding-inline: var(--mos-row-pad-x);
+  background: var(--mos-surface);
+  color: var(--mos-ink);
+  font: var(--mos-type-control);
+  border: 0;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--mos-control);
+  transition: box-shadow var(--mos-duration-fast) ease;
+  position: relative;
+}
+:is(.mk-textinput__box, .mk-date__box, .search-field__box, .mk-select__field):hover:not(:focus-within):not(:focus-visible):not(:disabled) {
+  box-shadow: inset 0 0 0 1px var(--mos-ink);
+}
+:is(.mk-textinput__box, .mk-date__box, .search-field__box):focus-within,
+.mk-select__field:is(:focus-visible, [aria-expanded='true']) {
+  box-shadow: inset 0 0 0 2px var(--mos-accent);
+}
+:is(.mk-textinput--error, .mk-select--error, .mk-date--error) :is(.mk-textinput__box, .mk-select__field, .mk-date__box) {
+  box-shadow: inset 0 0 0 2px var(--mos-danger);
+}
+:is(.mk-textinput--disabled, .mk-select--disabled, .mk-date--disabled) :is(.mk-textinput__box, .mk-select__field, .mk-date__box) {
+  background: var(--mos-band);
+  cursor: not-allowed;
+}
+/* The native element inside takes the box height; it draws nothing of its own. */
+:is(.mk-textinput__box, .mk-date__box, .search-field__box) > input:not([type='file']) {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  height: auto;
+  min-height: var(--mos-control-height);
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--mos-ink);
+  font: var(--mos-type-control);
+  border-radius: 0;
+}
+/* The select trigger is the decorated control itself (its box stays a plain wrapper). */
+.mk-select__field {
+  box-sizing: border-box; flex: 1; min-width: 0; align-self: stretch; height: auto;
+  min-height: var(--mos-control-height);
+  padding: var(--mos-control-pad-y) var(--mos-row-pad-x);
+  border: 0; outline: 0; border-radius: var(--radius-sm);
+  background: var(--mos-surface); color: var(--mos-ink); font: var(--mos-type-control);
+  box-shadow: inset 0 0 0 1px var(--mos-control);
+  transition: box-shadow var(--mos-duration-fast) ease;
+}
+.mk-select--disabled .mk-select__field { color: var(--mos-muted); }
+:is(.mk-textinput__box, .mk-date__box, .search-field__box) > input::placeholder { color: var(--mos-muted); }
+
+/* Any other single-line native field wears the same height and text. Zero specificity: a
+   component class may add layout, never a second height. */
+:where(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='hidden'], [type='color'], [type='image'], [type='submit'], [type='button'], [type='reset']), select) {
+  box-sizing: border-box;
+  min-height: var(--mos-control-height);
+  font: var(--mos-type-control);
+}
+
+/* Links and buttons take the shared focus ring (3px, 3px offset). */
+:where(a, button, [role='button'], [role='tab'], summary):focus-visible {
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: var(--mos-focus-offset);
+}
+
+/* Logo mark: ink square, primary-ink G, accent dot (one of the two round marks, with the avatar). */
+.logo-mark { position: relative; flex: none; width: calc(var(--mos-icon-md) + var(--mos-space-2)); height: calc(var(--mos-icon-md) + var(--mos-space-2)); }
+.logo-mark__g {
+  display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;
+  border-radius: var(--radius-sm); background: var(--mos-ink); color: var(--mos-primary-ink);
+  font: var(--mos-type-nav); font-weight: var(--mos-weight-bold);
+}
+.logo-mark__dot {
+  position: absolute; right: calc(-1 * var(--mos-space-1)); bottom: calc(-1 * var(--mos-space-1));
+  width: var(--mos-space-2); height: var(--mos-space-2); border-radius: var(--radius-round);
+  background: var(--mos-accent); box-shadow: 0 0 0 2px var(--mos-canvas);
+}
+
+/* Field row: label above, controls on one baseline at one height, no box inside a box. */
+.field { display: flex; flex-direction: column; gap: var(--mos-label-gap); min-width: 0; }
+.field-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--mos-row-gap) var(--mos-field-gap); min-width: 0; }
+.field-controls { display: flex; align-items: center; gap: var(--mos-inline-gap); min-width: 0; }
+.field-hint { color: var(--mos-muted); font: var(--mos-type-meta); }
+.field-hint--inline { white-space: nowrap; }
+/* Native time and other bare inputs sharing a row with the control box. */
+.field-input {
+  box-sizing: border-box; min-height: var(--mos-control-height); padding: 0 var(--mos-row-pad-x);
+  border: 0; border-radius: var(--radius-sm); background: var(--mos-surface); color: var(--mos-ink);
+  box-shadow: inset 0 0 0 1px var(--mos-control); font: var(--mos-type-control); font-variant-numeric: var(--mos-numeric);
+}
+.field-input:hover:not(:focus) { box-shadow: inset 0 0 0 1px var(--mos-ink); }
+.field-input:focus { outline: 0; box-shadow: inset 0 0 0 2px var(--mos-accent); }
+.field-input:disabled { background: var(--mos-band); cursor: not-allowed; }
+textarea.field-input { padding-block: var(--mos-row-pad-y); line-height: 1.5; resize: vertical; width: 100%; }
+/* A form's action row stays inside the form's own width. */
+.form-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--mos-inline-gap) var(--mos-field-gap); padding-top: var(--mos-field-gap); border-top: 1px solid var(--mos-line); }
+
+/* Inline icon inside running text: sits on the text line, 16px. */
+.inline-icon { display: inline-block; flex: none; width: var(--mos-icon-sm); height: var(--mos-icon-sm); vertical-align: -0.2em; }
+
+/* Icon-only buttons name themselves with text whose line sits on the icon's centre (read by assistive tech,
+   not painted: the standard visually-hidden clip). */
+.icon-name { position: absolute; left: 50%; top: calc(50% - 0.5lh); width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; font: var(--mos-type-body); }

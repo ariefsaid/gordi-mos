@@ -1,162 +1,39 @@
-/**
- * sections.test.ts — Redesign Step 2 (T5). CAFE_SECTIONS remap (Kitchen → Café,
- * /cafe/* paths), events/money/signals/profile sections added, retired /updates
- * + /ops entries dropped. ADMIN_SECTIONS kept. FR-027 prep.
- */
-import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
-import { describe, it, expect } from 'vitest'
-import { SECTIONS, CAFE_SECTIONS, ADMIN_SECTIONS, sectionForPath, sectionHasPrefixChild } from './sections'
+import { describe, expect, it } from 'vitest'
+import { CAFE_ROUTE_SECTIONS, CAFE_SECTIONS, sectionForPath, visibleSections } from './sections'
 
-describe('T5: SECTIONS — workspace fallback registry', () => {
-  it('home section resolves for /', () => {
-    const s = sectionForPath('/')
-    expect(s).not.toBeNull()
-    expect(s!.label).toBe('Home')
-  })
-
-  it('retired /updates and /ops entries are absent', () => {
-    expect(SECTIONS.some((s) => s.path === '/updates')).toBe(false)
-    expect(SECTIONS.some((s) => s.path === '/ops')).toBe(false)
-    expect(sectionForPath('/updates')).toBeNull()
-    expect(sectionForPath('/ops')).toBeNull()
-  })
-})
-
-describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
-  // /cafe is the Today/capture root followed by production, transfer, waste, Count, Receive, Request, Plan, Stock, Items, Review and Pushes.
-  it('exports the Today root and Café routes in canonical order', () => {
-    expect(CAFE_SECTIONS.map((s) => s.path)).toEqual([
-      '/cafe',
-      '/cafe/production',
-      '/cafe/transfer',
-      '/cafe/waste',
-      '/cafe/count',
-      '/cafe/receive',
-      '/cafe/request',
-      '/cafe/plan',
-      '/cafe/stock',
-      '/cafe/items',
-      '/cafe/review',
-      '/cafe/pushes',
+describe('Café navigation registry', () => {
+  it('has one route record per path and preserves the four ordered job groups', () => {
+    const paths = CAFE_ROUTE_SECTIONS.map(section => section.path)
+    expect(new Set(paths).size).toBe(paths.length)
+    expect(CAFE_SECTIONS.filter(section => !section.parentPath).map(section => section.path)).toEqual([
+      '/cafe', '/cafe/records', '/cafe/plan', '/cafe/production', '/cafe/transfer', '/cafe/waste',
+      '/cafe/count', '/cafe/stock-comparison', '/cafe/receive', '/cafe/request', '/cafe/stock',
+      '/cafe/review', '/cafe/pushes', '/cafe/items', '/cafe/recipes', '/cafe/transfer-routes', '/cafe/locations',
+    ])
+    expect(CAFE_SECTIONS.filter(section => !section.parentPath).map(section => section.group)).toEqual([
+      'cafe.nav.today', 'cafe.nav.today', 'cafe.nav.today', 'cafe.nav.today', 'cafe.nav.today', 'cafe.nav.today',
+      'cafe.nav.stock', 'cafe.nav.stock', 'cafe.nav.stock', 'cafe.nav.stock', 'cafe.nav.stock',
+      'cafe.nav.close', 'cafe.nav.close', 'cafe.nav.setup', 'cafe.nav.setup', 'cafe.nav.setup', 'cafe.nav.setup',
     ])
   })
 
-  it('each section has a path, label, labelKey, and Icon', () => {
-    CAFE_SECTIONS.forEach((s) => {
-      expect(s.path).toBeTruthy()
-      expect(s.label).toBeTruthy()
-      expect(s.labelKey).toBeTruthy()
-      expect(typeof s.Icon).toBe('function')
-    })
+  it('keeps Receipt issues under Receive and gives the old review paths no menu entry of their own', () => {
+    const nested = CAFE_SECTIONS.filter(section => section.parentPath)
+    expect(nested.map(section => [section.path, section.parentPath])).toEqual([
+      ['/cafe/receive/issues', '/cafe/receive'],
+    ])
+    expect(sectionForPath('/cafe/receive/issues')?.labelKey).toBe('cafe.pageTitle.receiptIssues')
+    // Receipt review and Request review redirect into Review's queues, so they resolve to their job, not to a menu row.
+    expect(CAFE_SECTIONS.some(section => section.path === '/cafe/receive/review' || section.path === '/cafe/request/review')).toBe(false)
   })
 
-  it('sectionForPath resolves the dedicated waste route as Log waste', () => {
-    expect(CAFE_SECTIONS).toContainEqual(expect.objectContaining({
-      path: '/cafe/waste',
-      label: 'Log waste',
-      labelKey: 'nav.cafe.waste',
-    }))
-    expect(sectionForPath('/cafe/waste')).toMatchObject({ path: '/cafe/waste', label: 'Log waste' })
-  })
-
-  it('sectionForPath resolves production, transfer, Count, Receive, Request, items, review and pushes', () => {
-    expect(sectionForPath('/cafe/production')!.label).toBe('Log production')
-    expect(sectionForPath('/cafe/transfer')!.label).toBe('Log transfer')
-    expect(sectionForPath('/cafe/waste')!.label).toBe('Log waste')
-    expect(sectionForPath('/cafe/count')!.label).toBe('Count')
-    expect(sectionForPath('/cafe/receive/review')!.label).toBe('Receive')
-    expect(sectionForPath('/cafe/request/review')!.label).toBe('Request')
-    expect(sectionForPath('/cafe/items')!.label).toBe('Items')
-    expect(sectionForPath('/cafe/review')!.label).toBe('Review')
-    expect(sectionForPath('/cafe/pushes')!.label).toBe('Pushes')
-  })
-
-  it('sectionForPath resolves /cafe/plan/anything by prefix (the specific leaf, not the /cafe root)', () => {
-    expect(sectionForPath('/cafe/plan/anything')!.path).toBe('/cafe/plan')
-  })
-
-  it('sectionForPath resolves the exact /cafe path to the Today root', () => {
-    expect(sectionForPath('/cafe')!.label).toBe('Today')
-  })
-})
-
-describe('T5: ADMIN_SECTIONS — kept (People)', () => {
-  it('resolves /admin/people to People', () => {
-    expect(ADMIN_SECTIONS.some((s) => s.path === '/admin/people')).toBe(true)
-    expect(sectionForPath('/admin/people')!.label).toBe('People')
-  })
-
-  it('resolves the connected-agents tab with its localized label key', () => {
-    expect(sectionForPath('/admin/agents')).toMatchObject({
-      path: '/admin/agents',
-      label: 'Connected agents',
-      labelKey: 'admin.settings.nav.agents',
-    })
-  })
-})
-
-describe('T5: new destination sections resolve', () => {
-  it('sectionForPath resolves /profile and /work/signals', () => {
-    expect(sectionForPath('/events')).toBeNull()
-    expect(sectionForPath('/profile')!.label).toBe('Personal Profile')
-    expect(sectionForPath('/work/signals')!.label).toBe('Signals')
-  })
-
-  it('sectionForPath resolves a sub-route by prefix', () => {
-    // Was `/money/detail` → `/money`; Money is ship-gated (#444) and resolves to nothing now, so
-    // the PREFIX behaviour itself is proven on a path that is still live.
-    expect(sectionForPath('/cafe/plan/anything')!.path).toBe('/cafe/plan')
-  })
-
-  // #444 — the gate closes resolution, not just rendering. The router forwards a gated path home,
-  // so the breadcrumb should never be asked; a resolver that still named the hidden surface would
-  // be a second source of truth waiting to leak one.
-  it.each([...SHIP_GATED_PATHS])(
-    'sectionForPath finds nothing at the ship-gated %s',
-    (path) => {
-      expect(sectionForPath(path)).toBeNull()
-    },
-  )
-
-  it('keeps non-navigation gated sections in the fallback registry', () => {
-    const paths = SECTIONS.map((s) => s.path)
-    for (const p of ['/money', '/work/objectives', '/ecommerce', '/roastery']) {
-      expect(paths, `${p} was deleted from SECTIONS rather than gated`).toContain(p)
-    }
-  })
-})
-
-describe('T5: sectionForPath — fallbacks', () => {
-  it('returns null for a truly unknown path', () => {
-    expect(sectionForPath('/unknown-xyz')).toBeNull()
-  })
-})
-
-describe('the Café children carry marks of their own (#457)', () => {
-  // Several rungs, one picture: each Café tab gets its own mark so compact rail and phone drawer entries remain identifiable.
-  it('the Café root and routes use distinct components', () => {
-    const icons = CAFE_SECTIONS.map((s) => s.Icon)
-    expect(icons).toHaveLength(12)
-    expect(new Set(icons).size).toBe(12)
-  })
-
-  it('none of them is a mark another destination already draws', () => {
-    // The breadcrumb registries — SECTIONS and ADMIN_SECTIONS — and nothing more: the rail's own
-    // rungs are inline literals in destinations.tsx, so a child borrowing ShieldIcon or WorkIcon
-    // passes this. rail-glyph-uniqueness.test.tsx closes that by comparing what the rail actually
-    // renders; this stays because it is fast and names the component.
-    const elsewhere = new Set(
-      [...SECTIONS, ...ADMIN_SECTIONS].filter((s) => !s.path.startsWith('/cafe/')).map((s) => s.Icon),
-    )
-    for (const s of CAFE_SECTIONS) {
-      expect(elsewhere.has(s.Icon), `${s.path} borrows a mark from another destination`).toBe(false)
-    }
-  })
-})
-
-describe('sectionHasPrefixChild', () => {
-  it('marks only a section with a prefix-child sibling', () => {
-    expect(sectionHasPrefixChild(CAFE_SECTIONS[0], CAFE_SECTIONS)).toBe(true)
-    expect(sectionHasPrefixChild(CAFE_SECTIONS[1], CAFE_SECTIONS)).toBe(false)
+  it('keeps the admission gates: Issues for everyone, Review for leads and supervisors, Sent to ESB for leads', () => {
+    const nested = (roles: string[]) => visibleSections(CAFE_SECTIONS, roles).filter(section => section.parentPath).map(section => section.path)
+    expect(nested([])).toEqual(['/cafe/receive/issues'])
+    expect(nested(['supervisor'])).toEqual(['/cafe/receive/issues'])
+    expect(nested(['ops_lead'])).toEqual(['/cafe/receive/issues'])
+    expect(visibleSections(CAFE_SECTIONS, []).some(section => section.path === '/cafe/review' || section.path === '/cafe/pushes')).toBe(false)
+    expect(visibleSections(CAFE_SECTIONS, ['supervisor']).some(section => section.path === '/cafe/review')).toBe(true)
+    expect(visibleSections(CAFE_SECTIONS, ['supervisor']).some(section => section.path === '/cafe/pushes')).toBe(false)
   })
 })

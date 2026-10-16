@@ -6,18 +6,12 @@
 .collection-grammar-table {
   width: 100%;
   table-layout: fixed;
-  font-size: var(--font-size-body);
-}
-
-.record-collection-view .collection-grammar-table thead th {
-  height: 38px;
-  padding: 0 12px;
-  line-height: 1.3;
+  font-size: var(--mos-size-3);
 }
 
 .record-collection-view .collection-grammar-table tbody td {
-  height: var(--row-min-h, 52px);
-  padding: 0 12px;
+  height: var(--mos-row-min);
+  padding: var(--mos-row-pad-y) var(--mos-row-pad-x);
   border-bottom: 1px solid var(--row-divider);
   line-height: 1.4;
   vertical-align: middle;
@@ -32,7 +26,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--foreground);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   font-weight: 600;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -43,10 +37,10 @@
   display: block;
   min-width: 0;
   max-width: 100%;
-  margin-top: 3px;
+  margin-top: var(--mos-stack-gap);
   overflow: hidden;
   color: var(--muted-foreground);
-  font-size: var(--font-size-overline);
+  font-size: var(--mos-size-1);
   font-weight: 500;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -69,7 +63,7 @@
   background: var(--background);
   color: var(--foreground);
   font: inherit;
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   font-weight: 600;
   line-height: 1.25;
 }
@@ -78,11 +72,12 @@
 .task-title-input:focus-visible {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: 0 0 0 2px var(--mos-accent);
 }
 
 .task-title-input[aria-busy='true'] {
-  opacity: 0.6;
+  color: var(--mos-muted);
+  cursor: progress;
 }
 
 /* ── PIC cell (avatar + name) — the shared row anatomy behind PicCell (pic-cell.tsx),
@@ -94,129 +89,28 @@
    there; not edited, so the Tasks surface's own file/tests are untouched by this fix). */
 .owner { display: flex; align-items: center; gap: 8px; }
 .ownav {
-  width: 26px; height: 26px; border-radius: var(--radius-pill);
+  width: 26px; height: 26px; border-radius: var(--radius-round);
   /* blue12→blue9 gradient + inverted text clears WCAG-AA in both themes (see TasksWorkspace.css
      history) — a solid --accent fill measured only ~3.67:1. */
-  background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9));
+  background: var(--mos-band); border: 1px solid var(--mos-line);
   /* typeset: was 10.5px off-ramp; kept byte-identical to TasksWorkspace.css's .ownav per this
      file's own header comment — both now use micro (10px), matching .person-av elsewhere. */
-  color: var(--ds-font-color-inverted); display: grid; place-items: center; font-size: var(--font-size-micro); font-weight: 700; flex: none;
+  color: var(--mos-ink); display: grid; place-items: center; font-size: var(--mos-size-1); font-weight: 700; flex: none;
 }
-.own-name { font-size: var(--font-size-body-lg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.collection-grammar-sort-indicator {
-  display: inline-block;
-  margin-left: 5px;
-  color: var(--primary);
-  font-size: var(--font-size-label);
-  line-height: 1;
-  vertical-align: middle;
-}
+.own-name { font-size: var(--mos-size-3); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .collection-grammar-sort-button:focus-visible,
 .signal-collection-presentation .dt-sort-button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: calc(-1 * var(--mos-focus-width));
   border-radius: var(--radius-xs);
 }
 
-/* DataTable owns the Signal header DOM, so its domain wrapper supplies the same
-   inline arrow treatment as the Task header's shared direction span. */
-.signal-collection-presentation .dt-table th[aria-sort] .dt-sort-button::after {
-  display: inline-block;
-  width: auto;
-  height: auto;
-  margin-left: 5px;
-  border: 0;
-  color: var(--primary);
-  font-size: var(--font-size-label);
-  line-height: 1;
-  vertical-align: middle;
-}
-
-.signal-collection-presentation .dt-table th[aria-sort='none'] .dt-sort-button::after {
-  content: '';
-}
-
-.signal-collection-presentation .dt-table th[aria-sort='ascending'] .dt-sort-button::after {
-  content: '↑';
-}
-
-.signal-collection-presentation .dt-table th[aria-sort='descending'] .dt-sort-button::after {
-  content: '↓';
-}
-
-/* One group-header rhythm. Domain-only controls (Task overdue/create and any future Signal
-   action) remain optional additions after this shared label/count spine. */
-.collection-grammar-group-bar,
-.signal-collection-presentation .dt-group-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 38px;
-  padding: 0 12px;
-  background: transparent;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  font-weight: 400;
-}
-
-.collection-grammar-group-toggle,
-.signal-collection-presentation .dt-group-toggle {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted-foreground);
-  cursor: pointer;
-}
-
-.collection-grammar-group-toggle:hover,
-.signal-collection-presentation .dt-group-toggle:hover {
-  color: var(--foreground);
-}
-
-.collection-grammar-group-label,
-.signal-collection-presentation .dt-group-label {
-  color: var(--brand-navy-text);
-  font-size: var(--font-size-body);
-  font-weight: 700;
-}
-
-.collection-grammar-group-count,
-.signal-collection-presentation .dt-group-count {
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-}
-
-.record-collection-view .gbar.collection-grammar-group-bar .collection-grammar-group-toggle,
-.record-collection-view .gbar.collection-grammar-group-bar .collection-grammar-group-label,
-.record-collection-view .gbar.collection-grammar-group-bar .collection-grammar-group-count {
-  /* Beat the legacy task selectors while keeping the legacy hooks for existing consumers. */
-  box-sizing: border-box;
-}
-
-.collection-grammar-mobile-group,
-.signal-collection-presentation .dt-cards-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 38px;
-  padding: 0 4px;
-}
-
+/* Group headers: the one shared GroupHeader component (ui/GroupHeader.css) styles every band. */
 .collection-grammar-card,
 .signal-collection-presentation .dt-card {
   box-sizing: border-box;
-  min-height: 44px;
+  min-height: var(--mos-row-min);
 }
 .collection-grammar-card {
   border-radius: var(--radius-lg);
@@ -252,20 +146,20 @@
 
 .collection-grammar-card .collection-grammar-card-body,
 .signal-collection-presentation .dt-card {
-  padding: 14px;
+  padding: var(--mos-row-pad-y) var(--mos-row-pad-x);
 }
 
 .collection-grammar-card .collection-grammar-title,
 .signal-collection-presentation .dt-card-title,
 .signal-collection-presentation .signal-table-message {
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   font-weight: 600;
   line-height: 1.25;
 }
 
 .collection-grammar-card-details,
 .signal-collection-presentation .dt-card-detail {
-  gap: 6px 12px;
+  gap: var(--mos-label-gap) var(--mos-row-gap);
 }
 
 /* OD-REDESIGN-22 (D-C1): a failed inline rename surfaces a VISIBLE error + Retry in the row
@@ -273,9 +167,9 @@
 .task-row-save-error {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  font-size: var(--font-size-label);
+  gap: var(--mos-inline-gap);
+  margin-top: var(--mos-label-gap);
+  font-size: var(--mos-size-1);
   /* I4: small error TEXT uses the AA-darkened red; the retry button border/label keep --destructive (larger/bolder). */
   color: var(--field-error-text);
 }
@@ -287,7 +181,7 @@
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--destructive);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   font-weight: 600;
   cursor: pointer;
 }
@@ -306,7 +200,7 @@
    resting row — the "one rule app-wide" after-create feedback. Tokens only (--primary at low
    alpha), a single ~1.8s ease-out that ends at transparent so the class may safely linger. */
 @keyframes collection-row-just-created {
-  0%   { background: color-mix(in srgb, var(--primary) 16%, transparent); }
+  0%   { background: var(--mos-accent-tint); }
   100% { background: transparent; }
 }
 .task-row.row-just-created td,

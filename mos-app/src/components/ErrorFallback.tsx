@@ -70,7 +70,7 @@ export function ErrorFallback({ onReset }: ErrorFallbackProps) {
         <h2
           style={{
             margin: '0 0 12px 0',
-            fontSize: 'var(--font-size-subheading)', // subheading
+            fontSize: 'var(--mos-size-3)', // subheading
             fontWeight: 600,
             fontFamily: 'var(--font-display)',
             color: 'var(--foreground)',
@@ -82,7 +82,7 @@ export function ErrorFallback({ onReset }: ErrorFallbackProps) {
         <p
           style={{
             margin: '0 0 20px 0',
-            fontSize: 'var(--font-size-body)', // body
+            fontSize: 'var(--mos-size-3)', // body
             fontWeight: 400,
             color: 'var(--muted-foreground)',
             lineHeight: 1.45,

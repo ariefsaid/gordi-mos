@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { CafeItemQuantityEntry } from '@/components/kitchen/cafe-capture-table'
+import type { CafeItemQuantityEntry } from '@/components/kitchen/capture-row'
 import { useT } from '@/i18n/use-t'
 import { listCafeReceivableItems, normalizeCafeReceiptQuantity, type CafeReceivableItem } from '@/lib/db/cafe-receipts'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'

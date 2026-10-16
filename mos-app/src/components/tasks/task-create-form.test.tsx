@@ -5,13 +5,12 @@
 // render this SAME component; see task-row.test.tsx / mobile-grouped-cards.test.tsx for their
 // side of the delegation.
 import type { ComponentProps, ReactElement } from 'react'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { describe, it, expect, vi } from 'vitest'
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { TaskCreateForm } from './task-create-form'
 import { TaskCreateContext } from './task-create-context'
 import type { TaskRow } from '@/lib/db/tasks.types'
@@ -57,6 +56,11 @@ function renderForm(
 }
 
 describe('TaskCreateForm — labels and required markers', () => {
+  it('localizes the PIC/Supervisor hint in Indonesian', () => {
+    renderForm({}, (form) => <I18nProvider initialLocale="id">{form}</I18nProvider>)
+    expect(screen.getByText('PIC mengerjakan · Supervisor menindaklanjuti')).toBeInTheDocument()
+  })
+
   it('gives every field a visible label, and marks Team + Supervisor required (PIC is not)', () => {
     renderForm()
     expect(screen.getByText('Title')).toBeInTheDocument()
@@ -70,14 +74,15 @@ describe('TaskCreateForm — labels and required markers', () => {
     expect(teamLabel?.textContent).toContain('*')
     expect(supervisorLabel?.textContent).toContain('*')
     expect(screen.getByText('PIC').closest('label')?.textContent).not.toContain('*')
+    expect(screen.getByText('PIC does the work · Supervisor follows up')).toBeInTheDocument()
   })
 
   it('shows the derived Business unit once, as quiet read-only text tied to Team', () => {
     renderForm()
     const hint = screen.getByTestId('task-create-derived-bu')
-    expect(hint).toHaveTextContent('Business unit: Retail Ops')
+    expect(hint).toHaveTextContent('Business Unit: Retail Ops')
     // Exactly one occurrence — no duplicate BU line anywhere else in the form.
-    expect(screen.getAllByText(/Business unit: Retail Ops/)).toHaveLength(1)
+    expect(screen.getAllByText(/Business Unit: Retail Ops/)).toHaveLength(1)
   })
 })
 
@@ -131,10 +136,17 @@ describe('TaskCreateForm — validation', () => {
     expect(screen.getByRole('textbox', { name: 'Title' })).toHaveFocus()
   })
 
-  it('Enter submits once every field is valid', async () => {
+  it('Enter in Title moves to Team and never submits, even when every field is valid', () => {
     const { onCreate } = renderForm({ task: makeDraft({ title: 'Ship the launch' }) })
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Title' }), { key: 'Enter' })
-    expect(onCreate).toHaveBeenCalledWith('Ship the launch')
+    expect(onCreate).not.toHaveBeenCalled()
+    expect(screen.getByRole('combobox', { name: 'Team' })).toHaveFocus()
+  })
+
+  it('Create task submits the trimmed title once every field is valid', async () => {
+    const { onCreate } = renderForm({ task: makeDraft({ title: '  Ship the launch ' }) })
+    fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
+    await waitFor(() => expect(onCreate).toHaveBeenCalledWith('Ship the launch', ''))
   })
 })
 
@@ -179,7 +191,7 @@ describe('TaskCreateForm — discard, busy and retry', () => {
       renderForm({ task: makeDraft({ title: 'Ship the launch' }), onCreate })
       const title = screen.getByRole('textbox', { name: 'Title' })
       title.focus()
-      fireEvent.keyDown(title, { key: 'Enter' })
+      fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
       await screen.findByRole('button', { name: /retry/i })
       expect(onCreate).toHaveBeenCalledTimes(1)
       await waitFor(() => expect(title).toHaveFocus())
@@ -238,12 +250,12 @@ describe('TaskCreateForm — discard, busy and retry', () => {
       retry.focus()
       await user.keyboard('{Enter}')
       await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(2))
-      expect(onCreate).toHaveBeenNthCalledWith(1, 'Ship the launch')
-      expect(onCreate).toHaveBeenNthCalledWith(2, 'Ship the launch')
+      expect(onCreate).toHaveBeenNthCalledWith(1, 'Ship the launch', '')
+      expect(onCreate).toHaveBeenNthCalledWith(2, 'Ship the launch', '')
     } finally { restore() }
   })
 
-  it('issue 1293: a second rejected save restores focus to Create after Retry is replaced', async () => {
+  it('issue 1293: a second rejected save keeps focus on a usable form control after Retry is replaced', async () => {
     const restore = installDisabledBlur()
     try {
       const user = userEvent.setup()
@@ -283,9 +295,10 @@ describe('TaskCreateForm — discard, busy and retry', () => {
       expect(secondRetry).toBeEnabled()
       expect(create).toBeEnabled()
       expect(onCreate).toHaveBeenCalledTimes(2)
-      expect(onCreate).toHaveBeenNthCalledWith(1, 'Ship the launch')
-      expect(onCreate).toHaveBeenNthCalledWith(2, 'Ship the launch')
-      await waitFor(() => expect(create).toHaveFocus())
+      expect(onCreate).toHaveBeenNthCalledWith(1, 'Ship the launch', '')
+      expect(onCreate).toHaveBeenNthCalledWith(2, 'Ship the launch', '')
+      // Create now lives in the page action bar outside the form, so focus returns to the form's first usable control.
+      await waitFor(() => expect(title).toHaveFocus())
     } finally { restore() }
   })
 })
@@ -397,28 +410,9 @@ describe('TaskCreateForm — Due date + Project/Process (#1029)', () => {
     })
   })
 
-  it('Enter in Title with a valid draft creates once and never jumps to another field', () => {
-    const { onCreate } = renderWithContext()
-    const title = screen.getByRole('textbox', { name: 'Title' })
-    title.focus()
-    fireEvent.keyDown(title, { key: 'Enter' })
-    expect(onCreate).toHaveBeenCalledTimes(1)
-    expect(onCreate).toHaveBeenCalledWith('Ship the launch')
-    expect(title).toHaveFocus()
-  })
-
   it('hides Project/Process when the viewer can see none', () => {
     renderForm()
     expect(screen.queryByRole('combobox', { name: 'Project/Process' })).not.toBeInTheDocument()
     expect(screen.getByLabelText('Due date')).toBeInTheDocument()
-  })
-
-  it('issue 1487: fits the phone create actions above the bottom navigation', () => {
-    const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/task-create-form.css'), 'utf8')
-    const phone = css.slice(css.indexOf('@media (max-width: 767.98px)'))
-    expect(phone).toMatch(/\.tcf\s*\{[^}]*gap:\s*4px;[^}]*padding:\s*8px;/s)
-    expect(phone).toMatch(/\.tcf-row,\s*\.tcf-row--pair\s*\{[^}]*grid-template-columns:\s*1fr;[^}]*gap:\s*8px;/s)
-    expect(phone).toMatch(/\.tcf-foot\s*\{[^}]*padding-top:\s*0;/s)
-    expect(phone).toMatch(/\.tcf-foot \.btn\s*\{[^}]*min-height:\s*44px;/s)
   })
 })

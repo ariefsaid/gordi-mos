@@ -1,0 +1,6 @@
+/* Shared finishing for tables and states that older per-area sheets still reference. */
+.dt-table .dt-num, .tabular, .money-table td, .money-table th:not(:first-child) { font-variant-numeric: var(--mos-numeric); }
+.empty-state, .loading-shell { color: var(--mos-ink); }
+.skeleton-bar { background: var(--mos-band); }
+.dialog, dialog, [role='dialog'] { border-radius: var(--radius-sm); }
+.rail { background: var(--mos-band); }

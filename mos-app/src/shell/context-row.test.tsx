@@ -72,7 +72,7 @@ function renderMigratedPage(path: string, title: string, jobSentence: string) {
             element={
               <>
                 <ContextRow />
-                <PageHead family="workspace" variant="content" title={title} jobSentence={jobSentence} />
+                <PageHead family="workspace" title={title} jobSentence={jobSentence} />
               </>
             }
           />
@@ -98,7 +98,7 @@ function renderMigratedPageWithStatusRow(path: string, title: string, statusRow:
             element={
               <>
                 <ContextRow />
-                <PageHead family="workspace" variant="content" title={title} statusRow={statusRow} />
+                <PageHead family="workspace" title={title} statusRow={statusRow} />
               </>
             }
           />
@@ -286,7 +286,6 @@ describe('R-OWNER-1: ContextRow job sentence is suppressed on migrated V3 page-f
                   <ContextRow />
                   <PageHead
                     family="workspace"
-                    variant="content"
                     title="Tasks"
                     jobSentence="Find and do the work I own or my Team owns."
                   />

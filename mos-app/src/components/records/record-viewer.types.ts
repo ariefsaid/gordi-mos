@@ -14,7 +14,7 @@
 //     adapter's persistence edge, never in this contract.
 import type { ReactNode } from 'react'
 
-export type RecordKind = 'task' | 'signal' | 'follow-up' | 'pending-bill' | 'work-line' | 'objective'
+type RecordKind = 'task' | 'signal' | 'follow-up' | 'pending-bill' | 'work-line' | 'objective'
 
 export type RecordViewerMode = 'panel' | 'page'
 
@@ -93,7 +93,7 @@ export interface RecordHeaderContextItem {
  *  metadata region would. The commit fields are optional so a purely presentational slot
  *  (a Signal message, a Follow-up audit list) can ignore them and be called with just
  *  `{ mode, readOnly }`. */
-export interface RecordContentSlotContext {
+interface RecordContentSlotContext {
   mode: RecordViewerMode
   readOnly: boolean
   /** Persist a field edit by its adapter key (mirrors RecordViewerProps.onCommitField). */
@@ -122,7 +122,7 @@ export interface RecordContentSlot {
   render: (context: RecordContentSlotContext) => ReactNode
 }
 
-export interface RecordActivityItem {
+interface RecordActivityItem {
   id: string
   label: string
   detail?: string
@@ -133,12 +133,12 @@ export interface RecordActivityItem {
   onOpen?: () => void
 }
 
-export interface RecordViewerTab {
+interface RecordViewerTab {
   id: string
   label: string
 }
 
-export interface RecordPermission {
+interface RecordPermission {
   readOnly: boolean
   reason?: string
   allowedActionIds: readonly string[]

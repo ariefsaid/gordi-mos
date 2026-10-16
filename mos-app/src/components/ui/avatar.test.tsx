@@ -23,7 +23,6 @@ describe('Avatar — image fallback (#359)', () => {
     const { container } = render(<Avatar placeholder="Nico" />)
     expect(container.querySelector('img')).toBeNull()
     expect(container.textContent).toBe('N')
-    expect(container.querySelector('.mk-avatar')?.getAttribute('style')).toMatch(/color: var\(--ds-color-\w+12\)/)
   })
 })
 

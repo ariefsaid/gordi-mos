@@ -18,6 +18,9 @@ async function selectRelevantSavedView(page: Page) {
   await selectTaskView(page, 'Relevant')
 }
 
+// The record opens beside the list only on a wide content track.
+test.use({ viewport: { width: 1920, height: 1080 } })
+
 test.beforeEach(async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
   await page.goto('work/tasks')

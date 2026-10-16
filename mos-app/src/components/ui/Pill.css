@@ -1,50 +1,18 @@
-/* ════════════════════════════════════════════════════════════════════════════
-   The ONE pill shell (VIS-4/5/6, PR-2). Single source for every status/state/
-   source/progress pill in the app. Consumed by <Pill> (ui/Pill.tsx), the task
-   StatusPill, the weekly-update StatePill, ProgressMarker, the Ops source badge,
-   and the My Week strip pills.
-   Shell: height 22, padding 0 var(--pill-inline-pad) (9px), var(--radius-sm) (8px,
-   rounded-rect — RATIFIED OD-REDESIGN-91 #30/E1; DESIGN.md §Shapes now specs the
-   rounded-rect, the 999px capsule spec is retired for this shell), 8px leading dot,
-   var(--font-size-label)/600. Tint differs by tone only.
-   All values resolve to semantic tokens (v3 kit-normalize).
-   ════════════════════════════════════════════════════════════════════════════ */
+/* Status badge: the ONE status/state shell. Matching semantic foreground/tint, label role (14/600),
+   16px status icon, 4px gap, 4px/8px padding, 4px radius, wraps. Meaning is carried by the icon's
+   shape and the word as well as the colour. */
 .pill {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 22px; padding: 0 var(--pill-inline-pad); border-radius: var(--radius-sm);
-  font-size: var(--font-size-label); font-weight: 600; white-space: nowrap;
+  display: inline-flex; align-items: flex-start; gap: var(--mos-space-1);
+  padding: var(--mos-space-1) var(--mos-space-2); border-radius: var(--radius-xs);
+  font: var(--mos-type-label);
 }
-.pill .dot {
-  /* VIS-6: 8px leading dot (WCAG 1.4.1 redundant cue — bumped from 6px). */
-  width: 8px; height: 8px; border-radius: var(--radius-pill); flex: none;
-}
-/* Alignment affordance (kv/label columns): pull the pill flush so its TEXT sits at the
-   column x instead of being inset by --pill-inline-pad. Documented in index.css. */
 .pill--flush { margin-inline-start: calc(-1 * var(--pill-inline-pad)); }
-
-/* Neutral (default badge-status: secondary + muted-foreground) */
-.pill--neutral { background: var(--secondary); color: var(--muted-foreground); }
-.pill--neutral .dot { background: var(--muted-foreground); }
-
-/* Primary / "in progress" (primary/12% + --status-open-text) */
-.pill--primary { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--status-open-text); }
-.pill--primary .dot { background: var(--primary); }
-
-/* Success / "done" / "filed" (success/14% + --status-won-text) */
-.pill--success { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--status-won-text); }
-.pill--success .dot { background: var(--success); }
-
-/* Warning / "draft" / "open" (warning/18% + warning-foreground) */
-.pill--warning { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); }
-.pill--warning .dot { background: var(--warning); }
-
-/* Destructive / "blocked" (destructive/12% + --status-lost-text) */
-.pill--destructive { background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text); }
-.pill--destructive .dot { background: var(--destructive); }
-
-/* Violet / "roastery" (violet/12% + --status-violet-text) */
-.pill--violet { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--status-violet-text); }
-.pill--violet .dot { background: var(--violet); }
-
-/* Skeleton shell — loading strips (muted fill, transparent text, pulse) */
-.pill--skeleton { background: var(--secondary); color: transparent; }
+.pill--neutral { background: var(--mos-band); color: var(--mos-ink); }
+.pill--primary { background: var(--mos-accent-tint); color: var(--mos-info-text); }
+.pill--success { background: var(--mos-success-tint); color: var(--mos-success-text); }
+.pill--warning { background: var(--mos-warning-tint); color: var(--mos-warning-text); }
+.pill--destructive { background: var(--mos-danger-tint); color: var(--mos-error-text); }
+.pill--violet { background: var(--mos-accent-tint); color: var(--mos-info-text); }
+.pill--skeleton { background: var(--mos-band); color: transparent; }
+.pill > svg,
+.pill .pill-icon { flex: none; width: var(--mos-icon-sm); height: var(--mos-icon-sm); margin-block: calc((1lh - var(--mos-icon-sm)) / 2); }

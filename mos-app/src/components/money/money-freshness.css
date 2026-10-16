@@ -1,11 +1,22 @@
-/* MoneyFreshness owns its wrapping and stale-status treatment wherever the head is composed. */
-.content-header .ch-meta-line.money-freshness {
-  white-space: normal;
-}
+/* MoneyFreshness is the content of the page head's one freshness line; a stale snapshot says so in words and amber text. */
+.money-freshness[data-stale='true'] { color: var(--mos-warning-text); }
 
-.content-header .ch-meta-line.money-freshness--stale {
-  padding: 1px 8px;
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--warning) 18%, transparent);
-  color: var(--warning-foreground);
+.money-period-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--mos-inline-gap);
+  min-width: 0;
 }
+.money-period__select { width: 100%; min-width: 168px; max-width: 232px; }
+@media (max-width: 767.98px) { .money-period__select { max-width: none; } }
+
+.money-period__range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--mos-inline-gap) var(--mos-row-gap);
+  max-width: 100%;
+}
+.money-period__range .mk-date { width: min(176px, 100%); }
+.money-period__error { flex-basis: 100%; margin: 0; color: var(--status-lost-text); font-size: var(--mos-size-1); }

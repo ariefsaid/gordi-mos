@@ -38,16 +38,22 @@
   box-shadow: var(--shadow-rest);
 }
 
-/* A Work collection's card is the width its column rules query (`@container work-list`), so a
-   list narrowed by a record panel sheds columns by the same rule as a narrow window. */
+/* Work's operational lists use the round-1 ruled-register treatment, not a floating card.
+   The split container still owns the list width for its responsive column rules. The page head
+   already draws the one rule above the toolbar, so the list adds none. */
 .work-collection > .record-collection-view {
   container: work-list / inline-size;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .record-collection-table {
   width: 100%;
   table-layout: fixed;
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
 }
 
 /* One live collection-table skin. Tasks keeps its decision columns and Signals keeps its
@@ -55,18 +61,18 @@
    and divider. The shared class is applied by both renderers rather than inferred from a
    page-specific descendant selector (OD-REDESIGN-72/79). */
 .record-collection-view .record-collection-table thead th {
-  height: 38px;
-  padding: 0 12px;
+  
+  padding: var(--mos-band-pad-y) var(--mos-row-pad-x);
   line-height: 1.3;
 }
 
 .record-collection-view .record-collection-table tbody tr:not(.dt-group-row) {
-  height: var(--row-min-h);
+  height: var(--mos-row-min);
 }
 
 .record-collection-view .record-collection-table tbody td {
-  height: var(--row-min-h);
-  padding: 0 12px;
+  height: var(--mos-row-min);
+  padding: var(--mos-row-pad-y) var(--mos-row-pad-x);
   border-bottom: 1px solid var(--row-divider);
   line-height: 1.4;
   vertical-align: middle;
@@ -74,26 +80,26 @@
 
 .record-collection-readonly {
   margin: 0;
-  padding: 8px 12px;
+  padding: var(--mos-inline-gap) var(--mos-row-pad-x);
   border-radius: var(--radius-sm);
   background: var(--muted);
   color: var(--muted-foreground);
-  font-size: var(--font-size-mono); /* typeset: was 0.8125rem (13px) literal — same value, now the token */
+  font-size: var(--mos-size-2); /* typeset: was 0.8125rem (13px) literal — same value, now the token */
 }
 
 .record-collection-selection {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 8px 12px;
+  gap: var(--mos-inline-gap);
+  min-height: var(--mos-control-height);
+  padding: var(--mos-inline-gap) var(--mos-row-pad-x);
   border-radius: var(--radius-sm);
   background: var(--card);
   border: 1px solid var(--border);
 }
 
 .record-collection-clear {
-  min-height: 44px;
+  min-height: var(--mos-control-height);
   padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -103,8 +109,8 @@
 }
 
 .record-collection-clear:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: var(--mos-focus-offset);
 }
 
 /* Shared E7 result-header (OD-REDESIGN-72/79, E7-floor reframe 2026-07-22): one quiet status
@@ -114,9 +120,9 @@
 .record-collection-result {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  min-height: 36px;
-  padding: 8px 12px;
+  gap: var(--mos-inline-gap);
+  min-height: var(--mos-control-height);
+  padding: var(--mos-inline-gap) var(--mos-row-pad-x);
   border-bottom: 1px solid var(--border);
   background: var(--card);
 }
@@ -138,7 +144,7 @@
 }
 .record-collection-result__view {
   color: var(--foreground);
-  font-size: var(--font-size-body-lg);
+  font-size: var(--mos-size-3);
   font-weight: 600;
 }
 .record-collection-result__sep {
@@ -146,13 +152,13 @@
 }
 .record-collection-result__collection {
   color: var(--muted-foreground);
-  font-size: var(--font-size-mono);
+  font-size: var(--mos-size-2);
 }
 .record-collection-result__count {
   margin-left: auto;
   flex: none;
   color: var(--muted-foreground);
-  font-size: var(--font-size-mono);
+  font-size: var(--mos-size-2);
 }
 
 /* A long translated empty-state sentence wraps instead of clipping. */

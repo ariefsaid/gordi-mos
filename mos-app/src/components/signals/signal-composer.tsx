@@ -1,3 +1,5 @@
+import { ActionBar } from '@/components/ui/action-bar'
+import { useIsOffline } from '@/shell/use-is-offline'
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
@@ -76,6 +78,9 @@ export function SignalComposer({
   // Set once the Signal is posted but some photos did not upload: Share becomes a photo retry
   // against this id, so a second press never posts the Signal twice.
   const [sharedId, setSharedId] = useState<string | null>(null)
+  // A disabled Share says why, next to it.
+  const offline = useIsOffline()
+  const disabledReason = offline ? t('signals.composer.offline') : sharedId === null && !body.trim() ? t('signals.composer.needsBody') : !occurredReady ? t('signals.composer.needsOccurred') : null
   const internalTextareaRef = useRef<HTMLTextAreaElement>(null)
   const textareaRef = externalTextareaRef ?? internalTextareaRef
   // The native textarea stays the editing driver while suggestion navigation is forwarded.
@@ -122,12 +127,11 @@ export function SignalComposer({
   // person/people by count; Indonesian "orang" is invariant (both keys resolve to it). The caller
   // resolves the noun in the active locale and threads it as ${noun}.
   const notifyNoun = t(notifyCount === 1 ? 'signals.notify.person' : 'signals.notify.people')
-  // ONE metadata line — audience, then notify count, then author — with a STABLE "All teams"
-  // prefix. Typing an @mention only APPENDS the notify segment; it never swaps the audience
-  // phrase out from under the reader.
+  // Keep notification targeting separate from the fixed All Teams audience.
+  const audienceLabel = t('signals.composer.audience')
   const metaLine = notifyCount > 0
-    ? t('signals.composer.shareAllNotify', { count: notifyCount, noun: notifyNoun, name: authorName })
-    : t('signals.composer.shareAll', { name: authorName })
+    ? t('signals.composer.authorLineNotify', { count: notifyCount, noun: notifyNoun, name: authorName })
+    : t('signals.composer.authorLine', { name: authorName })
 
   function handleBodyChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     if (posting) return
@@ -221,11 +225,16 @@ export function SignalComposer({
   return (
     <div className="signal-composer" data-testid="signal-composer">
       {directoryError && <ErrorState message={t('signals.composer.directoryError')} onRetry={() => setDirectoryAttempt((attempt) => attempt + 1)} />}
-      <div className="signal-composer-mention-anchor">
+      <section className="signal-composer-writing" aria-labelledby="signal-compose-writing-label">
+        <label id="signal-compose-writing-label" className="field-label" htmlFor="signal-compose-body">{t('signals.composer.writeLabel')}</label>
+        <p id="signal-compose-mention-hint" className="signal-composer-mention-hint">{t('signals.composer.placeholder')}</p>
+        <div className="signal-composer-mention-anchor">
         <textarea
+          id="signal-compose-body"
+          className="field-input"
           ref={textareaRef}
-          aria-label={t('signals.composer.placeholder')}
-          placeholder={t('signals.composer.placeholder')}
+          placeholder={t('signals.composer.example')}
+          aria-describedby="signal-compose-mention-hint"
           value={body}
           onChange={handleBodyChange}
           aria-controls={mentionToken ? mentionRelationship?.listboxId : undefined}
@@ -283,12 +292,12 @@ export function SignalComposer({
             onDismiss={dismissMentionPicker}
           />
         )}
-      </div>
+        </div>
+      </section>
 
-      {mentions.length > 0 && (
-        <div className="signal-composer-targets" role="group" aria-label={t('signals.composer.targetsLabel')}>
-          <span className="signal-composer-targets-label">{t('signals.composer.targetsLabel')}</span>
-          <ul className="signal-composer-targets-list">
+      <div className="signal-composer-targeting" role="group" aria-label={t('signals.composer.targetsLabel')}>
+          <span className="field-label">{t('signals.composer.targetsLabel')}</span>
+          {mentions.length > 0 && <ul className="signal-composer-targets-list">
             {mentions.map((mention) => {
               const kind = mention.kind === 'person'
                 ? t('signals.mention.group.person')
@@ -310,9 +319,9 @@ export function SignalComposer({
                 </li>
               )
             })}
-          </ul>
-        </div>
-      )}
+          </ul>}
+          <p className="signal-composer-vis">{audienceLabel} · {metaLine}</p>
+      </div>
 
       {photos.length > 0 && (
         <ul className="signal-composer-photos" aria-label={t('signals.composer.photosLabel')}>
@@ -325,72 +334,74 @@ export function SignalComposer({
                 aria-label={t('signals.composer.removePhoto', { n: i + 1 })}
                 onClick={() => keepPhotos((p) => p !== photo)}
               >
-                <span aria-hidden="true">×</span>
+                <CloseIcon size={14} />
               </button>
             </li>
           ))}
         </ul>
       )}
 
-      <div className="signal-composer-context" aria-label={t('signals.composer.contextLabel')}>
+      <div className="field-row signal-composer-context" role="group" aria-label={t('signals.composer.contextLabel')}>
         <SignalAttentionPicker id="signals-compose-attention" value={attention} onChange={(next) => { setAttention(next); onDirtyChange?.(true) }} />
-        <div className="signal-composer-context-pill signal-composer-occurred-pill">
-          <span>{t('signals.composer.occurredLabel')}</span>
-          <DateField
-            compact
-            required
-            aria-label={t('signals.composer.occurredLabel')}
-            value={occurredDate}
-            onChange={(next) => { setOccurredFields((current) => ({ ...current, date: next })); onDirtyChange?.(true) }}
-            onValidityChange={setOccurredDateInvalid}
-          />
-          <input
-            type="time"
-            className="signal-composer-time"
-            aria-label={t('signals.composer.occurredTime')}
-            value={occurredTime}
-            required
-            onChange={(e) => { setOccurredFields((current) => ({ ...current, time: e.target.value })); onDirtyChange?.(true) }}
-          />
-          <span className="signal-composer-field-hint">{t('signals.composer.occurredHint')}</span>
+        <div className="field" role="group" aria-labelledby="signal-compose-occurred-label">
+          <span id="signal-compose-occurred-label" className="field-label">{t('signals.composer.occurredLabel')}</span>
+          <div className="field-controls">
+            <DateField
+              compact
+              required
+              aria-label={t('signals.composer.occurredLabel')}
+              value={occurredDate}
+              onChange={(next) => { setOccurredFields((current) => ({ ...current, date: next })); onDirtyChange?.(true) }}
+              onValidityChange={setOccurredDateInvalid}
+            />
+            <input
+              type="time"
+              className="field-input signal-composer-time"
+              aria-label={t('signals.composer.occurredTime')}
+              value={occurredTime}
+              required
+              onChange={(e) => { setOccurredFields((current) => ({ ...current, time: e.target.value })); onDirtyChange?.(true) }}
+            />
+            <span className="field-hint field-hint--inline">{t('signals.composer.occurredHint')}</span>
+          </div>
         </div>
         {/* A plain file input: on a phone the OS offers Camera or Photo Library itself. */}
-        <label className="signal-composer-context-pill signal-composer-photo-pill" data-disabled={photos.length >= MAX_SIGNAL_PHOTOS || !!sharedId || undefined}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" />
-          </svg>
-          <span>{photos.length > 0 ? t('signals.composer.photoCount', { count: photos.length, max: MAX_SIGNAL_PHOTOS }) : t('signals.composer.addPhoto')}</span>
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            multiple
-            aria-label={t('signals.composer.addPhoto')}
-            disabled={photos.length >= MAX_SIGNAL_PHOTOS || !!sharedId}
-            onChange={addPhotos}
-          />
-        </label>
+        <div className="field">
+          <span className="field-label">{t('signals.composer.photosField')}</span>
+          <label className="btn btn-outline signal-composer-photo-pill" data-disabled={photos.length >= MAX_SIGNAL_PHOTOS || !!sharedId || undefined}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" />
+            </svg>
+            <span>{photos.length > 0 ? t('signals.composer.photoCount', { count: photos.length, max: MAX_SIGNAL_PHOTOS }) : t('signals.composer.addPhoto')}</span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              aria-label={t('signals.composer.addPhoto')}
+              disabled={photos.length >= MAX_SIGNAL_PHOTOS || !!sharedId}
+              onChange={addPhotos}
+            />
+          </label>
+        </div>
       </div>
-
-      <p className="signal-composer-vis">{metaLine}</p>
 
       {error && <p role="alert">{error}</p>}
 
-      <div className="signal-composer-foot">
-        <div className="signal-composer-send">
-          {/* OD-REDESIGN-91 #10: quiet Shift+Enter hint by the Send button; hidden without a
-              real keyboard (touch, or a pointer with no hover). */}
-          {!sharedId && <span className="signal-composer-send-hint">{t('signals.composer.sendHint')}</span>}
-          <Button
-            variant="primary"
-            disabled={(!body.trim() && !sharedId) || posting || !occurredReady}
-            aria-busy={posting}
-            onClick={() => { void submit() }}
-          >
-            {/* DO-17 F3: an explicit in-flight affordance (label + aria-busy), not just a disabled button. */}
-            {posting ? t('signals.action.sharing') : sharedId ? t(photos.length > 0 ? 'signals.composer.retryPhotos' : 'signals.composer.finish') : t('signals.action.share')}
-          </Button>
-        </div>
-      </div>
+      <ActionBar
+        className="signal-composer-foot"
+        reason={disabledReason
+          ? <span role="status">{disabledReason}</span>
+          : !sharedId ? <span className="signal-composer-send-hint">{t('signals.composer.sendHint')}</span> : undefined}
+        primary={<Button
+          variant="primary"
+          disabled={(!body.trim() && !sharedId) || posting || !occurredReady || offline}
+          aria-busy={posting}
+          onClick={() => { void submit() }}
+        >
+          {/* DO-17 F3: an explicit in-flight affordance (label + aria-busy), not just a disabled button. */}
+          {posting ? t('signals.action.sharing') : sharedId ? t(photos.length > 0 ? 'signals.composer.retryPhotos' : 'signals.composer.finish') : t('signals.action.share')}
+        </Button>}
+      />
     </div>
   )
 }

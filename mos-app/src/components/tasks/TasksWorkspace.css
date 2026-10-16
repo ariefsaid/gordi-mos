@@ -12,12 +12,6 @@
 
 /* Shared PageHead/content-header styling lives in src/shell/page-head.css. */
 
-/* Tasks is a DATA workspace, not a single-column readable page, so its content region takes the
-   wide 1760px operating measure instead of the default 1180px — matching `.split`'s own max-width
-   below, so the page head (title, "+ Create task") shares one right edge with the table beneath
-   it rather than growing past it. Scoped to :has(.split) so only this route is affected. */
-.page-frame__content:has(.split) { max-width: 1760px; }
-
 /* ── Split-view grid (the push/squash master-detail, ADR-0007) ── */
 .split {
   display: grid;
@@ -37,32 +31,38 @@
 
 /* ── Split height parity ──
    At the split width both columns stretch to one shared track height; the drawer becomes a flex
-   column that fills it and scrolls its own content, so the two read as one surface. Scoped to
-   the decision-column split threshold — below it the drawer isn't a column at all.
-   Keep this literal equal to TASKS_SPLIT_MIN_WIDTH (use-is-split-width.ts); a test pins it. */
-@media (min-width: 1440px) {
-  .split:not(.nodrawer) { align-items: stretch; }
-  .split .drawer {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-  .split .drawer > .dw-surface {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: auto;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-  }
+   column that fills it and scrolls its own content, so the two read as one surface. The split
+   only renders when the content track fits list + panel (use-is-split-width.ts). */
+.split:not(.nodrawer) { align-items: stretch; }
+.split .drawer {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
+.split .drawer > .dw-surface {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* A draft is a capture job, not a row in the result set. Keep it ahead of the collection
+   boundary so filters, grouping, and counts describe persisted Tasks only. */
+.tasks-workspace-column { min-width: 0; }
+.task-capture-region { margin: 0; }
+.task-capture-heading p { margin: 0 0 var(--mos-label-gap); color: var(--muted-foreground); font: var(--mos-type-meta); }
+/* The create page is flat on the canvas (no card inside the page): fields, then the one shared action bar at the foot. */
+.task-capture-region .tcf { padding: 0 0 var(--mos-field-gap); }
+.task-capture-region .action-bar { margin-top: var(--mos-field-gap); }
 
 /* ── Card assembly (OD-P3-10/11) ── */
 .assembly {
   background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
   box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
-  overflow: hidden; min-width: 0;
+  overflow: visible; min-width: 0;
 }
 
 /* ── Drawer pane (the aside hosting TaskSurface, OD-P3-10/11) ──
@@ -74,45 +74,21 @@
 /* The modal drawer fills its sheet/fullscreen container (pinned head + scroll body + foot). */
 .drawer-modal .dw-surface { flex: 1; min-height: 0; border: 0; border-radius: 0; }
 /* Mobile (<768px): ≥44px touch targets + a horizontally-scrollable tab strip. */
-.drawer-modal.drawer-fullscreen .dw-iconbtn { width: 44px; height: 44px; }
+.drawer-modal.drawer-fullscreen .dw-iconbtn { width: var(--mos-control-height); height: var(--mos-control-height); }
 .drawer-modal.drawer-fullscreen .dw-tabs { overflow-x: auto; flex-wrap: nowrap; }
-.drawer-modal.drawer-fullscreen .dw-tab { min-height: 44px; white-space: nowrap; }
+.drawer-modal.drawer-fullscreen .dw-tab { min-height: var(--mos-control-height); white-space: nowrap; }
 /* extract (2026-07-28): the `.btn-ghost-danger` half of this selector list was dropped —
    TaskSurface.css's `.btn-ghost-danger` class (the only thing that made it match anything)
    was removed as confirmed-dead alongside `.btn-ghost`/`.btn-outline-sm`. */
 .drawer-modal.drawer-fullscreen .checklist-checkbox { min-height: 44px; }
 
-/* F-A / OD-REDESIGN-61: member phones see work before configuration. The
-   existing toolbar remains the one options surface; only its disclosure chrome
-   is added for the least-technical mobile persona. */
-.mobile-task-options {
-  border-bottom: 1px solid var(--border);
-  background: var(--card);
-}
-.mobile-task-options-trigger {
-  display: flex; align-items: center; width: 100%; min-height: 44px;
-  padding: 0 12px; border: 0; background: transparent; color: var(--foreground);
-  font: inherit; font-size: var(--font-size-body-lg); font-weight: 600; text-align: left; cursor: pointer;
-}
-.mobile-task-options-trigger:hover { background: var(--secondary); }
-.mobile-task-options-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; } /* item #6: dense row trigger — inset ring */
-.mobile-task-options-summary { margin-left: 4px; color: var(--muted-foreground); font-weight: 500; }
-.mobile-task-options-chevron {
-  display: block; margin-left: auto; color: var(--muted-foreground);
-  transition: transform var(--dur-med) ease;
-}
-.mobile-task-options-chevron--open { transform: rotate(180deg); }
-
-/* Phone contract (DESIGN.md): every control in the toolbar's options row meets the 44px floor.
-   The shared sheets floor the search, the selects and the .btn ghosts; the pill lives in THIS
-   sheet — so its winning floor is declared here too, in the component's own stylesheet, where
-   the cascade is won (a shared marker class loses to later sheets). */
-@media (max-width: 767.98px) {
-  .tasks-collection-toolbar .overdue-filter-btn { min-height: 44px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .mobile-task-options-chevron { transition: none; }
-}
+/* Phone and desktop share the scope/search/result boundary, not an incumbent options wrapper. */
+.tasks-keyboard-help { padding: 8px 12px; color: var(--muted-foreground); font-size: var(--mos-size-1); }
+.tasks-keyboard-help summary { display: flex; align-items: center; min-height: var(--mos-control-height); cursor: pointer; }
+.tasks-keyboard-help summary:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.tasks-keyboard-help p { max-width: 60ch; margin: 0 0 8px; }
+.tasks-count-line { display: inline-block; max-width: 70ch; white-space: normal; }
+.tasks-attention-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 
 /* ── Table scroll container ──
    Non-virtual: a passthrough wrapper with overflow-x:auto so a 10-column fixed
@@ -128,7 +104,7 @@
 .tasks-inline-edit-hint,
 .task-title-edit-keyhint {
   color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   line-height: 1.3;
 }
 
@@ -143,7 +119,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  min-height: 32px;
+  min-height: var(--mos-control-height);
   border: 0;
   background: transparent;
   color: inherit;
@@ -153,15 +129,18 @@
   cursor: text;
 }
 
-.inline-cell-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.inline-cell-trigger:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 /* #1192: the Supervisor cell is a keyboard grid stop like the editable cells — the same
    dense-cell focus grammar, so focus is discoverable without the legend under the table. */
 .supervisor-cell-stop { display: inline-flex; border-radius: var(--radius-xs); }
-.supervisor-cell-stop:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.supervisor-cell-stop:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 /* DD-MVP-4: an overdue due label must show its full value in place. When
    "Overdue · <date>" exceeds the fixed due track, wrap between the state and
    the date instead of clipping mid-value (run 861b0004: 157px in a 152px cell). */
-.inline-cell-trigger--stacked { white-space: normal; text-overflow: clip; line-height: 1.25; padding-block: 2px; }
+.inline-cell-trigger--stacked { white-space: normal; text-overflow: clip; line-height: 1.25; padding-block: 0; }
+/* Overdue: the date, then the exception with its size (UX-STANDARD SD2). */
+.due-stack { display: flex; flex-direction: column; align-items: flex-start; gap: var(--mos-stack-gap); }
+.due-stack__flag { font-size: var(--mos-size-1); font-weight: 600; }
 /* The status vocabulary never wraps or clips — the pill's own white-space:nowrap (Tag.css) is
    the rule everywhere. The status TRACK is given a fixed width wide enough for the longest
    member in either locale ("Sedang berjalan"); the TITLE column is the one that gives when the
@@ -169,24 +148,24 @@
    the pill. */
 .inline-status-editor {
   display: inline-flex;
-  height: var(--control-height);
-  max-height: var(--control-height);
+  height: var(--mos-control-height);
+  max-height: var(--mos-control-height);
   align-items: center;
   padding: 0 4px;
   border-radius: var(--radius-sm);
 }
-.inline-status-editor--amber { background: var(--ds-tag-background-amber); }
-.inline-status-editor--blue { background: var(--ds-tag-background-blue); }
-.inline-status-editor--red { background: var(--ds-tag-background-red); }
-.inline-status-editor--green { background: var(--ds-tag-background-green); }
+.inline-status-editor--amber { background: var(--mos-warning-tint); }
+.inline-status-editor--blue { background: var(--mos-accent-tint); }
+.inline-status-editor--red { background: var(--mos-danger-tint); }
+.inline-status-editor--green { background: var(--mos-success-tint); }
 .inline-status-editor .picker,
 .inline-editor-control .picker {
   min-width: 0;
 }
 .inline-status-editor .picker__trigger,
 .inline-editor-control .picker__trigger {
-  height: var(--control-height);
-  min-height: var(--control-height);
+  height: var(--mos-control-height);
+  min-height: var(--mos-control-height);
   max-width: 180px;
   padding: 2px 4px;
   background: transparent;
@@ -200,8 +179,8 @@
 }
 .inline-editor-control {
   display: inline-flex;
-  height: var(--control-height);
-  max-height: var(--control-height);
+  height: var(--mos-control-height);
+  max-height: var(--mos-control-height);
   align-items: center;
 }
 /* The due editor carries its save error beside it, so it grows (wraps) instead of clipping it. */
@@ -209,7 +188,7 @@
   width: 100%;
   height: auto;
   max-height: none;
-  min-height: var(--control-height);
+  min-height: var(--mos-control-height);
   flex-wrap: wrap;
   gap: 4px 8px;
   white-space: normal;
@@ -218,8 +197,8 @@
 .inline-editor-control--due .mk-date__box { width: 100%; min-width: 0; box-sizing: border-box; }
 
 .tasks-inline-edit-hint {
-  margin: 8px 12px 0;
-  font-size: var(--font-size-body);
+  margin: var(--mos-inline-gap) var(--mos-row-pad-x) 0;
+  font-size: var(--mos-size-3);
 }
 
 .task-title-edit-keyhint {
@@ -245,15 +224,15 @@
    value; leftover width goes to one empty trailing cell (`tr::after`). Task's width is set, not
    read from its content, so a virtualized list never shifts it as rows scroll in. The extended
    (Fields) tier keeps its own fixed floors below. */
-.tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 570px; } /* status + PIC + supervisor + due */
+.tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 704px; } /* status + PIC + supervisor + due */
 .tasks-table th.th-task, .tasks-table td.td-main {
   width: clamp(240px, calc(100cqw - var(--tasks-facts-w, 570px)), 640px);
 }
 /* Wide enough for the longest closed-vocabulary word in either locale without wrapping. */
-.tasks-table th.th-status, .tasks-table td.td-status { width: 132px; }
+.tasks-table th.th-status, .tasks-table td.td-status { width: 176px; }
 /* Wide enough for a first name plus its avatar and gap. */
-.tasks-table th.th-owner, .tasks-table td.td-owner { width: 126px; }
-.tasks-table th.th-supervisor, .tasks-table td.td-supervisor { width: 104px; }
+.tasks-table th.th-owner, .tasks-table td.td-owner { width: 160px; }
+.tasks-table th.th-supervisor, .tasks-table td.td-supervisor { width: 160px; }
 /* Wide enough for the stacked "Overdue · <date>" state (task-row.tsx, DD-MVP-4) to stay on one
    line. */
 .tasks-table th.th-due, .tasks-table td.td-due { width: 208px; }
@@ -261,12 +240,12 @@
    Due. Thresholds are the list's width: 240px + the kept facts. A list narrowed by an open record
    follows the same rule; the record itself shows every dropped fact. */
 @container work-list (max-width: 809.98px) {
-  .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 466px; }
+  .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 510px; }
   .tasks-table:not(.tasks-table--extended) .th-supervisor,
   .tasks-table:not(.tasks-table--extended) .td-supervisor { display: none; }
 }
 @container work-list (max-width: 705.98px) {
-  .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 340px; }
+  .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 384px; }
   .tasks-table:not(.tasks-table--extended) .th-owner,
   .tasks-table:not(.tasks-table--extended) .td-owner { display: none; }
 }
@@ -280,39 +259,31 @@
   .tasks-table:not(.tasks-table--extended) .th-due,
   .tasks-table:not(.tasks-table--extended) .td-due { display: none; }
 }
-/* A record beside the list narrows it, and the record shows every fact anyway, so the list keeps all
-   five columns for as long as they fit: PIC and Supervisor read as avatars (the first name stays in
-   the accessible name, the full name is on hover). Below that, columns drop in the order Supervisor,
-   PIC, Status, Due. Above 810px the list is wide enough for the default tier. */
+/* A record beside the list narrows it, and the record shows every fact anyway, so the list drops
+   columns as it narrows: Accountable first, then Responsible, then Status, keeping Task and Due.
+   Above 810px the list is wide enough for the default tier. Thresholds are 240px for Task plus the
+   kept facts. */
 @container work-list (max-width: 809.98px) {
   .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(th.th-status, td.td-status) { width: 116px; }
-  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(th.th-owner, td.td-owner) { width: 56px; }
-  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(th.th-supervisor, td.td-supervisor) { width: 96px; }
-  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(th.th-due, td.td-due) { width: 136px; }
-  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.td-owner, .td-supervisor) .own-name {
-    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
-  }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(th.th-owner, td.td-owner) { width: 136px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(th.th-due, td.td-due) { width: 150px; }
 }
-@container work-list (min-width: 644px) and (max-width: 809.98px) {
-  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 404px; }
-  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-supervisor, .td-supervisor, .th-owner, .td-owner, .th-status, .td-status, .th-due, .td-due) { display: table-cell; }
-}
-@container work-list (min-width: 548px) and (max-width: 643.98px) {
-  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 308px; }
+@container work-list (min-width: 642px) and (max-width: 809.98px) {
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 402px; }
   .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-owner, .td-owner, .th-status, .td-status, .th-due, .td-due) { display: table-cell; }
   .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-supervisor, .td-supervisor) { display: none; }
 }
-@container work-list (min-width: 492px) and (max-width: 547.98px) {
-  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 252px; }
+@container work-list (min-width: 506px) and (max-width: 641.98px) {
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 266px; }
   .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-status, .td-status, .th-due, .td-due) { display: table-cell; }
   .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-supervisor, .td-supervisor, .th-owner, .td-owner) { display: none; }
 }
-@container work-list (min-width: 376px) and (max-width: 491.98px) {
-  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 136px; }
+@container work-list (min-width: 390px) and (max-width: 505.98px) {
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 150px; }
   .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-due, .td-due) { display: table-cell; }
   .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-supervisor, .td-supervisor, .th-owner, .td-owner, .th-status, .td-status) { display: none; }
 }
-@container work-list (max-width: 375.98px) {
+@container work-list (max-width: 389.98px) {
   .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 0px; }
   .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-supervisor, .td-supervisor, .th-owner, .td-owner, .th-status, .td-status, .th-due, .td-due) { display: none; }
 }
@@ -334,7 +305,7 @@
 .tasks-table:not(.tasks-table--extended) .task-row:not(.task-row--create)::after,
 .tasks-table:not(.tasks-table--extended) tr:has(> .sk-cell)::after { border-bottom: 1px solid var(--row-divider); }
 .tasks-table:not(.tasks-table--extended) .task-row:not(.task-row--create):hover::after {
-  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+  background: var(--mos-hover);
 }
 .tasks-table:not(.tasks-table--extended) .task-row.row-selected::after { background: var(--secondary); }
 .tasks-table:not(.tasks-table--extended) .task-row.kfocus td:last-child { box-shadow: inset 0 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }
@@ -365,10 +336,9 @@
    mockup outranks the earlier kit decision. UPPERCASE 11px + muted color retained (not
    divergent in the measured sweep). */
 .th-cell {
-  text-align: left; height: 38px; padding: 0 12px; line-height: 1.3;
-  font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
-  /* Mockup overline is a literal 11px (the kit --ds-font-size-xs resolves ~13.6px, too large for this role). */
-  font-size: var(--font-size-overline); color: var(--muted-foreground);
+  text-align: left;  padding: var(--mos-band-pad-y) var(--mos-row-pad-x); line-height: 1.3;
+  font-weight: 600;
+  font-size: var(--mos-size-1); color: var(--muted-foreground);
   border-bottom: 1px solid var(--border); white-space: nowrap;
 }
 .th-sortable { cursor: pointer; }
@@ -379,15 +349,15 @@
    (detaching the arrow from its column label). inline-block + middle keeps it beside the label. */
 .sort-aff { display: inline-block; vertical-align: middle; width: 10px; height: 10px; margin-left: 5px; color: var(--text-on-accent-tint); }
 .td-main, .td-cell {
-  height: var(--row-min-h); line-height: 1.4; padding: 0 12px; border-bottom: 1px solid var(--row-divider); vertical-align: middle; /* RecordCollection scopes the E7 table row to 52px; line-height pins the box so a short single-line cell cannot collapse the shared measure. */
+  height: var(--mos-row-min); line-height: 1.4; padding: var(--mos-row-pad-y) var(--mos-row-pad-x); border-bottom: 1px solid var(--row-divider); vertical-align: middle; /* RecordCollection scopes the E7 table row to 52px; line-height pins the box so a short single-line cell cannot collapse the shared measure. */
 }
 /* Due/Activity: LEFT-aligned like every other column (uniform grid), but never wrap. */
 .td-nowrap { white-space: nowrap; }
 /* Robust pin: also set the shared height on the ROW. `height` on a <td> is only a
    minimum; pinning the <tr> keeps the E7 measure stable regardless of cell content. */
-.task-row { cursor: pointer; height: var(--row-min-h); }
+.task-row { cursor: pointer; height: var(--mos-row-min); }
 .task-row:last-child td { border-bottom: none; }
-.task-row:hover td { background: color-mix(in srgb, var(--surface-secondary) 60%, transparent); }
+.task-row:hover td { background: var(--mos-hover); }
 /* The create draft is a FORM row, not an openable record row — no pointer cursor, no hover
    fill, no fixed row height (the form's real height, incl. field errors). */
 .task-row--create { cursor: default; height: auto; }
@@ -402,26 +372,28 @@
 .task-row-link { display: block; text-decoration: none; color: inherit; border-radius: var(--radius-sm); }
 /* PR-2 AC-T03 — kit name-chip: hover background (the open-the-record affordance). */
 .task-row-link:hover { background: var(--secondary); }
-.task-row-link:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; } /* item #6: dense-table row cell — inset ring (outward +2 clips at the cell edge) */
+.task-row-link:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: calc(-1 * var(--mos-focus-width)); } /* item #6: dense-table row cell — inset ring (outward +2 clips at the cell edge) */
 
 /* AC-018 (#750) — the title-edit pencil belongs to the title identity cell. It is revealed by
    title hover/focus, while Due keeps its authored 12px cell padding and never hosts controls. */
-.task-title-cell { position: relative; padding-right: 30px; }
+.task-title-cell { display: grid; grid-template-columns: minmax(0, 1fr) 1lh; column-gap: var(--mos-space-2); align-items: start; }
+/* The pencil shares the title's grid row and centres on its FIRST line (1lh), not the two-line identity cell. */
 .task-row-pencil {
-  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
-  width: 24px; height: 24px; flex: none; padding: 0; cursor: pointer;
+  grid-column: 2; grid-row: 1;
+  width: 1lh; height: 1lh; flex: none; padding: 0; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
-  border: 0; background: transparent; color: var(--muted-foreground);
-  border-radius: var(--radius-xs); visibility: hidden;
+  border: 0; background: transparent; color: var(--mos-muted);
+  border-radius: var(--radius-xs); display: none;
 }
+.task-row-pencil > svg { width: var(--mos-icon-sm); height: var(--mos-icon-sm); }
 .task-row-pencil:hover { background: var(--surface-tertiary); color: var(--foreground); }
-.task-row-pencil:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; visibility: visible; }
+.task-row-pencil:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); display: inline-flex; }
 .task-title-cell:hover .task-row-pencil,
-.task-title-cell:focus-within .task-row-pencil { visibility: visible; }
-.task-title-line { display: flex; align-items: center; gap: 6px; overflow: hidden; }
+.task-title-cell:focus-within .task-row-pencil { display: inline-flex; }
+.task-title-line { display: flex; align-items: center; gap: var(--mos-inline-gap); overflow: hidden; }
 .task-name {
   /* typeset: was 15.5px off-ramp — the row's own .own-name sibling already runs body-lg (15px). */
-  font-weight: 600; font-size: var(--font-size-body-lg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 600; font-size: var(--mos-size-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   display: block; color: var(--foreground); min-width: 0;
 }
 /* The task row's title span carries BOTH `.task-name` (body-lg, 15px — this file) and
@@ -431,29 +403,30 @@
    the same two files byte-for-byte — an order accident, not a decision.
    Pinned explicitly so it stops depending on import order. 15px is the intended value: body-lg is
    DESIGN.md's "record titles, primary row text", and the row's own `.own-name` sibling runs it. */
-.collection-grammar-title.task-name { font-size: var(--font-size-body-lg); }
+.collection-grammar-title.task-name { font-size: var(--mos-size-3); }
 .task-name-archived { font-weight: 500; color: var(--muted-foreground); }
 .archived-tag {
   display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: var(--radius-xs);
   background: var(--secondary); color: var(--muted-foreground);
-  font-size: var(--font-size-overline); font-weight: 500; white-space: nowrap; flex: none;
+  font-size: var(--mos-size-1); font-weight: 500; white-space: nowrap; flex: none;
 }
-.task-team { display: block; font-size: var(--font-size-label); color: var(--muted-foreground); margin-top: 2px; }
 
 /* ── Owner cell ── */
 .owner { display: flex; align-items: center; gap: 8px; }
 .ownav {
-  width: 26px; height: 26px; border-radius: var(--radius-pill);
+  width: 26px; height: 26px; border-radius: var(--radius-round);
   /* Mockup .av-sm avatar: blue12→blue9 gradient + inverted text. blue12 flips with the theme
      (dark navy in light / light blue in dark), so the inverted initials always clear WCAG-AA
      (~8:1 light, ~7:1 dark at the gradient centre). The prior solid --accent + dark
      --brand-navy-text was only ~3.67:1 — the illegible initials. Keep this pairing. */
-  background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9));
+  background: var(--mos-band); border: 1px solid var(--mos-line);
   /* typeset: was 10.5px off-ramp — avatar-initial glyphs use micro (10px) everywhere else
      (TaskSurface.css .person-av). Kept identical to collection-grammar.css's byte-identical rule. */
-  color: var(--ds-font-color-inverted); display: grid; place-items: center; font-size: var(--font-size-micro); font-weight: 700; flex: none;
+  color: var(--mos-ink); display: grid; place-items: center; font-size: var(--mos-size-1); font-weight: 700; flex: none;
 }
-.own-name { font-size: var(--font-size-body-lg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.own-name { min-width: 0; font-size: var(--mos-size-3); font-weight: 500; white-space: normal; overflow-wrap: anywhere; }
+.tasks-table :is(.td-owner, .td-supervisor) .inline-cell-trigger { white-space: normal; overflow: visible; }
+.tasks-table .td-due .inline-cell-trigger { white-space: normal; overflow-wrap: anywhere; }
 /* Design fix wave item 4 (OD-65 mockup regression) — the generated-ownership "via <role name>"
    line stacks below the PIC name (never widens the compact owner cell). */
 .task-pic-cell {
@@ -462,27 +435,27 @@
 }
 .task-pic-cell .owner-provenance {
   display: block;
-  font-size: var(--font-size-overline); color: var(--muted-foreground); font-weight: 500;
+  font-size: var(--mos-size-1); color: var(--muted-foreground); font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .assembly.condensed .td-owner .owner-provenance { display: none; }
 /* Business unit column (mockup '.bu') — muted, truncates */
-.td-bu { font-size: var(--font-size-mono); color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-bu { font-size: var(--mos-size-2); color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Due-date coloring ── */
-.due-overdue { color: var(--status-lost-text); font-weight: 600; font-size: var(--font-size-body-lg); }
-.due-soon    { color: var(--warning-foreground); font-weight: 600; font-size: var(--font-size-body-lg); }
-.due-calm    { color: var(--muted-foreground); font-weight: 500; font-size: var(--font-size-body-lg); }
+.due-overdue { color: var(--status-lost-text); font-weight: 600; font-size: var(--mos-size-3); }
+.due-soon    { color: var(--warning-foreground); font-weight: 600; font-size: var(--mos-size-3); }
+.due-calm    { color: var(--muted-foreground); font-weight: 500; font-size: var(--mos-size-3); }
 
 /* ── Loading skeleton ── */
-.sk-cell { height: var(--row-min-h); padding: 0 12px; border-bottom: 1px solid var(--row-divider); vertical-align: middle; }
+.sk-cell { height: var(--mos-row-min); padding: 0 var(--mos-row-pad-x); border-bottom: 1px solid var(--row-divider); vertical-align: middle; }
 /* The ONE `.sk`. Block so stacked bars stack; 12px is the default a caller can override inline. */
 .sk { background: var(--secondary); border-radius: var(--radius-xs); height: 12px; display: block; animation: sk-pulse 1.4s ease-in-out infinite; }
-.sk.pill { height: 22px; width: 84px; border-radius: var(--radius-pill); display: block; }
-.sk.av { height: 26px; width: 26px; border-radius: var(--radius-pill); display: block; }
+.sk.pill { height: 22px; width: 84px; border-radius: var(--radius-xs); display: block; }
+.sk.av { height: 26px; width: 26px; border-radius: var(--radius-round); display: block; }
 /* Cohesion-debt 2026-07-19, item #3: `@keyframes sk-pulse` moved to index.css (shared). */
-.skeleton-cards { padding: 8px 12px; }
-.sk-card-row { display: flex; align-items: center; gap: 12px; padding: 0 0 12px 0; height: var(--row-min-h); border-bottom: 1px solid var(--row-divider); }
+.skeleton-cards { padding: var(--mos-inline-gap) var(--mos-row-pad-x); }
+.sk-card-row { display: flex; align-items: center; gap: var(--mos-row-gap); padding: 0 0 var(--mos-row-pad-y) 0; height: var(--mos-row-min); border-bottom: 1px solid var(--row-divider); }
 
 /* ── Error / Empty (IXD-5, PR-2) ── */
 /* The Tasks error + empty states use the shared <ErrorState> / <EmptyState>
@@ -516,13 +489,13 @@
 .mgc-group > [role='listitem'] + [role='listitem'] {
   border-top: 1px solid var(--row-divider);
 }
-.task-card-link { display: block; padding: 12px 16px; text-decoration: none; color: inherit; min-height: 44px; }
-.task-card-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } /* item #6: normalized to +2 (card has gap room) */
+.task-card-link { display: block; padding: var(--mos-row-pad-y) 0; text-decoration: none; color: inherit; min-height: var(--mos-row-min); }
+.task-card-link:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); } /* item #6: normalized to +2 (card has gap room) */
 /* The status pill holds the trailing edge; the title owns the rest of the row and wraps
    inside its own column. As wrap-siblings the pill flowed after the last word, so it sat
    beside a short title and dropped onto a line of its own after a long one — the same card
    anatomy read as two different layouts down a single list. */
-.task-card-head { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 2px; }
+.task-card-head { display: flex; align-items: flex-start; gap: var(--mos-inline-gap); margin-bottom: var(--mos-stack-gap); }
 .task-card-head > .task-name,
 .task-card-head > .task-title-input { flex: 1 1 auto; min-width: 0; }
 /* Wrapping inside its own column, not ellipsised. Giving the title a bounded column made the
@@ -535,18 +508,9 @@
   text-overflow: clip;
 }
 .task-card-head > .status-pill { flex: none; }
-/* Fix-5: mobile card dl — label:value pairs visible per mockup (not sr-only hiding).
-   Each .task-card-meta-pair group is inline-flex so "Label value" stays on one line
-   within the wrapping flex container; gap between pairs for scanability. */
-.task-card-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; }
-.task-card-meta-pair { display: inline-flex; align-items: baseline; gap: 4px; }
-.task-card-meta dt {
-  display: inline;
-  font-size: var(--font-size-label);
-  color: var(--muted-foreground);
-  font-weight: 500;
-}
-.task-card-meta dd { display: inline; margin: 0; font-size: var(--font-size-label); }
+/* Phone card: title + status, one muted meta line, then the due line (red when overdue). */
+.task-card-meta-line { margin: var(--mos-stack-gap) 0 0; font-size: var(--mos-size-3); color: var(--muted-foreground); overflow-wrap: anywhere; }
+.task-card-due { margin: var(--mos-stack-gap) 0 0; font-size: var(--mos-size-3); }
 /* The draft card renders the shared TaskCreateForm (task-create-form.css `.tcf-*`), not a
    dl-based create-fields/derived-bu/actions/PIC-lock layout of its own. */
 
@@ -558,41 +522,9 @@
   .split { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Two bounded columns keep PIC and Supervisor together; due spans the row below. */
-@media (max-width: 599.98px) {
-  /* Combined selector for the same reason as `.collection-grammar-title.task-name` above: this
-     <dl> also carries `.collection-grammar-card-details`, whose `gap: 6px 12px` is a single-class
-     rule with no media query. A media query adds no specificity, so whichever stylesheet imports
-     last wins — and the tighter phone gap this rule exists to set was being silently overridden. */
-  .task-card-meta,
-  .task-card-meta.collection-grammar-card-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; gap: 4px 12px; }
-  .task-card-meta-pair { max-width: 100%; min-width: 0; }
-  .task-card-meta-pair:last-child { grid-column: 1 / -1; }
-  /* The due pair is the last one, and its label is the one word the value already says: the
-     date renders as "Overdue · Tue 8 Sept" or "Thu 17 Sept", which is a due date on sight.
-     PIC and Supervisor keep their labels — two names side by side need telling apart. The
-     word stays in the accessibility tree; it just stops taking room on a phone. */
-  .task-card-meta-pair:last-child dt {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-  .task-card-meta dd {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
 /* ── Segment disabled state (FR-124 / AC-126) ── */
 .seg-disabled {
-  opacity: 0.5;
+  color: var(--mos-muted);
   pointer-events: none;
 }
 
@@ -604,7 +536,7 @@
 .overdue-filter-btn {
   display: inline-flex; align-items: center; gap: 6px;
   box-sizing: border-box;
-  height: 32px; padding: 0 10px;
+  height: var(--mos-control-height); padding: 0 10px;
   /* Mixed toward the card surface, not toward `transparent`, and at 70%. At 40% over
      transparent the boundary composited to 2.5:1 in light while the four neutral toolbar
      pickers beside it sat at 3.2:1 — and mixing with `transparent` inverts between themes,
@@ -612,11 +544,11 @@
      result is deterministic in both. A visible control boundary clears 3:1 (DD-MVP-19),
      and this one is visible: the attention chip is the control in the toolbar a reader is
      meant to find first. */
-  border: 1px solid color-mix(in srgb, var(--status-lost-text) 70%, var(--card));
+  border: 1px solid var(--mos-danger);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--status-lost-text) 8%, transparent);
+  background: var(--mos-danger-tint);
   font: inherit;
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   color: var(--status-lost-text);
   font-weight: 600;
   cursor: pointer;
@@ -624,23 +556,23 @@
   flex: none;
 }
 .overdue-filter-btn:hover {
-  background: color-mix(in srgb, var(--status-lost-text) 14%, transparent);
+  background: var(--mos-danger-tint);
 }
 .overdue-filter-btn:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: var(--mos-focus-offset);
 }
 /* FR-001 (#743): the pressed state lives ON the pill — there is no second active-filter chip.
    Same hue family, deepened, so pressed reads as "this filter is on" at a glance. */
 .overdue-filter-btn--active {
-  background: color-mix(in srgb, var(--status-lost-text) 18%, transparent);
+  background: var(--mos-danger-tint);
   /* Same surface-mixed construction as the resting boundary above, one step stronger so
      the pressed state still reads as the stronger of the two. */
-  border-color: color-mix(in srgb, var(--status-lost-text) 85%, var(--card));
+  border-color: var(--mos-danger);
   color: var(--status-lost-text);
 }
 .overdue-filter-btn--active:hover {
-  background: color-mix(in srgb, var(--status-lost-text) 24%, transparent);
+  background: var(--mos-danger-tint);
 }
 
 /* ── Empty-state actions (IXD-5/IXD-4, PR-2) ── */
@@ -652,102 +584,62 @@
    A clean hairline-separated row (no navy band, no left swatch): caret + label
    + count + overdue subtotal (when >0) + "+ Add task". 38px tall. */
 tr.grp td { padding: 0; }
-.gbar {
-  display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px;
-  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
-}
-.gbar .caret {
-  display: inline-grid; place-items: center; width: 24px; height: 24px;
-  background: transparent; border: 0; padding: 0; cursor: pointer;
-  color: var(--muted-foreground); font-size: var(--font-size-overline); line-height: 1; flex: none;
-}
-.gbar .caret:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
-/* IXD-1: the group caret is the shared Chevron, rotated −90° when collapsed (down = expanded). */
-.gbar .caret .grp-chev { transition: transform var(--dur-med) ease; display: block; }
-.gbar .caret .grp-chev.grp-chev-collapsed { transform: rotate(-90deg); }
-@media (prefers-reduced-motion: reduce) {
-  .gbar .caret .grp-chev { transition: none; }
-}
+/* The group row's cell is the full-width rule, flush with the rows' own dividers (no inset box). */
+.record-collection-view .record-collection-table tbody tr.grp > td { padding: 0; }
+.gbar .group-header__trailing { display: flex; align-items: center; gap: var(--mos-row-gap); }
 /* The Objective a group's Project/Process rolls up to. Quiet and small beside the bold title:
    it is context for the title, not a second title. */
-.gbar .gobjective { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
+.gbar .gobjective { font-size: var(--mos-size-1); font-weight: 500; color: var(--muted-foreground); }
 .gbar .gobjective a { color: var(--text-on-accent-tint); }
-.gbar .glabel { font-size: var(--font-size-body-lg); font-weight: 700; color: var(--brand-navy-text); }
-.gbar .gcount { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
 .gbar .gsub {
-  background: transparent; border: 0; padding: 0; font: inherit; font-size: var(--font-size-label); font-weight: 600;
+  background: transparent; border: 0; padding: 0; font: inherit; font-size: var(--mos-size-1); font-weight: 600;
   color: var(--status-lost-text); cursor: pointer;
 }
-.gbar .gsub:hover { color: color-mix(in srgb, var(--status-lost-text) 78%, black); }
+.gbar .gsub:hover { color: var(--mos-error-text); text-decoration: underline; }
 .gbar .gadd {
-  margin-left: auto; background: transparent; border: 0; padding: 0 4px; font: inherit;
-  font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); cursor: pointer;
+  background: transparent; border: 0; padding: 0 4px; font: inherit;
+  font-size: var(--mos-size-1); font-weight: 500; color: var(--muted-foreground); cursor: pointer;
 }
 .gbar .gadd:hover { color: var(--foreground); }
 .gbar .gadd:focus-visible, .gbar .gsub:focus-visible {
-  outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs);
+  outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-radius: var(--radius-xs);
 }
 
 /* ── Mobile grouped cards (AC-129, FR-127) ── */
-.mgc { padding: 8px; display: flex; flex-direction: column; gap: 12px; }
+.mgc { padding: 0; display: flex; flex-direction: column; gap: 12px; }
 /* Rows are hairline-separated now (Luna P0-3), so the group is a contiguous list — no per-card
    gap that would leave the separators floating; the head keeps a small breath above the rows. */
 .mgc-group { display: flex; flex-direction: column; gap: 0; min-width: 0; }
-.mgc-group-head { display: flex; align-items: center; gap: 8px; padding: 0 4px; min-height: 36px; margin-bottom: 2px; }
-.mgc-caret {
-  display: inline-grid; place-items: center; width: 28px; height: 28px;
-  background: transparent; border: 0; padding: 0; cursor: pointer;
-  color: var(--muted-foreground); font-size: var(--font-size-label); flex: none;
-}
-.mgc-caret:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
-/* IXD-1: the mobile group caret is the shared Chevron, rotated −90° when collapsed (down = expanded). */
-.mgc-caret .mgc-chev { transition: transform var(--dur-med) ease; display: block; }
-.mgc-caret .mgc-chev.mgc-chev-collapsed { transform: rotate(-90deg); }
-@media (prefers-reduced-motion: reduce) {
-  .mgc-caret .mgc-chev { transition: none; }
-}
+.mgc-group-head { margin-bottom: var(--mos-stack-gap); }
 /* Objective above, Project/Process title below — one column, so the header's remaining controls
    keep their width and neither line has to break a word to fit a 390px phone. */
-.mgc-group-headings { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
-.mgc-objective-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: var(--font-size-label); }
+.mgc-group-headings { display: flex; flex-direction: column; align-items: flex-start; gap: var(--mos-stack-gap); min-width: 0; }
+.mgc-objective-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: var(--mos-size-1); }
 .mgc-objective-hint a { color: var(--text-on-accent-tint); }
-.mgc-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-body-lg); font-weight: 700; color: var(--brand-navy-text); }
-.mgc-count { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
+.mgc-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mgc-sub {
-  background: transparent; border: 0; padding: 0; font: inherit; font-size: var(--font-size-label); font-weight: 600;
+  background: transparent; border: 0; padding: 0; font: inherit; font-size: var(--mos-size-1); font-weight: 600;
   color: var(--status-lost-text); cursor: pointer;
 }
-.mgc-group-meta { display: contents; }
 .mgc-add {
-  margin-left: auto; flex: none; white-space: nowrap; background: transparent; border: 0; padding: 0 4px; font: inherit;
-  font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); cursor: pointer;
+  flex: none; white-space: nowrap; background: transparent; border: 0; padding: 0 4px; font: inherit;
+  font-size: var(--mos-size-1); font-weight: 500; color: var(--muted-foreground); cursor: pointer;
 }
 
 /* Phone floor: grouped-card header controls retain their compact glyph/text treatment, but the
    button boxes give a standing, one-handed user a real 44px target. The visual remains centered
    inside the transparent breathing room; desktop keeps the denser group-header grammar above. */
 @media (max-width: 767.98px) {
-  .mgc-caret {
-    width: 44px;
-    height: 44px;
-  }
-  /* Title first: it takes the whole row beside the caret (two lines, then an ellipsis); the tag,
-     count, overdue and add share a second line beneath it. */
-  .mgc-group-head { flex-wrap: wrap; row-gap: 0; }
-  .mgc-group-headings { flex: 1 1 0; }
+  .group-header.mgc-group-head { flex-wrap: wrap; }
   .mgc-label {
     display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
     white-space: normal; overflow-wrap: anywhere;
-  }
-  .mgc-group-meta {
-    display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: 0 8px;
-    min-width: 0; padding-inline-start: 52px;
   }
   .mgc-sub { white-space: nowrap; }
   .mgc-sub,
   .mgc-add {
     min-width: 44px;
-    min-height: 44px;
+    min-height: var(--mos-control-height);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -757,11 +649,11 @@ tr.grp td { padding: 0; }
 /* ── Cascade D1: Work-line type tag in group headers (FR-233) ────────────────
    The tag is a light categorical tint (never action blue). Sits inline in the
    .gbar beside the group name; does not affect the 38px gbar height. The tag
-   color tokens --ds-tag-background/text-{blue,gray} are set via the Tag component
+   tone colours are set via the Tag component
    style prop — no literal colors here, token-purity maintained. */
 .wl-type-tag {
   flex: none; /* never stretch */
-  font-size: var(--font-size-overline); /* slightly smaller than gbar body text, clear hierarchy */
+  font-size: var(--mos-size-1); /* slightly smaller than gbar body text, clear hierarchy */
 }
 
 /* ── Cascade D1: Work-line + Objective table columns (FR-234/235) ────────────
@@ -770,16 +662,16 @@ tr.grp td { padding: 0; }
    - td-empty: the "—" placeholder (muted, not primary text weight)
    Column widths sit in the nth-child colgroup rules below. */
 .td-workline {
-  font-size: var(--font-size-mono); color: var(--muted-foreground);
+  font-size: var(--mos-size-2); color: var(--muted-foreground);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .td-objective {
-  font-size: var(--font-size-mono); color: var(--muted-foreground);
+  font-size: var(--mos-size-2); color: var(--muted-foreground);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* AC-006 (#743): the chooser's Last activity column shares the muted mono treatment. */
 .td-activity {
-  font-size: var(--font-size-mono); color: var(--muted-foreground);
+  font-size: var(--mos-size-2); color: var(--muted-foreground);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .td-empty { color: var(--muted-foreground); }
@@ -798,7 +690,7 @@ tr.grp td { padding: 0; }
    at rest or in split — none of these floors shrink when a record panel narrows the list. */
 .tasks-table--extended { min-width: 1260px; } /* sum of the floors below */
 .tasks-table--extended th.th-task, .tasks-table--extended td.td-main { width: 160px; }
-.tasks-table--extended th.th-status, .tasks-table--extended td.td-status { width: 132px; }
+.tasks-table--extended th.th-status, .tasks-table--extended td.td-status { width: 176px; }
 .tasks-table--extended th.th-owner, .tasks-table--extended td.td-owner { width: 128px; }
 .tasks-table--extended th.th-supervisor, .tasks-table--extended td.td-supervisor { width: 120px; }
 .tasks-table--extended th.th-due, .tasks-table--extended td.td-due { width: 208px; }
@@ -814,7 +706,7 @@ tr.grp td { padding: 0; }
 .workload-caption {
   margin: 0;
   padding: 8px 16px;
-  font-size: var(--font-size-mono);
+  font-size: var(--mos-size-2);
   color: var(--muted-foreground);
   background: var(--surface-secondary);
   border-bottom: 1px solid var(--border);
@@ -841,7 +733,7 @@ tr.grp td { padding: 0; }
   font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit;
   height: 100%; width: 100%;
 }
-.th-sort-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--radius-xs); } /* item #6: dense sticky-header cell — inset ring */
+.th-sort-btn:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: calc(-1 * var(--mos-focus-width)); border-radius: var(--radius-xs); } /* item #6: dense sticky-header cell — inset ring */
 
 /* Every card in the phone queue carried two people with two avatars — the PIC, and a Supervisor
    who is the same person on most rows. Scanning a task list is scanning for who is DOING it; the
@@ -857,3 +749,16 @@ tr.grp td { padding: 0; }
 /* A status pill is never cut: the trigger that wraps it does not ellipsize — the fixed
    .th-status/.td-status floor above already fits the longest label at every width. */
 .tasks-table td.td-status .inline-cell-trigger { overflow: visible; text-overflow: clip; }
+
+/* Editable cells: the trigger's own 4px inset is outdented so cell text and badges sit on the header's left edge. */
+.tasks-table td .inline-cell-trigger { margin-inline-start: -4px; width: calc(100% + 4px); max-width: none; min-height: var(--mos-row-content); }
+
+/* Quick filters ("9 overdue", "2 blocked") start on the toolbar's left edge; their 8px hover inset is outdented. */
+.tasks-attention-actions { margin-inline-start: -8px; }
+
+/* The status track is sized to the longest word in either language, so a badge stays on one line. Only
+   the narrow track beside an open record lets it wrap inside the badge, as the badge spec allows. */
+.tasks-table td.td-status .status-pill { max-width: 100%; white-space: nowrap; }
+@container work-list (max-width: 809.98px) {
+  .split:not(.nodrawer) .tasks-table td.td-status .status-pill { white-space: normal; }
+}

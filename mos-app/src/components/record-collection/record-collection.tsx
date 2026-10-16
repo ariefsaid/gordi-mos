@@ -4,6 +4,7 @@
 // system, and never a disabled "soon" presentation placeholder.
 import type { ReactElement, ReactNode } from 'react'
 import { EmptyState, ErrorState, FilteredEmptyState, LoadingShell } from '@/components/ui/state-kit'
+import type { EmptyStateVariant } from '@/components/ui/state-kit'
 import type { RecordCollectionController } from '@/lib/record-collection/engine'
 import type { CollectionPresentationProps } from '@/lib/record-collection/types'
 import { useT } from '@/i18n/use-t'
@@ -24,8 +25,8 @@ export interface RecordCollectionSurfaceProps<
   /** Typed bulk-action bar; rendered only when the descriptor grants selection and rows are picked. */
   selectionBar?: ReactNode
   archivedEmpty?: { title: string; copy?: string }
-  empty: { title: string; copy?: string; create?: ReactNode }
-  filteredEmpty: { items: string; clear: () => void; create?: ReactNode; title?: string; copy?: string }
+  empty: { title: string; copy?: string; create?: ReactNode; variant?: EmptyStateVariant; className?: string }
+  filteredEmpty: { items: string; clear: () => void; /** Names what Clear does when the label "Clear filters" would be wrong (only a search is set). */ clearLabel?: string; create?: ReactNode; title?: string; copy?: string }
   error: { message: string; retry: () => void }
   loadingLabel: string
   /** Shared E7 result-header framing: collection eyebrow, the active view label, and the result count. */
@@ -43,7 +44,7 @@ export interface RecordCollectionSurfaceProps<
  * fields so every RecordCollection region reads as one E7 family — the collection context,
  * the active view, and how many results it currently shows — without collapsing typed models.
  */
-export interface RecordCollectionResultHeader {
+interface RecordCollectionResultHeader {
   /** Quiet eyebrow naming the collection (e.g. "Tasks", "Signals"). */
   collectionLabel: string
   /** The active result view (e.g. "All", "Overdue", "Needs attention"). */
@@ -145,7 +146,7 @@ export function RecordCollectionSurface<
         {controls}
         <div className="record-collection-results">
           {header}
-          <EmptyState variant="quiet" title={empty.title} copy={empty.copy}>
+          <EmptyState variant={empty.variant ?? 'quiet'} title={empty.title} copy={empty.copy} className={empty.className}>
             {empty.create}
           </EmptyState>
         </div>
@@ -159,7 +160,7 @@ export function RecordCollectionSurface<
         {controls}
         <div className="record-collection-results">
           {header}
-          <FilteredEmptyState items={filteredEmpty.items} onClear={filteredEmpty.clear} title={filteredEmpty.title} copy={filteredEmpty.copy}>
+          <FilteredEmptyState items={filteredEmpty.items} onClear={filteredEmpty.clear} clearLabel={filteredEmpty.clearLabel} title={filteredEmpty.title} copy={filteredEmpty.copy}>
             {filteredEmpty.create}
           </FilteredEmptyState>
         </div>

@@ -18,6 +18,8 @@
 // explicitly chosen (branch, activity) stream (OD-WAY-28), the same model the Café · Log
 // capture surface already ported (#196).
 
+import { CheckIcon } from '@/shell/icons'
+import { Select } from '@/components/ui/select'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
@@ -32,6 +34,7 @@ import { isItemNotOnStreamError, listStreamItemIds } from '@/lib/db/kitchen-logs
 import { cafeUnitDisplayLabel, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { recordsHref } from '@/lib/cafe-records/url-state'
 import { canEditCafePlan, isReviewerEligibleTeam } from '@/lib/kitchen-gates'
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import type { CafeViewerTeam } from '@/lib/db/cafe-opening'
@@ -46,7 +49,11 @@ import type {
 } from '@/lib/db/kitchen-logs.types'
 import { PESANAN_HORIZON_DAYS } from '@/lib/db/kitchen-logs.types'
 import {
+  activityLabel,
+  branchDisplayName,
+  counterpartActivity,
   deriveActionLabel,
+  isIntraBranch,
   movementsEqual,
   movementsForStream,
   movementKey,
@@ -54,7 +61,6 @@ import {
   streamLabel,
   streamProduces,
 } from '@/lib/kitchen-action-label'
-import { MovementSeg } from '@/components/kitchen/movement-seg'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
@@ -62,6 +68,9 @@ import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { PlanQtyField } from '@/components/kitchen/plan-qty-field'
+import { CaptureControl, CaptureRow, CaptureTable } from '@/components/kitchen/capture-row'
+import { PlanWorkspace, PlanSheet, PlanScope } from '@/components/cafe/redesign/cafe-plan-workspace'
+import { PlanHorizon, type PlanHorizonDate } from '@/components/cafe/redesign/cafe-plan-horizon'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import {
   DataTable,
@@ -76,10 +85,17 @@ import {
   type KitchenListRow,
 } from '@/lib/kitchen-item-list'
 import { usePlanSummary } from '@/lib/kitchen-plan-kpis'
-import { wibToday } from '@/lib/format/date'
+import { formatWeekdayDayMonth, wibToday } from '@/lib/format/date'
 import './kitchen-plan-page.css'
+import { Notice } from '@/components/ui/notice'
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
+
+function shiftPlanDate(date: string, days: number): string {
+  const shifted = new Date(`${date}T00:00:00Z`)
+  shifted.setUTCDate(shifted.getUTCDate() + days)
+  return shifted.toISOString().slice(0, 10)
+}
 
 export function KitchenPlanPage() {
   const auth = useAuth()
@@ -187,7 +203,13 @@ function streamRows(items: PlanItem[], planableIds: Set<string>, planCells: Plan
 
 function PlanEditor() {
   const t = useT()
-  const [logDate] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
+  const [today] = useState(wibToday)
+  const [logDate, setLogDate] = useState(today)
+  const lastPlanDate = shiftPlanDate(today, PESANAN_HORIZON_DAYS - 1)
+  const dayOffset = Math.round((Date.parse(logDate) - Date.parse(today)) / 86_400_000)
+  const relativeDay = dayOffset === 0 ? t('kitchen.plan.day.today')
+    : dayOffset === 1 ? t('kitchen.plan.day.tomorrow')
+    : t('kitchen.plan.day.inDays', { days: dayOffset })
   // #784 AC-057 hardening (gpt-6-luna review): canEditCafePlan only picked the FACE — every
   // supervisor got the editor regardless of stream, and RLS (ops.is_stream_reviewer) rejects
   // a write against a stream she doesn't hold. isLeadOrAdmin writes everywhere (matches the
@@ -261,9 +283,8 @@ function PlanEditor() {
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
-  // Phone hides both select filters, so a copied desktop URL must not silently hide Plan rows.
-  const effectiveKindFilter: KitchenItemKindFilter = isDesktop && kindFilter === 'WIP' ? 'WIP' : 'All'
-  const effectiveCategory = isDesktop ? category : 'All'
+  const effectiveKindFilter: KitchenItemKindFilter = kindFilter === 'WIP' ? 'WIP' : 'All'
+  const effectiveCategory = category
   // #401 / DD-WAY-40: the figures band is the Metric summary rule (two numbers for
   // the current movement) — the retired word-tiles are gone. Pure derivation over
   // `cells`.
@@ -316,7 +337,6 @@ function PlanEditor() {
       setOfferedIds(offered ?? new Set())
       setPlanableIds(nextPlanableIds)
       adoptStream(catalog)
-      setMovement(PRODUCE)
       setCells(planCells)
       setReviewerStreamKeys(new Set(
         myTeams.filter(isReviewerEligibleTeam).map((team) => streamKey(team.branch_id, team.activity)),
@@ -362,23 +382,25 @@ function PlanEditor() {
 
   // A new plan row needs the item on the stream's list; an existing row keeps its quantity editable.
   const canPlan = useCallback(
-    (wipItemId: string): boolean =>
+    (wipItemId: string, forMovement: KitchenMovement = movement): boolean =>
       planableIds.has(wipItemId)
-      || cells.some(c => c.wip_item_id === wipItemId && movementsEqual(c.movement, movement)),
+      || cells.some(c => c.wip_item_id === wipItemId && movementsEqual(c.movement, forMovement)),
     [cells, movement, planableIds],
   )
   const offList = (wipItemId: string) => stream !== null && !offeredIds.has(wipItemId)
 
   // Plan qty for (item, current movement) — 0 when no plan row yet.
   const qtyOf = useCallback(
-    (wipItemId: string): number =>
-      cells.find(c => c.wip_item_id === wipItemId && movementsEqual(c.movement, movement))?.qty_porsi ?? 0,
+    (wipItemId: string, forMovement: KitchenMovement = movement): number =>
+      cells.find(c => c.wip_item_id === wipItemId && movementsEqual(c.movement, forMovement))?.qty_porsi ?? 0,
     [cells, movement],
   )
+  // One cell = one item in one action; the desktop sheet edits every action's column at once.
+  const cellKey = (wipItemId: string, forMovement: KitchenMovement) => `${wipItemId}|${movementKey(forMovement)}`
 
   // Persist one cell (FR-031 upsert). No-op when unchanged or offline; the stream and its
   // producer fact are checked again here so a closed/read-only surface cannot write.
-  async function saveCell(wipItemId: string, nextQty: number) {
+  async function saveCell(wipItemId: string, nextQty: number, forMovement: KitchenMovement = movement) {
     if (!isOnline) return
     if (nextQty < 0) return
     if (!stream) {
@@ -392,11 +414,12 @@ function PlanEditor() {
     // #784 AC-057 hardening: the field is already disabled when !canWriteStream, but re-check
     // here too — same defense-in-depth as the stream/producer checks above it.
     if (!canWriteStream) return
-    const current = qtyOf(wipItemId)
-    if (!canPlan(wipItemId)) return
+    const current = qtyOf(wipItemId, forMovement)
+    if (!canPlan(wipItemId, forMovement)) return
     if (nextQty === current) return
     const gen = requestGen.current // a stream switch or reload after this moves it
-    setSavingId(wipItemId)
+    const savingKey = cellKey(wipItemId, forMovement)
+    setSavingId(savingKey)
     setSaveError('')
     try {
       const id = await upsertKitchenPlan({
@@ -404,21 +427,21 @@ function PlanEditor() {
         wip_item_id: wipItemId,
         branch_id: stream.branch.id,
         activity: stream.activity,
-        action: movement.action,
-        destination_branch_id: movement.destinationBranchId,
+        action: forMovement.action,
+        destination_branch_id: forMovement.destinationBranchId,
         qty_porsi: nextQty,
       })
       if (gen !== requestGen.current) return
       // Reflect the confirmed result in place (no view transition).
       setCells(prev => {
         const without = prev.filter(
-          c => !(c.wip_item_id === wipItemId && movementsEqual(c.movement, movement)),
+          c => !(c.wip_item_id === wipItemId && movementsEqual(c.movement, forMovement)),
         )
-        return [...without, { id, wip_item_id: wipItemId, movement, qty_porsi: nextQty }]
+        return [...without, { id, wip_item_id: wipItemId, movement: forMovement, qty_porsi: nextQty }]
       })
       // Surface the commit INLINE at THIS cell (A5): a transient ✓ Saved tick, then
       // idle. Reset any in-flight tick (e.g. rapid back-to-back edits) before re-arming.
-      setJustSavedId(wipItemId)
+      setJustSavedId(savingKey)
       if (savedTimer.current) clearTimeout(savedTimer.current)
       savedTimer.current = setTimeout(() => setJustSavedId(null), 1500)
     } catch (err) {
@@ -467,74 +490,102 @@ function PlanEditor() {
     itemTable,
     groupKey => groupKey === '__uncategorized__' ? null : kitchenCategoryLabel(t, groupKey),
   ).sort((a, b) => a.label === null ? 1 : b.label === null ? -1 : a.label.localeCompare(b.label))
+  const planableGroups = planGroups.map(group => ({ ...group, rows: group.rows.filter(row => planableIds.has(row.id)) })).filter(group => group.rows.length > 0)
+  // One category needs no header of its own: the toolbar count already says how many, and the row
+  // list starts higher on a phone (UX-STANDARD PA4). Several categories keep their collapsible headers.
+  const mainPlanGroups = planableGroups.length === 1 ? [{ ...planableGroups[0], label: null }] : planableGroups
 
-  const planItemColumn: DataTableColumn<KitchenListRow<PlanItem>> = {
-    key: 'dish',
-    header: t('kitchen.plan.col.item'),
-    cardLabel: '',
-    render: item => (
-      <span className="kp-dish">
-        <span className="kp-name">{item.currentKind && <span>{item.currentKind} - </span>}<span>{item.name}</span></span>
-        {offList(item.id) && <NotOnStreamTag />}
-        {item.unavailableReason === 'inactive' && <span className="kp-cat">{t('kitchen.plan.item.inactive')}</span>}
-        {item.unavailableReason === 'not-wip' && <span className="kp-cat">{t('kitchen.plan.item.notWip')}</span>}
-        {item.category && <span className="kp-cat">{kitchenCategoryLabel(t, item.category)}</span>}
-        {item.otherLogUnitNames.length > 0 && (
-          <span className="kp-unit-options">
-            {t('kitchen.plan.item.otherLogUnits', { units: item.otherLogUnitNames.join(', ') })}
-          </span>
-        )}
-      </span>
-    ),
+  // The item cell of every Plan row: name (+kind tag) and one muted meta line.
+  const planItemMeta = (item: KitchenListRow<PlanItem>) => (
+    <>
+      {offList(item.id) && <NotOnStreamTag />}
+      {item.unavailableReason === 'inactive' && <span>{t('kitchen.plan.item.inactive')}</span>}
+      {item.unavailableReason === 'not-wip' && <span>{t('kitchen.plan.item.notWip')}</span>}
+      {item.otherLogUnitNames.length > 0 && <span>{t('kitchen.plan.item.otherLogUnits', { units: item.otherLogUnitNames.join(', ') })}</span>}
+    </>
+  )
+  // The editable "Plan" control for one action. The phone shows the action chosen in "Plan for"; the desktop
+  // sheet shows one control per action, so a whole day is planned in one view. Commit state (Saving… / ✓ Saved)
+  // sits under the unit, only when it has something to say, so the row's one box never moves mid-entry.
+  const planControl = (item: KitchenListRow<PlanItem>, forMovement: KitchenMovement) => {
+    const id = cellKey(item.id, forMovement)
+    const saving = savingId === id
+    const saved = !saving && justSavedId === id
+    return (
+      <CaptureControl>
+        <PlanQtyField
+          itemName={item.name}
+          qty={qtyOf(item.id, forMovement)}
+          // #548 FR-006: a missing or receiving-only stream keeps the committed value readable but closes
+          // the field; offline also pre-disables it.
+          disabled={!isOnline || planWriteClosed || !canWriteStream || !canPlan(item.id, forMovement)}
+          onSave={next => saveCell(item.id, next, forMovement)}
+          unitName={item.defaultUnitName}
+          status={(saving || saved) ? (
+            <span className="pqf-status kp-cell-status" role="status" aria-live="polite">
+              {saving
+                ? t('record.field.saving')
+                : <><CheckIcon className="inline-icon" /> {t('record.field.saved')}</>}
+            </span>
+          ) : undefined}
+        />
+      </CaptureControl>
+    )
   }
-
-  const planColumns: DataTableColumn<KitchenListRow<PlanItem>>[] = [
-    planItemColumn,
-    {
-      key: 'plan',
-      header: t('kitchen.plan.col.plan'),
-      numeric: true,
-      // v4 (DD-5 typed-qty port): both viewports render the SAME typed field —
-      // PlanQtyField — not the retired −/+ PlanQtyCell/PlanQtyStepper pair. Planning a
-      // dish at 25 portions cost 25 taps; the owner already ordered this pattern killed
-      // on Café · Log ("the production is not logged incrementally. it should be typed
-      // in the amount being produced. mostly are 10-20+. incremental is just too
-      // tedious"), and Plan is the same job on the next screen. Desktop gets the dense
-      // (32px pointer-surface) sizing; the phone card keeps the 44px touch floor.
-      // Commit state (Saving… / ✓ Saved) renders BESIDE the field at the page, only
-      // when it has something to say — inline in the control it would reflow the row's
-      // one input mid-entry.
-      render: item => {
-        const saving = savingId === item.id
-        const saved = !saving && justSavedId === item.id
-        return (
-          <div className="kp-cell-qty">
-            <PlanQtyField
-              itemName={item.name}
-              qty={qtyOf(item.id)}
-              // #548 FR-006: a missing or receiving-only stream keeps the committed value
-              // readable but closes the field; offline also pre-disables it. Commit state
-              // renders beside the field at the page.
-              disabled={!isOnline || planWriteClosed || !canWriteStream || !canPlan(item.id)}
-              onSave={next => saveCell(item.id, next)}
-              dense={isDesktop}
-              unitName={item.defaultUnitName}
-            />
-            {(saving || saved) && (
-              <span className="kp-cell-status" role="status" aria-live="polite">
-                {saving
-                  ? t('record.field.saving')
-                  : <><span className="kp-cell-tick" aria-hidden="true">✓</span> {t('record.field.saved')}</>}
-              </span>
-            )}
-          </div>
-        )
-      },
-    },
-  ]
+  const movementColumnHeader = (option: KitchenMovement): string => {
+    if (option.action === 'produce') return t('kitchen.actionType.production')
+    const destination = branches.find(branch => branch.id === option.destinationBranchId)
+    const name = destination ? branchDisplayName(destination) : t('kitchen.actionType.transferTo.fallback')
+    return t('kitchen.plan.col.transferTo', {
+      destination: isIntraBranch(option, stream) && stream
+        ? `${name} · ${activityLabel(t, counterpartActivity(stream.activity))}`
+        : name,
+    })
+  }
+  const wideColumns = isDesktop && movementOptions.length > 0
+  const planControls = wideColumns
+    ? movementOptions.map(option => ({ label: movementColumnHeader(option), movement: option }))
+    : [{ label: t('kitchen.plan.col.plan'), movement }]
+  const planTable = (
+    rows: KitchenListRow<PlanItem>[],
+    caption: string,
+    groups?: ReturnType<typeof kitchenDataTableGroups<KitchenListRow<PlanItem>>>,
+  ) => (
+    <CaptureTable
+      caption={caption}
+      columns={{
+        item: t('kitchen.plan.col.item'),
+        itemSort: 'asc',
+        // One control per action takes its action's name as its header; the single phone control keeps "Unit" beside it.
+        controls: planControls.map(control => planControls.length > 1 ? { label: control.label, unit: null } : { label: control.label }),
+      }}
+      rows={rows}
+      groups={groups}
+      renderRow={item => (
+        <CaptureRow
+          id={item.id}
+          name={item.name}
+          kind={item.currentKind}
+          meta={planItemMeta(item)}
+          controls={planControls.map(control => ({ label: control.label, node: planControl(item, control.movement) }))}
+        />
+      )}
+    />
+  )
 
   const receivingPlanColumns: DataTableColumn<KitchenListRow<PlanItem>>[] = [
-    planItemColumn,
+    {
+      key: 'dish',
+      header: t('kitchen.plan.col.item'),
+      sortState: 'asc',
+      cardLabel: '',
+      render: item => (
+        <span className="kp-dish">
+          <span className="kp-name">{item.currentKind && <span>{item.currentKind} - </span>}<span>{item.name}</span></span>
+          {planItemMeta(item)}
+        </span>
+      ),
+    },
     {
       key: 'plan',
       header: t('kitchen.plan.col.plan'),
@@ -546,52 +597,10 @@ function PlanEditor() {
     },
   ]
 
-  // #548 FR-007: Plan's phone face is the DESIGN.md compact capture row — identity left,
-  // the typed plan field + unit right, no per-card field label. Same seam as Log
-  // (renderCard → PhoneCard applies .dt-card--compact); the meta line renders ONLY when it
-  // has something to say (commit state). No dense: the phone card keeps the 44px touch floor.
-  const renderPlanCard = (item: KitchenListRow<PlanItem>) => {
-    const saving = savingId === item.id
-    const saved = !saving && justSavedId === item.id
-    return (
-      <div className="kp-card">
-        <div className="kp-card-head">
-          <span className="kp-card-name">
-            {item.currentKind && <span>{item.currentKind} - </span>}<span>{item.name}</span>
-            {offList(item.id) && <NotOnStreamTag />}
-            {item.unavailableReason === 'inactive' && <span className="kp-cat">{t('kitchen.plan.item.inactive')}</span>}
-            {item.unavailableReason === 'not-wip' && <span className="kp-cat">{t('kitchen.plan.item.notWip')}</span>}
-            {item.otherLogUnitNames.length > 0 && (
-              <span className="kp-card-unit-options">
-                {t('kitchen.plan.item.otherLogUnits', { units: item.otherLogUnitNames.join(', ') })}
-              </span>
-            )}
-          </span>
-          <PlanQtyField
-            itemName={item.name}
-            qty={qtyOf(item.id)}
-            disabled={!isOnline || planWriteClosed || !canWriteStream || !canPlan(item.id)}
-            onSave={next => saveCell(item.id, next)}
-            unitName={item.defaultUnitName}
-          />
-        </div>
-        {(saving || saved) && (
-          <div className="kp-card-meta">
-            <span className="kp-cell-status" role="status" aria-live="polite">
-              {saving
-                ? t('record.field.saving')
-                : <><span className="kp-cell-tick" aria-hidden="true">✓</span> {t('record.field.saved')}</>}
-            </span>
-          </div>
-        )}
-      </div>
-    )
-  }
-
   return (
     <CafePageFrame
       page="plan"
-      date={logDate}
+      recordsHref={recordsHref({ question: 'made', reading: 'summary', from: logDate, to: logDate, stream: stream ? { branchId: stream.branch.id, activity: stream.activity } : null, today: wibToday() })}
       streamBar={{
         options: streamOptions,
         stream,
@@ -602,25 +611,10 @@ function PlanEditor() {
       }}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : streamMissing ? 'default' : streamNonProducing ? 'read-only' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
     >
-      {/* #401 / DD-WAY-40: Plan is an ACT surface — its figures render as the DESIGN.md
-          Metric summary rule: one inline line, no card, no width branch, never a tile
-          row (OD-WAY-74 #2). No delta: a capture band has no state worth acting on. */}
-      {load.kind === 'ready' && stream !== null && items.length > 0 && (
-        <MetricSummaryRule
-          ariaLabel={t(summary.ariaLabel)}
-          metrics={summary.metrics.map(m => ({ key: m.key, label: t(m.label), value: m.value }))}
-        />
-      )}
 
       <Toast toast={toast} onDismiss={clearToast} />
-      {!isOnline && (
-        <div role="alert" className="kp-banner kp-banner-offline kp-block">
-          {t('kitchen.plan.offline')}
-        </div>
-      )}
-      {saveError && (
-        <div role="alert" className="kp-banner kp-banner-error kp-block">{saveError}</div>
-      )}
+      {!isOnline && <Notice tone="attention" role="alert">{t('kitchen.plan.offline')}</Notice>}
+      {saveError && <Notice tone="urgent">{saveError}</Notice>}
       {/* #548 FR-006 / #781 item 2: the precondition is a muted hint at rest (Log's
           .kl-submit-reason grammar, role="status" — programmatically associated as a live
           region, NFR-002), plus the same one-step choice Log offers — the head bar has nothing
@@ -653,59 +647,35 @@ function PlanEditor() {
       )}
 
       {load.kind === 'ready' && !streamMissing && items.length > 0 && (
-        <div className="kp-block">
-          <KitchenToolbar
-            search={search}
-            onSearchChange={setSearch}
-            kinds={WIP_KIND_FILTER_OPTIONS}
-            kind={kindFilter as KitchenItemKindFilter}
-            kindId="cafe-plan-kind"
-            onKindChange={setKindFilter}
-            categories={categories}
-            categoryId="cafe-plan-category"
-            categoryLabel={value => kitchenCategoryLabel(t, value)}
-            category={category}
-            onCategoryChange={setCategory}
-            searchPlaceholder={t('kitchen.plan.searchPlaceholder')}
-            ariaLabel={t('kitchen.plan.toolbarAria')}
-          >
-            {movementOptions.length > 0 && <div className="kp-scope">
-              {/* #440: the branch × activity pair of selects that used to lead this block is
-                  gone — it named the stream a SECOND way (and named Rumah Rames by the
-                  'Bungur' alias, which names a transfer destination and never a stream), while
-                  the head now names it once for the whole module. What stays is the movement:
-                  a property of the rows, not of the books. */}
-              {/* Same destination picker as capture (FR-013), with the same producer-aware
-                  destination matrix. A plan for a movement the capture form cannot name is a
-                  plan nobody fills. */}
-              <MovementSeg
-                value={movement}
-                options={movementOptions}
-                branches={branches}
-                origin={stream}
-                onChange={setMovement}
-              />
-            </div>}
-          </KitchenToolbar>
-          {/* ONE navigational affordance for the screen, present at every width. */}
-          <p className="kp-log-link-row">
-            <Link to="/cafe/production" className="kp-group-link">
-              {t('kitchen.plan.group.log')}
-            </Link>
-          </p>
-          <div className="kp-list">
-            <DataTable
-              columns={streamNonProducing ? receivingPlanColumns : planColumns}
-              rows={visible}
-              groups={planGroups}
-              renderCard={streamNonProducing ? undefined : renderPlanCard}
-              isDesktop={isDesktop}
-              state={visible.length > 0 ? 'ready' : 'empty'}
-              emptyLabel={t('kitchen.filter.noMatch')}
-              caption={streamNonProducing ? t('kitchen.stream.receivingOnly.planCaption') : t('kitchen.plan.caption')}
-            />
-          </div>
-        </div>
+        <PlanWorkspace className="kp-editor-workspace">
+          <aside className="kp-date-rail">
+            <div className="kp-day-stepper" role="group" aria-label={t('kitchen.plan.day.group')}>
+              <button type="button" className="btn btn-outline kp-day-stepper__button" aria-label={t('kitchen.plan.day.previous')} disabled={logDate <= today} onClick={() => setLogDate(current => shiftPlanDate(current, -1))}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg></button>
+              <time className="kp-date-current tabular" dateTime={logDate} aria-live="polite">{t('kitchen.plan.day.label', { date: formatWeekdayDayMonth(logDate), relative: relativeDay })}</time>
+              <button type="button" className="btn btn-outline kp-day-stepper__button" aria-label={t('kitchen.plan.day.next')} disabled={logDate >= lastPlanDate} onClick={() => setLogDate(current => shiftPlanDate(current, 1))}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg></button>
+              <button type="button" className="btn btn-outline kp-day-stepper__today" disabled={logDate === today} onClick={() => setLogDate(today)}>{t('kitchen.plan.day.today')}</button>
+            </div>
+          </aside>
+          {movementOptions.length > 0 && !wideColumns && <PlanScope className="kp-action-rail">
+            <div className="kp-action-phone"><Select label={t('kitchen.plan.actionScope')} fullWidth value={movementKey(movement)} onChange={event => { const next = movementOptions.find(option => movementKey(option) === event.target.value); if (next) setMovement(next) }}>{movementOptions.map(option => <option key={movementKey(option)} value={movementKey(option)}>{deriveActionLabel(t, option, branches)}</option>)}</Select></div>
+          </PlanScope>}
+          <PlanSheet label={t('kitchen.plan.caption')}>
+            <div className="kp-sheet-head">
+              {load.kind === 'ready' && stream !== null && items.length > 0 && <MetricSummaryRule ariaLabel={t(summary.ariaLabel)} metrics={summary.metrics.map(metric => ({ key: metric.key, label: t(metric.label), value: wideColumns ? String(new Set(cells.filter(cell => cell.qty_porsi > 0).map(cell => cell.wip_item_id)).size) : metric.value }))} />}
+              <p className="kp-save-boundary">{t('kitchen.plan.saveBoundary')}</p>
+            </div>
+            <KitchenToolbar search={search} onSearchChange={setSearch} kinds={WIP_KIND_FILTER_OPTIONS} kind={kindFilter as KitchenItemKindFilter} kindId="cafe-plan-kind" onKindChange={setKindFilter} categories={categories} categoryId="cafe-plan-category" categoryLabel={value => kitchenCategoryLabel(t, value)} category={category} onCategoryChange={setCategory} searchPlaceholder={t('kitchen.plan.searchPlaceholder')} ariaLabel={t('kitchen.plan.toolbarAria')} resultCount={{ shown: visible.length, total: items.length }} sortLabel={t('cafe.toolbar.sorted.az')} filtersPanel={{ label: t('cafe.toolbar.filters'), summary: [kindFilter !== 'All' ? kindFilter : t('kitchen.filter.kind.all'), category !== 'All' ? kitchenCategoryLabel(t, category) : t('kitchen.filter.all')].join(' · ') }} />
+            <div className="kp-list">
+              {visible.some(item => planableIds.has(item.id)) ? (streamNonProducing
+                ? <DataTable cardsHead={false} columns={receivingPlanColumns} rows={visible.filter(item => planableIds.has(item.id))} groups={mainPlanGroups} isDesktop={isDesktop} state="ready" caption={t('kitchen.stream.receivingOnly.planCaption')} />
+                : planTable(visible.filter(item => planableIds.has(item.id)), t('kitchen.plan.caption'), mainPlanGroups)) : visible.length === 0 ? <p role="status" className="cafe-no-match">{t('kitchen.filter.noMatch')}</p> : null}
+              {visible.some(item => !planableIds.has(item.id)) && <section className="kp-existing-only"><h2>{t('kitchen.plan.existingOnly')}</h2>{streamNonProducing
+                ? <DataTable columns={receivingPlanColumns} rows={visible.filter(item => !planableIds.has(item.id))} isDesktop={isDesktop} caption={t('kitchen.plan.existingOnly')} />
+                : planTable(visible.filter(item => !planableIds.has(item.id)), t('kitchen.plan.existingOnly'))}</section>}
+            </div>
+          </PlanSheet>
+          <div className="kp-production-transition"><Link to="/cafe/production" className="btn btn-outline btn-touch">{t('kitchen.plan.group.log')}</Link></div>
+        </PlanWorkspace>
       )}
     </CafePageFrame>
   )
@@ -727,7 +697,6 @@ function PesananView() {
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const requestGen = useRef(0)
-  const isDesktop = useIsDesktop()
   // #401: URL-synced search + category over the ~231-row horizon (v4's KitchenToolbar
   // port; Nielsen Café·Plan 16/32). Same keys as the editor face ('q'/'category') —
   // the faces are role-exclusive, so they never share a URL. Refresh/share keeps the
@@ -736,8 +705,8 @@ function PesananView() {
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
   // Hidden desktop filters stay inert on phone even when their URL state is shared in.
-  const effectiveKindFilter: KitchenItemKindFilter = isDesktop ? kindFilter as KitchenItemKindFilter : 'All'
-  const effectiveCategory = isDesktop ? category : 'All'
+  const effectiveKindFilter: KitchenItemKindFilter = kindFilter as KitchenItemKindFilter
+  const effectiveCategory = category
 
   // #440: the horizon a floor member reads is THEIR stream's — it used to be
   // `defaultStreamFrom`, the catalog's first branch, so a Radiant barista read Gordi HQ's
@@ -802,36 +771,13 @@ function PesananView() {
   const visible = pesananTable.getFilteredRowModel().rows.map(row => row.original)
   const categories = ['All', ...Array.from(new Set(rows.map(row => row.category ?? '').filter(Boolean)))
     .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b)))]
-  const pesananGroups = load.kind === 'loading' ? [] : kitchenDataTableGroups(pesananTable, date => date)
-    .sort((a, b) => String(a.label).localeCompare(String(b.label)))
-
-  // Read-only pesanan columns: Item (name + category sub-label) · Action · Planned.
-  // No edit affordance (AC-024) — the qty is a plain tabular number, no stepper.
-  const pesananColumns: DataTableColumn<KitchenListRow<PesananDisplayRow>>[] = [
-    {
-      key: 'item',
-      header: t('kitchen.plan.pesanan.col.item'),
-      cardLabel: '',
-      render: r => (
-        <span className="kp-dish">
-          <span className="kp-name"><span>{r.kind} - </span><span>{r.wip_item_name}</span></span>
-          {r.category && <span className="kp-cat">{kitchenCategoryLabel(t, r.category)}</span>}
-          {r.defaultUnitName && <span className="kp-unit">{r.defaultUnitName}</span>}
-          {r.otherLogUnitNames.length > 0 && (
-            <span className="kp-unit-options">
-              {t('kitchen.plan.item.otherLogUnits', { units: r.otherLogUnitNames.join(', ') })}
-            </span>
-          )}
-        </span>
-      ),
-    },
-    {
-      key: 'movement',
-      header: t('kitchen.plan.pesanan.col.action'),
-      render: r => deriveActionLabel(t, r.movement, branches),
-    },
-    { key: 'qty_porsi', header: t('kitchen.plan.pesanan.col.planned'), numeric: true },
-  ]
+  const horizonDates: PlanHorizonDate<KitchenListRow<PesananDisplayRow>>[] = []
+  for (const row of visible) {
+    const date = row.log_date
+    const current = horizonDates[horizonDates.length - 1]
+    if (current?.date === date) current.rows.push(row)
+    else horizonDates.push({ date, rows: [row] })
+  }
 
   return (
     <CafePageFrame
@@ -866,9 +812,6 @@ function PesananView() {
         <p className="kp-readonly-note">
           {t('kitchen.plan.pesanan.readOnlyNote', { days: PESANAN_HORIZON_DAYS })}
         </p>
-        <Link to="/cafe/production" className="btn btn-outline kp-readonly-cta">
-          {t('kitchen.plan.pesanan.readOnlyCta')}
-        </Link>
       </div>
       )}
 
@@ -908,30 +851,11 @@ function PesananView() {
 
       {load.kind === 'ready' && rows.length > 0 && (
         <div className="kp-block">
-          <KitchenToolbar
-            search={search}
-            onSearchChange={setSearch}
-            kinds={WIP_KIND_FILTER_OPTIONS}
-            kind={kindFilter as KitchenItemKindFilter}
-            kindId="cafe-plan-kind"
-            onKindChange={setKindFilter}
-            categories={categories}
-            categoryId="cafe-plan-category"
-            categoryLabel={value => kitchenCategoryLabel(t, value)}
-            category={category}
-            onCategoryChange={setCategory}
-            searchPlaceholder={t('kitchen.plan.pesanan.searchPlaceholder')}
-            ariaLabel={t('kitchen.plan.pesanan.toolbarAria')}
-          />
-          <DataTable
-            columns={pesananColumns}
-            rows={visible}
-            groups={pesananGroups}
-            isDesktop={isDesktop}
-            state={visible.length > 0 ? 'ready' : 'empty'}
-            emptyLabel={t('kitchen.filter.noMatch')}
-            caption={t('kitchen.plan.pesanan.caption')}
-          />
+          <div className="kp-member-tools">
+            <KitchenToolbar search={search} onSearchChange={setSearch} kinds={WIP_KIND_FILTER_OPTIONS} kind={kindFilter as KitchenItemKindFilter} kindId="cafe-plan-kind" onKindChange={setKindFilter} categories={categories} categoryId="cafe-plan-category" categoryLabel={value => kitchenCategoryLabel(t, value)} category={category} onCategoryChange={setCategory} searchPlaceholder={t('kitchen.plan.pesanan.searchPlaceholder')} ariaLabel={t('kitchen.plan.pesanan.toolbarAria')} resultCount={{ shown: visible.length, total: rows.length }} />
+            <Link to="/cafe/production" className="btn btn-outline btn-touch">{t('kitchen.plan.pesanan.readOnlyCta')}</Link>
+          </div>
+          {visible.length > 0 ? <PlanHorizon dates={horizonDates} getAction={row => deriveActionLabel(t, row.movement, branches)} renderRow={row => <div className="kp-horizon-row"><span className="kp-horizon-item"><span>{row.kind} - {row.wip_item_name}</span>{row.category && <small>{kitchenCategoryLabel(t, row.category)}</small>}{row.defaultUnitName && <small>{row.defaultUnitName}</small>}{row.otherLogUnitNames.length > 0 && <small>{t('kitchen.plan.item.otherLogUnits', { units: row.otherLogUnitNames.join(', ') })}</small>}</span><span className="kp-horizon-planned"><strong>{row.qty_porsi}</strong> {row.defaultUnitName ?? t('kitchen.unit.porsi')}</span></div>} dateLabel={date => formatWeekdayDayMonth(date)} indexLabel={t('kitchen.plan.dateIndex')} actionLabel={t('kitchen.plan.pesanan.col.action')} itemLabel={t('kitchen.plan.pesanan.col.item')} /> : <p role="status" className="kp-no-match">{t('kitchen.filter.noMatch')}</p>}
         </div>
       )}
     </CafePageFrame>

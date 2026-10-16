@@ -11,6 +11,8 @@ import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { RecordDisclosure, RecordSection } from '@/components/record/record-page-layout'
 import { RecordMenu } from '@/components/record/record-menu'
+import { StatusPill } from '@/components/tasks/status-pill'
+import type { TaskStatus } from '@/lib/db/tasks.types'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import type { CountRollup } from '@/lib/cascade/count-rollup'
 import { readWriteUp, sanitizeWriteUp } from '@/lib/db/objective-writeup'
@@ -35,7 +37,7 @@ function relatedPath(kind: CatalogRelatedKind, id: string): string {
   return `/work/projects/${id}`
 }
 
-export type RelatedLinkProps = {
+type RelatedLinkProps = {
   kind: CatalogRelatedKind
   id: string
   children: string
@@ -44,7 +46,7 @@ export type RelatedLinkProps = {
 }
 
 /** A link that opens in the same panel stack on a plain click and keeps its href for the rest. */
-export function RelatedLink({ kind, id, children, onOpenRelated, className = 'rp-row__name' }: RelatedLinkProps) {
+function RelatedLink({ kind, id, children, onOpenRelated, className = 'rp-row__name' }: RelatedLinkProps) {
   return (
     <Link
       className={className}
@@ -60,18 +62,9 @@ export function RelatedLink({ kind, id, children, onOpenRelated, className = 'rp
   )
 }
 
-function statusLabel(status: string, t: Translate): string {
-  const keys: Record<string, 'open' | 'inProgress' | 'blocked' | 'done'> = {
-    Open: 'open', 'In Progress': 'inProgress', Blocked: 'blocked', Done: 'done',
-  }
-  const key = keys[status]
-  return key ? t(`tasks.status.${key}`) : status
-}
-
-const STATUS_TONE: Record<string, string> = { Open: 'open', 'In Progress': 'progress', Blocked: 'blocked', Done: 'done' }
 const STATUS_ORDER: Record<string, number> = { Blocked: 0, 'In Progress': 1, Open: 2, Done: 3 }
 
-const firstName = (name: string | undefined) => (name ?? '').split(/\s+/)[0] ?? ''
+const overdueDaysOf = (due: string, today: string) => Math.max(1, Math.round((Date.parse(today) - Date.parse(due)) / 86_400_000))
 const initialsOf = (name: string) => {
   const words = name.trim().split(/\s+/).filter(Boolean)
   return (words.length < 2 ? (words[0] ?? '').slice(0, 2) : words[0][0] + words[words.length - 1][0]).toUpperCase()
@@ -89,6 +82,7 @@ export type InlineChooserProps = {
 
 /** A type-to-find picker opened by the action that asked for it; Escape or outside click withdraws it. */
 export function InlineChooser({ label, options, onPick, onCancel, status }: InlineChooserProps) {
+  const t = useT()
   return (
     <div className="rp-chooser" role="group" aria-label={label}>
       {status ?? (
@@ -97,6 +91,7 @@ export function InlineChooser({ label, options, onPick, onCancel, status }: Inli
           value=""
           options={options}
           placeholder={label}
+          filterLabel={t('ui.picker.typeToFind')}
           hideLabel
           defaultOpen
           autoFocus
@@ -152,7 +147,7 @@ export function LinkedWorkSection({ objectiveId, groups, workLines, people, scop
                 {group.relationship === 'contribution' ? <span className="rp-row__meta">{t('catalog.record.viaTasks')}</span> : null}
               </span>
               {group.total > 0
-                ? <span className="rp-row__meta rp-wl__count tabular-nums">{t('catalog.objectives.taskProgress', { done: String(group.done), total: String(group.total) })}</span>
+                ? <span className="rp-row__meta rp-wl__count tabular-nums">{t('catalog.progress.tasksDone', { done: String(group.done), total: String(group.total) })}</span>
                 : <span />}
               {responsible ? <span className="rp-avatar rp-wl__who" data-initials={initialsOf(responsible)} title={responsible} role="img" aria-label={`${t('catalog.record.responsible')}: ${responsible}`} /> : <span />}
               {canUnlink && workLine ? (
@@ -210,7 +205,7 @@ export function TasksSection({ title, tasks, rollup, people, canAdd, actionInHea
     <RecordSection
       id="tasks"
       title={title}
-      count={total > 0 ? t(objectiveRollup ? 'catalog.objectives.taskProgress' : 'catalog.record.rollup', { done: String(done), total: String(total) }) : undefined}
+      count={total > 0 ? t(objectiveRollup ? 'catalog.progress.tasksDone' : 'catalog.record.rollup', { done: String(done), total: String(total) }) : undefined}
       action={canAdd && !actionInHeader ? { label: t('catalog.record.addTask'), onClick: onAdd } : undefined}
     >
       <ul className="rp-rows">
@@ -218,12 +213,13 @@ export function TasksSection({ title, tasks, rollup, people, canAdd, actionInHea
           const overdue = task.dueDate && task.status !== 'Done' && task.dueDate < today
           return (
             <li key={task.id} className="rp-row rp-task">
-              <span className={`rp-status rp-status--${STATUS_TONE[task.status ?? ''] ?? 'open'}`}>{task.status ? statusLabel(task.status, t) : ''}</span>
               <RelatedLink kind="task" id={task.id} onOpenRelated={onOpenRelated}>{task.title}</RelatedLink>
-              <span className="rp-person">{firstName(task.picPersonId ? people.get(task.picPersonId) : undefined)}</span>
+              <span className="rp-task__status">{task.status ? <StatusPill status={task.status as TaskStatus} openTreatment="neutral" /> : null}</span>
+              <span className="rp-person">{task.picPersonId ? people.get(task.picPersonId) ?? '' : ''}</span>
               {task.dueDate ? (
                 <span className={`rp-due tabular-nums${overdue ? ' rp-due--overdue' : task.status !== 'Done' && soon(task.dueDate) ? ' rp-due--soon' : ''}`}>
                   {formatWeekdayDayMonth(task.dueDate, locale)}
+                  {overdue ? <span className="rp-due__flag">{t(overdueDaysOf(task.dueDate, today) === 1 ? 'tasks.due.overdueDays.one' : 'tasks.due.overdueDays', { days: overdueDaysOf(task.dueDate, today) })}</span> : null}
                 </span>
               ) : <span />}
             </li>
@@ -338,7 +334,7 @@ function StepForm({ workLineId, position, onSaved, onCancel }: StepFormProps) {
         {picError ? <span id={picErrorId} className="objective-key-results__error" role="alert">{t('catalog.steps.picRequired')}</span> : null}
       </div>
       <div className="form-grid__field form-grid__field--full objective-key-results__actions">
-        <Button type="submit" variant="outline" disabled={state === 'saving'} aria-busy={state === 'saving' || undefined}>
+        <Button type="submit" variant="primary" disabled={state === 'saving'} aria-busy={state === 'saving' || undefined}>
           {state === 'saving' ? t('record.field.saving') : t('catalog.steps.save')}
         </Button>
         <Button type="button" variant="ghost" disabled={state === 'saving'} onClick={onCancel}>{t('common.cancel')}</Button>
@@ -457,7 +453,11 @@ export function WriteUpSection({ objectiveId, canEdit, archived, onDirtyChange, 
   if (!open && excerpt === undefined) return null
   if (!open && !excerpt && !writable) return null
   return (
-    <RecordSection id="write-up" title={t('objective.writeUp.tab')}>
+    <RecordSection
+      id="write-up"
+      title={t('objective.writeUp.tab')}
+      action={!open && !excerpt && writable ? { label: t('catalog.writeup.write'), onClick: () => setOpen(true) } : undefined}
+    >
       {open ? (
         <>
           <Suspense fallback={<LoadingShell label={t('objective.writeUp.loading')} />}>
@@ -478,9 +478,7 @@ export function WriteUpSection({ objectiveId, canEdit, archived, onDirtyChange, 
           <p className="rp-doc rp-doc--excerpt">{excerpt}</p>
           <button type="button" className="rp-link-btn" onClick={() => setOpen(true)}>{t(writable ? 'catalog.writeup.edit' : 'catalog.writeup.read')}</button>
         </>
-      ) : (
-        <button type="button" className="rp-link-btn" onClick={() => setOpen(true)}><span aria-hidden="true">+ </span>{t('catalog.writeup.write')}</button>
-      )}
+      ) : null}
     </RecordSection>
   )
 }

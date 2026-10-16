@@ -15,7 +15,7 @@ export const VALID_TOKENS = new Set<string>([
 ])
 
 // ── Filter operator ────────────────────────────────────────────────────────────
-export type FilterOp =
+type FilterOp =
   | 'eq' | 'neq' | 'in' | 'gt' | 'gte' | 'lt' | 'lte' | 'between' | 'date-range'
 export const VALID_FILTER_OPS = new Set<string>([
   'eq', 'neq', 'in', 'gt', 'gte', 'lt', 'lte', 'between', 'date-range',
@@ -24,7 +24,7 @@ export const VALID_FILTER_OPS = new Set<string>([
 // ── Aggregate ──────────────────────────────────────────────────────────────────
 export type AggregateFn = 'count' | 'sum' | 'avg' | 'min' | 'max'
 export const NUMERIC_AGGREGATE_FNS = new Set<AggregateFn>(['sum', 'avg', 'min', 'max'])
-export interface AggregateSpec { fn: AggregateFn; column: string; alias: string }
+interface AggregateSpec { fn: AggregateFn; column: string; alias: string }
 
 // ── Filter / TimeRange ─────────────────────────────────────────────────────────
 export interface FilterClause {
@@ -32,10 +32,10 @@ export interface FilterClause {
   op: FilterOp
   value: string | number | boolean | string[] | number[]
 }
-export interface TimeRangeSpec { column: string; from: string; to: string }
+interface TimeRangeSpec { column: string; from: string; to: string }
 
 // ── Whitelisted entity key (the 7 MOS entities, both planes) ───────────────────
-export type ViewSchema = 'mos' | 'ops' | 'shared' | 'reporting'
+type ViewSchema = 'mos' | 'ops' | 'shared' | 'reporting'
 export type WhitelistedEntity =
   | 'tasks' | 'weekly_updates' | 'objectives' | 'work_lines' | 'people'
   | 'sales_daily_revenue' | 'sales_margin_daily' | 'business_units'
@@ -53,7 +53,7 @@ export interface QuerySpec {
 }
 
 // ── Panel / CompositionSpec (FR-UV-001) ────────────────────────────────────────
-export interface LayoutHint { colSpan?: number; rowSpan?: number }
+interface LayoutHint { colSpan?: number; rowSpan?: number }
 export interface PanelSpec {
   id: string
   primitive: string

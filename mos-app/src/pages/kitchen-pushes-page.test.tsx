@@ -10,8 +10,6 @@
 //   a11y: semantic table, tabular numbers on counts/dates, status as text not color-only
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -129,6 +127,16 @@ const HELD_ROW: EsbPushRow = {
   posted_at: null,
 }
 
+function renderPage() {
+  return render(<MemoryRouter><KitchenPushesPage /></MemoryRouter>)
+}
+
+/** Choose a batch in the list; its posting details open beside (or over) it. */
+async function openPush(ref: string) {
+  fireEvent.click(await screen.findByRole('button', { name: new RegExp(ref) }))
+  return screen.findByRole('region', { name: 'Diagnostic details' })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   setViewport(true)
@@ -160,7 +168,7 @@ afterEach(() => {
 describe('KitchenPushesPage — auth', () => {
   it('auth loading: shows a busy state, no read triggered', () => {
     mockUseAuth.mockReturnValue({ status: 'loading' } as AuthState)
-    render(<KitchenPushesPage />)
+    renderPage()
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
     expect(mockListPushes).not.toHaveBeenCalled()
   })
@@ -198,14 +206,14 @@ describe('KitchenPushesPage — role gate (AC-007)', () => {
 
   it('ops_lead → allowed, triggers the read', async () => {
     mockUseAuth.mockReturnValue(viewer(['ops_lead']))
-    render(<KitchenPushesPage />)
+    renderPage()
     await waitFor(() => expect(mockListPushes).toHaveBeenCalled())
     expect(screen.queryByText(/available to ops leads/i)).not.toBeInTheDocument()
   })
 
   it('admin → allowed, triggers the read', async () => {
     mockUseAuth.mockReturnValue(viewer(['admin']))
-    render(<KitchenPushesPage />)
+    renderPage()
     await waitFor(() => expect(mockListPushes).toHaveBeenCalled())
     expect(screen.queryByText(/available to ops leads/i)).not.toBeInTheDocument()
   })
@@ -227,6 +235,14 @@ describe('KitchenPushesPage — role gate (AC-007)', () => {
 
 // ── Load states ──────────────────────────────────────────────────────────────
 
+const IN_FLIGHT_ROW: EsbPushRow = {
+  ...PENDING_ROW,
+  id: 'push-6',
+  source_ref: 'TR-20260621-002',
+  status: 'in_flight',
+  target_env: 'gkid',
+}
+
 // #440: every Café surface says which production stream it is showing. The outbox is the one
 // that has none of its own — an integrations.esb_push row carries a source module and a batch
 // reference, no branch and no activity — so it states the scope it ACTUALLY has. Naming a
@@ -234,9 +250,9 @@ describe('KitchenPushesPage — role gate (AC-007)', () => {
 describe('KitchenPushesPage — the head states its scope (#440)', () => {
   it('states "All streams" in the page head, and offers no stream picker it could not honour', async () => {
     mockListPushes.mockResolvedValue([])
-    const { container } = render(<KitchenPushesPage />)
-    await screen.findByText(/no pushes yet/i)
-    const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
+    renderPage()
+    await screen.findByText(/nothing sent yet/i)
+    const head = screen.getByTestId('page-head')
     expect(head.textContent).toMatch(/stream/i)
     expect(within(head).getByText(/all streams/i)).toBeInTheDocument()
     expect(within(head).queryByRole('combobox')).toBeNull()
@@ -246,41 +262,23 @@ describe('KitchenPushesPage — the head states its scope (#440)', () => {
 describe('KitchenPushesPage — states', () => {
   it('loading: shows a busy skeleton while pushes load', () => {
     mockListPushes.mockReturnValue(new Promise(() => {})) // never resolves
-    render(<KitchenPushesPage />)
+    renderPage()
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
-  it('empty: renders the shared awaiting EmptyState when no rows', async () => {
+  it('empty: says nothing has been sent yet and offers one refresh', async () => {
     mockListPushes.mockResolvedValue([])
-    render(<KitchenPushesPage />)
-    expect(await screen.findByText(/no pushes yet/i)).toBeInTheDocument()
-
-    const emptyState = screen.getByTestId('empty-state')
-    expect(emptyState).toHaveAttribute('data-empty-variant', 'awaiting')
-    expect(emptyState.querySelector('.empty-state-icon')).not.toBeNull()
-    expect(emptyState.querySelector('.empty-title')).not.toBeNull()
-    expect(emptyState.querySelector('.empty-copy')).not.toBeNull()
-    expect(emptyState.querySelector('.empty-note')).not.toBeNull()
+    renderPage()
+    expect(await screen.findByText(/nothing sent yet/i)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /refresh/i })).toHaveLength(1)
+    expect(screen.getByText(/entries appear here once they are sent/i)).toBeInTheDocument()
     expect(screen.queryByText(/push(es)? · .*queued|push(es)? · .*menunggu/i)).toBeNull()
-  })
-
-  it('W4-4: empty state routes through EmptyState with exactly one refresh action', async () => {
-    mockListPushes.mockResolvedValue([])
-    render(<KitchenPushesPage />)
-    await screen.findByText(/no pushes yet/i)
-
-    const emptyState = screen.getByTestId('empty-state')
-    const emptyActions = emptyState.querySelector('.empty-actions')
-    expect(emptyActions).not.toBeNull()
-    expect(emptyActions!.querySelectorAll('button, a')).toHaveLength(1)
-    expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument()
-    expect(within(emptyState).getByText(/refresh to check for new push activity/i)).toBeInTheDocument()
-    expect(within(emptyState).queryByText(/pull again/i)).toBeNull()
+    expect(screen.queryByText(/pull again/i)).toBeNull()
   })
 
   it('error: shows error message + retry button', async () => {
     mockListPushes.mockRejectedValue(new Error('DB error'))
-    render(<KitchenPushesPage />)
+    renderPage()
     // `.` matches either the straight or curly apostrophe — the i18n catalog uses ’ (U+2019).
     const errorMsg = await screen.findByText(/couldn.t load pushes/i)
     expect(errorMsg).toBeInTheDocument()
@@ -289,31 +287,27 @@ describe('KitchenPushesPage — states', () => {
 
   it('error + retry: retry re-fetches successfully', async () => {
     mockListPushes.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce([POSTED_ROW])
-    render(<KitchenPushesPage />)
+    renderPage()
     const retry = await screen.findByRole('button', { name: /try again/i })
     fireEvent.click(retry)
-    expect(await screen.findByText('PR-20260621-001')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /PR-20260621-001/ })).toBeInTheDocument()
   })
 })
 
-// ── Populated state — columns and display ─────────────────────────────────────
+// ── Populated state — list and details ────────────────────────────────────────
 
 describe('KitchenPushesPage — populated (FR-074)', () => {
-  it('populated state shows the push tally orientation line above the table/cards', async () => {
+  it('populated state shows the push tally orientation line above the list', async () => {
     mockListPushes.mockResolvedValue([POSTED_ROW, PENDING_ROW, IN_FLIGHT_ROW, HELD_ROW])
-    const { container } = render(<KitchenPushesPage />)
-    await screen.findByText('PR-20260621-001')
+    renderPage()
+    await screen.findByRole('button', { name: /PR-20260621-001/ })
 
-    const tally = screen.getByText('4 pushes · 1 queued')
-    expect(tally).toBeInTheDocument()
-    expect(tally.compareDocumentPosition(container.querySelector('.kpu-cols-host')!)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    )
+    expect(screen.getByText('4 pushes · 1 queued')).toBeInTheDocument()
   })
 
   it('pluralizes each tally count independently', async () => {
     mockListPushes.mockResolvedValue([POSTED_ROW])
-    render(<KitchenPushesPage />)
+    renderPage()
     expect(await screen.findByText('1 push · 0 queued')).toBeInTheDocument()
   })
 
@@ -324,147 +318,81 @@ describe('KitchenPushesPage — populated (FR-074)', () => {
       source_ref: `PR-WINDOW-${String(index).padStart(3, '0')}`,
     }))
     mockListPushes.mockResolvedValue(pushes)
-    render(<KitchenPushesPage />)
+    renderPage()
 
-    expect(await screen.findByText('PR-WINDOW-000')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /PR-WINDOW-000/ })).toBeInTheDocument()
     expect(mockListPushes).toHaveBeenCalledWith(undefined, ESB_PUSHES_WINDOW_MAX_ROWS + 1)
     expect(screen.getByText(`Showing the first ${ESB_PUSHES_WINDOW_MAX_ROWS} pushes — more may exist.`)).toBeInTheDocument()
-    expect(screen.queryByText(`PR-WINDOW-${ESB_PUSHES_WINDOW_MAX_ROWS}`)).toBeNull()
-    expect(screen.getAllByRole('row')).toHaveLength(ESB_PUSHES_WINDOW_MAX_ROWS + 1)
+    expect(screen.queryByRole('button', { name: new RegExp(`PR-WINDOW-${ESB_PUSHES_WINDOW_MAX_ROWS}`) })).toBeNull()
+    expect(screen.getAllByRole('button', { name: /PR-WINDOW-/ })).toHaveLength(ESB_PUSHES_WINDOW_MAX_ROWS)
   })
 
-  it('RI-IXD-6: desktop pushes uses the shared DataTable branch, not a kitchen-local table wrapper', async () => {
+  it('a chosen batch shows every field it was sent with, in floor language', async () => {
     setViewport(true)
     mockListPushes.mockResolvedValue([POSTED_ROW])
-    const { container } = render(<KitchenPushesPage />)
-    await screen.findByText('PR-20260621-001')
-
-    expect(container.querySelector('.dt-table')).not.toBeNull()
-    expect(container.querySelector('.kpu-tablewrap, .kpu-table')).toBeNull()
-  })
-
-  it('RI-IXD-6: phone pushes uses the shared DataTable card branch, not a horizontal table', async () => {
-    setViewport(false)
-    mockListPushes.mockResolvedValue([POSTED_ROW])
-    const { container } = render(<KitchenPushesPage />)
-    await screen.findByText('PR-20260621-001')
-
-    expect(container.querySelector('.dt-cards')).not.toBeNull()
-    expect(screen.queryByRole('table')).toBeNull()
-    expect(container.querySelector('.kpu-tablewrap, .kpu-table')).toBeNull()
-  })
-
-  it('renders a semantic table with the required column headers', async () => {
-    setViewport(true)
-    mockListPushes.mockResolvedValue([POSTED_ROW])
-    const { container } = render(<KitchenPushesPage />)
-    await screen.findByText('PR-20260621-001')
+    const { container } = renderPage()
+    const details = await openPush('PR-20260621-001')
 
     // Rule 12: the whole rendered screen uses floor language, not the integration acronym.
     expect(container).not.toHaveTextContent(/\bESB\b/i)
-
-    const table = screen.getByRole('table')
-    expect(table).toBeInTheDocument()
-    expect(within(table).getByRole('columnheader', { name: /batch/i })).toBeInTheDocument()
-    expect(within(table).getByRole('columnheader', { name: /endpoint/i })).toBeInTheDocument()
-    expect(within(table).getByRole('columnheader', { name: /target/i })).toBeInTheDocument()
-    expect(within(table).getByRole('columnheader', { name: /status/i })).toBeInTheDocument()
-    expect(within(table).getByRole('columnheader', { name: /retries|retry/i })).toBeInTheDocument()
+    for (const label of ['Batch', 'Status', 'Endpoint', 'Target', 'Retries', 'Created', 'Posted']) {
+      expect(within(details).getByText(label, { selector: 'dt' })).toBeInTheDocument()
+    }
   })
 
   it('posted row: shows esb_doc_num and posted_at time', async () => {
     mockListPushes.mockResolvedValue([POSTED_ROW])
-    render(<KitchenPushesPage />)
-    expect(await screen.findByText('SMA-2026-0001')).toBeInTheDocument()
+    renderPage()
+    const details = await openPush('PR-20260621-001')
+    expect(within(details).getByText('SMA-2026-0001')).toBeInTheDocument()
     // posted_at is displayed in some time format (exact hour depends on TZ in jsdom;
-    // assert the time cell is not empty / not "—")
-    const postedCells = screen.getAllByRole('cell')
-    const postedTimeCell = postedCells[postedCells.length - 1] // last td = posted_at
-    expect(postedTimeCell.textContent).not.toBe('—')
+    // assert the time is not empty / not "—")
+    const posted = within(details).getByText('Posted', { selector: 'dt' }).nextElementSibling
+    expect(posted?.textContent).not.toBe('—')
+    expect(posted?.textContent?.trim()).not.toBe('')
   })
 
   it('dead_letter row: shows last_error + retry_count', async () => {
     mockListPushes.mockResolvedValue([DEAD_LETTER_ROW])
-    render(<KitchenPushesPage />)
-    expect(await screen.findByText(/ESB timeout after 30s/i)).toBeInTheDocument()
-    // retry_count = 5
-    const retryCell = screen.getByText('5')
-    expect(retryCell).toBeInTheDocument()
+    renderPage()
+    const details = await openPush('PR-20260621-002')
+    expect(within(details).getByText(/ESB timeout after 30s/i)).toBeInTheDocument()
+    expect(within(details).getByText('Retries', { selector: 'dt' }).nextElementSibling).toHaveTextContent('5')
   })
 
   it('failed row: shows last_error + retry_count', async () => {
     mockListPushes.mockResolvedValue([FAILED_ROW])
-    render(<KitchenPushesPage />)
-    expect(await screen.findByText(/Connection refused/i)).toBeInTheDocument()
+    renderPage()
+    const details = await openPush('TB-20260621-001')
+    expect(within(details).getByText(/Connection refused/i)).toBeInTheDocument()
+    expect(within(details).getByText('Retries', { selector: 'dt' }).nextElementSibling).toHaveTextContent('2')
   })
 
   it('target_env displayed for each row (dry_run vs goo/gkid)', async () => {
     mockListPushes.mockResolvedValue([POSTED_ROW, DEAD_LETTER_ROW])
-    render(<KitchenPushesPage />)
-    await screen.findByText('PR-20260621-001')
-    // goo and dry_run are both present
-    const rows = screen.getAllByRole('row')
-    const rowText = rows.map(r => r.textContent ?? '')
-    expect(rowText.some(t => t.includes('GOO'))).toBe(true)
-    expect(rowText.some(t => t.includes('Dry run'))).toBe(true)
-  })
-
-  it('source_ref (batch_id) rendered in a mono font class', async () => {
-    mockListPushes.mockResolvedValue([POSTED_ROW])
-    render(<KitchenPushesPage />)
-    const batchCell = await screen.findByText('PR-20260621-001')
-    // The mono class should be on the cell or its parent
-    expect(batchCell.closest('.mono') ?? batchCell.classList.contains('mono')).toBeTruthy()
-  })
-
-  it('esb_doc_num rendered in a mono font class when present', async () => {
-    mockListPushes.mockResolvedValue([POSTED_ROW])
-    render(<KitchenPushesPage />)
-    const docCell = await screen.findByText('SMA-2026-0001')
-    expect(docCell.closest('.mono') ?? docCell.classList.contains('mono')).toBeTruthy()
-  })
-
-  it('retry_count cells carry the .tabular class', async () => {
-    mockListPushes.mockResolvedValue([POSTED_ROW])
-    render(<KitchenPushesPage />)
-    await screen.findByText('PR-20260621-001')
-    // retry_count = 0 — find the '0' cell in the row
-    const table = screen.getByRole('table')
-    const countCells = within(table).getAllByText('0')
-    expect(countCells.some(el => el.classList.contains('tabular'))).toBe(true)
+    renderPage()
+    const posted = await screen.findByRole('button', { name: /PR-20260621-001/ })
+    const dead = screen.getByRole('button', { name: /PR-20260621-002/ })
+    expect(posted).toHaveTextContent('GOO')
+    expect(dead).toHaveTextContent('Dry run')
   })
 })
 
-// ── Dead-letter row treatment (design-plan §S5 "needs-attention") ─────────────
+// ── Needs-attention batches ───────────────────────────────────────────────────
 
-describe('KitchenPushesPage — dead-letter row treatment', () => {
-  it('dead_letter row has the kpu-row-dead-letter class for the warning tint + left rule', async () => {
-    mockListPushes.mockResolvedValue([DEAD_LETTER_ROW])
-    render(<KitchenPushesPage />)
-    await screen.findByText('PR-20260621-002')
-
-    // The row carrying the dead_letter status gets the attention class
-    const table = screen.getByRole('table')
-    const rows = within(table).getAllByRole('row')
-    const deadRow = rows.find(r => r.textContent?.includes('PR-20260621-002'))
-    expect(deadRow?.classList.contains('kpu-row-dead-letter')).toBe(true)
-  })
-
+describe('KitchenPushesPage — dead-letter batches', () => {
   it('dead_letter row shows the escalate hint (read-only, no retry action)', async () => {
     mockListPushes.mockResolvedValue([DEAD_LETTER_ROW])
-    render(<KitchenPushesPage />)
-    expect(await screen.findByText(/escalate/i)).toBeInTheDocument()
+    renderPage()
+    const details = await openPush('PR-20260621-002')
+    expect(within(details).getByText(/escalate/i)).toBeInTheDocument()
   })
 
-  it('non-dead-letter rows do NOT get the attention class', async () => {
+  it('a healthy batch shows no escalate hint', async () => {
     mockListPushes.mockResolvedValue([POSTED_ROW])
-    render(<KitchenPushesPage />)
-    await screen.findByText('PR-20260621-001')
-
-    const table = screen.getByRole('table')
-    const rows = within(table).getAllByRole('row')
-    const postedRow = rows.find(r => r.textContent?.includes('PR-20260621-001'))
-    expect(postedRow?.classList.contains('kpu-row-dead-letter')).toBe(false)
+    renderPage()
+    const details = await openPush('PR-20260621-001')
+    expect(within(details).queryByText(/escalate/i)).toBeNull()
   })
 })
 
@@ -473,16 +401,16 @@ describe('KitchenPushesPage — dead-letter row treatment', () => {
 describe('KitchenPushesPage — read-only (no mutations, v1 deferred retry)', () => {
   it('populated: NO retry/resend/reset buttons exist', async () => {
     mockListPushes.mockResolvedValue([DEAD_LETTER_ROW, POSTED_ROW])
-    render(<KitchenPushesPage />)
-    await screen.findByText('PR-20260621-002')
+    renderPage()
+    await openPush('PR-20260621-002')
     // Only the page-level "Retry" on error state is allowed; no row-level mutation
     expect(screen.queryByRole('button', { name: /resend|reset|retry push|retry row|re-?send/i })).toBeNull()
   })
 
   it('no input/form elements exist — this surface is read-only', async () => {
     mockListPushes.mockResolvedValue([DEAD_LETTER_ROW])
-    render(<KitchenPushesPage />)
-    await screen.findByText('PR-20260621-002')
+    renderPage()
+    await openPush('PR-20260621-002')
     expect(screen.queryByRole('textbox')).toBeNull()
     expect(screen.queryByRole('spinbutton')).toBeNull()
     // No form
@@ -495,13 +423,11 @@ describe('KitchenPushesPage — read-only (no mutations, v1 deferred retry)', ()
 describe('KitchenPushesPage — all status values render', () => {
   it('all four rows render with their status labels as text', async () => {
     mockListPushes.mockResolvedValue([POSTED_ROW, DEAD_LETTER_ROW, FAILED_ROW, PENDING_ROW])
-    render(<KitchenPushesPage />)
-    await screen.findByText('PR-20260621-001')
+    renderPage()
+    await screen.findByRole('button', { name: /PR-20260621-001/ })
 
-    // Each status appears as visible text (not color-only — WCAG 1.4.1); row-text
-    // scanning because 'Posted' now also names the column header (#402).
-    const rows = within(screen.getByRole('table')).getAllByRole('row')
-    const rowText = rows.map(r => r.textContent ?? '')
+    // Each status appears as visible text (not color-only — WCAG 1.4.1).
+    const rowText = screen.getAllByRole('button', { name: /-20260621-/ }).map(row => row.textContent ?? '')
     expect(rowText.some(t => t.includes('Posted'))).toBe(true)
     expect(rowText.some(t => t.includes('Failed · stopped'))).toBe(true)
     expect(rowText.some(t => t.includes('Failed · retrying'))).toBe(true)
@@ -515,34 +441,30 @@ describe('KitchenPushesPage — all status values render', () => {
 // production master data has no per-activity locations to post to). The outbox still carries
 // the row, because one row per batch is what the double-post guard is built on, so this screen
 // is where the two outcomes have to be told apart.
-//
-// Read as a bare status that row says `pending`, and keeps saying it. Bar capture is what turns
-// that into a real problem: intra-branch movements used to be one carried case of the
-// incumbent's and are now capturable from every stream, so the lead's one question here — is
-// anything stuck? — collects a growing pile of wrong answers unless held has its own word.
 
 describe('KitchenPushesPage — held vs posted (FR-052)', () => {
   it('FR-052: a held (intra-branch) row reads "held", not "pending"', async () => {
     mockListPushes.mockResolvedValue([HELD_ROW])
-    render(<KitchenPushesPage />)
-    await screen.findByText('TB-20260621-002')
+    renderPage()
+    const row = await screen.findByRole('button', { name: /TB-20260621-002/ })
 
-    expect(screen.getByText('held')).toBeInTheDocument()
-    expect(screen.queryByText('pending')).toBeNull()
+    expect(row).toHaveTextContent(/held/i)
+    expect(row).not.toHaveTextContent(/pending/i)
   })
 
-  it('FR-052: held and posted are distinguishable in the same table', async () => {
+  it('FR-052: held and posted are distinguishable in the same list', async () => {
     mockListPushes.mockResolvedValue([POSTED_ROW, HELD_ROW])
-    render(<KitchenPushesPage />)
-    await screen.findByText('TB-20260621-002')
+    renderPage()
+    const held = await screen.findByRole('button', { name: /TB-20260621-002/ })
+    expect(screen.getByRole('button', { name: /PR-20260621-001/ })).toHaveTextContent('Posted')
+    expect(held).toHaveTextContent(/held/i)
 
-    // Both words present as text, not as tint alone (WCAG 1.4.1).
-    expect(screen.getAllByText('Posted').length).toBeGreaterThan(0)
-    expect(screen.getByText('held')).toBeInTheDocument()
-    // And the document column says which of the two HAS a document: the posted row's number,
+    // And the document field says which of the two HAS a document: the posted row's number,
     // and for the held row a statement rather than an em dash, which reads as "not yet".
-    expect(screen.getByText('SMA-2026-0001')).toBeInTheDocument()
-    expect(screen.getByText(/no esb document/i)).toBeInTheDocument()
+    const posted = await openPush('PR-20260621-001')
+    expect(within(posted).getByText('SMA-2026-0001')).toBeInTheDocument()
+    const heldDetails = await openPush('TB-20260621-002')
+    expect(within(heldDetails).getByText(/no esb document/i)).toBeInTheDocument()
   })
 
   it('FR-052: a no-op row that genuinely FAILED still reads as failed', async () => {
@@ -550,31 +472,23 @@ describe('KitchenPushesPage — held vs posted (FR-052)', () => {
     // it must never swallow a dispatch that went wrong, which is the one thing on this screen
     // that actually wants a human.
     mockListPushes.mockResolvedValue([FAILED_ROW])
-    render(<KitchenPushesPage />)
-    await screen.findByText('TB-20260621-001')
+    renderPage()
+    const row = await screen.findByRole('button', { name: /TB-20260621-001/ })
 
-    expect(screen.getAllByText('Failed · retrying').length).toBeGreaterThan(0)
-    expect(screen.queryByText('held')).toBeNull()
+    expect(row).toHaveTextContent('Failed · retrying')
+    expect(row).not.toHaveTextContent(/held/i)
   })
 })
 
-// ── #402 — human words, red tag on amber row, severity-first order, one-line ids ──
-
-const IN_FLIGHT_ROW: EsbPushRow = {
-  ...PENDING_ROW,
-  id: 'push-6',
-  source_ref: 'TR-20260621-002',
-  status: 'in_flight',
-  target_env: 'gkid',
-}
+// ── #402 — human words, severity-first order ──────────────────────────────────
 
 describe('KitchenPushesPage — #402 AC-1: no raw database enum reaches the screen', () => {
   it('every state reads as a word a person would say (status, target_env, endpoint)', async () => {
     mockListPushes.mockResolvedValue([
       POSTED_ROW, DEAD_LETTER_ROW, FAILED_ROW, PENDING_ROW, IN_FLIGHT_ROW, HELD_ROW,
     ])
-    render(<KitchenPushesPage />)
-    await screen.findByText('PR-20260621-001')
+    renderPage()
+    await screen.findByRole('button', { name: /PR-20260621-001/ })
 
     // The database's words are gone from the screen (exact-match: 'Posted' ≠ 'posted').
     for (const raw of [
@@ -584,12 +498,19 @@ describe('KitchenPushesPage — #402 AC-1: no raw database enum reaches the scre
       expect(screen.queryByText(raw), `raw enum "${raw}" must not reach the screen`).toBeNull()
     }
     // What a person would say is there instead.
+    const rowText = screen.getAllByRole('button', { name: /-20260621-/ }).map(row => row.textContent ?? '')
     for (const word of [
       'Posted', 'Failed · stopped', 'Failed · retrying', 'Queued', 'Sending', 'held',
       'Dry run', 'GOO', 'GKID',
-      'Assembly actuals', 'Stock transfer', 'None',
     ]) {
-      expect(screen.getAllByText(word).length, `person word "${word}" must be visible`).toBeGreaterThan(0)
+      expect(rowText.some(text => text.includes(word)), `person word "${word}" must be visible`).toBe(true)
+    }
+    // The endpoint is named in the batch's details.
+    for (const [ref, endpoint] of [
+      ['PR-20260621-001', 'Assembly actuals'], ['TR-20260621-001', 'Stock transfer'], ['TB-20260621-002', 'None'],
+    ] as const) {
+      const details = await openPush(ref)
+      expect(within(details).getByText(endpoint)).toBeInTheDocument()
     }
   })
 
@@ -602,12 +523,12 @@ describe('KitchenPushesPage — #402 AC-1: no raw database enum reaches the scre
         </I18nProvider>
       </MemoryRouter>,
     )
-    await screen.findByText('PR-20260621-001')
+    await screen.findByRole('button', { name: /PR-20260621-001/ })
 
-    expect(screen.getAllByText('Terkirim').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Gagal · berhenti').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Gagal · mengirim ulang').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Menunggu').length).toBeGreaterThan(0)
+    const rowText = screen.getAllByRole('button', { name: /-20260621-/ }).map(row => row.textContent ?? '')
+    for (const word of ['Terkirim', 'Gagal · berhenti', 'Gagal · mengirim ulang', 'Menunggu']) {
+      expect(rowText.some(text => text.includes(word)), `"${word}" must be visible`).toBe(true)
+    }
     expect(screen.getByText('4 push · 1 menunggu')).toBeInTheDocument()
     expect(screen.queryByText('dead_letter')).toBeNull()
   })
@@ -621,31 +542,8 @@ describe('KitchenPushesPage — #402 AC-1: no raw database enum reaches the scre
         </I18nProvider>
       </MemoryRouter>,
     )
-    await screen.findByText('PR-20260621-001')
+    await screen.findByRole('button', { name: /PR-20260621-001/ })
     expect(container).not.toHaveTextContent(/\bESB\b/i)
-  })
-})
-
-describe('KitchenPushesPage — #402 AC-2 (OD-WAY-74 #4): red tag, amber row', () => {
-  it('dead_letter wears the RED tag on the AMBER row; retryable failed keeps amber', async () => {
-    mockListPushes.mockResolvedValue([DEAD_LETTER_ROW, FAILED_ROW])
-    render(<KitchenPushesPage />)
-    await screen.findByText('PR-20260621-002')
-
-    const rows = within(screen.getByRole('table')).getAllByRole('row')
-    const deadRow = rows.find(r => r.textContent?.includes('PR-20260621-002'))!
-    const failedRow = rows.find(r => r.textContent?.includes('TB-20260621-001'))!
-
-    // Red on the TAG (color set via the palette token + AA-darkened text, StatusPill precedent)
-    const deadTag = within(deadRow).getByText('Failed · stopped').closest('.mk-tag') as HTMLElement
-    expect(deadTag.getAttribute('style') ?? '').toContain('--ds-tag-background-red')
-    expect(deadTag).toHaveStyle({ color: 'var(--status-lost-text)' })
-    // …amber on the ROW (the row is fine; its delivery failed — never red on the row)
-    expect(deadRow.classList.contains('kpu-row-dead-letter')).toBe(true)
-
-    const failedTag = within(failedRow).getByText('Failed · retrying').closest('.mk-tag') as HTMLElement
-    expect(failedTag.getAttribute('style') ?? '').toContain('--ds-tag-background-amber')
-    expect(failedRow.classList.contains('kpu-row-dead-letter')).toBe(false)
   })
 })
 
@@ -653,117 +551,40 @@ describe('KitchenPushesPage — #402 AC-3: rows needing attention sort above hea
   it('a dead_letter batch sorts above newer healthy rows (severity outranks recency)', async () => {
     // API returns newest-first: POSTED_ROW (05:00) is NEWER than DEAD_LETTER_ROW (04:00).
     mockListPushes.mockResolvedValue([POSTED_ROW, PENDING_ROW, DEAD_LETTER_ROW])
-    render(<KitchenPushesPage />)
-    await screen.findByText('PR-20260621-002')
+    renderPage()
+    await screen.findByRole('button', { name: /PR-20260621-002/ })
 
-    const rows = within(screen.getByRole('table')).getAllByRole('row')
-    const idx = (ref: string) => rows.findIndex(r => r.textContent?.includes(ref))
+    const refs = screen.getAllByRole('button', { name: /-20260621-/ }).map(row => /\w{2}-20260621-\d{3}/.exec(row.textContent ?? '')?.[0])
+    const idx = (ref: string) => refs.indexOf(ref)
     expect(idx('PR-20260621-002')).toBeLessThan(idx('PR-20260621-001')) // above newer posted
     expect(idx('PR-20260621-002')).toBeLessThan(idx('TR-20260621-001')) // above newer pending
   })
 })
 
-describe('KitchenPushesPage — #402 AC-4: the batch id is one paste-able string', () => {
-  it('source_ref renders as code.kpu-ref.mono — one line, select-all', async () => {
-    mockListPushes.mockResolvedValue([POSTED_ROW])
-    render(<KitchenPushesPage />)
-    const batch = await screen.findByText('PR-20260621-001')
-    expect(batch.tagName).toBe('CODE')
-    expect(batch.classList.contains('kpu-ref')).toBe(true)
-    expect(batch.classList.contains('mono')).toBe(true)
-  })
-
-  it('same treatment on the phone card branch', async () => {
-    setViewport(false)
-    mockListPushes.mockResolvedValue([POSTED_ROW])
-    render(<KitchenPushesPage />)
-    const batch = await screen.findByText('PR-20260621-001')
-    expect(batch.tagName).toBe('CODE')
-    expect(batch.classList.contains('kpu-ref')).toBe(true)
-  })
-
-  it('the CSS keeps the id on one line and makes the whole id one selection', () => {
-    // Repo idiom for reading a sibling source file in a test (cohesion-chrome
-    // regression tests do the same): resolve from cwd — vitest runs with cwd = mos-app.
-    const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-pushes-page.css'), 'utf8')
-    const rule = css.match(/\.kpu-ref\s*\{([^}]*)\}/)
-    expect(rule, '.kpu-ref rule must exist in kitchen-pushes-page.css').toBeTruthy()
-    expect(rule![1]).toContain('white-space: nowrap')
-    expect(rule![1]).toContain('user-select: all')
-  })
-})
-
-// ── #416: the one-line id must not widen the table out of its frame ───────────
-// The nowrap id only stays on one line WITHOUT pushing columns off screen because the
-// table is fixed-layout: in an auto-layout table `max-width: 100%` on cell content has no
-// definite width to resolve against, so the id's overflow never fires and the column grows
-// instead (measured: +93px, and 154px of whole-page horizontal scroll at an 820px
-// viewport). jsdom has no layout, so these assert the two things that produce it — the
-// class the page hands the table, and the rule that class carries.
-describe('KitchenPushesPage — #416: the table stays inside its frame', () => {
-  it('hands the table the fixed-layout class', async () => {
-    mockListPushes.mockResolvedValue([POSTED_ROW])
-    render(<KitchenPushesPage />)
-    const table = await screen.findByRole('table')
-    expect(table.classList.contains('kpu-cols')).toBe(true)
-  })
-
-  it('and that class pins the column widths instead of letting content set them', () => {
-    const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-pushes-page.css'), 'utf8')
-    const rule = css.match(/\.kpu-cols\s*\{([^}]*)\}/)
-    expect(rule, '.kpu-cols rule must exist in kitchen-pushes-page.css').toBeTruthy()
-    expect(rule![1]).toContain('table-layout: fixed')
-    // The Error column takes the slack, so no column can be squeezed to nothing.
-    expect(css).toMatch(/nth-child\(6\)\s*\{\s*width:\s*auto/)
-  })
-})
-
-// ── #422: the phone card ─────────────────────────────────────────────────────
-// The generic <dl> fallback stacked all ten columns as labelled rows per push.
-// These assert the card's OWN anatomy, so they FAIL against that fallback (proven
-// by temporarily removing the renderCard prop): head = ref + status, ONE muted
-// meta line, and the error block only when the row actually carries one.
-describe('KitchenPushesPage — phone card (#422)', () => {
-  it('renders the purpose-built card: ref+status head, one meta line, no <dl> fallback', async () => {
-    setViewport(false)
-    mockListPushes.mockResolvedValue([
-      { ...POSTED_ROW, id: 'p1', source_ref: 'PR2606210001' },
-    ])
-    render(<KitchenPushesPage />)
-    const card = (await screen.findByText('PR2606210001')).closest('.kpu-card')
-    expect(card).not.toBeNull()
-    expect(card!.querySelector('.kpu-card-head')).not.toBeNull()
-    expect(card!.querySelector('.kpu-card-meta')).not.toBeNull()
-    // a healthy row carries NO error block — this is what kills the 10-line stack
-    expect(card!.querySelector('.kpu-card-error')).toBeNull()
-    expect(document.querySelector('.dt-card-detail')).toBeNull()
-  })
-
-  it('a dead-letter card shows the error + escalate hint; the page head counts it', async () => {
+// ── #422: stuck batches are counted in the page head ─────────────────────────
+describe('KitchenPushesPage — phone (#422)', () => {
+  it('a dead-letter batch shows the error + escalate hint when chosen; the page head counts it', async () => {
     setViewport(false)
     mockListPushes.mockResolvedValue([
       { ...DEAD_LETTER_ROW, id: 'p1', source_ref: 'PR2606210001', last_error: 'EC031 rejected' },
       { ...FAILED_ROW, id: 'p2', source_ref: 'PR2606210002' },
       { ...POSTED_ROW, id: 'p3', source_ref: 'PR2606210003', esb_doc_num: 'SMF002' },
     ])
-    render(<KitchenPushesPage />)
-    const dead = (await screen.findByText('PR2606210001')).closest('.kpu-card')!
-    expect(dead.querySelector('.kpu-card-error')).not.toBeNull()
-    expect(dead.textContent).toContain('EC031 rejected')
+    renderPage()
+    const details = await openPush('PR2606210001')
+    expect(within(details).getByText('EC031 rejected')).toBeInTheDocument()
+    expect(within(details).getByText(/escalate/i)).toBeInTheDocument()
     // the head meta answers "what is stuck", not only "how many"
-    expect(document.querySelector('.kpu-meta-dead')?.textContent).toContain('1')
-    expect(document.querySelector('.kpu-meta-failed')?.textContent).toContain('1')
-    // the healthy card stays quiet
-    const ok = (await screen.findByText('PR2606210003')).closest('.kpu-card')!
-    expect(ok.querySelector('.kpu-card-error')).toBeNull()
+    expect(screen.getByText('1 dead-lettered')).toBeInTheDocument()
+    expect(screen.getByText('1 failed, retrying')).toBeInTheDocument()
   })
 
   it('a healthy outbox renders NO head meta line at all', async () => {
     setViewport(false)
     mockListPushes.mockResolvedValue([{ ...POSTED_ROW, id: 'p1', source_ref: 'PR2606210001' }])
-    render(<KitchenPushesPage />)
-    await screen.findByText('PR2606210001')
-    expect(document.querySelector('.kpu-meta-line')).toBeNull()
+    renderPage()
+    await screen.findByRole('button', { name: /PR2606210001/ })
+    expect(screen.queryByText(/dead-lettered|failed, retrying/)).toBeNull()
   })
 })
 
@@ -782,7 +603,7 @@ function cafeDocTitle(leaf: keyof typeof messages.en): string {
 describe('issue 455: document title', () => {
   it('titles the tab from the Café nav label, not the retired kitchen one', async () => {
     mockListPushes.mockResolvedValue([])
-    render(<KitchenPushesPage />)
+    renderPage()
     await waitFor(() => expect(document.title).toBe(cafeDocTitle('cafe.pageTitle.pushes')))
   })
 })

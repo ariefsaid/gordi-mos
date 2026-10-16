@@ -1,7 +1,9 @@
 import { useT } from '@/i18n/use-t'
+import { Panel } from '@/components/cafe/redesign/worksheet'
 import type { CafePurchaseRequest } from '@/lib/db/cafe-purchase-requests'
 import { formatWeekdayDayMonth, formatWibShortDateTime } from '@/lib/format/date'
 import { CafeRequestState } from './cafe-request-state'
+import { Notice } from '@/components/ui/notice'
 
 const NAMED_ITEMS = 2
 
@@ -22,16 +24,14 @@ export function CafeRequestHistory({
   const t = useT()
   if (failed) {
     return (
-      <p className="cafe-request__history-error" role="status">
-        <span>{t('cafe.request.recent.loadFailed')}</span>
-        <button type="button" className="btn btn-outline" onClick={onRetry}>{t('common.retry')}</button>
-      </p>
+      <Notice tone="attention" action={<button type="button" className="btn btn-outline" onClick={onRetry}>{t('common.retry')}</button>}>
+        {t('cafe.request.recent.loadFailed')}
+      </Notice>
     )
   }
   if (requests.length === 0) return null
   return (
-    <details className="cafe-request__history">
-      <summary>{t('cafe.request.recent.summary', { count: requests.length })}</summary>
+    <Panel title={t('cafe.request.recent.summary', { count: requests.length })} className="cafe-request__history">
       <ul aria-label={t('cafe.request.recent.title')}>
         {requests.map(request => {
           const names = request.lines.slice(0, NAMED_ITEMS).map(line => line.item_name).join(', ')
@@ -54,6 +54,6 @@ export function CafeRequestHistory({
           )
         })}
       </ul>
-    </details>
+    </Panel>
   )
 }

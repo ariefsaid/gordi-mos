@@ -3,12 +3,12 @@
  * RecordCollection-backed region body; this component only applies the viewer's composition rules.
  */
 import type { ReactNode } from 'react'
-import { useT } from '@/i18n/use-t'
 import type { HomeRegion } from './home-regions'
 import type { HomeLayout } from '@/lib/home-layout'
 import { HomeFocused } from './home-focused'
 import { HomeOverview } from './home-overview'
 import { HomeList } from './home-list'
+import { HomeNextAction } from './home-next-action'
 import './home-daily-brief.css'
 
 export interface HomeDailyBriefProps {
@@ -31,7 +31,6 @@ export function HomeDailyBrief({
   showFailedChecks = true,
   layout,
 }: HomeDailyBriefProps) {
-  const t = useT()
   // Persona rules decide which regions exist; the arrangement only decides how those readable
   // regions are shaped. Members keep their Café opening and assigned-work union, while cockpit
   // viewers retain the full Needs you / Failed checks / My work model.
@@ -54,15 +53,24 @@ export function HomeDailyBrief({
     : showFailedChecks
       ? regions
       : regions.filter((region) => region.id !== 'failed-checks')
-  const layoutFeed = (
-    <aside className="home-brief-aside" aria-label={t('home.brief.secondaryLabel')}>
-      <div className="home-brief-feed">{feed}</div>
-      {objectives ? <div className="home-brief-objectives">{objectives}</div> : null}
-    </aside>
-  )
+  const workRegions = layoutRegions.filter((region) => region.id !== 'failed-checks')
+  const workReadState = workRegions.some((region) => region.state === 'loading') ? 'loading'
+    : workRegions.some((region) => region.state === 'error') ? 'error' : 'ready'
+  const liftedRegion = layoutRegions.find((region) => region.items.length > 0)
+  const liftedItem = liftedRegion?.items[0] ?? null
+  const visibleRegions = layoutRegions.map((region) => region === liftedRegion
+    ? {
+        ...region,
+        totalItemCount: region.totalItemCount ?? region.items.length,
+        items: region.items.slice(1),
+      }
+    : region)
   const layoutProps = {
-    regions: layoutRegions,
-    feed: layoutFeed,
+    regions: visibleRegions,
+    nextAction: <HomeNextAction item={liftedItem} readState={workReadState} />,
+    objectives,
+    feed,
+    liftedRegionId: liftedRegion?.id,
     leading: composition === 'member' ? cafeDoor : undefined,
   }
   const arrangement = layout === 'overview'
@@ -71,5 +79,9 @@ export function HomeDailyBrief({
       ? <HomeList {...layoutProps} />
       : <HomeFocused {...layoutProps} />
 
-  return <div className="home-layout-host" data-testid="home-daily-brief">{arrangement}</div>
+  return (
+    <div className="home-layout-host" data-testid="home-daily-brief">
+      {arrangement}
+    </div>
+  )
 }

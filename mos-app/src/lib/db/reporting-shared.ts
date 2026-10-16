@@ -9,9 +9,9 @@ import { wibToday } from '@/lib/format/date'
 export const REPORTING_WINDOW_DAYS = 60
 
 /** Rows per request: the API's own per-response cap, so a full page means "maybe more". */
-export const REPORTING_PAGE_ROWS = 1000
+const REPORTING_PAGE_ROWS = 1000
 /** The most rows one reporting read will hold: 120 days of about 160 daily series. */
-export const REPORTING_READ_MAX_ROWS = 20_000
+const REPORTING_READ_MAX_ROWS = 20_000
 
 /** A reporting read that would need more rows than REPORTING_READ_MAX_ROWS. Thrown rather than
  *  returning a silent truncation, and told apart from a failed request. */

@@ -1,9 +1,4 @@
-.hlp-help {
-  max-width: 52ch;
-  margin: 0 0 12px;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-}
+.hlp-help { max-width: 52ch; margin: 0 0 var(--mos-space-3); color: var(--mos-muted); font: var(--mos-type-meta); }
 
 .hlp-opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .hlp-opt { display: block; cursor: pointer; }
@@ -12,7 +7,7 @@
 .hlp-card {
   display: block;
   height: 100%;
-  padding: 12px;
+  padding: var(--mos-row-pad-y);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--card);
@@ -20,11 +15,11 @@
 
 .hlp-opt:hover .hlp-card { border-color: var(--muted-foreground); }
 .hlp-opt input:checked + .hlp-card {
-  border-color: var(--primary);
-  box-shadow: inset 0 0 0 1px var(--primary);
-  background: var(--secondary);
+  border-color: var(--mos-accent);
+  box-shadow: inset 0 0 0 1px var(--mos-accent);
+  background: var(--mos-accent-tint);
 }
-.hlp-opt input:focus-visible + .hlp-card { outline: 2px solid var(--ring); outline-offset: 2px; }
+.hlp-opt input:focus-visible + .hlp-card { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 
 .hlp-thumb {
   display: grid;
@@ -39,11 +34,11 @@
 
 .hlp-opt input:checked + .hlp-card .hlp-thumb { background: var(--card); }
 .hlp-main, .hlp-side { display: grid; min-width: 0; gap: 4px; align-content: start; }
-.hlp-l { display: block; height: 4px; border-radius: var(--radius-pill); background: var(--muted-foreground); opacity: 0.45; }
+.hlp-l { display: block; height: 4px; border-radius: var(--radius-xs); background: var(--muted-foreground); opacity: 0.45; }
 .hlp-l--short { width: 60%; }
 .hlp-l--tiny { width: 38%; opacity: 0.3; }
 .hlp-tabs { display: flex; gap: 3px; }
-.hlp-tabs i { display: block; width: 16px; height: 5px; border-radius: var(--radius-pill); background: var(--muted-foreground); opacity: 0.3; }
+.hlp-tabs i { display: block; width: 16px; height: 5px; border-radius: var(--radius-xs); background: var(--muted-foreground); opacity: 0.3; }
 .hlp-tabs i:first-child { width: 20px; background: var(--primary); opacity: 1; }
 .hlp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .hlp-box { display: block; height: 26px; border: 1px solid var(--muted-foreground); border-radius: var(--radius-sm); opacity: 0.45; }
@@ -51,20 +46,20 @@
 .hlp-pair { display: grid; grid-template-columns: 26% 1fr; gap: 4px; align-items: center; }
 .hlp-post { display: grid; gap: 3px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
 .hlp-post--last { padding-bottom: 0; border-bottom: 0; }
-.hlp-name { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-weight: 600; }
-.hlp-badge { padding: 2px 8px; border-radius: var(--radius-pill); background: var(--secondary); color: var(--muted-foreground); font-size: var(--font-size-label); font-weight: 500; }
-.hlp-desc { display: block; margin-top: 4px; color: var(--muted-foreground); font-size: var(--font-size-label); }
+.hlp-name { display: flex; align-items: center; gap: var(--mos-space-2); margin-top: var(--mos-space-3); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); }
+.hlp-badge { padding: var(--mos-space-1) var(--mos-space-2); border-radius: var(--radius-xs); background: var(--mos-band); color: var(--mos-muted); font: var(--mos-type-label); }
+.hlp-desc { display: block; margin-top: var(--mos-space-1); color: var(--mos-muted); font: var(--mos-type-meta); }
 
 @media (max-width: 767.98px) {
   .hlp-opts { grid-template-columns: minmax(0, 1fr); }
   .hlp-card {
     display: grid;
     grid-template-columns: 88px minmax(0, 1fr);
-    gap: 4px 12px;
+    gap: var(--mos-label-gap) var(--mos-row-gap);
     align-content: center;
     /* Scroll the full choice clear of the shell chrome; its radio input has no visible box. */
-    scroll-margin-block-start: calc(var(--header-h) + 12px);
-    scroll-margin-block-end: calc(var(--tabbar-h) + 12px);
+    scroll-margin-block-start: calc(var(--mos-topbar-height) + 12px);
+    scroll-margin-block-end: calc(var(--mos-tabbar-height) + 12px);
   }
   .hlp-thumb { grid-row: span 2; align-self: center; aspect-ratio: 4 / 3; padding: 5px; }
   .hlp-name { margin-top: 0; flex-wrap: wrap; gap: 4px 8px; }

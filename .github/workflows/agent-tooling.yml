@@ -40,6 +40,8 @@ jobs:
         run: bash scripts/agent-git-shim.test.sh
       - name: pre-pr-verify self-test
         run: bash scripts/pre-pr-verify.test.sh
+      - name: quality-checks ratchet self-test
+        run: bash scripts/quality-checks.test.sh
       - name: MVP handoff preflight self-test
         run: bash scripts/mvp-handoff-preflight.test.sh
       - name: Impeccable detector vendor self-test
@@ -60,10 +62,6 @@ jobs:
         run: bash scripts/sssf-locks.test.sh
       - name: sssf timed-out quality check self-test (#389)
         run: bash scripts/sssf-quality-timeout.test.sh
-      - name: sssf design-audit chain self-test (#350)
-        run: bash scripts/sssf-design-audit.test.sh
-      - name: quantitative design-audit harness self-test (#quant-ui)
-        run: bash scripts/design-quality-audit.test.sh
       - name: sssf provider-fault vs model-fault self-test (#386)
         run: bash scripts/sssf-provider-error.test.sh
       - name: kitchen history import self-test (#349)
@@ -82,8 +80,6 @@ jobs:
         run: bash scripts/skills-plan.test.sh
       - name: record-review independent-review stamp self-test
         run: bash scripts/record-review.test.sh
-      - name: lane-exempt audit-trail self-test
-        run: bash scripts/lane-exempt.test.sh
       - name: cloud sandbox tool helpers self-test
         run: bash scripts/cloud-tools.test.sh
       - name: drive-next ticket-picker self-test

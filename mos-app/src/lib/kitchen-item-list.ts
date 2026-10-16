@@ -21,7 +21,7 @@ export type KitchenItemActiveFilter = 'All' | 'Active' | 'Inactive'
 export type KitchenItemNeedsUnitFilter = 'All' | 'Needs unit'
 
 // #1287 adds the team-classified RAW stream items used by transfer capture.
-export const RAW_ITEMS_ENABLED = true
+const RAW_ITEMS_ENABLED = true
 export const KITCHEN_KIND_FILTER_OPTIONS: readonly KitchenItemKindFilter[] = RAW_ITEMS_ENABLED
   ? ['All', 'WIP', 'RAW']
   : ['All', 'WIP']

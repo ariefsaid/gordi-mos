@@ -10,7 +10,7 @@
 
 .catalog-record-history__item {
   min-width: 0;
-  padding: 10px 0;
+  padding: var(--mos-row-pad-y) 0;
   border-top: 1px solid var(--row-divider);
 }
 
@@ -30,14 +30,14 @@
 .catalog-record-history__who {
   min-width: 0;
   color: var(--foreground);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 
 .catalog-record-history__when {
   color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
 }
 
 .catalog-record-history__channel {
@@ -45,14 +45,14 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   line-height: 18px;
 }
 
 .catalog-record-history__change {
   margin: 2px 0 0;
   color: var(--muted-foreground);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   overflow-wrap: anywhere;
 }
 
@@ -79,7 +79,7 @@
   background: none;
   color: var(--muted-foreground);
   font: inherit;
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   cursor: pointer;
 }
 
@@ -90,20 +90,15 @@
 
 .catalog-record-history__exact {
   color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
 }
 
 @media (max-width: 767.98px) {
   .catalog-record-history__when-toggle,
   .catalog-record-history__expand {
-    min-height: 44px;
+    min-height: var(--mos-control-height);
     min-width: 44px;
   }
-}
-
-/* Loading and error rows sit on the heading's and list rows' left edge, not inset like a card. */
-.catalog-record-history .error-state {
-  padding: 0;
 }
 
 .catalog-record-history .skeleton-row {
@@ -118,7 +113,7 @@
 .catalog-record-history__empty {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
 }
 
 .catalog-record-history__more {
@@ -127,7 +122,7 @@
 
 @media (max-width: 767.98px) {
   .catalog-record-history__more {
-    min-height: 44px;
+    min-height: var(--mos-control-height);
   }
 }
 

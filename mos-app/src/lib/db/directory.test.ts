@@ -9,6 +9,7 @@ vi.mock('../supabase', () => {
 import {
   getBusinessUnits,
   getDownlinePersonIds,
+  getDirectManagerPersonIds,
   getPersonBusinessUnitIds,
   getPeople,
   getPersonTeams,
@@ -143,6 +144,27 @@ describe('getPeople', () => {
     schemaMock.mockReturnValue(makeSharedSchema({ people: { data: [], error: null } }) as never)
     const result = await getPeople()
     expect(result).toEqual([])
+  })
+})
+
+describe('getDirectManagerPersonIds', () => {
+  it('uses the PIC role matching the Task BU and excludes unrelated reporting lines', async () => {
+    const rec = { isCalls: [] as Array<[string, unknown]>, selects: [] as Array<[string, unknown]> }
+    schemaMock.mockReturnValue(makeSharedSchema({
+      person_roles: { data: [
+        { person_id: 'pic', role_id: 'retail-staff' }, { person_id: 'pic', role_id: 'sales-staff' },
+        { person_id: 'retail-manager', role_id: 'retail-lead' }, { person_id: 'sales-manager', role_id: 'sales-lead' },
+      ], error: null },
+      roles: { data: [
+        { id: 'retail-staff', business_unit_id: 'retail', reports_to_role_id: 'retail-lead' },
+        { id: 'retail-lead', business_unit_id: 'retail', reports_to_role_id: null },
+        { id: 'sales-staff', business_unit_id: 'sales', reports_to_role_id: 'sales-lead' },
+        { id: 'sales-lead', business_unit_id: 'sales', reports_to_role_id: null },
+      ], error: null },
+    }, rec) as never)
+
+    expect(await getDirectManagerPersonIds('pic', 'retail')).toEqual(['retail-manager'])
+    expect(rec.selects).toContainEqual(['roles', 'id,business_unit_id,reports_to_role_id'])
   })
 })
 

@@ -1,9 +1,10 @@
-import { test, expect, type Locator, type Page, type TestInfo } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { MANAGER } from './fixtures/users'
 
 const PHONE = { width: 390, height: 844 }
-const DESKTOP = { width: 1440, height: 900 }
+// A record opens beside its list only on a wide content track; narrower it opens as a sheet or page.
+const DESKTOP = { width: 1920, height: 1080 }
 const COLLECTIONS = [
   { key: 'signals', path: 'work/signals?layout=feed', label: 'Signals' },
   { key: 'tasks', path: 'work/tasks', label: 'Tasks' },
@@ -13,6 +14,17 @@ const COLLECTIONS = [
 
 type CollectionKey = typeof COLLECTIONS[number]['key']
 type RecordTarget = { path: string; kind: 'signal' | 'task' | 'catalog'; name: string }
+
+/** The record links of a Projects & Processes or Objectives collection (each row links its canonical record page). */
+const catalogRecordLinks = (page: Page, collection: 'projects' | 'objectives') =>
+  page.locator(`main a[href*="/work/${collection}/"]`)
+
+/** The record's own name: the link's accessible name when it carries one, else its first line of text. */
+async function catalogRecordName(link: Locator): Promise<string> {
+  const label = await link.getAttribute('aria-label')
+  if (label) return label
+  return ((await link.innerText()).split('\n')[0] ?? '').trim()
+}
 
 async function openFirstRecord(page: Page, collection: CollectionKey, phone: boolean): Promise<RecordTarget> {
   if (collection === 'signals') {
@@ -44,10 +56,10 @@ async function openFirstRecord(page: Page, collection: CollectionKey, phone: boo
     return { path: new URL(href, page.url()).pathname, kind: 'task', name }
   }
 
-  const row = page.locator('.catalog-collection__row-link').first()
+  const row = catalogRecordLinks(page, collection).first()
   await expect(row).toBeVisible()
   const href = (await row.getAttribute('href'))!
-  const name = (await row.getAttribute('aria-label')) ?? ''
+  const name = await catalogRecordName(row)
   await row.click()
   return { path: new URL(href, page.url()).pathname, kind: 'catalog', name }
 }
@@ -60,12 +72,11 @@ async function expectRecordReady(scope: Page | Locator, target: RecordTarget) {
   }
 }
 
-async function visitPhoneRecords(page: Page, info: TestInfo, actorName: string) {
+async function visitPhoneRecords(page: Page) {
   for (const collection of COLLECTIONS) {
     await page.goto(collection.path)
-    const switcher = page.locator('[data-anatomy="work-collection-switcher"]')
-    await expect(switcher).toBeVisible()
-    await expect(switcher.getByRole('link', { name: collection.label, exact: true })).toHaveAttribute('aria-current', 'location')
+    // On a phone every Work collection leads back to the Work directory.
+    await expect(page.getByRole('link', { name: 'Back to Work', exact: true })).toBeVisible()
 
     const target = await openFirstRecord(page, collection.key, true)
     await expect(page).toHaveURL((url) => url.pathname === target.path)
@@ -73,25 +84,22 @@ async function visitPhoneRecords(page: Page, info: TestInfo, actorName: string) 
     await expectRecordReady(page, target)
     const back = page.getByRole('link', { name: `Back to ${collection.label}`, exact: true })
     await expect(back).toBeVisible()
-    await page.screenshot({ path: info.outputPath(`${actorName}-390-${collection.key}-record.png`), animations: 'disabled' })
     await back.click()
     await expect(page).toHaveURL((url) => url.pathname.endsWith(`/work/${collection.key}`))
-    await expect(switcher.getByRole('link', { name: collection.label, exact: true })).toHaveAttribute('aria-current', 'location')
+    await expect(page.getByRole('link', { name: 'Back to Work', exact: true })).toBeVisible()
     await expect(page.locator('[data-overlay-host]')).toHaveCount(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
   }
 }
 
-async function visitDesktopPanels(page: Page, info: TestInfo, actorName: string) {
+async function visitDesktopPanels(page: Page) {
   for (const collection of COLLECTIONS) {
     await page.goto(collection.path)
     const target = await openFirstRecord(page, collection.key, false)
     const panel = page.locator('[data-overlay-host]')
     await expect(panel).toBeVisible()
-    await expect(panel).toHaveClass(/drawer-split/)
     await expect(page.getByRole('heading', { name: collection.label, exact: true })).toBeVisible()
     await expectRecordReady(panel, target)
-    await page.screenshot({ path: info.outputPath(`${actorName}-1440-${collection.key}-panel.png`), animations: 'disabled' })
 
     await page.reload()
     if (collection.key === 'signals') {
@@ -103,21 +111,9 @@ async function visitDesktopPanels(page: Page, info: TestInfo, actorName: string)
       await expectRecordReady(page, target)
     } else {
       await expect(page.locator('[data-overlay-host]')).toBeVisible()
-      await expect(page.locator('[data-overlay-host]')).toHaveClass(/drawer-split/)
       await expect(page).toHaveURL(/record=/)
       await expectRecordReady(page.locator('[data-overlay-host]'), target)
     }
-  }
-
-  if (actorName === 'director') {
-    await page.setViewportSize({ width: 1920, height: 1080 })
-    await page.goto('work/tasks')
-    const target = await openFirstRecord(page, 'tasks', false)
-    const panel = page.locator('[data-overlay-host]')
-    await expect(panel).toBeVisible()
-    await expect(panel).toHaveClass(/drawer-split/)
-    await expectRecordReady(panel, target)
-    await page.screenshot({ path: info.outputPath(`${actorName}-1920-tasks-panel.png`), animations: 'disabled' })
   }
 }
 
@@ -126,18 +122,18 @@ async function visitDesktopPanels(page: Page, info: TestInfo, actorName: string)
 for (const actor of [
   { name: 'Director', ...MANAGER },
 ]) {
-  test(`${actor.name}: all four Work records open as full pages on phone and return with one Back`, async ({ page }, info) => {
+  test(`${actor.name}: all four Work records open as full pages on phone and return with one Back`, async ({ page }) => {
     test.setTimeout(55_000)
     await page.setViewportSize(PHONE)
     await loginAs(page, actor.email, actor.password)
-    await visitPhoneRecords(page, info, actor.name.toLowerCase())
+    await visitPhoneRecords(page)
   })
 
-  test(`${actor.name}: Work record panels restore on desktop except Signals under OD-REDESIGN-63`, async ({ page }, info) => {
+  test(`${actor.name}: Work record panels restore on desktop except Signals under OD-REDESIGN-63`, async ({ page }) => {
     test.setTimeout(55_000)
     await page.setViewportSize(DESKTOP)
     await loginAs(page, actor.email, actor.password)
-    await visitDesktopPanels(page, info, actor.name.toLowerCase())
+    await visitDesktopPanels(page)
   })
 }
 
@@ -145,10 +141,10 @@ test('a cold query-linked panel closes to its collection; a cold canonical URL s
   await page.setViewportSize(DESKTOP)
   await loginAs(page, MANAGER.email, MANAGER.password)
   await page.goto('work/projects')
-  const row = page.locator('.catalog-collection__row-link').first()
+  const row = catalogRecordLinks(page, 'projects').first()
   await expect(row).toBeVisible()
   const href = (await row.getAttribute('href'))!
-  const name = (await row.getAttribute('aria-label')) ?? ''
+  const name = await catalogRecordName(row)
   await row.click()
   await expect(page).toHaveURL(/record=/)
 
@@ -174,35 +170,27 @@ test('pushing the task-create frame keeps Title focused without validating the b
   await page.setViewportSize(DESKTOP)
   await loginAs(page, MANAGER.email, MANAGER.password)
   await page.goto('work/projects')
-  const rows = page.locator('.catalog-collection__row')
-  await expect(rows.first()).toBeVisible()
-  let projectLink: Locator | null = null
-  for (let index = 0; index < await rows.count(); index += 1) {
-    const candidate = rows.nth(index)
-    if (await candidate.locator('.catalog-collection__identity .mk-tag').innerText() === 'Project') {
-      projectLink = candidate.locator('.catalog-collection__row-link')
-      break
-    }
-  }
-  expect(projectLink, 'the seeded Projects collection has a Project record').not.toBeNull()
-  await projectLink!.click()
+  // The seeded Project (not a Process) the Add task door belongs to.
+  const projectLink = page.getByRole('link', { name: 'AC204 Menu launch', exact: true })
+  await expect(projectLink).toBeVisible()
+  await projectLink.click()
   const panel = page.locator('[data-overlay-host]')
   await expect(panel).toBeVisible()
   await expectRecordReady(panel, {
-    path: (await projectLink!.getAttribute('href')) ?? '',
+    path: (await projectLink.getAttribute('href')) ?? '',
     kind: 'catalog',
-    name: (await projectLink!.getAttribute('aria-label')) ?? '',
+    name: 'AC204 Menu launch',
   })
 
-  await panel.getByRole('button', { name: /add task/i }).first().click()
+  await panel.getByRole('button', { name: /^create task$/i }).first().click()
   const title = page.getByRole('textbox', { name: 'Title', exact: true })
   await expect(title).toBeFocused()
   await expect(page.getByRole('alert').filter({ hasText: 'Title is required' })).toHaveCount(0)
   await panel.getByRole('button', { name: 'Back', exact: true }).click()
   await expectRecordReady(panel, {
-    path: (await projectLink!.getAttribute('href')) ?? '',
+    path: (await projectLink.getAttribute('href')) ?? '',
     kind: 'catalog',
-    name: (await projectLink!.getAttribute('aria-label')) ?? '',
+    name: 'AC204 Menu launch',
   })
 })
 

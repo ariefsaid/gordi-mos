@@ -31,14 +31,14 @@ export type NotificationTargetRef = {
 }
 
 /** The typed set that gates every resolution; anything else is `unknown-type`. */
-export const ALLOWED_TARGET_TYPES: ReadonlySet<NotificationTargetType> = new Set([
+const ALLOWED_TARGET_TYPES: ReadonlySet<NotificationTargetType> = new Set([
   'task',
   'signal',
   'follow_up',
 ])
 
 /** An Issue 5 RecordViewer adapter: builds the canonical overlay/page door for a typed ref. */
-export type TargetViewerAdapter = {
+type TargetViewerAdapter = {
   buildEntry(ref: NotificationTargetRef): OverlayEntryDraft
 }
 
@@ -57,7 +57,7 @@ export type ResolveTargetDeps = {
   isFeatureEnabled(type: NotificationTargetType): boolean
 }
 
-export type UnavailableReason =
+type UnavailableReason =
   | 'malformed-target'
   | 'unknown-type'
   | 'unsafe-legacy-route'

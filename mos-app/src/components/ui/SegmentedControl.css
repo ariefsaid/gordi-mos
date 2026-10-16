@@ -1,0 +1,31 @@
+/* Segmented control: 2-3 modes within one job. Control height, 8px padding; selected accent tint + accent/600. */
+.segmented { display: flex; flex-direction: column; gap: var(--mos-space-1); min-width: 0; }
+.segmented__label { font: var(--mos-type-label); color: var(--mos-ink); }
+.segmented__track {
+  display: inline-flex; align-self: flex-start; max-width: 100%;
+  box-sizing: border-box; overflow-x: auto;
+  border-radius: var(--radius-sm);
+}
+.segmented__option {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--mos-inline-gap);
+  box-sizing: border-box; min-height: var(--mos-control-height); padding: var(--mos-control-pad-y) var(--mos-row-pad-x);
+  position: relative; border: 0; border-radius: 0; background: var(--mos-surface); color: var(--mos-ink);
+  box-shadow: inset 0 0 0 1px var(--mos-control);
+  font: var(--mos-type-control); white-space: nowrap; cursor: pointer;
+  transition: background-color var(--mos-duration-fast) ease;
+}
+.segmented__option + .segmented__option { margin-inline-start: -1px; }
+.segmented__option:first-child { border-start-start-radius: var(--radius-sm); border-end-start-radius: var(--radius-sm); }
+.segmented__option:last-child { border-start-end-radius: var(--radius-sm); border-end-end-radius: var(--radius-sm); }
+.segmented__option:hover:not(:disabled):not([aria-pressed='true']) { background: var(--mos-hover); }
+.segmented__option[aria-pressed='true'] { z-index: 1; box-shadow: inset 0 0 0 1px var(--mos-accent); background: var(--mos-accent-tint); color: var(--mos-accent); font-weight: var(--mos-weight-semibold); cursor: default; }
+.segmented__option:disabled { color: var(--mos-muted); cursor: default; }
+.segmented__option:focus-visible { outline-offset: calc(-1 * var(--mos-focus-width)); }
+.segmented__count { font: var(--mos-type-meta); font-weight: var(--mos-weight-semibold); color: inherit; }
+@media (prefers-reduced-motion: reduce) { .segmented__option { transition: none; } }
+/* Same narrow-screen rule as tabs: 2-3 modes share the full row in equal columns and wrap their labels;
+   a longer set scrolls sideways inside its own track. */
+@media (max-width: 767.98px) {
+  .segmented__track[data-options='2'], .segmented__track[data-options='3'] { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-self: stretch; overflow-x: visible; }
+  .segmented__track[data-options='2'] .segmented__option, .segmented__track[data-options='3'] .segmented__option { min-width: 0; padding-block: calc(var(--mos-space-1) * 1.5); white-space: normal; text-align: center; overflow-wrap: anywhere; }
+}

@@ -245,14 +245,14 @@ describe('AssistantPanel (T27)', () => {
     await waitFor(() => expect(screen.getByRole('complementary', { name: 'Deputy' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: 'open record' }))
     await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Title' }))
+    fireEvent.click(screen.getByRole('button', { name: /Edit Title/ }))
     const input = screen.getByRole('textbox', { name: 'Title' })
     fireEvent.change(input, { target: { value: 'Unsaved title' } })
 
     fireEvent.keyDown(input, { key: 'Escape' })
 
     expect(screen.queryByRole('textbox', { name: 'Title' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Edit Title' })).toHaveTextContent('Saved title')
+    expect(screen.getByRole('button', { name: /Edit Title/ })).toHaveTextContent('Saved title')
     expect(screen.getByRole('complementary', { name: 'Deputy' })).toBeInTheDocument()
     expect(onCommit).not.toHaveBeenCalled()
 

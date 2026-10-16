@@ -1,21 +1,21 @@
 /* DueRunsList styles for the disclosure rendered after the tasks table. */
 .due-runs-panel {
-  padding: 12px; border-top: 1px solid var(--border);
+  padding: var(--mos-row-pad-y); border-top: 1px solid var(--border);
 }
 .due-runs-list {
   list-style: none; margin: 0; padding: 0;
   display: flex; flex-direction: column;
 }
 .due-runs-row {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  display: flex; align-items: center; gap: var(--mos-row-gap); flex-wrap: wrap;
+  padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--mos-line);
 }
 .due-runs-row:last-child { border-bottom: none; }
-.due-runs-row-labels { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.due-runs-row-process { font-size: var(--font-size-body-lg); font-weight: 600; color: var(--foreground); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.due-runs-row-team { font-size: var(--font-size-mono); color: var(--muted-foreground); }
-.due-runs-row--process-record .due-runs-row-team { font-size: var(--font-size-body-lg); font-weight: 600; color: var(--foreground); }
-.due-runs-row-date { font-size: var(--font-size-mono); color: var(--muted-foreground); }
+.due-runs-row-labels { display: flex; flex-direction: column; gap: var(--mos-stack-gap); flex: 1; min-width: 0; }
+.due-runs-row-process { font-size: var(--mos-size-3); font-weight: 600; color: var(--foreground); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.due-runs-row-team { font-size: var(--mos-size-2); color: var(--muted-foreground); }
+.due-runs-row--process-record .due-runs-row-team { font-size: var(--mos-size-3); font-weight: 600; color: var(--foreground); }
+.due-runs-row-date { font-size: var(--mos-size-2); color: var(--muted-foreground); }
 
 /* Keep the composed Process or Team action label inside the row at narrow widths. */
 .due-runs-start-btn { max-width: 220px; flex: none; }

@@ -30,9 +30,15 @@ part="$final.partial"
 errf="$(mktemp)"; trap 'rm -f "$errf" "$part"' EXIT
 
 fail() { # stage
-  local tail
-  tail="$(ops_scrub < "$errf" | tail -n 3 | tr '\n' ' ' | head -c 300)"
-  ops_notify "❌ db-backup FAILED at ${1} ($(date '+%H:%M WIB')): ${tail}" || true
+  local message
+  ops_scrub < "$errf" >&2
+  case "$1" in
+    dump) message="The latest database copy could not be created. A restore may miss recent MOS changes; please check the backup job." ;;
+    verify*) message="The latest database copy could not be verified. It may not be safe to restore from; please check the backup job." ;;
+    rename) message="The latest database copy could not be saved. A restore may miss recent MOS changes; please check the backup job." ;;
+    prune) message="Old database copies could not be cleaned up. The backup folder may run out of space; please check it." ;;
+  esac
+  ops_notify "❌ $message" || true
   echo "db-backup: FAILED at $1" >&2
   exit 1
 }

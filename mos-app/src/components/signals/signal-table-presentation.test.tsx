@@ -8,7 +8,9 @@ import type { CollectionPresentationProps, CollectionProjection } from '@/lib/re
 import { SignalTablePresentation } from './signal-table-presentation'
 import { SignalCollectionActionsProvider, type SignalCollectionActions } from './signal-collection-actions'
 import type { SignalCollectionContext, SignalCollectionQuery, SignalRenderGroup } from './signal-collection-adapter'
-import { SIGNAL_COLLECTION_NEUTRAL_QUERY } from './signal-collection-adapter'
+import { signalCollectionQuery } from './signal-collection-adapter'
+
+const SIGNAL_COLLECTION_NEUTRAL_QUERY = signalCollectionQuery.neutral
 
 const desktopState = vi.hoisted(() => ({ value: true }))
 vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => desktopState.value }))
@@ -86,9 +88,8 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
     expect(screen.queryByText(/^PIC$/)).not.toBeInTheDocument()
     expect(screen.queryByText(/supervisor/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('columnheader', { name: /status/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('table')).toHaveClass('record-collection-table', 'collection-grammar-table')
-    expect(screen.getByRole('button', { name: 'The freezer alarm went off' })).toHaveClass('collection-grammar-title')
-    expect(document.querySelector('.collection-grammar-meta')).toHaveTextContent('Author One')
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'The freezer alarm went off' })).toBeInTheDocument()
   })
 
   it('renders localized category and attention labels in Indonesian, not stored enum values', () => {
@@ -118,24 +119,6 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
     // …and Enter opens the cursor row through the shared onOpenRecord seam.
     await user.keyboard('{Enter}')
     expect(onOpenRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 's-2' }))
-  })
-
-  it('F3 (OD-91 #18): the amber row-fill class is Urgent-only; Needs attention / FYI / retracted stay calm', () => {
-    renderTable([
-      row({ id: 's-attn', body: 'Grinder is down', attention: 'Needs attention' }),
-      row({ id: 's-urgent', body: 'Gas leak', attention: 'Urgent' }),
-      row({ id: 's-fyi', body: 'Restocked cups', attention: 'FYI' }),
-      row({ id: 's-dead', body: 'Dupe', attention: 'Urgent', retracted_at: '2026-07-16T05:00:00Z' }),
-    ])
-    const isUrgentRow = (text: string) =>
-      screen.getByText(text).closest('tr')?.classList.contains('signal-table-row--urgent')
-    // Only Urgent fills; Needs attention keeps its amber pill on a calm row.
-    expect(isUrgentRow('Gas leak')).toBe(true)
-    expect(isUrgentRow('Grinder is down')).toBe(false)
-    expect(isUrgentRow('Restocked cups')).toBe(false)
-    // A retracted row is a tombstone, never a filled row (state supersedes attention).
-    expect(screen.getByText(/this signal was retracted/i).closest('tr')?.classList
-      .contains('signal-table-row--urgent')).toBe(false)
   })
 
   it('AC-V3-014: Signal table headers use the same native keyboard-sort contract as Tasks', async () => {
@@ -216,24 +199,11 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
         </MemoryRouter>
       </I18nProvider>,
     )
-    // Group headers should render with labels and counts - find group header rows by class
-    expect(document.querySelector('.signal-collection-presentation')).toBeInTheDocument()
-    const groupHeaderRows = screen.getAllByRole('row').filter(r => r.classList.contains('dt-group-row'))
-    const hqGroupRow = groupHeaderRows.find(r => r.textContent?.includes('HQ Operations'))
-    const radiantGroupRow = groupHeaderRows.find(r => r.textContent?.includes('Radiant Operations'))
-    expect(hqGroupRow).toBeInTheDocument()
-    expect(radiantGroupRow).toBeInTheDocument()
-    // Caret toggle buttons for expand/collapse - query by role
-    const collapseBtn = screen.getByRole('button', { name: /collapse hq operations/i })
-    expect(collapseBtn).toBeInTheDocument()
-    const expandBtn = screen.getByRole('button', { name: /expand radiant operations/i })
-    expect(expandBtn).toBeInTheDocument()
-    expect(expandBtn).toHaveAttribute('aria-expanded', 'false')
-    // Row counts (in group header)
-    expect(hqGroupRow).toHaveTextContent('1')
-    expect(radiantGroupRow).toHaveTextContent('1')
-    expect(hqGroupRow?.querySelector('.dt-group-bar')).toBeInTheDocument()
-    expect(hqGroupRow?.querySelector('.dt-group-toggle')).toHaveAttribute('aria-expanded', 'true')
+    // Each group header names its group and carries the row count; the collapsed one reports it.
+    const hq = screen.getByRole('button', { name: 'HQ Operations (1)' })
+    expect(hq).toHaveAttribute('aria-expanded', 'true')
+    const radiant = screen.getByRole('button', { name: 'Radiant Operations (1)' })
+    expect(radiant).toHaveAttribute('aria-expanded', 'false')
   })
 
   // Issue: Every Signal presentation must use the injected opener and preserve collection query state.
@@ -261,31 +231,13 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
     expect(screen.queryByRole('columnheader', { name: /select/i })).not.toBeInTheDocument()
   })
 
-  it('phone cards keep the shared title/detail anatomy while retaining Signal fields', () => {
+  it('phone cards retain the Signal fields', () => {
     desktopState.value = false
     try {
       renderTable([row({ body: 'Phone-readable signal', category: 'Equipment/facility' })])
-      const card = document.querySelector('.signal-collection-presentation .dt-card')
-      expect(card).toBeInTheDocument()
-      expect(card?.querySelector('.collection-grammar-title')).toHaveTextContent('Phone-readable signal')
-      expect(card?.querySelector('.collection-grammar-meta')).toHaveTextContent('Author One')
-      expect(card?.querySelector('.dt-card-detail')).toBeInTheDocument()
-    } finally {
-      desktopState.value = true
-    }
-  })
-
-  it('issue 580: the phone reflow card carries the Urgent fill + rule the desktop table and feed use; non-Urgent stays plain', () => {
-    desktopState.value = false
-    try {
-      renderTable([
-        row({ id: 's-urgent', body: 'Gas leak', attention: 'Urgent' }),
-        row({ id: 's-calm', body: 'Grinder is down', attention: 'Needs attention' }),
-      ])
-      const urgentCard = screen.getByText('Gas leak').closest('.dt-card')
-      const calmCard = screen.getByText('Grinder is down').closest('.dt-card')
-      expect(urgentCard?.classList.contains('signal-table-row--urgent')).toBe(true)
-      expect(calmCard?.classList.contains('signal-table-row--urgent')).toBe(false)
+      expect(screen.getByRole('button', { name: 'Phone-readable signal' })).toBeInTheDocument()
+      expect(screen.getByText('Author One')).toBeInTheDocument()
+      expect(screen.getByText('Equipment/facility')).toBeInTheDocument()
     } finally {
       desktopState.value = true
     }

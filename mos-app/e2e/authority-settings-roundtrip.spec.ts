@@ -55,15 +55,6 @@ test('R6: Admin matrix and designated Team lead survive reload and govern own/cr
       await member.goto(`work/${collection}?${query}`)
       await expect(member.getByRole('heading', { name: 'Nothing archived yet', exact: true })).toBeVisible()
       await expect(member.getByRole('button', { name: 'Clear filters', exact: true })).toHaveCount(0)
-      // collection-toolbar.tsx (#743): the trigger's accessible name is the filter LABEL
-      // ("Current status"), and it now also renders that label as visible (aria-hidden) text
-      // beside the value, so the button's whole textContent is "Current statusArchived only" —
-      // the current selection is the separate `.collection-toolbar__choice-value` child.
-      if (collection !== 'tasks') {
-        await expect(
-          member.getByRole('button', { name: 'Current status', exact: true }).locator('.collection-toolbar__choice-value'),
-        ).toHaveText('Archived only')
-      }
       await member.screenshot({ path: testInfo.outputPath(`${collection}-archived-empty.png`), fullPage: true })
     }
     await settings.goto('admin/access')
@@ -77,8 +68,13 @@ test('R6: Admin matrix and designated Team lead survive reload and govern own/cr
       await settings.getByRole('listbox', { name: label, exact: true })
         .getByRole('option', { name: value, exact: true }).click()
     }
+    // The access page edits one access level at a time; it opens on Member.
+    async function openTeamLeadLevel() {
+      await settings.getByRole('button', { name: 'Team lead', exact: true }).click()
+    }
     async function saveScope(value: string) {
       await settings.goto('admin/access')
+      await openTeamLeadLevel()
       const picker = settings.getByRole('combobox', { name: 'Manage Projects & Processes — Team lead', exact: true })
       if (!(await picker.innerText()).includes(value)) {
         await choose('Manage Projects & Processes — Team lead', value)
@@ -87,6 +83,7 @@ test('R6: Admin matrix and designated Team lead survive reload and govern own/cr
         await saved
       }
       await settings.reload()
+      await openTeamLeadLevel()
       await expect(picker).toContainText(value)
     }
     // Team leads live on the Teams tab and save as they are chosen — there is no Save button.
@@ -97,7 +94,8 @@ test('R6: Admin matrix and designated Team lead survive reload and govern own/cr
       await choose('Lead for R6 Test Team', value)
       await saved
       await settings.reload()
-      await expect(leadPicker()).toContainText(value)
+      // A team with no designated lead shows the picker's "Choose lead" placeholder.
+      await expect(leadPicker()).toContainText(value === 'No designated lead' ? 'Choose lead' : value)
     }
     async function recordAction(page: Page, id: string, allowed: boolean) {
       await page.goto(`work/projects/${id}`)
@@ -111,7 +109,7 @@ test('R6: Admin matrix and designated Team lead survive reload and govern own/cr
       await page.keyboard.press('Escape')
     }
     await settings.goto('admin/teams')
-    await expect(leadPicker()).toContainText('No designated lead')
+    await expect(leadPicker()).toContainText('Choose lead')
     await saveScope('No additional permission')
     await designate('R6 Lead')
     await recordAction(lead, ownProject, false)
@@ -127,7 +125,7 @@ test('R6: Admin matrix and designated Team lead survive reload and govern own/cr
     expect(await (await restoredRead).json()).toEqual(original)
     await settings.screenshot({ path: testInfo.outputPath('authority-restored.png'), fullPage: true })
     await settings.goto('admin/teams')
-    await expect(leadPicker()).toContainText('No designated lead')
+    await expect(leadPicker()).toContainText('Choose lead')
     await leadPicker().scrollIntoViewIfNeeded()
     await settings.locator('[data-team-lead-row]', { has: leadPicker() }).screenshot({ path: testInfo.outputPath('team-lead-restored.png') })
     // Also restore physical absence of the one override row; effective defaults were restored through UI above.

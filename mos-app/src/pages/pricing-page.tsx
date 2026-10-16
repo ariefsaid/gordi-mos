@@ -5,6 +5,7 @@
 //
 // Design authority: docs/specs/plan-budget.spec.md + docs/plans/2026-07-07-plan-budget.md.
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useT } from '@/i18n/use-t'
@@ -24,6 +25,7 @@ import { KPITile } from '@/components/dashboard/kpi-tile'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { Select } from '@/components/ui/select'
 import { TextInput } from '@/components/ui/text-input'
+import type { MessageKey } from '@/i18n/messages'
 import './pricing-page.css'
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
@@ -34,6 +36,7 @@ const HEAD_META_PLACEHOLDER = <span className="ch-meta-line tabular-nums">—</s
 
 export function PricingPage() {
   const t = useT()
+  const tx = (key: string) => t(key as MessageKey)
   useDocumentTitle(t('common.docTitle', { page: t('nav.planPricing') }))
 
   const [budgets, setBudgets] = useState<BudgetRow[]>([])
@@ -104,9 +107,9 @@ export function PricingPage() {
     return (
       <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.plan.pricing')} meta={HEAD_META_PLACEHOLDER} state="empty">
         <EmptyState
-          title="No budgets captured yet"
-          copy="Capture a budget scenario first (Plan → Budget creation), then run the pricing pre-flight against it."
-        />
+          title={tx('moneyB.pricing.noBudgetTitle')}
+          copy={tx('moneyB.pricing.noBudget')}
+        ><Link className="pp-budget-link" to="/money/budget">{tx('moneyB.pricing.createBudget')}</Link></EmptyState>
       </PageFamilyFrame>
     )
   }
@@ -116,10 +119,11 @@ export function PricingPage() {
       family="workspace"
       title={t('plan.pricing.title')}
       jobSentence={t('job.plan.pricing')}
+     
       meta={
         // r5 F-1 (GUARD-R2 class): a labeled sentence, never a naked count pill.
         <span className="ch-meta-line tabular-nums">
-          {budgets.length} {budgets.length === 1 ? 'check' : 'checks'}
+          {t((budgets.length === 1 ? 'moneyB.pricing.count.one' : 'moneyB.pricing.count.other') as MessageKey, { count: String(budgets.length) })}
         </span>
       }
       // The pre-flight computes and never writes (ADR-0022 D5) — the family's read-only
@@ -127,88 +131,39 @@ export function PricingPage() {
       state="read-only"
     >
 
-      <section className="pp-section" aria-label="Pricing pre-flight">
-        <p className="pp-help">
-          Candidate price × the <strong>linked certified budgeted COGS</strong> → projected gross margin.
-          Read-only — the actual price still lands in ecommerce/POS; MOS never writes it.
-        </p>
-
-        <div className="pp-form">
-          <div className="pp-field">
-            <label className="pp-label" htmlFor="pricing-budget-scenario">Budget scenario</label>
-            <Select
-              id="pricing-budget-scenario"
-              fullWidth
-              value={selectedBudgetId}
-              onChange={(e) => setSelectedBudgetId(e.target.value)}
-            >
-              {budgets.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.menu_item_name} — {b.scenario_label} ({b.scenario_type})
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="pp-field">
-            <TextInput
-              id="pricing-candidate-price"
-              label="Candidate price (Rp)"
-              fullWidth
-              inputMode="decimal"
-              type="number"
-              min={0}
-              step="1000"
-              placeholder="e.g. 45000"
-              value={priceText}
-              onChange={(e) => setPriceText(e.target.value)}
-            />
-          </div>
+      <section className="pp-section" aria-label={tx('moneyB.pricing.title')}>
+        <div className="pp-scope">
+          <label className="pp-label" htmlFor="pricing-budget-scenario">{tx('moneyB.pricing.budgetScenario')}</label>
+          <Select id="pricing-budget-scenario" fullWidth value={selectedBudgetId} onChange={(e) => setSelectedBudgetId(e.target.value)}>
+            {budgets.map((b) => <option key={b.id} value={b.id}>{b.menu_item_name} — {b.scenario_label} ({tx(`moneyB.budget.type.${b.scenario_type === 'new_branch' ? 'newBranch' : b.scenario_type}`)})</option>)}
+          </Select>
+          {budget && <span className="pp-available">{t('moneyB.pricing.count.other' as MessageKey, { count: String(budgets.length) })}</span>}
         </div>
 
-        {budget && (
-          // Metric summary rule (DESIGN.md, v4): one dense line, label:value pairs
-          // (label at label size in muted-foreground, value at body-lg/600 tabular),
-          // closed by a hairline — not the mono-text key:value strip this replaces.
-          <div className="pp-meta">
-            <span className="pp-meta-item">
-              <span className="pp-meta-label">Budgeted COGS</span>
-              <span className="pp-meta-value tabular">{formatIDR(budget.total_budgeted_cogs)}</span>
-            </span>
-            <span className="pp-meta-item">
-              <span className="pp-meta-label">Basis as of</span>
-              <span className="pp-meta-value tabular">{shortDate(budget.cost_basis_as_of)}</span>
-            </span>
-            {status && <FailLoudBadge status={status} />}
+        {budget && status && <section className="pp-basis" aria-label={tx('moneyB.pricing.linkedBasis')}>
+          <div className="pp-basis-values">
+            <div><span>{tx('moneyB.pricing.budgetedCogs')}</span><strong className="tabular">{formatIDR(budget.total_budgeted_cogs)}</strong></div>
+            <div><span>{tx('moneyB.pricing.basisDate')}</span><strong className="tabular">{shortDate(budget.cost_basis_as_of)}</strong></div>
+            <FailLoudBadge status={status} />
           </div>
-        )}
+          {!status.fresh && <p className="pp-warn" role="alert" data-testid="pricing-freshness-warning">{tx('moneyB.pricing.staleWarning')}</p>}
+          <Link className="pp-budget-link" to={`/money/budget?menu=${encodeURIComponent(budget.menu_item_esb_code)}&scenario=${encodeURIComponent(budget.id)}#captured-scenarios`}>{tx('moneyB.pricing.openBudgetContext')}</Link>
+          <p className="pp-basis-trace">{t('moneyB.pricing.basisTrace' as MessageKey, { menu: budget.menu_item_name, scenario: budget.scenario_label, date: shortDate(budget.cost_basis_as_of) })}</p>
+        </section>}
 
-        {status && !status.fresh && (
-          // The specific reasons already surface in the FailLoudBadge above — this line
-          // states the instruction only, so the reasons aren't printed twice on screen.
-          <p className="pp-warn" role="alert" data-testid="pricing-freshness-warning">
-            Do not price against this basis.
-          </p>
-        )}
-
-        {margin && (
-          // KPITile — the DESIGN.md "KPI Tile (signature)" primitive: this is a Money
-          // surface's read-the-result moment (the pre-flight's computed answer), the
-          // stated exception to the summary-rule/no-tiles-on-capture-surfaces default.
-          <div className="pp-result" data-testid="pricing-result">
-            <KPITile className="pp-result-tile" label="Gross margin" value={formatIDR(margin.margin)} />
-            <KPITile
-              className="pp-result-tile"
-              label="Margin %"
-              value={formatPct(margin.margin_pct)}
-              delta={
-                margin.below_floor
-                  ? { text: `Below ${formatPct(MARGIN_FLOOR_PCT)} floor`, tone: 'destructive' }
-                  : undefined
-              }
-              sub={margin.below_floor ? 'Warn-only — you set the price.' : undefined}
-            />
+        <div className="pp-workspace">
+          <div className="pp-candidate">
+            <TextInput id="pricing-candidate-price" label={tx('moneyB.pricing.candidatePrice')} fullWidth inputMode="decimal" type="number" min={0} step="1000" placeholder="e.g. 45000" value={priceText} onChange={(e) => setPriceText(e.target.value)} />
+            <p className="pp-readonly">{tx('moneyB.pricing.readOnlyBoundary')}</p>
           </div>
-        )}
+          <section className="pp-result-region" aria-label={tx('moneyB.pricing.projectedResult')}>
+            <h2>{tx('moneyB.pricing.projectedResult')}</h2>
+            {margin ? <div className="pp-result" data-testid="pricing-result">
+              <KPITile className="pp-result-tile" label={tx('moneyB.pricing.grossMargin')} value={formatIDR(margin.margin)} />
+              <KPITile className="pp-result-tile" label={tx('moneyB.pricing.marginPct')} value={formatPct(margin.margin_pct)} delta={margin.below_floor ? { text: t('moneyB.pricing.belowFloor' as MessageKey, { floor: formatPct(MARGIN_FLOOR_PCT) }), tone: 'destructive' } : undefined} sub={margin.below_floor ? tx('moneyB.pricing.warnOnly') : tx('moneyB.pricing.formula')} />
+            </div> : <p className="pp-result-empty">{tx('moneyB.pricing.noCandidate')}</p>}
+          </section>
+        </div>
       </section>
     </PageFamilyFrame>
   )

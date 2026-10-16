@@ -4,7 +4,7 @@ import { DEMO_PASSWORD } from '../src/pages/demo-personas'
 import { readFileSync } from 'node:fs'
 import { localSql } from './helpers/local-sql'
 import { taskCleanupSql } from './fixtures/cleanup'
-import { taskViewsGroup } from './helpers/tasks'
+import { selectTaskView, taskViewsPicker } from './helpers/tasks'
 import { e2eAppPath } from './helpers/app-path'
 
 // The two Home tasks are seed.dev-home-work.sql's own rows (a fresh stack already has them); this
@@ -84,7 +84,7 @@ for (const width of [1440]) {
         await route.abort('failed')
       } else await route.continue()
     })
-    await draft.press('Enter')
+    await page.getByRole('button', { name: 'Create task', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Retry', exact: true }).first()).toBeVisible()
     await expect(draft).toHaveValue(title)
     await expect(page.getByRole('combobox', { name: 'Team', exact: true })).toContainText('HQ Operations')
@@ -103,7 +103,7 @@ test(`a Signal lists its newly created follow-up Task without losing the source 
   await page.setViewportSize({ width, height: 900 })
   await loginAs(page, 'dewi.dev@example.test', DEMO_PASSWORD)
   await page.goto('./')
-  const opener = page.getByRole('button', { name: /^Open signal:/ }).first()
+  const opener = page.getByRole('region', { name: /^Signals/ }).getByRole('list').getByRole('button').first()
   await opener.click()
   const sourceUrl = page.url()
   await page.getByRole('button', { name: 'Create task', exact: true }).click()
@@ -130,6 +130,8 @@ test(`a Signal lists its newly created follow-up Task without losing the source 
 }
 
 test('a Task opens its Project and Back restores the Task in its queue', async ({ page }) => {
+  // The record opens beside the list only on a wide content track.
+  await page.setViewportSize({ width: 1920, height: 1080 })
   await loginAs(page, 'dewi.dev@example.test', DEMO_PASSWORD)
   await page.goto('work/tasks')
   await expect(page.getByRole('heading', { name: 'Tasks', exact: true })).toBeVisible()
@@ -183,10 +185,10 @@ for (const persona of personas) {
   test(`${persona.label} lands in the right Task scope and an explicit view survives refresh`, async ({ page }) => {
     await loginAs(page, persona.email, DEMO_PASSWORD)
     await page.goto('work/tasks')
-    await expect(taskViewsGroup(page).getByRole('button', { name: persona.taskView, exact: true })).toHaveAttribute('aria-pressed', 'true')
-    await taskViewsGroup(page).getByRole('button', { name: 'Overdue', exact: true }).click()
+    await expect(taskViewsPicker(page)).toContainText(persona.taskView)
+    await selectTaskView(page, 'Overdue')
     await page.reload()
-    await expect(taskViewsGroup(page).getByRole('button', { name: 'Overdue', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect(taskViewsPicker(page)).toContainText('Overdue')
   })
 }
 
@@ -212,10 +214,11 @@ test('a barista completes assigned work from Home and the result survives refres
   await page.locator('main a[href*="/work/tasks/e9000000-0000-0000-0000-000000000001"]').first().click()
   const record = page.getByRole('region', { name: 'Check the espresso recipe before service', exact: true })
   await expect(record).toBeVisible()
-  await record.getByRole('button', { name: 'Mark complete', exact: true }).click()
-  await expect(record.getByRole('button', { name: 'Edit Status', exact: true })).toContainText('Done')
+  // On a phone the record's lifecycle action sits in the page's bottom action bar, outside the record region.
+  await page.getByRole('button', { name: 'Mark complete', exact: true }).click()
+  await expect(record.getByRole('button', { name: /, Edit Status$/ })).toContainText('Done')
   await page.reload()
-  await expect(record.getByRole('button', { name: 'Edit Status', exact: true })).toContainText('Done')
+  await expect(record.getByRole('button', { name: /, Edit Status$/ })).toContainText('Done')
 })
 
 // Finance stands for every persona with no Café affiliation (Sales is identical on this surface).
@@ -264,8 +267,8 @@ for (const persona of ['bulan','cahya']) {
   })
 }
 
-for(const width of [390,1440]) test(`Task Objective relation and absent Project stay truthful at ${width}px`,async({page})=>{
-  await page.setViewportSize({width,height:900})
+for(const width of [390,1920]) test(`Task Objective relation and absent Project stay truthful at ${width}px`,async({page})=>{
+  await page.setViewportSize({width,height:width===390?900:1080})
   await loginAs(page,'dewi.dev@example.test',DEMO_PASSWORD)
   await page.goto('work/tasks')
   await page.getByRole('link',{name:/^AC204 Sign the lease/}).click()

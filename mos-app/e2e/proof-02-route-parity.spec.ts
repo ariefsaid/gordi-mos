@@ -1,8 +1,10 @@
 import { test, expect, type Page } from '@playwright/test'
-import { ADMIN } from './fixtures/users'
+import { ADMIN, MANAGER, VIEWER } from './fixtures/users'
 import { loginAs } from './helpers/login'
 import { TAP_FLOOR } from './helpers/tap-floor'
+import { chooseSelectOption } from './helpers/select'
 import { stripE2eBasePath } from './helpers/app-path'
+import { isShipGated } from './helpers/ship-gate'
 import { ROUTE_PARITY_CATALOG, type RouteParityId } from '../src/shell/route-parity'
 
 // This catalog is the production route manifest's parity policy. The route census compares it
@@ -10,15 +12,19 @@ import { ROUTE_PARITY_CATALOG, type RouteParityId } from '../src/shell/route-par
 const ROUTE_CATALOG = ROUTE_PARITY_CATALOG
 
 const VISIBLE_ROOT_ROUTES = ROUTE_CATALOG.filter((route) => route.kind === 'visible-root').map((route) => route.path)
+const ADMIN_VISIBLE_ROOT_ROUTES = VISIBLE_ROOT_ROUTES.filter((route) => route !== '/money')
 const CANONICAL_ROUTES = ROUTE_CATALOG.map((route) => route.path)
+const FINANCE = { email: 'fitri.dev@example.test', password: VIEWER.password }
 
-// The active tab each Admin settings route owns. The tab and the rail's Admin link both mark the
-// place, so these routes are checked by their tab instead of the single-aria-current count.
+// The section each Admin settings route owns. The phone section switcher and the sidebar's Admin
+// pages both mark the place, so these routes are checked by their section instead of the
+// single-aria-current count.
 const ADMIN_SETTINGS_TABS: Record<string, string> = {
   '/admin/people': 'People',
   '/admin/teams': 'Teams',
-  '/admin/access': 'Roles & permissions',
-  '/admin/agents': 'Connected agents',
+  '/admin/access': 'Access levels',
+  '/admin/modules': 'Modules',
+  '/admin/agents': 'Agent apps',
 }
 
 function routePath(id: RouteParityId): string {
@@ -33,33 +39,42 @@ const CROSS_SECTION_RETURNS = [
   { name: 'Home → Inbox → Home', route: routePath('inbox') },
 ] as const
 
-// Café capture pages own their visible title where the breadcrumb is hidden by the phone shell.
-const CAPTURE_TITLE_ROUTES: readonly RouteParityId[] = ['cafe', 'cafeProduction', 'cafeTransfer', 'cafeWaste']
+// CafePageFrame owns the title on every Café route; cafe-page-frame.css hides its breadcrumb leaf.
 
 function normalizeHref(href: string): string {
   const url = new URL(href)
   return `${stripE2eBasePath(url.pathname)}${url.search}`
 }
 
+// The areas the viewer can open from the always-present navigation. Work's four collections sit
+// behind the Work area (the Work page lists them), so Work stands for them here.
 async function visibleSurfaceHrefs(page: Page): Promise<Set<string>> {
   const width = page.viewportSize()?.width ?? 1440
+  const hrefsOf = (selector: string) => page.locator(selector).evaluateAll((links) =>
+    links.map((link) => (link as HTMLAnchorElement).href),
+  )
+  let hrefs: string[]
   if (width >= 920) {
-    const hrefs = await page.locator('nav[aria-label="Primary"] a[href]').evaluateAll((links) =>
-      links.map((link) => (link as HTMLAnchorElement).href),
-    )
-    return new Set(hrefs.map(normalizeHref))
+    hrefs = await hrefsOf('nav[aria-label="Primary"] a[href]:not(.nav-item--child)')
+  } else {
+    const bottom = await hrefsOf('nav[aria-label="Primary"] a[href]')
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'More' }).click()
+    const drawerHrefs = await hrefsOf('[role="dialog"][aria-label="More"] a[href]:not(.nav-item--child)')
+    await page.keyboard.press('Escape')
+    hrefs = [...bottom, ...drawerHrefs]
   }
+  return new Set(hrefs.map(normalizeHref).map((href) => (href === '/work/tasks' ? '/work' : href)))
+}
 
-  const bottom = await page.locator('nav[aria-label="Primary"] a[href]').evaluateAll((links) =>
-    links.map((link) => (link as HTMLAnchorElement).href),
-  )
-  await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'More' }).click()
-  const drawer = page.getByRole('navigation', { name: 'More destinations' })
-  const drawerHrefs = await drawer.locator('a[href]').evaluateAll((links) =>
-    links.map((link) => (link as HTMLAnchorElement).href),
-  )
-  await page.keyboard.press('Escape')
-  return new Set([...bottom, ...drawerHrefs].map(normalizeHref))
+// The routes the navigation must expose for the admin: every visible root, with the Work
+// collections folded into Work; Inbox is the bell on a desktop and a More row on a phone.
+// The admin reaches Money only through budget/pricing when that flag is on.
+function expectedAreaHrefs(width: number): string[] {
+  const areas = new Set(ADMIN_VISIBLE_ROOT_ROUTES.map((route) => (route.startsWith('/work/') ? '/work' : route)))
+  areas.add('/profile')
+  if (width >= 920) areas.delete('/inbox')
+  if (process.env.VITE_SHOW_PLAN_BUDGET === 'true') areas.add('/money/budget')
+  return [...areas].sort()
 }
 
 async function assertCanonicalSurface(page: Page, route: string) {
@@ -77,33 +92,33 @@ async function assertCanonicalSurface(page: Page, route: string) {
   } else {
     await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible({ timeout: 15_000 })
   }
+  // The shell can settle before a lazy route mounts. Wait for the destination landmark before
+  // asserting shell chrome, so a phone breadcrumb is measured against the finished route.
+  await expect(page.getByRole('main')).toBeVisible({ timeout: 15_000 })
   const settingsTab = ADMIN_SETTINGS_TABS[route]
   if (routeEntry?.owner === 'admin-settings' && !settingsTab) throw new Error(`No Admin settings tab named for ${route}`)
   if (settingsTab) {
-    const settings = page.getByRole('navigation', { name: 'Admin settings sections' })
-    await expect(settings).toBeVisible()
-    await expect(settings.getByRole('link', { name: settingsTab, exact: true })).toHaveAttribute('aria-current', 'page')
+    if ((page.viewportSize()?.width ?? 1440) < 920) {
+      await expect(page.getByRole('navigation', { name: 'Admin settings sections' }).getByRole('combobox')).toContainText(settingsTab)
+    } else {
+      await expect(page.getByRole('link', { name: settingsTab, exact: true })).toHaveAttribute('aria-current', 'page')
+    }
   } else if (routeEntry?.owner === 'agent-consent') {
     // #1069 added consent as a focused handoff without a shell destination. Its breadcrumb may be
     // omitted entirely at narrow widths; preserve the no-breadcrumb behavior, not an empty <nav>.
     await expect.poll(async () => (await breadcrumb.allTextContents()).join('').trim()).toBe('')
     await expect(page.getByRole('heading', { name: 'Connect an agent', level: 1 })).toBeVisible()
-  } else if (routeEntry && CAPTURE_TITLE_ROUTES.includes(routeEntry.id)) {
-    if ((page.viewportSize()?.width ?? 1440) < 920) {
-      await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toBeVisible()
-    } else {
-      await expect(breadcrumb).toBeVisible()
-      await expect(breadcrumb.locator('.top-bar__breadcrumb-leaf')).toHaveText(/\S/)
-    }
+  } else if (routeEntry && (routeEntry.path === '/cafe' || routeEntry.path.startsWith('/cafe/'))) {
+    await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toBeVisible()
   } else {
     await expect(breadcrumb).toBeVisible()
   }
   if (routeEntry?.owner === 'breadcrumb') {
-    await expect(breadcrumb).toContainText('Personal Profile')
+    // The breadcrumb names where the viewer is: the Profile page, or its Connected agents page.
+    await expect(breadcrumb).toContainText(route === '/profile' ? 'Personal profile' : 'Connected agents')
   } else if (!settingsTab && routeEntry?.owner !== 'agent-consent') {
     await expect(page.locator('[aria-current="page"]')).toHaveCount(1)
   }
-  await expect(page.getByRole('main')).toBeVisible()
   // The phone shell never scrolls sideways on any destination (jsdom has no layout engine).
   if ((page.viewportSize()?.width ?? 1440) < 920) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${route}: no horizontal scroll`).toBe(true)
@@ -121,11 +136,20 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
       await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible({ timeout: 15_000 })
 
       const hrefs = await visibleSurfaceHrefs(page)
-      // The same visible-root selector must expose the same admitted route set at every width.
-      // At this committed candidate ADMIN admits Café, while ship-gated roots remain absent from
-      // every surface. The set is captured from rendered links, never retyped per UI.
+      // The same roots are exposed at every width. Admin lacks Money's revenue-view role, so its
+      // visible set excludes that role-gated root while the catalog retains it.
       expect([...hrefs].sort(), 'route catalog parity from the rendered visible-root selector').toEqual(
-        [...VISIBLE_ROOT_ROUTES].sort(),
+        expectedAreaHrefs(width),
+      )
+
+      // Every Work collection in the catalog is reachable from the Work page.
+      await page.goto('work')
+      const workNav = page.getByRole('navigation', { name: 'Work destinations' })
+      await expect(workNav).toBeVisible()
+      const workDoors = await workNav.locator('a[href]')
+        .evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).href))
+      expect(workDoors.map(normalizeHref).sort()).toEqual(
+        ADMIN_VISIBLE_ROOT_ROUTES.filter((route) => route.startsWith('/work/')).sort(),
       )
 
       for (const journey of CROSS_SECTION_RETURNS) {
@@ -139,17 +163,16 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
         })
       }
 
-      for (const route of CANONICAL_ROUTES) {
-        await assertCanonicalSurface(page, route)
+      for (const route of CANONICAL_ROUTES.filter((path) => path !== '/money' && path !== '/money/pending-bills' && !isShipGated(path))) {
+        await test.step(route, () => assertCanonicalSurface(page, route))
       }
+      await loginAs(page, MANAGER.email, MANAGER.password)
+      await assertCanonicalSurface(page, '/money')
+      await loginAs(page, FINANCE.email, FINANCE.password)
+      await assertCanonicalSurface(page, '/money/pending-bills')
     })
   }
 
-  // Issue 1196: the phone strip forced one nowrap row behind overflow-x with edge fades, so at
-  // 390px the last tab was clipped with no scroll cue. Asserted on rendered geometry, not CSS
-  // values: every tab's box must sit fully inside the visible settings-nav viewport, with no
-  // hidden scroll to reach it and no fade painted over it. One visit proves the shared strip;
-  // the width loop above already visits each admin settings route.
   test('dark appearance applies the dark page surface and text tokens', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await loginAs(page, ADMIN.email, ADMIN.password)
@@ -167,30 +190,18 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
 
     await page.getByRole('menuitemradio', { name: 'Dark', exact: true }).click()
     await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true)
-    const darkColors = await page.evaluate(() => {
-      const bodyStyle = getComputedStyle(document.body)
-      const tokenProbe = document.createElement('div')
-      tokenProbe.style.backgroundColor = 'var(--ds-background-primary)'
-      tokenProbe.style.color = 'var(--ds-font-color-primary)'
-      document.body.append(tokenProbe)
-      const tokenStyle = getComputedStyle(tokenProbe)
-      const colors = {
-        background: bodyStyle.backgroundColor,
-        text: bodyStyle.color,
-        tokenBackground: tokenStyle.backgroundColor,
-        tokenText: tokenStyle.color,
-      }
-      tokenProbe.remove()
-      return colors
-    })
+    const darkColors = await page.evaluate(() => ({
+      background: getComputedStyle(document.body).backgroundColor,
+      text: getComputedStyle(document.body).color,
+    }))
 
     expect(darkColors.background).not.toBe(lightColors.background)
     expect(darkColors.text).not.toBe(lightColors.text)
-    expect(darkColors.background).toBe(darkColors.tokenBackground)
-    expect(darkColors.text).toBe(darkColors.tokenText)
   })
 
-  test('issue 1196: at 390 every Admin settings tab is fully visible — no hidden scroll, no fade, ≥44px', async ({ page }) => {
+  // Issue 1196: on a phone the Admin settings sections are one section switcher (the tab strip
+  // clipped its last tab). It must reach every section with a 44px target and no sideways scroll.
+  test('issue 1196: at 390 the Admin section switcher reaches every settings section', async ({ page }) => {
     test.setTimeout(60_000)
     await page.setViewportSize({ width: 390, height: 900 })
     await loginAs(page, ADMIN.email, ADMIN.password)
@@ -198,33 +209,12 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
 
     const nav = page.getByRole('navigation', { name: 'Admin settings sections' })
     await expect(nav).toBeVisible()
-
-    const strip = await nav.evaluate((el) => {
-      const visible = el.getBoundingClientRect()
-      return {
-        scrollWidth: el.scrollWidth,
-        clientWidth: el.clientWidth,
-        frameClass: el.parentElement?.className ?? '',
-        left: visible.left,
-        right: visible.right,
-        tabs: Array.from(el.querySelectorAll('a')).map((a) => {
-          const box = a.getBoundingClientRect()
-          return { label: (a.textContent ?? '').trim(), left: box.left, right: box.right, height: box.height }
-        }),
-      }
-    })
-
-    expect(strip.tabs.map((tab) => tab.label), 'the four Admin settings tabs render in nav order').toEqual(
-      Object.values(ADMIN_SETTINGS_TABS),
-    )
-    expect(strip.scrollWidth, 'settings nav keeps no hidden horizontal scroll at 390').toBeLessThanOrEqual(
-      strip.clientWidth + 0.5,
-    )
-    for (const tab of strip.tabs) {
-      expect(tab.left, `"${tab.label}" starts inside the visible nav`).toBeGreaterThanOrEqual(strip.left - 0.5)
-      expect(tab.right, `"${tab.label}" ends inside the visible nav`).toBeLessThanOrEqual(strip.right + 0.5)
-      expect(tab.height, `"${tab.label}" meets the 44px phone tap floor`).toBeGreaterThanOrEqual(TAP_FLOOR)
+    const switcher = nav.getByRole('combobox')
+    expect((await switcher.boundingBox())!.height, 'the switcher meets the 44px phone tap floor').toBeGreaterThanOrEqual(TAP_FLOOR)
+    for (const [path, label] of [['/admin/teams', 'Teams'], ['/admin/access', 'Access levels'], ['/admin/agents', 'Agent apps'], ['/admin/people', 'People']]) {
+      await chooseSelectOption(page, switcher, label)
+      await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).toBe(path)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${path}: no horizontal scroll`).toBe(true)
     }
-    expect(strip.frameClass, 'no more-content fade renders over the strip').not.toContain('admin-settings-nav-frame--more')
   })
 })

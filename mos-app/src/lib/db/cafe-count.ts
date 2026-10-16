@@ -13,7 +13,7 @@ export type CafeCountableItem = {
 }
 
 export type CafeCountStatus = 'Submitted' | 'Confirmed' | 'Rejected'
-export type CafeCountExpectedStatus = 'waiting' | 'ready'
+type CafeCountExpectedStatus = 'waiting' | 'ready'
 export type CafeCountPostingStatus = 'not_posted' | 'not_needed' | 'held' | 'posted' | 'failed'
 
 export type CafeCountLine = {

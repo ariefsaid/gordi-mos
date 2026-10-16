@@ -1,19 +1,24 @@
 /* Receipt components shared by Receive and receipt review: state text, line list, decisions. */
+.cafe-receipt-review__release > summary { list-style: none; cursor: pointer; }
+.cafe-receipt-review__release > summary::-webkit-details-marker { display: none; }
+.cafe-receipt-review__release:not([open]) .group-header__chevron { transform: rotate(-90deg); }
+.cafe-receipt-review__release-summary { min-width: 0; margin: var(--mos-inline-gap) 0; color: var(--mos-muted); font: var(--mos-type-body); }
+.cafe-receipt-review__release > .panel { margin-top: 8px; }
 
 .cafe-receipt-lines {
   display: grid;
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
 }
 
 .cafe-receipt-lines > li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
-  gap: 4px 12px;
-  padding: 8px 0;
+  gap: var(--mos-label-gap) var(--mos-row-gap);
+  padding: var(--mos-row-pad-y) 0;
   border-bottom: 1px solid var(--border);
   overflow-wrap: anywhere;
 }
@@ -39,12 +44,18 @@
 /* FR-1038 is quiet text: no warning colour, badge or count. */
 .cafe-receipt-evidence .cafe-receipt-evidence__quiet {
   color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
 }
 
 .cafe-receipt-review__row.cafe-count-review__row {
-  grid-template-columns: minmax(160px, 1fr) minmax(240px, 1.6fr) minmax(220px, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
+}
+
+.cafe-receipt-review__row .cafe-receipt-review__decision {
+  justify-content: flex-start;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
 }
 
 .cafe-receipt-review__actions {
@@ -52,16 +63,16 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
 }
 
-.cafe-receipt-review__actions .btn { min-height: 44px; min-width: 96px; }
+.cafe-receipt-review__actions .btn { min-height: var(--mos-control-height); min-width: 96px; }
 
 .cafe-receipt-review__reject {
   display: grid;
   gap: 6px;
   width: 100%;
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
 }
 
 /* The reject note and the receiver's line reason are one kind of field. */
@@ -77,13 +88,13 @@
   background: var(--background);
   color: var(--foreground);
   font: inherit;
-  font-size: var(--font-size-touch-input);
+  font-size: var(--mos-size-3);
   resize: vertical;
 }
 
 .cafe-receive__reason textarea:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: var(--mos-focus-offset);
 }
 
 .cafe-receive__reason textarea[aria-invalid="true"] { border-color: var(--destructive); }
@@ -112,7 +123,7 @@
 
 /* DESIGN "Row status as text": toned label text, no fill; matches stays quiet. */
 .cafe-receipt-difference {
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   font-weight: 500;
   color: var(--warning-foreground);
 }
@@ -140,6 +151,21 @@
   }
 }
 
+/* Receipt review: compact collection beside one full decision workspace. */
+.cafe-receipt-review__workspace { display: grid; grid-template-columns: minmax(15rem, 0.4fr) minmax(0, 0.6fr); gap: var(--mos-group-above); align-items: start; }
+.cafe-receipt-review__master { display: grid; gap: var(--mos-label-gap); min-width: 0; max-height: min(68vh, 720px); overflow: auto; }
+.cafe-receipt-review__master h2, .cafe-receipt-review__master h3 { margin: var(--mos-group-above) 0 var(--mos-group-below); font-size: var(--mos-size-3); }
+.cafe-receipt-review__master button { display: grid; gap: var(--mos-stack-gap); width: 100%; min-height: var(--mos-row-min); padding: var(--mos-row-pad-y) var(--mos-row-pad-x); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--background); color: var(--foreground); text-align: start; cursor: pointer; overflow-wrap: anywhere; }
+.cafe-receipt-review__master button[aria-current='true'] { border-color: var(--ring); background: var(--muted); }
+.cafe-receipt-review__master button:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.cafe-receipt-review__master button span { color: var(--muted-foreground); font-size: var(--mos-size-1); }
+.cafe-receipt-review__workbench { min-width: 0; }
+.cafe-receipt-review__workbench > h2 { margin: 0 0 10px; font-size: var(--mos-size-3); }
+.cafe-receipt-review__release { margin-block: 10px; }
+.cafe-receipt-review__release .cafe-receipt-release { border: 0; padding: 0; }
+.cafe-receipt-review__workbench .cafe-count-review__list { max-height: min(68vh, 720px); overflow: auto; padding-bottom: 12px; }
+.cafe-receipt-review__workbench .cafe-receipt-review__decision { position: sticky; bottom: 0; z-index: var(--z-inline-raised); padding: var(--mos-row-pad-y) 0; background: var(--background); }
+
 /* FR-1030 release of held receipts: a quiet notice above the review queue, one row per branch. */
 .cafe-receipt-release {
   display: grid;
@@ -147,7 +173,7 @@
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
 }
 
 .cafe-receipt-release p { margin: 0; overflow-wrap: break-word; }
@@ -155,7 +181,7 @@
 .cafe-receipt-release__title {
   margin: 0;
   color: var(--foreground);
-  font-size: var(--font-size-body-lg);
+  font-size: var(--mos-size-3);
   font-weight: 600;
 }
 
@@ -172,8 +198,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px 16px;
-  padding: 10px 0;
+  gap: var(--mos-inline-gap) var(--mos-bar-pad-x);
+  padding: var(--mos-row-pad-y) 0;
   border-top: 1px solid var(--border);
 }
 
@@ -186,6 +212,10 @@
 .cafe-receipt-state[data-posting='failed'] { color: var(--status-lost-text); }
 
 @media (max-width: 800px) {
+  .cafe-receipt-review__workspace { grid-template-columns: minmax(0, 1fr); }
+  .cafe-receipt-review__master { max-height: none; }
+  .cafe-receipt-review__workbench .cafe-count-review__list { max-height: none; overflow: visible; }
+  .cafe-receipt-review__workbench .cafe-receipt-review__decision { bottom: 0; }
   .cafe-receipt-release__row { grid-template-columns: minmax(0, 1fr); }
   .cafe-receipt-release__row > .btn { width: 100%; }
 }

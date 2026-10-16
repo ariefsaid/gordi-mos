@@ -1,0 +1,7 @@
+/* Review: one row of queue tabs under the title, then the chosen queue (the strip scrolls inside itself on a phone). */
+.cafe-review { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); min-width: 0; }
+.cafe-review__panel { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); min-width: 0; }
+.cafe-review__issues { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap) var(--mos-row-gap); color: var(--mos-muted); font: var(--mos-type-subnav); }
+.cafe-review__issues a { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height); color: var(--mos-accent); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); text-decoration: none; }
+.cafe-review__issues a:hover { text-decoration: underline; }
+.cafe-review__issues a > svg { width: var(--mos-icon-sm); height: var(--mos-icon-sm); flex-shrink: 0; }

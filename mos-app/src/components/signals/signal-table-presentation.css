@@ -10,17 +10,17 @@
    content; `.signal-table-title-cell` caps that content at whatever the card leaves after the
    visible facts. */
 .dt-table.signal-collection-table {
-  --signal-facts-w: 460px; /* team + attention + occurred */
+  --signal-facts-w: 450px; /* attention + team + occurred */
   table-layout: auto;
 }
-.signal-collection-table th:nth-child(1),
-.signal-collection-table td:nth-child(1) { width: 240px; } /* Message floor */
-.signal-collection-table th:nth-child(2),
-.signal-collection-table td:nth-child(2) { width: 136px; } /* Team */
-.signal-collection-table th:nth-child(3),
-.signal-collection-table td:nth-child(3) { width: 128px; } /* Attention */
-.signal-collection-table th:nth-child(4),
-.signal-collection-table td:nth-child(4) { width: 196px; } /* Occurred — the widest "30 Sept 2026, 00:00 WIB" never clips */
+.signal-collection-table th.sig-col-message,
+.signal-collection-table td.sig-col-message { width: 240px; } /* Message floor */
+.signal-collection-table th.sig-col-attention,
+.signal-collection-table td.sig-col-attention { width: 144px; }
+.signal-collection-table th.sig-col-team,
+.signal-collection-table td.sig-col-team { width: 136px; }
+.signal-collection-table th.sig-col-occurred,
+.signal-collection-table td.sig-col-occurred { width: 168px; } /* "Wed 23 Sept, 12:57" */
 .signal-collection-table .signal-table-title-cell {
   /* Opts out of the cells' blanket nowrap so the message can wrap (2-line clamp below). */
   white-space: normal;
@@ -34,25 +34,25 @@
    facts.
    A list narrowed by a record panel follows the same rule. */
 @container work-list (max-width: 699.98px) {
-  .dt-table.signal-collection-table { --signal-facts-w: 324px; }
-  .signal-collection-table th:nth-child(2),
-  .signal-collection-table td:nth-child(2) { display: none; }
+  .dt-table.signal-collection-table { --signal-facts-w: 314px; }
+  .signal-collection-table th.sig-col-team,
+  .signal-collection-table td.sig-col-team { display: none; }
 }
 @container work-list (max-width: 563.98px) {
-  .dt-table.signal-collection-table { --signal-facts-w: 196px; }
-  .signal-collection-table th:nth-child(3),
-  .signal-collection-table td:nth-child(3) { display: none; }
+  .dt-table.signal-collection-table { --signal-facts-w: 168px; }
+  .signal-collection-table th.sig-col-attention,
+  .signal-collection-table td.sig-col-attention { display: none; }
 }
 @container work-list (max-width: 435.98px) {
   .dt-table.signal-collection-table { --signal-facts-w: 0px; }
-  .signal-collection-table th:nth-child(4),
-  .signal-collection-table td:nth-child(4) { display: none; }
+  .signal-collection-table th.sig-col-occurred,
+  .signal-collection-table td.sig-col-occurred { display: none; }
 }
 
 /* A wrapped Message (2-line clamp + meta line) is taller than the shared 52px row's content
    box, so it sat flush on the row dividers: give the cells a vertical inset on the 8px step. */
 .record-collection-view .collection-grammar-table.signal-collection-table tbody tr:not(.dt-group-row) td {
-  padding-block: 8px;
+  padding-block: var(--mos-row-pad-y);
 }
 
 /* The empty trailing cell repeats each row's own divider, hover, fill and cursor so the row
@@ -66,15 +66,15 @@
   top: 0;
   z-index: var(--z-sticky);
   border-bottom: 1px solid var(--border);
-  background: var(--card);
+  background: var(--secondary);
 }
 .signal-collection-table tbody tr:not(.dt-group-row)::after { border-bottom: 1px solid var(--row-divider); }
 .signal-collection-table tbody tr:last-child::after { border-bottom: none; }
 .signal-collection-table tbody tr:hover::after {
-  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+  background: var(--mos-hover);
 }
 .signal-collection-table tbody tr.signal-table-row--urgent::after {
-  background: color-mix(in srgb, var(--warning) 7%, transparent);
+  background: var(--mos-danger-tint);
 }
 .signal-collection-table tbody tr.kfocus td:last-child { box-shadow: inset 0 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }
 .signal-collection-table tbody tr.kfocus::after { box-shadow: inset -2px 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }
@@ -127,9 +127,9 @@
 .signal-table-message-meta {
   display: block;
   overflow: hidden;
-  margin-top: 3px;
+  margin-top: var(--mos-stack-gap);
   color: var(--muted-foreground);
-  font-size: var(--font-size-overline);
+  font-size: var(--mos-size-1);
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -138,8 +138,8 @@
   text-decoration: underline;
 }
 .signal-table-message:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: var(--mos-focus-offset);
   border-radius: var(--radius-xs);
 }
 
@@ -149,35 +149,6 @@
 }
 .signal-table-reason {
   color: var(--muted-foreground);
-}
-
-.signal-table-attention {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 8px;
-  border-radius: var(--radius-pill);
-  font-size: var(--font-size-overline);
-  font-weight: 600;
-  white-space: nowrap;
-}
-.signal-table-attention--fyi {
-  background: var(--secondary);
-  color: var(--muted-foreground);
-}
-.signal-table-attention--needs-attention {
-  background: color-mix(in srgb, var(--warning) 18%, transparent);
-  color: var(--warning-foreground);
-}
-.signal-table-attention--urgent {
-  background: color-mix(in srgb, var(--warning) 18%, transparent);
-  color: var(--warning-foreground);
-}
-/* DESIGN.md §Status and Signal semantics: attention is warning/amber, never destructive/red.
-   Urgent = top attention tier, escalated with the leading amber dot (§569 marker). */
-.signal-table-attention--urgent::before {
-  content: ""; flex: none; width: 6px; height: 6px; margin-right: 5px;
-  border-radius: var(--radius-pill); background: var(--warning);
 }
 
 .signal-table-row--retracted {
@@ -192,10 +163,7 @@
    `border-collapse: collapse` and does not shift cell content; the quiet grey hover wash still
    layers over the fill, and the rule persists through it. */
 .signal-collection-table tbody tr.signal-table-row--urgent td {
-  background: color-mix(in srgb, var(--warning) 7%, transparent);
-}
-.signal-collection-table tbody tr.signal-table-row--urgent td:first-child {
-  box-shadow: inset 2px 0 0 0 var(--warning);
+  background: var(--mos-danger-tint);
 }
 
 /* Issue 580: the 390px phone reflow of this same table (DataTable's PhoneCards) drops each row into a
@@ -208,6 +176,5 @@
    outright. No var(--shadow-rest) here: the archive card is flat by that same floor, so this rule
    only ever ADDS the inset warning rule, never a raised shadow. */
 .signal-collection-presentation .dt-card.signal-table-row--urgent {
-  background: color-mix(in srgb, var(--warning) 7%, transparent);
-  box-shadow: inset 2px 0 0 0 var(--warning);
+  background: var(--mos-danger-tint);
 }

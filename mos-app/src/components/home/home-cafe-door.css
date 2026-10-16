@@ -1,101 +1,68 @@
 .home-cafe-door {
-  border-top: 2px solid var(--brand-navy);
-  padding-top: 14px;
+  min-width: 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--mos-space-3);
 }
 
 .home-cafe-door-heading {
-  margin: 0 0 10px;
+  margin: 0 0 var(--mos-group-below);
   color: var(--foreground);
-  font-family: var(--font-display);
-  font-size: var(--font-size-heading);
+  font-size: var(--mos-size-3);
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.3;
+}
+
+.home-cafe-door-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--mos-label-gap) var(--mos-field-gap);
 }
 
 .home-cafe-door-link {
   display: flex;
-  align-items: center;
+  align-items: baseline;
+  flex: 1 1 260px;
   justify-content: space-between;
-  gap: 20px;
+  gap: var(--mos-row-gap);
   min-width: 0;
-  border-block: 1px solid var(--border);
-  padding: 16px 4px;
+  min-height: var(--mos-control-height);
+  padding: var(--mos-space-1);
   color: inherit;
   text-decoration: none;
 }
 
-.home-cafe-door-link:hover .home-cafe-door-action {
-  text-decoration: underline;
-}
-
-.home-cafe-door-link:focus-visible {
+.home-cafe-door-link:hover .home-cafe-door-action { text-decoration: underline; }
+.home-cafe-door-link:focus-visible,
+.home-cafe-door-log-link:focus-visible {
   border-radius: var(--radius-xs);
-  outline: 2px solid var(--ring);
-  outline-offset: 3px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: var(--mos-focus-offset);
 }
 
-.home-cafe-door-copy {
-  display: grid;
-  min-width: 0;
-  gap: 4px;
-}
-
-.home-cafe-door-kicker {
-  overflow: hidden;
-  color: var(--foreground);
-  font-size: var(--font-size-body-lg);
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.home-cafe-door-checklist {
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-}
-
-.home-cafe-door-action {
+.home-cafe-door-copy { display: grid; min-width: 0; gap: 3px; }
+.home-cafe-door-kicker { color: var(--foreground); font-size: var(--mos-size-3); font-weight: 600; }
+.home-cafe-door-checklist { color: var(--muted-foreground); font-size: var(--mos-size-1); }
+.home-cafe-door-action,
+.home-cafe-door-log-link {
   flex: none;
   color: var(--text-on-accent-tint);
-  font-size: var(--font-size-control);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.home-cafe-door .loading-shell,
-.home-cafe-door .error-state,
-.home-cafe-door .empty-state {
-  margin-top: 8px;
-}
-
-.home-cafe-door-actions {
-  display: grid;
-  gap: 8px;
-}
-
-.home-cafe-door-log-link {
-  justify-self: start;
-  padding: 4px;
-  color: var(--text-on-accent-tint);
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
   font-weight: 600;
   text-decoration: none;
 }
-
-.home-cafe-door-log-link:hover {
-  text-decoration: underline;
+.home-cafe-door-log-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--mos-control-height);
+  padding: var(--mos-space-1);
 }
-
-.home-cafe-door-log-link:focus-visible {
-  border-radius: var(--radius-xs);
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
+.home-cafe-door-log-link:hover { text-decoration: underline; }
+.home-cafe-door .loading-shell,
+.home-cafe-door .error-state,
+.home-cafe-door .empty-state { margin-top: 8px; }
 
 @media (max-width: 480px) {
-  .home-cafe-door-link {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 8px;
-  }
+  .home-cafe-door-actions { align-items: flex-start; flex-direction: column; gap: 2px; }
+  .home-cafe-door-link { align-items: flex-start; flex-basis: auto; flex-direction: column; justify-content: center; gap: 2px; }
 }

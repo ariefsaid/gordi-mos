@@ -1,0 +1,42 @@
+/* The one table header: a filled band, label role (14/600) in muted, sentence case, 40px tall,
+   one rule underneath. Café, Work, Money and Admin tables all wear it. Sort direction is the shared
+   SortIndicator; numeric columns right-align header and cells together. The `:root` prefix lets this
+   win over any per-area leftovers regardless of which route chunk loaded last. */
+:root .page-frame--v3 :is(.dt-table, .tasks-table, .money-table, .money-branch__days-table, .admin-access-table, .people-table) thead :is(th, td),
+:root .page-frame--v3 .admin-teams__header {
+  padding-block: var(--mos-band-pad-y);
+  background: var(--mos-band);
+  color: var(--mos-muted);
+  font: var(--mos-type-label);
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: start;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--mos-line);
+  white-space: nowrap;
+}
+:root .page-frame--v3 :is(.dt-table, .tasks-table, .money-table, .money-branch__days-table, .admin-access-table, .people-table) thead :is(th, td) :is(button, .dt-sort-button) {
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+:root .page-frame--v3 :is(.dt-table, .tasks-table, .money-table, .money-branch__days-table, .admin-access-table, .people-table) thead :is(th, td) :is(button, .dt-sort-button) { min-height: 0; padding-block: 0; }
+:root .page-frame--v3 :is(.dt-table, .tasks-table, .money-table, .money-branch__days-table, .people-table) thead :is(th, td):not(:first-child):not(:last-child) { padding-inline: var(--mos-row-pad-x); }
+:root .page-frame--v3 :is(.dt-table, .money-table, .money-branch__days-table) thead :is(th, td):first-child { padding-inline-start: var(--mos-row-pad-x); }
+:root .page-frame--v3 :is(.dt-table, .money-table, .money-branch__days-table, .people-table) thead :is(th, td):last-child { padding-inline-end: var(--mos-row-pad-x); }
+:root .page-frame--v3 :is(.dt-table, .money-table, .money-branch__days-table) thead :is(.dt-th-num, .money-table__head:not(:first-child)) { text-align: end; }
+:root .page-frame--v3 .admin-teams__header { padding-inline: var(--mos-row-pad-x); }
+:root .page-frame--v3 .admin-teams__num { text-align: end; }
+:root .page-frame--v3 .tasks-table thead tr::after,
+:root .page-frame--v3 .signal-collection-table thead tr::after { background: var(--mos-band); border-bottom: 1px solid var(--mos-line); }
+/* The same header on lists built as grids of rows (Café Stock, Count, Waste): one band, one rule, 12px gutters. */
+:root .page-frame--v3 :is(.ks-columns, .cwl-head, .cafe-count-sheet__columns) {
+  align-items: center;
+  padding: var(--mos-band-pad-y) var(--mos-row-pad-x);
+  background: var(--mos-band);
+  color: var(--mos-muted);
+  font: var(--mos-type-label);
+  border-bottom: 1px solid var(--mos-line);
+  white-space: nowrap;
+}

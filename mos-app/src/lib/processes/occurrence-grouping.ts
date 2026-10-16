@@ -11,7 +11,7 @@ export interface OccurrenceGroupableTask {
   process_run_id: string | null
 }
 
-export interface OccurrenceGroup<T extends OccurrenceGroupableTask> {
+interface OccurrenceGroup<T extends OccurrenceGroupableTask> {
   runId: string
   /** The run's caption (never the string "Process Run" — FR-611). */
   caption: string

@@ -1,15 +1,56 @@
-/* A decision row's facts stack one per line, so a wrapped fact never starts with a stray separator. */
-.cafe-decision-queue__meta {
-  display: grid;
-  gap: 2px;
-}
-
+.cafe-decision-queue__meta { display: grid; gap: 2px; }
 .cafe-decision-queue__meta > span + span::before { content: none; }
-
-.cafe-decision-queue__detail {
-  margin: 8px 0 0;
-  color: var(--foreground);
-  font-size: var(--font-size-body);
-  line-height: 1.5;
-  overflow-wrap: anywhere;
+.cafe-decision-queue__detail { margin: 8px 0 0; color: var(--foreground); font-size: var(--mos-size-3); line-height: 1.5; overflow-wrap: anywhere; }
+.cafe-decision-workspace { min-width: 0; }
+.cafe-decision-workspace__layout { display: grid; grid-template-columns: minmax(250px, .72fr) minmax(0, 1.28fr); align-items: start; gap: var(--mos-group-above); }
+.cafe-decision-master { min-width: 0; }
+.cafe-decision-master__group + .cafe-decision-master__group { margin-top: var(--mos-group-above); }
+.cafe-decision-master__group h2 { margin: 0 0 var(--mos-group-below); font-size: var(--mos-size-3); }
+.cafe-decision-master__group ul { margin: 0; padding: 0; list-style: none; }
+.cafe-decision-master__item { display: grid; width: 100%; min-height: var(--mos-row-min); gap: var(--mos-stack-gap); padding: var(--mos-row-pad-y) var(--mos-row-pad-x); border: 1px solid transparent; border-bottom-color: var(--border); border-radius: var(--radius-md); background: transparent; color: var(--foreground); text-align: start; cursor: pointer; }
+.cafe-decision-master__item:hover { background: var(--muted); }
+.cafe-decision-master__item:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.cafe-decision-master__item.is-selected { border-color: var(--border); background: var(--background); }
+.cafe-decision-master__title { font-weight: 600; overflow-wrap: anywhere; }
+.cafe-decision-master__facts { display: flex; flex-wrap: wrap; gap: var(--mos-stack-gap) var(--mos-row-gap); color: var(--muted-foreground); font-size: var(--mos-size-1); }
+.cafe-decision-master__facts > span { display: block; }
+.cafe-decision-master__own, .cafe-decision-workbench__own { color: var(--muted-foreground); font-size: var(--mos-size-1); }
+.cafe-decision-master__state { font-size: var(--mos-size-1); }
+.cafe-decision-workbench { min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--background); }
+.cafe-decision-workbench > h2 { margin: var(--mos-inline-gap) 0; font-size: var(--mos-size-4); overflow-wrap: anywhere; }
+.cafe-decision-workbench__back { min-height: var(--mos-control-height); }
+.cafe-decision-workbench__back { display: none; }
+.cafe-decision-workbench__meta { display: grid; gap: var(--mos-label-gap); color: var(--muted-foreground); }
+.cafe-decision-workbench__items { margin-top: var(--mos-group-above); }
+.cafe-decision-workbench__items h3 { margin: 0 0 var(--mos-group-below); font-size: var(--mos-size-3); }
+.cafe-decision-workbench__columns { display: grid; grid-template-columns: minmax(0,1fr) minmax(150px,.5fr); gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); color: var(--muted-foreground); font-size: var(--mos-size-1); }
+.cafe-decision-workbench__columns span:last-child { text-align: end; }
+.cafe-decision-workbench .cafe-receipt-lines { margin: 0; padding: 0; list-style: none; }
+.cafe-decision-workbench .cafe-receipt-lines li { display: grid; grid-template-columns: minmax(0,1fr) minmax(150px,.5fr); gap: var(--mos-row-gap); padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--border); }
+.cafe-decision-workbench .cafe-receipt-lines li > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.cafe-decision-workbench .cafe-receipt-lines li > span:last-child { text-align: end; white-space: normal; }
+.cafe-decision-workbench__note { display: grid; gap: 8px; margin-top: 16px; }
+.cafe-decision-workbench__note label { font-weight: 600; }
+.cafe-decision-workbench__note textarea { width: 100%; min-height: 88px; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--input); border-radius: var(--radius-md); background: var(--background); color: var(--foreground); font: inherit; font-size: var(--mos-size-3); }
+.cafe-decision-workbench__note p { margin: 0; color: var(--muted-foreground); }
+.cafe-decision-workbench__bar { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: var(--mos-row-gap); margin: var(--mos-field-gap) calc(-1 * var(--mos-bar-pad-x)) calc(-1 * var(--mos-bar-pad-x)); padding: var(--mos-bar-pad-y) var(--mos-bar-pad-x); border-top: 1px solid var(--border); background: var(--background); }
+.cafe-decision-workbench__actions { display: flex; flex-wrap: wrap; justify-content: end; gap: var(--mos-inline-gap); }
+.cafe-decision-workbench__actions .btn { min-height: var(--mos-control-height); }
+.cafe-decision-workbench__result { margin: 16px 0 0; }
+@media (max-width: 767px) {
+  .cafe-decision-workspace__layout { display: block; }
+  .cafe-decision-workbench { display: none; padding: 0 0 16px; border: 0; background: transparent; }
+  .cafe-decision-master:not(.has-selection) + .cafe-decision-workbench { display: block; }
+  .cafe-decision-master:has(.is-selected) { display: none; }
+  .cafe-decision-master:has(.is-selected) + .cafe-decision-workbench { display: block; }
+  .cafe-decision-workbench__back { display: inline-flex; }
+  .cafe-decision-workbench__bar { position: sticky; bottom: var(--mobile-nav-height, 64px); margin: var(--mos-field-gap) 0 0; padding: var(--mos-bar-pad-y) 0; }
+  .cafe-decision-workbench__bar > div:first-child:empty { display: none; }
+  .cafe-decision-workbench__bar:not(:has(.cafe-decision-workbench__own)) { justify-content: end; }
+  .cafe-decision-workbench__actions { width: 100%; }
+  .cafe-decision-workbench__actions .btn { flex: 1 1 44%; }
+  .cafe-decision-workbench__columns { grid-template-columns: minmax(0,1fr); }
+  .cafe-decision-workbench__columns span:last-child { display: none; }
+  .cafe-decision-workbench .cafe-receipt-lines li { grid-template-columns: minmax(0,1fr); gap: var(--mos-label-gap); }
+  .cafe-decision-workbench .cafe-receipt-lines li > span:last-child { text-align: start; }
 }

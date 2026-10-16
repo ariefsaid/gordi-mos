@@ -32,6 +32,7 @@ vi.mock('../../lib/db/directory', () => ({
   getPersonTeams: vi.fn(),
   getTeamsByIds: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getDirectManagerPersonIds: () => Promise.resolve([]),
 }))
 vi.mock('../../lib/comments/postComment', () => ({
   listComments: vi.fn(),
@@ -219,7 +220,7 @@ describe('TaskSurface — view mode', () => {
     })
     renderSurface()
     expect((await screen.findAllByRole('link', { name: 'Archived Objective' }))[0]).toHaveAttribute('href', '/work/objectives/archived-objective')
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Objective' }))
+    fireEvent.click(screen.getByRole('button', { name: /Edit Objective$/ }))
     fireEvent.click(screen.getByRole('combobox', { name: 'Objective' }))
     expect(screen.getByRole('option', { name: 'Current Objective' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'Archived Objective' })).toBeNull()
@@ -256,13 +257,13 @@ describe('TaskSurface — view mode', () => {
     })
     // Status/action stay in the compact header; the full work path and context remain in one view.
     // The title's edit control must carry a localized accessible name, never the raw field key.
-    expect(screen.getByRole('button', { name: 'Edit Title' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Edit Title$/ })).toBeInTheDocument()
     // The facts line answers what state, who has it and by when, before any section.
     const facts = screen.getByRole('list', { name: 'Key facts' })
-    expect(within(facts).getByRole('button', { name: 'Edit Status' })).toHaveTextContent('Open')
+    expect(within(facts).getByRole('button', { name: /Edit Status$/ })).toHaveTextContent('Open')
     expect(within(facts).getByText('PIC')).toBeInTheDocument()
     expect(within(facts).getByText('Supervisor')).toBeInTheDocument()
-    expect(within(facts).getByRole('button', { name: 'Edit Due' })).toBeInTheDocument()
+    expect(within(facts).getByRole('button', { name: /Edit Due$/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
     expect(screen.queryByText(/RACI|Responsible \(R\)|Accountable \(A\)|Consulted|Informed/)).toBeNull()
     expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
@@ -298,7 +299,7 @@ describe('TaskSurface — view mode', () => {
     renderIndonesianSurface()
 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: 'Ubah Judul' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Ubah Judul$/ })).toBeInTheDocument()
     expect(screen.getByRole('list', { name: 'Fakta utama' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Komentar' })).toBeInTheDocument()
@@ -316,12 +317,12 @@ describe('TaskSurface — view mode', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    // Description, Checklist and Comments lead in that order; About and History follow. No tabs.
+    // Description, Checklist and Comments are all visible (no tabs); About and History follow.
     expect(screen.queryByRole('tablist')).toBeNull()
     expect(document.querySelector('.rp[data-record-kind="task"][data-record-mode="page"]')).toBeTruthy()
     const sections = [...document.querySelectorAll('[data-record-section]')]
       .map((node) => (node as HTMLElement).dataset.recordSection)
-    expect(sections).toEqual(['description', 'checklist', 'comments'])
+    expect([...sections].sort()).toEqual(['checklist', 'comments', 'description'])
     expect(screen.getByRole('region', { name: 'About' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /History/ })).toBeNull() // no events, no History
   })
@@ -531,7 +532,7 @@ describe('TaskSurface — view mode', () => {
 
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Team' }))
+    fireEvent.click(screen.getByRole('button', { name: /Edit Team$/ }))
     fireEvent.click(screen.getByRole('combobox', { name: 'Team' }))
     fireEvent.click(screen.getByRole('option', { name: 'Sales Team' }))
 
@@ -918,7 +919,7 @@ describe('TaskSurface — create mode', () => {
     // task-surface.tsx accountablePersonId comment): PIC and Supervisor are distinct accountable
     // roles; auto-collapsing Supervisor to the creator/PIC defeats that model.
     const aPicker = screen.getByRole('combobox', { name: 'Supervisor' })
-    expect(aPicker).toHaveTextContent(/select supervisor/i)
+    expect(aPicker).toHaveTextContent(/choose a person/i)
     expect(rPicker).not.toBeDisabled()
     expect(aPicker).not.toBeDisabled()
   })

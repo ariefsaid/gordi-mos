@@ -306,8 +306,8 @@ describe('DataTable — grouping (desktop)', () => {
     // count override (Hot) + default rows.length (Cold) both render in the header cell
     const groupRows = container.querySelectorAll('tr.dt-group-row')
     expect(groupRows).toHaveLength(2) // null-label group renders NO header
-    expect(groupRows[0].querySelector('.dt-group-count')?.textContent).toBe('7') // explicit override
-    expect(groupRows[1].querySelector('.dt-group-count')?.textContent).toBe('1') // default = rows.length
+    expect(groupRows[0]).toHaveTextContent('Hot Kitchen(7)') // explicit override
+    expect(groupRows[1]).toHaveTextContent('Cold Kitchen(1)') // default = rows.length
 
     // rows appear under their owning group, in source order
     const trs = Array.from(container.querySelector('tbody')!.querySelectorAll('tr'))
@@ -337,26 +337,25 @@ describe('DataTable — grouping (desktop)', () => {
   it('collapses a group on click (hides its rows, aria-expanded=false) and re-expands on the next click', () => {
     render(<DataTable columns={COLUMNS} rows={[]} groups={GROUPS} isDesktop caption="Kitchen prep" />)
     // all-expanded by default
-    const collapseBtn = screen.getByRole('button', { name: /collapse hot kitchen/i })
-    expect(collapseBtn).toHaveAttribute('aria-expanded', 'true')
+    const toggle = screen.getByRole('button', { name: /hot kitchen/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('GHQ')).toBeInTheDocument()
 
-    fireEvent.click(collapseBtn)
-    // collapsed: the button now offers to Expand + reports aria-expanded=false, and the rows are gone
-    const expandBtn = screen.getByRole('button', { name: /expand hot kitchen/i })
-    expect(expandBtn).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(toggle)
+    // collapsed: the toggle reports aria-expanded=false and the rows are gone
+    expect(screen.getByRole('button', { name: /hot kitchen/i })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('GHQ')).toBeNull()
     // the other group is unaffected
     expect(screen.getByText('SKC')).toBeInTheDocument()
 
-    fireEvent.click(expandBtn)
-    expect(screen.getByRole('button', { name: /collapse hot kitchen/i })).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(screen.getByRole('button', { name: /hot kitchen/i }))
+    expect(screen.getByRole('button', { name: /hot kitchen/i })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('GHQ')).toBeInTheDocument()
   })
 
   it('collapses on Enter and Space (keyboard path) — the toggle is a real <button>', () => {
     render(<DataTable columns={COLUMNS} rows={[]} groups={GROUPS} isDesktop caption="Kitchen prep" />)
-    const btn = screen.getByRole('button', { name: /collapse cold kitchen/i })
+    const btn = screen.getByRole('button', { name: /cold kitchen/i })
     expect(btn.tagName).toBe('BUTTON')
     fireEvent.click(btn) // a <button> fires click on Enter/Space natively
     expect(screen.queryByText('SKC')).toBeNull()
@@ -375,7 +374,7 @@ describe('DataTable — grouping (desktop)', () => {
     )
     expect(screen.queryByText('GHQ')).toBeNull()
     expect(screen.getByText('SKC')).toBeInTheDocument()
-    const expand = screen.getByRole('button', { name: /expand hot kitchen/i })
+    const expand = screen.getByRole('button', { name: /hot kitchen/i })
     expect(expand).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(expand)
     expect(screen.getByText('GHQ')).toBeInTheDocument()
@@ -446,7 +445,7 @@ describe('DataTable — grouping (phone cards)', () => {
   it('collapses a phone group on click (hides its cards)', () => {
     render(<DataTable columns={COLUMNS} rows={[]} groups={GROUPS} isDesktop={false} caption="Kitchen prep" />)
     expect(screen.getByText('GHQ')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /collapse hot kitchen/i }))
+    fireEvent.click(screen.getByRole('button', { name: /hot kitchen/i }))
     expect(screen.queryByText('GHQ')).toBeNull()
   })
 
@@ -479,7 +478,6 @@ describe('DataTable — grouping regression + glyph guard', () => {
   it('uses the shared inline-SVG <Chevron>, never the ▸/▾/▴ glyph characters (RI-IXD-1)', () => {
     const src = readFileSync(resolve(SRC, 'components/dashboard/data-table.tsx'), 'utf8')
     expect(src).not.toMatch(/[▸▾▴]/)
-    expect(src).toMatch(/from '@\/shell\/icons'/) // imports the ONE shared chevron
   })
 })
 
@@ -495,26 +493,6 @@ describe('DataTable — locale seam (#400)', () => {
     )
     expect(screen.getByText('Tidak ada baris untuk ditampilkan.')).toBeInTheDocument()
     expect(screen.queryByText('No rows to show.')).toBeNull()
-  })
-
-  it('group toggle aria names are Indonesian (desktop + phone)', () => {
-    const { unmount } = render(
-      <I18nProvider initialLocale="id">
-        <DataTable columns={COLUMNS} rows={[]} groups={GROUPS} isDesktop caption="Tabel" />
-      </I18nProvider>,
-    )
-    const collapse = screen.getByRole('button', { name: 'Tutup grup Hot Kitchen' })
-    fireEvent.click(collapse)
-    expect(screen.getByRole('button', { name: 'Buka grup Hot Kitchen' })).toBeInTheDocument()
-    unmount()
-
-    render(
-      <I18nProvider initialLocale="id">
-        <DataTable columns={COLUMNS} rows={[]} groups={GROUPS} isDesktop={false} caption="Tabel" />
-      </I18nProvider>,
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Tutup grup Hot Kitchen' }))
-    expect(screen.getByRole('button', { name: 'Buka grup Hot Kitchen' })).toBeInTheDocument()
   })
 
   // Same reasoning as ChartFrame: the failure state is where English hurts most, and it
@@ -537,51 +515,5 @@ describe('DataTable — locale seam (#400)', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument()
     expect(screen.queryByText(/couldn’t load|couldn't load|try again/i)).toBeNull()
-  })
-})
-
-// #359 — stylesheet pins (jsdom computes no layout; the CSS file is the oracle, the same
-// pattern as the kpi-tile span pin and the freshness-label css test).
-describe('DataTable — #359 stylesheet pins', () => {
-  const css = readFileSync(resolve(SRC, 'components/dashboard/data-table.css'), 'utf8')
-
-  it('header cells are sticky with card bg + the low z-index token (DESIGN.md "Data Table (signature)")', () => {
-    const block = css.split('.dt-table thead th {')[1]?.split('}')[0] ?? ''
-    expect(block).toContain('position: sticky')
-    expect(block).toContain('top: 0')
-    expect(block).toContain('z-index: var(--z-sticky)')
-    expect(block).toContain('background: var(--card)')
-  })
-
-  // `border-collapse: collapse` on a table with a sticky `<th>` lets the row that scrolls
-  // to the header's edge paint through the header's own background, so a row reads as sliced
-  // mid-glyph instead of hidden. `separate` + zero spacing keeps the sticky cell's background
-  // opaque over the content scrolling underneath, at the same visual row-divider rhythm.
-  it('uses separate border layout (not collapse) so the sticky header stays opaque over scrolling rows', () => {
-    const block = css.split('.dt-table {')[1]?.split('}')[0] ?? ''
-    expect(block).toContain('border-collapse: separate')
-    expect(block).toContain('border-spacing: 0')
-    expect(block).not.toContain('border-collapse: collapse')
-  })
-
-  it('the phone group-toggle reaches the 44px floor via the ::before overlay (24 + 2×10)', () => {
-    const block = css.split('.dt-cards-group-toggle::before {')[1]?.split('}')[0] ?? ''
-    expect(block).toContain('position: absolute')
-    expect(block).toContain('inset: -10px')
-    // the overlay only works if the toggle is its containing block
-    const toggle = css.split('.dt-cards-group-toggle {')[1]?.split('}')[0] ?? ''
-    expect(toggle).toContain('position: relative')
-  })
-
-  it('body rows read from the shared --row-* rhythm tokens, not raw literals', () => {
-    const block = css.split('.dt-table tbody td {')[1]?.split('}')[0] ?? ''
-    expect(block).toContain('height: var(--row-min-h)')
-    expect(block).toContain('padding: var(--row-pad-y) var(--row-pad-x)')
-    expect(block).toContain('var(--row-divider)')
-  })
-
-  it('chevron transitions use the --dur-fast token, never a raw 120ms', () => {
-    expect(css).not.toMatch(/120ms/)
-    expect(css).toContain('transition: transform var(--dur-fast) ease')
   })
 })

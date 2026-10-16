@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 
-const QUERY = '(max-width: 919.98px)'
+const QUERY = '(max-width: 767.98px)'
 
 /**
  * Synchronously reads matchMedia on first render (no wrong-branch flash).
  * Subscribes to the MediaQueryList change event for live updates.
- * Matches DESIGN.md §Navigation Mobile — rail collapses below 920px.
+ * Matches DESIGN.md §Navigation Mobile — rail collapses below 768px.
  */
 export function useIsNarrow(): boolean {
   const [isNarrow, setIsNarrow] = useState<boolean>(

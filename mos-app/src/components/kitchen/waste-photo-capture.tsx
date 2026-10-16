@@ -22,7 +22,7 @@ interface PhotoEntry {
   status: PhotoStatus
 }
 
-export interface PrivatePhotoCaptureCopy {
+interface PrivatePhotoCaptureCopy {
   title: string
   help: string
   add: string

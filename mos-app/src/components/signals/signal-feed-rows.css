@@ -8,7 +8,7 @@
 .home-signal-feed {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
   min-width: 0;
   /* The row anatomy adapts to the SPACE THE FEED HAS, not the window it sits in. Both consumers
      render the same rows at wildly different widths in the SAME viewport — the Home ambient tail is
@@ -28,50 +28,40 @@
   align-items: center;
   min-width: 0;
 }
-.home-signal-search {
+.home-signal-tools { flex-wrap: wrap; align-items: flex-end; }
+/* Persistent label above the field (UX-STANDARD EN1); the placeholder only shows an example. */
+.home-signal-search-field { flex: 1 1 180px; min-width: 0; display: flex; flex-direction: column; gap: var(--mos-label-gap); }.home-signal-search {
   flex: 1 1 auto;
   min-width: 0;
-  min-height: 44px; /* coarse-pointer tap floor, same as the row it replaces */
+  min-height: var(--mos-control-height); /* coarse-pointer tap floor, same as the row it replaces */
   padding: 8px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--foreground);
   font: inherit;
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
 }
 .home-signal-search::placeholder { color: var(--muted-foreground); }
 .home-signal-search:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -1px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: calc(-1 * var(--mos-focus-width));
   border-color: var(--ring);
 }
-/* "+ Signal" is a door in an AMBIENT tail, not the page's action. Painted in the one action blue it
-   was the loudest thing on Home — the eye landed on it before the overdue work above. It now wears
-   the shared secondary weight from the ONE button hierarchy (`.btn .btn-outline`, ui/Button.css):
-   no local fill, no local border, no re-implemented hover/focus. This rule carries only what the
-   toolbar geometry needs — the 44px coarse-pointer floor shared with the search field beside it.
-   Scoped to the toolbar so it beats `.btn`'s 32px height regardless of stylesheet order. */
-.home-signal-tools .home-signal-add {
-  flex: 0 0 auto;
-  height: auto;
-  min-height: 44px;
-}
-
 /* Quiet composer action row. */
 .home-signal-share-row {
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: 44px; /* P1-4: the "Share a Signal" row meets the 44px coarse-pointer tap floor */
+  min-height: var(--mos-row-min); /* P1-4: the "Share a Signal" row meets the 44px coarse-pointer tap floor */
   text-align: left;
-  padding: 10px 12px;
+  padding: var(--mos-row-pad-y) var(--mos-row-pad-x);
   border-radius: var(--radius-lg);
   border: 1px dashed var(--border);
   background: var(--card);
   color: var(--muted-foreground);
   font: inherit;
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
   cursor: pointer;
 }
 .home-signal-share-row:hover {
@@ -79,7 +69,7 @@
   color: var(--foreground);
   border-style: solid;
 }
-.home-signal-share-row:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.home-signal-share-row:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 
 .home-signal-list {
   list-style: none;
@@ -87,7 +77,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
 }
 .home-signal-list > li + li > .home-signal-row {
   border-top: 1px solid var(--row-divider);
@@ -96,9 +86,9 @@
 .home-signal-row {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  min-height: var(--row-min-h, 50px);
-  padding: var(--row-pad-y, 10px) 4px;
+  gap: var(--mos-row-gap);
+  min-height: var(--mos-row-min);
+  padding: var(--mos-row-pad-y) var(--mos-row-pad-x);
   min-width: 0;
 }
 
@@ -122,7 +112,7 @@
   border: 0;
   padding: 0;
   font: inherit;
-  font-size: var(--font-size-body-lg);
+  font-size: var(--mos-size-3);
   font-weight: 600;
   color: var(--foreground);
   cursor: pointer;
@@ -152,7 +142,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-  font-size: var(--font-size-mono);
+  font-size: var(--mos-size-2);
   color: var(--muted-foreground);
   min-width: 0;
 }
@@ -163,7 +153,7 @@
 .home-signal-meta-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--mos-inline-gap);
   min-width: 0;
   max-width: 100%;
   white-space: normal;
@@ -194,53 +184,19 @@
   gap: 8px;
 }
 
-/* Attention pill — mirrors the archive's tint recipe (token-only), never re-invented hues. */
-.home-signal-attention {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 9px;
-  border-radius: var(--radius-pill);
-  font-size: var(--font-size-label);
-  font-weight: 600;
-  white-space: nowrap;
-}
-.home-signal-attention--urgent,
-.home-signal-attention--needs-attention {
-  background: color-mix(in srgb, var(--warning) 18%, transparent);
-  color: var(--warning-foreground);
-}
-.home-signal-attention--urgent::before {
-  content: ""; flex: none; width: 6px; height: 6px; margin-right: 5px;
-  border-radius: var(--radius-pill); background: var(--warning);
-}
-.home-signal-attention--fyi {
-  background: var(--secondary);
-  color: var(--muted-foreground);
-}
-
-/* ── Archive Feed variant: the Operations-event attention row treatment ──────────────────────
-   DESIGN.md §Operations event tokens + F3 (OD-91 #18): the warning/7% fill + 2px warning left rule
-   is URGENT ONLY — the "act now" top tier, the one owner-approved side-stripe exception (state-
-   bearing, minimal, always paired with the fill + the amber attention pill text, never color-alone,
-   WCAG 1.4.1). Needs attention keeps its amber pill on a calm (unfilled) row so the fill escalates
-   Urgent above it. Scoped to `--archive`, so the Home ambient tail is untouched. Every archive row
-   reserves a 2px transparent left rule so all rows stay left-aligned; Urgent fills that reserve. */
-.home-signal-feed--archive .home-signal-row {
-  border-left: 2px solid transparent;
-}
 .home-signal-feed--archive .home-signal-row--urgent {
-  background: color-mix(in srgb, var(--warning) 7%, transparent);
-  border-left-color: var(--warning);
+  background: var(--mos-danger-tint);
 }
+/* The badge keeps its own box on the tinted row: same form as Needs attention and FYI. */
+.home-signal-feed--archive .home-signal-row--urgent .status-badge { background: var(--mos-surface); }
+.home-signal-date { color: var(--muted-foreground); font-size: var(--mos-size-1); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .home-signal-feed--archive .home-signal-row--open {
   cursor: pointer;
 }
 
-.home-signal-row--retracted { padding: var(--row-pad-y, 10px) 4px; }
-.home-signal-tombstone { margin: 0; font-size: var(--font-size-mono); color: var(--muted-foreground); font-style: italic; }
+.home-signal-row--retracted { padding: var(--mos-row-pad-y) var(--mos-row-pad-x); }
+.home-signal-tombstone { margin: 0; font-size: var(--mos-size-2); color: var(--muted-foreground); font-style: italic; }
 
 @container signal-feed (max-width: 480px) {
   /* DO-14 (signals F-3), re-levelled to the container: whenever the FEED is narrow — the phone at
@@ -248,7 +204,7 @@
      (attention pill + category control) squeezes the title column (flex:1) to a few words, which
      is identity starvation. Stack the row so the title + meta take the full column and the tail
      drops beneath them. The archive Feed (~1140px) stays above the threshold and is untouched. */
-  .home-signal-row { flex-direction: column; gap: 6px; }
+  .home-signal-row { flex-direction: column; gap: var(--mos-label-gap); }
   .home-signal-tail { align-self: flex-start; }
 }
 
@@ -268,4 +224,10 @@
   .home-signal-meta-item:last-child > .home-signal-sep {
     display: none;
   }
+}
+/* The Signals archive keeps author and category on one muted line (UX-STANDARD CT5); only the Home
+   tail, with its narrower column, drops the category to its own line. */
+@media (max-width: 767.98px) {
+  .home-signal-feed--archive .home-signal-meta-item:last-child { flex-basis: auto; }
+  .home-signal-feed--archive .home-signal-meta-item:last-child > .home-signal-sep { display: inline; }
 }

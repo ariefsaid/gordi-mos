@@ -35,21 +35,24 @@ export interface RouteLeaveGuardProps {
   when: boolean
   /** The stay/discard prompt body — plain language about what is lost. */
   message: string
+  /** Also guard changes to the query string — for a form that lives at `?add=1` and leaves by clearing it. */
+  includeSearch?: boolean
 }
 
-export function RouteLeaveGuard({ when, message }: RouteLeaveGuardProps) {
+export function RouteLeaveGuard({ when, message, includeSearch }: RouteLeaveGuardProps) {
   // useContext is always called (hook-safe); the blocking hook lives in a child that only mounts
   // when a data router is present, so useBlocker is never called outside a data router.
   const inDataRouter = useContext(UNSAFE_DataRouterContext) != null
-  return inDataRouter ? <BlockingGuard when={when} message={message} /> : null
+  return inDataRouter ? <BlockingGuard when={when} message={message} includeSearch={includeSearch} /> : null
 }
 
-function BlockingGuard({ when, message }: RouteLeaveGuardProps) {
+function BlockingGuard({ when, message, includeSearch }: RouteLeaveGuardProps) {
   const t = useT()
   const shouldBlock = useCallback<BlockerFunction>(
     ({ currentLocation, nextLocation }) =>
-      when && currentLocation.pathname !== nextLocation.pathname,
-    [when],
+      when && (currentLocation.pathname !== nextLocation.pathname
+        || (Boolean(includeSearch) && currentLocation.search !== nextLocation.search)),
+    [when, includeSearch],
   )
   const blocker = useBlocker(shouldBlock)
   const [open, setOpen] = useState(false)

@@ -124,9 +124,6 @@ function personOptions(people: readonly PersonOption[]): RecordFieldOption[] {
 function personName(people: readonly PersonOption[], id: string | null): string {
   return people.find((p) => p.id === id)?.full_name ?? 'Unassigned'
 }
-function firstName(name: string): string {
-  return name.trim().split(/\s+/)[0] || name
-}
 function buName(bus: readonly BusinessUnitOption[], id: string): string {
   return bus.find((b) => b.id === id)?.name ?? id
 }
@@ -150,7 +147,7 @@ function editableSpec(
 /** i18n-able labels for the shared Task field builders. Defaults are English so the full
  *  createTaskRecordAdapter and the adapter's own unit tests keep their literals; the LIVE
  *  TaskSurface passes locale-resolved strings (LocaleParityContract). */
-export interface TaskFieldLabels {
+interface TaskFieldLabels {
   title: string
   businessUnit: string
   pic: string
@@ -172,7 +169,7 @@ export interface TaskFieldLabels {
  *  LIVE TaskSurface passes locale-resolved strings (LocaleParityContract). The ownership
  *  landmark in particular must read "Task ownership" (the oracle's accessible name), NOT a
  *  bare "Ownership". */
-export interface TaskRecordLabels {
+interface TaskRecordLabels {
   typeLabel: string
   ownershipSection: string
   statusSection: string
@@ -240,7 +237,7 @@ const DEFAULT_TASK_RECORD_LABELS: TaskRecordLabels = {
 const DEFAULT_TASK_FIELD_LABELS: TaskFieldLabels = {
   title: 'Title',
   businessUnit: 'Business Unit',
-  pic: 'Person in charge (PIC)',
+  pic: 'PIC',
   supervisor: 'Supervisor',
   team: 'Team',
   teamUnassigned: TEAM_UNASSIGNED,
@@ -254,7 +251,7 @@ const DEFAULT_TASK_FIELD_LABELS: TaskFieldLabels = {
 /** The honest Team field spec — Business Unit is NEVER relabelled Team; a real task.team_id lookup
  *  fills Team, otherwise it shows the honest migration state. Options are limited to the viewer's
  *  effective Teams, so the field never manufactures a Team from a BU. */
-export function teamOwnershipField(
+function teamOwnershipField(
   team: TaskTeamView | null | undefined,
   labels: TaskFieldLabels = DEFAULT_TASK_FIELD_LABELS,
   editable = false,
@@ -342,7 +339,7 @@ function ownershipFields(
       label: labels.createdBy,
       control: 'text',
       value: task.created_by,
-      displayValue: `${firstName(personName(people, task.created_by))} · ${formatCreatedAt(createdAt)}`,
+      displayValue: `${personName(people, task.created_by)} · ${formatCreatedAt(createdAt)}`,
       editable: false,
       readOnlyReason: undefined,
     },

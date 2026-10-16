@@ -155,14 +155,17 @@ describe('issue 1366: Café Count route', () => {
 })
 
 describe('issue 1422: Café receiving destinations', () => {
-  it('AC-1037 Receive, receipt review and Receipt issues are live, navigable and open in the cafe and full profiles', () => {
+  it('AC-1037 Receive and Receipt issues are live pages and receipt review lands on its Review queue in one hop', () => {
     expect(CAFE_SECTIONS.map(section => section.path)).toContain('/cafe/receive')
-    for (const path of ['/cafe/receive', '/cafe/receive/review', '/cafe/receive/issues']) {
+    const door = allRedirects().find((r) => r.from === '/cafe/receive/review')
+    expect(door).toMatchObject({ replace: true, kind: 'map' })
+    expectOneHop('/cafe/receive/review', door!.to)
+    for (const path of ['/cafe/receive', '/cafe/receive/issues']) {
       const leaf = leafInThisTable(path)
       expect(leaf, `${path} must be a declared route`).toBeDefined()
       expect(leaf!.route.path).not.toBe('*')
       expect(isRedirect(leaf!.route.element)).toBe(false)
-      expect(sectionForPath(path)?.path, `${path} marks Receive in the navigation`).toBe('/cafe/receive')
+      expect(sectionForPath(path)?.path, `${path} is marked in the navigation`).toBe(path)
       expect(isShipGatedInProfile(path, 'cafe'), `${path} blocked in the cafe profile`).toBe(false)
       expect(isShipGatedInProfile(path, 'full'), `${path} blocked in the full profile`).toBe(false)
     }
@@ -170,9 +173,12 @@ describe('issue 1422: Café receiving destinations', () => {
 })
 
 describe('issue 1428: Café purchase request destinations', () => {
-  it('Request and Request review are live, navigable and open in the cafe and full profiles', () => {
+  it('Request is a live page and request review lands on its Review queue in one hop', () => {
     expect(CAFE_SECTIONS.map(section => section.path)).toContain('/cafe/request')
-    for (const path of ['/cafe/request', '/cafe/request/review']) {
+    const door = allRedirects().find((r) => r.from === '/cafe/request/review')
+    expect(door).toMatchObject({ replace: true, kind: 'map' })
+    expectOneHop('/cafe/request/review', door!.to)
+    for (const path of ['/cafe/request']) {
       const leaf = leafInThisTable(path)
       expect(leaf, `${path} must be a declared route`).toBeDefined()
       expect(leaf!.route.path).not.toBe('*')
@@ -405,7 +411,16 @@ describe('router — /admin redirects from inside AdminRoute', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'admin/people'),
     )!
-    expect(gate.children!.map((c) => c.path).sort()).toEqual(['admin', 'admin/access', 'admin/agents', 'admin/people', 'admin/teams'])
+    expect(gate.children!.map((c) => c.path).sort()).toEqual([
+      'admin',
+      'admin/access',
+      'admin/access/modules',
+      'admin/agents',
+      'admin/modules',
+      'admin/people',
+      'admin/people/:personId',
+      'admin/teams',
+    ])
   })
 })
 

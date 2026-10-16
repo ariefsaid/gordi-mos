@@ -1,0 +1,40 @@
+.home-next-action {
+  min-width: 0;
+  /* No rule of its own: the page head's rule already sits right above it (one rule, not two). */
+  padding-top: var(--mos-inline-gap);
+}
+
+.home-next-action-heading {
+  margin: 0;
+  color: var(--foreground);
+  font: var(--mos-type-group);
+}
+
+.home-next-action-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-next-action .stream-row + .stream-row { border: 0; }
+.home-next-action .stream-row-link { min-height: var(--mos-row-min); }
+
+/* Side by side, the heading shares the aside group header's 36px line so both read from one baseline. */
+@container home (min-width: 941px) {
+  .home-next-action-heading { display: flex; align-items: center; min-height: var(--mos-control-height); }
+}
+
+@container home (max-width: 620px) {
+  .home-next-action { padding-top: 0; }
+  .home-layout .home-next-action .stream-row-link {
+    gap: var(--mos-label-gap);
+    padding-block: var(--mos-row-pad-y);
+  }
+  .home-layout .home-next-action .stream-row-body { gap: 0; }
+}
+
+.home-next-action-empty {
+  margin: 0;
+  padding: var(--mos-row-pad-y) 0;
+  color: var(--muted-foreground);
+}

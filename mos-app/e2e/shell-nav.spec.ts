@@ -21,7 +21,7 @@ import { test, expect } from '@playwright/test'
 import { VIEWER, MANAGER, BAR_MEMBER } from './fixtures/users'
 import { loginAs } from './helpers/login'
 import { isShipGated } from './helpers/ship-gate'
-import { selectTaskView, taskViewsGroup } from './helpers/tasks'
+import { selectTaskView, taskViewsPicker } from './helpers/tasks'
 
 test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // --- Pre-login: static HTML title is present on the login page ---
@@ -41,20 +41,20 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await expect(page).toHaveURL(/\/$/)
   // toHaveTitle auto-retries — document.title is set by a React effect, not synchronously with the URL.
   await expect(page).toHaveTitle('Home — Gordi MOS')
-  await expect(nav.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page')
+  await expect(nav.getByRole('link', { name: 'Home', exact: true })).toHaveAttribute('aria-current', 'page')
 
   // --- Work → Tasks ---
-  await nav.getByRole('link', { name: 'Tasks' }).first().click()
+  await nav.getByRole('link', { name: 'Work', exact: true }).click()
+  await nav.getByRole('link', { name: /^Tasks\b/ }).click()
   await expect(page).toHaveURL(/\/work\/tasks$/, { timeout: 5_000 })
   await expect(page).toHaveTitle('Tasks — Gordi MOS')
-  // The current Tasks collection exposes its ownership/presentation choices as the named
-  // "Task views" group of pressed-state chips (#870). It is present even when the collection is
-  // empty, proving the real Tasks surface rendered rather than only the route.
-  await expect(taskViewsGroup(page)).toBeVisible()
+  // The Tasks collection exposes its ownership choices as the "Task views" picker. It is present
+  // even when the collection is empty, proving the real Tasks surface rendered rather than only the route.
+  await expect(taskViewsPicker(page)).toBeVisible()
   await selectTaskView(page, 'My work')
   await expect(page).toHaveURL(/\/work\/tasks\?view=my-work$/)
   await page.reload()
-  await expect(taskViewsGroup(page).getByRole('button', { name: 'My work', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(taskViewsPicker(page)).toContainText('My work')
 
   // --- Work -> Objectives ---
   // Was a rail click through to /work/objectives. issue 444 ship-gates that surface, so there is
@@ -69,7 +69,7 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   }
 
   // --- Work → Signals ---
-  await nav.getByRole('link', { name: 'Signals' }).first().click()
+  await nav.getByRole('link', { name: 'Signals', exact: true }).click()
   // OD-V4-1 / use-record-collection.ts:108-118: synced Signals layout may settle as ?layout=feed.
   await expect(page).toHaveURL(/\/work\/signals(\?layout=feed)?$/, { timeout: 5_000 })
   // The Signals archive has now ported (#267) and this destination serves it, so the
@@ -83,12 +83,12 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await page.reload()
   // OD-V4-1: cold-load canonicalization retains the synced ?layout=feed presentation.
   await expect(page).toHaveURL(/\/work\/signals\?layout=feed$/, { timeout: 5_000 })
-  await expect(nav.getByRole('link', { name: 'Signals' }).first()).toHaveAttribute('aria-current', 'page')
+  await expect(nav.getByRole('link', { name: 'Signals', exact: true })).toHaveAttribute('aria-current', 'page')
 
   // --- A retired bookmark still works, in one hop, with its query intact (FR-015/FR-016) ---
   await page.goto('tasks?view=mine')
   await expect(page).toHaveURL(/\/work\/tasks\?view=mine$/, { timeout: 5_000 })
-  await expect(taskViewsGroup(page)).toBeVisible()
+  await expect(taskViewsPicker(page)).toBeVisible()
 })
 
 // The management brief replaces the weekly-update team module. VIEWER is an Ops Lead;
@@ -109,9 +109,6 @@ test('AC-013: management scope reaches Objectives; ordinary members get their ow
 
   await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
   await expect(page).toHaveTitle('Home — Gordi MOS', { timeout: 10_000 })
-  const ownWork = page.getByRole('tab', { name: /My open work/ })
-  await expect(ownWork).toBeVisible()
-  await ownWork.click()
-  await expect(page.getByRole('tabpanel', { name: /My open work/ })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Next task', exact: true })).toBeVisible()
   await expect(objectives).toHaveCount(0)
 })

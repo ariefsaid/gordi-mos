@@ -1,0 +1,6 @@
+/* The shell's offline strip: the Notice (attention pair) laid flat across the width under the top bar. */
+.shell-offline-line > .notice {
+  margin: 0; padding: var(--mos-space-2) var(--mos-gutter); border-radius: 0; align-items: center;
+  border-bottom: 1px solid var(--mos-line);
+}
+.shell-offline-line > .notice .notice__text { flex: 0 1 auto; }

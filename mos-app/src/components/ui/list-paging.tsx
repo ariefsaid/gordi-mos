@@ -4,11 +4,13 @@ import { Button } from './button'
 import './list-paging.css'
 
 /** A continuation control for existing lists; the caller owns its server window. */
-export function ListPaging({ count, hasMore, loading = false, error = false, moreLabel, emptyItems, onLoadMore }: {
+export function ListPaging({ count, hasMore, loading = false, error = false, moreLabel, emptyItems, bare = false, onLoadMore }: {
   count: number
   hasMore: boolean
   moreLabel?: string
   emptyItems?: string
+  /** Sits inside an empty state, which already says nothing matched: only the button shows. */
+  bare?: boolean
   loading?: boolean
   error?: boolean
   onLoadMore: () => void
@@ -29,7 +31,7 @@ export function ListPaging({ count, hasMore, loading = false, error = false, mor
     <div onFocus={() => { hadFocus.current = true }} onBlur={(event) => {
       const next = event.relatedTarget
       if (hasMore && next && !event.currentTarget.contains(next as Node)) hadFocus.current = false
-    }} className="list-paging" aria-busy={loading}>
+    }} className={`list-paging${bare ? ' list-paging--bare' : ''}`} aria-busy={loading}>
       <p ref={status} tabIndex={-1} className={emptyAndCanContinue ? 'sr-only' : undefined} aria-live="polite" aria-atomic="true">
         {emptyAndCanContinue
           ? emptyItems
@@ -37,7 +39,7 @@ export function ListPaging({ count, hasMore, loading = false, error = false, mor
             : t('common.paging.emptyLoaded')
           : t(statusKey, { count })}
       </p>
-      {emptyAndCanContinue ? <p className="list-paging__continue">{t('common.paging.continue')}</p> : null}
+      {emptyAndCanContinue ? <p className={bare ? 'sr-only' : 'list-paging__continue'}>{t('common.paging.continue')}</p> : null}
       {hasMore ? <p
         className={`list-paging__error${error ? '' : ' list-paging__error--hidden'}`}
         role={error ? 'alert' : undefined}

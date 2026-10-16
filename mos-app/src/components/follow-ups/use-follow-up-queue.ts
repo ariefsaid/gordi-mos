@@ -21,9 +21,9 @@ import {
   type FollowUpTransition,
 } from '@/lib/db/follow-ups'
 
-export type FollowUpFetchState = 'loading' | 'ready' | 'error'
+type FollowUpFetchState = 'loading' | 'ready' | 'error'
 
-export interface FollowUpTransitionForm {
+interface FollowUpTransitionForm {
   amount: string
   cash_in_date: string
   evidence: string
@@ -53,6 +53,7 @@ export interface FollowUpQueueState {
   load: () => void
   run: (row: FollowUpRow, verb: FollowUpTransition) => Promise<void>
   submit: (row: FollowUpRow, verb: FollowUpTransition) => Promise<void>
+  cancelAction: () => void
 }
 
 const EMPTY_FORM: FollowUpTransitionForm = { amount: '', cash_in_date: '', evidence: '', promise_date: '', note: '' }
@@ -161,6 +162,7 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
   }, [form, load])
 
   const detailRow = rows.find((row) => row.id === (active?.id ?? detailId)) ?? null
+  const cancelAction = useCallback(() => { setActive(null); setForm(EMPTY_FORM) }, [])
 
-  return { rows, state, hasMore, loadingMore, moreError, loadMore, overdueCount, canConfirm, canChase, active, form, detailRow, setForm, load, run, submit }
+  return { rows, state, hasMore, loadingMore, moreError, loadMore, overdueCount, canConfirm, canChase, active, form, detailRow, setForm, load, run, submit, cancelAction }
 }

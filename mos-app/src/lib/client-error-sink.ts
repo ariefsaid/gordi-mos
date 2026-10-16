@@ -1,6 +1,6 @@
 import type { ErrorSink } from './telemetry'
 
-export type ClientErrorReport = {
+type ClientErrorReport = {
   message: string
   stack: string
   route: string

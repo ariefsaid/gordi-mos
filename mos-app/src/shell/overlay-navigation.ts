@@ -4,9 +4,9 @@ import type { Location, To } from 'react-router-dom'
 // This module owns URL plumbing ONLY: no React nodes, no database rows, no dirty
 // booleans, no confirmation copy, and no domain field names ever enter router state.
 
-export const OVERLAY_HISTORY_KEY = '__mosOverlay'
+const OVERLAY_HISTORY_KEY = '__mosOverlay'
 
-export type OverlayHistoryMode = 'route' | 'ephemeral'
+type OverlayHistoryMode = 'route' | 'ephemeral'
 
 export type OverlayOwner = 'shell' | 'inbox' | 'tasks' | 'signals' | 'work'
 

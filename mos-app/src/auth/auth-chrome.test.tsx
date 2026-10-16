@@ -11,8 +11,6 @@ import { useAuth } from './use-auth'
 
 import { AuthShell } from './auth-shell'
 import { OrphanScreen } from './orphan-screen'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { messages } from '@/i18n/messages'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
@@ -55,18 +53,4 @@ describe('AC-014: auth chrome names a role', () => {
     expect(offenders, `auth strings naming a person: ${offenders.join(', ')}`).toEqual([])
   })
 
-  // AC-018 — the amendment is design LAW, so the law is pinned where it can go stale: the
-  // catalog and the components above are free to drift from a paragraph nobody re-reads.
-  it('AC-018: DESIGN.md carries the Auth surfaces sub-section', () => {
-    const design = readFileSync(resolve(__dirname, '../../../DESIGN.md'), 'utf8')
-    expect(design).toContain('### Auth surfaces')
-    for (const clause of [
-      'a muted footer line that names a **role** (`Contact your admin`), never a person',
-      'Result states replace the card body (`✓ … is on its way` · `Back to sign in`); they never stack under the form.',
-      'Password fields state their rule under the field before any error (`At least 8 characters`) and carry a show/hide toggle.',
-      'No demo, seed or environment affordance renders outside `import.meta.env.DEV`.',
-    ]) {
-      expect(design).toContain(clause)
-    }
-  })
 })

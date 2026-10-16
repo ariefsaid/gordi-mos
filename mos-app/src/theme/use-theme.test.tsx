@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useTheme } from './use-theme';
+import { ThemeProvider, useThemeContext } from './theme-provider';
+
+const wrapper = ({ children }: { children: React.ReactNode }) => <ThemeProvider>{children}</ThemeProvider>;
+const useTheme = () => {
+  const { theme, setTheme } = useThemeContext();
+  return [theme, setTheme] as const;
+};
 
 /**
  * useTheme — ADR-0009 / FR-134. AC-135 (sets class + persists) + AC-136 (token
@@ -14,7 +20,7 @@ describe('useTheme (AC-135, AC-136) — ADR-0009 theme seam', () => {
   });
 
   it('AC-135: defaults to light, adds .dark to <html> when set to dark, and persists', () => {
-    const { result } = renderHook(() => useTheme());
+    const { result } = renderHook(() => useTheme(), { wrapper });
     expect(result.current[0]).toBe('light');
     expect(document.documentElement.classList.contains('dark')).toBe(false);
 
@@ -24,12 +30,12 @@ describe('useTheme (AC-135, AC-136) — ADR-0009 theme seam', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(true);
     // …and persisted across a remount (re-read from localStorage)
     expect(localStorage.getItem('mos-theme')).toBe('dark');
-    const { result: remount } = renderHook(() => useTheme());
+    const { result: remount } = renderHook(() => useTheme(), { wrapper });
     expect(remount.current[0]).toBe('dark');
   });
 
   it('AC-135: setting back to light removes the class and persists light', () => {
-    const { result } = renderHook(() => useTheme());
+    const { result } = renderHook(() => useTheme(), { wrapper });
     act(() => result.current[1]('dark'));
     act(() => result.current[1]('light'));
     expect(document.documentElement.classList.contains('dark')).toBe(false);
@@ -42,7 +48,7 @@ describe('useTheme (AC-135, AC-136) — ADR-0009 theme seam', () => {
     // does not parse CSS custom properties. Here we lock the MECHANISM the e2e
     // depends on: toggling the hook flips class="dark" on <html>, and the kit's
     // .dark { … } scope is what re-expresses every --ds-* token.
-    const { result } = renderHook(() => useTheme());
+    const { result } = renderHook(() => useTheme(), { wrapper });
     const root = document.documentElement;
 
     act(() => result.current[1]('light'));
@@ -57,7 +63,7 @@ describe('useTheme (AC-135, AC-136) — ADR-0009 theme seam', () => {
 
   it('reads a pre-existing dark preference from localStorage on mount', () => {
     localStorage.setItem('mos-theme', 'dark');
-    const { result } = renderHook(() => useTheme());
+    const { result } = renderHook(() => useTheme(), { wrapper });
     expect(result.current[0]).toBe('dark');
     expect(document.documentElement.classList.contains('dark')).toBe(true);
   });

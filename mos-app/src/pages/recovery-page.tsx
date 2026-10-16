@@ -1,13 +1,17 @@
 import { useId, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
+import { AuthShell, AuthCard, AuthBackLink, Spinner } from '@/auth/auth-shell'
 import { SetPasswordForm } from '@/auth/set-password-form'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { passwordRefusal } from '@/auth/password-error'
 import { isValidEmail } from '@/auth/is-valid-email'
 import { appUrl } from '@/config/app-build-settings'
+import { Notice } from '@/components/ui/notice'
+import { Button } from '@/components/ui/button'
+import { TextInput } from '@/components/ui/text-input'
+import './recovery-page.css'
 
 /**
  * The dead end of a recovery link, and the way out of it.
@@ -58,31 +62,12 @@ function ExpiredCard() {
     return (
       <AuthShell>
         <AuthCard>
-          <div className="flex items-start gap-3 mb-5">
-            <div
-              className="flex items-center justify-center rounded-full flex-shrink-0"
-              style={{
-                width: 28,
-                height: 28,
-                backgroundColor: 'color-mix(in srgb, var(--success) 14%, transparent)',
-                color: 'var(--status-won-text)',
-                fontSize: 16,
-              }}
-              aria-hidden="true"
-            >
-              ✓
-            </div>
-            <h1 className="text-foreground font-semibold" style={{ fontSize: 16 }}>
-              {t('auth.recovery.sent')}
-            </h1>
-          </div>
-          <a
-            href={appUrl('/login')}
-            className="text-primary font-medium hover:underline"
-            style={{ fontSize: 16 }}
-          >
-            {t('auth.backToSignIn')}
-          </a>
+          <AuthBackLink to="/login" label={t('auth.backToSignIn')} />
+          <h1 className="page-title">{t('auth.recovery.title')}</h1>
+          <Notice tone="success" role="status" aria-live="polite">
+            <p><strong>{t('auth.recovery.sent')}</strong></p>
+            {email && <p>{t('auth.login.forAddress', { email })}</p>}
+          </Notice>
         </AuthCard>
       </AuthShell>
     )
@@ -91,97 +76,46 @@ function ExpiredCard() {
   return (
     <AuthShell>
       <AuthCard>
-        <h1 className="sr-only">{t('auth.recovery.title')}</h1>
-        {/* Warning notice — warning/18% tint + warning-foreground */}
-        <div
-          className="mb-4 rounded-md px-3 py-2 flex items-start gap-2"
-          style={{
-            backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
-            color: 'var(--warning-foreground)',
-            fontSize: 'var(--font-size-body-lg)',
-          }}
-          role="alert"
-        >
-          <span aria-hidden="true" style={{ marginTop: 1 }}>⚠</span>
-          <span>{t('auth.recovery.expired')}</span>
-        </div>
+        <AuthBackLink to="/login" label={t('auth.backToSignIn')} />
+        <h1 className="page-title">{t('auth.recovery.title')}</h1>
+        <Notice tone="attention" role="alert">{t('auth.recovery.expired')}</Notice>
 
-        <form noValidate onSubmit={requestNewLink}>
-          <label
-            htmlFor={emailId}
-            className="block text-foreground font-semibold mb-1"
-            style={{ fontSize: 'var(--font-size-label)' }}
-          >
-            {t('auth.recovery.emailLabel')}
-          </label>
-          <input
-            id={emailId}
-            type="email"
-            autoComplete="email"
-            placeholder={t('auth.recovery.emailPlaceholder')}
-            value={email}
-            onChange={(event) => {
-              setEmail(event.target.value)
-              if (emailError) setEmailError('')
-            }}
-            disabled={sending}
-            aria-required="true"
-            aria-invalid={emailError ? 'true' : undefined}
-            aria-describedby={emailError ? emailErrorId : undefined}
-            className="w-full bg-background text-foreground border border-input rounded-sm px-2.5"
-            style={{
-              height: 32,
-              fontSize: 'var(--font-size-touch-input)',
-              opacity: sending ? 0.5 : 1,
-            }}
-          />
-          {emailError && (
-            <p
-              id={emailErrorId}
-              role="alert"
-              className="mt-1 mb-4"
-              style={{ fontSize: 'var(--font-size-label)', color: 'var(--status-lost-text)' }}
-            >
-              {emailError}
-            </p>
-          )}
-          {!emailError && <div className="mb-4" />}
+        <form className="auth-form" noValidate onSubmit={requestNewLink}>
+          <div className="auth-field">
+            <TextInput
+              id={emailId}
+              label={t('auth.recovery.emailLabel')}
+              type="email"
+              autoComplete="email"
+              placeholder={t('auth.recovery.emailPlaceholder')}
+              value={email}
+              onChange={(event) => {
+                setEmail(event.target.value)
+                if (emailError) setEmailError('')
+              }}
+              disabled={sending}
+              aria-required="true"
+              error={Boolean(emailError)}
+              aria-describedby={emailError ? emailErrorId : undefined}
+              fullWidth
+            />
+            {emailError && <p id={emailErrorId} role="alert" className="auth-field-error">{emailError}</p>}
+          </div>
 
-          {/* The ONE filled primary on this card */}
-          <button
-            type="submit"
-            disabled={sending}
-            aria-busy={sending}
-            className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-sm font-medium"
-            style={{
-              height: 32,
-              fontSize: 16,
-              opacity: sending ? 0.5 : 1,
-              cursor: sending ? 'not-allowed' : undefined,
-            }}
-          >
+          {/* The ONE filled primary on this page */}
+          <Button type="submit" variant="primary" className="btn-touch" disabled={sending} aria-busy={sending}>
             {sending ? (
               <>
-                <span role="status" className="sr-only">Loading…</span>
-                <Spinner className="text-primary-foreground" />
+                <span role="status" className="sr-only">{t('auth.recovery.sending')}</span>
+                <Spinner />
                 {t('auth.recovery.sending')}
               </>
             ) : (
               t('auth.recovery.requestNewLink')
             )}
-          </button>
+          </Button>
+          <p className="auth-field-hint">{t('auth.recovery.nextCopy')}</p>
         </form>
-
-        {/* The other way out stays where it was. */}
-        <div className="mt-4">
-          <a
-            href={appUrl('/login')}
-            className="text-primary font-medium hover:underline"
-            style={{ fontSize: 16 }}
-          >
-            {t('auth.backToSignIn')}
-          </a>
-        </div>
       </AuthCard>
     </AuthShell>
   )
@@ -240,10 +174,10 @@ export function RecoveryPage() {
     return (
       <AuthShell>
         <AuthCard>
-          <h1 className="sr-only">{t('auth.recovery.title')}</h1>
-          <div role="status" aria-label="Verifying recovery link" className="flex items-center gap-2">
+          <h1 className="page-title">{t('auth.recovery.title')}</h1>
+          <div role="status" aria-label={t('auth.password.verifyingLabel')} className="recovery-verifying">
             <Spinner />
-            <span>Verifying recovery link…</span>
+            <span>{t('auth.password.verifying')}</span>
           </div>
         </AuthCard>
       </AuthShell>
@@ -260,8 +194,8 @@ export function RecoveryPage() {
     <AuthShell>
       <AuthCard>
         <SetPasswordForm
-          title="Set a new password"
-          subtitle="Choose a strong password for your account."
+          title={t('auth.password.setTitle')}
+          subtitle={t('auth.password.recoverySubtitle')}
           onSubmit={handleSubmit}
         />
       </AuthCard>

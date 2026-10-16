@@ -137,25 +137,12 @@ export function ConfirmDialog({
       closeOnBackdrop={!busy}
       closeOnEscape={!busy}
     >
-      <div
-        className="p-6"
-      >
-        <h2
-          id={titleId}
-          className="heading font-semibold mb-2"
-          style={{ color: 'var(--foreground)' }}
-        >
-          {title}
-        </h2>
-        <p
-          className="text-sm mb-5"
-          style={{ color: 'var(--muted-foreground)' }}
-        >
-          {body}
-        </p>
+      <div className="confirm-dialog">
+        <h2 id={titleId} className="confirm-dialog__title">{title}</h2>
+        <p className="confirm-dialog__body">{body}</p>
 
         {reasonLabel && onReasonChange && (
-          <div className="mb-4">
+          <div className="confirm-dialog__reason">
             <TextInput
               label={reasonLabel}
               required={reasonRequired}
@@ -168,20 +155,17 @@ export function ConfirmDialog({
         )}
 
         {error && (
-          <div className="mb-4">
+          <div className="confirm-dialog__error">
             <ErrorState message={error} />
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-2">
-          {/* On a destructive confirm, the safe default reads as loud as the destructive
-              action (solid fill, not an outline) — Discard stays the only RED fill, and
-              "Keep editing" is not the visually quieter of the two choices. A non-destructive
-              confirm's Cancel keeps the ordinary outline weight; its Confirm is already the
-              one blue primary action, so Cancel does not need to compete. */}
+        <div className="confirm-dialog__actions">
+          {/* One filled action: the confirm (red when destructive, blue otherwise). Cancel is the
+              outline beside it and takes the initial focus, so the safe choice is the default one. */}
           <button
             type="button"
-            className={`btn ${tone === 'destructive' ? 'btn-primary' : 'btn-outline'}`}
+            className="btn btn-outline"
             onClick={onCancel}
             disabled={busy}
           >

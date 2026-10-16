@@ -67,7 +67,7 @@ import {
 // is always committed to match the target marker BEFORE the move lands, the marker-sync effect
 // self-stabilizes even without the flag.
 
-export type OverlayTenant = 'record' | 'deputy' | 'quick'
+type OverlayTenant = 'record' | 'deputy' | 'quick'
 
 /**
  * Abstraction over the browser history's index + relative navigation, so router POP tests can
@@ -105,7 +105,7 @@ export type OverlayEntry = {
   leaveGuard?: OverlayLeaveGuard
 }
 
-export type OverlayFrame = {
+type OverlayFrame = {
   entry: OverlayEntry
   returnFocus: HTMLElement | null
 }
@@ -115,7 +115,7 @@ export type OverlayFrame = {
 // compatible with the public `OverlayFrame` (the marker is extra, non-public data).
 type HostFrame = OverlayFrame & { marker?: OverlayHistoryMarker }
 
-export type OverlaySession = {
+type OverlaySession = {
   id: string
   mode: 'route' | 'ephemeral'
   frames: readonly OverlayFrame[]
@@ -127,7 +127,7 @@ export type OverlaySession = {
 }
 
 /** Whether `session` belongs on `pathname`: ephemeral sessions float over any route. */
-export function sessionBelongsTo(session: OverlaySession, pathname: string): boolean {
+function sessionBelongsTo(session: OverlaySession, pathname: string): boolean {
   return session.mode !== 'route' || session.pathname === undefined || session.pathname === pathname
 }
 
@@ -795,6 +795,7 @@ export function OverlayHostSlot({
   onOpenPage?: (to: To, openPage: OverlayHostApi['openPage']) => void
 }): ReactElement {
   const { session, pendingLeave, close, back, openPage } = useOverlayHost()
+  const openedByHistory = useNavigationType() === 'POP'
   const top = session?.frames.at(-1)
   const active = top && top.entry.owner === owner ? top : null
   const canGoBack = (session?.frames.length ?? 0) > 1
@@ -827,6 +828,7 @@ export function OverlayHostSlot({
           owner={owner}
           entryKey={active.entry.key}
           focusKey={active.entry.key}
+          openedByHistory={openedByHistory}
           canGoBack={canGoBack}
           transitionPending={pendingLeave !== null}
           onBack={canGoBack ? () => void back() : undefined}
@@ -880,6 +882,7 @@ export function OverlayCompanionSlot({
 }): ReactElement {
   const session = useOptionalOverlayHost()?.session ?? null
   const isNarrow = useIsNarrow()
+  const openedByHistory = useNavigationType() === 'POP'
   const recordOpen = session?.frames.at(-1)?.entry.tenant === 'record'
   const layout = recordOpen
     ? isNarrow ? 'phone-over-record' : 'with-record'
@@ -916,6 +919,7 @@ export function OverlayCompanionSlot({
       entryKey={entry.key}
       focusKey={entry.key}
       focusOnOpen={focusOnOpen}
+      openedByHistory={openedByHistory}
       layout="companion"
       companion
       // Deputy registers above an open record, so one Escape dismisses only Deputy. Once it

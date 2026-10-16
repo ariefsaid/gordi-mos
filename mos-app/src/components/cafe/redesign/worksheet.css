@@ -1,0 +1,11 @@
+.cafe-worksheet { width: 100%; min-width: 0; }
+.cafe-redesign-panel { min-width: 0; }
+.cafe-redesign-panel__body { min-width: 0; padding-block: var(--mos-label-gap) var(--mos-inline-gap); }
+.cafe-redesign-panel:not([open]) > .cafe-redesign-panel__body { display: none; }
+.cafe-redesign-action-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap) var(--mos-bar-pad-x); width: 100%; box-sizing: border-box; padding: var(--mos-bar-pad-y) 0; border-top: 1px solid var(--border); background: var(--background); box-shadow: none; }
+@media (max-width: 767.98px) {
+  .cafe-redesign-action-bar { padding-bottom: max(var(--mos-bar-pad-y), env(safe-area-inset-bottom, 0px)); }
+}
+/* Visually hidden text that stays in flow: unlike .sr-only it is not absolutely positioned,
+   so long scrolling lists do not trip clipped-overflow checks. Net layout size is zero. */
+.cafe-vh { display: inline-block; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import type { ChecklistItemRow } from '@/lib/db/tasks.types'
 import { useT } from '@/i18n/use-t'
 import { RecordMenu } from '@/components/record/record-menu'
@@ -21,6 +21,7 @@ export type ChecklistCardProps = {
 
 export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReorder, onDelete, saveError = null }: ChecklistCardProps) {
   const t = useT()
+  const addId = useId()
   const [draft, setDraft] = useState('')
   const [posting, setPosting] = useState(false)
   // Live draft, read after an await — `draft` itself is a stale closure by then. Lets a commit
@@ -120,15 +121,18 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
       )}
 
       {editable && (
-        <input
-          type="text"
-          className="checklist-add-input"
-          placeholder={t('tasks.checklist.addPlaceholder')}
-          value={draft}
-          onChange={e => changeDraft(e.target.value)}
-          onKeyDown={handleKeyDown}
-          aria-label={t('tasks.checklist.addAria')}
-        />
+        <div className="checklist-add">
+          <label htmlFor={addId} className="checklist-add__label">{t('tasks.checklist.addAria')}</label>
+          <input
+            id={addId}
+            type="text"
+            className="checklist-add-input"
+            placeholder={t('tasks.checklist.addPlaceholder')}
+            value={draft}
+            onChange={e => changeDraft(e.target.value)}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
       )}
     </div>
   )

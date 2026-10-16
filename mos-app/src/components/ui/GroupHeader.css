@@ -1,0 +1,18 @@
+/* The one group header: [chevron] Name (n). Group role + meta count; band fill and 8px/12px padding; the toggle is a >=44px button on phone. */
+.group-header { display: flex; box-sizing: border-box; align-items: center; justify-content: space-between; gap: var(--mos-row-gap);  padding: var(--mos-band-pad-y) var(--mos-band-pad-x); margin: 0; background: var(--mos-band); border-block: 1px solid var(--mos-line); }
+.group-header__title { margin: 0; font: var(--mos-type-group); color: var(--mos-ink); }
+.group-header__toggle {
+  display: inline-flex; align-items: center; gap: var(--mos-inline-gap);
+  min-height: 0; padding: 0; border: 0; background: transparent;
+  color: inherit; font: inherit; text-align: start; cursor: pointer;
+}
+.group-header__toggle--static { cursor: default; }
+.group-header__toggle > .group-header__chevron { flex: none; width: var(--mos-icon-sm); height: var(--mos-icon-sm); color: var(--mos-muted); transition: transform var(--mos-duration-fast) ease; }
+.group-header__chevron--closed { transform: rotate(-90deg); }
+.group-header__count { color: var(--mos-muted); font: var(--mos-type-meta); }
+.group-header__trailing { color: var(--mos-muted); font: var(--mos-type-meta); }
+@media (prefers-reduced-motion: reduce) { .group-header__chevron { transition: none; } }
+@media (max-width: 767.98px) {
+  /* The 44px toggle overlaps the 8px vertical padding, so the header stays 44px tall with its padding intact. */
+  .group-header__toggle { min-height: var(--mos-control-height); margin-block: calc(-1 * var(--mos-band-pad-y)); }
+}

@@ -4,6 +4,7 @@ import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { RecordPageChrome } from '@/shell/record-page-chrome'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
 import { CatalogRecordDocument } from '@/components/catalog/catalog-record-document'
 
 /** Canonical Objective record page. It shares the document renderer and the source-aware record
@@ -13,6 +14,8 @@ export function ObjectiveRecordPage() {
   const { objectiveId } = useParams<{ objectiveId: string }>()
   const location = useLocation()
   const [title, setTitle] = useState<string | null>(null)
+  // The shell breadcrumb ends on the record's own name once it resolves.
+  useSetBreadcrumbTitle(title ?? '')
   useDocumentTitle(t('common.docTitle', {
     page: title ? `${title} · ${t('nav.work.objectives')}` : t('nav.work.objectives'),
   }))

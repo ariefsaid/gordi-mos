@@ -1,19 +1,68 @@
-/* MoneyPage — the head's freshness sentence, the period control and the page states.
-   The table's own layout lives in components/money/branch-table.css. Token-only. */
-@import '../styles/segmented-track.css';
+/* MoneyPage — the head's freshness sentence, the toolbar, the exception notice and the page states.
+   Figures live in components/money/money-figures.css, the table in components/money/branch-table.css.
+   Token-only; the branch page shares the toolbar and body rules. */
 
-.money-body {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
-  min-width: 0;
+
+.money-body { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-width: 0; }
+.money-body > * { align-self: stretch; }
+
+.page-frame--v3:has(.money-body) { background-color: var(--background); }
+.page-frame--v3:has(.money-body) .money-compare__heading h2,
+.page-frame--v3:has(.money-body) .branch-day-workbench h2,
+.page-frame--v3:has(.money-body) .branch-day-workbench h3 { font-weight: 600; }
+
+/* Toolbar: period, then the filters, the window on the right. */
+.money-filter-controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: var(--mos-inline-gap) var(--mos-row-gap); min-width: 0; width: 100%; }
+.money-filter-controls > .money-period-control { flex: 0 0 auto; }
+.money-scope { min-width: 0; flex: 1 1 auto; }
+.money-scope > summary { display: none; }
+.money-scope > .money-filter-row, .money-scope:not([open]) > .money-filter-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--mos-inline-gap) var(--mos-row-gap); }
+.money-scope .money-filter-select { flex: 0 1 220px; }
+/* The period track matches the 44px select fields beside it, so every label sits on one line. */
+.money-filter-controls .segmented__track { min-height: var(--mos-control-height); }
+.money-scope__window { margin: 0 0 0 auto; padding: 0 0 10px; color: var(--muted-foreground); font-size: var(--mos-size-1); white-space: nowrap; }
+.money-filter-select { display: flex; flex: 1 1 150px; flex-direction: column; gap: var(--mos-label-gap); min-width: 128px; color: var(--mos-ink); font: var(--mos-type-label); }
+.money-filter-select .mk-select { min-width: 0; }
+
+.money-results { display: flex; flex-direction: column; gap: 16px; min-width: 0; width: 100%; transition: opacity var(--mos-duration-fast) ease; }
+.money-results[aria-busy='true'] { cursor: progress; }
+
+.money-position__basis { margin: -8px 0 0; color: var(--muted-foreground); font-size: var(--mos-size-1); }
+.money-compare { min-width: 0; }
+.money-compare__title-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--mos-row-gap); }
+.money-compare__count { color: var(--muted-foreground); font-size: var(--mos-size-3); white-space: nowrap; }
+.money-compare__heading h2 { margin: 0 0 var(--mos-label-gap); font-size: var(--mos-size-4); font-weight: 600; }
+.money-compare__summary { max-width: 75ch; margin: 0 0 var(--mos-inline-gap); color: var(--muted-foreground); font-size: var(--mos-size-3); }
+
+.money-more > summary, .money-branch__days > summary { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap); width: max-content; max-width: 100%; min-height: var(--mos-control-height); color: var(--muted-foreground); font-weight: 600; cursor: pointer; }
+.money-more > summary:focus-visible, .money-branch__days > summary:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-radius: var(--radius-sm); }
+.money-disclosure__chevron { width: 8px; height: 8px; flex: none; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
+details[open] > summary .money-disclosure__chevron { transform: rotate(225deg) translate(-1px, -1px); }
+.money-more > summary::-webkit-details-marker, .money-branch__days > summary::-webkit-details-marker { display: none; }
+.money-more__body { display: flex; flex-direction: column; gap: var(--mos-inline-gap); max-width: 75ch; padding-bottom: var(--mos-inline-gap); }
+.money-more__body p { margin: 0; }
+.money-more__body a { display: inline-flex; align-items: center; min-height: 24px; color: var(--primary); }
+.money-more__unavailable { color: var(--muted-foreground); font-size: var(--mos-size-1); }
+
+@media (max-width: 767.98px) {
+  .money-filter-controls { align-items: center; column-gap: 10px; row-gap: var(--mos-inline-gap); }
+  .money-filter-controls > .money-period-control { flex: 1 1 100%; }
+  .money-scope { flex: 1 1 100%; }
+  .money-scope > summary { display: flex; min-height: var(--mos-control-height); align-items: center; justify-content: space-between; gap: var(--mos-inline-gap); padding: var(--mos-label-gap) var(--mos-row-pad-x); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-primary); font-weight: 600; }
+  .money-scope[open] > summary { border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+  .money-scope__applied { min-width: 0; margin-inline-start: auto; color: var(--muted-foreground); font-size: var(--mos-size-2); font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .money-scope__chevron { width: 8px; height: 8px; flex: none; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
+  .money-scope[open] > summary .money-scope__chevron { transform: rotate(225deg) translate(-1px, -1px); }
+  .money-scope > summary > span:first-child { flex: none; }
+  .money-scope__window { flex-basis: 100%; margin: 0; padding: 0 0 4px; font-size: var(--mos-size-2); line-height: 1.4; }
+  .money-scope > .money-filter-row, .money-scope:not([open]) > .money-filter-row { display: none; }
+  .money-scope[open] > .money-filter-row { display: flex; }
+  .money-compare__summary { font-size: var(--mos-size-2); }
+  .money-position__basis { margin: -8px 0 0; font-size: var(--mos-size-2); }
+  /* A 44px tap area that does not stretch the sentence's line height. */
+  .money-more__body a { display: inline; padding: 14px 6px; margin: -14px -6px; min-height: 0; }
 }
 
-.money-body > * {
-  align-self: stretch;
-}
-
-.money-body > .money-period {
-  align-self: flex-start;
+@media (prefers-reduced-motion: reduce) {
+  .money-results { transition: none; }
 }

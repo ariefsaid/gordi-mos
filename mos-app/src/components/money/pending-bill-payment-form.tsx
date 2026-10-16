@@ -1,12 +1,16 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { Button } from '@/components/ui/button'
+import { ActionBar } from '@/components/ui/action-bar'
+import { PhoneActionBarContext } from '@/shell/page-action-bar'
 import { DateField } from '@/components/ui/date-field'
 import { QuantityField } from '@/components/ui/quantity-field'
 import { useT } from '@/i18n/use-t'
+import { useIsOffline } from '@/shell/use-is-offline'
 import { formatIDRExact } from '@/lib/format/money'
 import { wibToday } from '@/lib/home-attention'
 import { PendingBillBalanceChangedError, PendingBillProofError, paySeveralPendingBills, recordPendingBillPayment, uploadPendingBillProof, type PaidPendingBill, type RecordPendingBillPaymentInput } from '@/lib/db/pending-bill-payments'
 import { summarizePendingBillSelection, validatePendingBillPaymentForm, type PendingBillPaymentField, type PendingBillPaymentFieldError, type PendingBillView } from '@/lib/pending-bills'
+import { Notice } from '@/components/ui/notice'
 import './pending-bill-payment-form.css'
 
 export interface PendingBillPaymentSaved {
@@ -51,6 +55,7 @@ export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, 
     if (form && !form.contains(document.activeElement)) form.focus()
   }, [formRef])
   const t = useT()
+  const offline = useIsOffline()
   const id = useId()
   const today = wibToday()
   const multiSelection = bills === undefined ? null : summarizePendingBillSelection(bills, bills.map((selected) => selected.id))
@@ -316,6 +321,8 @@ export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, 
                 <label className="mk-textinput__label" htmlFor={`${id}-amount`}>
                   {t('pendingBills.form.amount')} <span aria-hidden="true">*</span>
                 </label>
+                <span className="pending-bill-payment-form__amount-row">
+                <span className="pending-bill-payment-form__unit" aria-hidden="true">Rp</span>
                 <QuantityField
                   id={`${id}-amount`}
                   label={t('pendingBills.form.amount')}
@@ -343,6 +350,7 @@ export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, 
                   className="mk-textinput__field"
                   suffixPosition="inline"
                 />
+                </span>
               </div>
               <p id={amountHelpId} className="pending-bill-payment-form__hint">
                 {t('pendingBills.form.amountHelp', { balance: formatIDRExact(bill.balance) })}
@@ -368,7 +376,6 @@ export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, 
             max={today}
             required
             error={Boolean(dateError)}
-            fullWidth
             aria-describedby={`${dateHelpId}${dateError ? ` ${dateHelpId}-error` : ''}`}
           />
           <p id={dateHelpId} className="pending-bill-payment-form__hint">{t('pendingBills.form.cashInDateHelp')}</p>
@@ -379,21 +386,27 @@ export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, 
               {t('pendingBills.form.proof')} <span aria-hidden="true">*</span>
             </label>
             <p id={proofHelpId} className="pending-bill-payment-form__hint">{t('pendingBills.form.proofHelp')}</p>
-            <input
-              id={`${id}-proof`}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,application/pdf"
-              required
-              aria-required="true"
-              aria-invalid={Boolean(proofFieldError || proofError) || undefined}
-              aria-describedby={`${proofHelpId}${proofFieldError || proofError ? ` ${proofHelpId}-error` : ''}`}
-              onBlur={() => setTouched((previous) => ({ ...previous, proof: true }))}
-              onChange={(event) => {
-                chooseProof(event.currentTarget.files?.[0] ?? null)
-                event.currentTarget.value = ''
-              }}
-            />
-            {proof && <p className="pending-bill-payment-form__selected-proof">{proof.name}</p>}
+            <div className="pending-bill-payment-form__file">
+              <span className="pending-bill-payment-form__file-pick">
+              <input
+                id={`${id}-proof`}
+                type="file"
+                className="pending-bill-payment-form__file-input"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                required
+                aria-required="true"
+                aria-invalid={Boolean(proofFieldError || proofError) || undefined}
+                aria-describedby={`${proofHelpId}${proofFieldError || proofError ? ` ${proofHelpId}-error` : ''}`}
+                onBlur={() => setTouched((previous) => ({ ...previous, proof: true }))}
+                onChange={(event) => {
+                  chooseProof(event.currentTarget.files?.[0] ?? null)
+                  event.currentTarget.value = ''
+                }}
+              />
+                <span className="btn btn-outline pending-bill-payment-form__file-button">{t('pendingBills.form.chooseFile')}</span>
+              </span>
+              <span className="pending-bill-payment-form__selected-proof">{proof ? proof.name : t('pendingBills.form.noFile')}</span>
+            </div>
             {proofFieldError && !proofError && <p id={`${proofHelpId}-error`} className="pending-bill-payment-form__field-error" role="alert">{proofFieldError}</p>}
             {proofError && <p id={`${proofHelpId}-error`} className="pending-bill-payment-form__field-error" role="alert">{t('pendingBills.form.proof')}: {proofError}</p>}
           </div>
@@ -417,21 +430,25 @@ export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, 
         </>
       )}
 
-      {!canSubmit && !reversePayment && fieldsWithErrors.length > 0 && (
-        <p className="pending-bill-payment-form__requirements" role="status">
-          {t('pendingBills.form.completeFields', {
-            fields: fieldsWithErrors.map((field) => t(FIELD_LABEL[field])).join(', '),
-          })}
-        </p>
-      )}
-      {requestError && <p className="pending-bill-payment-form__request-error" role="alert">{requestError}</p>}
+      {requestError && <Notice tone="urgent">{requestError}</Notice>}
 
-      <div className="pending-bill-payment-form__actions">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>{t('common.cancel')}</Button>
-        <Button type="submit" variant="primary" disabled={!canSubmit} aria-busy={submitting || undefined}>
-          {submitting ? t('common.working') : reversePayment ? t('pendingBills.form.reverseSubmit') : t('pendingBills.form.submit')}
-        </Button>
-      </div>
+      {/* The one action bar, kept inside the form: its reason sits next to the button, and on a phone
+          it sticks to the foot of the panel instead of the page's slot behind it. */}
+      <PhoneActionBarContext.Provider value={null}>
+        <ActionBar
+          reason={offline ? <span role="status">{t('pendingBills.form.offline')}</span> : !canSubmit && !reversePayment && fieldsWithErrors.length > 0 ? (
+            <span role="status">
+              {t('pendingBills.form.completeFields', { fields: fieldsWithErrors.map((field) => t(FIELD_LABEL[field])).join(', ') })}
+            </span>
+          ) : undefined}
+          secondary={<Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>{t('common.cancel')}</Button>}
+          primary={
+            <Button type="submit" variant="primary" disabled={!canSubmit || offline} aria-busy={submitting || undefined}>
+              {submitting ? t('common.working') : reversePayment ? t('pendingBills.form.reverseSubmit') : t('pendingBills.form.submit')}
+            </Button>
+          }
+        />
+      </PhoneActionBarContext.Provider>
     </form>
   )
 }

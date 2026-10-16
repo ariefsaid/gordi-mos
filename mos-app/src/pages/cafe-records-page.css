@@ -1,0 +1,124 @@
+/* Café Records. Geometry comes from the density tokens only; type from the role tokens; colour from the
+   round-1 palette. The tables are the shared DataTable (band header, 12px cells, 48px rows) — this file
+   adds the scope controls, the item/quantity cells, the phone cards and the record panel body. */
+
+.rec-page { display: flex; flex-direction: column; gap: var(--mos-field-gap); min-width: 0; }
+.rec-split { min-width: 0; }
+.rec-main { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); min-width: 0; }
+.rec-content { min-width: 0; }
+
+/* ── Scope: Question → Period → Production stream, then the exact days ── */
+.rec-scope { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); min-width: 0; }
+.rec-scope__row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--mos-toolbar-gap); align-items: start; }
+.rec-scope__row > * { min-width: 0; }
+.rec-range { display: grid; justify-content: start; grid-template-columns: repeat(2, minmax(0, 12rem)) auto; gap: var(--mos-toolbar-gap); align-items: end; }
+.rec-range__apply { align-self: end; }
+.rec-range__error { grid-column: 1 / -1; margin: 0; color: var(--mos-error-text); font: var(--mos-type-label); }
+.rec-range-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap) var(--mos-row-gap); margin: 0; color: var(--mos-ink); font: var(--mos-type-body); }
+.rec-range-line__main { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap) var(--mos-row-gap); min-width: 0; }
+.rec-range-line__dates { font-weight: var(--mos-weight-semibold); }
+.rec-range-line__through { padding: var(--mos-space-1) var(--mos-space-2); border-radius: var(--radius-xs); background: var(--mos-band); color: var(--mos-muted); font: var(--mos-type-label); }
+.rec-refresh { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap); }
+.rec-refresh__reason { color: var(--mos-muted); font: var(--mos-type-meta); }
+
+/* ── Cells ── */
+.rec-table .rec-col-item { min-width: 14rem; }
+.rec-table--entries .rec-col-item, .rec-table--day .rec-col-item, .rec-table--summary .rec-col-item { width: 24%; }
+/* The quantity keeps its unit on its line: the number column never narrows below a unit like "Batch @50porsi". */
+.rec-table--entries :is(th, td).dt-num, .rec-table--entries :is(th, td):last-child { min-width: 10rem; }
+.rec-item, .rec-link {
+  display: inline-block; max-width: 100%; margin: 0; padding: 0; border: 0; background: none; color: var(--mos-ink);
+  font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); text-align: start; overflow-wrap: anywhere; cursor: pointer;
+}
+.rec-link { font-weight: var(--mos-weight-medium); font-variant-numeric: var(--mos-numeric); white-space: nowrap; }
+.rec-item:hover, .rec-link:hover { color: var(--mos-accent); text-decoration: underline; text-underline-offset: 3px; }
+.rec-item:focus-visible, .rec-link:focus-visible, .rec-card:focus-visible, .rec-entry-card__body:focus-visible, .rec-history-row:focus-visible, .rec-panel__back:focus-visible {
+  outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset);
+}
+.rec-row--click { cursor: pointer; }
+.rec-row.is-selected td { background: var(--mos-accent-tint); }
+.rec-meta-line { display: block; color: var(--mos-muted); font: var(--mos-type-meta); }
+.rec-status { display: inline-flex; flex-wrap: wrap; gap: var(--mos-inline-gap); }
+.rec-qty { display: inline-flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: var(--mos-label-gap) var(--mos-inline-gap); }
+.rec-qty__num { font: var(--mos-type-control); font-variant-numeric: var(--mos-numeric); }
+.rec-qty__unit { color: var(--mos-muted); font: var(--mos-type-body); overflow-wrap: anywhere; }
+.rec-qty__unit--missing { color: var(--mos-ink); font-style: italic; }
+.rec-table td.dt-num { white-space: nowrap; }
+.rec-table--entries td.dt-num .rec-qty { white-space: nowrap; }
+.dt-table.rec-table .rec-meta-line { text-align: end; }
+
+/* ── Phone cards ── */
+.rec-card, .rec-entry-card__body {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--mos-stack-gap) var(--mos-row-gap); align-items: start;
+  width: 100%; margin: 0; padding: 0; border: 0; background: none; color: var(--mos-ink); font: var(--mos-type-body); text-align: start; cursor: pointer;
+}
+.rec-card { min-height: calc(var(--mos-row-min) - 2 * var(--mos-row-pad-y)); }
+.rec-entry-card__body { margin-top: var(--mos-stack-gap); min-height: var(--mos-control-height); }
+.rec-card__main { display: flex; flex-direction: column; gap: var(--mos-stack-gap); min-width: 0; }
+.rec-card__title { font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); overflow-wrap: anywhere; }
+.rec-card__meta { color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
+.rec-card__qty { justify-content: flex-end; text-align: end; }
+.rec-entry-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--mos-row-gap); min-height: var(--mos-control-height); }
+.rec-entry-card__top .rec-item { min-height: var(--mos-control-height); padding-block: var(--mos-space-2); }
+.rec-card--day { grid-template-columns: minmax(0, 1fr); }
+.rec-day-values, .rec-day-head { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--mos-row-gap); }
+.rec-day-values { margin-top: var(--mos-label-gap); }
+.rec-day-values__cell { font: var(--mos-type-control); font-variant-numeric: var(--mos-numeric); text-align: end; }
+.rec-day-head { padding: var(--mos-band-pad-y) var(--mos-band-pad-x); background: var(--mos-band); border-bottom: 1px solid var(--mos-line); color: var(--mos-muted); font: var(--mos-type-label); }
+.rec-day-head > span:first-child { display: none; }
+.rec-day-head__values { display: contents; }
+.rec-day-head__values > span { text-align: end; }
+
+/* ── Pager ── */
+.rec-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap) var(--mos-row-gap); padding-top: var(--mos-toolbar-gap); }
+.rec-pager__status { margin: 0; color: var(--mos-muted); font: var(--mos-type-body); }
+.rec-pager__buttons { display: flex; gap: var(--mos-inline-gap); }
+
+.rec-about { margin-top: var(--mos-section-gap); }
+.rec-about p { max-width: 72ch; margin: 0 0 var(--mos-field-gap); color: var(--mos-ink); font: var(--mos-type-body); }
+
+/* ── Record panel body (item history, entry) ── */
+.rec-panel__body { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); padding: var(--mos-gutter); overflow-wrap: anywhere; }
+.rec-panel__back {
+  align-self: flex-start; min-height: var(--mos-control-height); margin: 0 0 0 calc(-1 * var(--mos-space-2)); padding: 0 var(--mos-space-2); border: 0; border-radius: var(--radius-sm);
+  background: none; color: var(--mos-accent); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); cursor: pointer;
+}
+.rec-panel__back:hover { color: var(--mos-accent-hover); text-decoration: underline; text-underline-offset: 3px; }
+.rec-panel__title { margin: 0; color: var(--mos-ink); font: var(--mos-type-group); }
+.rec-panel__title:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.rec-panel__scope, .rec-panel__note { margin: 0; color: var(--mos-muted); font: var(--mos-type-body); }
+.rec-panel__note--warn { color: var(--mos-ink); }
+.rec-panel__badges { margin: 0; }
+.rec-panel__section { margin: var(--mos-group-above) 0 var(--mos-group-below); color: var(--mos-ink); font: var(--mos-type-label); }
+.rec-panel__links { display: flex; flex-wrap: wrap; gap: var(--mos-inline-gap); }
+.rec-fields { display: grid; margin: 0; }
+.rec-fields__row { display: grid; grid-template-columns: minmax(7rem, 1fr) minmax(0, 2fr); gap: var(--mos-row-gap); padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--mos-line); }
+.rec-fields dt { color: var(--mos-muted); font: var(--mos-type-label); }
+.rec-fields dd { min-width: 0; margin: 0; color: var(--mos-ink); font: var(--mos-type-body); }
+.rec-mini-wrap { max-width: 100%; overflow-x: auto; }
+.rec-mini { width: 100%; border-collapse: collapse; font: var(--mos-type-body); }
+.rec-mini th, .rec-mini td { padding: var(--mos-space-2) var(--mos-space-2); border-bottom: 1px solid var(--mos-line); text-align: start; vertical-align: top; }
+.rec-mini thead th { background: var(--mos-band); color: var(--mos-muted); font: var(--mos-type-label); white-space: nowrap; }
+.rec-mini .rec-mini__date { font-weight: var(--mos-weight-medium); white-space: nowrap; }
+.rec-mini-wrap:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.rec-mini .rec-mini__num { text-align: end; font-variant-numeric: var(--mos-numeric); white-space: nowrap; }
+.rec-history-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.rec-history-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--mos-row-gap); align-items: start; width: 100%; min-height: var(--mos-row-min);
+  margin: 0; padding: var(--mos-row-pad-y) 0; border: 0; border-bottom: 1px solid var(--mos-line); background: none; color: var(--mos-ink); font: var(--mos-type-body); text-align: start; cursor: pointer;
+}
+.rec-history-row:hover { background: var(--mos-hover); }
+.rec-history-row__main { display: flex; flex-direction: column; gap: var(--mos-stack-gap); min-width: 0; }
+.rec-history-row__title { font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); }
+
+/* ── Phone ── */
+@media (max-width: 767.98px) {
+  .rec-scope__row { grid-template-columns: minmax(0, 1fr); }
+  .rec-range { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rec-range__apply { grid-column: 1 / -1; width: 100%; }
+  .rec-range-line { flex-wrap: nowrap; align-items: flex-start; }
+  .rec-panel__body { padding: var(--mos-space-4); }
+  .rec-fields__row { grid-template-columns: minmax(0, 1fr); gap: var(--mos-label-gap); }
+  .rec-history-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .rec-history-row .rec-qty { grid-column: 1 / -1; justify-content: flex-start; }
+}

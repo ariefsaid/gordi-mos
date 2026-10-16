@@ -1,5 +1,4 @@
-// DayRevenueChart — one branch's revenue per day as bars, with the same weekday a week earlier as a
-// dashed line (shape, not hue), a labelled rupiah axis and date ticks. MOS owns the interaction:
+// DayRevenueChart — revenue columns or a margin line. MOS owns the interaction:
 // the chart is one focus stop; ←/→ move a day, Home/End jump to the ends, and a click or tap picks
 // the day under the pointer. Those set the caller's selected day (the Branch page keeps it in ?d=).
 // A mouse hovering only previews: the readout line above the plot — the chart's tooltip, announced
@@ -8,11 +7,12 @@
 // Recharts draws the marks only (its keyboard layer and cursor are off: one focus stop, one marker).
 import { useId, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import {
+  Area,
   Bar,
   CartesianGrid,
-  Cell,
   ComposedChart,
   Line,
+  ReferenceLine,
   ResponsiveContainer,
   XAxis,
   YAxis,
@@ -20,10 +20,11 @@ import {
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { formatIDR } from '@/lib/format/money'
+import { formatPercent } from '@/lib/format/percent'
 import { formatIDRCompact, signedChange } from '@/lib/sales-dashboard'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import type { BranchDay } from '@/lib/money-branch-page'
-import { PLOT_MARGIN, Y_AXIS_WIDTH, dayAt } from './day-chart-geometry'
+import { PLOT_MARGIN, Y_AXIS_WIDTH, chartSeries, dayAt } from './day-chart-geometry'
 import './day-revenue-chart.css'
 
 export interface DayRevenueChartProps {
@@ -31,14 +32,16 @@ export interface DayRevenueChartProps {
   /** The selected day's date; it must be one of `days`. */
   selected: string
   onSelect: (date: string) => void
-  /** The chart's accessible name, e.g. "Gordi HQ revenue per day". */
+  /** The chart's accessible name, including the branch and metric. */
   label: string
+  mode?: 'revenue' | 'margin'
+  budget?: number | null
 }
 
 /** A missing day's stub, as a share of the tallest bar: visible, never mistaken for a figure. */
 const STUB_SHARE = 0.08
 
-export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueChartProps) {
+export function DayRevenueChart({ days, selected, onSelect, label, mode = 'revenue', budget = null }: DayRevenueChartProps) {
   const t = useT()
   const { locale } = useI18n()
   const readoutId = useId()
@@ -54,6 +57,8 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
     pendingRef.current = null
     indexRef.current = selectedIndex
   }
+  const isMargin = mode === 'margin'
+  const { data, ticks, yMin, yMax } = chartSeries(days, mode, budget, STUB_SHARE, formatIDRCompact)
   const [hover, setHover] = useState<number | null>(null)
   // A pick is a primary press that starts and ends on the plot: a right click, or a drag released
   // here, picks nothing.
@@ -65,14 +70,14 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
     onSelect(days[i].date)
   }
   const index = selectedIndex
-  const max = Math.max(1, ...days.map((d) => Math.max(d.value ?? 0, d.compare ?? 0)))
-  const data = days.map((d) => ({ ...d, stub: d.value === null ? max * STUB_SHARE : null }))
-  const ticks = [0, max / 2, max]
-
   const day = days[hover ?? index]
   const readout = day ? readoutText(day) : ''
   function readoutText(d: BranchDay): string {
     const date = formatWeekdayDayMonth(d.date, locale)
+    if (isMargin) return t('money.chart.readout.margin', {
+      date, value: d.marginPct == null ? t('money.table.notReceived') : formatPercent(d.marginPct, 1),
+      budget: budget === null ? t('money.table.notReceived') : formatPercent(budget, 1),
+    })
     if (d.value === null) return t('money.chart.readout.missing', { date })
     if (d.compare === null) return t('money.chart.readout.noCompare', { date, value: formatIDR(d.value) })
     const change = d.compare > 0 ? signedChange(d.value / d.compare - 1).text : null
@@ -97,7 +102,13 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
     const rect = event.currentTarget.getBoundingClientRect()
     return dayAt(event.clientX - rect.left, rect.width, days.length)
   }
-  const anyMissing = days.some((d) => d.value === null)
+  // Only the chosen day carries a dot: the selection is the one place the accent colour appears.
+  const markSelected = (props: { cx?: number; cy?: number; index?: number; value?: unknown }) => (
+    props.index === index && props.cx !== undefined && props.cy !== undefined && props.value != null
+      ? <circle key={`sel-${props.index}`} cx={props.cx} cy={props.cy} r={5} fill="var(--primary)" stroke="var(--surface-primary)" strokeWidth={2} />
+      : <g key={`sel-${props.index}`} />
+  )
+  const anyMissing = isMargin ? days.some((d) => d.marginPct == null) : days.some((d) => d.value === null)
 
   return (
     <figure className="money-chart">
@@ -129,7 +140,7 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
           <ComposedChart
             data={data}
             margin={PLOT_MARGIN}
-            barCategoryGap="20%"
+            barCategoryGap={2}
             accessibilityLayer={false}
           >
             <defs>
@@ -144,58 +155,63 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
               axisLine={{ stroke: 'var(--border)' }}
               interval="preserveStartEnd"
               minTickGap={16}
+              tickMargin={8}
               tick={{ fill: 'var(--muted-foreground)' }}
               tickFormatter={(date: string) => formatWeekdayDayMonth(date, locale).replace(/^\S+,?\s/, '')}
             />
             <YAxis
               ticks={ticks}
-              domain={[0, max]}
+              domain={[yMin, yMax]}
               width={Y_AXIS_WIDTH}
               tickLine={false}
               axisLine={false}
               tick={{ fill: 'var(--muted-foreground)' }}
-              tickFormatter={(v: number) => formatIDRCompact(v)}
+              tickFormatter={(v: number) => isMargin ? formatPercent(v, 1) : formatIDRCompact(v)}
             />
-            <Bar dataKey="value" stackId="day" radius={[4, 4, 0, 0]} isAnimationActive={false}>
-              {data.map((d, i) => (
-                <Cell
-                  key={d.date}
-                  fill="var(--primary)"
-                  fillOpacity={i === index ? 1 : 0.55}
-                />
-              ))}
-            </Bar>
-            <Bar dataKey="stub" stackId="day" fill={`url(#${patternId})`} isAnimationActive={false} />
+            <Bar dataKey="stub" stackId="day" maxBarSize={24} fill={`url(#${patternId})`} isAnimationActive={false} hide={isMargin} />
             <Line
               dataKey="compare"
               type="linear"
-              stroke="var(--muted-foreground)"
+              stroke="var(--text-light)"
               strokeWidth={2}
               strokeDasharray="5 4"
               dot={false}
               activeDot={false}
               connectNulls={false}
               isAnimationActive={false}
+              hide={isMargin}
             />
+            <Area dataKey="value" type="linear" fill="var(--foreground)" fillOpacity={0.06} stroke="none" connectNulls={false} isAnimationActive={false} hide={!isMargin} />
+            <Line dataKey="value" type="linear" stroke="var(--foreground)" strokeWidth={2} dot={markSelected} activeDot={false} connectNulls={false} isAnimationActive={false} />
+            {days[index] && <ReferenceLine x={days[index].date} stroke="var(--primary)" strokeWidth={1.5} strokeOpacity={0.55} />}
+            {isMargin && budget !== null && <ReferenceLine y={budget} stroke="var(--text-light)" strokeWidth={1} label={{ value: `${t('money.chart.legend.budget')} ${formatPercent(budget, 1)}`, position: 'insideTopRight', fill: 'var(--muted-foreground)', fontSize: 'var(--mos-size-1)' }} />}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
       <figcaption className="money-chart__legend">
-        <span className="money-chart__entry">
-          <span className="money-chart__key money-chart__key--bar" aria-hidden="true" />
-          {t('money.chart.legend.revenue')}
-        </span>
-        <span className="money-chart__entry">
-          <span className="money-chart__key money-chart__key--line" aria-hidden="true" />
-          {t('money.chart.legend.compare')}
-        </span>
+        {isMargin ? <>
+          <span className="money-chart__entry">
+            <span className="money-chart__key money-chart__key--line money-chart__key--solid" aria-hidden="true" />
+            {t('money.chart.legend.margin')}
+          </span>
+          {budget !== null && <span className="money-chart__entry"><span className="money-chart__key money-chart__key--line" aria-hidden="true" style={{ borderTopWidth: 1 }} />{t('money.chart.legend.budget')}</span>}
+        </> : <>
+          <span className="money-chart__entry">
+            <span className="money-chart__key money-chart__key--line money-chart__key--solid" aria-hidden="true" />
+            {t('money.chart.legend.revenue')}
+          </span>
+          <span className="money-chart__entry">
+            <span className="money-chart__key money-chart__key--line money-chart__key--dashed" aria-hidden="true" />
+            {t('money.chart.legend.compare')}
+          </span>
+        </>}
         {anyMissing && (
           <span className="money-chart__entry">
             <span className="money-chart__key money-chart__key--missing" aria-hidden="true" />
             {t('money.chart.legend.missing')}
           </span>
         )}
-        <span id={hintId} className="sr-only">{t('money.chart.keys')}</span>
+        <span id={hintId} className="money-chart__sr-only">{t('money.chart.keys')}</span>
       </figcaption>
     </figure>
   )

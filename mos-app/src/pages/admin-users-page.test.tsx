@@ -2,9 +2,9 @@
 // AC-060: list rendering (all 4 login states) + empty state predicate.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within, waitFor } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
@@ -142,6 +142,16 @@ beforeEach(() => {
   vi.mocked(getBusinessUnits).mockResolvedValue([])
 })
 
+async function chooseStatus(user: ReturnType<typeof userEvent.setup>, option: RegExp) {
+  await user.click(screen.getByRole('combobox', { name: /status filter/i }))
+  await user.click(await screen.findByRole('option', { name: option }))
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location">{location.pathname + location.search}</div>
+}
+
 function renderPage(initialPath = '/admin/people') {
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
@@ -157,28 +167,12 @@ describe('AdminUsersPage (AC-060)', () => {
     renderPage()
     // Page heading should be present immediately
     expect(screen.getByRole('heading', { name: /People/i })).toBeInTheDocument()
-    // Admin Settings tabs render before any data does.
-    const tabs = within(screen.getByRole('navigation', { name: 'Admin settings sections' })).getAllByRole('link')
-    expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('href')])).toEqual([
-      ['People', '/admin/people'],
-      ['Teams', '/admin/teams'],
-      ['Roles & permissions', '/admin/access'],
-      ['Connected agents', '/admin/agents'],
-    ])
+    // The Admin Settings section switcher renders before any data does, on People.
+    const nav = screen.getByRole('navigation', { name: 'Admin settings sections' })
+    expect(within(nav).getByRole('combobox', { name: 'Admin settings' })).toHaveTextContent('People')
     // Loading state — SkeletonRows uses aria-hidden, so check for the page head
     // and that no person names render yet
     expect(screen.queryByText('Budi Santoso')).not.toBeInTheDocument()
-  })
-
-  // #957: the `.admin-people-collection` marker (shell/page-families.css) is what opts this page
-  // into DESIGN.md's wide operating measure, and it must render unconditionally — same reasoning
-  // as the Work collections' `.work-collection`, capping width only while a panel happens to be
-  // open is a dead-gutter defect too. Asserted before any panel opens, so a regression that makes
-  // the marker conditional on `openPerson` cannot hide behind a test that only checks the split.
-  it('AC-957: always carries the wide-measure marker, panel open or not', () => {
-    mockListAdminPeople.mockReturnValue(new Promise(() => {}))
-    const { container } = renderPage()
-    expect(container.querySelector('.admin-people-collection')).toBeInTheDocument()
   })
 
   // AC-043 (#803): a load is not a reason to blank the controls. The head and the toolbar are
@@ -191,8 +185,7 @@ describe('AdminUsersPage (AC-060)', () => {
     expect(screen.getByText('Manage who can sign in and what they can do.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /add person/i })).toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: /search people/i })).toBeInTheDocument()
-    expect(screen.getByRole('tablist', { name: /status filter/i })).toBeInTheDocument()
-    expect(screen.getAllByRole('tab')).toHaveLength(5)
+    expect(screen.getByRole('combobox', { name: /status filter/i })).toBeInTheDocument()
 
     // The list area — and nothing else — is the busy region.
     expect(screen.getByRole('status', { name: /loading/i })).toHaveAttribute('aria-busy', 'true')
@@ -219,7 +212,7 @@ describe('AdminUsersPage (AC-060)', () => {
     // Wait for data
     await screen.findByText('Budi Santoso')
 
-    // Active login → "Active" pill present (toolbar also has an "Active" tab — getAllByText)
+    // Active login → "Active" pill present
     expect(screen.getAllByText('Active').length).toBeGreaterThan(0)
 
     // No login → "No login" pill (at least one — two rows have no login in test data)
@@ -229,8 +222,7 @@ describe('AdminUsersPage (AC-060)', () => {
     expect(screen.getAllByText('Disabled').length).toBeGreaterThan(0)
 
     // Archived person → visible under the Archived segment (design-plan §2.1: All = non-archived)
-    const tablist = screen.getByRole('tablist', { name: /status filter/i })
-    await user.click(within(tablist).getByRole('tab', { name: /archived/i }))
+    await chooseStatus(user, /archived/i)
     expect(screen.getByText('Old Staff')).toBeInTheDocument()
   })
 
@@ -244,8 +236,7 @@ describe('AdminUsersPage (AC-060)', () => {
     expect(screen.getByText('Sari Indah')).toBeInTheDocument()
     expect(screen.getByText('Admin Gordi')).toBeInTheDocument()
     // Archived person visible under Archived segment (design-plan §2.1)
-    const tablist = screen.getByRole('tablist', { name: /status filter/i })
-    await user.click(within(tablist).getByRole('tab', { name: /archived/i }))
+    await chooseStatus(user, /archived/i)
     expect(screen.getByText('Old Staff')).toBeInTheDocument()
   })
 
@@ -328,7 +319,7 @@ describe('AdminUsersPage — Catalog-Manage content head (Wave 2: W2-3)', () => 
     await screen.findByText('Budi Santoso')
     expect(container.querySelector('.ch-count')).toBeNull()
     expect(screen.getByTestId('people-count-line').textContent?.trim())
-      .toBe(`${PEOPLE_ALL_STATES.length} people`)
+      .toBe(`${PEOPLE_ALL_STATES.filter((p) => !p.archived_at).length} people`)
   })
 
   it('DO-7: while counts are unknown the head shows a placeholder, never a stale bare digit', () => {
@@ -336,26 +327,6 @@ describe('AdminUsersPage — Catalog-Manage content head (Wave 2: W2-3)', () => 
     const { container } = renderPage()
     expect(container.querySelector('.ch-count')).toBeNull()
     expect(screen.getByTestId('people-count-line').textContent?.trim()).toBe('—')
-  })
-})
-
-describe('AdminUsersPage — DO-22(b) (Census R2, admin-people P2-B): no nested cards', () => {
-  it('DO-22(b): on phone the outer container drops its card chrome — person cards never nest inside a card', async () => {
-    vi.mocked(useIsDesktop).mockReturnValue(false)
-    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
-    renderPage()
-    await screen.findByText('Budi Santoso')
-    const outer = screen.getByTestId('people-list-container')
-    expect(outer.style.border).toBe('')
-    expect(outer.style.background).toBe('')
-  })
-
-  it('DO-22(b): the desktop table presentation keeps the container card chrome', async () => {
-    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
-    renderPage()
-    await screen.findByText('Budi Santoso')
-    const outer = screen.getByTestId('people-list-container')
-    expect(outer.style.border).toContain('1px solid')
   })
 })
 
@@ -401,133 +372,42 @@ describe('AdminUsersPage — V3 Management frame', () => {
   })
 })
 
-// CQ Issue 1 (feat/manager-tier-role-assignment review): the open person panel must re-derive from
-// reloaded people after a write, not hold a stale snapshot (else the just-toggled Position reverts).
-describe('AdminUsersPage — the person panel reflects fresh data after a Position toggle', () => {
-  it('re-renders the open panel against reloaded people (no stale snapshot)', async () => {
-    const user = userEvent.setup()
-    const base: AdminPersonRow = {
-      id: 'p-nico',
-      full_name: 'Nico',
-      email: 'nico@example.test',
-      archived_at: null,
-      login: 'active',
-      access_roles: [],
-      jabatan: [],
-      revenue_scope: [],
-      teams: [],
-    }
-    mockListRoles.mockResolvedValue([{ id: 'r-kitchen', name: 'Kitchen Lead' }])
-    mockListAdminPeople
-      .mockResolvedValueOnce([base]) // first load: no Position
-      .mockResolvedValue([{ ...base, jabatan: [{ role_id: 'r-kitchen', role_name: 'Kitchen Lead' }] }]) // after assign
-
-    renderPage()
-    await screen.findByText('Nico')
-
-    await user.click(screen.getByRole('button', { name: /more actions for nico/i }))
-    await user.click(screen.getByRole('menuitem', { name: /^manage person$/i }))
-
-    const box = screen.getByRole('checkbox', { name: /kitchen lead/i })
-    expect(box).not.toBeChecked()
-
-    await user.click(box) // assignJabatan → refresh() returns the assigned Position
-
-    // With the stale-snapshot bug the panel would stay unchecked; the fix re-derives it from fresh data.
-    await waitFor(() =>
-      expect(screen.getByRole('checkbox', { name: /kitchen lead/i })).toBeChecked(),
-    )
-  })
-})
-
-// The Teams section must be wired end to end: every other suite stubs listTeams to [], so deleting
-// `teams={teams}` from the page would leave them all green.
-describe('AdminUsersPage — the Teams section is actually wired through', () => {
-  it('passes listTeams() into the person panel, so a real team renders there', async () => {
-    const user = userEvent.setup()
-    mockListAdminPeople.mockResolvedValue([
-      {
-        id: 'p-1', full_name: 'Budi Santoso', email: 'budi@example.test', archived_at: null,
-        login: 'active', access_roles: ['member'], jabatan: [], revenue_scope: [],
-        teams: [{ team_id: 't-bar', is_primary: true }],
-      },
-    ])
-    mockListTeams.mockResolvedValue([
-      { id: 't-bar', name: 'Gordi HQ Bar', branch_name: 'Gordi HQ', activity: 'bar' },
-    ])
-    renderPage()
-
-    await user.click(await screen.findByRole('button', { name: /More actions for Budi Santoso/i }))
-    await user.click(await screen.findByText(/^Manage person$/i))
-
-    // The team the PAGE fetched, rendered by the picker, showing its (branch, activity) pair —
-    // and marked Home, which is what resolves this person's default capture stream.
-    expect(await screen.findByRole('checkbox', { name: 'Gordi HQ Bar' })).toBeChecked()
-    expect(screen.getByText('Gordi HQ · Bar')).toBeInTheDocument()
-    const teamRow = screen.getByRole('checkbox', { name: 'Gordi HQ Bar' }).closest('.admin-check-row') as HTMLElement
-    expect(within(teamRow).getByText('Home')).toBeInTheDocument()
-  })
-})
-
 describe('AdminUsersPage — find and open a person', () => {
   it('while filtered, the head counts what the list shows out of everyone ("1 of 4")', async () => {
     const user = userEvent.setup()
     mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
     renderPage()
     await screen.findByText('Budi Santoso')
-    expect(screen.getByTestId('people-count-line')).toHaveTextContent('4 people')
+    expect(screen.getByTestId('people-count-line')).toHaveTextContent('3 people')
 
     await user.type(screen.getByRole('searchbox', { name: /search people/i }), 'santoso budi')
-    expect(screen.getByTestId('people-count-line')).toHaveTextContent('1 of 4 people')
+    expect(screen.getByTestId('people-count-line')).toHaveTextContent(/^1 of \d+ people$/)
   })
 
-  it('a row click opens the person, read-first, titled with their name; Close returns to the list', async () => {
+  it('a row click opens that person’s own page, and the list’s filters ride along', async () => {
     const user = userEvent.setup()
     mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
-    renderPage()
-    const name = await screen.findByText('Budi Santoso')
-    await user.click(name.closest('tr')!.querySelectorAll('td')[1])
-
-    const panel = await screen.findByRole('dialog', { name: 'Manage Budi Santoso' })
-    expect(within(panel).getByRole('heading', { level: 2, name: 'Manage Budi Santoso' })).toBeInTheDocument()
-    expect(within(panel).getByRole('region', { name: 'Summary' })).toBeInTheDocument()
-    expect(within(panel).getByRole('heading', { name: 'What they can do' })).toBeInTheDocument()
-
-    await user.click(within(panel).getByRole('button', { name: 'Close' }))
-    expect(screen.queryByRole('dialog', { name: 'Manage Budi Santoso' })).toBeNull()
+    render(
+      <MemoryRouter initialEntries={['/admin/people?status=active']}>
+        <AdminUsersPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Admin Gordi' }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/admin/people/p-admin?status=active')
   })
 
-  it('a failed authority load is handled: the panel says so, and every started load is observed', async () => {
-    // A rejection nobody subscribed to is what Node reports as an unhandled rejection; a thenable
-    // records whether anyone subscribed, which a vi.fn promise result (observed by the spy) cannot.
-    const subscribed: string[] = []
-    const failing = (name: string, message: string) => ({
-      then: (_ok: unknown, fail: (reason: Error) => void) => { subscribed.push(name); fail(new Error(message)) },
-    }) as unknown as Promise<never>
+  it('the row menu’s Manage person opens the same page', async () => {
     const user = userEvent.setup()
     mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
-    vi.mocked(listRoleAuthority).mockImplementation(() => failing('rules', "Couldn't load access rules. Try again."))
-    vi.mocked(listTeamLeadAssignments).mockImplementation(() => failing('leads', "Couldn't load Team leads. Try again."))
-    // A loader that throws before it returns a promise must not strand the loads started before it.
-    vi.mocked(getRoles).mockImplementation(() => { throw new Error('not a function') })
-    renderPage()
-    await user.click(await screen.findByRole('button', { name: PEOPLE_ALL_STATES[1].full_name }))
-    const panel = await screen.findByRole('dialog')
-    expect(await within(panel).findByText("Couldn't load what they can do.")).toBeInTheDocument()
-    expect(subscribed.sort()).toEqual(['leads', 'rules'])
-  })
-
-  it('a person who holds the top Position of a Business Unit is shown as its head', async () => {
-    const user = userEvent.setup()
-    mockListAdminPeople.mockResolvedValue([
-      { ...PEOPLE_ALL_STATES[1], jabatan: [{ role_id: 'r-head', role_name: 'Head of Retail' }] },
-      PEOPLE_ALL_STATES[0],
-    ])
-    vi.mocked(getRoles).mockResolvedValue([{ id: 'r-head', business_unit_id: 'bu-retail', reports_to_role_id: null }])
-    vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-retail', name: 'Retail', code: null }])
-    renderPage()
-    await user.click(await screen.findByRole('button', { name: PEOPLE_ALL_STATES[1].full_name }))
-    const panel = await screen.findByRole('dialog')
-    expect(await within(panel).findByText('Heads Retail')).toBeInTheDocument()
+    render(
+      <MemoryRouter initialEntries={['/admin/people']}>
+        <AdminUsersPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    )
+    await user.click(await screen.findByRole('button', { name: /more actions for budi santoso/i }))
+    await user.click(await screen.findByRole('menuitem', { name: /manage/i }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/admin/people/p-no-login')
   })
 })

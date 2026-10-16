@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { PersonOption } from '@/lib/db/directory'
 import { PersonPicker } from './person-picker'
 import { useT } from '@/i18n/use-t'
@@ -63,6 +63,7 @@ export function CommentThread({
   draftValue, onDraftChange, variant = 'card',
 }: CommentThreadProps) {
   const t = useT()
+  const composerId = useId()
   // undefined → the default "No comments yet."; an explicit string overrides; null suppresses.
   const resolvedEmpty = emptyLabel === undefined ? t('tasks.commentsEmpty') : emptyLabel
   const [localDraft, setLocalDraft] = useState('')
@@ -144,9 +145,10 @@ export function CommentThread({
             void submit()
           }}
         >
+          <label htmlFor={composerId} className="comment-composer__label">{t('tasks.comment.label')}</label>
           <textarea
+            id={composerId}
             ref={textareaRef}
-            aria-label={t('tasks.comment.label')}
             value={draft}
             readOnly={posting}
             onChange={(event) => { if (posting) return; updateDraft(event.target.value); setPickerDismissed(false); setPostError(false) }}
@@ -179,6 +181,7 @@ export function CommentThread({
           {postError && <p role="alert">{t('tasks.comment.postError')}</p>}
           {expanded ? (
             <div className="comment-composer__actions">
+              {!draft.trim() && !posting ? <span className="comment-composer__reason">{t('tasks.comment.needsText')}</span> : null}
               <button
                 type="submit"
                 className="btn btn-outline"

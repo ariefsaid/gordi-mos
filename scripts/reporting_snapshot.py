@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
+import json
 import os
 import re
 import sys
@@ -202,9 +203,10 @@ def _copy_window(
     source_query: str,
     normalize: Any,
     upsert_sql: str,
+    target_table: str,
     snapshot_as_of: Any,
     source_contract_version: str,
-) -> int:
+) -> int | None:
     """Read one trailing-window dataset from the warehouse and upsert it into reporting.
 
     Every row is normalised before the reporting connection opens, so a row the normaliser
@@ -235,6 +237,12 @@ def _copy_window(
 
     with psycopg.connect(config.supabase_reporting_db_url) as reporting_conn:
         with reporting_conn.cursor() as reporting_cur:
+            # Staging can lag dev: skip a table the target does not have yet. Checked up front
+            # because Postgres reports a missing table without naming it in the error fields.
+            reporting_cur.execute("select to_regclass(%s)", (target_table,))
+            if reporting_cur.fetchone()[0] is None:
+                print(f"skipped {target_table}: not on target")
+                return None
             # Declare the run's org BEFORE any write, and in the SAME transaction as the write:
             # the reporting.* write policies admit only rows in the declared org, and the
             # declaration is transaction-scoped. No commit may separate these two statements.
@@ -246,12 +254,13 @@ def _copy_window(
     return len(normalized_rows)
 
 
-def run_snapshot(config: SnapshotConfig, *, snapshot_as_of: datetime | None = None) -> int:
+def run_snapshot(config: SnapshotConfig, *, snapshot_as_of: datetime | None = None) -> int | None:
     return _copy_window(
         config,
         source_query=build_source_query(),
         normalize=normalize_row,
         upsert_sql=build_upsert_sql(),
+        target_table="reporting.sales_daily_revenue",
         snapshot_as_of=snapshot_as_of or datetime.now(timezone.utc),
         source_contract_version=config.source_contract_version,
     )
@@ -283,7 +292,9 @@ def normalize_margin_row(
 
     cogs_interim_sm = float(cogs_interim_sm_raw) if cogs_interim_sm_raw is not None else None
     cogs_budget_bom = float(cogs_budget_bom_raw) if cogs_budget_bom_raw is not None else None
-    bom_coverage_pct = float(bom_coverage_pct_raw) if bom_coverage_pct_raw is not None else None
+    bom_coverage_pct = float(bom_coverage_pct_raw) / 100 if bom_coverage_pct_raw is not None else None
+    if bom_coverage_pct is not None and not 0 <= bom_coverage_pct <= 10:
+        raise ValueError("bom_coverage_pct ratio must be between 0 and 10")
 
     if cogs_interim_sm is None:
         # AC-SN06: a sync gap (NULL COGS) yields NULL margin, never a fake margin.
@@ -292,6 +303,8 @@ def normalize_margin_row(
     else:
         margin_interim = round(revenue - cogs_interim_sm, 2)
         margin_interim_pct = round(margin_interim / revenue, 4) if revenue > 0 else None
+        if margin_interim_pct is not None and abs(margin_interim_pct) >= 10**4:
+            margin_interim_pct = None
 
     return {
         "org_id": org_id,
@@ -318,7 +331,7 @@ def build_margin_source_query() -> str:
              max(r.branch_name)           as branch_name,
              sum(r.clean_revenue)         as revenue,
              max(c.sm_total)              as cogs_interim_sm,
-             max(c.bom_total)             as cogs_budget_bom,
+             max(c.cogs_total)            as cogs_budget_bom,
              max(c.bom_coverage_pct)      as bom_coverage_pct
       from public.v_daily_revenue_unified r
       left join public.fact_daily_cogs_interim c
@@ -359,12 +372,13 @@ def build_margin_upsert_sql() -> str:
     """
 
 
-def run_margin_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int:
+def run_margin_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int | None:
     return _copy_window(
         config,
         source_query=build_margin_source_query(),
         normalize=normalize_margin_row,
         upsert_sql=build_margin_upsert_sql(),
+        target_table="reporting.sales_margin_daily",
         snapshot_as_of=snapshot_as_of,
         source_contract_version=config.margin_source_contract_version,
     )
@@ -372,12 +386,8 @@ def run_margin_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int
 
 # --- reporting.ingredient_usage_daily (#1473) ---------------------------------------------------
 #
-# Recipe-based ingredient usage per branch and day: each sold menu line times its recipe, grouped
-# by the ingredient's ERP product detail id (never its name). Unlike the warehouse's COGS views,
-# this keeps menus the ERP has soft-deleted and zero-price add-on lines (package sub-items): both
-# were really made and really used ingredients. The sale statuses are the warehouse's own
-# consumption rule (v_transaction_cogs_total): Finished and Void count, because a voided order was
-# prepared and refunded; Cancelled was never prepared.
+# Recipe-based ingredient usage per branch and day. The warehouse eligibility and recipe-line
+# functions own Finished-header, Preparing-line, and package-parent selection rules.
 
 
 class UnknownUnitError(ValueError):
@@ -462,52 +472,49 @@ def normalize_usage_row(
 
 def build_usage_source_query() -> str:
     return """
-      with lines as (
-        select si.sales_date,
-               si.esb_code::text as esb_code,
-               coalesce(nullif(btrim(coalesce(si.branch_code, '')), ''), si.esb_code::text) as branch_code,
-               si.qty,
-               dm.bom_id
-        from oms_sales_items si
-        join oms_sales o
-          on o.sales_num = si.sales_num
-         and o.status_name in ('Finished', 'Void')
-        left join dim_menus dm
-          on dm.esb_code = si.esb_code
-         and dm.menu_id = si.menu_id
-        where si.sales_date >= current_date - ((%s::int - 1) * interval '1 day')
-          and si.qty > 0
+      with date_window as (
+        select current_date - (%s::int - 1) as from_date, current_date as to_date
+      ),
+      eligible_items as (
+        select e.item_id, e.sales_date, e.esb_code::text as esb_code,
+               coalesce(nullif(btrim(coalesce(e.branch_code, '')), ''), e.esb_code::text) as branch_code,
+               e.menu_qty
+        from date_window w
+        cross join lateral cogs_item_eligibility(w.from_date, w.to_date) e
+        where e.eligible
       ),
       recipe as (
-        select bi.esb_code, bi.bom_id, bi.product_detail_id,
-               max(bi.product_name) as ingredient_name,
-               btrim(bi.uom_name) as source_unit,
-               sum(bi.qty) as recipe_qty
-        from core_bom_items bi
-        where bi.qty > 0 and bi.product_detail_id is not null
-        group by bi.esb_code, bi.bom_id, bi.product_detail_id, btrim(bi.uom_name)
+        select r.item_id, r.sales_date, r.esb_code::text as esb_code,
+               coalesce(nullif(btrim(coalesce(r.branch_code, '')), ''), r.esb_code::text) as branch_code,
+               r.product_detail_id, max(r.ingredient) as ingredient_name,
+               btrim(r.unit) as source_unit, sum(r.ingredient_qty) as source_qty,
+               max(r.menu_qty) as menu_units
+        from date_window w
+        cross join lateral cogs_recipe_lines(w.from_date, w.to_date) r
+        where r.eligible and r.product_detail_id is not null
+        group by r.item_id, r.sales_date, r.esb_code, r.branch_code,
+                 r.product_detail_id, btrim(r.unit)
       ),
-      recipe_boms as (
-        select distinct esb_code, bom_id from recipe
+      recipe_items as (
+        select distinct item_id from recipe
       ),
       sold as (
-        select l.sales_date, l.esb_code, l.branch_code,
-               sum(l.qty) as units_sold,
-               sum(l.qty) filter (where rb.bom_id is not null) as units_with_recipe
-        from lines l
-        left join recipe_boms rb on rb.esb_code = l.esb_code and rb.bom_id = l.bom_id
-        group by l.sales_date, l.esb_code, l.branch_code
+        select i.sales_date, i.esb_code, i.branch_code,
+               sum(i.menu_qty) as units_sold,
+               sum(i.menu_qty) filter (where ri.item_id is not null) as units_with_recipe
+        from eligible_items i
+        left join recipe_items ri using (item_id)
+        group by i.sales_date, i.esb_code, i.branch_code
       ),
       used as (
-        select l.sales_date, l.esb_code, l.branch_code,
-               b.product_detail_id::text as ingredient_detail_id,
-               max(b.ingredient_name) as ingredient_name,
-               b.source_unit,
-               sum(l.qty * b.recipe_qty) as source_qty,
-               sum(l.qty) as menu_units
-        from lines l
-        join recipe b on b.esb_code = l.esb_code and b.bom_id = l.bom_id
-        group by l.sales_date, l.esb_code, l.branch_code, b.product_detail_id, b.source_unit
+        select r.sales_date, r.esb_code, r.branch_code,
+               r.product_detail_id::text as ingredient_detail_id,
+               max(r.ingredient_name) as ingredient_name,
+               r.source_unit, sum(r.source_qty) as source_qty,
+               sum(r.menu_units) as menu_units
+        from recipe r
+        group by r.sales_date, r.esb_code, r.branch_code,
+                 r.product_detail_id, r.source_unit
       )
       select u.sales_date as usage_date, u.esb_code, u.branch_code, u.ingredient_detail_id,
              u.ingredient_name, u.source_unit, u.source_qty, u.menu_units,
@@ -543,12 +550,13 @@ def build_usage_upsert_sql() -> str:
     """
 
 
-def run_usage_snapshot(config: SnapshotConfig, snapshot_as_of: Any) -> int:
+def run_usage_snapshot(config: SnapshotConfig, snapshot_as_of: Any) -> int | None:
     return _copy_window(
         config,
         source_query=build_usage_source_query(),
         normalize=normalize_usage_row,
         upsert_sql=build_usage_upsert_sql(),
+        target_table="reporting.ingredient_usage_daily",
         snapshot_as_of=snapshot_as_of,
         source_contract_version=DEFAULT_USAGE_SOURCE_CONTRACT_VERSION,
     )
@@ -646,11 +654,13 @@ def pending_bill_window_start(snapshot_as_of: datetime, window_days: int) -> dat
 def build_pending_bill_source_query() -> str:
     # Void rows are read too, so a bill the till voided can be flagged rather than left present.
     return """
-        select sales_num, bill_num, sales_date, esb_code::text as esb_code, branch_code,
-               branch_name, counterparty_note, grand_total, status_name, payment_method_name
-        from public.v_pos_pending_bills
-        where sales_date >= %s::date
-        order by sales_date, esb_code, branch_code, bill_num
+        select s.sales_num, s.bill_num, s.sales_date, s.esb_code::text as esb_code, s.branch_code,
+               s.branch_name, o.additional_info as counterparty_note, s.grand_total,
+               s.status_name, s.payment_method_name
+        from public.oms_sales_clean s
+        left join public.oms_sales o on o.sales_num = s.sales_num
+        where s.sales_date >= %s::date
+        order by s.sales_date, s.esb_code, s.branch_code, s.bill_num
     """
 
 
@@ -710,7 +720,9 @@ def build_bill_snapshot_insert_sql() -> str:
     """
 
 
-def run_pending_bill_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> tuple[int, int]:
+def run_pending_bill_snapshot(
+    config: SnapshotConfig, snapshot_as_of: datetime
+) -> tuple[int | None, int | None]:
     """Returns (bills written, non-positive bills skipped)."""
     try:
         import psycopg
@@ -745,6 +757,12 @@ def run_pending_bill_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) 
 
     with psycopg.connect(config.supabase_reporting_db_url) as reporting_conn:
         with reporting_conn.cursor() as reporting_cur:
+            # Same up-front check as _copy_window: Postgres names no table for a missing relation.
+            for table in ("reporting.pending_bills", "reporting.pending_bill_snapshots"):
+                reporting_cur.execute("select to_regclass(%s)", (table,))
+                if reporting_cur.fetchone()[0] is None:
+                    print(f"skipped {table}: not on target")
+                    return None, None
             # Same rule as the revenue path: declare first, in the transaction that writes.
             reporting_cur.execute(build_org_scope_sql(), (config.org_id,))
             reporting_cur.executemany(build_pending_bill_upsert_sql(), bills)
@@ -785,12 +803,283 @@ def run_pending_bill_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) 
     return len(bills), skipped
 
 
+def build_recipe_history_source_query() -> str:
+    # Menu recipes come from the warehouse's recipe observations. WIP (Assembly BOM) recipes have
+    # no menu, so they are built here from the BOM tables in the same envelope shape, keyed by
+    # menu_id = -bom_id.
+    # ponytail: negative menu_id marks a WIP chronology; add a kind column if a consumer must
+    # tell them apart in SQL.
+    return """
+        with asof as (select %s::timestamptz as t),
+        menus as (
+          select distinct on (o.esb_code, o.menu_id)
+                 o.esb_code::text as esb_code, o.menu_id, o.bom_id, o.observed_at,
+                 o.recipe_version_hash, o.recipe
+          from public.recipe_observations o
+          cross join asof
+          join public.sync_state s on s.esb_code = o.esb_code
+            and s.api_source = 'core' and s.endpoint = 'recipe-observation-pass'
+            and s.sync_key = 'nightly' and s.status = 'completed'
+          where o.observed_at <= s.completed_at and o.observed_at <= asof.t
+          order by o.esb_code, o.menu_id, o.observed_at desc
+        ),
+        lines as (
+          select b.esb_code, b.bom_id,
+            jsonb_agg(jsonb_build_object(
+              'line_id', b.detail_id, 'product_id', b.product_id, 'detail_id', b.product_detail_id,
+              'name', b.product_name, 'unit_id', b.uom_id, 'unit', b.uom_name, 'qty', b.qty,
+              'product_active', p.flag_active, 'product_deleted', p.deleted_at is not null,
+              'detail_active', pd.flag_active, 'detail_unit_id', pd.uom_id,
+              'detail_unit', pd.uom_name, 'is_stock', pd.is_stock,
+              'conversion_quantity', pd.raw_json -> 'qty', 'conversion', d.value -> 'convertionQty',
+              'yield', d.value -> 'yieldPercent', 'tolerance', d.value -> 'tolerancePercent',
+              'substitutes', d.value -> 'subtitution',
+              'manufacturing_substitutes', d.value -> 'subtitutionManufacturing'
+            ) order by b.detail_id, b.product_detail_id, b.id) as lines
+          from public.core_bom_items b
+          join public.core_bom h using (esb_code, bom_id)
+          left join public.dim_products p
+            on p.esb_code = b.esb_code and p.product_id = b.product_id
+          left join public.dim_product_details pd
+            on pd.esb_code = b.esb_code and pd.product_detail_id = b.product_detail_id
+          left join lateral (
+            select x.value from jsonb_array_elements(case
+              when jsonb_typeof(h.raw_json -> 'bomDetails') = 'array' then h.raw_json -> 'bomDetails'
+              else '[]'::jsonb end) x
+            where x.value ->> 'ID' = b.detail_id::text limit 1
+          ) d on true
+          where h.bom_type_name = 'Assembly'
+          group by b.esb_code, b.bom_id
+        ),
+        wip as (
+          select h.esb_code::text as esb_code, -h.bom_id as menu_id, h.bom_id,
+                 h.synced_at as observed_at,
+                 jsonb_build_object(
+                   'bom_id', h.bom_id, 'bom_name', h.bom_name, 'bom_type', h.bom_type_name,
+                   'active', h.flag_active, 'output_detail_id', h.product_detail_id,
+                   'output_unit', h.uom_name,
+                   'replacements', coalesce(h.raw_json -> 'bomReplacements', '[]'::jsonb),
+                   'lines', coalesce(l.lines, '[]'::jsonb)
+                 ) as recipe
+          from public.core_bom h
+          cross join asof
+          join public.sync_state s on s.esb_code = h.esb_code
+            and s.api_source = 'core' and s.endpoint = 'recipe-observation-pass'
+            and s.sync_key = 'nightly' and s.status = 'completed'
+          left join lines l on l.esb_code = h.esb_code and l.bom_id = h.bom_id
+          where h.bom_type_name = 'Assembly'
+            and h.raw_json ->> '_detail_incomplete' is distinct from 'true'
+            and jsonb_typeof(h.raw_json -> 'bomDetails') = 'array'
+            and h.synced_at <= s.completed_at and h.synced_at <= asof.t
+        )
+        select * from menus
+        union all
+        select esb_code, menu_id, bom_id, observed_at, md5(recipe::text), recipe from wip
+    """
+
+
+def plan_recipe_versions(
+    source_rows: list[Mapping[str, Any]],
+    latest_versions: list[Mapping[str, Any]],
+    *,
+    org_id: str,
+    snapshot_as_of: datetime,
+) -> list[dict[str, Any]]:
+    latest = {(r["esb_code"], r["menu_id"]): r for r in latest_versions}
+    versions = []
+    for row in source_rows:
+        esb_code = _required_text(row.get("esb_code"), "esb_code")
+        version_hash = _required_text(row.get("recipe_version_hash"), "recipe_version_hash")
+        previous = latest.get((esb_code, row["menu_id"]))
+        if previous and (
+            previous["warehouse_version_hash"] == version_hash
+            or row["observed_at"] <= previous["source_observed_at"]
+        ):
+            continue
+        versions.append({
+            "org_id": org_id,
+            "esb_code": esb_code,
+            "menu_id": row["menu_id"],
+            "bom_id": row["bom_id"],
+            "version": previous["version"] + 1 if previous else 1,
+            "warehouse_version_hash": version_hash,
+            "recipe": json.dumps(row["recipe"], allow_nan=False),
+            "first_seen": snapshot_as_of.astimezone(WIB).date(),
+            "source_observed_at": row["observed_at"],
+        })
+    return versions
+
+
+def run_recipe_history_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int | None:
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+    except ImportError as exc:
+        raise SystemExit(
+            "Missing dependency: install psycopg on the VPS snapshot environment"
+        ) from exc
+
+    with psycopg.connect(config.supabase_reporting_db_url, row_factory=dict_row) as reporting_conn:
+        with reporting_conn.cursor() as reporting_cur:
+            reporting_cur.execute("select to_regclass(%s) as target", ("reporting.recipe_versions",))
+            if reporting_cur.fetchone()["target"] is None:
+                print("skipped reporting.recipe_versions: not on target")
+                return None
+            with psycopg.connect(config.warehouse_db_url, row_factory=dict_row) as warehouse_conn:
+                with warehouse_conn.cursor() as warehouse_cur:
+                    warehouse_cur.execute(build_recipe_history_source_query(), (snapshot_as_of,))
+                    source_rows = warehouse_cur.fetchall()
+            reporting_cur.execute(build_org_scope_sql(), (config.org_id,))
+            reporting_cur.execute(
+                "select pg_advisory_xact_lock(hashtextextended('reporting.recipe_versions:' || %s, 0))",
+                (config.org_id,),
+            )
+            reporting_cur.execute("""
+                select distinct on (esb_code, menu_id)
+                       esb_code, menu_id, version, warehouse_version_hash, source_observed_at
+                from reporting.recipe_versions where org_id = %s
+                order by esb_code, menu_id, version desc
+            """, (config.org_id,))
+            versions = plan_recipe_versions(
+                source_rows, reporting_cur.fetchall(),
+                org_id=config.org_id, snapshot_as_of=snapshot_as_of,
+            )
+            reporting_cur.executemany("""
+                insert into reporting.recipe_versions (
+                    org_id, esb_code, menu_id, bom_id, version, warehouse_version_hash,
+                    recipe, first_seen, source_observed_at
+                ) values (
+                    %(org_id)s, %(esb_code)s, %(menu_id)s, %(bom_id)s, %(version)s,
+                    %(warehouse_version_hash)s, %(recipe)s::jsonb, %(first_seen)s,
+                    %(source_observed_at)s
+                )
+            """, versions)
+        reporting_conn.commit()
+    return len(versions)
+
+
+RECIPE_FINDING_COLUMNS = (
+    "finding_id", "day", "esb_code", "branch_code", "branch_name", "menu_id", "menu_name",
+    "bom_id", "recipe_line_id", "expected_detail_id", "expected_name", "expected_unit",
+    "expected_qty", "actual_detail_id", "actual_name", "actual_unit", "actual_qty_day",
+    "actual_cost_day", "impact_idr", "impact_basis", "classification", "rule", "confidence",
+    "needs_human", "recommended_check", "recipe_edited_at", "first_sale_at",
+    "recipe_version_hash", "recipe_observed_at", "prior_recipe_version_hash",
+    "prior_recipe_observed_at", "sale_time_precision", "eligibility_population",
+    "eligibility_reason", "source_checked_at", "refreshed_at", "algorithm_version",
+    "replica_stale", "expected_qty_day_comparable", "actual_qty_day_comparable",
+    "comparison_unit", "conversion_evidence",
+)
+
+
+def normalize_recipe_finding(row: Mapping[str, Any], *, snapshot_as_of: Any,
+                             org_id: str, source_contract_version: str) -> dict[str, Any]:
+    result = {column: row.get(column) for column in RECIPE_FINDING_COLUMNS}
+    for field in ("finding_id", "esb_code", "branch_code", "classification", "rule",
+                  "confidence", "impact_basis", "recommended_check", "algorithm_version"):
+        result[field] = _required_text(row.get(field), field)
+    if row.get("day") is None or row.get("source_checked_at") is None:
+        raise ValueError("finding day and source_checked_at are required")
+    result["conversion_evidence"] = json.dumps(row.get("conversion_evidence") or {}, allow_nan=False)
+    result.update(org_id=org_id, snapshot_as_of=snapshot_as_of,
+                  source_contract_version=source_contract_version)
+    return result
+
+
+def build_recipe_findings_source_query() -> str:
+    return f"""
+        select {', '.join('f.' + c for c in RECIPE_FINDING_COLUMNS)}
+        from public.v_recipe_deduction_findings f
+        join public.sync_state s on s.esb_code = f.esb_code
+          and s.api_source = 'core' and s.endpoint = 'recipe-observation-pass'
+          and s.sync_key = 'nightly' and s.status = 'completed'
+        where f.day between %s::date and %s::date
+          and f.refreshed_at <= s.completed_at and f.source_checked_at <= s.completed_at
+        order by f.esb_code, f.branch_code, f.day, f.finding_id
+    """
+
+
+def build_recipe_finding_state_query() -> str:
+    return """
+        select s.esb_code::text as esb_code, s.status, s.completed_at,
+          (select max(greatest(f.refreshed_at, f.source_checked_at))
+           from public.v_recipe_deduction_findings f
+           where f.esb_code = s.esb_code and f.day between %s::date and %s::date) as latest_findings_at
+        from public.sync_state s where s.api_source = 'core'
+          and s.endpoint = 'recipe-observation-pass' and s.sync_key = 'nightly'
+    """
+
+
+def run_recipe_findings_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int | None:
+    import psycopg
+    from psycopg.rows import dict_row
+
+    start = pending_bill_window_start(snapshot_as_of, config.window_days)
+    end = snapshot_as_of.astimezone(WIB).date()
+    with psycopg.connect(config.supabase_reporting_db_url, row_factory=dict_row) as target:
+        with target.cursor() as cur:
+            for table in ("reporting.recipe_deduction_findings", "reporting.recipe_finding_snapshots"):
+                cur.execute("select to_regclass(%s) as target", (table,))
+                if cur.fetchone()["target"] is None:
+                    print(f"skipped {table}: not on target")
+                    return None
+            cur.execute(build_org_scope_sql(), (config.org_id,))
+            cur.execute("select pg_advisory_xact_lock(hashtextextended('reporting.recipe_findings:' || %s, 0))",
+                        (config.org_id,))
+            cur.execute("select snapshot_as_of from reporting.recipe_finding_snapshots where org_id = %s",
+                        (config.org_id,))
+            if any(r["snapshot_as_of"] > snapshot_as_of for r in cur.fetchall()):
+                return None
+            with psycopg.connect(config.warehouse_db_url, row_factory=dict_row) as source:
+                with source.cursor() as src:
+                    src.execute("set transaction isolation level repeatable read, read only")
+                    src.execute(build_recipe_finding_state_query(), (start, end))
+                    states = src.fetchall()
+                    src.execute(build_recipe_findings_source_query(), (start, end))
+                    rows = [normalize_recipe_finding(r, snapshot_as_of=snapshot_as_of,
+                            org_id=config.org_id, source_contract_version="recipe_deduction_findings.v2")
+                            for r in src.fetchall()]
+            count = 0
+            for state in states:
+                company = state["esb_code"]
+                complete = (state["status"] == "completed" and state["completed_at"] is not None
+                            and (state.get("latest_findings_at") is None
+                                 or state["latest_findings_at"] <= state["completed_at"]))
+                company_rows = [r for r in rows if r["esb_code"] == company]
+                if complete:
+                    cur.execute("""delete from reporting.recipe_deduction_findings
+                        where org_id = %s and esb_code = %s and day between %s and %s""",
+                        (config.org_id, company, start, end))
+                    columns = ("org_id", *RECIPE_FINDING_COLUMNS, "snapshot_as_of", "source_contract_version")
+                    # The version-on-date chronology is observed history, never backdated to a sale.
+                    cur.executemany(f"""
+                        insert into reporting.recipe_deduction_findings ({', '.join(columns)}, recipe_version)
+                        values ({', '.join('%(' + c + ')s' + ('::jsonb' if c == 'conversion_evidence' else '') for c in columns)},
+                          (select v.version from reporting.recipe_versions v
+                           where v.org_id = %(org_id)s and v.esb_code = %(esb_code)s
+                             and v.menu_id = %(menu_id)s and v.first_seen <= %(day)s
+                             and v.source_observed_at <= %(source_checked_at)s
+                           order by v.first_seen desc, v.version desc limit 1))
+                    """, company_rows)
+                    count += len(company_rows)
+                cur.execute("""
+                    insert into reporting.recipe_finding_snapshots
+                      (org_id, esb_code, window_start, window_end, snapshot_as_of, source_completed_at, complete)
+                    values (%s, %s, %s, %s, %s, %s, %s)
+                    on conflict (org_id, esb_code) do update set
+                      window_start = excluded.window_start, window_end = excluded.window_end,
+                      snapshot_as_of = excluded.snapshot_as_of,
+                      source_completed_at = excluded.source_completed_at, complete = excluded.complete
+                """, (config.org_id, company, start, end, snapshot_as_of, state["completed_at"], complete))
+        target.commit()
+    return count if states else None
+
+
 def run_all_snapshots(config: SnapshotConfig) -> dict[str, int | None]:
-    """Run the revenue, margin, usage (and pending bills when enabled) snapshots in one job run
-    sharing one snapshot_as_of.
+    """Run the reporting snapshots sharing one snapshot_as_of.
 
     Usage runs after revenue and margin: an unknown recipe unit fails the run loudly without holding
-    back the revenue and margin figures, which have already committed. Pending bills run last.
+    back the revenue and margin figures, which have already committed. Findings follow recipe history.
     """
     snapshot_as_of = datetime.now(timezone.utc)
     revenue_count = run_snapshot(config, snapshot_as_of=snapshot_as_of)
@@ -807,6 +1096,8 @@ def run_all_snapshots(config: SnapshotConfig) -> dict[str, int | None]:
         "usage": usage_count,
         "pending_bills": pending,
         "pending_bills_skipped": skipped,
+        "recipe_history": run_recipe_history_snapshot(config, snapshot_as_of),
+        "recipe_findings": run_recipe_findings_snapshot(config, snapshot_as_of),
     }
 
 
@@ -821,6 +1112,7 @@ def main() -> int:
         f"revenue={counts['revenue']} margin={counts['margin']} usage={counts['usage']} "
         f"pending_bills={shown('pending_bills')} "
         f"pending_bills_skipped={shown('pending_bills_skipped')} "
+        f"recipe_history={shown('recipe_history')} recipe_findings={shown('recipe_findings')} "
         f"window_days={config.window_days}"
     )
     return 0

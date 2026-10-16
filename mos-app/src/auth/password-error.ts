@@ -16,6 +16,9 @@ export function passwordRefusal(error: AuthError): MessageKey {
   switch (error.code) {
     case 'same_password':
       return 'auth.password.refused.same'
+    case 'reauthentication_not_valid':
+    case 'otp_expired':
+      return 'auth.password.refused.code'
     case 'over_request_rate_limit':
       return 'auth.password.refused.rateLimit'
     case 'session_not_found':

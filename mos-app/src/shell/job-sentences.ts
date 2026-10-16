@@ -34,9 +34,6 @@ export const jobSentences = {
   roastery: 'Record today’s roasts, yield, and transfers truthfully.',
 } as const
 
-/** The union of registry ids. */
-export type JobKey = keyof typeof jobSentences
-
 const SEG_TO_JOB: Record<string, MessageKey> = {
   home: 'job.home',
   work: 'job.work',

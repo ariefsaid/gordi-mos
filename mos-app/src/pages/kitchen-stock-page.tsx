@@ -27,15 +27,24 @@
 // org-readable; RLS is the authority — no UI role gate). Date defaults to WIB today
 // (OQ-7). Read-only is the signal — NO edit/save/approve affordances.
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { CafeNoMatch } from '@/components/kitchen/cafe-no-match'
+import { GroupHeader } from '@/components/ui/group-header'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { useSearchParamState } from '@/lib/use-search-param-state'
+import { SortIndicator } from '@/components/ui/sort-indicator'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
-import { useIsDesktop } from '@/shell/use-is-desktop'
+import { LocationBalanceSection } from '@/components/preview/location-preview-fields'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
+import { cafeUnitDisplayLabel, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
+import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
+import { formatQuantityWithUnit } from '@/lib/cafe-unit-multiples'
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { useStockComparisonLink } from '@/lib/cafe-stock-comparison-access'
+import { recordsHref } from '@/lib/cafe-records/url-state'
 import type { KitchenStockRow, ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { streamLabel } from '@/lib/kitchen-action-label'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
@@ -43,16 +52,23 @@ import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
-import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
-import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
-import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
+import { Panel } from '@/components/cafe/redesign/worksheet'
+import { StockComparison } from '@/components/cafe/redesign/cafe-stock-comparison'
 import { formatWeekdayDayMonth, wibToday } from '@/lib/format/date'
+import { Notice } from '@/components/ui/notice'
 import './kitchen-stock-page.css'
 
 type LoadState =
   | { kind: 'loading' }
   | { kind: 'error' }
   | { kind: 'ready' }
+
+function stockUnitNames(settings: CafeItemSetting[]): Record<string, string | null> {
+  return Object.fromEntries(settings.map(item => {
+    const unit = item.units.find(candidate => candidate.id === item.defaultUnitId)
+    return [item.id, unit ? cafeUnitDisplayLabel(unit) : null]
+  }))
+}
 
 // The stream label lives in `lib/kitchen-action-label` now (#440) — the same words on every
 // Café surface, and the #238 naming ruling (canonical catalog name, never the 'Bungur'
@@ -78,73 +94,53 @@ function KitchenStockPageForViewer() {
   // OD-CAFE-1: stock is keyed on (org, date, item, branch, activity) — a balance belongs to one
   // branch's books — so the picker offers this location's streams only.
   const { options: streamOptions, locationOptions, stream, homeStream, myStreamKeys } = cafeStream
+  const comparisonHref = useStockComparisonLink(stream, myStreamKeys)
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [rows, setRows] = useState<KitchenStockRow[]>([])
+  const [unitNames, setUnitNames] = useState<Record<string, string | null>>({})
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
-  const isDesktop = useIsDesktop()
-  const [search, setSearch] = useState('')
-  // One compact summary over the SELECTED stream's rows. Stock's meaning is the system
-  // balance, available balance, and negative-row count; the retired four-tile strip implied
-  // four separate decisions where the table already is the source of truth.
-  const stockSummary = useMemo(() => {
-    let onHand = 0
-    let available = 0
-    let negative = 0
-    for (const row of rows) {
-      onHand += row.stok
-      available += row.tersedia
-      if (row.stok < 0 || row.tersedia < 0) negative += 1
-    }
-    return { onHand, available, negative }
-  }, [rows])
+  const [search, setSearch] = useSearchParamState('q', '')
+  const [negativeOnly, setNegativeOnly] = useSearchParamState('negative', '')
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(new Set())
+  const toggleGroup = (key: string) => setCollapsedGroups(current => {
+    const next = new Set(current)
+    if (!next.delete(key)) next.add(key)
+    return next
+  })
   const searchQuery = search.trim().toLowerCase()
-  const visibleRows = rows.filter(row => (
+  const searchedRows = rows.filter(row => (
     !searchQuery || row.wip_item_name.toLowerCase().includes(searchQuery)
   ))
-
-  // FR-060 column order: the system-quantity net (`stok`) sits DIRECTLY BESIDE the ERP
-  // inventory column — the comparison is the point. The ERP cell is a placeholder ('—')
-  // until the ERP read is wired (#237 preserves the ported page's placeholder source;
-  // no new ERP calls); the note under the toolbar says so rather than letting an empty
-  // column read as "zero everywhere".
-  const stockColumns: DataTableColumn<KitchenStockRow>[] = [
-    {
-      key: 'wip_item_name',
-      header: t('kitchen.stock.col.item'),
-      cardLabel: '',
-      render: row => (
-        <span className="ks-item">
-          <span>{row.wip_item_name}</span>
-          {row.on_stream === false && <NotOnStreamTag />}
-          {row.category && <span className="ks-category">{kitchenCategoryLabel(t, row.category)}</span>}
-        </span>
-      ),
-    },
-    { key: 'stok', header: t('kitchen.stock.col.stok'), numeric: true },
-    {
-      key: 'erp_qty',
-      header: t('kitchen.stock.col.erp'),
-      numeric: true,
-      render: () => <span className="ks-erp-pending">—</span>,
-    },
-    { key: 'tersedia', header: t('kitchen.stock.col.tersedia'), numeric: true },
+  const negativeCount = searchedRows.filter(row => row.stok < 0 || row.tersedia < 0).length
+  const visibleRows = negativeOnly === '1' ? searchedRows.filter(row => row.stok < 0 || row.tersedia < 0) : searchedRows
+  const negativeRows = visibleRows.filter(row => row.stok < 0 || row.tersedia < 0)
+  const otherRows = visibleRows.filter(row => row.stok >= 0 && row.tersedia >= 0)
+  const stockGroups = [
+    ...(negativeRows.length ? [{ key: 'negative', label: t('kitchen.stock.negativeGroup'), rows: negativeRows }] : []),
+    ...(otherRows.length ? [{ key: 'other', label: t('kitchen.stock.otherGroup'), rows: otherRows }] : []),
   ]
-
-  // FR-028: stock is read, not acted on row-by-row. The phone row keeps the name and the
-  // three comparable figures on two short lines; the shared DataTable supplies the outer
-  // touch-safe card and keeps the desktop table branch unchanged.
-  const renderStockCard = (row: KitchenStockRow) => (
-    <div className="ks-card">
-      <span className="ks-card-name">{row.wip_item_name}</span>
-      {row.on_stream === false && <NotOnStreamTag />}
-      <div className="ks-card-meta">
-        <span><span className="ks-card-label">{t('kitchen.stock.col.stok')}</span> <strong className="tabular">{row.stok}</strong></span>
-        <span><span className="ks-card-label">{t('kitchen.stock.card.erp')}</span> <span className="ks-erp-pending">—</span></span>
-        <span><span className="ks-card-label">{t('kitchen.stock.col.tersedia')}</span> <strong className="tabular">{row.tersedia}</strong></span>
-      </div>
-    </div>
+  // Number and unit are separate cells so the figures keep one right edge whatever the unit's width.
+  const formatStockQuantity = (quantity: number, unitName: string | null | undefined) => (
+    <>
+      <span className="ks-qty__num">{formatQuantityWithUnit(quantity, '', document.documentElement.lang || 'en').trimEnd()}</span>
+      {' '}
+      <span className="ks-qty__unit">{unitName ?? t('kitchen.stock.unitNotSet')}</span>
+    </>
   )
+  // Negative balances lead; within each group source order remains stable.
+  const renderStockRow = (row: KitchenStockRow) => <div className="ks-row" key={row.wip_item_id}>
+    <div className="ks-item">
+      <strong>{row.wip_item_name}</strong>
+      <span className="ks-item__context">
+        {row.on_stream === false && <NotOnStreamTag />}
+        {new Set(rows.map(item => item.category).filter(Boolean)).size > 1 && row.category && <span className="ks-category">{kitchenCategoryLabel(t, row.category)}</span>}
+        {!unitNames[row.wip_item_id] && <span className="ks-unit-warning">{t('kitchen.stock.unitNotSet')}</span>}
+      </span>
+    </div>
+    <div className="ks-value" data-label={t('kitchen.stock.col.stok')}><span className={`ks-qty ${row.stok < 0 ? 'ks-negative tabular' : 'tabular'}`}>{formatStockQuantity(row.stok, unitNames[row.wip_item_id])}</span></div>
+    <div className="ks-value" data-label={t('kitchen.stock.col.tersedia')}><span className={`ks-qty ${row.tersedia < 0 ? 'ks-negative tabular' : 'tabular'}`}>{formatStockQuantity(row.tersedia, unitNames[row.wip_item_id])}</span></div>
+  </div>
 
   // Stale-response guard: every read bumps the generation, and only the LATEST
   // generation's result may land. Without this, two rapid stream switches can resolve
@@ -164,10 +160,16 @@ function KitchenStockPageForViewer() {
     setLoad({ kind: 'loading' })
     try {
       const catalog = await resolveStream()
-      const data = catalog.stream ? await fetchKitchenStock(asOf, catalog.stream) : []
+      let data: KitchenStockRow[] = []
+      let settings: CafeItemSetting[] = []
+      if (catalog.stream) {
+        data = await fetchKitchenStock(asOf, catalog.stream)
+        if (data.length > 0) settings = await listCafeItemSettings(catalog.stream)
+      }
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
       adoptStream(catalog)
       setRows(data)
+      setUnitNames(stockUnitNames(settings))
       setLoad({ kind: 'ready' })
     } catch {
       if (gen !== requestGen.current) return
@@ -184,8 +186,10 @@ function KitchenStockPageForViewer() {
     setLoad({ kind: 'loading' })
     try {
       const data = await fetchKitchenStock(asOf, next)
+      const settings = data.length > 0 ? await listCafeItemSettings(next) : []
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
       setRows(data)
+      setUnitNames(stockUnitNames(settings))
       setLoad({ kind: 'ready' })
     } catch {
       if (gen !== requestGen.current) return
@@ -235,21 +239,12 @@ function KitchenStockPageForViewer() {
     <CafePageFrame
       page="stock"
       date={asOf}
+      description={t('cafe.stock.description')}
       streamBar={streamBar}
+      recordsHref={recordsHref({ question: 'everything', reading: 'day', stream: stream ? { branchId: stream.branch.id, activity: stream.activity } : null, today: wibToday() })}
+      comparisonHref={comparisonHref}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
-      {/* FR-027: one summary line only — no tile strip and no second "no entries" note. */}
-      {load.kind === 'ready' && rows.length > 0 && (
-        <MetricSummaryRule
-          ariaLabel={t('kitchen.stock.kpi.ariaLabel')}
-          metrics={[
-            { key: 'on-hand', label: t('kitchen.stock.kpi.onHand'), value: String(stockSummary.onHand) },
-            { key: 'negative', label: t('kitchen.stock.kpi.negative'), value: String(stockSummary.negative) },
-            { key: 'available', label: t('kitchen.stock.kpi.available'), value: String(stockSummary.available) },
-          ]}
-        />
-      )}
-
       {load.kind === 'loading' && streamOptions.length === 0 && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (
@@ -273,28 +268,44 @@ function KitchenStockPageForViewer() {
 
       {((load.kind === 'ready' && stream !== null) || (load.kind === 'loading' && streamOptions.length > 0)) && (
         <div className="ks-block">
-          <KitchenToolbar
-            search={search}
-            onSearchChange={setSearch}
-            searchPlaceholder={t('kitchen.stock.searchPlaceholder')}
-            ariaLabel={t('kitchen.stock.toolbarAria')}
-          />
-          {load.kind === 'loading' ? (
-            <LoadingShell count={3} />
-          ) : rows.length === 0 ? (
+          <LocationBalanceSection />
+          {rows.length > 0 && <Notice tone="info">{t('kitchen.stock.erpPending')}</Notice>}
+          <div className="ks-collection-head">
+            <KitchenToolbar
+              search={search}
+              onSearchChange={setSearch}
+              searchPlaceholder={t('kitchen.stock.searchPlaceholder')}
+              ariaLabel={t('kitchen.stock.toolbarAria')}
+              resultCount={load.kind === 'ready' ? { shown: visibleRows.length, total: rows.length } : undefined}
+              sortLabel={t('cafe.toolbar.sorted.negativeFirst')}
+              trailing={load.kind === 'ready' && rows.length > 0 ? (
+                <button type="button" className="ks-negative-toggle" aria-pressed={negativeOnly === '1'} onClick={() => setNegativeOnly(negativeOnly === '1' ? '' : '1')}>
+                  <span>{t('kitchen.stock.kpi.negative')}</span><span className="tabular">{negativeCount}</span>
+                </button>
+              ) : undefined}
+              extraChips={negativeOnly === '1' ? [{ key: 'negative', label: t('kitchen.stock.kpi.negative'), clear: () => setNegativeOnly('') }] : undefined}
+            />
+          </div>
+          {load.kind === 'loading' ? <LoadingShell count={3} /> : rows.length === 0 ? (
             stream && <CafeItemsEmptyState stream={stream} />
-          ) : (
+          ) : visibleRows.length === 0 ? <CafeNoMatch onClear={() => setSearch('')} /> : (
             <>
-              <DataTable
-                columns={stockColumns}
-                rows={visibleRows}
-                isDesktop={isDesktop}
-                renderCard={renderStockCard}
-                state={visibleRows.length > 0 ? 'ready' : 'empty'}
-                emptyLabel={t('kitchen.filter.noMatch')}
-                caption={t('kitchen.stock.caption', { stream: streamLabel(t, stream), date: formatWeekdayDayMonth(asOf) })}
-              />
-              <DataProvenanceNote kind="live" show note={t('kitchen.stock.erpPending')} />
+              <>
+              <StockComparison label={t('kitchen.stock.caption', { stream: streamLabel(t, stream), date: formatWeekdayDayMonth(asOf) })}>
+                <div className="ks-columns" aria-hidden="true">
+                  <span>{t('kitchen.stock.col.item')}<SortIndicator dir="asc" /></span>
+                  <span>{t('kitchen.stock.head.stok')}</span>
+                  <span>{t('kitchen.stock.head.tersedia')}</span>
+                </div>
+                {stockGroups.map(group => <section className="ks-group" key={group.key} aria-label={group.label}>
+                  {(stockGroups.length > 1 || group.key === 'negative') && <GroupHeader className="ks-group__heading" label={group.label} count={group.rows.length} open={!collapsedGroups.has(group.key)} onToggle={() => toggleGroup(group.key)} />}
+                  {!collapsedGroups.has(group.key) && group.rows.map(renderStockRow)}
+                </section>)}
+              </StockComparison>
+              </>
+              <Panel title={t('kitchen.stock.definitions')}>
+                <p>{t('kitchen.stock.stockDefinition')}</p><p>{t('kitchen.stock.availableDefinition')}</p><p>{t('kitchen.stock.systemDefinition')}</p>
+              </Panel>
             </>
           )}
         </div>

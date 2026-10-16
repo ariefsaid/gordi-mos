@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useMenuPopover } from '@/lib/use-menu-popover'
+import { localViewAsPassword } from '@/config/local-view-as'
+import { clearLocalViewAsSession, useLocalViewAs } from './local-view-as-session'
 import { AppearanceControl } from './appearance-control'
 import { Chevron } from './icons'
 import './user-chip.css'
@@ -14,19 +15,10 @@ interface UserChipProps {
    * where the chip collapses to the avatar alone.
    */
   compact?: boolean
-  // 'header' = compact chip in the top bar; 'rail' = full-width row pinned to
-  // the sidebar foot with an upward-opening menu; 'drawer' = full-width row at
-  // the top of the phone "More" drawer — same layout as 'rail' but the menu
-  // opens DOWNWARD (there is no space above the drawer's fixed top edge).
+  // 'header' = compact chip in the top bar; 'rail' = full-width row pinned to the sidebar foot; 'drawer' =
+  // full-width row in the phone "More" drawer's foot. Both open their menu UPWARD.
   /** Display variant. */
   variant?: 'header' | 'rail' | 'drawer'
-  /**
-   * Called after the menu's Personal Profile link navigates. The phone drawer passes its own
-   * `closeAndReturn` here: without it the drawer stays open on top of the profile page the viewer
-   * just asked for, which is what shipped the first time this link was rendered. Every other
-   * drawer link already routes through the same handler (`DrawerRow`'s `onNavigate`).
-   */
-  onNavigate?: () => void
 }
 
 function getInitials(fullName: string): string {
@@ -36,11 +28,12 @@ function getInitials(fullName: string): string {
   return (first + second).toUpperCase()
 }
 
-export function UserChip({ compact = false, variant = 'header', onNavigate }: UserChipProps) {
+export function UserChip({ compact = false, variant = 'header' }: UserChipProps) {
   // 'rail' and 'drawer' both render the full-width identity row (name + role); only the
   // menu's open direction differs (rail opens up, drawer opens down — see menuOpensUp below).
   const isFullWidth = variant === 'rail' || variant === 'drawer'
-  const menuOpensUp = variant === 'rail'
+  // Both full-width homes of the chip (sidebar foot, More drawer foot) sit at the bottom of their surface.
+  const menuOpensUp = isFullWidth
   const t = useT()
   const auth = useAuth()
   const [open, setOpen] = useState(false)
@@ -49,6 +42,7 @@ export function UserChip({ compact = false, variant = 'header', onNavigate }: Us
 
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const signOut = auth.status === 'authenticated' ? auth.signOut : undefined
+  const viewAsPassword = localViewAsPassword(import.meta.env.DEV, import.meta.env.VITE_LOCAL_VIEW_AS_PASSWORD)
 
   const close = useCallback(() => {
     setOpen(false)
@@ -58,6 +52,8 @@ export function UserChip({ compact = false, variant = 'header', onNavigate }: Us
   // ONE popover contract: outside-click + top-layer Escape + Tab exit, with focus-enter and
   // WAI-ARIA arrow/Home/End navigation.
   useMenuPopover(open, close, menuRef, chipRef)
+  const { originalAccount, otherPeople, roleLabel, peopleStatus, switching, switchError, switchAccount } =
+    useLocalViewAs(open, viewer, viewAsPassword, t)
 
   if (!viewer) return null
 
@@ -77,43 +73,27 @@ export function UserChip({ compact = false, variant = 'header', onNavigate }: Us
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={viewer.person.full_name}
+        // Let the visible name and role form the name when shown; compact variants need a
+        // textual substitute for the avatar alone.
+        aria-label={compact ? `${viewer.person.full_name}${primaryRole ? `, ${primaryRole}` : ''}` : undefined}
         title={isFullWidth && compact ? viewer.person.full_name : undefined}
         className={
           // SYS-2: the full-width chip (rail foot + phone More drawer) is 40px — the drawer
           // variant is phone-reachable and falls below the 44px touch floor. tap-target-phone
           // (Button.css) raises it on phone; the desktop rail is unaffected (>767px).
-          isFullWidth
-            ? `tap-target-phone flex w-full items-center gap-2 rounded-sm hover:bg-accent px-2 cursor-pointer${compact ? ' justify-center px-0' : ''}`
-            : `tap-target-phone${compact ? ' tap-target-phone--icon' : ''} flex items-center gap-2 rounded-sm hover:bg-accent px-2 -mx-2 cursor-pointer`
+          `user-chip${isFullWidth ? ' user-chip--full' : ''}${compact ? ' user-chip--compact' : ''}`
         }
-        style={{ height: isFullWidth ? 40 : 36 }}
         onClick={() => setOpen((v) => !v)}
       >
         {/* Avatar: 28px rounded-full, navy→blue gradient (OD-P3-7 / Structural-Navy Rule) */}
-        <div
-          className="flex items-center justify-center rounded-full text-primary-foreground flex-none font-bold"
-          style={{
-            width: 28,
-            height: 28,
-            fontSize: 11,
-            background: 'linear-gradient(135deg, var(--brand-navy), var(--primary))',
-          }}
-          aria-hidden="true"
-        >
-          {initials}
-        </div>
+        <div className="mk-avatar user-chip__avatar" data-initials={initials} aria-hidden="true" />
         {showText && (
-          <div className={isFullWidth ? 'flex-1 text-left min-w-0' : 'text-left'}>
-            <div
-              className="truncate font-semibold text-foreground"
-              style={{ fontSize: 'var(--font-size-body-lg)', lineHeight: 1.1 }}
-              title={viewer.person.full_name}
-            >
+          <div className="user-chip__text">
+            <div className="user-chip__name" title={viewer.person.full_name}>
               {viewer.person.full_name}
             </div>
             {primaryRole && (
-              <div className="truncate text-muted-foreground" style={{ fontSize: 11 }}>
+              <div className="user-chip__role">
                 {primaryRole}
               </div>
             )}
@@ -124,7 +104,7 @@ export function UserChip({ compact = false, variant = 'header', onNavigate }: Us
             alone. Scoped to the phone drawer (the rail footer's affordance is already established
             chrome elsewhere in that surface). */}
         {variant === 'drawer' && showText && (
-          <Chevron className="flex-none text-muted-foreground" size={14} />
+          <Chevron className="user-chip__chevron" size={16} />
         )}
       </button>
 
@@ -133,50 +113,58 @@ export function UserChip({ compact = false, variant = 'header', onNavigate }: Us
         <div
           ref={menuRef}
           role="menu"
-          className={
-            (isFullWidth ? 'absolute left-0 ' : 'absolute right-0 ') +
-            (menuOpensUp ? 'bottom-full mb-1 ' : 'top-full mt-1 ') +
-            'bg-popover border border-border rounded-lg p-[5px]'
-          }
-          style={{
-            minWidth: isFullWidth ? 200 : 140,
-            zIndex: 'var(--z-popover)',
-            boxShadow:
-              '0 10px 30px color-mix(in srgb, var(--ds-font-color-primary) 16%, transparent), 0 2px 6px color-mix(in srgb, var(--ds-font-color-primary) 8%, transparent)',
-          }}
+          className={`user-chip-menu ${isFullWidth ? 'user-chip-menu--left' : 'user-chip-menu--right'} ${menuOpensUp ? 'user-chip-menu--up' : 'user-chip-menu--down'}`}
+          style={isFullWidth ? undefined : { minWidth: viewAsPassword ? 260 : 140 }}
         >
-          {/* Personal Profile (owner, 2026-08-26) — moved here from its own Utility rail row. The
-              chip menu is the one identity surface that renders on EVERY viewport (rail footer on
-              desktop, top of the More drawer on phone), so /profile keeps a rendered, one-click way
-              in on all of them without spending a rail row. `nav-reachability.test.tsx` opens this
-              menu and counts its links, so the move cannot decay into "no way in".
-
-              A real <Link>, not a button + navigate(): the reachability guard reads `a[href]` out
-              of the DOM, and — the point behind that — a viewer gets middle-click, ⌘-click and a
-              status-bar preview, which a button never gives them. */}
-          <Link
-            role="menuitem"
-            to="/profile"
-            // SYS-2: same 32px desktop row as Sign out below, raised to the 44px touch floor on
-            // phone (tap-target-phone, Button.css) because the drawer variant is phone-reachable.
-            className="tap-target-phone user-chip-menu-item flex w-full items-center px-3 rounded-sm text-foreground no-underline"
-            style={{ height: 32, fontSize: 'var(--font-size-body-lg)' }}
-            onClick={() => {
-              close()
-              onNavigate?.()
-            }}
-          >
-            {t('nav.profile')}
-          </Link>
-
-          {/* Divider */}
-          <div className="my-[5px] border-t border-border" role="separator" aria-hidden="true" />
-
           {/* Appearance switcher */}
           <AppearanceControl />
 
+          {viewAsPassword && (
+            <>
+              <div className="user-chip-menu__sep" role="separator" aria-hidden="true" />
+              <div>
+                <div className="user-chip-menu__heading">
+                  {t('account.viewAs')}
+                </div>
+                {originalAccount ? (
+                  <button
+                    role="menuitem"
+                    type="button"
+                    className="user-chip-menu-item"
+                    disabled={switching}
+                    onClick={() => void switchAccount(originalAccount.email, true).then((success) => { if (success) setOpen(false) })}
+                  >
+                    {t('account.viewAs.back', { name: originalAccount.full_name })}
+                  </button>
+                ) : peopleStatus === 'loading' || peopleStatus === 'idle' ? (
+                  <div className="user-chip-menu__note" role="status">{t('account.viewAs.loading')}</div>
+                ) : peopleStatus === 'error' ? (
+                  <div className="user-chip-menu__note" role="alert">{t('account.viewAs.loadError')}</div>
+                ) : otherPeople.length === 0 ? (
+                  <div className="user-chip-menu__note">{t('account.viewAs.noPeople')}</div>
+                ) : otherPeople.map((person) => {
+                  const label = `${person.full_name} — ${roleLabel(person)}`
+                  return (
+                    <button
+                      key={person.id}
+                      role="menuitem"
+                      type="button"
+                      className="user-chip-menu-item"
+                      title={label}
+                      disabled={switching}
+                      onClick={() => void switchAccount(person.email).then((success) => { if (success) setOpen(false) })}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+                {switchError && <div className="user-chip-menu__note user-chip-menu__note--error" role="alert">{t('account.viewAs.signInError')}</div>}
+              </div>
+            </>
+          )}
+
           {/* Divider */}
-          <div className="my-[5px] border-t border-border" role="separator" aria-hidden="true" />
+          <div className="user-chip-menu__sep" role="separator" aria-hidden="true" />
 
           {/* Sign out */}
           <button
@@ -184,10 +172,10 @@ export function UserChip({ compact = false, variant = 'header', onNavigate }: Us
             type="button"
             // SYS-2: reachable on phone via the 'drawer' variant menu — raise the 32px row to the
             // 44px touch floor on phone (tap-target-phone, Button.css). Desktop rhythm unchanged.
-            className="tap-target-phone user-chip-menu-item w-full text-left px-3 rounded-sm text-foreground"
-            style={{ height: 32, fontSize: 'var(--font-size-body-lg)' }}
+            className="user-chip-menu-item"
             onClick={() => {
               close()
+              clearLocalViewAsSession()
               signOut?.()
             }}
           >

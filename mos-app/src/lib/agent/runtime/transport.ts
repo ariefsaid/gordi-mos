@@ -23,7 +23,7 @@ export interface ConversationMessage {
   content: string | ContentBlock[]
 }
 
-export interface ContentBlock {
+interface ContentBlock {
   type: string
   [key: string]: unknown
 }
@@ -66,14 +66,6 @@ export interface AgentChatRequest {
    * option's label (or freeText) as the tool_result — never a new turn.
    */
   answer?: AgentAnswer
-}
-
-/** Typed error shape for non-2xx responses from agent-chat. */
-export interface AgentChatError {
-  status: 400 | 401 | 429 | 502
-  error: 'BAD_REQUEST' | 'UNAUTHORIZED' | 'RATE_LIMITED' | 'UPSTREAM_ERROR'
-  detail?: string
-  retryAfterSeconds?: number
 }
 
 // ── SSE codec ─────────────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@
 // come from and link there.
 
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { Picker, type PickerOption } from '@/components/ui/picker'
@@ -14,7 +14,9 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useIsOffline } from '@/shell/use-is-offline'
 import { AdminSettingsNav } from '@/components/admin/admin-settings-nav'
+import { AccessChangeSummary } from '@/components/admin/access-change-summary'
 import { AUTHORITY_ACTION_LABEL_KEYS as ACTION_LABEL_KEYS, AUTHORITY_SCOPE_LABEL_KEYS as SCOPE_LABEL_KEYS, authorityRoleLabel } from '@/components/admin/person-authority'
 import { listRoleAuthority, saveRoleAuthority } from '@/lib/db/admin-access'
 import {
@@ -153,63 +155,32 @@ function AuthorityTable({
   )
 }
 
-function AuthorityMobileEditor({
-  draft,
-  role,
-  onRoleChange,
-  onChange,
-  t,
-  disabled,
-}: {
+type AuthorityGroupKey = 'signals' | 'processes' | 'agents'
+
+function FocusedAuthorityEditor({ draft, role, onChange, t, disabled, activeGroup }: {
   draft: Record<string, AuthorityScope>
   role: AuthorityRole
-  onRoleChange: (role: AuthorityRole) => void
   onChange: (action: AuthorityAction, role: AuthorityRole, scope: AuthorityScope) => void
   t: ReturnType<typeof useT>
   disabled: boolean
+  activeGroup?: AuthorityGroupKey
 }) {
-  return (
-    <div className="admin-access-mobile">
-      <div className="admin-access-mobile__role">
-        <Picker
-          label={t('admin.access.mobileRole')}
-          fullWidth
-          value={role}
-          options={AUTHORITY_ROLES.map((option) => ({ value: option, label: authorityRoleLabel(option, t) }))}
-          onChange={(value) => onRoleChange(value as AuthorityRole)}
-          disabled={disabled}
-        />
-        <DerivedSource role={role} t={t} />
-      </div>
-      <div className="admin-access-mobile__actions" aria-label={t('admin.access.tableLabel')}>
-        {AUTHORITY_ACTIONS.map((action) => {
-          const actionLabel = t(ACTION_LABEL_KEYS[action])
-          return (
-            <div key={action} className="admin-access-mobile__action">
-              <div className="admin-access-mobile__action-name">{actionLabel}</div>
-              <div className="admin-access-mobile__scope">
-                {role === 'admin' ? (
-                  <span className="admin-access-fixed admin-access-mobile__scope-fixed" aria-label={`${actionLabel} — ${authorityRoleLabel(role, t)} — ${t('admin.access.adminFixed')}`}>
-                    {t('admin.access.adminFixed')}
-                  </span>
-                ) : (
-                  <Picker
-                    label={`${actionLabel} — ${authorityRoleLabel(role, t)}`}
-                    hideLabel
-                    fullWidth
-                    value={draft[authorityKey(action, role)] ?? 'none'}
-                    options={authorityPickerOptions(action, t)}
-                    onChange={(value) => onChange(action, role, value as AuthorityScope)}
-                    disabled={disabled}
-                  />
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
+  const groups: { key: AuthorityGroupKey; title: string; actions: AuthorityAction[] }[] = [
+    { key: 'signals', title: t('nav.signals'), actions: ['signal.post', 'signal.tag', 'signal.retract'] },
+    { key: 'processes', title: t('nav.projectsProcesses'), actions: ['workline.manage', 'process.start', 'process.close'] },
+    { key: 'agents', title: t('agentConnections.self.title'), actions: ['agent.connect'] },
+  ]
+  return <div className="access-editor">
+    {groups.filter((group) => activeGroup == null || group.key === activeGroup).map((group) => <section className="access-editor__group" key={group.key}>
+      <h3>{group.title}</h3>
+      {group.actions.map((action) => <div className="access-editor__row" key={action}>
+        <div className="access-editor__action">{t(ACTION_LABEL_KEYS[action])}</div>
+        <div className="access-editor__scope">{role === 'admin'
+          ? <span className="admin-access-fixed">{t('admin.access.adminFixed')}</span>
+          : <Picker label={`${t(ACTION_LABEL_KEYS[action])} — ${authorityRoleLabel(role, t)}`} fullWidth hideLabel value={draft[authorityKey(action, role)] ?? 'none'} options={authorityPickerOptions(action, t)} onChange={(value) => onChange(action, role, value as AuthorityScope)} disabled={disabled} />}</div>
+      </div>)}
+    </section>)}
+  </div>
 }
 
 export function AdminAccessPage() {
@@ -220,7 +191,22 @@ export function AdminAccessPage() {
   const [savedAuthority, setSavedAuthority] = useState<RoleAuthorityRow[]>([])
   const [authorityDraft, setAuthorityDraft] = useState<Record<string, AuthorityScope>>({})
   const [authorityStatus, setAuthorityStatus] = useState<SaveState>('idle')
-  const [mobileRole, setMobileRole] = useState<AuthorityRole>('member')
+  // The level being edited, the phone's action group and the comparison view live in the URL (NV4).
+  const [params, setParams] = useSearchParams()
+  const levelParam = params.get('level')
+  const groupParam = params.get('group')
+  const mobileRole: AuthorityRole = (AUTHORITY_ROLES as readonly string[]).includes(levelParam ?? '') ? levelParam as AuthorityRole : 'member'
+  const mobileActionGroup: AuthorityGroupKey = groupParam === 'processes' || groupParam === 'agents' ? groupParam : 'signals'
+  const showComparison = params.get('compare') === '1'
+  const setParam = useCallback((key: string, value: string | null) => setParams((prev) => {
+    const next = new URLSearchParams(prev)
+    if (value) next.set(key, value); else next.delete(key)
+    return next
+  }, { replace: true }), [setParams])
+  const setMobileRole = (role: AuthorityRole) => setParam('level', role === 'member' ? null : role)
+  const setMobileActionGroup = (group: AuthorityGroupKey) => setParam('group', group === 'signals' ? null : group)
+  const setShowComparison = (update: (value: boolean) => boolean) => setParam('compare', update(showComparison) ? '1' : null)
+  const offline = useIsOffline()
 
   const load = useCallback(async () => {
     setLoadState('loading')
@@ -263,23 +249,27 @@ export function AdminAccessPage() {
   }
 
   const frameState = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error' : 'default'
-  const showMobileSave = !isDesktop && (authorityDirty || authorityStatus !== 'idle')
-  const saveAuthorityControl = (
-    <div className="admin-access-save">
-      {authorityDirty && authorityStatus !== 'saving' && (
-        <span className="admin-access-unsaved">{t('admin.access.unsaved')}</span>
-      )}
-      <Button variant="primary" disabled={!authorityDirty || authorityStatus === 'saving'} onClick={() => void handleSaveAuthority()}>
-        {authorityStatus === 'saving' ? t('admin.access.saving') : t('admin.access.save')}
-      </Button>
-    </div>
-  )
+  // One save model for the page: edit freely, then Save access rules. Why Save is unavailable
+  // (nothing changed, or no connection) sits beside it; after a save, the same slot says Saved.
+  const saving = authorityStatus === 'saving'
+  const saveReason = offline ? t('common.offline.reconnect')
+    : saving ? undefined
+    : authorityDirty ? t('admin.access.unsaved')
+    : authorityStatus === 'saved' ? t('admin.access.saved')
+    : t('admin.access.noChanges')
+  const saveAction = loadState === 'loaded'
+    ? <Button variant="primary" disabled={!authorityDirty || saving || offline} onClick={() => void handleSaveAuthority()}>
+      {saving ? t('admin.access.saving') : t('admin.access.save')}
+    </Button>
+    : undefined
 
   return (
     <PageFamilyFrame
       family="management"
       title={t('admin.access.title')}
       jobSentence={t('admin.access.job')}
+      action={saveAction}
+      actionReason={saveAction && saveReason ? <span role="status">{saveReason}</span> : undefined}
       state={frameState}
     >
       <AdminSettingsNav />
@@ -292,49 +282,39 @@ export function AdminAccessPage() {
       )}
 
       {loadState === 'loaded' && (
-        <div className={`admin-access-stack${showMobileSave ? ' admin-access-stack--saving-visible' : ''}`}>
-          <p className="admin-access-note">{t('admin.access.readCopy')}</p>
-
-          <section className="admin-access-panel" aria-labelledby="admin-access-authority-title">
-            <div className="admin-access-panel__head">
-              <div>
-                <h2 id="admin-access-authority-title" className="admin-access-panel__title">{t('admin.access.authorityTitle')}</h2>
-                <p className="admin-access-panel__copy">{t('admin.access.authorityCopy')}</p>
-              </div>
-              {isDesktop && <div className="admin-access-panel__head-action">{saveAuthorityControl}</div>}
+        <div className="admin-access-stack">
+          <section className="access-policy" aria-labelledby="admin-access-authority-title">
+            <div className="access-policy__intro">
+              <h2 id="admin-access-authority-title">{t('admin.access.authorityTitle')}</h2>
+              {isDesktop && <Button variant="outline" onClick={() => setShowComparison((value) => !value)} aria-expanded={showComparison}>{showComparison ? t('admin.access.hideComparison') : t('admin.access.compareLevels')}</Button>}
             </div>
-
-            {authorityStatus === 'error' && (
-              <ErrorState
-                message={t('admin.access.saveError')}
-                retryLabel={t('admin.access.retry')}
-                onRetry={() => void handleSaveAuthority()}
-              />
-            )}
-            {authorityStatus === 'saved' && (
-              <div className="admin-access-feedback admin-access-feedback--saved" role="status" aria-label={t('admin.access.saved')}>
-                {t('admin.access.saved')}
+            <div className="access-policy__scroll">
+            <div className="access-policy__workspace">
+              {isDesktop ? <nav className="access-policy__levels" aria-label={t('admin.access.levelsLabel')}>
+                {AUTHORITY_ROLES.map((role) => <div className="access-policy__level" key={role}>
+                  <button type="button" className={mobileRole === role ? 'access-policy__level-button access-policy__level-button--active' : 'access-policy__level-button'} aria-current={mobileRole === role ? 'true' : undefined} onClick={() => setMobileRole(role)}>
+                    {authorityRoleLabel(role, t)}
+                  </button>
+                  {(role === 'team_lead' || role === 'bu_head') && <span className="access-policy__source"><DerivedSource role={role} t={t} /></span>}
+                </div>)}
+              </nav> : <div className="access-policy__mobile-level"><Picker label={t('admin.access.levelsLabel')} fullWidth value={mobileRole} options={AUTHORITY_ROLES.map((role) => ({ value: role, label: authorityRoleLabel(role, t) }))} onChange={(value) => setMobileRole(value as AuthorityRole)} disabled={authorityStatus === 'saving'} />{(mobileRole === 'team_lead' || mobileRole === 'bu_head') && <DerivedSource role={mobileRole} t={t} />}</div>}
+              <div className="access-policy__focused">
+                <div className="access-policy__selected"><h3>{t('admin.access.levelEditorTitle', { level: authorityRoleLabel(mobileRole, t) })}</h3></div>
+                {!isDesktop && <div className="access-policy__mobile-groups" role="group" aria-label={t('admin.access.authorityTitle')}>
+                  {([
+                    ['signals', t('nav.signals')],
+                    ['processes', t('nav.projectsProcesses')],
+                    ['agents', t('agentConnections.self.title')],
+                  ] as [AuthorityGroupKey, string][]).map(([key, label]) => <button key={key} type="button" aria-pressed={mobileActionGroup === key} onClick={() => setMobileActionGroup(key)}>{label}</button>)}
+                </div>}
+                <FocusedAuthorityEditor draft={authorityDraft} role={mobileRole} onChange={updateAuthority} t={t} disabled={authorityStatus === 'saving'} activeGroup={isDesktop ? undefined : mobileActionGroup} />
               </div>
-            )}
-
-            {isDesktop ? (
-              <AuthorityTable
-                draft={authorityDraft}
-                onChange={updateAuthority}
-                t={t}
-                disabled={authorityStatus === 'saving'}
-              />
-            ) : (
-              <AuthorityMobileEditor
-                draft={authorityDraft}
-                role={mobileRole}
-                onRoleChange={setMobileRole}
-                onChange={updateAuthority}
-                t={t}
-                disabled={authorityStatus === 'saving'}
-              />
-            )}
-            {showMobileSave && <div className="admin-access-mobile-save">{saveAuthorityControl}</div>}
+            </div>
+            {!isDesktop && <Button variant="outline" className="access-policy__compare-mobile" onClick={() => setShowComparison((value) => !value)} aria-expanded={showComparison}>{showComparison ? t('admin.access.hideComparison') : t('admin.access.compareLevels')}</Button>}
+            {showComparison && <div className="access-policy__comparison"><AuthorityTable draft={authorityDraft} onChange={updateAuthority} t={t} disabled={authorityStatus === 'saving'} /></div>}
+            <AccessChangeSummary changes={changedAuthorityRows} saved={savedAuthority} t={t} />
+            {authorityStatus === 'error' && <ErrorState message={t('admin.access.saveError')} retryLabel={t('admin.access.retry')} onRetry={() => void handleSaveAuthority()} />}
+            </div>
           </section>
         </div>
       )}

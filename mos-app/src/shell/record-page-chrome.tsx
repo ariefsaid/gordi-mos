@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { Link, type To } from 'react-router-dom'
-import { BackIcon } from './icons'
+import type { To } from 'react-router-dom'
+import { PageBackLink } from './page-back-link'
 import { useT } from '@/i18n/use-t'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import './record-page-chrome.css'
@@ -35,13 +35,10 @@ export function RecordPageChrome({ backTo, backLabel, deputyDraft, trailing }: R
   const t = useT()
   return (
     <div className="record-page-chrome" data-viewer-region="page-chrome">
-      <Link to={backTo} className="record-page-back">
-        <BackIcon />
-        <span>{t('record.backToCollection', { collection: backLabel })}</span>
-      </Link>
+      <PageBackLink to={backTo} label={t('record.backToCollection', { collection: backLabel })} />
       <span className="record-page-chrome__spacer" />
       {trailing}
-      {deputyDraft ? <AskDeputyAction draft={deputyDraft} /> : null}
+      {deputyDraft ? <AskDeputyAction draft={deputyDraft} labelled /> : null}
     </div>
   )
 }

@@ -21,5 +21,5 @@
     overflow-y: visible;
   }
 
-  .signals-archive-toolbar .collection-toolbar__view { min-height: 44px; }
+  .signals-archive-toolbar .collection-toolbar__view { min-height: var(--mos-control-height); }
 }

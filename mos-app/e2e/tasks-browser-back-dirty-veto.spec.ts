@@ -52,6 +52,9 @@ import { loginAs } from './helpers/login'
 import { createTaskViaUI } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
 
+// The record opens beside the list only on a wide content track.
+test.use({ viewport: { width: 1920, height: 1080 } })
+
 test('AC-1010: browser Back on a dirty task draft is vetoed, Cancel keeps state, Discard completes the navigation', async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
   await page.goto('work/tasks')
@@ -155,10 +158,9 @@ test('AC-1010b: Back → dialog → Discard with a REAL commit settlement — no
 
   // A freshly created task has no description — the clean baseline this test proves survives
   // the whole journey untouched. OD-RECORD-1's Get-started contract: an empty Description renders
-  // the "+ Add a description" affordance, not an em dash, so emptiness is asserted via the
-  // field's own data-empty flag (record-field.tsx), which reads the SAVED value in view mode.
+  // the "+ Add a description" affordance, so emptiness is asserted through that visible control.
   const descriptionField = drawer.locator('[data-field-key="description"]')
-  await expect(descriptionField).toHaveAttribute('data-empty', 'true')
+  await expect(drawer.getByRole('button', { name: '+ Add a description, Edit Description', exact: true })).toBeVisible()
 
   await drawer.getByRole('button', { name: 'Edit Description' }).click()
   // Same disambiguation as AC-1010: the section AND the textarea share the "Description" name.
@@ -189,5 +191,5 @@ test('AC-1010b: Back → dialog → Discard with a REAL commit settlement — no
   await page.getByText(title).first().click()
   const reopened = page.getByRole('complementary', { name: /task detail/i })
   await expect(reopened.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
-  await expect(reopened.locator('[data-field-key="description"]')).toHaveAttribute('data-empty', 'true')
+  await expect(reopened.getByRole('button', { name: '+ Add a description, Edit Description', exact: true })).toBeVisible()
 })

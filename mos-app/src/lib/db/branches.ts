@@ -23,3 +23,14 @@ export async function listActiveBranches(): Promise<BranchOption[]> {
   if (error) throw new Error(`listActiveBranches failed — ${error.message}`)
   return (data ?? []) as BranchOption[]
 }
+
+/** Resolve existing reporting links, including archived branches retained for historical data. */
+export async function listBranchesByIds(ids: readonly string[]): Promise<Pick<BranchOption, 'id' | 'name'>[]> {
+  if (ids.length === 0) return []
+  const { data, error } = await shared()
+    .from('branches')
+    .select('id,name')
+    .in('id', [...ids])
+  if (error) throw new Error(`listBranchesByIds failed — ${error.message}`)
+  return (data ?? []) as Pick<BranchOption, 'id' | 'name'>[]
+}

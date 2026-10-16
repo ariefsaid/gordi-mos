@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { ArrowRightIcon } from '@/shell/icons'
 import type { StreamItem } from '@/lib/home-stream'
 import { StatusPill } from '@/components/tasks/status-pill'
 import { Reason, type ReasonStyle } from './stream-reason'
@@ -45,16 +46,15 @@ export function StreamRow({ item, hidePic = false, reasonStyle = 'chip', actionL
               ))}
             </span>
           )}
+          {item.reason && <span className="stream-row-reason-line"><Reason reason={item.reason} style={reasonStyle} /></span>}
         </span>
         <span className="stream-row-tail">
-          {item.reason && <Reason reason={item.reason} style={reasonStyle} />}
           {/* F3 (design-review): Open shares no attention hierarchy with Urgent/Needs-
-              attention when it's amber too — neutral treatment restores the ranking
-              (rule:product-color-state-vocab, rule:product-ban-heavy-inactive-color). */}
+              attention when it's amber too — neutral treatment restores the ranking. */}
           {item.status && <StatusPill status={item.status} openTreatment="neutral" />}
           {actionLabel && (
             <span className="stream-row-action">
-              <span className="sr-only">{actionLabel}</span><span aria-hidden="true"> →</span>
+              {actionLabel}<ArrowRightIcon />
             </span>
           )}
         </span>

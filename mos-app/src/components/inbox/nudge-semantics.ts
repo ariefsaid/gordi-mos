@@ -18,7 +18,7 @@ import type { TriageNotificationRow } from './read-handled-semantics'
  */
 
 /** An item must sit untriaged this many whole local days before it re-surfaces (OD-WAY-86: 48h). */
-export const NUDGE_AFTER_DAYS = 2
+const NUDGE_AFTER_DAYS = 2
 
 /**
  * A DST-immune serial for a calendar date in the viewer's local timezone: the count of local days
@@ -30,7 +30,7 @@ function calendarDayIndex(d: Date): number {
 }
 
 /** Whole LOCAL calendar days since created_at — the day bucket behind both the tier and the badge. */
-export function triageAgeDays(createdAt: string, now: Date): number {
+function triageAgeDays(createdAt: string, now: Date): number {
   return Math.max(0, calendarDayIndex(now) - calendarDayIndex(new Date(createdAt)))
 }
 

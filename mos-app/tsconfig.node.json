@@ -18,5 +18,5 @@
     "noUncheckedSideEffectImports": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "playwright.config.ts", ".storybook/main.ts", ".storybook/test-runner.ts"]
+  "include": ["vite.config.ts", "playwright.config.ts"]
 }
