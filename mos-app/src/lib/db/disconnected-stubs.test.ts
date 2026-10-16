@@ -31,8 +31,6 @@ describe('disconnected backend stubs', () => {
     ['moveCafeStock', () => locations.moveCafeStock({ stream: { branch_id: 'a', activity: 'kitchen' }, item_unit_id: 'i', quantity: '1', from_location_id: 'f', to_location_id: 't', movement_date: '2026-10-15', note: null }, ctx)],
     ['listCafeRecordLocations', () => locations.listCafeRecordLocations('log', ['a'])],
     ['getCafeStreamLocationDefaults', () => locations.getCafeStreamLocationDefaults({ branch_id: 'a', activity: 'kitchen' })],
-    ['listStockComparison', () => comparison.listStockComparison({ stream: { branch_id: 'a', activity: 'kitchen' }, sort: 'gap', dir: 'desc' })],
-    ['getStockComparisonItem', () => comparison.getStockComparisonItem({ stream: { branch_id: 'a', activity: 'kitchen' }, item_id: 'i', unit_id: 'u', generation: 'g' })],
     ['listEsbStockMovements', () => comparison.listEsbStockMovements({ stream: { branch_id: 'a', activity: 'kitchen' }, item_id: 'i', unit_id: 'u', from: '2026-10-01', to: '2026-10-15' })],
     ['saveCafeStreamLocationDefaults', () => locations.saveCafeStreamLocationDefaults({ branch_id: 'a', activity: 'kitchen' }, { production_location_id: null, storage_location_id: null }, 1, ctx)],
   ]
@@ -52,7 +50,7 @@ describe('disconnected backend stubs', () => {
 
   it('no screen or hook calls a stub while disconnected (types only)', () => {
     const src = join(__dirname, '..', '..')
-    const stubFns = /\b(listCafeTransferRoutes|createCafeTransferRoute|updateCafeTransferRoute|removeCafeTransferRoute|listOrgModuleSettings|listPersonModuleSettings|getViewerModuleAvailability|saveOrgModuleSettings|savePersonModuleSettings|countModuleDisableImpact|listCafeLocations|listCafeLocationsByIds|createCafeLocation|updateCafeLocation|archiveCafeLocation|fetchCafeLocationBalances|moveCafeStock|listCafeRecordLocations|getCafeStreamLocationDefaults|saveCafeStreamLocationDefaults|listStockComparison|getStockComparisonItem|listEsbStockMovements)\b/
+    const stubFns = /\b(listCafeTransferRoutes|createCafeTransferRoute|updateCafeTransferRoute|removeCafeTransferRoute|listOrgModuleSettings|listPersonModuleSettings|getViewerModuleAvailability|saveOrgModuleSettings|savePersonModuleSettings|countModuleDisableImpact|listCafeLocations|listCafeLocationsByIds|createCafeLocation|updateCafeLocation|archiveCafeLocation|fetchCafeLocationBalances|moveCafeStock|listCafeRecordLocations|getCafeStreamLocationDefaults|saveCafeStreamLocationDefaults|listEsbStockMovements)\b/
     const walk = (dir: string): string[] => readdirSync(dir).flatMap((name) => {
       const full = join(dir, name)
       return statSync(full).isDirectory() ? walk(full) : /\.(ts|tsx)$/.test(name) ? [full] : []

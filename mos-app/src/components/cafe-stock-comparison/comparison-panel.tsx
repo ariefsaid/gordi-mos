@@ -19,7 +19,6 @@ import { listCafeRecordCounts, type RecordCursor } from '@/lib/db/cafe-records'
 import type { ProductionActivity } from '@/lib/db/kitchen-logs.types'
 import { formatDayMonthYear } from '@/lib/format/date'
 import { formatPercent, formatSigned, type ComparisonRow } from '@/lib/cafe-stock-comparison'
-import { sampleHistory, type HistoryLine } from '@/lib/cafe-stock-comparison-sample'
 import { RecordPanelHost } from '@/shell/record-panel-host'
 import { FlagPills, KindTag } from './comparison-cells'
 import { missingReason, wibInstant } from './comparison-labels'
@@ -33,11 +32,12 @@ function statusLabel(t: Translate, status: HistoryLine['status']): string {
   return status === 'Confirmed' ? t('cafe.cmp.status.Confirmed') : status === 'Submitted' ? t('cafe.cmp.status.Submitted') : t('cafe.cmp.status.Rejected')
 }
 
+type HistoryLine = { id: string; countDate: string; submittedAt: string; status: 'Submitted' | 'Confirmed' | 'Rejected'; quantity: bigint; unitName: string | null }
 interface History { lines: HistoryLine[]; status: 'loading' | 'ready' | 'error'; hasMore: boolean; loadingMore: boolean; moreError: boolean }
 
 /** The item's Counts between two dates, newest first, read through the existing Records Count read with keyset continuation. */
-function useCountHistory(options: { row: ComparisonRow; stream: PanelStream | null; sample: boolean; today: string; from: string; to: string }) {
-  const { row, stream, sample, today, from, to } = options
+function useCountHistory(options: { row: ComparisonRow; stream: PanelStream | null; from: string; to: string }) {
+  const { row, stream, from, to } = options
   const [history, setHistory] = useState<History>({ lines: [], status: 'loading', hasMore: false, loadingMore: false, moreError: false })
   const [attempt, setAttempt] = useState(0)
   const cursor = useRef<RecordCursor | null>(null)
@@ -53,12 +53,6 @@ function useCountHistory(options: { row: ComparisonRow; stream: PanelStream | nu
   useEffect(() => {
     const mine = ++generation.current
     cursor.current = null
-    if (sample) {
-      const lines = sampleHistory(row, today).filter((line) => line.countDate >= from && line.countDate <= to)
-        .sort((a, b) => b.countDate.localeCompare(a.countDate) || b.submittedAt.localeCompare(a.submittedAt) || b.id.localeCompare(a.id))
-      setHistory({ lines, status: 'ready', hasMore: false, loadingMore: false, moreError: false })
-      return
-    }
     if (!stream) { setHistory({ lines: [], status: 'ready', hasMore: false, loadingMore: false, moreError: false }); return }
     setHistory({ lines: [], status: 'loading', hasMore: false, loadingMore: false, moreError: false })
     void listCafeRecordCounts({ from, to, stream, itemId: row.itemId, after: null }).then((page) => {
@@ -68,10 +62,10 @@ function useCountHistory(options: { row: ComparisonRow; stream: PanelStream | nu
     }).catch(() => {
       if (mine === generation.current) setHistory({ lines: [], status: 'error', hasMore: false, loadingMore: false, moreError: false })
     })
-  }, [row, stream, sample, today, from, to, attempt, toLines])
+  }, [row, stream, from, to, attempt, toLines])
 
   const loadMore = useCallback(() => {
-    if (!stream || sample || !cursor.current) return
+    if (!stream || !cursor.current) return
     const mine = generation.current
     setHistory((current) => ({ ...current, loadingMore: true, moreError: false }))
     void listCafeRecordCounts({ from, to, stream, itemId: row.itemId, after: cursor.current }).then((page) => {
@@ -81,7 +75,7 @@ function useCountHistory(options: { row: ComparisonRow; stream: PanelStream | nu
     }).catch(() => {
       if (mine === generation.current) setHistory((current) => ({ ...current, loadingMore: false, moreError: true }))
     })
-  }, [stream, sample, from, to, row.itemId, toLines])
+  }, [stream, from, to, row.itemId, toLines])
 
   return { history, loadMore, retry: () => setAttempt((value) => value + 1) }
 }
@@ -120,7 +114,6 @@ export interface ComparisonPanelProps {
   row: ComparisonRow | null
   streamText: string
   stream: PanelStream | null
-  sample: boolean
   today: string
   from: string
   to: string
@@ -131,7 +124,7 @@ export interface ComparisonPanelProps {
   countsUnavailable: boolean
 }
 
-export function ComparisonPanel({ row, streamText, stream, sample, today, from, to, onRange, onClose, canOpenCount, countsUnavailable }: ComparisonPanelProps) {
+export function ComparisonPanel({ row, streamText, stream, today, from, to, onRange, onClose, canOpenCount, countsUnavailable }: ComparisonPanelProps) {
   const t = useT()
   const { locale } = useI18n()
   const heading = useRef<HTMLHeadingElement>(null)
@@ -147,13 +140,13 @@ export function ComparisonPanel({ row, streamText, stream, sample, today, from, 
       </RecordPanelHost>
     )
   }
-  return <ItemPanel row={row} streamText={streamText} stream={stream} sample={sample} today={today} from={from} to={to} onRange={onRange} onClose={onClose} canOpenCount={canOpenCount} countsUnavailable={countsUnavailable} locale={locale} />
+  return <ItemPanel row={row} streamText={streamText} stream={stream} today={today} from={from} to={to} onRange={onRange} onClose={onClose} canOpenCount={canOpenCount} countsUnavailable={countsUnavailable} locale={locale} />
 }
 
-function ItemPanel({ row, streamText, stream, sample, today, from, to, onRange, onClose, canOpenCount, countsUnavailable, locale }: ComparisonPanelProps & { row: ComparisonRow; locale: Locale }) {
+function ItemPanel({ row, streamText, stream, today, from, to, onRange, onClose, canOpenCount, countsUnavailable, locale }: ComparisonPanelProps & { row: ComparisonRow; locale: Locale }) {
   const t = useT()
   const heading = useRef<HTMLHeadingElement>(null)
-  const { history, loadMore, retry } = useCountHistory({ row, stream, sample, today, from, to })
+  const { history, loadMore, retry } = useCountHistory({ row, stream, from, to })
   const unit = row.unitName ?? t('cafe.cmp.noUnit')
   const title = t('cafe.pageTitle.stockComparison')
   const e = row.expected
@@ -179,7 +172,6 @@ function ItemPanel({ row, streamText, stream, sample, today, from, to, onRange, 
         <h2 className="scmp-panel__title" ref={heading} tabIndex={-1}>{row.itemName}</h2>
         <p className="scmp-panel__scope"><KindTag kind={row.kind} /> {t('cafe.cmp.panel.scope', { stream: streamText, unit })}{row.category ? ` · ${row.category}` : ''}</p>
         <p className="scmp-panel__flags">
-          {sample && <Pill tone="violet" dot={false}>{t('cafe.cmp.sampleBadge')}</Pill>}
           <FlagPills t={t} row={row} hide={countsUnavailable ? ['not_counted'] : []} />
         </p>
 
@@ -227,13 +219,13 @@ function ItemPanel({ row, streamText, stream, sample, today, from, to, onRange, 
               ))}
             </ul>
           )}
-          {!sample && <ListPaging count={history.lines.length} hasMore={history.hasMore && history.status === 'ready'} loading={history.loadingMore} error={history.moreError} moreLabel={t('cafe.cmp.history.more')} onLoadMore={loadMore} />}
+          <ListPaging count={history.lines.length} hasMore={history.hasMore && history.status === 'ready'} loading={history.loadingMore} error={history.moreError} moreLabel={t('cafe.cmp.history.more')} onLoadMore={loadMore} />
         </section>
 
         <section className="scmp-panel__section" aria-labelledby="scmp-mos-title">
           <h3 id="scmp-mos-title" className="scmp-panel__section-title">{t('cafe.cmp.movements.mos.title')}</h3>
           <p className="scmp-panel__note">{t('cafe.cmp.movements.mos.body')}</p>
-          {recordsLink && !sample && <Link className="scmp-panel__link" to={recordsLink}>{t('cafe.cmp.movements.mos.link')}</Link>}
+          {recordsLink && <Link className="scmp-panel__link" to={recordsLink}>{t('cafe.cmp.movements.mos.link')}</Link>}
           {canOpenCount && <Link className="scmp-panel__link" to="/cafe/count">{t('cafe.cmp.source.openCount')}</Link>}
         </section>
 

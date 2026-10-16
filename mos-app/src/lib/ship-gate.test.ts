@@ -39,8 +39,15 @@ describe('preview is allowed only on a flagged dev server at localhost:4400', ()
 
 describe('ship states', () => {
   it('registers the three preview roots and their descendants as preview', () => {
-    for (const path of ['/cafe/transfer-routes', '/cafe/transfer-routes/anything', '/cafe/locations', '/cafe/stock-comparison', '/cafe/stock-comparison?stream=x', '/admin/modules?q=cafe', '/admin/modules#x', '/admin/access/modules?view=people']) {
+    for (const path of ['/cafe/transfer-routes', '/cafe/transfer-routes/anything', '/cafe/locations', '/admin/modules?q=cafe', '/admin/modules#x', '/admin/access/modules?view=people']) {
       expect(shipStateInProfile(path, 'full')).toBe('preview')
+    }
+  })
+
+  it('releases Stock comparison and its stream query', () => {
+    for (const path of ['/cafe/stock-comparison', '/cafe/stock-comparison?stream=x']) {
+      expect(shipStateInProfile(path, 'full')).toBe('released')
+      expect(isShipGated(path)).toBe(false)
     }
   })
 

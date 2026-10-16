@@ -10,11 +10,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
+import hashlib
 import json
 import os
 import re
 import sys
 from typing import Any, Mapping
+import uuid
 
 
 REQUIRED_ENV = ("WAREHOUSE_DB_URL", "SUPABASE_REPORTING_DB_URL", "REPORTING_ORG_ID")
@@ -1075,6 +1077,281 @@ def run_recipe_findings_snapshot(config: SnapshotConfig, snapshot_as_of: datetim
     return count if states else None
 
 
+def build_stock_on_hand_source_query() -> str:
+    return """
+        with latest_dates as (
+          select esb_code::text as esb_code, max(snapshot_date) as latest_date
+          from public.stock_snapshot
+          group by esb_code
+        ), selected_dates as (
+          select esb_code, latest_date as snapshot_date from latest_dates
+          union
+          select esb_code, latest_date - 1 from latest_dates
+        )
+        select stock.esb_code::text as esb_code,
+               stock.branch_code::text as branch_code,
+               stock.snapshot_date,
+               stock.location::text as location,
+               stock.product_detail_id::text as product_detail_id,
+               null::text as product_code,
+               stock.uom::text as uom,
+               stock.qty_balance as qty_balance
+        from public.stock_snapshot stock
+        join selected_dates selected
+          on selected.esb_code = stock.esb_code::text
+         and selected.snapshot_date = stock.snapshot_date
+        order by stock.esb_code, stock.snapshot_date, stock.branch_code,
+                 stock.location, stock.product_detail_id
+    """
+
+
+def _stock_snapshot_date(value: Any) -> date:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError as exc:
+        raise ValueError("snapshot_date must be an ISO business date") from exc
+
+
+def _stock_quantity(value: Any) -> Decimal:
+    try:
+        quantity = value if isinstance(value, Decimal) else Decimal(str(value))
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError("qty_balance must be a finite decimal") from exc
+    if not quantity.is_finite():
+        raise ValueError("qty_balance must be a finite decimal")
+    return quantity
+
+
+def _stable_uuid(value: str) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, value))
+
+
+def plan_stock_on_hand_snapshots(
+    source_rows: list[Mapping[str, Any]],
+    *,
+    org_id: str,
+    snapshot_as_of: datetime,
+) -> list[dict[str, Any]]:
+    """Build deterministic published generations from complete warehouse date slices."""
+    grouped: dict[tuple[str, date], list[dict[str, Any]]] = {}
+    for source in source_rows:
+        company = _required_text(source.get("esb_code"), "esb_code")
+        branch = _required_text(source.get("branch_code"), "branch_code")
+        business_date = _stock_snapshot_date(source.get("snapshot_date"))
+        detail = _required_text(source.get("product_detail_id"), "product_detail_id")
+        unit = _required_text(source.get("uom"), "uom")
+        location = _required_text(source.get("location"), "location")
+        row = {
+            "org_id": org_id,
+            "esb_code": company,
+            "snapshot_date": business_date,
+            "branch_code": branch,
+            "location": location,
+            "product_detail_code": detail,
+            "product_code": _clean_text(source.get("product_code")),
+            "unit_code": unit,
+            "quantity": _stock_quantity(source.get("qty_balance")),
+        }
+        grouped.setdefault((company, business_date), []).append(row)
+
+    plans: list[dict[str, Any]] = []
+    for (company, business_date), rows in sorted(grouped.items()):
+        rows.sort(key=lambda row: (
+            row["branch_code"], row["location"], row["product_detail_code"], row["unit_code"]
+        ))
+        row_keys = [(
+            row["branch_code"], row["location"], row["product_detail_code"], row["unit_code"]
+        ) for row in rows]
+        if len(row_keys) != len(set(row_keys)):
+            raise ValueError("duplicate stock_snapshot source grain")
+        branch_counts: dict[str, int] = {}
+        for row in rows:
+            branch_counts[row["branch_code"]] = branch_counts.get(row["branch_code"], 0) + 1
+
+        fingerprint_rows = [{
+            **row,
+            "quantity": str(row["quantity"]),
+        } for row in rows]
+        fingerprint = hashlib.sha256(json.dumps(
+            fingerprint_rows, sort_keys=True, separators=(",", ":"), allow_nan=False, default=str,
+        ).encode()).hexdigest()
+        snapshot_id = _stable_uuid(f"stock-on-hand:{org_id}:{company}:{business_date}:{fingerprint}")
+        as_of = datetime.combine(business_date + timedelta(days=1), datetime.min.time(), tzinfo=WIB)
+        as_of = as_of.astimezone(timezone.utc) - timedelta(microseconds=1)
+        branch_codes = sorted(branch_counts)
+        source_complete = bool(branch_codes) and all(branch_counts[branch] > 0 for branch in branch_codes)
+        header = {
+            "id": snapshot_id,
+            "org_id": org_id,
+            "source_system": "esb",
+            "esb_code": company,
+            "company_code": company,
+            "source_snapshot_key": business_date.isoformat(),
+            "revision": 1,
+            "snapshot_date": business_date,
+            "as_of": as_of,
+            "business_date": business_date,
+            "source_timezone": "Asia/Jakarta",
+            "basis": "end_of_day",
+            "scope": json.dumps({"branch_codes": branch_codes}, separators=(",", ":")),
+            "source_complete": source_complete,
+            "ingestion_complete": True,
+            "state": "published",
+            "started_at": snapshot_as_of,
+            "ingested_at": snapshot_as_of,
+            "published_at": snapshot_as_of,
+            "watermark": business_date.isoformat(),
+            "failure_code": None,
+            "source_fingerprint": fingerprint,
+        }
+        coverage = [{
+            "id": _stable_uuid(f"stock-coverage:{snapshot_id}:{branch}"),
+            "org_id": org_id,
+            "snapshot_id": snapshot_id,
+            "branch_code": branch,
+            "partition_key": "branch",
+            "status": "complete" if count > 0 else "missing",
+            "expected_rows": count,
+            "received_rows": count,
+            "exhausted": True,
+            "missing_rows_mean_zero": False,
+            "source_evidence": json.dumps({"method": "full_snapshot_table_read"}),
+        } for branch, count in sorted(branch_counts.items())]
+        on_hand = []
+        for row in rows:
+            key = "|".join((row["branch_code"], row["location"], row["product_detail_code"], row["unit_code"]))
+            row_fingerprint = hashlib.sha256(json.dumps({
+                **row, "quantity": str(row["quantity"]),
+            }, sort_keys=True, separators=(",", ":"), allow_nan=False, default=str).encode()).hexdigest()
+            on_hand.append({
+                **row,
+                "id": _stable_uuid(f"stock-row:{snapshot_id}:{key}"),
+                "snapshot_id": snapshot_id,
+                "row_complete": True,
+                "source_row_key": key,
+                "raw_payload_hash": row_fingerprint,
+            })
+        plans.append({"header": header, "coverage": coverage, "on_hand": on_hand})
+    return plans
+
+
+def build_stock_on_hand_header_upsert_sql() -> str:
+    return """
+        insert into reporting.esb_stock_snapshots (
+          id, org_id, source_system, esb_code, company_code, source_snapshot_key, revision,
+          snapshot_date, as_of, business_date, source_timezone, basis, scope, source_complete,
+          ingestion_complete, state, started_at, ingested_at, published_at, watermark,
+          failure_code, source_fingerprint
+        ) values (
+          %(id)s, %(org_id)s, %(source_system)s, %(esb_code)s, %(company_code)s,
+          %(source_snapshot_key)s, %(revision)s, %(snapshot_date)s, %(as_of)s,
+          %(business_date)s, %(source_timezone)s, %(basis)s, %(scope)s::jsonb,
+          %(source_complete)s, %(ingestion_complete)s, %(state)s, %(started_at)s,
+          %(ingested_at)s, %(published_at)s, %(watermark)s, %(failure_code)s,
+          %(source_fingerprint)s
+        )
+        on conflict (org_id, esb_code, snapshot_date) do update set
+          id = excluded.id,
+          source_system = excluded.source_system,
+          company_code = excluded.company_code,
+          source_snapshot_key = excluded.source_snapshot_key,
+          revision = excluded.revision,
+          as_of = excluded.as_of,
+          business_date = excluded.business_date,
+          source_timezone = excluded.source_timezone,
+          basis = excluded.basis,
+          scope = excluded.scope,
+          source_complete = excluded.source_complete,
+          ingestion_complete = excluded.ingestion_complete,
+          state = excluded.state,
+          started_at = excluded.started_at,
+          ingested_at = excluded.ingested_at,
+          published_at = excluded.published_at,
+          watermark = excluded.watermark,
+          failure_code = excluded.failure_code,
+          source_fingerprint = excluded.source_fingerprint
+    """
+
+
+def run_stock_on_hand_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int | None:
+    """Copy yesterday and the prior warehouse day as scoped, replaceable generations."""
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+    except ImportError as exc:
+        raise SystemExit(
+            "Missing dependency: install psycopg on the VPS snapshot environment"
+        ) from exc
+
+    targets = (
+        "reporting.esb_stock_snapshots",
+        "reporting.esb_stock_coverage",
+        "reporting.esb_stock_on_hand",
+    )
+    with psycopg.connect(config.supabase_reporting_db_url) as reporting_conn:
+        with reporting_conn.cursor() as reporting_cur:
+            for target in targets:
+                reporting_cur.execute("select to_regclass(%s)", (target,))
+                if reporting_cur.fetchone()[0] is None:
+                    print(f"skipped {target}: not on target")
+                    return None
+            reporting_cur.execute(build_org_scope_sql(), (config.org_id,))
+            reporting_cur.execute(
+                "select pg_advisory_xact_lock(hashtextextended('reporting.esb_stock_on_hand:' || %s, 0))",
+                (config.org_id,),
+            )
+            with psycopg.connect(config.warehouse_db_url, row_factory=dict_row) as warehouse_conn:
+                with warehouse_conn.cursor() as warehouse_cur:
+                    warehouse_cur.execute(build_stock_on_hand_source_query())
+                    source_rows = warehouse_cur.fetchall()
+            plans = plan_stock_on_hand_snapshots(
+                source_rows, org_id=config.org_id, snapshot_as_of=snapshot_as_of,
+            )
+            if plans:
+                reporting_cur.executemany(
+                    build_stock_on_hand_header_upsert_sql(), [plan["header"] for plan in plans],
+                )
+            copied = 0
+            for plan in plans:
+                snapshot_id = plan["header"]["id"]
+                scope = {"org_id": config.org_id, "snapshot_id": snapshot_id}
+                reporting_cur.execute(
+                    "delete from reporting.esb_stock_coverage where org_id = %(org_id)s and snapshot_id = %(snapshot_id)s",
+                    scope,
+                )
+                reporting_cur.execute(
+                    "delete from reporting.esb_stock_on_hand where org_id = %(org_id)s and snapshot_id = %(snapshot_id)s",
+                    scope,
+                )
+                reporting_cur.executemany("""
+                    insert into reporting.esb_stock_coverage (
+                      id, org_id, snapshot_id, branch_code, partition_key, status, expected_rows,
+                      received_rows, exhausted, missing_rows_mean_zero, source_evidence
+                    ) values (
+                      %(id)s, %(org_id)s, %(snapshot_id)s, %(branch_code)s, %(partition_key)s,
+                      %(status)s, %(expected_rows)s, %(received_rows)s, %(exhausted)s,
+                      %(missing_rows_mean_zero)s, %(source_evidence)s::jsonb
+                    )
+                """, plan["coverage"])
+                reporting_cur.executemany("""
+                    insert into reporting.esb_stock_on_hand (
+                      id, org_id, snapshot_id, branch_code, product_code, product_detail_code,
+                      unit_code, quantity, location, row_complete, source_row_key, raw_payload_hash
+                    ) values (
+                      %(id)s, %(org_id)s, %(snapshot_id)s, %(branch_code)s, %(product_code)s,
+                      %(product_detail_code)s, %(unit_code)s, %(quantity)s, %(location)s,
+                      %(row_complete)s, %(source_row_key)s, %(raw_payload_hash)s
+                    )
+                """, plan["on_hand"])
+                copied += len(plan["on_hand"])
+        reporting_conn.commit()
+    return copied
+
+
 def run_all_snapshots(config: SnapshotConfig) -> dict[str, int | None]:
     """Run the reporting snapshots sharing one snapshot_as_of.
 
@@ -1090,14 +1367,18 @@ def run_all_snapshots(config: SnapshotConfig) -> dict[str, int | None]:
         if config.pending_bills_enabled
         else (None, None)
     )
+    recipe_history = run_recipe_history_snapshot(config, snapshot_as_of)
+    recipe_findings = run_recipe_findings_snapshot(config, snapshot_as_of)
+    stock_on_hand = run_stock_on_hand_snapshot(config, snapshot_as_of)
     return {
         "revenue": revenue_count,
         "margin": margin_count,
         "usage": usage_count,
         "pending_bills": pending,
         "pending_bills_skipped": skipped,
-        "recipe_history": run_recipe_history_snapshot(config, snapshot_as_of),
-        "recipe_findings": run_recipe_findings_snapshot(config, snapshot_as_of),
+        "recipe_history": recipe_history,
+        "recipe_findings": recipe_findings,
+        "stock_on_hand": stock_on_hand,
     }
 
 
@@ -1113,7 +1394,7 @@ def main() -> int:
         f"pending_bills={shown('pending_bills')} "
         f"pending_bills_skipped={shown('pending_bills_skipped')} "
         f"recipe_history={shown('recipe_history')} recipe_findings={shown('recipe_findings')} "
-        f"window_days={config.window_days}"
+        f"stock_on_hand={shown('stock_on_hand')} window_days={config.window_days}"
     )
     return 0
 

@@ -25,7 +25,7 @@ describe('the module registry feeds every navigation surface', () => {
     const groups = pageGroupsFor(cafe(['ops_lead']), ['ops_lead'])
     expect(groups.map((group) => group.headingKey)).toEqual([undefined, 'cafe.nav.today', 'cafe.nav.stock', 'cafe.nav.close', 'cafe.nav.setup'])
     expect(groups[1].items.map((item) => item.path)).toEqual(['/cafe/records', '/cafe/plan', '/cafe/production', '/cafe/transfer', '/cafe/waste'])
-    expect(groups[2].items.map((item) => item.path)).toEqual(['/cafe/count', '/cafe/receive', '/cafe/receive/issues', '/cafe/request', '/cafe/stock'])
+    expect(groups[2].items.map((item) => item.path)).toEqual(['/cafe/count', '/cafe/stock-comparison', '/cafe/receive', '/cafe/receive/issues', '/cafe/request', '/cafe/stock'])
     expect(groups[3].items.map((item) => item.path)).toEqual(['/cafe/review', '/cafe/pushes'])
   })
 
@@ -79,7 +79,7 @@ describe('⌘K Go to reads the same registry', () => {
 
   it('offers every root, page and Review queue the viewer may open', () => {
     const paths = ids(['ops_lead'])
-    for (const path of ['/', '/work', '/inbox', '/cafe', '/cafe/records', '/cafe/receive/issues', '/cafe/review', '/cafe/review?queue=receipts', '/cafe/review?queue=requests', '/cafe/review?queue=failed-sends', '/cafe/pushes', '/profile']) {
+    for (const path of ['/', '/work', '/inbox', '/cafe', '/cafe/records', '/cafe/stock-comparison', '/cafe/receive/issues', '/cafe/review', '/cafe/review?queue=receipts', '/cafe/review?queue=requests', '/cafe/review?queue=failed-sends', '/cafe/pushes', '/profile']) {
       expect(paths).toContain(path)
     }
   })
