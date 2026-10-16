@@ -1,243 +1,83 @@
-/* Branch-specific figures and responsive sort control; MoneyTableShell owns the table skin. */
-.branch-money-table .money-table__head.money-table__cell--branch {
-  text-align: left;
-}
+/* Branch table: desktop columns and phone cards. MoneyTableShell owns the table skin. Token-only. */
+/* Columns size to their content; headers wrap rather than push the table past the track, so the
+   branch column keeps room for its name. */
+.branch-money-table .money-table { table-layout: auto; }
+:root .page-frame--v3 .branch-money-table .money-table thead th { white-space: normal; vertical-align: bottom; line-height: 1.25; }
+.branch-money-table .money-table__sort { align-items: flex-end; padding: 0; }
+.branch-money-table .money-table__head.money-table__cell--branch { text-align: left; }
 
 .branch-money-table .money-table__sort {
   all: unset;
   display: inline-flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: flex-end;
   gap: 2px;
   width: 100%;
-  min-height: 32px;
-  padding: 6px 0;
+  min-height: var(--mos-control-height);
+  padding: 0;
   cursor: pointer;
   line-height: 1.25;
   text-align: inherit;
 }
-
-.branch-money-table .money-table__cell--branch .money-table__sort {
-  justify-content: flex-start;
-}
-
-.branch-money-table .money-table__sort:hover {
-  color: var(--foreground);
-}
-
+.branch-money-table .money-table__cell--branch .money-table__sort { justify-content: flex-start; }
+.branch-money-table .money-table__sort:hover { color: var(--foreground); }
+.branch-money-table .money-table__sort:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-radius: var(--radius-sm); }
 /* The arrow slot only takes room when a column is sorted, so an unsorted numeric header's right
    edge stays on its figures' right edge. */
-.branch-money-table .money-table__sort .collection-grammar-sort-indicator:empty {
-  display: none;
-}
+.branch-money-table .money-table__sort .collection-grammar-sort-indicator:empty { display: none; }
 
-.branch-money-table .money-table__cell {
-  text-align: right;
-  white-space: nowrap;
-}
+.branch-money-table .money-table__cell { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.branch-money-table .money-table__head.money-table__cell--trend { text-align: right; padding-right: var(--mos-row-pad-x); }
+.branch-money-table .money-table__cell--branch { min-width: 144px; text-align: left; white-space: normal; }
+.branch-money-table .money-table__cell--trend { width: 1%; }
 
-.branch-money-table .money-table__cell--branch {
-  min-width: 140px;
-  text-align: left;
-  white-space: normal;
-}
+.branch-money-table .money-table__cell--unavailable { color: var(--muted-foreground); font-size: var(--mos-size-1); white-space: normal; text-align: right; line-height: 1.35; }
+.branch-money-table .money-table__cell--trend .money-spark { align-items: flex-end; }
+.branch-money-table .money-table__group:last-child .money-table__row:last-child .money-table__cell { border-bottom: 0; }
 
-.branch-money-table .money-table__group:last-child .money-table__row:last-child .money-table__cell {
-  border-bottom: 0;
-}
+.branch-money-table .money-table__name { color: var(--foreground); font-size: var(--mos-size-3); font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.branch-money-table a.money-table__name { color: var(--foreground); text-decoration: none; }
+.branch-money-table a.money-table__name:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+.branch-money-table .money-table__note { display: block; margin-top: var(--mos-stack-gap); color: var(--warning-foreground); font-size: var(--mos-size-1); font-weight: 500; line-height: 1.35; }
+.branch-money-table .money-table__muted, .money-muted { color: var(--muted-foreground); font-weight: 400; }
+.branch-money-table .money-table__row--link { cursor: pointer; }
+.branch-money-table .money-table__row--link:hover .money-table__cell { background: var(--mos-hover); }
 
-.branch-money-table .money-table__name {
-  color: var(--foreground);
-  font-size: var(--font-size-body);
-  font-weight: 600;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
-}
-
-.branch-money-table a.money-table__name {
-  text-decoration: none;
-}
-
-.branch-money-table a.money-table__name:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.branch-money-table .money-table__note {
-  display: block;
-  margin-top: 2px;
-  color: var(--warning-foreground);
-  font-size: var(--font-size-label);
-  font-weight: 500;
-}
-
-.branch-money-table .money-table__muted {
-  color: var(--muted-foreground);
-}
-
-.branch-money-table .money-table__row--link {
-  cursor: pointer;
-}
-
-.branch-money-table .money-table__row--link:hover .money-table__cell {
-  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
-}
-
-/* The total reads as a total: a quiet fill and a heavier rule below, not a link. */
-.branch-money-table .money-table__row--company .money-table__cell {
-  background: color-mix(in srgb, var(--secondary) 40%, transparent);
-  border-bottom: 1.5px solid var(--border);
-  font-weight: 600;
-}
+/* The total reads as a total: a quiet fill and a heavier rule above, not a link. */
+.branch-money-table .money-table__row--company .money-table__cell { background: var(--mos-hover); border-bottom: 1.5px solid var(--border); font-weight: 600; }
 
 /* B2B is not a branch: its group opens with a rule of its own. */
-.branch-money-table .money-table__group--b2b .money-table__row:first-child .money-table__cell {
-  border-top: 1.5px solid var(--border);
-}
+.branch-money-table .money-table__group--b2b .money-table__group-heading th { padding: 0 8px 0 12px; text-align: left; font-weight: 600; white-space: normal; border-top: 1.5px solid var(--border); }
+.branch-money-table .money-table__group--b2b .money-table__row:first-child .money-table__cell { border-top: 0; }
 
-.branch-money-table .money-table__delta {
-  min-width: 56px;
-  justify-content: flex-end;
-}
+.branch-money-table .money-table__basis { display: flex; flex-wrap: wrap; gap: var(--mos-label-gap) var(--mos-row-gap); margin: 0; color: var(--muted-foreground); font-size: var(--mos-size-2); line-height: 1.45; }
+.branch-money-table .money-table__phone-sort { display: none;   }
 
-.branch-money-table .money-table__basis {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-  line-height: 1.45;
-}
-
-.branch-money-table .money-table__phone-sort,
-.branch-money-table .money-table__company-margin {
-  display: none;
-}
-
-@media (max-width: 919.98px) {
-  .branch-money-table .money-table__sort,
-  .branch-money-table .money-table__direction {
-    min-height: 44px;
-  }
-}
-
+/* A missing figure is a sentence ("no comparison"), not a number: it wraps rather than widen its column. */
+.branch-money-table .money-table__cell .money-table__muted { display: inline-block; max-width: 9em; white-space: normal; }
 @media (min-width: 768px) and (max-width: 919.98px) {
-  /* Tablet: the eight columns fit the frame without scrolling once the cell gutters close up,
-     Indonesian labels included (#1453). */
-  .branch-money-table .money-table__head,
-  .branch-money-table .money-table__cell {
-    padding: 0 6px;
-  }
-
-  .branch-money-table .money-table__cell--branch {
-    min-width: 112px;
-  }
-
-  /* The longest words in a figure column are the muted "no comparison" / "not received" notes:
-     on a tablet they wrap under their own column instead of widening it past the frame (#1453). */
-  .branch-money-table .money-table__cell .money-table__muted {
-    display: inline-block;
-    max-width: 9em;
-    white-space: normal;
-  }
+  .branch-money-table .money-table__cell--branch { min-width: 112px; }
 }
 
-/* ── Phone: stacked rows ─────────────────────────────────────────────────────────────── */
+/* ── Phone: one card per row ─────────────────────────────────────────────────────────── */
 @media (max-width: 767.98px) {
-  /* The table's header row on a phone: "Sort by", the column, the direction, on one line. */
-  .branch-money-table .money-table__phone-sort {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .branch-money-table .money-table__phone-sort-label {
-    flex: none;
-    color: var(--muted-foreground);
-    font-size: var(--font-size-label);
-    font-weight: 600;
-  }
-
-  .branch-money-table .money-table__phone-sort > .mk-select {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .branch-money-table .money-table__row {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  /* Re-establish the shared phone-cell reset after the branch's desktop alignment. */
-  .branch-money-table .money-table__cell {
-    text-align: left;
-    white-space: normal;
-  }
-
-  .branch-money-table .money-table__row--company .money-table__cell,
-  .branch-money-table .money-table__row--link:hover .money-table__cell {
-    border: 0;
-    background: none;
-  }
-
-  .branch-money-table .money-table__row--company {
-    background: color-mix(in srgb, var(--secondary) 40%, transparent);
-    border-bottom: 1.5px solid var(--border);
-  }
-
-  .branch-money-table .money-table__group--b2b .money-table__row:first-child {
-    border-top: 1.5px solid var(--border);
-  }
-
-  .branch-money-table .money-table__group--b2b .money-table__row:first-child .money-table__cell {
-    border-top: 0;
-  }
-
-  /* Line 1: name and period revenue. */
-  .branch-money-table .money-table__cell--branch {
-    grid-column: 1 / 3;
-    min-width: 0;
-  }
-
-  .branch-money-table .money-table__cell--revenue {
-    grid-column: 3;
-    text-align: right;
-    font-size: var(--font-size-body);
-    font-weight: 600;
-  }
-
-  .branch-money-table .money-table__cell--revenue .money-table__cell-label {
-    display: none;
-  }
-
-  .branch-money-table .money-table__delta {
-    min-width: 0;
-  }
-
-  /* The company's margin trio collapses to one line under the comparisons. */
-  .branch-money-table .money-table__row--company .money-table__cell--cogs-vs-budget,
-  .branch-money-table .money-table__row--company .money-table__cell--coverage,
-  .branch-money-table .money-table__row--company .money-table__cell--margin > .money-table__cell-label,
-  .branch-money-table .money-table__row--company .money-table__cell--margin > .money-table__cell-value {
-    display: none;
-  }
-
-  .branch-money-table .money-table__row--company .money-table__cell--margin {
-    grid-column: 1 / -1;
-  }
-
-  .branch-money-table .money-table__company-margin {
-    display: block;
-    color: var(--muted-foreground);
-    font-size: var(--font-size-label);
-    font-weight: 500;
-    line-height: 1.3;
-  }
-
-  /* Labels stay labels on the bold total row: figures carry the weight. */
-  .branch-money-table .money-table__row--company .money-table__cell-label {
-    font-weight: 400;
-  }
+  .branch-money-table .money-table__phone-sort { display: flex; align-items: center; gap: var(--mos-inline-gap); padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--border); }
+  .branch-money-table .money-table__phone-sort-label { flex: none; color: var(--muted-foreground); font-size: var(--mos-size-2); font-weight: 600; }
+  .branch-money-table .money-table__phone-sort > .mk-select { flex: 1 1 auto; min-width: 0; }
+  .branch-money-table .money-table__direction { min-height: var(--mos-control-height); padding: 0 4px; border: 0; background: none; color: var(--foreground); font: inherit; font-size: var(--mos-size-2); cursor: pointer; }
+  .branch-money-table .money-table__direction:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 }
+.branch-cards { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.branch-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--mos-stack-gap) var(--mos-row-gap); padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--row-divider); cursor: pointer; }
+.branch-card--company { margin-top: var(--mos-label-gap); padding: var(--mos-row-pad-y) var(--mos-row-pad-x); background: var(--mos-hover); border-bottom: 1.5px solid var(--border); cursor: default; }
+.branch-card__head { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: var(--mos-row-gap); min-width: 0; }
+.branch-card__head .money-table__name { display: inline-flex; align-items: center; min-height: var(--mos-control-height); min-width: 44px; font-size: var(--mos-size-3); font-weight: 600; }
+.branch-card__head a.money-table__name { color: var(--foreground); text-decoration: none; }
+.branch-card__revenue { font-size: var(--mos-size-3); font-weight: 650; white-space: nowrap; }
+.branch-card .money-table__note { grid-column: 1 / -1;  color: var(--warning-foreground); font-size: var(--mos-size-2); font-weight: 500; margin: 0 0 var(--mos-stack-gap); }
+.branch-card__meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-label-gap) var(--mos-row-gap); margin: 0; color: var(--muted-foreground); font-size: var(--mos-size-2); line-height: 1.5; }
+.branch-card__meta > span { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--mos-label-gap); }
+.branch-card__trend { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: var(--mos-row-gap); margin: var(--mos-stack-gap) 0 var(--mos-label-gap); }
+.branch-card__trend .money-spark { align-items: flex-start; }
+.branch-card__previous { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--mos-label-gap); color: var(--muted-foreground); font-size: var(--mos-size-2); }
+.branch-cards__group { margin: var(--mos-group-above) 0 0; border-top: 1.5px solid var(--border); }

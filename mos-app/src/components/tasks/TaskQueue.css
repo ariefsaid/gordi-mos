@@ -20,10 +20,6 @@
   gap: 0;
 }
 
-.tasks-page-head .ch-title {
-  font-size: var(--font-size-title-lg);
-}
-
 /* The longer job sentence is redundant on the phone and costs the vertical space needed for the
    first useful work rows. The h1 and loading status remain mounted. */
 @media (max-width: 767.98px) {
@@ -35,13 +31,13 @@
    rows remain free to grow when their content needs more room. */
 .tasks-work-queue .task-name,
 .tasks-work-queue .collection-grammar-title.task-name {
-  font-size: var(--font-size-body-lg);
+  font-size: var(--mos-size-3);
   line-height: 1.25;
 }
 
 .tasks-work-queue .task-row-meta,
 .tasks-work-queue .task-team {
-  margin-top: 2px;
+  margin-top: var(--mos-stack-gap);
   line-height: 1.2;
 }
 
@@ -52,23 +48,23 @@
 /* On phones this is a list, not a stack of cards. Slightly tighter padding lets the queue show
    more work without taking away the 44px touch target. */
 .tasks-work-queue .task-card-link {
-  padding-top: 10px;
-  padding-bottom: 10px;
+  padding-top: var(--mos-row-pad-y);
+  padding-bottom: var(--mos-row-pad-y);
 }
 
 .tasks-work-queue .task-card-meta {
-  gap: 6px 14px;
-  margin-top: 6px;
+  gap: var(--mos-label-gap) var(--mos-row-gap);
+  margin-top: var(--mos-stack-gap);
 }
 
 @media (max-width: 767.98px) {
   .tasks-work-queue .task-card.collection-grammar-card .task-card-link {
-    min-height: 44px;
-    padding: 8px 12px;
+    min-height: var(--mos-control-height);
+    padding: var(--mos-row-pad-y) var(--mos-row-pad-x);
   }
 
   .tasks-work-queue .task-card.collection-grammar-card .task-card-meta {
-    gap: 4px 10px;
-    margin-top: 4px;
+    gap: var(--mos-label-gap) var(--mos-row-gap);
+    margin-top: var(--mos-stack-gap);
   }
 }

@@ -1,6 +1,6 @@
 export type AgentWidgetCell = string | number | boolean | null
 
-export interface DataTableWidgetColumn {
+interface DataTableWidgetColumn {
   key: string
   header: string
 }
@@ -63,7 +63,7 @@ function coerceCell(value: unknown): AgentWidgetCell {
   }
 }
 
-export function humanizeKey(key: string): string {
+function humanizeKey(key: string): string {
   return key
     .replace(/[_-]+/g, ' ')
     .replace(/\s+/g, ' ')

@@ -12,12 +12,16 @@ export const ROUTE_PATHS = {
   workProjects: 'work/projects',
   workObjectives: 'work/objectives',
   inbox: 'inbox',
+  money: 'money',
+  moneyPendingBills: 'money/pending-bills',
   cafe: 'cafe',
   cafeLog: 'cafe/log',
   cafeProduction: 'cafe/production',
   cafeTransfer: 'cafe/transfer',
   cafeWaste: 'cafe/waste',
+  cafeRecords: 'cafe/records',
   cafeCount: 'cafe/count',
+  cafeStockComparison: 'cafe/stock-comparison',
   cafeReceive: 'cafe/receive',
   cafeReceiptReview: 'cafe/receive/review',
   cafeReceiptIssues: 'cafe/receive/issues',
@@ -26,11 +30,16 @@ export const ROUTE_PATHS = {
   cafePlan: 'cafe/plan',
   cafeStock: 'cafe/stock',
   cafeItems: 'cafe/items',
+  cafeRecipes: 'cafe/recipes',
+  cafeTransferRoutes: 'cafe/transfer-routes',
+  cafeLocations: 'cafe/locations',
+  cafeMoveStock: 'cafe/locations/change-location',
   cafeReview: 'cafe/review',
   cafePushes: 'cafe/pushes',
   adminPeople: 'admin/people',
   adminTeams: 'admin/teams',
   adminAccess: 'admin/access',
+  adminModules: 'admin/modules',
   adminAgents: 'admin/agents',
   profile: 'profile',
   oauthConsent: 'oauth/consent',
@@ -46,24 +55,31 @@ export type RouteParityId =
   | 'workProjects'
   | 'workObjectives'
   | 'inbox'
+  | 'money'
+  | 'moneyPendingBills'
   | 'cafe'
   | 'cafeProduction'
   | 'cafeTransfer'
   | 'cafeWaste'
+  | 'cafeRecords'
   | 'cafeCount'
+  | 'cafeStockComparison'
   | 'cafeReceive'
-  | 'cafeReceiptReview'
   | 'cafeReceiptIssues'
   | 'cafeRequest'
-  | 'cafeRequestReview'
   | 'cafePlan'
   | 'cafeStock'
   | 'cafeItems'
+  | 'cafeRecipes'
+  | 'cafeTransferRoutes'
+  | 'cafeLocations'
+  | 'cafeMoveStock'
   | 'cafeReview'
   | 'cafePushes'
   | 'adminPeople'
   | 'adminTeams'
   | 'adminAccess'
+  | 'adminModules'
   | 'adminAgents'
   | 'profile'
   | 'oauthConsent'
@@ -87,26 +103,38 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'workProjects', path: absolutePath(ROUTE_PATHS.workProjects), kind: 'visible-root' },
   { id: 'workObjectives', path: absolutePath(ROUTE_PATHS.workObjectives), kind: 'visible-root' },
   { id: 'inbox', path: absolutePath(ROUTE_PATHS.inbox), kind: 'visible-root' },
+  // Money is a root visible to finance, manager and supervisor; pending bills is its Finance-only child.
+  { id: 'money', path: absolutePath(ROUTE_PATHS.money), kind: 'visible-root' },
+  { id: 'moneyPendingBills', path: absolutePath(ROUTE_PATHS.moneyPendingBills), kind: 'child' },
   { id: 'cafe', path: absolutePath(ROUTE_PATHS.cafe), kind: 'visible-root' },
   // cafeLog is a legacy redirect; production, transfer and Count are dedicated capture routes.
   { id: 'cafeProduction', path: absolutePath(ROUTE_PATHS.cafeProduction), kind: 'child' },
   { id: 'cafeTransfer', path: absolutePath(ROUTE_PATHS.cafeTransfer), kind: 'child' },
   { id: 'cafeWaste', path: absolutePath(ROUTE_PATHS.cafeWaste), kind: 'child' },
+  { id: 'cafeRecords', path: absolutePath(ROUTE_PATHS.cafeRecords), kind: 'child' },
   { id: 'cafeCount', path: absolutePath(ROUTE_PATHS.cafeCount), kind: 'child' },
-  // Receipt review and issues live under Receive, whose rail entry marks them as the current place.
+  // Preview ship state: absent from the live table unless the dev launch opted in.
+  { id: 'cafeStockComparison', path: absolutePath(ROUTE_PATHS.cafeStockComparison), kind: 'child' },
+  // Receipt issues lives under Receive. Receipt review and Request review are redirects into Review's queues.
   { id: 'cafeReceive', path: absolutePath(ROUTE_PATHS.cafeReceive), kind: 'child' },
-  { id: 'cafeReceiptReview', path: absolutePath(ROUTE_PATHS.cafeReceiptReview), kind: 'child' },
   { id: 'cafeReceiptIssues', path: absolutePath(ROUTE_PATHS.cafeReceiptIssues), kind: 'child' },
   { id: 'cafeRequest', path: absolutePath(ROUTE_PATHS.cafeRequest), kind: 'child' },
-  { id: 'cafeRequestReview', path: absolutePath(ROUTE_PATHS.cafeRequestReview), kind: 'child' },
   { id: 'cafePlan', path: absolutePath(ROUTE_PATHS.cafePlan), kind: 'child' },
   { id: 'cafeStock', path: absolutePath(ROUTE_PATHS.cafeStock), kind: 'child' },
   { id: 'cafeItems', path: absolutePath(ROUTE_PATHS.cafeItems), kind: 'child' },
+  { id: 'cafeRecipes', path: absolutePath(ROUTE_PATHS.cafeRecipes), kind: 'child' },
+  // Preview ship state: absent from the live table unless the dev launch opted in.
+  { id: 'cafeTransferRoutes', path: absolutePath(ROUTE_PATHS.cafeTransferRoutes), kind: 'child' },
+  // Preview ship state: absent from the live table unless the dev launch opted in.
+  { id: 'cafeLocations', path: absolutePath(ROUTE_PATHS.cafeLocations), kind: 'child' },
+  { id: 'cafeMoveStock', path: absolutePath(ROUTE_PATHS.cafeMoveStock), kind: 'child' },
   { id: 'cafeReview', path: absolutePath(ROUTE_PATHS.cafeReview), kind: 'child' },
   { id: 'cafePushes', path: absolutePath(ROUTE_PATHS.cafePushes), kind: 'child' },
   { id: 'adminPeople', path: absolutePath(ROUTE_PATHS.adminPeople), kind: 'visible-root' },
   { id: 'adminTeams', path: absolutePath(ROUTE_PATHS.adminTeams), kind: 'utility', owner: 'admin-settings' },
   { id: 'adminAccess', path: absolutePath(ROUTE_PATHS.adminAccess), kind: 'utility', owner: 'admin-settings' },
+  // Preview ship state: absent from the live table unless the dev launch opted in.
+  { id: 'adminModules', path: absolutePath(ROUTE_PATHS.adminModules), kind: 'utility', owner: 'admin-settings' },
   { id: 'adminAgents', path: absolutePath(ROUTE_PATHS.adminAgents), kind: 'utility', owner: 'admin-settings' },
   { id: 'profile', path: absolutePath(ROUTE_PATHS.profile), kind: 'utility', owner: 'breadcrumb' },
   // Reached only from the sign-in service's redirect, never from navigation.

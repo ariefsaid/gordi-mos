@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react'
+import { SearchField } from '@/components/ui/search-field'
+import { StatusBadge, ATTENTION_STATUS_KEY } from '@/components/ui/status-badge'
+import { useMemo } from 'react'
+import { useSearchParamState } from '@/lib/use-search-param-state'
 import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { EmptyState, FilteredEmptyIcon } from '@/components/ui/state-kit'
-import { formatWibShortDateTime } from '@/lib/format/date'
+import { formatWibWeekdayTime } from '@/lib/format/date'
 import { orderSignalsForFeed } from '@/lib/db/signals'
-import { attentionSlug, type SignalRow } from '@/lib/db/signals.types'
+import { type SignalRow } from '@/lib/db/signals.types'
 import { signalMatchesText } from './signal-collection-adapter'
-import { attentionLabel } from './signal-attention-label'
 import { signalCategoryLabel } from './signal-labels'
 import { SignalPhotoStrip } from './signal-photos'
 import { useSignalPhotos } from './use-signal-photos'
@@ -25,7 +27,6 @@ export interface SignalFeedRowsProps {
   signals: readonly SignalRow[]
   authorNamesById: Record<string, string>
   teamNamesById: Record<string, string>
-  onShareClick?: () => void
   onOpen?: (signal: SignalRow) => void
   /** Home members can keep the feed toolbar to the Share door only. */
   showSearch?: boolean
@@ -37,6 +38,10 @@ export interface SignalFeedRowsProps {
    */
   variant?: 'ambient' | 'archive'
   ambientLimit?: number
+  /** Exact count of readable, active Signals; null means the archive remainder is unknown. */
+  totalCount?: number | null
+  /** Home's embedded empty state uses a compact row; the collection page keeps the full state. */
+  compactEmpty?: boolean
 }
 
 /** The ambient column's depth (signed mockup: `const FEED_CAP = 6`). "A feed column that grows
@@ -45,13 +50,15 @@ export interface SignalFeedRowsProps {
 export const AMBIENT_CAP = 6
 
 export function SignalFeedRows({
-  signals, authorNamesById, teamNamesById, onShareClick, onOpen,
+  signals, authorNamesById, teamNamesById, onOpen,
   showSearch = true,
-  variant = 'ambient', ambientLimit = AMBIENT_CAP,
+  variant = 'ambient', ambientLimit = AMBIENT_CAP, totalCount = null, compactEmpty = false,
 }: SignalFeedRowsProps) {
   const t = useT()
-  const [query, setQuery] = useState('')
-  const searchable = variant === 'ambient' && !!onShareClick && showSearch
+  // Home's Signals search lives in the URL (?feedq=) so reload and Back keep it (NV4). The archive variant has no search.
+  const [rawQuery, setQuery] = useSearchParamState('feedq')
+  const query = variant === 'ambient' ? rawQuery : ''
+  const searchable = variant === 'ambient' && showSearch
   // Matching reuses the collection engine's OWN predicate (`signalMatchesText` — body + author +
   // owning Team) rather than a second definition. The engine already owns text search as the `q`
   // query key on the Signal collection; what it cannot do here is scope the filter to the ambient
@@ -70,10 +77,16 @@ export function SignalFeedRows({
   }, [signals, query, searchable, authorNamesById, teamNamesById])
   const filteredEmpty = ordered.length === 0 && query.trim() !== ''
   const capped = variant === 'ambient' ? ordered.slice(0, ambientLimit) : ordered
-  const hidden = ordered.length - capped.length
+  const exactRemainder = variant === 'ambient' && query.trim() === '' && totalCount !== null
+    ? Math.max(0, totalCount - capped.length)
+    : null
+  const hidden = exactRemainder ?? ordered.length - capped.length
+  const moreLabel = exactRemainder === null
+    ? t('signals.feed.seeMoreUncounted')
+    : t('signals.feed.seeMore', { count: exactRemainder })
   const photosBySignal = useSignalPhotos(capped.filter((signal) => !signal.retracted_at).map((signal) => signal.id))
-  // The remainder is a real DOOR, not a bare fact: it carries any active filter through as the
-  // collection's own `q` key, so the rows it names are actually where it says they are.
+  // The door carries active queries to the archive. Only an unfiltered Home feed with an exact
+  // total gets a number; loaded-page or query remainders can understate the full archive.
   const moreHref = query.trim() === ''
     ? '/work/signals'
     : `/work/signals?${new URLSearchParams({ q: query.trim() }).toString()}`
@@ -83,32 +96,17 @@ export function SignalFeedRows({
       className={`home-signal-feed${variant === 'archive' ? ' home-signal-feed--archive' : ''}`}
       data-testid="signal-feed"
     >
-      {/* Feed toolbar — the composer entry plus search. Ambient-only (D-D2): on Home (the ambient
-          tail) this IS the compose door, since Home has no CollectionToolbar. In the /work/signals
-          archive the toolbar hosts the ONE layout-independent Share door, so this would be a SECOND,
-          layout-dependent door — omitted there so the archive has exactly one compose door.
-
-          Owner, 2026-07-28: the previous single full-width rounded row READ as a search field and
-          behaved as a composer. Shape sets expectation, so the field is now search and creating a
-          Signal is a button — the two jobs stop competing for one control. */}
-      {variant === 'ambient' && onShareClick ? (
+      {/* Feed search — ambient-only (cockpit Home). The compose door is the Home page head's one
+          "Share signal" button; the /work/signals archive hosts its own. No second door here. */}
+      {variant === 'ambient' && showSearch ? (
         <div className="home-signal-tools">
-          {showSearch ? (
-            <input
-              type="search"
-              className="home-signal-search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('signals.feed.searchPlaceholder')}
-              aria-label={t('signals.feed.searchLabel')}
-            />
-          ) : null}
-          {/* Secondary weight on purpose: this is a door in an AMBIENT tail, so it must not
-              outrank the overdue work above it. The one action blue stays reserved for the page's
-              own primary action (DESIGN.md §5 Buttons — the ONE button hierarchy). */}
-          <button type="button" className="btn btn-outline home-signal-add" onClick={onShareClick}>
-            {t('signals.feed.addSignal')}
-          </button>
+          <SearchField
+            className="home-signal-search-field"
+            label={t('signals.feed.searchLabel')}
+            placeholder={t('signals.feed.searchPlaceholder')}
+            value={query}
+            onChange={setQuery}
+          />
         </div>
       ) : null}
 
@@ -123,12 +121,22 @@ export function SignalFeedRows({
             copy={t('signals.feed.noMatches', { query: query.trim() })}
             nested
           >
-            <button type="button" className="btn btn-ghost" onClick={() => setQuery('')}>
+            <button type="button" className="btn btn-outline" onClick={() => setQuery('')}>
               {t('signals.feed.clearSearch')}
             </button>
           </EmptyState>
         ) : (
-          <EmptyState title={t('signals.feed.empty')} nested />
+          <EmptyState
+            title={t(compactEmpty ? 'signals.feed.emptyHome' : 'signals.feed.empty')}
+            nested
+            className={compactEmpty ? 'stream-all-clear' : undefined}
+          >
+            {compactEmpty && (
+              <Link to="/work/signals" className="signal-feed-link tap-floor">
+                {t('signals.feed.openArchive')}
+              </Link>
+            )}
+          </EmptyState>
         )
       ) : (
         <ul className="home-signal-list">
@@ -163,7 +171,7 @@ export function SignalFeedRows({
                 {...(onOpen ? {
                   role: 'button',
                   tabIndex: 0,
-                  'aria-label': t('signals.card.openSignal', { body: signal.body }),
+                  // The row derives its accessible name from its visible content, keeping both names aligned.
                   onClick: () => onOpen(signal),
                   onKeyDown: (event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
@@ -174,6 +182,7 @@ export function SignalFeedRows({
                 } : {})}
               >
                 <div className="home-signal-main">
+                  {variant === 'archive' ? <time className="home-signal-date" dateTime={signal.occurred_at}>{formatWibWeekdayTime(signal.occurred_at)}</time> : null}
                   {/* Body = the row title. The parent row owns activation in both variants. */}
                   <span className="home-signal-body">
                     <span className="home-signal-body-text">{signal.body}</span>
@@ -195,10 +204,10 @@ export function SignalFeedRows({
                         <span className="home-signal-meta-fact" title={teamName}>{teamName}</span>
                       </span>
                     )}
-                    <span className="home-signal-meta-item">
+                    {variant !== 'archive' ? <span className="home-signal-meta-item">
                       <span className="home-signal-sep" aria-hidden="true">·</span>
-                      <span className="home-signal-meta-fact">{formatWibShortDateTime(signal.occurred_at)}</span>
-                    </span>
+                      <span className="home-signal-meta-fact">{formatWibWeekdayTime(signal.occurred_at)}</span>
+                    </span> : null}
                     {categoryLabel && (
                       <span className="home-signal-meta-item">
                         <span className="home-signal-sep" aria-hidden="true">·</span>
@@ -208,9 +217,7 @@ export function SignalFeedRows({
                   </div>
                 </div>
                 <div className="home-signal-tail">
-                  <span className={`home-signal-attention home-signal-attention--${attentionSlug(signal.attention)}`}>
-                    {attentionLabel(t, signal.attention)}
-                  </span>
+                  <StatusBadge status={ATTENTION_STATUS_KEY[signal.attention]} />
                 </div>
                 </div>
               </li>
@@ -221,7 +228,7 @@ export function SignalFeedRows({
 
       {hidden > 0 && (
         <Link to={moreHref} className="signal-feed-link signal-feed-link--more tap-floor">
-          {t('signals.feed.seeMore', { count: hidden })}
+          {moreLabel}
         </Link>
       )}
     </div>

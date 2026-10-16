@@ -1,0 +1,31 @@
+/* Location fields embedded in released pages (preview only). Tokens only. */
+.loc-fields { display: grid; gap: var(--mos-field-gap); min-width: 0; }
+details.loc-fields { gap: 0; }
+details.loc-fields > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--mos-row-gap);
+  min-height: var(--mos-control-height); list-style: none; cursor: pointer; color: var(--mos-ink); font: var(--mos-type-label);
+}
+details.loc-fields > summary::-webkit-details-marker { display: none; }
+details.loc-fields > summary::after {
+  content: ''; flex: none; width: var(--mos-icon-sm); height: var(--mos-icon-sm); background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+details.loc-fields[open] > summary::after { transform: rotate(180deg); }
+details.loc-fields > summary:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.loc-fields__note { max-width: 60ch; margin: 0; color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
+.loc-fields__link { display: inline-flex; align-items: center; min-height: var(--mos-control-height); color: var(--mos-accent); font: var(--mos-type-control); }
+.loc-fields--inline { max-width: 14rem; }
+/* In the summary panel beside Submit: stacked fields, a rule above to separate the decision from the lines. */
+.loc-fields--panel { grid-template-columns: repeat(auto-fit, minmax(14rem, 20rem)); padding-top: var(--mos-field-gap); border-top: 1px solid var(--mos-line); }
+.loc-fields--panel > .loc-fields__note { grid-column: 1 / -1; }
+.loc-fields--line { max-width: 20rem; }
+.loc-fields--override { flex: 0 0 100%; }
+.loc-fields--override > .mk-select { padding-bottom: var(--mos-inline-gap); }
+.loc-fields--balance { padding-block: var(--mos-field-gap); border-bottom: 1px solid var(--mos-line); }
+.loc-fields__title { margin: 0; color: var(--mos-ink); font: var(--mos-type-group); }
+.loc-fields__balance-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--mos-inline-gap) var(--mos-field-gap); }
+.loc-fields__balance-row > .mk-select { min-width: 14rem; }
+@media (max-width: 767.98px) {
+  .loc-fields__balance-row > * { flex: 1 1 100%; }
+  .loc-fields--inline { max-width: none; }
+}

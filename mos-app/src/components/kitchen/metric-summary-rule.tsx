@@ -14,12 +14,12 @@
 import type { ReactNode } from 'react'
 import './metric-summary-rule.css'
 
-export interface MetricSummaryDelta {
+interface MetricSummaryDelta {
   text: string
   tone: 'destructive' | 'success'
 }
 
-export interface MetricSummaryItem {
+interface MetricSummaryItem {
   key: string
   label: string
   value: string

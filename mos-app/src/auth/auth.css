@@ -1,34 +1,81 @@
-/* Auth phone tap floor — #403 (v4 port-sweep, #290 slice).
- *
- * The auth cards author their controls inline at the 32px desktop density (height: 32) with
- * none of the app primitives underneath, so — unlike every surface behind the login — they
- * carried no phone floor: the sign-in/reset/set-password inputs, the submits, and both
- * "back to sign in" links rendered 19–34px on a phone. DESIGN.md §Responsive: "Phone (390px
- * and ≤767px) … every required tap target is at least 44×44px"; "at 390px and below, controls
- * may wrap or stack but must not shrink below the tap-target contract." Ruled: no exemption
- * for auth — it is the first surface a new person touches, often on a phone.
- *
- * Same seam and idiom as DO-15(a) (TextInput.css): min-height/min-width in the phone media
- * block beat the smaller inline heights, so the 32px desktop density is untouched while EVERY
- * auth card (login, recovery, the #131 set-password gate, orphan) inherits the floor from this
- * ONE rule set — fixed once at the shared chrome, never re-authored per page, no v4 page port.
- * Both axes are floored because DESIGN.md says 44×44 — the demo persona chips proved a control
- * can be 44 tall and still only 37 wide.
- *
- * The bare "Back to sign in" <a> needs its own line: min-height is ignored on inline boxes,
- * so the link gets a real box via display: inline-flex.
- *
- * "Fixed once at the shared chrome" is literal: the per-control `minHeight: 44` inline styles
- * this rule supersedes (fix-3's forgot-password + magic-link links, and the demo persona chips)
- * were REMOVED when it landed, so the floor is stated in exactly one place. Removing them also
- * un-did fix-3's side effect of forcing 44px on DESKTOP, where DESIGN.md's density is 32px and
- * the floor does not apply — this rule is phone-only by construction.
- *
- * The floor's other half is SEPARATION, and it is not stated here: DESIGN.md pairs "44px" with
- * "8px between adjacent targets", and the two crowded seams on these cards are Tailwind margins
- * on the pages that own them (login-page.tsx `mt-2`, demo-login.tsx `gap-y-2`). Both halves are
- * measured together by GUARD-TAP in e2e/guards.geometry.spec.ts. */
-@media (max-width: 767.98px) {
-  .auth-card :is(input, button, a) { min-height: 44px; min-width: 44px; }
-  .auth-card a { display: inline-flex; align-items: center; }
+/* Auth pages use document scrolling; the main app deliberately clips the document for its shell. */
+html:has(.auth-shell),
+body:has(.auth-shell) {
+  height: auto;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
+
+/* Sign-in workbench: masthead, one top-aligned task column on the masthead's left edge, help at its end.
+   24px desktop / 16px phone gutters (DESIGN density); every part below shares that one left edge. */
+.auth-shell {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--mos-space-6) var(--mos-space-6);
+  color: var(--mos-ink);
+  background: var(--mos-canvas);
+}
+.auth-masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mos-space-3);
+  min-height: var(--mos-topbar-height);
+  border-bottom: 1px solid var(--mos-line);
+}
+.auth-brand { display: flex; align-items: center; gap: var(--mos-space-3); min-width: 0; }
+.auth-brand__text { display: flex; flex-direction: column; min-width: 0; }
+.auth-brand__name { font: var(--mos-type-nav); font-weight: var(--mos-weight-bold); color: var(--mos-ink); }
+.auth-brand__tag { font: var(--mos-type-meta); color: var(--mos-muted); }
+.auth-locale .segmented__option { min-width: var(--mos-control-height); }
+
+.auth-main {
+  width: 100%;
+  max-width: 440px;
+  padding: var(--mos-space-12) 0 var(--mos-space-10);
+}
+/* One 440px column for every sign-in page; only /login widens, and only when the sample-accounts column sits beside the form. */
+.auth-shell:has(.demo-directory) :is(.auth-main, .auth-help) { max-width: 960px; }
+.auth-card { width: 100%; }
+.auth-back { margin: 0 0 var(--mos-space-1); }
+.auth-help {
+  width: 100%;
+  max-width: 440px;
+  padding-top: var(--mos-space-4);
+  border-top: 1px solid var(--mos-line);
+  color: var(--mos-muted);
+  font-size: var(--mos-size-2);
+}
+
+/* Title block: one h1, 20px to what follows; with a one-line lede it sits 4px above it. */
+.auth-card h1 { max-width: 28ch; margin: 0 0 var(--mos-group-above); }
+.auth-card h1:has(+ .auth-lede) { margin-bottom: var(--mos-stack-gap); }
+.auth-lede { margin: 0 0 var(--mos-group-above); color: var(--mos-muted); font: var(--mos-type-body); }
+.auth-card .notice { max-width: 440px; margin: 0 0 var(--mos-group-above); }
+
+/* Form: 16px between fields; a message under a field is 4px from it. */
+.auth-form { display: flex; flex-direction: column; gap: var(--mos-field-gap); }
+.auth-field { display: flex; flex-direction: column; gap: var(--mos-label-gap); min-width: 0; }
+.auth-field-error { margin: 0; color: var(--mos-error-text); font-size: var(--mos-size-2); }
+.auth-field-hint { margin: 0; color: var(--mos-muted); font: var(--mos-type-body); }
+.auth-field-aside { display: flex; justify-content: flex-end; }
+.auth-actions { display: flex; flex-direction: column; gap: var(--mos-inline-gap); margin-top: var(--mos-inline-gap); }
+
+/* Text action (Forgot password, Sign out, sample accounts): accent control text, underline on hover/focus. */
+.auth-link {
+  display: inline-flex; align-items: center; min-height: var(--mos-control-height); padding: 0; border: 0; background: none;
+  color: var(--mos-accent); font: var(--mos-type-control); font-weight: var(--mos-weight-medium); cursor: pointer;
+}
+.auth-link:hover:not(:disabled), .auth-link:focus-visible { color: var(--mos-accent-hover); text-decoration: underline; text-underline-offset: 3px; }
+.auth-link:disabled { color: var(--mos-muted); cursor: not-allowed; }
+
+@media (max-width: 767.98px) {
+  .auth-shell { padding: 0 var(--mos-space-4) var(--mos-space-5); }
+  .auth-masthead { min-height: 56px; }
+  .auth-main { padding: var(--mos-space-6) 0 var(--mos-space-8); }
+  .auth-link { min-width: 44px; }
+}
+.auth-form .notice { margin: 0; }
+.auth-card .notice__text p + p { margin-top: var(--mos-stack-gap); }

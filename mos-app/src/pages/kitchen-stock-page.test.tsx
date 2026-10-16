@@ -184,6 +184,11 @@ function setPhone() {
 }
 afterEach(() => { setPhone() })
 
+/** One item's row of figures (the page lists items as plain rows, not a table). */
+function rowOf(name: string): HTMLElement {
+  return screen.getByText(name).closest('.ks-row') as HTMLElement
+}
+
 describe('KitchenStockPage — auth', () => {
   it('auth loading: shows a busy state', () => {
     mockUseAuth.mockReturnValue({ status: 'loading' } as AuthState)
@@ -404,10 +409,11 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     // reason FR-061 exists: "Stok HQ" means the central kitchen, which books to Rumah Rames.
     expect(screen.queryByText(/stok hq/i)).toBeNull()
     // The caption names the stream the same way — canonical, and still never "HQ" for these books.
-    const caption = screen.getByRole('table').querySelector('caption')
-    expect(caption?.textContent).toContain('Rumah Rames')
-    expect(caption?.textContent).not.toMatch(/Bungur/)
-    expect(caption?.textContent).not.toMatch(/HQ/)
+    const list = screen.getByRole('region', { name: /^Stock for / })
+    const listName = list.getAttribute('aria-label') ?? ''
+    expect(listName).toContain('Rumah Rames')
+    expect(listName).not.toMatch(/Bungur/)
+    expect(listName).not.toMatch(/HQ/)
   })
 
   it('AC-011 (#238 ruling, the other half): the Bungur alias is ALIVE for a transfer DESTINATION', async () => {
@@ -422,41 +428,25 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
 })
 
 describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
-  it('RI-IXD-6: desktop stock uses the shared DataTable branch, not a kitchen-local table wrapper', async () => {
-    setDesktop()
-    mockFetchStock.mockResolvedValue(STOCK_ROWS)
-    const { container } = render(<KitchenStockPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
-
-    expect(container.querySelector('.dt-table')).not.toBeNull()
-    expect(container.querySelector('.ks-tablewrap, .ks-table, .kst-table')).toBeNull()
-  })
-
-  it('RI-IXD-6: phone stock uses the shared DataTable card branch, not a parallel local table', async () => {
-    setPhone()
-    mockFetchStock.mockResolvedValue(STOCK_ROWS)
-    const { container } = render(<KitchenStockPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
-
-    expect(container.querySelector('.dt-cards')).not.toBeNull()
-    expect(screen.queryByRole('table')).toBeNull()
-    expect(container.querySelector('.ks-tablewrap, .ks-table, .kst-table, .ksc-cards')).toBeNull()
-  })
-
-  it('renders one stock summary rule (not KPI tiles or Log labels)', async () => {
+  it('filters to negative balances with the toggle and back', async () => {
     setDesktop()
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
-    expect(screen.getByRole('group', { name: /stock summary/i })).toBeInTheDocument()
-    expect(document.querySelector('.msr')).not.toBeNull()
-    expect(document.querySelector('.kks')).toBeNull()
-    expect(screen.getByText(/total on-hand/i)).toBeInTheDocument()
-    expect(screen.getByText(/negative balances/i)).toBeInTheDocument()
-    expect(screen.getByText(/available total/i)).toBeInTheDocument()
+    const toggle = screen.getByRole('button', { name: 'Negative balances 1' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByText(/total on-hand|available total/i)).toBeNull()
     expect(screen.queryByText(/made so far/i)).toBeNull()
     expect(screen.queryByText(/% complete/i)).toBeNull()
+
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+
+    fireEvent.click(toggle)
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
   })
 
   it('zero rows stay truthful without a second no-entries provenance note', async () => {
@@ -465,13 +455,11 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
       { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
       { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', category: null, stok: 0, tersedia: 0 },
     ])
-    const { container } = render(<KitchenStockPage />, { wrapper })
+    render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
-    expect(container.querySelector('.msr')).not.toBeNull()
-    expect(container.querySelector('.kks')).toBeNull()
     expect(screen.queryByText('No entries logged yet today')).toBeNull()
-    expect(screen.getByText(/esb inventory not connected yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/esb inventory is not connected yet/i)).toBeInTheDocument()
   })
 
   it('uses one ERP provenance footnote for the comparison column', async () => {
@@ -484,75 +472,56 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
 
     await screen.findByText('Ayam Bakar')
     expect(screen.queryByText('No entries logged yet today')).toBeNull()
-    expect(screen.getAllByText(/esb inventory not connected yet/i)).toHaveLength(1)
+    expect(screen.getAllByText(/esb inventory is not connected yet/i)).toHaveLength(1)
   })
 
-  it('AC-011 (render): the system-quantity column sits DIRECTLY BESIDE the ERP inventory column — the net itself is owned by pgTAP ops_09/ops_10', async () => {
+  it('AC-011 (render): each item shows its stock and available figures for the selected stream — the net itself is owned by pgTAP ops_09/ops_10', async () => {
     setDesktop()
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
-
-    const table = screen.getByRole('table')
-    const headers = within(table).getAllByRole('columnheader').map(h => h.textContent ?? '')
-    const stokIdx = headers.findIndex(h => /^stock$/i.test(h.trim()))
-    // The header is user language ("System stock"), never the "ERP" jargon.
-    const erpIdx = headers.findIndex(h => /^system stock$/i.test(h.trim()))
-    expect(stokIdx).toBeGreaterThan(-1)
-    expect(erpIdx).toBe(stokIdx + 1) // beside, not merely present
 
     // The per-stream net values render in the row (12 = Σ produce − Σ transfer for the
     // selected stream — the DB function's contract, mocked here at its seam).
-    const ayamRow = screen.getByText('Ayam Bakar').closest('tr') as HTMLElement
-    expect(within(ayamRow).getByText('12')).toBeInTheDocument()
-    expect(within(ayamRow).getByText('8')).toBeInTheDocument()
-    // ERP comparison cell is a visible placeholder until the ERP read is wired.
-    expect(within(ayamRow).getByText('—')).toBeInTheDocument()
-    expect(screen.getByText(/esb inventory not connected yet/i)).toBeInTheDocument()
+    const ayamRow = rowOf('Ayam Bakar')
+    expect(ayamRow).toHaveTextContent('12 Unit not set')
+    expect(ayamRow).toHaveTextContent('8 Unit not set')
+    // The comparison is not connected yet, and the page says so once.
+    expect(screen.getByText(/esb inventory is not connected yet/i)).toBeInTheDocument()
   })
 
-  it('renders a semantic table with the two cuts (stok + tersedia) per item', async () => {
+  it('shows stock quantities with the default unit and labels missing units', async () => {
     setDesktop()
-    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS.map(row => ({ ...row, stok: 0, tersedia: 0 })))
+    vi.mocked(listCafeItemSettings).mockResolvedValue([
+      { id: 'w1', erpName: 'Ayam Bakar', mosName: 'Ayam Bakar', category: null, kind: 'WIP', isActive: true, defaultUnitId: 'u-porsi', units: [{ id: 'u-porsi', name: 'porsi', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }] },
+      { id: 'w2', erpName: 'Nasi Goreng', mosName: 'Nasi Goreng', category: null, kind: 'WIP', isActive: true, defaultUnitId: null, units: [] },
+    ])
     render(<KitchenStockPage />, { wrapper })
-    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
-
-    const table = screen.getByRole('table')
-    expect(table).toBeInTheDocument()
-    // Column headers name the two cuts (stock = usable, available = available). Exact match on
-    // "Stock" — "System stock" (the ERP comparison column) also contains the word.
-    expect(within(table).getByRole('columnheader', { name: /^stock$/i })).toBeInTheDocument()
-    expect(within(table).getByRole('columnheader', { name: /available/i })).toBeInTheDocument()
-
-    // Each item is a row showing its two numbers
-    const ayamRow = screen.getByText('Ayam Bakar').closest('tr') as HTMLElement
-    expect(within(ayamRow).getByText('12')).toBeInTheDocument()
-    expect(within(ayamRow).getByText('8')).toBeInTheDocument()
+    await screen.findByText('Ayam Bakar')
+    expect(rowOf('Ayam Bakar').textContent).toMatch(/0 porsi.*0 porsi/)
+    expect(rowOf('Nasi Goreng').textContent).toMatch(/0 Unit not set.*0 Unit not set/)
   })
 
   it('AC-032: preserves negative balances (does not clamp to 0)', async () => {
     setDesktop()
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
-    const nasiRow = (await screen.findByText('Nasi Goreng')).closest('tr') as HTMLElement
-    // -3 shown, not 0
-    expect(within(nasiRow).getAllByText('-3').length).toBeGreaterThan(0)
+    await screen.findByText('Nasi Goreng')
+    // The negative balance remains visible with an explicit missing-unit state.
+    expect(rowOf('Nasi Goreng')).toHaveTextContent('-3 Unit not set')
   })
 
-  it('FR-028: phone rows use a compact two-line card, not a generic labelled <dl>', async () => {
+  it('phone rows show stock and available in the default unit', async () => {
     setPhone()
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    vi.mocked(listCafeItemSettings).mockResolvedValue([
+      { id: 'w1', erpName: 'Ayam Bakar', mosName: 'Ayam Bakar', category: null, kind: 'WIP', isActive: true, defaultUnitId: 'u-porsi', units: [{ id: 'u-porsi', name: 'porsi', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }] },
+    ])
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
-    const card = screen.getByText('Ayam Bakar').closest('.ks-card') as HTMLElement
-    expect(card).not.toBeNull()
-    expect(card.textContent).toMatch(/Stock\s*12/i)
-    // The label shows once, in user language ("System stock"), with a plain "—" placeholder —
-    // never the "ERP" jargon.
-    expect(card.textContent).toMatch(/System stock\s*—/i)
-    expect(card.textContent).toMatch(/Available\s*8/i)
-    expect(card.querySelector('dl')).toBeNull()
+    expect(rowOf('Ayam Bakar').textContent).toMatch(/12 porsi.*8 porsi/)
   })
 
   it('read-only: no edit/save/approve controls anywhere (the stream scope is a read scope, not an edit)', async () => {
@@ -561,15 +530,6 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     await screen.findByText('Ayam Bakar')
     expect(screen.queryByRole('button', { name: /save|edit|approve|submit/i })).toBeNull()
     expect(screen.queryByRole('spinbutton')).toBeNull()
-  })
-
-  it('numeric cells carry the .tabular class for aligned digits', async () => {
-    setDesktop()
-    mockFetchStock.mockResolvedValue(STOCK_ROWS)
-    render(<KitchenStockPage />, { wrapper })
-    const ayamRow = (await screen.findByText('Ayam Bakar')).closest('tr')!
-    const numCell = within(ayamRow).getByText('12')
-    expect(numCell.closest('.tabular')).not.toBeNull()
   })
 })
 
@@ -581,39 +541,22 @@ describe('KitchenStockPage — locale seam (#400)', () => {
     mockFetchStock.mockResolvedValue(STOCK_ROWS) // one negative row → 'perlu ditinjau'
   })
 
-  it('renders the whole summary rule in Bahasa Indonesia', async () => {
+  it('renders the negative-balance toggle in Bahasa Indonesia', async () => {
     render(<KitchenStockPage />, { wrapper: idWrapper })
     await screen.findByText('Ayam Bakar')
-    expect(screen.getByRole('group', { name: 'Ringkasan stok' })).toBeInTheDocument()
-    expect(screen.getByText('Total stok fisik')).toBeInTheDocument()
-    expect(screen.getByText('Saldo minus')).toBeInTheDocument()
-    expect(screen.getByText('Total tersedia')).toBeInTheDocument()
-    expect(document.querySelector('.msr')).not.toBeNull()
-    expect(document.querySelector('.kks')).toBeNull()
-    // the English strip is gone
-    expect(screen.queryByText(/total on-hand/i)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Saldo minus 1' })).toBeInTheDocument()
+    // the English aggregate labels are gone too
+    expect(screen.queryByText(/total on-hand|available total/i)).toBeNull()
     expect(screen.queryByText(/negative balances/i)).toBeNull()
   })
 
-  it('phone summary line is Indonesian and stays a single rule', async () => {
-    setPhone()
-    render(<KitchenStockPage />, { wrapper: idWrapper })
-    await screen.findByText('Ayam Bakar')
-    const summary = document.querySelector('.msr') as HTMLElement
-    expect(summary).not.toBeNull()
-    expect(summary.textContent).toMatch(/stok/i)
-    expect(summary.textContent).toMatch(/tersedia/i)
-    expect(document.querySelector('.kks-phone')).toBeNull()
-  })
-
-  it('all-zero stock keeps the summary numeric and the ERP footnote singular', async () => {
+  it('all-zero stock keeps the ESB footnote singular', async () => {
     mockFetchStock.mockResolvedValue([
       { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
     ])
     render(<KitchenStockPage />, { wrapper: idWrapper })
     await screen.findByText('Ayam Bakar')
-    expect(document.querySelector('.msr')).not.toBeNull()
-    expect(screen.getAllByText(/esb inventory not connected|inventori ESB belum terhubung/i)).toHaveLength(1)
+    expect(screen.getAllByText(/^(esb inventory is not connected|inventori ESB belum terhubung)/i)).toHaveLength(1)
   })
 })
 
@@ -646,6 +589,6 @@ describe('issue 222: stock keeps every balance, labelling items off the stream\'
     await screen.findByText('Nasi Goreng')
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
     expect(screen.getAllByText('Not on this stream’s list')).toHaveLength(1)
-    expect(screen.getByText('Not on this stream’s list').closest('tr, .ks-card')).toHaveTextContent('Nasi Goreng')
+    expect(rowOf('Nasi Goreng')).toHaveTextContent('Not on this stream’s list')
   })
 })

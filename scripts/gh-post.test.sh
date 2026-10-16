@@ -31,6 +31,10 @@ g() { git -C "$1" -c user.email=t@t -c user.name=t "${@:2}"; }
 git init -q "$tmp/repo"
 git -C "$tmp/repo" remote add origin https://github.com/x/y.git
 g "$tmp/repo" commit -qm init --allow-empty
+# A real local origin behind the GitHub URL, so the gate's base fetch is exercised, not faked.
+git init -q --bare "$tmp/origin.git"
+git -C "$tmp/repo" config "url.$tmp/origin.git.insteadOf" https://github.com/x/y.git
+g "$tmp/repo" push -q origin HEAD:refs/heads/dev
 mkdir -p "$tmp/repo/docs"
 cat > "$tmp/repo/docs/gh-denylist.txt" <<'EOF'
 # test policy
@@ -147,15 +151,20 @@ mv "$tmp/repo/docs/gh-denylist.txt" "$tmp/repo/docs/gone.txt"
 check "missing policy file = fail closed" 1 no issue comment 5 --body "anything"
 mv "$tmp/repo/docs/gone.txt" "$tmp/repo/docs/gh-denylist.txt"
 
+cp "$tmp/repo/docs/gh-denylist.txt" "$tmp/repo/docs/saved.txt"
+printf '%s\n' '(unclosed' >> "$tmp/repo/docs/gh-denylist.txt"
+check_message "an unusable policy pattern = fail closed" 1 no "pattern is unusable" issue comment 5 --body "anything"
+mv "$tmp/repo/docs/saved.txt" "$tmp/repo/docs/gh-denylist.txt"
+
 # ── PR stamps
 head="$(g "$tmp/repo" rev-parse HEAD)"
 gitdir="$(g "$tmp/repo" rev-parse --absolute-git-dir)"
-check "pr create without stamps refused" 1 no pr create --title t --body "Reused: x"
+check "pr create, default base dev, non-sensitive diff: no stamps needed" 0 yes pr create --title t --body "Reused: x"
 printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
-check "pr create with verify stamp only refused" 1 no pr create --title t --body "Reused: x"
+check "pr create with verify stamp only, default base dev: passes" 0 yes pr create --title t --body "Reused: x"
 printf '%s spec reviewer-x now art.md\n' "$head" > "$gitdir/independent-review-spec-ok"
 printf '%s code-quality reviewer-x now art.md\n' "$head" > "$gitdir/independent-review-code-quality-ok"
-check "two of three lens stamps refused (OD-WAY-83)" 1 no pr create --title t --body "Reused: x"
+check "spec and code-quality stamps are not required" 0 yes pr create --title t --body "Reused: x"
 printf '%s security reviewer-x now art.md\n' "$head" > "$gitdir/independent-review-security-ok"
 check "verify + all three lens stamps passes" 0 yes pr create --title t --body "Reused: x"
 # PRs into dev rely on CI verify and need no local verify stamp; all other bases need the full stamp.
@@ -250,8 +259,10 @@ check "alias 'pr new' refused (allowlist)" 1 no pr new --title t --body "clean"
 echo "contains secretword" > "$tmp/repo/notes.md"
 check "release create refused (allowlist)" 1 no release create v1 -F "$tmp/repo/notes.md"
 check "gist create refused (allowlist)" 1 no gist create "$tmp/repo/notes.md"
-printf 'deadbeef spec reviewer-x now art.md\n' > "$gitdir/independent-review-spec-ok"
-check "one lens stamp on wrong sha refused" 1 no pr create --title t --body "Reused: x"
+printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
+printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok"
+printf 'deadbeef security reviewer-x now art.md\n' > "$gitdir/independent-review-security-ok"
+check_message "security stamp on wrong sha refused" 1 no "security lens stamp" pr create --base main --title t --body "Reused: x"
 g "$tmp/repo" checkout -q main 2>/dev/null || g "$tmp/repo" checkout -qb main
 rm -f "$gitdir/pre-pr-verify-ok" "$gitdir"/independent-review-*-ok
 check "main->staging promotion passes unstamped (release carve-out)" 0 yes pr create --base staging --title t --body "Reused: x"
@@ -259,14 +270,14 @@ check "equals-form --base=staging promotion passes" 0 yes pr create --base=stagi
 check_message "conflicting bases staging and dev are refused" 1 no "name one base" pr create --base staging --base dev --title t --body "Reused: x"
 check_message "conflicting bases dev and staging are refused" 1 no "name one base" pr create --base dev --base staging --title t --body "Reused: x"
 check "--base staging-hotfix is NOT the carve-out" 1 no pr create --base staging-hotfix --title t --body "Reused: x"
-check "stray 'staging' arg without --base adjacency is NOT the carve-out" 1 no pr create --base dev --title staging --body "Reused: x"
+check "stray 'staging' arg without --base adjacency is NOT the carve-out" 1 no pr create --base main --title staging --body "Reused: x"
 g "$tmp/repo" checkout -qb rogue
 check "staging PR from a non-main branch still needs stamps" 1 no pr create --base staging --title t --body "Reused: x"
 
 # ── REST PR create (api repos/<this>/pulls) passes the same four-stamp gate as pr create
 g "$tmp/repo" checkout -qb feat-rest
 rm -f "$gitdir/pre-pr-verify-ok" "$gitdir/pre-pr-verify-dev-ok" "$gitdir"/independent-review-*-ok
-check "REST pr create without stamps refused" 1 no api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev -f body="Reused: x"
+check "REST pr create into dev, non-sensitive diff, needs no stamps" 0 yes api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev -f body="Reused: x"
 check "REST pr create, explicit --method POST, refused unstamped" 1 no api repos/x/y/pulls --method POST -f head=feat-rest -f base=dev
 check "REST pr create, concatenated -XPOST, refused unstamped" 1 no api repos/x/y/pulls -XPOST -f head=feat-rest -f base=dev
 check "REST pr create, leading and trailing slash, refused unstamped" 1 no api /repos/x/y/pulls/ -f head=feat-rest -f base=dev
@@ -339,7 +350,8 @@ rm -f "$gitdir/pre-pr-verify-ok"; printf '%s' "$head" > "$gitdir/pre-pr-verify-d
 check "REST pr create, cluster -ifbase=main after base=dev refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -ifbase=main
 check "REST pr create, -F head=@file refused" 1 no api repos/x/y/pulls -F head=@"$tmp/repo/body.md" -f base=dev
 check "REST PR without base resolves default dev and requires a body reuse line" 1 no api repos/x/y/pulls -f head=feat-rest
-check "REST pr create, base dev then main (last wins) refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -f base=main
+check_message "REST pr create with two base= fields is refused outright" 1 no "name one base" api repos/x/y/pulls -f head=feat-rest -f base=dev -f base=main
+check_message "REST pr create with the same base= twice is refused too" 1 no "name one base" api repos/x/y/pulls -f head=feat-rest -f base=dev -f base=dev
 check "REST pr create, head naming another branch refused" 1 no api repos/x/y/pulls -f head=other -f base=dev
 check "REST pr create, head naming another owner refused" 1 no api repos/x/y/pulls -f head=evil:feat-rest -f base=dev
 check "REST pr create, no head refused" 1 no api repos/x/y/pulls -f base=dev
@@ -348,6 +360,44 @@ echo '{"head":"feat-rest","base":"dev"}' > "$tmp/repo/pr.json"
 check "REST pr create, --input payload refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev --input "$tmp/repo/pr.json"
 printf 'deadbeef security reviewer-x now art.md\n' > "$gitdir/independent-review-security-ok"
 check "REST pr create, one lens on the wrong sha refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev
+
+# ── Security lens is path-triggered: only auth / schema / migrations / money diffs need it
+g "$tmp/repo" push -q -f origin HEAD:refs/heads/dev
+g "$tmp/repo" checkout -q -b feat-plain
+echo x > "$tmp/repo/plain.txt"; g "$tmp/repo" add plain.txt; g "$tmp/repo" commit -qm plain
+rm -f "$gitdir"/independent-review-*-ok
+check "non-sensitive diff into dev needs no lens stamp" 0 yes pr create --base dev --title t --body "Reused: x"
+mkdir -p "$tmp/repo/supabase"; echo y > "$tmp/repo/supabase/m.sql"; g "$tmp/repo" add supabase; g "$tmp/repo" commit -qm schema
+check_message "schema diff into dev needs a security stamp" 1 no "security" pr create --base dev --title t --body "Reused: x"
+printf '%s security reviewer-x now art.md\n' "$(g "$tmp/repo" rev-parse HEAD)" > "$gitdir/independent-review-security-ok"
+check "schema diff into dev passes with a security stamp" 0 yes pr create --base dev --title t --body "Reused: x"
+g "$tmp/repo" checkout -q -b feat-migration refs/remotes/origin/dev
+mkdir -p "$tmp/repo/db/migrations"; echo z > "$tmp/repo/db/migrations/001.sql"; g "$tmp/repo" add db; g "$tmp/repo" commit -qm mig
+rm -f "$gitdir"/independent-review-*-ok
+check_message "a migration outside supabase/ still needs a security stamp" 1 no "security" pr create --base dev --title t --body "Reused: x"
+g "$tmp/repo" checkout -q -b feat-rename refs/remotes/origin/dev
+mkdir -p "$tmp/repo/supabase/migrations"; echo m > "$tmp/repo/supabase/migrations/001_x.sql"; g "$tmp/repo" add supabase; g "$tmp/repo" commit -qm addmig
+g "$tmp/repo" push -q -f origin HEAD:refs/heads/dev
+g "$tmp/repo" mv supabase/migrations/001_x.sql notes.txt; g "$tmp/repo" commit -qm renamed
+rm -f "$gitdir"/independent-review-*-ok
+check_message "renaming a migration to a neutral path still needs a security stamp" 1 no "security" pr create --base dev --title t --body "Reused: x"
+g "$tmp/repo" checkout -q -b feat-gatescript refs/remotes/origin/dev
+mkdir -p "$tmp/repo/scripts/lib"; echo g > "$tmp/repo/scripts/lib/github-repo.sh"; g "$tmp/repo" add scripts; g "$tmp/repo" commit -qm gatelib
+check_message "editing a gate library needs a security stamp" 1 no "security" pr create --base dev --title t --body "Reused: x"
+g "$tmp/repo" checkout -q -b feat-bigdiff refs/remotes/origin/dev
+mkdir -p "$tmp/repo/.github/workflows" "$tmp/repo/pad"; echo w > "$tmp/repo/.github/workflows/x.yml"
+for i in $(seq 1 3000); do : > "$tmp/repo/pad/file-$i.txt"; done
+g "$tmp/repo" add .github pad; g "$tmp/repo" commit -qm bigdiff
+check_message "a huge diff cannot hide a workflow change (no SIGPIPE fail-open)" 1 no "security" pr create --base dev --title t --body "Reused: x"
+g "$tmp/repo" push -q -f origin "$(g "$tmp/repo" rev-parse feat-plain)":refs/heads/dev
+g "$tmp/repo" checkout -q -b feat-stale refs/remotes/origin/dev
+g "$tmp/repo" branch -f dev HEAD
+mkdir -p "$tmp/repo/supabase"; echo s > "$tmp/repo/supabase/stale.sql"; g "$tmp/repo" add supabase; g "$tmp/repo" commit -qm stale
+g "$tmp/repo" branch -f dev HEAD
+check_message "a local base branch moved to HEAD cannot hide a sensitive diff (remote base decides)" 1 no "security" pr create --base dev --title t --body "Reused: x"
+printf '%s' "$(g "$tmp/repo" rev-parse HEAD)" > "$gitdir/pre-pr-verify-ok"
+check_message "a base that does not exist on origin is refused (no stale fallback)" 1 no "could not refresh" pr create --base no-such-branch --title t --body "Reused: x"
+check_message "an option-like base is refused" 1 no "looks like an option" pr create --base --upload-pack=x --title t --body "Reused: x"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

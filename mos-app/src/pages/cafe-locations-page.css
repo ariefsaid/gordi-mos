@@ -1,0 +1,89 @@
+/* Locations (preview): scope, toolbar, list, record panel. Tokens only. */
+.cafe-locs { display: grid; gap: var(--mos-field-gap); min-width: 0; align-content: start; }
+.cafe-locs__scope { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--mos-inline-gap) var(--mos-field-gap); }
+.cafe-locs__scope > :first-child { flex: 1 1 14rem; max-width: 24rem; }
+.cafe-locs__scope .cafe-locs__change { flex: none; width: auto; }
+.cafe-locs__notice { display: flex; width: 100%; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap) var(--mos-field-gap); }
+.cafe-locs__toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--mos-inline-gap) var(--mos-field-gap); }
+.cafe-locs__toolbar .search-field { flex: 1 1 16rem; max-width: 24rem; }
+.cafe-locs__count { margin-inline-start: auto; padding-bottom: var(--mos-control-pad-y); color: var(--mos-muted); font: var(--mos-type-meta); }
+.cafe-locs__chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap); }
+.cafe-locs .record-collection-view { overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.cafe-locs__reason, .cafe-locs__note { max-width: 60ch; margin: 0; color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
+.cafe-locs__muted { color: var(--mos-muted); }
+.cafe-locs__field { display: grid; gap: var(--mos-label-gap); }
+.cafe-locs__field-error { margin: 0; color: var(--mos-error-text); font: var(--mos-type-meta); }
+.cafe-locs__name-cell { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap); }
+.cafe-locs__name { color: var(--mos-ink); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); overflow-wrap: anywhere; }
+.cafe-locs__table th, .cafe-locs__table td { overflow-wrap: anywhere; vertical-align: top; }
+.cafe-locs__table th:last-child, .cafe-locs__table td:last-child { width: 6rem; text-align: end; }
+.cafe-locs__open, .cafe-locs__card-view {
+  display: inline-flex; align-items: center; justify-content: center; min-height: var(--mos-control-height); min-width: var(--mos-control-height);
+  color: var(--mos-accent); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); text-decoration: none;
+}
+.cafe-locs__open:hover { text-decoration: underline; text-underline-offset: 3px; }
+.cafe-locs__table tr.is-selected td { background: var(--mos-accent-tint); }
+
+/* Filters disclosure (phone): one row tall when closed. */
+.cafe-locs__filters { flex: 1 1 100%; border-bottom: 1px solid var(--mos-line); }
+.cafe-locs__filters > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--mos-row-gap);
+  min-height: var(--mos-control-height); list-style: none; cursor: pointer; color: var(--mos-ink); font: var(--mos-type-label);
+}
+.cafe-locs__filters > summary::-webkit-details-marker { display: none; }
+.cafe-locs__filters > summary::after {
+  content: ''; flex: none; width: var(--mos-icon-sm); height: var(--mos-icon-sm); background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.cafe-locs__filters[open] > summary::after { transform: rotate(180deg); }
+.cafe-locs__filters > summary:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.cafe-locs__filters-body { display: grid; gap: var(--mos-field-gap); padding-bottom: var(--mos-field-gap); }
+
+/* Phone: one row per place. Name + status first, one meta line (use · parent · branches), View at the end. */
+.cafe-locs__card {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main status" "main view";
+  align-items: center; gap: var(--mos-label-gap) var(--mos-inline-gap); min-height: var(--mos-row-min);
+  color: var(--mos-ink); text-decoration: none;
+}
+.cafe-locs__card-main { grid-area: main; display: grid; gap: var(--mos-label-gap); justify-items: start; min-width: 0; }
+.cafe-locs__card-title { font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); overflow-wrap: anywhere; }
+.cafe-locs__card-meta { color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
+.cafe-locs__card > .pill { grid-area: status; justify-self: end; }
+.cafe-locs__card-view { grid-area: view; justify-self: end; }
+
+/* Record panel: max 640px beside the list; on a phone it replaces the list. */
+.cafe-locs__panel { display: grid; gap: var(--mos-field-gap); align-content: start; min-width: 0; max-width: 640px; padding: var(--mos-panel-pad); background: var(--mos-surface); border: 1px solid var(--mos-line); border-radius: var(--radius-lg); }
+.cafe-locs__back { justify-self: start; min-height: var(--mos-control-height); }
+.cafe-locs__panel-title { margin: 0; color: var(--mos-ink); font: var(--mos-type-section); overflow-wrap: anywhere; }
+.cafe-locs__panel-title:focus-visible { outline-offset: var(--mos-focus-offset); }
+.cafe-locs__panel-badges { display: flex; flex-wrap: wrap; gap: var(--mos-inline-gap); margin: 0; }
+.cafe-locs__form { display: grid; gap: var(--mos-field-gap); }
+.cafe-locs__facts { display: grid; gap: var(--mos-field-gap); margin: 0; }
+.cafe-locs__facts dt { color: var(--mos-muted); font: var(--mos-type-label); }
+.cafe-locs__facts dd { margin: var(--mos-label-gap) 0 0; font: var(--mos-type-body); overflow-wrap: anywhere; }
+.cafe-locs__actions { margin-top: var(--mos-section-gap); }
+
+/* Available to branches: a searchable list of 44px check rows that scrolls inside its own box. */
+.cafe-locs__branches { display: grid; gap: var(--mos-inline-gap); min-width: 0; margin: 0; padding: 0; border: 0; }
+.cafe-locs__branches > legend { padding: 0; margin-bottom: var(--mos-label-gap); color: var(--mos-ink); font: var(--mos-type-label); }
+.cafe-locs__branch-list { margin: 0; padding: 0; list-style: none; max-height: 16rem; overflow-y: auto; border: 1px solid var(--control-border); border-radius: var(--radius-md); }
+.cafe-locs__branch-list li + li { border-top: 1px solid var(--mos-line); }
+.cafe-locs__branch-row {
+  display: flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height); padding: 0 var(--mos-row-pad-x);
+  color: var(--mos-ink); font: var(--mos-type-body); cursor: pointer; overflow-wrap: anywhere;
+}
+.cafe-locs__branch-row:hover { background: var(--mos-hover); }
+
+@media (min-width: 768px) {
+  .cafe-locs__workspace.cafe-setup-workspace--selected > .cafe-locs { max-height: calc(100dvh - 12rem); overflow-y: auto; }
+}
+@media (max-width: 767.98px) {
+  .cafe-locs__workspace.cafe-setup-workspace--selected > .cafe-locs { display: none; }
+  .cafe-locs__panel { padding: 0; background: transparent; border: 0; }
+  .cafe-locs__scope { max-width: none; }
+  .cafe-locs__toolbar .search-field { max-width: none; flex-basis: 100%; }
+  .cafe-locs__preview { width: 100%; }
+  .cafe-locs__count { margin-inline-start: 0; }
+}
+.cafe-locs__table th { white-space: normal; text-overflow: clip; }
+.cafe-locs__card[aria-current="true"] { background: var(--mos-accent-tint); }

@@ -11,7 +11,7 @@
 .waste-photo-capture-heading h3 {
   margin: 0;
   color: var(--foreground);
-  font-size: var(--font-size-body-lg);
+  font-size: var(--mos-size-3);
   font-weight: 650;
 }
 
@@ -19,7 +19,7 @@
 .waste-photo-capture-readiness {
   margin: 4px 0 0;
   color: var(--muted-foreground);
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
   line-height: 1.45;
 }
 
@@ -36,18 +36,18 @@
   background: var(--surface-tertiary);
   color: var(--foreground);
   cursor: pointer;
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   font-weight: 600;
 }
 
 .waste-photo-capture-add:focus-within {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: var(--mos-focus-offset);
 }
 
 .waste-photo-capture-add:has(input:disabled) {
   cursor: not-allowed;
-  opacity: 0.6;
+  color: var(--mos-muted);
 }
 
 .waste-photo-capture-input {
@@ -63,7 +63,7 @@
 .waste-photo-capture-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
-  gap: 8px;
+  gap: var(--mos-inline-gap);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -75,8 +75,8 @@
   min-width: 0;
   min-height: 76px;
   align-items: center;
-  gap: 10px;
-  padding: 8px;
+  gap: var(--mos-row-gap);
+  padding: var(--mos-inline-gap);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-tertiary);
@@ -97,13 +97,13 @@
   min-width: 0;
   gap: 4px;
   color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
 }
 
 .waste-photo-capture-filename {
   overflow: hidden;
   color: var(--foreground);
-  font-size: var(--font-size-mono);
+  font-size: var(--mos-size-2);
   font-weight: 550;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -122,7 +122,7 @@
 .waste-photo-capture-error {
   margin: 0;
   color: var(--destructive);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   line-height: 1.4;
 }
 
@@ -130,7 +130,7 @@
   min-width: 44px;
   min-height: 44px;
   padding: 8px;
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
 }
 
 .waste-photo-capture-upload {
@@ -149,7 +149,7 @@
 
   .waste-photo-capture-item {
     grid-template-columns: 60px minmax(0, 1fr) auto;
-    gap: 8px;
+    gap: var(--mos-inline-gap);
   }
 
   .waste-photo-capture-item > img {

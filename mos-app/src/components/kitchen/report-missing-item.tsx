@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { reportMissingCafeItem } from '@/lib/db/cafe-missing-item-reports'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
+import { Chevron } from '@/shell/icons'
 import { TextInput } from '@/components/ui/text-input'
 import './report-missing-item.css'
 
@@ -72,7 +73,8 @@ export function ReportMissingItem({ stream, streamLabel }: ReportMissingItemProp
           className="btn btn-ghost kl-missing-cta"
           onClick={() => setState('open')}
         >
-          {t('kitchen.log.missing.cta')}
+          <span>{t('kitchen.log.missing.cta')}</span>
+          <Chevron className="kl-missing-chevron" />
         </button>
       </p>
     )

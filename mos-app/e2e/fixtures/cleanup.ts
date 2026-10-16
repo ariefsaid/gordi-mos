@@ -35,7 +35,7 @@ export const cafeWasteCleanupSql = `
 
 // OD-CAFE-MVP-12: Café capture fixtures must explicitly configure team-owned kind + active
 // state. Unclassified/inactive ERP seed items intentionally do not appear in capture anymore.
-export const CAFE_PLAN_GUARD_FIXTURE = {
+const CAFE_PLAN_GUARD_FIXTURE = {
   orgId: org,
   itemId: 'a11e2e00-0000-0000-0000-000000013100',
   unitId: 'a11e2e00-0000-0000-0000-000000013101',
@@ -46,7 +46,7 @@ export const CAFE_PLAN_GUARD_FIXTURE = {
   itemName: 'E2E Plan Guard WIP Item',
 } as const
 
-export const cafePlanGuardCleanupSql = `
+const cafePlanGuardCleanupSql = `
   DELETE FROM ops.cafe_item_settings WHERE org_id = '${CAFE_PLAN_GUARD_FIXTURE.orgId}' AND wip_item_id = '${CAFE_PLAN_GUARD_FIXTURE.itemId}';
   DELETE FROM ops.stream_items WHERE org_id = '${CAFE_PLAN_GUARD_FIXTURE.orgId}' AND wip_item_id = '${CAFE_PLAN_GUARD_FIXTURE.itemId}';
   DELETE FROM ops.item_units WHERE org_id = '${CAFE_PLAN_GUARD_FIXTURE.orgId}' AND wip_item_id = '${CAFE_PLAN_GUARD_FIXTURE.itemId}';
@@ -98,48 +98,6 @@ export function pendingBillsFixtureCleanupSql(fixture: PendingBillsFixtureCleanu
   `
 }
 
-export const cafePlanGuardSeedSql = `
-  INSERT INTO ops.wip_items (
-    id, org_id, name, category, flag_active, esb_bom_id,
-    esb_product_detail_id_porsi, esb_product_id, kind, reference_source,
-    erp_category_type_name, has_active_bom_output
-  ) VALUES (
-    '${CAFE_PLAN_GUARD_FIXTURE.itemId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}',
-    '${CAFE_PLAN_GUARD_FIXTURE.itemName}', 'Bar', true, 'BOM-E2E-PLAN-GUARD',
-    'PD-E2E-PLAN-GUARD-PORSI', 'P-E2E-PLAN-GUARD', NULL, 'erp_catalog', 'Inventory', true
-  );
-
-  INSERT INTO ops.item_units (
-    id, org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id,
-    is_default, is_transferable, source_active, erp_is_stock, confirmed_at
-  ) VALUES (
-    '${CAFE_PLAN_GUARD_FIXTURE.unitId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}',
-    '${CAFE_PLAN_GUARD_FIXTURE.itemId}', 'portion', 'PD-E2E-PLAN-GUARD-UNIT',
-    'P-E2E-PLAN-GUARD', false, true, true, false, now()
-  );
-
-  INSERT INTO ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
-  VALUES
-    ('${CAFE_PLAN_GUARD_FIXTURE.orgId}', '25000000-0000-0000-0000-000000000001', 'bar', '${CAFE_PLAN_GUARD_FIXTURE.itemId}', 'manual'),
-    ('${CAFE_PLAN_GUARD_FIXTURE.orgId}', '25000000-0000-0000-0000-000000000002', 'kitchen', '${CAFE_PLAN_GUARD_FIXTURE.itemId}', 'manual');
-
-  INSERT INTO ops.cafe_item_settings (
-    id, org_id, branch_id, activity, wip_item_id, mos_name, kind, is_active
-  ) VALUES
-    ('${CAFE_PLAN_GUARD_FIXTURE.gordiBarSettingId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}', '25000000-0000-0000-0000-000000000001', 'bar', '${CAFE_PLAN_GUARD_FIXTURE.itemId}', '${CAFE_PLAN_GUARD_FIXTURE.itemName}', 'WIP', true),
-    ('${CAFE_PLAN_GUARD_FIXTURE.rumahKitchenSettingId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}', '25000000-0000-0000-0000-000000000002', 'kitchen', '${CAFE_PLAN_GUARD_FIXTURE.itemId}', '${CAFE_PLAN_GUARD_FIXTURE.itemName}', 'WIP', true);
-
-  INSERT INTO ops.cafe_item_setting_units (id, org_id, cafe_item_setting_id, item_unit_id)
-  VALUES
-    ('${CAFE_PLAN_GUARD_FIXTURE.gordiBarSettingUnitId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}', '${CAFE_PLAN_GUARD_FIXTURE.gordiBarSettingId}', '${CAFE_PLAN_GUARD_FIXTURE.unitId}'),
-    ('${CAFE_PLAN_GUARD_FIXTURE.rumahKitchenSettingUnitId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}', '${CAFE_PLAN_GUARD_FIXTURE.rumahKitchenSettingId}', '${CAFE_PLAN_GUARD_FIXTURE.unitId}');
-
-  -- CAFE_DEFAULT_UNIT_MUST_BE_SHOWN: the trigger requires the shown-unit links above first.
-  UPDATE ops.cafe_item_settings
-     SET default_item_unit_id = '${CAFE_PLAN_GUARD_FIXTURE.unitId}'
-   WHERE id IN ('${CAFE_PLAN_GUARD_FIXTURE.gordiBarSettingId}', '${CAFE_PLAN_GUARD_FIXTURE.rumahKitchenSettingId}');
-`
-
 /** Fail closed before transport if a hook adds a delete outside the fixed fixture boundary. */
 export function taskCleanupSql(taskIdsToDelete: readonly string[], taskOrg = org): string {
   if (!UUID.test(taskOrg) || taskIdsToDelete.some((id) => !UUID.test(id))) {
@@ -151,20 +109,6 @@ export function taskCleanupSql(taskIdsToDelete: readonly string[], taskOrg = org
     DELETE FROM mos.task_events WHERE org_id = '${taskOrg}' AND task_id IN (${owned});
     DELETE FROM mos.task_checklist_items WHERE org_id = '${taskOrg}' AND task_id IN (${owned});
     DELETE FROM mos.tasks WHERE org_id = '${taskOrg}' AND id IN (${owned});
-  `
-}
-
-/** Remove one or more dynamically captured Process runs and only their owned dependent rows. */
-export function processRunCleanupSql(runIds: readonly string[], runOrg = org): string {
-  if (!UUID.test(runOrg) || runIds.some((id) => !UUID.test(id))) {
-    throw new Error('E2E process-run cleanup requires UUID-owned rows')
-  }
-  if (runIds.length === 0) return ''
-  const owned = ids(runIds)
-  return `
-    DELETE FROM mos.process_run_pending_tasks WHERE org_id = '${runOrg}' AND process_run_id IN (${owned});
-    DELETE FROM mos.tasks WHERE org_id = '${runOrg}' AND process_run_id IN (${owned});
-    DELETE FROM mos.process_runs WHERE org_id = '${runOrg}' AND id IN (${owned});
   `
 }
 
@@ -197,63 +141,12 @@ export const budgetCleanupSql = (budgetIds: readonly string[], budgetOrg = org) 
 export const objectiveCleanupSql = (objectiveIds: readonly string[], objectiveOrg = org) =>
   capturedRowCleanupSql('mos.objectives', objectiveIds, objectiveOrg)
 
-export const processRunPendingCleanupSql = (pendingIds: readonly string[], pendingOrg = org) =>
-  capturedRowCleanupSql('mos.process_run_pending_tasks', pendingIds, pendingOrg)
-
 /** Remove the saved preferences of fixed e2e people. */
 export function personPreferenceCleanupSql(personIds: readonly string[]): string {
   if (personIds.some((id) => !UUID.test(id))) throw new Error('E2E preference cleanup requires UUID-owned rows')
   if (personIds.length === 0) return ''
   return `DELETE FROM shared.person_preferences WHERE person_id IN (${ids(personIds)});`
 }
-
-/** Remove notifications created by a journey, optionally asserting their owning person. */
-export function notificationCleanupSql(
-  notificationIds: readonly string[],
-  notificationOrg = org,
-  ownerId?: string,
-): string {
-  if (!UUID.test(notificationOrg) || notificationIds.some((id) => !UUID.test(id))
-    || (ownerId !== undefined && !UUID.test(ownerId))) {
-    throw new Error('E2E notification cleanup requires UUID-owned rows')
-  }
-  if (notificationIds.length === 0) return ''
-  const ownerClause = ownerId ? ` AND owner_id = '${ownerId}'` : ''
-  return `DELETE FROM mos.notifications WHERE org_id = '${notificationOrg}' AND id IN (${ids(notificationIds)})${ownerClause};`
-}
-
-/** Every Playwright data writer has an explicit cleanup contract recorded here. */
-export const E2E_CLEANUP_REGISTRY = {
-  'AC-014-bar-capture-journey.spec.ts': 'fixed-item-id',
-  'AC-018-objective-writeup.spec.ts': 'fixed-objective-id',
-  'AC-020-catalog.spec.ts': 'captured-objective-id-and-fixed-task-id',
-  'AC-090-kitchen-log-approve.spec.ts': 'fixed-item-id',
-  'cafe-waste-review.spec.ts': 'fixed-waste-item-id-with-storage-api-cleanup',
-  'AC-134.spec.ts': 'fixed-task-ids',
-  'AC-230.spec.ts': 'fixed-task-and-work-line-ids',
-  'AC-411-catalog-manage-mode.spec.ts': 'fixed-catalog-ids',
-  'AC-430-post-a-signal.spec.ts': 'captured-signal-ids',
-  'AC-524-follow-up.spec.ts': 'fixed-follow-up-ids',
-  'AC-744-cafe-write-gate.spec.ts': 'fixed-item-id',
-  'AC-1242-cafe-unit-wiring.spec.ts': 'fixed-item-unit-plan-and-captured-log-batch-ids',
-  'AC-1141-pending-bills-journey.spec.ts': 'fixed-bill-keys-and-owned-append-only-ledger-cleanup',
-  'AC-PB-012-budget-pricing-preflight.spec.ts': 'captured-budget-id',
-  'account-language.spec.ts': 'fixed-person-ids',
-  'authority-settings-roundtrip.spec.ts': 'captured-tenant-ids',
-  'dev-views.spec.ts': 'captured-user-view-id',
-  'guards.geometry.spec.ts': 'captured-task-ids',
-  'home-tasks-redesign.spec.ts': 'captured-task-ids',
-  'home-work-personas.spec.ts': 'captured-task-ids-plus-fixed-seed-ids',
-  'shell-count-parity.spec.ts': 'captured-notification-id',
-  'shell-url-state.spec.ts': 'captured-task-ids',
-  'tasks-archive.spec.ts': 'captured-task-ids',
-  'tasks-browser-back-dirty-veto.spec.ts': 'captured-task-ids',
-  'tasks-canonical-page.spec.ts': 'captured-task-ids',
-  'tasks-create-status.spec.ts': 'captured-task-ids',
-  'tasks-deeplink-mobile-keyboard.spec.ts': 'captured-task-ids',
-  'tasks-record-close.spec.ts': 'captured-task-ids',
-  'tasks-split-view.spec.ts': 'captured-task-ids',
-} as const
 
 /** Keep executable SQL tokens while blanking quoted bodies and comments. This lets the safety
  * boundary inspect statement keywords without treating `--` inside a string as a real comment. */

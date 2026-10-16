@@ -31,7 +31,7 @@ export interface PendingBillView {
 }
 
 /** The copy runs nightly; one older than this missed at least one run (the same threshold as Money). */
-export const PENDING_BILLS_STALE_AFTER_MS = 30 * 3600_000
+const PENDING_BILLS_STALE_AFTER_MS = 30 * 3600_000
 export const PENDING_BILL_FINANCE_LABEL_MAX_LENGTH = 60
 
 const DAY_MS = 86_400_000
@@ -235,3 +235,30 @@ export function validatePendingBillPaymentForm(draft: PendingBillPaymentDraft): 
 export function isPendingBillCopyStale(snapshotAsOf: string, now: Date): boolean {
   return now.getTime() - Date.parse(snapshotAsOf) > PENDING_BILLS_STALE_AFTER_MS
 }
+
+// ── Sort and the open bill in the URL ──────────────────────────────────────────────────────────
+type BillSortColumn = 'date' | 'amount' | 'balance'
+export interface BillSort { column: BillSortColumn; desc: boolean }
+/** Oldest bill first: the job is chasing what has waited longest. */
+export const DEFAULT_BILL_SORT = 'date.asc'
+
+export const billSortKey = (sort: BillSort): string => `${sort.column}.${sort.desc ? 'desc' : 'asc'}`
+
+export function parseBillSort(value: string | null): BillSort {
+  const [column, dir] = (value ?? DEFAULT_BILL_SORT).split('.')
+  if ((column === 'date' || column === 'amount' || column === 'balance') && (dir === 'asc' || dir === 'desc')) return { column, desc: dir === 'desc' }
+  return { column: 'date', desc: false }
+}
+
+export function sortPendingBills(bills: readonly PendingBillView[], sort: BillSort): PendingBillView[] {
+  const sign = sort.desc ? -1 : 1
+  const value = (bill: PendingBillView) => sort.column === 'date' ? bill.billDate : sort.column === 'amount' ? bill.amount : bill.balance
+  return [...bills].sort((a, b) => {
+    const x = value(a); const y = value(b)
+    const diff = typeof x === 'string' ? x.localeCompare(y as string) : (x as number) - (y as number)
+    return diff * sign || a.billDate.localeCompare(b.billDate) || a.id.localeCompare(b.id)
+  })
+}
+
+/** The open bill as the URL names it: the copy's three identifiers, joined. */
+export const billParamKey = (bill: Pick<PendingBillView, 'esbCode' | 'branchCode' | 'billNo'>): string => [bill.esbCode, bill.branchCode, bill.billNo].join('|')

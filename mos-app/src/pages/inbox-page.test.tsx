@@ -72,14 +72,12 @@ beforeEach(() => {
 describe('InboxPage — shared state kit', () => {
   it('loading: renders the shared skeleton state instead of an empty inbox', () => {
     mockUseNotifications.mockReturnValue(hookState({ loading: true }))
-    const { container } = renderPage()
+    renderPage()
 
-    // The connected triage body owns the loading grammar: a busy status region over the shared
-    // skeleton rows — never a bare empty/"caught up" surface while data is still in flight.
-    const status = screen.getByRole('status')
-    expect(status).toHaveAttribute('aria-busy', 'true')
-    expect(container.querySelector('.skeleton-rows')).not.toBeNull()
-    expect(screen.queryByText(/caught up/i)).not.toBeInTheDocument()
+    // The connected triage body owns the loading grammar: a busy status region — never a bare
+    // empty surface while data is still in flight.
+    expect(screen.getAllByRole('status').some((status) => status.getAttribute('aria-busy') === 'true')).toBe(true)
+    expect(screen.queryByText(/no notifications yet/i)).not.toBeInTheDocument()
   })
 
   it('error: renders the shared retryable ErrorState and calls refresh', () => {
@@ -92,45 +90,35 @@ describe('InboxPage — shared state kit', () => {
     expect(refresh).toHaveBeenCalled()
   })
 
-  it('empty: renders the shared quiet EmptyState caught-up copy', () => {
+  it('empty: renders the shared quiet EmptyState', () => {
     renderPage()
 
     const emptyState = screen.getByTestId('empty-state')
     expect(emptyState).toHaveAttribute('data-empty-variant', 'quiet')
-    expect(screen.getByText(/caught up/i)).toBeInTheDocument()
-    expect(emptyState.querySelector('.empty-state-icon')).not.toBeNull()
-    expect(emptyState.querySelector('.empty-title')).not.toBeNull()
-    expect(emptyState.querySelector('.empty-copy')).not.toBeNull()
+    expect(within(emptyState).getByText('No notifications yet')).toBeInTheDocument()
   })
 
-  it('W4-3: empty copy names supported Signal and comment notifications in both locales and stays actionless', () => {
+  it('W4-3: empty copy names supported Signal notifications in both locales; the page offers one way on, to my tasks', () => {
     const english = renderPage('en')
 
     const emptyState = screen.getByTestId('empty-state')
     expect(emptyState).toHaveAttribute('data-empty-variant', 'quiet')
-    expect(within(emptyState).getByText(
-      'You\'ll see a notification here when someone mentions you in a Signal or a comment, or retracts a Signal you wrote.',
-    )).toBeInTheDocument()
-    // The quiet empty state itself carries no call-to-action (no push-to-act when caught up); the
-    // only controls on the surface are the persistent filter chips, never an empty-state CTA/link.
-    expect(emptyState.querySelector('.empty-actions')).toBeNull()
-    expect(within(emptyState).queryByRole('button')).toBeNull()
-    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(within(emptyState).getByText('Mentions and Signal retractions appear here.')).toBeInTheDocument()
+    expect(within(emptyState).getByRole('link', { name: 'View my tasks' })).toHaveAttribute('href', '/work/tasks?view=my-work')
 
     english.unmount()
     renderPage('id')
     expect(within(screen.getByTestId('empty-state')).getByText(
-      'Notifikasi muncul di sini saat seseorang menyebut Anda di Sinyal atau komentar, atau menarik kembali Sinyal yang Anda tulis.',
+      'Sebutan dan penarikan Sinyal akan muncul di sini.',
     )).toBeInTheDocument()
   })
 
-  it('populated: renders the notification list without the home surface wash', () => {
+  it('populated: renders the notification list', () => {
     mockUseNotifications.mockReturnValue(hookState({ notifications: [notification()] }))
-    const { container } = renderPage()
+    renderPage()
 
     expect(screen.getByRole('list', { name: /inbox/i })).toBeInTheDocument()
-    expect(container.querySelector('.content-header')).not.toBeNull()
-    expect(container.querySelector('main')?.style.backgroundImage).toBe('')
+    expect(screen.getByRole('button', { name: /Task assigned/ })).toBeInTheDocument()
   })
 
   it('keeps loaded Inbox rows visible and offers a localized continuation when another page exists', () => {
@@ -173,14 +161,14 @@ describe('InboxPage — shared state kit', () => {
     mockUseNotifications.mockReturnValue(hookState({ notifications: rows, unreadCount: 2 }))
     renderPage()
 
-    expect(screen.getByRole('button', { name: /Unread · 2/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Mention one.*unread/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Mention two.*unread/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Unread\s*2$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Unread: .*Mention one/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Unread: .*Mention two/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Handled item/i })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Unread · 2/i }))
-    expect(screen.getByRole('button', { name: /Mention one.*unread/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Mention two.*unread/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^Unread\s*2$/i }))
+    expect(screen.getByRole('button', { name: /Unread: .*Mention one/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Unread: .*Mention two/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Handled item/i })).toBeNull()
   })
 
@@ -221,6 +209,8 @@ describe('DO-1 — the triage list is never squashed by an empty record track', 
 
   it('>=1100px with a record open: the split track appears so the record sits beside the list', () => {
     stubMatchMedia(true)
+    // The split needs a content track wide enough for list + record; with no shell mounted that is the viewport.
+    Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 1600 })
     mockUseNotifications.mockReturnValue(hookState({ notifications: [notification()] }))
     const { container } = renderHostedPage()
     fireEvent.click(screen.getByRole('button', { name: /Task assigned/ }))

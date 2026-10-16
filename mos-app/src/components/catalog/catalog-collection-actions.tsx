@@ -7,6 +7,7 @@
 // in the shared record document's overflow menu rather than in a second per-row action cluster.
 /* eslint-disable react-refresh/only-export-components -- context seam: provider + hook co-located */
 import { createContext, useContext, type ReactNode } from 'react'
+import type { CatalogDirection, CatalogSort } from './catalog-collection-adapter'
 
 export interface CatalogCollectionActions {
   /**
@@ -27,6 +28,8 @@ export interface CatalogCollectionActions {
   archive: (id: string) => Promise<void>
   /** Restore an archived row. Rejects on failure. */
   unarchive: (id: string) => Promise<void>
+  /** Header sort of the register; omitted when sorting is not offered. */
+  onSort?: (sort: CatalogSort, direction: CatalogDirection) => void
   /** Optional focused draft controller. The collection head opens this draft; the presentation
    * renders it inside the list. */
   createDraft?: CatalogCreateDraft

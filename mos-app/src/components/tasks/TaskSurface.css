@@ -4,10 +4,10 @@
 /* All raw values are DESIGN.md CSS-var tokens — no hardcoded hex/spacing literals.       */
 
 /* ── Breadcrumb ── */
-.breadcrumb { font-size: var(--font-size-body-lg); color: var(--muted-foreground); margin-bottom: 12px; }
+.breadcrumb { font-size: var(--mos-size-3); color: var(--muted-foreground); margin-bottom: 12px; }
 .breadcrumb-link { color: var(--muted-foreground); text-decoration: none; }
 .breadcrumb-link:hover { color: var(--foreground); }
-.breadcrumb-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.breadcrumb-link:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 .breadcrumb-sep { margin: 0 6px; }
 .breadcrumb-current { color: var(--foreground); font-weight: 500; }
 
@@ -16,14 +16,14 @@
   background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
   box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
-  padding: 16px 20px; margin-bottom: 16px;
+  padding: var(--mos-panel-pad) var(--mos-gutter); margin-bottom: var(--mos-panel-pad);
 }
-.head-top { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.head-top { display: flex; align-items: flex-start; gap: var(--mos-field-gap); flex-wrap: wrap; }
 .head-title-block { flex: 1; min-width: 0; }
 .task-title {
   /* typeset: was 26px/700 (off-ramp + pre-OD-P3-9 weight) — this is the record's page title,
      the same role page-head.css's h1 already carries at 24px/600 app-wide. */
-  font-size: var(--font-size-page-title); font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; /* OD-P3-9: Jakarta tracking relaxed */
+  font: var(--mos-type-page); letter-spacing: var(--mos-title-tracking);
   color: var(--foreground);
 }
 .actions-cluster {
@@ -38,7 +38,7 @@
     width: 100%; flex-shrink: unset;
     flex-wrap: wrap; gap: 8px;
   }
-  .actions-cluster > * { min-height: 44px; }
+  .actions-cluster > * { min-height: var(--mos-control-height); }
 }
 
 /* ── Record body ──
@@ -72,61 +72,60 @@
    ConfirmDialog primitive (components/ui/confirm-dialog.tsx). One centered modal, no copy. */
 
 /* ── Meta row ── */
-.meta-row { display: flex; gap: 20px; margin-top: 12px; flex-wrap: wrap; }
-.meta-item { display: flex; flex-direction: column; gap: 2px; }
+.meta-row { display: flex; gap: var(--mos-gutter); margin-top: var(--mos-row-pad-y); flex-wrap: wrap; }
+.meta-item { display: flex; flex-direction: column; gap: var(--mos-stack-gap); }
 .meta-label {
-  font-size: var(--font-size-overline); font-weight: 600; letter-spacing: 0.06em;
-  text-transform: uppercase; color: var(--muted-foreground);
+  font-size: var(--mos-size-1); font-weight: 600; color: var(--muted-foreground);
 }
-.meta-value { font-size: var(--font-size-body-lg); color: var(--foreground); }
+.meta-value { font-size: var(--mos-size-3); color: var(--foreground); }
 
 /* ── Generic card (OD-P3-10/11) ── */
 .card {
   background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
   box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
-  padding: 16px 20px; margin-bottom: 16px;
+  padding: var(--mos-panel-pad) var(--mos-gutter); margin-bottom: var(--mos-panel-pad);
 }
 .card-h2 {
-  font-size: var(--font-size-heading); font-weight: 600; line-height: 1.3; margin-bottom: 12px;
-  display: flex; align-items: center; gap: 10px; color: var(--foreground);
+  font-size: var(--mos-size-4); font-weight: 600; line-height: 1.3; margin-bottom: var(--mos-group-below);
+  display: flex; align-items: center; gap: var(--mos-inline-gap); color: var(--foreground);
 }
 
 /* ── Description ── */
-.desc-body { font-size: var(--font-size-body-lg); line-height: 1.5; color: var(--foreground); } /* typeset: was 16px off-ramp */
-.empty-substate { font-size: var(--font-size-body-lg); color: var(--muted-foreground); }
+.desc-body { font-size: var(--mos-size-3); line-height: 1.5; color: var(--foreground); } /* typeset: was 16px off-ramp */
+.empty-substate { font-size: var(--mos-size-3); color: var(--muted-foreground); }
 
 .person-field {
-  height: 36px; border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
+  height: var(--mos-control-height); border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   background: var(--background); padding: 0 10px;
   display: flex; align-items: center; gap: 8px;
 }
 /* I2: editable PIC field — button form of person-field */
 .person-field-btn {
-  height: 36px; border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
+  height: var(--mos-control-height); border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   background: var(--background); padding: 0 10px;
   display: flex; align-items: center; gap: 8px;
   width: 100%; cursor: pointer; font: inherit; text-align: left;
 }
 .person-field-btn:hover { border-color: var(--ring); background: var(--surface-tertiary); }
-.person-field-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.person-field-btn:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 .person-field-edit-hint {
-  margin-left: auto; font-size: var(--font-size-overline); color: var(--muted-foreground); flex-shrink: 0;
+  margin-left: auto; font-size: var(--mos-size-1); color: var(--muted-foreground); flex-shrink: 0;
 }
 /* VIS-1: ONE avatar gradient (navy→primary, OD-P3-7) — same as shell/UserChip.tsx.
    Violet (--violet) is KPI/timeline only; no avatar carries it. PIC and Supervisor
    share the canonical gradient; the typed label carries the ownership distinction. */
 .person-av {
-  width: 22px; height: 22px; border-radius: var(--radius-pill); flex: none;
+  width: 22px; height: 22px; border-radius: var(--radius-round); flex: none;
   background: linear-gradient(135deg, var(--brand-navy), var(--primary));
   color: var(--primary-foreground); display: grid; place-items: center;
-  font-size: var(--font-size-micro); font-weight: 700;
+  font-size: var(--mos-size-1); font-weight: 700;
 }
-.person-name { font-size: var(--font-size-body-lg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-name { font-size: var(--mos-size-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rd-source-value { font-weight: 500; }
-.task-mark-complete { align-self: flex-start; min-height: 36px; }
+.task-mark-complete { align-self: flex-start; min-height: var(--mos-control-height); }
 @media (max-width: 767.98px) {
-  .task-mark-complete { width: 100%; min-height: 44px; }
+  .task-mark-complete { width: 100%; min-height: var(--mos-control-height); }
 }
 
 /* ── Person picker ── */
@@ -136,46 +135,46 @@
   padding: 4px; display: flex; flex-direction: column;
   min-width: 200px; max-width: min(320px, calc(100vw - 24px));
   max-height: min(280px, var(--radix-popover-content-available-height, 280px));
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--foreground) 10%, transparent);
+  box-shadow: var(--shadow-popover);
 }
 .person-picker__command { display: flex; flex-direction: column; min-height: 0; }
 .person-picker-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .person-picker-anchor { display: block; height: 0; }
 .person-picker-option {
-  display: flex; align-items: center; gap: 8px; padding: 6px 8px;
-  border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-body-lg);
+  display: flex; align-items: center; gap: var(--mos-inline-gap); padding: var(--mos-control-pad-y) var(--mos-inline-gap);
+  border-radius: var(--radius-sm); cursor: pointer; font-size: var(--mos-size-3);
 }
-.person-picker-option[data-selected='true'] { background: var(--surface-tertiary); outline: 2px solid var(--ring); outline-offset: -2px; }
+.person-picker-option[data-selected='true'] { background: var(--surface-tertiary); outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: calc(-1 * var(--mos-focus-width)); }
 .person-picker-option:hover:not([data-selected='true']) {
-  background: color-mix(in srgb, var(--surface-tertiary) 45%, transparent);
+  background: var(--mos-hover);
 }
 .person-picker-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .person-picker-search {
-  box-sizing: border-box; width: 100%; min-height: 32px; margin-bottom: 4px; padding: 5px 10px;
+  box-sizing: border-box; width: 100%; min-height: var(--mos-control-height); margin-bottom: 4px; padding: 5px 10px;
   border: 1px solid var(--input); border-radius: var(--radius-sm);
   background: var(--background); color: var(--foreground);
-  font: inherit; font-size: var(--font-size-control);
+  font: inherit; font-size: var(--mos-size-3);
 }
-.person-picker-search:focus-visible { border-color: var(--primary); outline: 2px solid var(--ring); outline-offset: 1px; }
-.person-picker-empty { padding: 6px 8px; color: var(--muted-foreground); font-size: var(--font-size-body-lg); }
+.person-picker-search:focus-visible { border-color: var(--primary); outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.person-picker-empty { padding: 6px 8px; color: var(--muted-foreground); font-size: var(--mos-size-3); }
 
 /* ── Activity thread ── */
 .thread { display: flex; flex-direction: column; }
 .event-entry {
-  display: flex; gap: 10px; padding: 10px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  display: flex; gap: var(--mos-row-gap); padding: var(--mos-row-pad-y) 0;
+  border-bottom: 1px solid var(--mos-line);
 }
 .event-entry:last-child { border-bottom: none; }
 .event-av {
-  width: 26px; height: 26px; border-radius: var(--radius-pill); flex: none;
+  width: 26px; height: 26px; border-radius: var(--radius-round); flex: none;
   background: linear-gradient(135deg, var(--brand-navy), var(--primary));
   color: var(--primary-foreground); display: grid; place-items: center;
-  font-size: var(--font-size-micro); font-weight: 700;
+  font-size: var(--mos-size-1); font-weight: 700;
 }
 .event-body { flex: 1; min-width: 0; }
-.event-who { font-size: var(--font-size-body-lg); font-weight: 600; color: var(--foreground); margin-right: 6px; }
-.event-when { font-size: var(--font-size-label); color: var(--muted-foreground); }
-.event-label { font-size: var(--font-size-label); color: var(--muted-foreground); margin-top: 2px; }
+.event-who { font-size: var(--mos-size-3); font-weight: 600; color: var(--foreground); margin-right: 6px; }
+.event-when { font-size: var(--mos-size-1); color: var(--muted-foreground); }
+.event-label { font-size: var(--mos-size-1); color: var(--muted-foreground); margin-top: 2px; }
 
 /* ── Comment composer (owner-eyes item 9) ──
    Plain, conventional composer: the textarea fills the panel's content measure and holds a
@@ -183,14 +182,16 @@
    Previously the textarea had NO rule at all, so it fell back to the browser default (~180px cols),
    a tiny box that clipped and overlapped the empty-state line, with the action floating beside it. */
 .comment-composer { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; position: relative; }
+.comment-composer__label { font: var(--mos-type-label); color: var(--mos-ink); }
 .comment-composer__input {
   width: 100%; box-sizing: border-box; min-height: 76px; resize: vertical;
-  padding: 10px 12px; font: inherit; font-size: var(--font-size-body-lg); line-height: 1.5; color: var(--foreground);
-  background: var(--background); border: 1px solid var(--input); border-radius: var(--radius-sm);
+  padding: 10px 12px; font: inherit; font-size: var(--mos-size-3); line-height: 1.5; color: var(--foreground);
+  background: var(--mos-surface); border: 1px solid var(--input); border-radius: var(--radius-sm);
 }
 .comment-composer__input::placeholder { color: var(--muted-foreground); }
-.comment-composer__input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; border-color: var(--ring); }
-.comment-composer__actions { display: flex; justify-content: flex-end; }
+.comment-composer__input:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-color: var(--ring); }
+.comment-composer__actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.comment-composer__reason { color: var(--muted-foreground); font-size: var(--mos-size-3); }
 
 /* Not-found renders through the shared EmptyState primitive (components/ui/state-kit.tsx +
    CardHead.css) — no bespoke `.not-found-*` panel/title/copy rules to drift out of sync with
@@ -217,27 +218,20 @@
    already extends to the leaf ("Tasks › New task"). The redundant .tc-breadcrumb* rules
    (and the OpsAddForm in-page crumb) are gone — one breadcrumb, one `›` separator. */
 
-.tc-page-head { margin-bottom: 16px; }
-.tc-page-title { font-size: var(--font-size-page-title); font-weight: 600; letter-spacing: -0.01em; color: var(--foreground); } /* OD-P3-9: Jakarta tracking relaxed. typeset: was 26px/700 off-ramp */
+.tc-page-head { margin-bottom: var(--mos-field-gap); }
+/* tc-page-title: THE page title role (see styles/page-title.css) */
+.tc-page-title { font: var(--mos-type-page); letter-spacing: var(--mos-title-tracking); color: var(--mos-ink); }
 
 .tc-card {
   max-width: 640px;
   background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
   box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
-  padding: 20px 24px;
+  padding: var(--mos-gutter);
 }
 
-.tc-submit-error {
-  /* I4: error TEXT uses the AA-darkened red (--field-error-text = --status-lost-text);
-     the tinted bg + border keep the saturated --destructive hue (non-text affordances). */
-  padding: 10px 12px; margin-bottom: 16px; border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--status-lost-text);
-  font-size: var(--font-size-body-lg); border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
-}
-
-.tc-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
-.tc-label { font-size: var(--font-size-body-lg); font-weight: 500; color: var(--foreground); }
+.tc-field { display: flex; flex-direction: column; gap: var(--mos-label-gap); margin-bottom: var(--mos-field-gap); }
+.tc-label { font: var(--mos-type-label); color: var(--mos-ink);  }
 .tc-required { color: var(--destructive); margin-left: 2px; }
 
 /* H10 fix (PIC/Supervisor help): the label + "?" affordance sit on one row. The "?" itself
@@ -261,22 +255,22 @@
    of its label row, so growing the bubble from the button's own left edge (not centering it, and
    not growing leftward off a right anchor) is what actually stays inside the panel's right bound;
    downward into the pane's own scroll room stays clear of the top clip too. */
-.tc-label-row { display: flex; align-items: center; gap: 6px; }
+.tc-label-row { display: flex; align-items: center; gap: var(--mos-inline-gap); }
 .tc-help-wrap { position: relative; display: inline-flex; }
 .tc-help {
   display: inline-flex; align-items: center; justify-content: center;
   width: 14px; height: 14px; padding: 0; background: transparent;
-  font-family: inherit; border-radius: var(--radius-pill);
+  font-family: inherit; border-radius: var(--radius-round);
   border: 1px solid var(--border); color: var(--muted-foreground);
-  font-size: var(--font-size-overline); cursor: help; flex: none;
+  font-size: var(--mos-size-1); cursor: help; flex: none;
 }
-.tc-help:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.tc-help:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 .tc-help-bubble {
   position: absolute; left: 0; top: calc(100% + 6px);
   z-index: var(--z-popover); width: max-content; max-width: 200px;
   background: var(--popover); color: var(--foreground); border: 1px solid var(--border);
   border-radius: var(--radius-sm); box-shadow: var(--shadow-overlay);
-  padding: 6px 10px; font-size: var(--font-size-label); font-weight: 400; line-height: 1.4;
+  padding: 6px 10px; font-size: var(--mos-size-1); font-weight: 400; line-height: 1.4;
   text-align: left; opacity: 0; visibility: hidden; pointer-events: none;
   transition: opacity 120ms ease;
 }
@@ -290,11 +284,11 @@
 .tc-textarea {
   width: 100%; padding: 8px 12px;
   border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control/input, OD-P3-10 */
-  background: var(--background); font: inherit; font-size: var(--font-size-touch-input);
+  background: var(--background); font: inherit; font-size: var(--mos-size-3);
   color: var(--foreground); resize: vertical;
 }
 .tc-textarea:focus-visible {
-  outline: 2px solid var(--ring); outline-offset: 2px;
+  outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset);
 }
 
 /* F2 fix: the shared TextInput/Select/DateField primitives own their own token chrome
@@ -302,24 +296,25 @@
    field rhythm (same override pattern the record-field__select rule uses to raise
    Select to the record's 44px floor — see record-viewer.css). typeset: 16px → the
    --font-size-touch-input token (same mechanical anti-zoom case, now named). */
-.tc-input .mk-textinput__box { height: 36px; padding: 0 12px; }
-.tc-input .mk-textinput__field { font-size: var(--font-size-touch-input); }
-.tc-select .mk-select__box { height: 36px; padding: 0 34px 0 12px; }
-.tc-select .mk-select__field { font-size: var(--font-size-touch-input); }
+.tc-input .mk-textinput__box { height: var(--mos-control-height); padding: 0 12px; }
+.tc-input .mk-textinput__field { font-size: var(--mos-size-3); }
+.tc-select .mk-select__box { height: var(--mos-control-height); padding: 0 34px 0 12px; }
+.tc-select .mk-select__field { font-size: var(--mos-size-3); }
 .tc-select .mk-select__chevron { right: 10px; }
 .tc-picker { width: 100%; }
-.tc-picker .picker__trigger { min-height: 36px; height: 36px; padding: 7px 12px; font-size: var(--font-size-touch-input); }
-.tc-date .mk-date__box { height: 36px; padding: 0 0 0 12px; }
-.tc-date .mk-date__field { font-size: var(--font-size-touch-input); }
+.tc-picker .picker__trigger { min-height: var(--mos-control-height); height: var(--mos-control-height); padding: 7px 12px; font-size: var(--mos-size-3); }
+.tc-date .mk-date__box { height: var(--mos-control-height); padding: 0 0 0 12px; }
+.tc-date .mk-date__field { font-size: var(--mos-size-3); }
 
 /* I4: error TEXT below a field uses the AA-darkened red (--field-error-text =
    --status-lost-text). The invalid field's border (the ratified components' own
    .mk-*--error rule) and the required asterisk (.tc-required) keep base --destructive
    — those are non-text. */
-.tc-field-error { font-size: var(--font-size-label); color: var(--status-lost-text); }
+.tc-field-error { font-size: var(--mos-size-1); color: var(--status-lost-text); }
+.tc-hint { margin: 0; font-size: var(--mos-size-1); color: var(--muted-foreground); }
 .tc-title-error-slot {
   min-height: 1.25em;
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   line-height: 1.25;
 }
 
@@ -336,9 +331,9 @@
    NON-primitive fields. The TextInput/Select/DateField boxes get the same floor at the
    primitive seam (components/ui/*.css) so every consumer inherits it. */
 @media (max-width: 767.98px) {
-  .tc-textarea { min-height: 44px; }
-  .tc-loading-field { min-height: 44px; }
-  .tc-picker .picker__trigger { min-height: 44px; height: 44px; }
+  .tc-textarea { min-height: var(--mos-control-height); }
+  .tc-loading-field { min-height: var(--mos-control-height); }
+  .tc-picker .picker__trigger { min-height: var(--mos-control-height); height: var(--mos-control-height); }
 }
 
 .tc-actions {
@@ -376,10 +371,10 @@
 
 /* ── Utility bar (crumb-mini + expand + close) ── */
 .dw-bar {
-  display: flex; align-items: center; gap: 6px;
-  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: var(--mos-inline-gap);
+  padding: var(--mos-bar-pad-y) var(--mos-bar-pad-x); border-bottom: 1px solid var(--border);
 }
-.dw-crumb-mini { font-size: var(--font-size-label); color: var(--muted-foreground); }
+.dw-crumb-mini { font-size: var(--mos-size-1); color: var(--muted-foreground); }
 .dw-bar-spacer { flex: 1; }
 /* P1-4 (Luna-measured 30px header trio on FULL-SCREEN records): the coarse-pointer pattern
    (same as record-panel-host.css .record-panel-btn) — the RESTING size defaults to the 44px touch
@@ -389,31 +384,31 @@
    phone its Back / Ask-Deputy / expand / Close trio previously fell through to 30px unconditionally
    — the exact bug Luna measured. This fixes the shared drawer chrome once, for every host. */
 .dw-iconbtn {
-  width: 44px; height: 44px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
+  width: var(--mos-control-height); height: var(--mos-control-height); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   background: transparent; border: 1px solid transparent;
   display: grid; place-items: center; cursor: pointer;
   color: var(--muted-foreground);
 }
 .dw-iconbtn:hover { background: var(--surface-tertiary); color: var(--foreground); }
-.dw-iconbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.dw-iconbtn:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 
 /* #718: this query carried no width guard (same class as #708's record-panel-btn fix), so ANY
  * environment reporting a fine pointer — a resized desktop window, a non-touch mobile emulation —
  * fired it at phone width too, tightening the drawer icon buttons under the 44px floor.
  * `and (min-width: 768px)` confines the tighten-down to genuine desktop. */
 @media (pointer: fine) and (min-width: 768px) {
-  .dw-iconbtn { width: 30px; height: 30px; }
+  .dw-iconbtn { width: var(--mos-control-height); height: var(--mos-control-height); }
 }
 
 .dw-open-page {
   height: 28px; padding: 0 8px; border: 0; border-radius: var(--radius-sm);
   background: transparent; color: var(--status-open-text); font: inherit;
-  font-size: var(--font-size-label); font-weight: 600; cursor: pointer; white-space: nowrap;
+  font-size: var(--mos-size-1); font-weight: 600; cursor: pointer; white-space: nowrap;
 }
 .dw-open-page:hover { background: var(--surface-tertiary); }
-.dw-open-page:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.dw-open-page:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 @media (max-width: 767.98px) {
-  .dw-open-page { min-height: 44px; }
+  .dw-open-page { min-height: var(--mos-control-height); }
 }
 
 /* ── Tab pane (the scrolling body — now hosts the compact panel + RecordFeed) ── */
@@ -425,7 +420,7 @@
 .dw-tabpane .card {
   background: transparent; border: 0; border-radius: 0; padding: 0; margin: 0;
 }
-.dw-tabpane .card-h2 { font-size: var(--font-size-overline); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); }
+.dw-tabpane .card-h2 { font-size: var(--mos-size-1); font-weight: 600; color: var(--muted-foreground); }
 
 /* ── Pinned foot — Archive always reachable ── */
 .dw-foot { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; flex: none; }
@@ -452,10 +447,3 @@
 /* The scrolling body reuses `.dw-tabpane` (flex:1 · min-height:0 · overflow:auto · padding). */
 .tc-create-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .tc-create-foot { justify-content: flex-end; gap: 8px; }
-.task-lifecycle-error {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-}

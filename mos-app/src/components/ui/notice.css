@@ -1,0 +1,33 @@
+/* The one page-level notice: matching semantic pair for all copy and icon, 20px icon aligned to the first
+   line, 12px gap, 16px padding, 6px radius, no side stripe. Problem + recovery; action wraps below on phone. */
+.notice {
+  --notice-bg: var(--mos-band);
+  --notice-fg: var(--mos-ink);
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--mos-space-1) var(--mos-space-3);
+  box-sizing: border-box; width: 100%; min-width: 0; margin: 0 0 var(--mos-space-3);
+  padding: var(--mos-space-4); border: 0; border-radius: var(--radius-sm);
+  background: var(--notice-bg); color: var(--notice-fg);
+  font: var(--mos-type-body); text-align: start;
+}
+.notice--neutral { --notice-bg: var(--mos-band); --notice-fg: var(--mos-ink); }
+.notice--primary { --notice-bg: var(--mos-accent-tint); --notice-fg: var(--mos-info-text); }
+.notice--success { --notice-bg: var(--mos-success-tint); --notice-fg: var(--mos-success-text); }
+.notice--warning { --notice-bg: var(--mos-warning-tint); --notice-fg: var(--mos-warning-text); }
+.notice--destructive { --notice-bg: var(--mos-danger-tint); --notice-fg: var(--mos-error-text); }
+.notice__icon { flex: none; width: var(--mos-icon-md); height: var(--mos-icon-md); margin-block: calc((1lh - var(--mos-icon-md)) / 2); }
+.notice__text { flex: 1 1 14rem; min-width: 0; max-width: 70ch; }
+.notice__text > :first-child { margin-top: 0; }
+.notice__text > :last-child { margin-bottom: 0; }
+.notice__text p { margin: 0; }
+.notice__text a, .notice__link {
+  display: inline; color: inherit; font-weight: var(--mos-weight-semibold); text-decoration: underline; text-underline-offset: 2px;
+  background: none; border: 0; padding: 0; font: inherit; font-weight: var(--mos-weight-semibold); cursor: pointer;
+}
+.notice__action { flex: 0 0 auto; display: inline-flex; align-items: center; gap: var(--mos-space-2); margin-inline-start: auto; }
+.notice__action a, .notice__action button { color: inherit; font-weight: var(--mos-weight-semibold); }
+.notice__action .btn { color: var(--mos-ink); }
+@media (max-width: 767.98px) {
+  .notice__action { flex-basis: 100%; margin-inline-start: calc(var(--mos-icon-md) + var(--mos-space-3)); }
+  .notice__action a, .notice__action button:not(.btn) { display: inline-flex; align-items: center; min-height: var(--mos-control-height); padding-inline: var(--mos-space-1); }
+  .notice__text a { padding: 14px 10px; margin: -14px -10px; }
+}

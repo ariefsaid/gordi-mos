@@ -3,7 +3,7 @@ import { readAllPages } from '@/lib/db/reporting-shared'
 import { shrinkPhoto } from '@/lib/db/signal-photos'
 import { normalizePendingBillFinanceLabel, PENDING_BILL_FINANCE_LABEL_MAX_LENGTH, validatePendingBillFinanceLabel } from '@/lib/pending-bills'
 
-export const PENDING_BILL_PROOFS_BUCKET = 'pending-bill-proofs'
+const PENDING_BILL_PROOFS_BUCKET = 'pending-bill-proofs'
 export const MAX_PENDING_BILL_PROOF_BYTES = 307_200
 const SIGNED_URL_SECONDS = 3600
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { WORK_PARENT_ID, withResolvedRungs, type CommandItem } from './rungs'
+import { withResolvedRungs, type CommandItem } from './rungs'
+
+const WORK_PARENT_ID = 'n-work'
 
 function row(id: string, over: Partial<CommandItem> = {}): CommandItem {
   return { id, label: id, Icon: () => null, kind: 'navigate', ...over }

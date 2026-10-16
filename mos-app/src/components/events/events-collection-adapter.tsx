@@ -17,7 +17,7 @@ type EventPresentation = 'calendar'
 type EventAction = never
 
 /** Fresh at request time: a long-lived module must never pin yesterday's month. */
-export const currentEventCollectionQuery = (): EventCollectionQuery => ({ month: wibMonthKey(), savedViewId: null })
+const currentEventCollectionQuery = (): EventCollectionQuery => ({ month: wibMonthKey(), savedViewId: null })
 const EVENT_QUERY_KEYS: readonly QueryKey<EventCollectionQuery>[] = ['month', 'savedViewId']
 
 function parseEventQuery(params: URLSearchParams): CollectionQueryParse<EventCollectionQuery> {
@@ -33,7 +33,7 @@ function serializeEventQuery(query: EventCollectionQuery): URLSearchParams {
   if (query.savedViewId) params.set('saved', query.savedViewId)
   return params
 }
-export const eventCollectionQuery: CollectionQuerySchema<EventCollectionQuery> = {
+const eventCollectionQuery: CollectionQuerySchema<EventCollectionQuery> = {
   keys: EVENT_QUERY_KEYS,
   get neutral() { return currentEventCollectionQuery() },
   parse: parseEventQuery,

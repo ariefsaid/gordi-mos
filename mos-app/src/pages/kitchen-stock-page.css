@@ -1,77 +1,41 @@
-/* ════════════════════════════════════════════════════════════════════════════
-   Kitchen Stock view (S4) — read-only, auto-computed.
-   Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S4.
-   Token-only (DESIGN.md). Read-only is the signal — no editable affordances.
-   ════════════════════════════════════════════════════════════════════════════ */
+/* Stock is a read-only comparison worksheet: exceptions lead, numbers stay aligned. */
+.ks-block { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
+.ks-item { display: flex; flex-direction: column; gap: var(--mos-label-gap); min-width: 0; overflow-wrap: anywhere; }
+.ks-item > strong { font-weight: 600; line-height: 1.5; }
+.ks-item__context:empty { display: none; }
+.ks-item__context { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-label-gap) var(--mos-inline-gap); }
+.ks-category, .ks-unit-warning { color: var(--muted-foreground); font-size: var(--mos-size-1); font-weight: 400; }
+.ks-unit-warning { color: var(--mos-warning-text); }
+.ks-negative { color: var(--status-lost-text) !important; font-weight: 700; }
 
-.ks-block {
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.ks-item {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 2px;
-  font-weight: 500;
-}
-
-.ks-category {
-  font-size: var(--font-size-label);
-  font-weight: 400;
-  color: var(--muted-foreground);
-}
-
-/* ── FR-028: the phone row is a compact read surface, not a labelled <dl>. The
-   shared DataTable owns the card boundary; this body keeps the item and its
-   comparison figures to two readable lines. ── */
-.ks-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 100%;
-  min-width: 0;
-}
-.ks-card-name {
-  font-size: var(--font-size-control);
-  font-weight: 600;
-  color: var(--foreground);
-  line-height: 1.2;
-}
-.ks-card-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-  line-height: 1.2;
-}
-.ks-card-meta > span {
-  white-space: nowrap;
-}
-.ks-card-label {
-  color: var(--muted-foreground);
+.ks-collection-head { margin-bottom: var(--mos-toolbar-gap); }
+.ks-negative-toggle { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height); padding: 0 var(--mos-row-pad-x); border: 1px solid var(--input); border-radius: var(--radius-sm); background: var(--background); color: var(--foreground); font: inherit; font-size: var(--mos-size-3); cursor: pointer; }
+.ks-negative-toggle[aria-pressed='true'] { border-color: var(--primary); background: var(--mos-accent-tint); color: var(--mos-accent-hover); }
+.ks-negative-toggle:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.ks-columns small { display: block; margin-top: 1px; color: var(--muted-foreground); font-size: var(--mos-size-1); font-weight: 400; }
+.cafe-stock-comparison { min-width: 0; }
+.ks-columns, .ks-row { display: grid; grid-template-columns: minmax(220px, 1.6fr) repeat(2, minmax(120px, 1fr)); gap: var(--mos-field-gap); align-items: center; }
+.ks-columns { min-height: var(--mos-control-height); }
+.ks-columns > :not(:first-child) { text-align: right; }
+.ks-group + .ks-group { margin-top: var(--mos-group-above); }
+.ks-row { row-gap: 0; align-content: center; min-height: var(--mos-row-min); padding: var(--mos-row-pad-y) var(--mos-row-pad-x); border-bottom: 1px solid var(--border); }
+.ks-value { min-width: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ks-forbidden { padding: 48px 24px; text-align: center; }
+.ks-forbidden-msg { margin-bottom: 16px; color: var(--muted-foreground); font-size: var(--mos-size-3); }
+@media (max-width: 767.98px) {
+  .ks-negative-toggle { min-height: var(--mos-control-height); }
+  .ks-columns { display: none; }
+  /* One muted meta line under the item name: "Stock 0 ML · Available 0 ML" (UX-STANDARD CT5). */
+  .ks-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--mos-stack-gap) var(--mos-row-gap); min-height: 0; padding: var(--mos-row-pad-y) 0; }
+  .ks-item { flex: 1 0 100%; }
+  .ks-value { text-align: left; color: var(--muted-foreground); font-size: var(--mos-size-3); }
+  .ks-value::before { content: attr(data-label) ' '; font-variant-numeric: normal; }
 }
 
-/* ── ERP inventory comparison cell (FR-060) — placeholder until the ERP read is
-   wired. Muted so a pending '—' never reads as a live zero. ── */
-.ks-erp-pending {
-  color: var(--muted-foreground);
-}
-
-/* ── States: loading / empty / error are the shared StateKit
-   (components/ui/state-kit.tsx → SkeletonRows / EmptyState / ErrorState). Their
-   tokens live in CardHead.css; no kitchen-local skeleton/empty/error CSS here. ── */
-
-/* ── Sign-in / blocked panel ── */
-.ks-forbidden {
-  padding: 48px 24px;
-  text-align: center;
-}
-.ks-forbidden-msg {
-  color: var(--muted-foreground);
-  margin-bottom: 16px;
-  font-size: var(--font-size-body);
+/* Figures keep one right edge; units sit in their own fixed track beside them (UX-STANDARD CT4). */
+@media (min-width: 768px) {
+  .ks-qty { display: inline-flex; justify-content: flex-end; gap: 6px; }
+  .ks-qty__num { text-align: right; }
+  .ks-qty__unit { flex: 0 0 7.5rem; text-align: left; }
+  .ks-columns > :not(:first-child) { padding-inline-end: calc(7.5rem + 6px); }
 }

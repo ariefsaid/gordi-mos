@@ -8,28 +8,34 @@ import type { AuthState } from '@/auth/context'
 import { FollowUpsPage } from './follow-ups-page'
 
 vi.mock('@/auth/use-auth')
-vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn() }))
+vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn() }))
 vi.mock('@/lib/db/follow-ups', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/follow-ups')>('@/lib/db/follow-ups')
-  return { ...actual, listFollowUpsPage: vi.fn(), listFollowUpsWindow: vi.fn(), transitionFollowUp: vi.fn() }
+  return { ...actual, listFollowUpsPage: vi.fn(), listFollowUpsWindow: vi.fn(), transitionFollowUp: vi.fn(), getFollowUp: vi.fn(), listFollowUpEventsPage: vi.fn() }
 })
 
 import { useAuth } from '@/auth/use-auth'
-import { getBusinessUnits } from '@/lib/db/directory'
-import { listFollowUpsPage, listFollowUpsWindow, transitionFollowUp, type FollowUpRow } from '@/lib/db/follow-ups'
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getFollowUp, listFollowUpEventsPage, listFollowUpsPage, listFollowUpsWindow, transitionFollowUp, type FollowUpRow } from '@/lib/db/follow-ups'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockListFollowUpsPage = vi.mocked(listFollowUpsPage)
 const mockListFollowUpsWindow = vi.mocked(listFollowUpsWindow)
 const mockTransition = vi.mocked(transitionFollowUp)
+const mockGetFollowUp = vi.mocked(getFollowUp)
+const mockListEvents = vi.mocked(listFollowUpEventsPage)
+const mockGetPeople = vi.mocked(getPeople)
 
 function applyViewport(isDesktop: boolean) {
+  // The record sits beside the queue only when the content track holds both; with no shell mounted
+  // the track is the viewport.
+  Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: isDesktop ? 1600 : 390 })
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     configurable: true,
     value: vi.fn().mockImplementation((query: string) => ({
-      matches: query === '(min-width: 768px)' ? isDesktop : false,
+      matches: query === '(min-width: 768px)' || query === '(min-width: 1100px)' ? isDesktop : false,
       media: query,
       onchange: null,
       addListener: vi.fn(),
@@ -94,6 +100,9 @@ beforeEach(() => {
   mockListFollowUpsPage.mockResolvedValue(page([row]))
   mockListFollowUpsWindow.mockResolvedValue(page([row]))
   mockTransition.mockResolvedValue(row)
+  mockGetFollowUp.mockImplementation(async (id: string) => ({ ...row, id }))
+  mockListEvents.mockResolvedValue({ rows: [], hasMore: false, nextCursor: null } as never)
+  mockGetPeople.mockResolvedValue([])
 })
 
 describe('FollowUpsPage', () => {
@@ -108,44 +117,43 @@ describe('FollowUpsPage', () => {
   it('opens the selected follow-up detail beside the queue', async () => {
     const user = userEvent.setup()
     renderRoute('/money/follow-ups')
-    await user.click(await screen.findByRole('button', { name: 'Promise' }))
+    await user.click(await screen.findByRole('button', { name: 'Open follow-up INV-1001' }))
 
-    expect(await screen.findByRole('complementary', { name: 'Follow-up detail' })).toHaveTextContent(row.counterparty)
+    expect(await screen.findByRole('complementary', { name: 'Record details' })).toHaveTextContent(row.counterparty)
   })
 
-  it('AC-520: renders queue rows in the shared DataTable with lifecycle actions', async () => {
-    const { container } = render(createElement(FollowUpsPage), { wrapper })
+  it('AC-520: renders queue rows with the money and state, and offers the lifecycle actions on the opened record', async () => {
+    const user = userEvent.setup()
+    render(createElement(FollowUpsPage), { wrapper })
     expect(await screen.findByText('PT Big Buyer')).toBeInTheDocument()
-    // Ported for #192 (Tasks): renamed "AR Follow-up queue". The Task follow-ups view shares this
-    // i18n KEY with this page (via FollowUpQueueEmbed) — but not this table: that embed renders the
-    // shared FollowUpQueueTable while this page renders its own bespoke one (#428).
+    // Ported for #192 (Tasks): renamed "AR Follow-up queue".
     expect(screen.getByRole('table', { name: 'AR Follow-up queue' })).toBeInTheDocument()
-    expect(container.querySelector('.dt-table')).toBeTruthy()
-    expect(container.querySelector('.follow-ups-table')).toBeNull()
     expect(screen.getAllByText(/Rp/).length).toBeGreaterThan(0)
-    expect(container.querySelector('.status-pill')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Chase' })).toHaveClass('btn')
-    expect(screen.getByRole('button', { name: 'Settle' })).toHaveClass('btn')
+    expect(screen.getByText('Open')).toBeInTheDocument()
+    // The queue is identity-led; the lifecycle actions live on the opened record.
+    expect(screen.queryByRole('button', { name: 'Chase' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Open follow-up INV-1001' }))
+    const detail = await screen.findByRole('complementary', { name: 'Record details' })
+    expect(within(detail).getByRole('button', { name: 'Chase' })).toBeInTheDocument()
+    expect(within(detail).getByRole('button', { name: 'Settle' })).toBeInTheDocument()
   })
 
-  it('AC-520: renders the shared DataTable card list below 768px, not a horizontal-overflow table', async () => {
+  it('AC-520: renders a card list below 768px, not a horizontal-overflow table', async () => {
     applyViewport(false)
-    const { container } = render(createElement(FollowUpsPage), { wrapper })
+    render(createElement(FollowUpsPage), { wrapper })
     expect(await screen.findByText('PT Big Buyer')).toBeInTheDocument()
     expect(screen.queryByRole('table')).toBeNull()
-    expect(container.querySelector('.dt-cards')).toBeTruthy()
-    expect(container.querySelector('.follow-ups-table-wrap')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Open follow-up INV-1001' })).toBeInTheDocument()
   })
 
-  it('keeps a long counterparty in the shared phone-card title', async () => {
+  it('keeps a long counterparty inside the phone card', async () => {
     applyViewport(false)
     const counterparty = 'PTSupercalifragilisticexpialidociousCounterpartyWithoutSpaces'
     mockListFollowUpsPage.mockResolvedValueOnce(page([{ ...row, counterparty }]))
-    const { container } = render(createElement(FollowUpsPage), { wrapper })
+    render(createElement(FollowUpsPage), { wrapper })
 
     const name = await screen.findByText(counterparty)
-    expect(name).not.toHaveClass('follow-ups-counterparty')
-    expect(container.querySelector('.dt-card-title')).toContainElement(name)
+    expect(screen.getByRole('button', { name: 'Open follow-up INV-1001' })).toContainElement(name)
   })
 
   it('marks follow-up and overdue counts as partial while another page is available', async () => {
@@ -160,8 +168,8 @@ describe('FollowUpsPage', () => {
 
     await screen.findByText('Buyer 0')
     const pageHead = screen.getByTestId('page-head')
-    expect(pageHead.querySelector('.ch-count')).toHaveTextContent('50+')
-    expect(pageHead).toHaveTextContent('Overdue: 50+')
+    expect(pageHead).toHaveTextContent('Loaded 50+ records')
+    expect(pageHead).toHaveTextContent('50+ overdue')
   })
 
   it('DD-WAY-36: the queue renders the source ref as plain text — no link to the deleted Work path', async () => {
@@ -171,30 +179,27 @@ describe('FollowUpsPage', () => {
     expect(screen.queryByRole('link', { name: /Read-only source/i })).toBeNull()
   })
 
-  it('AC-520: renders queue rows with lifecycle actions', async () => {
-    render(createElement(FollowUpsPage), { wrapper })
-    expect(await screen.findByText('PT Big Buyer')).toBeInTheDocument()
-    expect(screen.getAllByText(/Rp/).length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: 'Chase' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Settle' })).toBeInTheDocument()
-  })
-
   it('AC-521: keeps settle disabled until amount, cash-in date, and evidence are present', async () => {
     const user = userEvent.setup()
     render(createElement(FollowUpsPage), { wrapper })
-    await user.click(await screen.findByRole('button', { name: 'Settle' }))
-    const submit = screen.getByRole('button', { name: 'Submit' })
+    await user.click(await screen.findByRole('button', { name: 'Open follow-up INV-1001' }))
+    const detail = await screen.findByRole('complementary', { name: 'Record details' })
+    await user.click(within(detail).getByRole('button', { name: 'Settle' }))
+    const submit = within(detail).getByRole('button', { name: 'Submit' })
     expect(submit).toBeDisabled()
     // Day-first entry (#1191): the person types the date the field asks for, dd/mm/yyyy.
-    await user.type(screen.getByLabelText('Cash-in date'), '02/07/2026')
-    await user.type(screen.getByLabelText('Evidence'), 'TRF-2')
+    await user.type(within(detail).getByLabelText(/Cash-in date/), '02/07/2026')
+    await user.type(within(detail).getByLabelText(/Evidence/), 'TRF-2')
     expect(submit).toBeEnabled()
   })
 
   it('AC-513: hides confirm from a non-finance chaser', async () => {
     mockListFollowUpsPage.mockResolvedValue(page([{ ...row, state: 'settled', running_balance: 0 }]))
+    const user = userEvent.setup()
     render(createElement(FollowUpsPage), { wrapper })
-    await waitFor(() => expect(screen.getByText('settled')).toBeInTheDocument())
+    await user.click(await screen.findByRole('button', { name: 'Open follow-up INV-1001' }))
+    const detail = await screen.findByRole('complementary', { name: 'Record details' })
+    expect(within(detail).getAllByText('Settled').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
   })
 
@@ -230,19 +235,21 @@ describe('FollowUpsPage', () => {
       .mockResolvedValueOnce(page(firstPage, true))
       .mockResolvedValueOnce(page([laterRow]))
     mockListFollowUpsWindow.mockResolvedValueOnce(page([...firstPage, laterRow]))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     render(createElement(FollowUpsPage), { wrapper })
 
     await screen.findByText('Buyer 1')
     await user.click(screen.getByRole('button', { name: /Load more/ }))
     const later = await screen.findByRole('row', { name: /Buyer 51/ })
-    await user.click(within(later).getByRole('button', { name: 'Settle' }))
-    await user.type(screen.getByLabelText('Cash-in date'), '02/07/2026')
-    await user.type(screen.getByLabelText('Evidence'), 'TRF-51')
-    await user.click(screen.getByRole('button', { name: 'Submit' }))
+    await user.click(within(later).getByRole('button', { name: /Open follow-up/ }))
+    const detail = await screen.findByRole('complementary', { name: 'Record details' })
+    await user.click(within(detail).getByRole('button', { name: 'Settle' }))
+    await user.type(within(detail).getByLabelText(/Cash-in date/), '02/07/2026')
+    await user.type(within(detail).getByLabelText(/Evidence/), 'TRF-51')
+    await user.click(within(detail).getByRole('button', { name: 'Submit' }))
 
     await waitFor(() => expect(mockTransition).toHaveBeenCalledWith('fu-51', 'settle', expect.objectContaining({ amount: row.running_balance, evidence: 'TRF-51' })))
-    expect(await screen.findByText('Buyer 51')).toBeInTheDocument()
+    expect(await screen.findByRole('row', { name: /Buyer 51/ })).toBeInTheDocument()
   })
 
   it('uses shared state-kit for loading, empty, and error states', async () => {

@@ -2,7 +2,7 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useT } from '@/i18n/use-t'
 import { InboxTriageConnected } from '@/components/inbox/inbox-triage-connected'
 import { OverlayHostSlot, useOptionalOverlayHost } from '@/shell/overlay-host'
-import { useIsWideOverlayWidth } from '@/shell/use-is-wide-overlay-width'
+import { useIsRecordSplit } from '@/shell/use-is-split-width'
 
 /**
  * InboxPage — the Inbox destination (ADR-0019 D2/D9). A to-triage list of the viewer's
@@ -16,7 +16,7 @@ import { useIsWideOverlayWidth } from '@/shell/use-is-wide-overlay-width'
 export function InboxPage() {
   const t = useT()
   const host = useOptionalOverlayHost()
-  const isSplit = useIsWideOverlayWidth()
+  const isSplit = useIsRecordSplit()
   // Census R2 DO-1 (F-INBOX-1): `.record-split` reserves its 360px/44% right track the moment it is
   // applied, so applying it unconditionally crushed triage to ~80px on phone and parked a permanent
   // dead void at rest on desktop. Gate it exactly like Signals/Tasks: the grid track exists only at
@@ -31,7 +31,6 @@ export function InboxPage() {
     <PageFamilyFrame
       family="workspace"
       title={t('inbox.title')}
-      jobSentence={t('job.inbox')}
     >
       <div className={splitOpen ? 'record-split' : undefined}>
         <InboxTriageConnected mode="page" />

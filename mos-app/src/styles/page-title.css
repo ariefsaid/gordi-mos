@@ -1,0 +1,8 @@
+/* THE page title: page type (32/700), tracking -0.02em, wraps; one per page. Shared by app pages, sign-in,
+   recovery, consent. Nothing restyles it; surfaces only set its margin. */
+.page-title, .content-header .ch-title {
+  font: var(--mos-type-page);
+  letter-spacing: var(--mos-title-tracking);
+  color: var(--mos-ink);
+  text-wrap: balance;
+}

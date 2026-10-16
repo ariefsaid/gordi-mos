@@ -10,10 +10,6 @@
 // The `row-selected` class stays semantically "the open drawer row" (isSelected),
 // unchanged from pre-PR-2.
 //
-// The isNew draft does not bend this row's columns into a form: it renders TaskCreateForm
-// (task-create-form.tsx) inside a single full-width colSpan row, the SAME component the phone
-// card path renders (mobile-grouped-cards.tsx TaskCard).
-//
 // #997: the row's <td> chain is derived from the ONE column list (task-columns.tsx) — the
 // same array the <thead> renders — filtered by the shared `taskColumnIsVisible` mapping
 // against `visibleFields`. Per-column CONTENT dispatches through an exhaustive
@@ -31,10 +27,9 @@ import { statusTone } from './status-tone'
 import { Picker } from '@/components/ui/picker'
 import { DateField } from '@/components/ui/date-field'
 import { PicCell, PersonCell } from './pic-cell'
-import { formatDate, formatAge, TASK_TITLE_MAX_LENGTH } from './task-formatters'
+import { formatDate, formatAge, overdueDays, TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
-import { TaskCreateForm } from './task-create-form'
 import { visibleTaskColumnDefs, taskColumnTdClass } from './task-columns'
 import { TASK_DECISION_FIELDS, type TaskColumnId } from './task-collection-query'
 
@@ -61,7 +56,6 @@ export type TaskTeamOption = {
 export type TaskRowProps = {
   task: TaskListRow
   now: Date
-  condensed: boolean
   /** Open-drawer row → the `row-selected` class (existing semantics, unchanged). */
   isSelected: boolean
   /** Keyboard cursor row → the `kfocus` class + aria-current. */
@@ -140,14 +134,11 @@ function InlineCommitFeedback({ error, retry, liveMessage, errorId }: InlineComm
 }
 
 export function TaskRow({
-  task, now, condensed, isSelected, isCursor, justCreated = false, leafIndex, cursorRowRef,
+  task, now, isSelected, isCursor, justCreated = false, leafIndex, cursorRowRef,
   ownerName, onOpen,
   supervisorName = '', businessUnitName = '', recordSearch = '', provenanceRoleName,
   onEditTitle, onEditStatus, onEditDue, onEditPic, personOptions = [],
-  supervisorOptions = [], onEditTeam, onEditSupervisor, teamOptions = [],
   visibleFields = TASK_DECISION_FIELDS, workLineName = '', objectiveName = '',
-  isNew = false, onDiscardNewTask, createError = false, onRetryCreate,
-  columnSpan, viewerHasNoDownline = false,
 }: TaskRowProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -155,16 +146,13 @@ export function TaskRow({
   const taskOverdue = isOverdue(task, now)
   const dueText = task.due_date
     ? (taskOverdue
-      // The full table shows the "Overdue · <date>" label (both text and color carry the state).
-      // In the CONDENSED (drawer-open split) tier the track is too narrow for that label to fit
-      // without clipping, so we show the bare formatted date and let the red `due-overdue` color
-      // carry the overdue meaning (owner-eyes item 3 — no mid-word clipping). The color alone is a
-      // secondary cue; the drawer beside the table names the state in full.
-      ? (condensed
-        ? formatDate(task.due_date, locale)
-        : t('tasks.overdueDate', { date: formatDate(task.due_date, locale) }))
+      ? t(overdueDays(task.due_date, now) === 1 ? 'tasks.overdueAgeDate.one' : 'tasks.overdueAgeDate', { days: overdueDays(task.due_date, now), date: formatDate(task.due_date, locale) })
       : formatDate(task.due_date, locale))
     : '—'
+  // The accessible name carries the words the cell shows, in the order it shows them.
+  const dueAriaText = task.due_date && taskOverdue
+    ? `${formatDate(task.due_date, locale)} ${t(overdueDays(task.due_date, now) === 1 ? 'tasks.due.overdueDays.one' : 'tasks.due.overdueDays', { days: overdueDays(task.due_date, now) })}`
+    : dueText
   const isArchived = task.archived_at != null
   const recordTo = { pathname: `/work/tasks/${task.id}`, search: recordSearch }
   const panelState = { taskSurface: 'panel' as const }
@@ -437,34 +425,6 @@ export function TaskRow({
     }
   }
 
-  // The draft is ONE full-width create form, not a bent row. It occupies every column the
-  // table currently renders (columnSpan) so it never inherits a column's narrow width.
-  if (isNew) {
-    return (
-      <tr className="task-row task-row--create">
-        <td className="td-create" colSpan={columnSpan ?? 5}>
-          <TaskCreateForm
-            task={task}
-            businessUnitName={businessUnitName}
-            teamOptions={teamOptions}
-            personOptions={personOptions}
-            supervisorOptions={supervisorOptions}
-            ownerName={ownerName}
-            supervisorName={supervisorName}
-            onEditTeam={onEditTeam ?? (async () => {})}
-            onEditPic={onEditPic ?? (async () => {})}
-            onEditSupervisor={onEditSupervisor ?? (async () => {})}
-            onCreate={(title) => (onEditTitle ? onEditTitle(task.id, title) : Promise.resolve())}
-            onCancel={() => onDiscardNewTask?.()}
-            linkError={createError}
-            onRetryLink={onRetryCreate}
-            viewerHasNoDownline={viewerHasNoDownline}
-          />
-        </td>
-      </tr>
-    )
-  }
-
   // #997: per-column CONTENT, dispatched exhaustively by column id (Record<TaskColumnId, …> —
   // adding a column to task-columns.tsx without content here is a compile error, so the two
   // cannot drift). The <td> wrappers themselves (order, hook classes, visibility) come from
@@ -575,6 +535,7 @@ export function TaskRow({
           defaultOpen
           hideLabel
           label={t('tasks.inlineEdit.status')}
+          filterLabel={t('ui.picker.filter', { label: t('tasks.filter.status') })}
           value={statusInline.draft}
           disabled={statusInline.pending}
           busy={statusInline.pending}
@@ -594,7 +555,7 @@ export function TaskRow({
         />
         <InlineCommitFeedback {...statusInline} />
       </span>
-    ) : <button type="button" ref={statusTriggerRef} className="inline-cell-trigger" tabIndex={activeCell === 'status' ? 0 : -1} onFocus={() => setActiveCell('status')} data-row-stop="" onClick={(event) => { event.stopPropagation(); setStatusEditing(true) }}><StatusPill status={statusInline.draft} /></button>) : <StatusPill status={task.status} />,
+    ) : <button type="button" ref={statusTriggerRef} className="inline-cell-trigger" tabIndex={activeCell === 'status' ? 0 : -1} onFocus={() => setActiveCell('status')} data-row-stop="" onClick={(event) => { event.stopPropagation(); setStatusEditing(true) }}><StatusPill status={statusInline.draft} openTreatment="neutral" /></button>) : <StatusPill status={task.status} openTreatment="neutral" />,
     owner: onEditPic ? (picEditing ? (
       <span className="inline-editor-control" onClick={(event) => event.stopPropagation()}>
         <Picker
@@ -602,6 +563,7 @@ export function TaskRow({
           defaultOpen
           hideLabel
           label={t('tasks.inlineEdit.pic')}
+          filterLabel={t('ui.picker.filter', { label: t('tasks.pic') })}
           value={picInline.draft}
           disabled={picInline.pending}
           busy={picInline.pending}
@@ -622,8 +584,7 @@ export function TaskRow({
         <InlineCommitFeedback {...picInline} />
       </span>
     ) : <button type="button" ref={picTriggerRef} className="inline-cell-trigger" tabIndex={activeCell === 'owner' ? 0 : -1} onFocus={() => setActiveCell('owner')} data-row-stop="" onClick={(event) => { event.stopPropagation(); setPicEditing(true) }}><PicCell fullName={ownerName} provenance={provenanceRoleName} /></button>) : <PicCell fullName={ownerName} provenance={provenanceRoleName} />,
-    // A2 person cell: one grammar for both person columns (AC-021) — the avatar + first
-    // name, never the full-name text (that lives in the record and in pickers).
+    // Keep PIC and Supervisor as named facts; initials add no useful identity here.
     // #1192: the Supervisor cell is a grid stop like the editable cells — reachable and
     // discoverable by keyboard even though its editor lives on the record surface. An
     // UNASSIGNED supervisor is a stop too (named "Supervisor: none") so the roving grid's
@@ -655,7 +616,12 @@ export function TaskRow({
       </span>
     // Merge of origin/dev's DateField flow (#keep the reveal reset on entry) with #1192's
     // roving grid: the Due trigger stays a roving active-cell stop (tabIndex/onFocus).
-    ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label={t('tasks.inlineEdit.due')} tabIndex={activeCell === 'due' ? 0 : -1} onFocus={() => setActiveCell('due')} data-row-stop="" onClick={(event) => { event.stopPropagation(); setDueTyped(dueInline.draft); setDueRevealed(false); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText,
+    ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue ? ' inline-cell-trigger--stacked' : ''}`} aria-label={`${dueAriaText}, ${t('tasks.inlineEdit.due')}`} tabIndex={activeCell === 'due' ? 0 : -1} onFocus={() => setActiveCell('due')} data-row-stop="" onClick={(event) => { event.stopPropagation(); setDueTyped(dueInline.draft); setDueRevealed(false); setDueEditing(true) }}>{dueInline.draft ? (taskOverdue && task.due_date ? (
+      <span className="due-stack">
+        <span className="due-stack__date">{formatDate(task.due_date, locale)}</span>{' '}
+        <span className="due-stack__flag">{t(overdueDays(task.due_date, now) === 1 ? 'tasks.due.overdueDays.one' : 'tasks.due.overdueDays', { days: overdueDays(task.due_date, now) })}</span>
+      </span>
+    ) : dueText) : '—'}</button>) : dueText,
   }
 
   return (

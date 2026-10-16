@@ -1,0 +1,65 @@
+/* Transfer routes (preview): scope, toolbar, list, built-in movements, record panel. Tokens only. */
+.cafe-routes { display: grid; gap: var(--mos-field-gap); min-width: 0; align-content: start; }
+.cafe-routes__scope { max-width: 24rem; }
+.cafe-routes__toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--mos-inline-gap) var(--mos-field-gap); }
+.cafe-routes__toolbar .search-field { flex: 1 1 16rem; max-width: 24rem; }
+.cafe-routes__count { margin-inline-start: auto; padding-bottom: var(--mos-control-pad-y); color: var(--mos-muted); font: var(--mos-type-meta); }
+.cafe-routes__chips { display: flex; flex-wrap: wrap; gap: var(--mos-inline-gap); }
+.cafe-routes .record-collection-view { overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.cafe-routes__reason, .cafe-routes__note, .cafe-routes__field-note { max-width: 60ch; margin: 0; color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
+.cafe-routes__status { display: grid; gap: var(--mos-label-gap); justify-items: start; }
+.cafe-routes__field-error { margin: 0; color: var(--mos-error-text); font: var(--mos-type-meta); }
+.cafe-routes__section-title { margin: 0; color: var(--mos-ink); font: var(--mos-type-group); }
+.cafe-routes__table th, .cafe-routes__table td { overflow-wrap: anywhere; }
+.cafe-routes__table th:last-child, .cafe-routes__table td:last-child { width: 6rem; text-align: end; }
+.cafe-routes__open, .cafe-routes__card-view {
+  display: inline-flex; align-items: center; justify-content: center; min-height: var(--mos-control-height); min-width: var(--mos-control-height);
+  color: var(--mos-accent); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); text-decoration: none;
+}
+.cafe-routes__open:hover { text-decoration: underline; text-underline-offset: 3px; }
+.cafe-routes__table tr.is-selected td { background: var(--mos-accent-tint); }
+
+/* Phone: one row per route. Origin and status on the first line, destination on the meta line, View at the end. */
+.cafe-routes__card {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main status" "main view";
+  align-items: center; gap: var(--mos-label-gap) var(--mos-inline-gap); min-height: var(--mos-row-min);
+  color: var(--mos-ink); text-decoration: none;
+}
+.cafe-routes__card-main { grid-area: main; display: grid; gap: var(--mos-label-gap); min-width: 0; }
+.cafe-routes__card-title { font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); overflow-wrap: anywhere; }
+.cafe-routes__card-meta { color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
+.cafe-routes__card > .pill { grid-area: status; justify-self: end; }
+.cafe-routes__card-view { grid-area: view; justify-self: end; }
+
+.cafe-routes__derived { display: grid; gap: var(--mos-group-below); padding-top: var(--mos-section-above); border-top: 1px solid var(--mos-line); }
+.cafe-routes__derived-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--mos-line); }
+.cafe-routes__derived-list li {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap);
+  min-height: var(--mos-row-min); padding: var(--mos-row-pad-y) var(--mos-row-pad-x); border-bottom: 1px solid var(--mos-line); font: var(--mos-type-body);
+}
+
+/* Record panel: max 640px beside the list; on a phone it replaces the list. */
+.cafe-routes__panel { display: grid; gap: var(--mos-field-gap); align-content: start; min-width: 0; max-width: 640px; padding: var(--mos-panel-pad); background: var(--mos-surface); border: 1px solid var(--mos-line); border-radius: var(--radius-lg); }
+.cafe-routes__back { justify-self: start; min-height: var(--mos-control-height); }
+.cafe-routes__panel-title { margin: 0; color: var(--mos-ink); font: var(--mos-type-section); overflow-wrap: anywhere; }
+.cafe-routes__panel-title:focus-visible { outline-offset: var(--mos-focus-offset); }
+.cafe-routes__panel-badges { display: flex; flex-wrap: wrap; gap: var(--mos-inline-gap); margin: 0; }
+.cafe-routes__form { display: grid; gap: var(--mos-field-gap); }
+.cafe-routes__facts { display: grid; gap: var(--mos-field-gap); margin: 0; }
+.cafe-routes__facts dt { color: var(--mos-muted); font: var(--mos-type-label); }
+.cafe-routes__facts dd { margin: var(--mos-label-gap) 0 0; font: var(--mos-type-body); overflow-wrap: anywhere; }
+.cafe-routes__actions { margin-top: var(--mos-section-gap); }
+
+/* With a record open beside it, the list is a bounded master column that scrolls on its own (its links stay focusable), so the two columns balance. */
+@media (min-width: 768px) {
+  .cafe-routes__workspace.cafe-setup-workspace--selected > .cafe-routes { max-height: calc(100dvh - 12rem); overflow-y: auto; }
+}
+
+@media (max-width: 767.98px) {
+  .cafe-routes__workspace.cafe-setup-workspace--selected > .cafe-routes { display: none; }
+  .cafe-routes__panel { padding: 0; background: transparent; border: 0; }
+  .cafe-routes__scope { max-width: none; }
+  .cafe-routes__toolbar .search-field { max-width: none; flex-basis: 100%; }
+  .cafe-routes__preview { width: 100%; }
+  .cafe-routes__count { margin-inline-start: 0; }
+}

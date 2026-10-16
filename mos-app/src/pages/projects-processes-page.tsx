@@ -4,6 +4,7 @@
 // view axis is All / Projects / Processes, and every row is one real Project/Process record door.
 // Record mutations stay in the record overflow; the collection keeps its scan grammar free of
 // per-row action clusters and relation accordions.
+import { useWorkHomeBack } from '@/shell/work-collection-switcher'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { saveErrorMessage } from '@/lib/save-error'
@@ -11,15 +12,11 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { HelpTip } from '@/components/ui/help-tip'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useSearchParams } from 'react-router-dom'
-import { useIsDesktop } from '@/shell/use-is-desktop'
-import { useIsNarrow } from '@/shell/use-is-narrow'
-import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { Button } from '@/components/ui/button'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
 import {
   CollectionToolbar,
-  CollectionToolbarSearchField,
   type CollectionToolbarSearch,
 } from '@/components/record-collection/collection-toolbar'
 import {
@@ -42,8 +39,6 @@ import '@/components/catalog/catalog-collection.css'
 
 export function ProjectsProcessesPage() {
   const t = useT()
-  const isDesktop = useIsDesktop()
-  const isNarrow = useIsNarrow()
   const [searchParams, setSearchParams] = useSearchParams()
   useDocumentTitle(t('common.docTitle', { page: t('nav.work.projects') }))
   const controller = useRecordCollection({
@@ -58,7 +53,6 @@ export function ProjectsProcessesPage() {
   const worklineBuIds = allowedBusinessUnitIds('work-line', scopes)
   const canManage = canCreateForScope('work-line', scopes)
   const businessUnitRequired = worklineBuIds !== null
-  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [live, setLive] = useState('')
   const announce = useCallback((message: string) => setLive(message), [])
   const createButtonRef = useRef<HTMLButtonElement>(null)
@@ -185,6 +179,7 @@ export function ProjectsProcessesPage() {
 
   const actions: CatalogCollectionActions = {
     canManage,
+    onSort: (sort, direction) => setQuery({ sort, direction }),
     rename: async (id, name) => {
       await projectsProcessesCatalogActions.rename(id, name)
       announce(t('catalog.announce.renamed', { name }))
@@ -215,16 +210,6 @@ export function ProjectsProcessesPage() {
     createDraft: draft,
   }
 
-  const viewLabel = query.type === 'project'
-    ? t('catalog.type.project')
-    : query.type === 'process'
-      ? t('catalog.type.process')
-      : t('catalog.type.all')
-  const statusLabel = query.view === 'all'
-    ? t('catalog.view.activeAndArchived')
-    : query.view === 'archived'
-      ? t('catalog.view.archivedOnly')
-      : t('catalog.view.activeOnly')
   const search: CollectionToolbarSearch = {
     label: t('catalog.searchLabel'),
     placeholder: t('catalog.searchPlaceholder'),
@@ -240,7 +225,7 @@ export function ProjectsProcessesPage() {
         onChange: (next) => { controller.switchPresentation(next) },
       }}
       views={{
-        label: t('catalog.viewsLabel'),
+        label: t('catalog.typeLabel'),
         value: query.type,
         options: [
           { value: 'all', label: t('catalog.type.all') },
@@ -249,60 +234,33 @@ export function ProjectsProcessesPage() {
         ],
         onChange: (type) => setQuery({ type }),
       }}
-      hideViewsLabel
       search={search}
-      hideSearchRow={!isDesktop}
-      filters={[{
-        id: 'status',
-        label: t('catalog.filter.status'),
-        display: statusLabel,
-        popover: {
-          choices: [{
-            key: 'include-archived',
-            label: t('catalog.includeArchived'),
-            checked: query.view === 'all',
-            onChange: (checked) => setQuery({ view: checked ? 'all' : 'active' }),
-          }],
-        },
+      resultSummary={projection ? t(projection.visibleRecords.length === 1 ? 'catalog.projects.count.one' : 'catalog.projects.count.other', { count: projection.visibleRecords.length }) : '—'}
+      checks={[{
+        key: 'include-archived',
+        label: t('catalog.includeArchived'),
+        checked: query.view === 'all',
+        onChange: (checked) => setQuery({ view: checked ? 'all' : 'active' }),
       }]}
+      chips={query.view === 'all' ? [{ key: 'archived', label: t('catalog.includeArchived'), onRemove: () => setQuery({ view: 'active' }) }] : []}
     />
-  )
-  const mobileSummary = `${viewLabel}${query.view !== 'active' ? ` · ${statusLabel}` : ''}`
-  const controls = isDesktop ? toolbar : (
-    <>
-      <CollectionToolbarSearchField search={search} />
-      <ViewOptionsDisclosure
-        open={mobileOptionsOpen}
-        onToggle={() => setMobileOptionsOpen((open) => !open)}
-        onClose={() => setMobileOptionsOpen(false)}
-        label={t('catalog.viewAndFilters')}
-        summary={mobileSummary}
-        hasActiveFilters={query.type !== 'all' || query.view !== 'active' || query.q.trim() !== ''}
-        panelId="mobile-work-options-panel"
-        className="collection-mobile-options"
-        triggerClassName="collection-mobile-options-trigger"
-        summaryClassName="collection-mobile-options-summary"
-        chevronClassName="collection-mobile-options-chevron"
-        panelClassName="collection-mobile-options-panel"
-      >
-        {toolbar}
-      </ViewOptionsDisclosure>
-    </>
   )
   const overlay = useCatalogRecordOverlay({
     collectionKind: 'work-line',
     onCollectionChanged: controller.retry,
   })
 
+  const workBack = useWorkHomeBack()
   return (
     <PageFamilyFrame
       family="management"
+      back={workBack}
+      phoneActionBar
       title={t('nav.work.projects')}
-      jobSentence={t('job.projects')}
       // #958: repeats the sentence above (desktop-only, page-head.css hides it under 768px)
       // ahead of the glossary, so phone gets purpose + terms from one glyph.
       titleHelp={<HelpTip label={`${t('job.projects')} ${t('job.projectsHelp')}`} />}
-      action={canManage && !isNarrow ? <Button ref={createButtonRef} variant={overlay.panelOpen || draftOpen ? 'outline' : 'primary'} onClick={openDraft}>{t('catalog.projects.add')}</Button> : undefined}
+      action={canManage ? <Button ref={createButtonRef} variant={overlay.panelOpen || draftOpen ? 'outline' : 'primary'} onClick={openDraft}>{t('catalog.projects.add')}</Button> : undefined}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
       <CatalogCollectionActionsProvider actions={actions}>
@@ -318,12 +276,7 @@ export function ProjectsProcessesPage() {
           <div className="record-collection-view record-collection-view--list">
             <RecordCollectionSurface
               controller={controller}
-              resultHeader={{
-                collectionLabel: t('nav.work.projects'),
-                viewLabel,
-                count: projection ? projection.visibleRecords.length : null,
-              }}
-              controls={controls}
+              controls={toolbar}
               onOpenRecord={overlay.onOpenRecord}
               keepBodyWhenEmpty={draftOpen}
               empty={{ title: t('catalog.projects.empty.title'), copy: t('catalog.projects.empty.copy') }}
@@ -332,6 +285,7 @@ export function ProjectsProcessesPage() {
               filteredEmpty={{
                 items: t('collection.items.projectsProcesses'),
                 clear: () => setQuery({ view: 'active', q: '', type: 'all' }),
+                clearLabel: query.q.trim() && query.view === 'active' && query.type === 'all' ? t('common.clearSearch') : undefined,
               }}
               error={{ message: t('catalog.projects.error'), retry: () => controller.retry() }}
               loadingLabel={t('catalog.projects.loading')}

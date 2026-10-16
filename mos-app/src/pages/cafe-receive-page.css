@@ -1,26 +1,86 @@
-/* Purchase-order and receipt workflow styling; shared row and footer geometry lives in cafe-capture-layout.css. */
+/* Receipt task workspace; rows and controls retain the shared Café visual vocabulary. */
+.cafe-receive__stages { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-label-gap) var(--mos-inline-gap); color: var(--muted-foreground); font: var(--mos-type-subnav); }
+.cafe-receive__stages > [aria-current] { color: var(--foreground); font-weight: 600; }
+.cafe-receive__scope-lock { margin: 0; color: var(--muted-foreground); }
+.cafe-receive__count-sheet { max-width: none; }
+.cafe-receive__locked-workspace { display: grid; gap: 16px; min-width: 0; }
+.cafe-receive__line-master { display: grid; gap: 0; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.cafe-receive__line-master > li { min-width: 0; border-bottom: 1px solid var(--border); }
+.cafe-receive__line-select { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--mos-stack-gap) var(--mos-row-gap); width: 100%; min-height: var(--mos-row-min); padding: var(--mos-row-pad-y) var(--mos-row-pad-x); border: 0; background: transparent; color: var(--foreground); text-align: left; cursor: pointer; }
+.cafe-receive__line-select[aria-current='true'] { background: var(--mos-accent-tint); }
+.cafe-receive__line-name { font-weight: 600; overflow-wrap: anywhere; }
+.cafe-receive__line-difference,.cafe-receive__line-flags { grid-column: 1 / -1; min-width: 0; font-size: var(--mos-size-3); }
+.cafe-receive__line-flags { display: grid; gap: var(--mos-label-gap); }
+.cafe-receive__line-workbench { min-width: 0; padding-top: var(--mos-row-pad-y); border-top: 1px solid var(--border); }
+.cafe-receive__line-workbench h3 { margin: 0 0 var(--mos-group-below); overflow-wrap: anywhere; }
+.cafe-receive__locked-quantity { margin: 0 0 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cafe-receive__locked-bar p { margin: 0; }
+.cafe-receive__delivery-panel label { display: block; margin-bottom: var(--mos-label-gap); }.cafe-capture-page.cafe-receive { max-width: none; }
+.cafe-receive__count-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--mos-gutter); min-width: 0; }
+.cafe-receive__count-list { min-width: 0; }
+.cafe-receive__recent-disclosure[open] { border-bottom: 1px solid var(--mos-line); }
+.cafe-receive__recent-disclosure > summary { display: flex; align-items: center; min-height: var(--mos-control-height); color: var(--mos-accent); font-weight: var(--mos-weight-medium); cursor: pointer; }
+.cafe-receive__recent-disclosure > p { margin: var(--mos-label-gap) 0 var(--mos-inline-gap); color: var(--muted-foreground); }
+.cafe-receive__accepted-inspect ul { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.cafe-receive__accepted-inspect li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--mos-label-gap) var(--mos-row-gap); min-height: var(--mos-row-min); padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--border); }
+.cafe-receive__accepted-inspect li > :first-child { min-width: 0; overflow-wrap: anywhere; }.cafe-receive__stage-details > summary { display:flex; align-items:center; min-height: var(--mos-control-height); cursor:pointer; font-weight:600; }
+.cafe-receive__stage-details[open] { flex-basis:100%; }
+.cafe-receive__stage-details p { margin:0 0 4px; }
+@media (min-width: 768px) {
+  .cafe-receive__stage-details > summary { display:none; }
+  .cafe-receive__stage-details[open] { flex:1 1 auto; }
+}
+.cafe-receive-po-panel--unavailable > summary { color: var(--mos-warning-text); }
+.cafe-receive-po-panel > summary:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.cafe-receive__accepted-inspect { min-width:0; }
+.cafe-receive__accepted-inspect p { margin:8px 0; color:var(--muted-foreground); }
+.cafe-receive__accepted-inspect .loc-fields__note { margin: 0; }
 
-.cafe-receive__date {
-  display: grid;
-  grid-template-columns: auto minmax(0, 220px);
-  justify-content: start;
-  align-items: center;
-  gap: 8px 12px;
-  margin: 0 0 16px;
-  font-size: var(--font-size-body);
+@media (max-width: 767.98px) {
+  .cafe-receive.cafe-count .cafe-receive__open-pos { gap: 4px; margin-bottom: 4px; padding: 4px 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; }
+  .cafe-receive.cafe-count .cafe-receive__open-pos-lead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+  .cafe-receive.cafe-count .cafe-receive__open-pos-head h2 { font-size: var(--mos-size-3); }
+  .cafe-receive.cafe-count .cafe-receive__open-pos > p { margin: 0; }
+  .cafe-receive.cafe-count .cafe-receive__date { margin-bottom: 0; }
+  .cafe-receive__intake .cafe-receive__recent-disclosure { border-bottom: 0; }
+}
+@media (min-width: 900px) {
+  .cafe-receive__count-layout { grid-template-columns:minmax(0,1fr) minmax(240px,.4fr); align-items:start; gap:24px; }
+  .cafe-receive__count-list .ktb { width:100%; max-width:none; }
+  /* A long list beside a short panel: the panel stays in view beside the list while the page scrolls (clear of the top bar and the pinned action bar). */
+  .cafe-receive__accepted-inspect { position: sticky; top: 0; align-self: start; max-height: calc(100dvh - var(--mos-topbar-height) - 7.5rem); overflow: auto; }
+  /* The pinned bar sits on the window edge at the end of the list too (Production / Transfer / Waste): no padding left under it. */
+  .cafe-receive-workspace:has(> .cafe-receive__count-layout) { padding-bottom: 0; }
+  .cafe-receive__locked-workspace { grid-template-columns: minmax(250px, .75fr) minmax(0, 1.25fr); align-items: start; }
+  .cafe-receive__line-workbench { padding: 0 0 0 20px; border-top: 0; border-left: 1px solid var(--border); }
 }
 
-.cafe-receive__date label { color: var(--muted-foreground); }
+.cafe-receive__intake { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: end; gap: var(--mos-label-gap) var(--mos-field-gap); margin: 0 0 var(--mos-inline-gap); }
+.cafe-receive__intake .cafe-receive-history-panel { justify-self: end; min-width: 0; }
+.cafe-receive__intake .cafe-receive-history-panel:has(details[open]) { grid-column: 1 / -1; justify-self: stretch; }
+/* The label sits above its field and the field takes the width of a date (UX-STANDARD EN1, EN3). */
+.cafe-receive__date {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mos-label-gap);
+  width: 11rem;
+  max-width: 100%;
+  margin: 0;
+  font-size: var(--mos-size-3);
+}
+
+.cafe-receive__date label { font: var(--mos-type-label); color: var(--mos-ink);  }
 
 .cafe-receive__open-pos {
   display: grid;
-  gap: 12px;
+  gap: 4px;
   min-width: 0;
-  margin: 0 0 18px;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--background);
+  margin: 0 0 4px;
+  padding: 4px 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
 }
 
 .cafe-receive__open-pos-head {
@@ -28,45 +88,44 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px 16px;
+  gap: var(--mos-inline-gap) var(--mos-field-gap);
   min-width: 0;
 }
 
 .cafe-receive__open-pos-head h2 {
   margin: 0;
   color: var(--foreground);
-  font-size: var(--font-size-body-lg);
+  font-size: var(--mos-size-3);
   font-weight: 600;
 }
 
 .cafe-receive__open-pos-help,
-.cafe-receive__open-pos > p,
-.cafe-receive__open-pos-state p {
+.cafe-receive__open-pos > p {
   margin: 4px 0 0;
   color: var(--muted-foreground);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   line-height: 1.45;
 }
 
-.cafe-receive__open-pos-lead { display: grid; gap: 8px; flex: 1 1 320px; min-width: 0; }
+.cafe-receive__open-pos-lead { display: grid; gap: var(--mos-inline-gap); flex: 1 1 320px; min-width: 0; }
 
 .cafe-receive__open-po-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
   min-width: 0;
 }
 
 /* The shared touch button spans its row; side by side here, each takes its label's width. */
 .cafe-receive__open-po-actions > .btn-touch { flex: 1 1 auto; width: auto; }
 
-.cafe-receive__open-pos-state { display: grid; justify-items: start; gap: 8px; }
-.cafe-receive__open-pos-state > .btn-touch { width: auto; }
+/* A Notice's action button sits beside the text, so it takes its label's width. */
+.notice__action > .btn-touch { width: auto; }
 
 .cafe-receive__open-po-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-  gap: 8px;
+  gap: var(--mos-inline-gap);
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -88,14 +147,14 @@
 /* DESIGN selected treatment: primary border and tint, never the focus ring. */
 .cafe-receive__open-po--picked {
   border-color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 7%, var(--background));
+  background: var(--mos-accent-tint);
 }
 
 .cafe-receive__open-po-topline {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: 4px 12px;
+  gap: var(--mos-label-gap) var(--mos-row-gap);
   min-width: 0;
 }
 
@@ -104,15 +163,15 @@
 .cafe-receive__open-po-topline > span:last-child { grid-column: 2; grid-row: 1; color: var(--muted-foreground); white-space: nowrap; }
 .cafe-receive__open-po-topline > span:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
 
-.cafe-receive__open-po-items { display: grid; gap: 4px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.cafe-receive__open-po-items { display: grid; gap: var(--mos-label-gap); min-width: 0; margin: 0; padding: 0; list-style: none; }
 
 .cafe-receive__open-po-item {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
   min-width: 0;
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   line-height: 1.4;
 }
 
@@ -123,42 +182,15 @@
 .cafe-receive__open-po-note {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   line-height: 1.4;
 }
-
-.cafe-count__input-group > .cafe-receive__open-po-note { margin-inline-start: 8px; }
-
-.cafe-receive__row-group-label {
-  margin: 0 0 8px;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-overline);
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  overflow-wrap: anywhere;
-}
-.cafe-receive__row-group:not(:last-child) > .cafe-capture-table { margin-bottom: 20px; }
 
 .cafe-receive__band-note {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   line-height: 1.4;
-}
-
-.cafe-receive__send input {
-  width: 100%;
-  min-width: 0;
-  min-height: 44px;
-  box-sizing: border-box;
-  padding: 10px 12px;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-md);
-  background: var(--background);
-  color: var(--foreground);
-  font: inherit;
-  font-size: var(--font-size-touch-input);
 }
 
 .cafe-receive__damage-flag {
@@ -167,9 +199,9 @@
   align-items: center;
   gap: 9px;
   width: fit-content;
-  min-height: 44px;
+  min-height: var(--mos-control-height);
   color: var(--muted-foreground);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   cursor: pointer;
 }
 
@@ -190,60 +222,32 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: var(--font-size-body);
-}
-
-.cafe-receive__send {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 6px 12px;
-}
-
-.cafe-receive__send label {
-  grid-column: 1 / -1;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
 }
 
 .cafe-receive__recent li {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 12px;
-  min-height: 44px;
-  padding: 6px 0;
+  gap: var(--mos-label-gap) var(--mos-row-gap);
+  min-height: var(--mos-row-min);
+  padding: var(--mos-row-pad-y) 0;
   border-bottom: 1px solid var(--border);
 }
 
-.cafe-receive__recent li .btn { margin-left: auto; min-height: 44px; }
-
-.cafe-receive__counted-lines > li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 4px 16px;
-  padding: 12px 0;
-}
-
-.cafe-receive__counted-lines > li > :first-child {
-  min-width: 0;
-  color: var(--foreground);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
+.cafe-receive__recent li .btn { margin-left: auto; min-height: var(--mos-control-height); }
 
 .cafe-receive__condition {
   grid-column: 1 / -1;
   display: grid;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
   min-width: 0;
   padding-top: 4px;
 }
 
 .cafe-receive__evidence-fields {
   display: grid;
-  gap: 12px;
+  gap: var(--mos-row-gap);
   min-width: 0;
 }
 
@@ -257,15 +261,11 @@
 
 .cafe-receive__reason {
   display: grid;
-  gap: 6px;
+  gap: var(--mos-inline-gap);
   min-width: 0;
 }
 
-.cafe-receive__reason > label {
-  color: var(--foreground);
-  font-size: var(--font-size-body);
-  font-weight: 600;
-}
+.cafe-receive__reason > label { font: var(--mos-type-label); color: var(--mos-ink);  }
 
 .cafe-receive__reason-meta > :last-child { flex: 0 0 auto; white-space: nowrap; }
 
@@ -274,35 +274,62 @@
   justify-content: space-between;
   gap: 12px;
   color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   line-height: 1.4;
 }
 
 .cafe-receive__photos-unavailable { color: var(--muted-foreground); }
 
-.cafe-receive__counted-lines > li > :last-child { white-space: normal; }
-
-/* Keep each quantity and its unit together, independent of the table's control-cell width. */
-.cafe-receive .cafe-count__quantity-control { width: max-content; }
-
 /* PO details and filters align to the shared capture table and sticky-band measure. */
-.cafe-receive__open-pos,
-.cafe-receive .ktb {
+.cafe-receive__open-pos {
   box-sizing: border-box;
   width: min(100%, var(--cafe-capture-content-measure));
   max-width: var(--cafe-capture-content-measure);
 }
 
 @media (max-width: 639px) {
-  .cafe-receive__date { grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
-  .cafe-receive__open-pos { gap: 8px; margin-bottom: 8px; }
+  .cafe-receive__date { grid-template-columns: minmax(4.5rem, auto) minmax(0, 1fr); gap: 6px 10px; align-items: center; }
+  .cafe-receive.cafe-count .cafe-receive__open-pos { gap: 4px; margin-bottom: 4px; padding: 4px 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; }
+  .cafe-receive.cafe-count .cafe-receive__open-pos-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+  .cafe-receive.cafe-count .cafe-receive__open-pos-lead { display: contents; }
+  .cafe-receive.cafe-count .cafe-receive__open-pos-head h2 { font-size: var(--mos-size-1); }
+  .cafe-receive.cafe-count .cafe-receive__open-pos > p { margin: 0; font-size: var(--mos-size-1); }
+  .cafe-receive__stages { gap: 5px; }
   .cafe-receive__open-pos-head { display: grid; gap: 0; }
   .cafe-receive__open-pos-lead { gap: 0; }
   .cafe-receive__open-pos-lead > .cafe-receive__open-po--picked { margin-bottom: 8px; }
   .cafe-receive__open-po-actions { width: 100%; }
   .cafe-receive__open-po-item { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
   .cafe-receive__open-po-unit { justify-self: start; overflow-wrap: anywhere; }
-  .cafe-receive__counted-lines > li { grid-template-columns: minmax(0, 1fr); }
-  .cafe-receive__date { margin-bottom: 12px; }
-  .cafe-receive__send { grid-template-columns: minmax(0, 1fr); }
+  .cafe-receive__date { margin-bottom: 8px; }
 }
+
+/* Phone: arrival date, recent receipts and the purchase order fold behind one 44px summary so the first count row starts higher. */
+.cafe-receive__setup { margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+.cafe-receive__setup > summary { display: flex; align-items: center; gap: var(--mos-row-gap); min-height: var(--mos-control-height); cursor: pointer; font-weight: 600; }
+.cafe-receive__setup > summary { list-style: none; }
+.cafe-receive__setup > summary::-webkit-details-marker { display: none; }
+.cafe-receive__setup > summary::after { content: ''; flex: none; width: 8px; height: 8px; border-right: 1.5px solid var(--muted-foreground); border-bottom: 1.5px solid var(--muted-foreground); transform: rotate(45deg); transition: transform 150ms ease-out; }
+.cafe-receive__setup[open] > summary::after { transform: rotate(225deg); }
+.cafe-receive__setup > summary:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.cafe-receive__setup-summary { margin-inline-start: auto; min-width: 0; color: var(--muted-foreground); font-weight: 400; font-variant-numeric: tabular-nums; }
+.cafe-receive__setup .cafe-receive__intake { margin-top: 4px; }
+.cafe-receive__date { align-items: flex-start; }
+
+/* Date, purchase order and recent receipts share one scope row; an opened disclosure takes the full row. */
+.cafe-receive__scope-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 var(--mos-gutter); margin: 0 0 var(--mos-inline-gap); }
+.cafe-receive__scope-row > .cafe-receive__intake { display: contents; }
+.cafe-receive__scope-row .cafe-receive__date { order: 0; }
+.cafe-receive__scope-row .cafe-receive-po-panel { order: 1; }
+.cafe-receive__scope-row .cafe-receive-history-panel { order: 2; }
+.cafe-receive__scope-row .cafe-receive-po-panel[open], .cafe-receive__scope-row .cafe-receive-history-panel:has(details[open]) { flex: 1 0 100%; }
+
+/* Phone: "Choose from N open POs" sits right under the folded receipt details. */
+.cafe-receive__choose-po { margin-block: var(--mos-inline-gap); }
+
+/* Desktop capture: ONE row above the list — steps (with their help line), arrival date, PO, recent receipts, then the page links on the right. */
+.cafe-receive__bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--mos-inline-gap) var(--mos-gutter); min-width: 0; margin: 0 0 var(--mos-inline-gap); }
+.cafe-receive__bar > .cafe-receive__stage-details { order: -1; flex: 1 1 16rem; max-width: 30rem; min-width: 0; border-bottom: 0; }
+.cafe-receive__bar > .cafe-receive__scope-row { display: contents; }
+.cafe-receive__bar > .cafe-receive__stage-details p { margin: 0; }
+.cafe-receive__bar > .cafe-capture-page-links { order: 3; margin: 0 0 0 auto; align-items: center; }

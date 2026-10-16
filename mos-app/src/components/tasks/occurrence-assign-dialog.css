@@ -2,7 +2,7 @@
 .occ-assign-box {
   padding: 20px 24px;
 }
-.occ-assign-head { display: flex; justify-content: flex-end; margin-bottom: 8px; }
-.occ-assign-empty { font-size: var(--font-size-body); color: var(--muted-foreground); margin: 0; }
-.occ-assign-list { display: flex; flex-direction: column; gap: 16px; }
-.occ-assign-box .btn { min-height: 44px; }
+.occ-assign-head { display: flex; justify-content: flex-end; margin-bottom: var(--mos-inline-gap); }
+.occ-assign-empty { font-size: var(--mos-size-3); color: var(--muted-foreground); margin: 0; }
+.occ-assign-list { display: flex; flex-direction: column; gap: var(--mos-field-gap); }
+.occ-assign-box .btn { min-height: var(--mos-control-height); }

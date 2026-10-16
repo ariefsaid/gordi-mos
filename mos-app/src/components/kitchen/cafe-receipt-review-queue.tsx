@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
-import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { CafeQueueEmpty } from '@/components/cafe/redesign/cafe-queue-empty'
 import { useT } from '@/i18n/use-t'
 import { getPeople } from '@/lib/db/directory'
 import {
@@ -21,8 +22,12 @@ import { CafeReceiptState } from './cafe-receipt-state'
 import { CafeReceiptLineRow } from './cafe-receipt-difference'
 import { CafeReceiptLineEvidence } from './cafe-receipt-line-condition'
 import { CafeReceiptRelease } from './cafe-receipt-release'
+import { Worksheet, DecisionBar } from '@/components/cafe/redesign/worksheet'
 import { formatAge } from '@/components/tasks/task-formatters'
 import { useI18n } from '@/i18n/I18nProvider'
+import { Notice } from '@/components/ui/notice'
+import { Chevron } from '@/shell/icons'
+import '@/components/ui/GroupHeader.css'
 import './cafe-count-review-queue.css'
 
 /** Submitted receipts the server lets this viewer review (RLS scopes the read; the RPC decides). */
@@ -49,7 +54,13 @@ export function CafeReceiptReviewQueue({
   const [note, setNote] = useState('')
   const [retry, setRetry] = useState(0)
   const [decided, setDecided] = useState(0)
+  const [heldCount, setHeldCount] = useState<number | null>(null)
   const [postingUnknown, setPostingUnknown] = useState<ReadonlySet<string>>(new Set())
+  const [decidedReceiptId, setDecidedReceiptId] = useState<string | null>(null)
+  const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(null)
+  const [returnRejectFocusId, setReturnRejectFocusId] = useState<string | null>(null)
+  const decidedStatusRef = useRef<HTMLSpanElement>(null)
+  const rejectTriggers = useRef(new Map<string, HTMLButtonElement>())
   const online = !useIsOffline()
   const unsentStream = streamFilter === ALL_STREAMS ? undefined : streamCatalog.find(stream =>
     streamKey(stream.branch.id, stream.activity) === streamFilter,
@@ -87,6 +98,10 @@ export function CafeReceiptReviewQueue({
   const visibleRows = useMemo(() => rows.filter(receipt =>
     streamFilter === ALL_STREAMS || streamKey(receipt.branch_id, receipt.activity) === streamFilter,
   ), [rows, streamFilter])
+  const submittedRows = visibleRows.filter(receipt => receipt.status === 'Submitted')
+  const countedRows = visibleRows.filter(receipt => receipt.status === 'Counted')
+  const selectedReceipt = visibleRows.find(receipt => receipt.id === selectedReceiptId)
+    ?? submittedRows[0] ?? countedRows[0] ?? visibleRows[0]
 
   async function decide(receipt: CafeReceipt, decision: 'approve' | 'reject') {
     if (busyId || !online) return
@@ -97,6 +112,7 @@ export function CafeReceiptReviewQueue({
       setRows(current => current.map(row => row.id === receipt.id
         ? { ...row, status: result.status, row_version: result.row_version, review_note: decision === 'reject' ? note.trim() : null }
         : row))
+      setDecidedReceiptId(receipt.id)
       setRejecting(null)
       setNote('')
       // FR-1042: approval matches and may enqueue at once, so the state is read back, not assumed.
@@ -113,21 +129,43 @@ export function CafeReceiptReviewQueue({
     }
   }
 
+  useEffect(() => {
+    if (decidedReceiptId) decidedStatusRef.current?.focus()
+  }, [decidedReceiptId, rows])
+  useEffect(() => {
+    if (!returnRejectFocusId || rejecting) return
+    rejectTriggers.current.get(returnRejectFocusId)?.focus()
+    setReturnRejectFocusId(null)
+  }, [rejecting, returnRejectFocusId])
+
+  function closeReject(receiptId: string) {
+    setReturnRejectFocusId(receiptId)
+    setRejecting(null)
+    setNote('')
+  }
+
   return (
-    <section className="cafe-count-review" aria-labelledby="cafe-receipt-review-title">
-      <header className="cafe-count-review__header">
+    <section className={`cafe-count-review${!loading && !loadError && visibleRows.length === 0 ? ' is-empty' : ''}`} aria-label={t('cafe.receipts.review.queueTitle')}>
+      {visibleRows.length > 0 && <header className="cafe-count-review__header">
         <p id="cafe-receipt-review-title">{t('cafe.receipts.review.help')}</p>
-      </header>
+      </header>}
       {actionError && (
-        <div className="cafe-count-review__error" role="alert">
-          <span>{t('cafe.receipts.review.actionFailed')}</span>
-          <button type="button" className="btn btn-outline" onClick={() => setRetry(value => value + 1)}>
-            {t('common.retry')}
-          </button>
-        </div>
+        <Notice tone="urgent" action={<button type="button" className="btn btn-outline" onClick={() => setRetry(value => value + 1)}>{t('common.retry')}</button>}>{t('cafe.receipts.review.actionFailed')}</Notice>
       )}
-      {!online && <p className="cafe-count-review__offline" role="alert">{t('cafe.receive.offline')}</p>}
-      <CafeReceiptRelease online={online} refreshKey={decided} />
+      {!online && <Notice tone="attention" role="alert">{t('cafe.receive.offline')}</Notice>}
+      <details className="cafe-receipt-review__release">
+        <summary className="group-header">
+          <span className="group-header__title">
+            <span className="group-header__toggle group-header__toggle--static">
+              <Chevron className="group-header__chevron" />
+              <span className="group-header__name">{t('cafe.receipts.review.heldReleaseTitle')}</span>
+              {heldCount !== null && <span className="group-header__count tabular-nums">({heldCount})</span>}
+            </span>
+          </span>
+        </summary>
+        <p className="cafe-receipt-review__release-summary">{t('cafe.receipts.release.help')}</p>
+        <CafeReceiptRelease online={online} refreshKey={decided} onCount={setHeldCount} />
+      </details>
       {loadError ? (
         <ErrorState
           message={t('common.loadFailed', { what: t('cafe.receipts.review.queueTitle') })}
@@ -137,14 +175,32 @@ export function CafeReceiptReviewQueue({
       ) : loading ? (
         <LoadingShell count={2} />
       ) : visibleRows.length === 0 ? (
-        <EmptyState variant="awaiting" title={t('cafe.receipts.review.empty.title')} copy={t('cafe.receipts.review.empty.copy')}>
-          <button type="button" className="btn btn-outline" onClick={() => setRetry(value => value + 1)}>
-            {t('cafe.count.review.refresh')}
-          </button>
-        </EmptyState>
+        <CafeQueueEmpty title={t('cafe.receipts.review.empty.title')} action={<button type="button" className="btn btn-outline btn-touch" onClick={() => setRetry(value => value + 1)}>{t('cafe.count.review.refresh')}</button>}>{t('cafe.receipts.review.empty.copy')}</CafeQueueEmpty>
       ) : (
-        <ul className="cafe-count-review__list">
-          {visibleRows.map(receipt => {
+        <div className="cafe-receipt-review__workspace">
+          <nav className="cafe-receipt-review__master" aria-label={t('cafe.receipts.review.queueTitle')}>
+            <h2>{t('cafe.receipts.review.queueTitle')}</h2>
+            <h3>{t('cafe.receipts.review.submittedSection')}</h3>
+            {submittedRows.map(receipt => <button type="button" key={receipt.id}
+              aria-current={(selectedReceipt?.id ?? submittedRows[0]?.id) === receipt.id ? 'true' : undefined}
+              onClick={() => setSelectedReceiptId(receipt.id)}>
+              <strong>{names.get(receipt.received_by) ?? t('cafe.receipts.review.unknownPerson')}</strong>
+              <span>{formatWeekdayDayMonth(receipt.arrival_date)} · {receipt.lines.length} {t('cafe.receipts.review.linesShort')}</span>
+              {receipt.received_by === viewerId && <span>{t('cafe.receipts.review.ownReceipt')}</span>}
+            </button>)}
+            <h3>{t('cafe.receipts.review.countedSection')}</h3>
+            {countedRows.map(receipt => <button type="button" key={receipt.id}
+              aria-current={selectedReceipt?.id === receipt.id ? 'true' : undefined}
+              onClick={() => setSelectedReceiptId(receipt.id)}>
+              <strong>{names.get(receipt.received_by) ?? t('cafe.receipts.review.unknownPerson')}</strong>
+              <span>{t('cafe.receipts.review.countedNotSent', { age: formatAge(receipt.received_at, new Date(), locale) })}</span>
+            </button>)}
+            {unsentMore > 0 && <p>{t(unsentMore === 1 ? 'cafe.receipts.review.unsentMore.one' : 'cafe.receipts.review.unsentMore.other', { count: unsentMore })}</p>}
+          </nav>
+          <Worksheet label={t('cafe.receipts.review.workbench')} className="cafe-receipt-review__workbench">
+            <h2>{t('cafe.receipts.review.workbench')}</h2>
+            <ul className="cafe-count-review__list">
+          {selectedReceipt ? [selectedReceipt].map(receipt => {
             const stream = streamCatalog.find(s => s.branch.id === receipt.branch_id && s.activity === receipt.activity) ?? null
             const ownReceipt = receipt.received_by === viewerId
             const noteId = `cafe-receipt-note-${receipt.id}`
@@ -184,19 +240,30 @@ export function CafeReceiptReviewQueue({
                     </CafeReceiptLineRow>
                   ))}
                 </ul>
-                <div className="cafe-count-review__decision cafe-receipt-review__decision">
+                <DecisionBar className="cafe-count-review__decision cafe-receipt-review__decision">
                   {receipt.status === 'Counted' ? (
                     <span className="cafe-count-review__state">
                       {t('cafe.receipts.review.countedNotSent', { age: formatAge(receipt.received_at, new Date(), locale) })}
                     </span>
                   ) : receipt.status !== 'Submitted' ? (
-                    <span className="cafe-count-review__state" role="status"><CafeReceiptState receipt={receipt} postingUnknown={postingUnknown.has(receipt.id)} /></span>
+                    <span
+                      ref={receipt.id === decidedReceiptId ? decidedStatusRef : undefined}
+                      className="cafe-count-review__state"
+                      role="status"
+                      tabIndex={receipt.id === decidedReceiptId ? -1 : undefined}
+                    ><CafeReceiptState receipt={receipt} postingUnknown={postingUnknown.has(receipt.id)} /></span>
                   ) : rejecting === receipt.id ? (
-                    <div className="cafe-receipt-review__reject">
+                    <div className="cafe-receipt-review__reject" onKeyDown={event => {
+                      if (event.key === 'Escape' && busyId === null) {
+                        event.stopPropagation()
+                        closeReject(receipt.id)
+                      }
+                    }}>
+                      {ownReceipt && <span className="cafe-count-review__state">{t('cafe.receipts.review.ownReceipt')}</span>}
                       <label htmlFor={noteId}>{t('cafe.receipts.review.rejectNote')}</label>
-                      <textarea id={noteId} value={note} maxLength={500} onChange={event => setNote(event.target.value)} />
+                      <textarea id={noteId} autoFocus value={note} maxLength={500} onChange={event => setNote(event.target.value)} />
                       <div className="cafe-receipt-review__actions">
-                        <button type="button" className="btn btn-outline" onClick={() => { setRejecting(null); setNote('') }}>
+                        <button type="button" className="btn btn-outline" onClick={() => closeReject(receipt.id)}>
                           {t('common.cancel')}
                         </button>
                         <button
@@ -212,7 +279,16 @@ export function CafeReceiptReviewQueue({
                   ) : (
                     <div className="cafe-receipt-review__actions">
                       {ownReceipt && <span className="cafe-count-review__state">{t('cafe.receipts.review.ownReceipt')}</span>}
-                      <button type="button" className="btn btn-outline" disabled={!online || busyId !== null} onClick={() => setRejecting(receipt.id)}>
+                      <button
+                        ref={node => {
+                          if (node) rejectTriggers.current.set(receipt.id, node)
+                          else rejectTriggers.current.delete(receipt.id)
+                        }}
+                        type="button"
+                        className="btn btn-outline"
+                        disabled={!online || busyId !== null}
+                        onClick={() => setRejecting(receipt.id)}
+                      >
                         {t('cafe.receipts.review.reject')}
                       </button>
                       <button
@@ -225,16 +301,13 @@ export function CafeReceiptReviewQueue({
                       </button>
                     </div>
                   )}
-                </div>
+                </DecisionBar>
               </li>
             )
-          })}
-        </ul>
-      )}
-      {!loading && !loadError && unsentMore > 0 && (
-        <p className="cafe-count-review__more">
-          {t(unsentMore === 1 ? 'cafe.receipts.review.unsentMore.one' : 'cafe.receipts.review.unsentMore.other', { count: unsentMore })}
-        </p>
+          }) : null}
+            </ul>
+          </Worksheet>
+        </div>
       )}
     </section>
   )

@@ -1,86 +1,41 @@
-/* OAuthConsentPage — one bounded card, read top to bottom: who, what, then the answer. */
-.consent {
-  box-sizing: border-box;
-  max-width: 560px;
-  padding: 24px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--card);
-  color: var(--foreground);
-  box-shadow: var(--shadow-rest);
-}
-
-.consent__heading {
-  margin: 0 0 8px;
-  font-family: var(--font-display);
-  font-size: var(--font-size-heading);
-  font-weight: 600;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-/* Script-only focus target, not a control: it draws no ring (the buttons keep the global ring). */
+/* Consent is a focused authorization decision, not another management workspace: who it acts as on the left, what it can and cannot do on the right. */
+.consent-page { max-width: 920px; }
+.consent-page__title { margin: 0 0 var(--mos-space-6); }
+.consent { box-sizing: border-box; display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 0 var(--mos-space-8); max-width: 920px; padding: 0; color: var(--mos-ink); }
+.consent__heading { grid-column: 1 / -1; margin: 0 0 var(--mos-row-gap); font: var(--mos-type-group); overflow-wrap: anywhere; }
 .consent__heading:focus, .consent__focus:focus { outline: none; }
-
-.consent__tag {
-  display: inline-block;
-  margin: 0 0 12px;
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--secondary);
-  color: var(--foreground);
-  font-size: var(--font-size-label);
-  font-weight: 600;
-}
-
-.consent__line {
-  margin: 0 0 8px;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-body);
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-.consent__line--strong { color: var(--foreground); }
-.consent__host { color: var(--foreground); font-weight: 600; }
-
-.consent__lists { display: grid; gap: 16px; margin: 20px 0; }
-.consent__subheading {
-  margin: 0 0 6px;
-  font-family: var(--font-display);
-  font-size: var(--font-size-body-lg);
-  font-weight: 600;
-  color: var(--foreground);
-}
-.consent__list { margin: 0; padding-left: 18px; list-style: disc; font-size: var(--font-size-body); line-height: 1.5; }
-.consent__list li + li { margin-top: 4px; }
-
-.consent__reason {
-  margin: 0 0 16px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--muted);
-  font-size: var(--font-size-body);
-}
-
-.consent .error-state { margin: 0 0 16px; padding: 0; }
-
-.consent__allow[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
-
-/* Loading frame shaped like the card: heading, two lines, two lists, buttons. */
-.consent--loading { display: grid; gap: 12px; }
-.consent__returning { margin: 0; font-family: var(--font-display); font-size: var(--font-size-heading); font-weight: 600; }
-.consent--loading .skeleton-rows { display: grid; gap: 12px; }
+.consent__tag { grid-column: 1 / -1; justify-self: start; margin: 0 0 var(--mos-space-3); }
+.consent__verification, .consent__lists { padding: var(--mos-field-gap) 0; border-top: 1px solid var(--mos-line); border-bottom: 1px solid var(--mos-line); }
+.consent__verification { grid-column: 1; }
+.consent__lists { grid-column: 2; display: grid; align-content: start; gap: var(--mos-group-above); }
+.consent__line { margin: 0 0 var(--mos-row-gap); color: var(--mos-muted); font: var(--mos-type-body); overflow-wrap: anywhere; }
+.consent__line:last-child { margin-bottom: 0; }
+.consent__line--strong { color: var(--mos-ink); font-weight: var(--mos-weight-semibold); }
+.consent__host { color: var(--mos-ink); font-weight: var(--mos-weight-semibold); overflow-wrap: anywhere; }
+.consent__subheading { margin: 0 0 var(--mos-inline-gap); color: var(--mos-ink); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); }
+.consent__list { margin: 0; padding-inline-start: var(--mos-space-5); list-style: disc; font: var(--mos-type-body); }
+.consent__list li + li { margin-top: var(--mos-label-gap); }
+.consent__reason { grid-column: 1 / -1; margin: var(--mos-space-4) 0 0; }
+.consent .error-state { grid-column: 1 / -1; margin: var(--mos-space-3) 0 0; }
+.consent__allow[aria-disabled='true'] { background: var(--mos-band); color: var(--mos-muted); cursor: not-allowed; }
+.consent--loading { display: grid; grid-template-columns: 1fr; gap: var(--mos-space-3); max-width: 720px; }
+.consent__returning { margin: 0; font: var(--mos-type-group); }
+.consent--loading .skeleton-rows { display: grid; gap: var(--mos-row-gap); }
 .consent__skeleton { height: 14px; }
 .consent__skeleton--0 { width: 70%; height: 22px; }
 .consent__skeleton--1 { width: 100%; }
 .consent__skeleton--2 { width: 85%; }
 .consent__skeleton--3 { width: 60%; }
-.consent__skeleton--4 { width: 40%; height: 32px; }
-
-.consent__actions { display: flex; gap: 8px; }
-
-@media (max-width: 480px) {
-  .consent { padding: 16px; }
-  .consent__actions { flex-direction: column; }
-  .consent__actions .btn { width: 100%; height: 44px; }
+.consent__skeleton--4 { width: 40%; height: var(--mos-control-height); }
+.consent__actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: var(--mos-row-gap); padding-top: var(--mos-field-gap); }
+.consent__actions .btn { min-width: 120px; }
+@media (max-width: 640px) {
+  .consent-page { max-width: 100%; }
+  .consent-page__title { margin-bottom: var(--mos-space-5); }
+  .consent { display: flex; flex-direction: column; gap: 0; }
+  .consent__tag { align-self: flex-start; }
+  .consent__verification { padding: var(--mos-space-3) 0; }
+  .consent__lists { gap: var(--mos-field-gap); margin-top: var(--mos-field-gap); padding: var(--mos-row-pad-y) 0; }
+  .consent__actions { flex-direction: column-reverse; padding-top: var(--mos-field-gap); }
+  .consent__actions .btn { width: 100%; }
 }

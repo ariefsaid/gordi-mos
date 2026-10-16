@@ -21,7 +21,7 @@ describe('GroupHeaderRow', () => {
   it('AC-123: shows label, count, and an overdue subtotal when >0', () => {
     renderRow({ label: 'Blocked', count: 3, overdue: 2 })
     expect(screen.getByText('Blocked')).toBeInTheDocument()
-    expect(screen.getByText('3')).toBeInTheDocument()
+    expect(screen.getByText('(3)')).toBeInTheDocument()
     expect(screen.getByText(/2 overdue/i)).toBeInTheDocument()
   })
 
@@ -53,25 +53,22 @@ describe('GroupHeaderRow', () => {
 
   it('AC-124: a zero-count group still renders its header with no overdue subtotal', () => {
     renderRow({ label: 'Ada Lovelace', count: 0, overdue: 0 })
-    expect(screen.getByText('0')).toBeInTheDocument()
+    expect(screen.getByText('(0)')).toBeInTheDocument()
     expect(screen.queryByText(/overdue/i)).toBeNull()
   })
 
   it('AC-132: the caret toggle carries aria-expanded and fires onToggle (keyboard-reachable)', () => {
     const onToggle = vi.fn()
     renderRow({ collapsed: false, onToggle })
-    const caret = screen.getByRole('button', { name: /collapse|expand|open group/i })
+    const caret = screen.getByRole('button', { name: 'Open (4)' })
     expect(caret).toHaveAttribute('aria-expanded', 'true')
-    expect(document.querySelector('.collection-grammar-group-bar')).toBeInTheDocument()
-    expect(document.querySelector('.collection-grammar-group-label')).toHaveTextContent('Open')
-    expect(document.querySelector('.collection-grammar-group-count')).toHaveTextContent('4')
     fireEvent.click(caret)
     expect(onToggle).toHaveBeenCalled()
   })
 
   it('collapsed=true reflects aria-expanded=false', () => {
     renderRow({ collapsed: true })
-    const caret = screen.getByRole('button', { name: /collapse|expand|open group/i })
+    const caret = screen.getByRole('button', { name: 'Open (4)' })
     expect(caret).toHaveAttribute('aria-expanded', 'false')
   })
 
@@ -104,7 +101,7 @@ describe('GroupHeaderRow', () => {
         occurrenceRollup: { total: 1, done: 1, overdue: 0, pendingUnresolved: 2 },
       })
       expect(screen.getByText('Café Opening · 17 Jul 2026')).toBeInTheDocument()
-      expect(screen.getByText('1/1 done · 0 overdue · 2 unassigned')).toBeInTheDocument()
+      expect(screen.getByText(/1\/1 done · 0 overdue · 2 unassigned/)).toBeInTheDocument()
       expect(screen.queryByText('Process Run')).not.toBeInTheDocument()
     })
 
@@ -114,9 +111,9 @@ describe('GroupHeaderRow', () => {
         occurrenceRollup: { total: 1, done: 1, overdue: 0, pendingUnresolved: 2 },
         onAssignPending: vi.fn(),
       })
-      expect(screen.getByText('1/1 done · 0 overdue')).toBeInTheDocument()
+      expect(screen.getByText(/1\/1 done · 0 overdue/)).toBeInTheDocument()
       expect(screen.queryByText(/2 unassigned/)).not.toBeInTheDocument()
-      expect(screen.queryByText('2 to assign', { selector: '.gcount' })).not.toBeInTheDocument()
+      expect(screen.queryByText(/overdue · 2 to assign/)).not.toBeInTheDocument()
       // ...the button still carries the count on its own.
       expect(screen.getByRole('button', { name: '2 to assign' })).toBeInTheDocument()
     })
@@ -128,12 +125,12 @@ describe('GroupHeaderRow', () => {
       })
       // the bare count ("1") is superseded by the rollup summary — asserts no divergent/duplicate
       // count display was introduced alongside it.
-      expect(screen.queryByText('1', { selector: '.gcount' })).not.toBeInTheDocument()
+      expect(screen.queryByText('(1)')).not.toBeInTheDocument()
     })
 
     it('without occurrenceRollup, the plain count/overdue grammar is unchanged (no regression)', () => {
       renderRow({ label: 'Blocked', count: 3, overdue: 2 })
-      expect(screen.getByText('3')).toBeInTheDocument()
+      expect(screen.getByText('(3)')).toBeInTheDocument()
       expect(screen.getByText(/2 overdue/i)).toBeInTheDocument()
     })
   })
@@ -161,7 +158,7 @@ describe('GroupHeaderRow', () => {
         occurrenceRollup: { total: 1, done: 1, overdue: 0, pendingUnresolved: 0 },
         onAssignPending: vi.fn(),
       })
-      expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^\d+ to assign$/ })).not.toBeInTheDocument()
     })
 
     it('does not render the affordance when no onAssignPending handler is given (nothing to open)', () => {
@@ -169,12 +166,12 @@ describe('GroupHeaderRow', () => {
         label: 'Café Opening · 17 Jul 2026', count: 1, overdue: 0,
         occurrenceRollup: { total: 1, done: 1, overdue: 0, pendingUnresolved: 2 },
       })
-      expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^\d+ to assign$/ })).not.toBeInTheDocument()
     })
 
     it('never renders the affordance outside occurrence rendering (no occurrenceRollup)', () => {
       renderRow({ label: 'Blocked', count: 3, overdue: 2, onAssignPending: vi.fn() })
-      expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^\d+ to assign$/ })).not.toBeInTheDocument()
     })
   })
 })

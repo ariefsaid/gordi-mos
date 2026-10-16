@@ -138,11 +138,6 @@ export async function resolveCafeOpeningTeamForTeam(teamId: string): Promise<Caf
   return (await resolveCafeOpeningTeamsForTeamIds([teamId])).get(teamId) ?? null
 }
 
-/** Resolve a live branch directly to the canonical Opening Team. */
-export async function resolveCafeOpeningTeamForBranch(branchId: string): Promise<CafeOpeningTeam | null> {
-  return (await resolveCafeOpeningTeamsForBranches([branchId])).get(branchId) ?? null
-}
-
 export interface TodayOpening {
   started: boolean
   runId: string | null

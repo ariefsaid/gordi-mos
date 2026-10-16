@@ -165,9 +165,39 @@ function renderPage(locale?: 'en' | 'id') {
   )
 }
 
-/** Presses the page's Lock counts and returns the confirm step it opens. */
+/** The open-PO list toggle inside the PO panel (a phone also shows a shortcut with the same name). */
+const poToggleNow = (query: { name: string | RegExp }) =>
+  screen.getAllByRole('button', query).find(button => button.hasAttribute('aria-controls'))!
+const poToggle = async (query: { name: string | RegExp }) => {
+  await screen.findAllByRole('button', query)
+  return poToggleNow(query)
+}
+
+/** The receive list in the order a person reads it: group headers and item rows. */
+function receiveListOrder() {
+  return screen.getAllByRole('row').flatMap(row => {
+    const box = within(row).queryByRole('textbox', { name: /^Received for / })
+    if (box) return [box.getAttribute('aria-label')!.replace('Received for ', '')]
+    const head = within(row).queryByRole('button', { name: /^(On PO-|Not on this PO)/ })
+    return head ? [(head.textContent ?? '').replace(/\s*\(\d+\)$/, '')] : []
+  })
+}
+
+/** A locked line is chosen from the list; its reason, photos and flag open beside (or over) it. */
+async function openLine(itemName: string) {
+  const list = await screen.findByRole('list', { name: 'Counted lines' })
+  fireEvent.click(within(list).getAllByRole('button', { name: new RegExp(`^${itemName}`) })[0]!)
+  return lineRegion(itemName)
+}
+
+/** The opened line's evidence area (the line workbench wraps it in a region of the same name). */
+async function lineRegion(itemName: string) {
+  return (await screen.findAllByRole('region', { name: itemName })).at(-1)!
+}
+
+/** Presses the page's Lock quantities and returns the confirm step it opens. */
 async function openLockStep() {
-  fireEvent.click(screen.getByRole('button', { name: 'Lock counts' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Lock quantities' }))
   return screen.findByRole('dialog', { name: /^Lock \d+ lines?\?$/ })
 }
 
@@ -219,9 +249,9 @@ describe('CafeReceivePage', () => {
     renderPage()
 
     if (canManage) {
-      expect(await screen.findByRole('link', { name: 'Set up items' })).toHaveAttribute('href', '/cafe/items')
+      expect(await screen.findByRole('link', { name: 'Set up items' })).toHaveAttribute('href', '/cafe/items?unit=Needs%20unit')
     } else {
-      expect(await screen.findByText(/kitchen manager or an ops lead sets it up in Café items/i)).toBeInTheDocument()
+      expect(await screen.findByText(/kitchen lead or an ops lead/i)).toBeInTheDocument()
       expect(screen.queryByRole('link', { name: 'Set up items' })).not.toBeInTheDocument()
       expect(document.querySelector('a[href="/cafe/items"]')).not.toBeInTheDocument()
     }
@@ -298,8 +328,8 @@ describe('CafeReceivePage', () => {
     const { container } = renderPage()
     await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
     expect(screen.getByRole('button', { name: 'Switch kitchen' })).toBeInTheDocument()
-    expect(screen.getByRole('searchbox', { name: 'Find an item' })).toBeInTheDocument()
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item' }), { target: { value: 'bean' } })
+    expect(screen.getByRole('searchbox', { name: 'Search items' })).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search items' }), { target: { value: 'bean' } })
     await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
 
     expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('')
@@ -319,7 +349,7 @@ describe('CafeReceivePage', () => {
     poMocks.list.mockResolvedValue(TWO_PO_CACHE as never)
     const { container } = renderPage()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Choose from 2 open POs' }))
+    fireEvent.click(await poToggle({ name: 'Choose from 2 open POs' }))
     expect(await screen.findByRole('button', { name: /PO-1043/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /PO-1044/ })).toBeInTheDocument()
     expect(container.textContent).toContain('Sample produce supplier')
@@ -333,23 +363,23 @@ describe('CafeReceivePage', () => {
     expect(screen.getByRole('textbox', { name: 'Received for Fresh milk' })).toHaveValue('')
     expect(screen.getByRole('textbox', { name: 'Received for Whole-grain pastry dough prepared for morning service' })).toHaveValue('')
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item' }), { target: { value: 'pastry' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search items' }), { target: { value: 'pastry' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Whole-grain pastry dough prepared for morning service' }), { target: { value: '6' } })
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item' }), { target: { value: '' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search items' }), { target: { value: '' } })
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '4' } })
     const lockStep = await openLockStep()
-    expect(within(lockStep).getByText('Coffee bean')).toBeInTheDocument()
-    expect(within(lockStep).getByText('Fresh milk')).toBeInTheDocument()
-    expect(within(lockStep).getByText('Whole-grain pastry dough prepared for morning service')).toBeInTheDocument()
+    expect(within(lockStep).getByText('RAW - Coffee bean')).toBeInTheDocument()
+    expect(within(lockStep).getByText('RAW - Fresh milk')).toBeInTheDocument()
+    expect(within(lockStep).getByText('RAW - Whole-grain pastry dough prepared for morning service')).toBeInTheDocument()
   })
 
   it('Issue 1443 supports keyboard PO selection and returns focus after collapsing the picker', async () => {
     mockItems.mockResolvedValue(PICKER_ITEMS)
     poMocks.list.mockResolvedValue(TWO_PO_CACHE as never)
     renderPage()
-    const toggle = await screen.findByRole('button', { name: 'Choose from 2 open POs' })
+    const toggle = await poToggle({ name: 'Choose from 2 open POs' })
     toggle.focus()
     await userEvent.keyboard('{Enter}')
     await userEvent.keyboard('{Tab}')
@@ -388,7 +418,7 @@ describe('CafeReceivePage', () => {
     poMocks.list.mockResolvedValue({ ...TWO_PO_CACHE, asOf: '2026-10-05T02:10:00Z', isCurrent: false } as never)
     renderPage()
     expect(await screen.findByText(/open PO list is out of date/i)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Choose from 2 open POs' }))
+    fireEvent.click(poToggleNow({ name: 'Choose from 2 open POs' }))
     const card = screen.getByRole('listitem', { name: /PO-1043/ })
     expect(within(card).queryByRole('button')).toBeNull()
     expect(within(card).getByText(/can't be chosen: the PO list is out of date/i)).toBeInTheDocument()
@@ -421,13 +451,13 @@ describe('CafeReceivePage', () => {
   it('Issue 1443 names a single open PO in the singular', async () => {
     poMocks.list.mockResolvedValue({ ...TWO_PO_CACHE, purchaseOrders: TWO_PO_CACHE.purchaseOrders.slice(0, 1) } as never)
     renderPage()
-    expect(await screen.findByRole('button', { name: 'Choose from 1 open PO' })).toBeInTheDocument()
+    expect(await poToggle({ name: 'Choose from 1 open PO' })).toBeInTheDocument()
   })
 
   it('Issue 1443 Escape closes the open PO list and returns focus to its toggle', async () => {
     poMocks.list.mockResolvedValue(TWO_PO_CACHE as never)
     renderPage()
-    const toggle = await screen.findByRole('button', { name: 'Choose from 2 open POs' })
+    const toggle = await poToggle({ name: 'Choose from 2 open POs' })
     await userEvent.click(toggle)
     await userEvent.tab()
     expect(screen.getByRole('button', { name: /PO-1043/ })).toHaveFocus()
@@ -440,7 +470,7 @@ describe('CafeReceivePage', () => {
     mockItems.mockResolvedValue(LONG_PO_ITEMS)
     poMocks.list.mockResolvedValue(LONG_PO_CACHE as never)
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: /^Choose from 1 open PO/ }))
+    fireEvent.click(await poToggle({ name: /^Choose from 1 open PO/ }))
     const card = screen.getByRole('listitem', { name: /PO-2001/ })
     expect(within(card).getByText('Long PO item 01')).toBeInTheDocument()
     expect(within(card).queryByText('Long PO item 04')).toBeNull()
@@ -451,14 +481,13 @@ describe('CafeReceivePage', () => {
     mockItems.mockResolvedValue(LONG_PO_ITEMS)
     poMocks.list.mockResolvedValue(LONG_PO_CACHE as never)
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: /^Choose from 1 open PO/ }))
+    fireEvent.click(await poToggle({ name: /^Choose from 1 open PO/ }))
     fireEvent.click(screen.getByRole('button', { name: /PO-2001/ }))
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item' }), { target: { value: 'lemon' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search items' }), { target: { value: 'lemon' } })
     expect(screen.getAllByRole('textbox', { name: /^Received for / }).map(box => box.getAttribute('aria-label')))
       .toEqual(['Received for Lemon lokal'])
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item' }), { target: { value: 'item 1' } })
-    expect(within(screen.getByRole('region', { name: 'On PO-2001' })).getAllByRole('textbox').map(box => box.getAttribute('aria-label')))
-      .toEqual(['Received for Long PO item 10', 'Received for Long PO item 11', 'Received for Long PO item 12', 'Received for Long PO item 13', 'Received for Long PO item 14'])
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search items' }), { target: { value: 'item 1' } })
+    expect(receiveListOrder()).toEqual(['On PO-2001', 'Long PO item 10', 'Long PO item 11', 'Long PO item 12', 'Long PO item 13', 'Long PO item 14'])
   })
 
   it('Issue 1518 a picked PO keeps the row unit and names its different purchase unit', async () => {
@@ -470,42 +499,38 @@ describe('CafeReceivePage', () => {
       }],
     } as never)
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Choose from 1 open PO' }))
+    fireEvent.click(await poToggle({ name: 'Choose from 1 open PO' }))
     fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
 
-    const bean = screen.getByRole('group', { name: /Coffee bean/ })
+    const bean = screen.getByRole('row', { name: /Coffee bean/ })
     expect(within(bean).getByText('PO lists: bag 1 kg')).toBeInTheDocument()
-    expect(bean.querySelector('.cafe-count__unit')).toHaveTextContent('kg')
-    expect(within(screen.getByRole('group', { name: /Fresh milk/ })).queryByText(/PO lists:/)).toBeNull()
+    expect(within(bean).getByLabelText('kg')).toBeInTheDocument()
+    expect(within(screen.getByRole('row', { name: /Fresh milk/ })).queryByText(/PO lists:/)).toBeNull()
   })
 
   it('Issue 1443 a picked PO shows its number, supplier and date over its own rows, apart from the other items', async () => {
     mockItems.mockResolvedValue(PICKER_ITEMS)
     poMocks.list.mockResolvedValue(TWO_PO_CACHE as never)
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Choose from 2 open POs' }))
+    fireEvent.click(await poToggle({ name: 'Choose from 2 open POs' }))
     fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
     const picked = screen.getByRole('group', { name: /^On PO-1043/ })
     expect(picked).toHaveTextContent('Sample produce supplier')
     expect(picked).toHaveTextContent('Sun 4 Oct')
-    const onPo = screen.getByRole('region', { name: 'On PO-1043' })
-    expect(within(onPo).getAllByRole('textbox').map(box => box.getAttribute('aria-label')))
-      .toEqual(['Received for Coffee bean', 'Received for Fresh milk'])
-    expect(within(screen.getByRole('region', { name: 'Not on this PO' })).getAllByRole('textbox').map(box => box.getAttribute('aria-label')))
-      .toEqual(['Received for Whole-grain pastry dough prepared for morning service'])
+    expect(receiveListOrder()).toEqual(['On PO-1043', 'Coffee bean', 'Fresh milk', 'Not on this PO', 'Whole-grain pastry dough prepared for morning service'])
   })
 
   it('Issue 1443 Receive without a PO drops the pick and keeps typed counts', async () => {
     mockItems.mockResolvedValue(PICKER_ITEMS)
     poMocks.list.mockResolvedValue(TWO_PO_CACHE as never)
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Choose from 2 open POs' }))
+    fireEvent.click(await poToggle({ name: 'Choose from 2 open POs' }))
     fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '4' } })
     fireEvent.click(screen.getByRole('button', { name: 'Receive without a PO' }))
     expect(screen.queryByRole('group', { name: /^On PO-1043/ })).toBeNull()
-    expect(screen.queryByRole('region', { name: 'On PO-1043' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Choose from 2 open POs' })).toHaveFocus()
+    expect(screen.queryByRole('button', { name: /^On PO-1043/ })).toBeNull()
+    expect(poToggleNow({ name: 'Choose from 2 open POs' })).toHaveFocus()
     expect(screen.getByRole('textbox', { name: 'Received for Fresh milk' })).toHaveValue('4')
   })
 
@@ -523,7 +548,7 @@ describe('CafeReceivePage', () => {
       }],
     } as never)
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: /^Choose from 1 open PO/ }))
+    fireEvent.click(await poToggle({ name: /^Choose from 1 open PO/ }))
     fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
     expect(screen.getByRole('group', { name: /^On PO-1043/ })).toHaveTextContent('Not receivable here: Vanilla syrup 700 ml, Paper straws')
   })
@@ -539,7 +564,7 @@ describe('CafeReceivePage', () => {
       purchaseOrders: [branchId === 'branch-1' ? TWO_PO_CACHE.purchaseOrders[0] : otherPo],
     }) as never)
     const view = renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Choose from 1 open PO' }))
+    fireEvent.click(await poToggle({ name: 'Choose from 1 open PO' }))
     fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Switch kitchen' }))
@@ -548,7 +573,7 @@ describe('CafeReceivePage', () => {
     streamMocks.catalog.stream = otherKitchen
     streamMocks.catalog.branchId = otherBranch.id
     view.rerender(<MemoryRouter initialEntries={['/cafe/receive']}><I18nProvider><CafeReceivePage /></I18nProvider></MemoryRouter>)
-    fireEvent.click(await screen.findByRole('button', { name: 'Choose from 1 open PO' }))
+    fireEvent.click(await poToggle({ name: 'Choose from 1 open PO' }))
     fireEvent.click(screen.getByRole('button', { name: /PO-2043/ }))
 
     fireEvent.click(screen.getByRole('button', { name: /Back to/ }))
@@ -566,11 +591,12 @@ describe('CafeReceivePage', () => {
       purchaseOrders: [{ ...TWO_PO_CACHE.purchaseOrders[0], items: [{ itemUnitId: 'unit-bag', itemName: 'Coffee bean', unitName: 'bag' }] }],
     } as never)
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: /^Choose from 1 open PO/ }))
+    fireEvent.click(await poToggle({ name: /^Choose from 1 open PO/ }))
     fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
     const bean = screen.getByRole('textbox', { name: 'Received for Coffee bean' })
-    expect(bean.closest('.cafe-count__quantity-control')).toHaveTextContent('kg')
-    expect(bean.closest('.cafe-capture-row')).toHaveTextContent('PO lists: bag')
+    const beanRow = bean.closest('[role="row"]') as HTMLElement
+    expect(within(beanRow).getByLabelText('kg')).toBeInTheDocument()
+    expect(beanRow).toHaveTextContent('PO lists: bag')
     expect(screen.queryByRole('button', { name: 'Discard draft' })).toBeNull()
     expect(Object.keys(localStorage).filter(key => key.includes('receive'))).toEqual([])
   })
@@ -582,7 +608,7 @@ describe('CafeReceivePage', () => {
     fireEvent.change(bean, { target: { value: '2,5' } })
     fireEvent.click(screen.getByRole('checkbox', { name: 'Damaged or wrong for Coffee bean' }))
 
-    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock quantities' }))
 
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
     expect(mockSubmit.mock.calls[0][3]).toEqual([
@@ -595,7 +621,7 @@ describe('CafeReceivePage', () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
     fireEvent.click(screen.getByRole('checkbox', { name: 'Damaged or wrong for Coffee bean' }))
-    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock quantities' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Send for review' }))
 
@@ -629,8 +655,9 @@ describe('CafeReceivePage', () => {
     mockSubmit.mockResolvedValue(submitResult('receipt-1', [receiptLine()]))
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
-    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
-    await screen.findByRole('heading', { name: 'Counts locked' })
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock quantities' }))
+    await screen.findByRole('heading', { name: 'Quantities locked' })
+    await openLine('Coffee bean')
     fireEvent.click(screen.getByRole('checkbox', { name: 'Damaged or wrong for Coffee bean' }))
     fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
 
@@ -646,29 +673,33 @@ describe('CafeReceivePage', () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
-    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
-    await screen.findByRole('heading', { name: 'Counts locked' })
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock quantities' }))
+    await screen.findByRole('heading', { name: 'Quantities locked' })
     fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
 
-    const errors = await screen.findAllByRole('alert')
-    expect(errors).toHaveLength(2)
-    expect(errors[0]).toHaveFocus()
-    expect(errors[0]).toHaveTextContent(/Coffee bean/i)
+    const error = await screen.findByRole('alert')
+    expect(error).toHaveFocus()
+    expect(error).toHaveTextContent(/Coffee bean/i)
     expect(mockSend).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to receipt lines' }))
+    const lines = within(screen.getByRole('list', { name: 'Counted lines' }))
+    expect(lines.getByRole('button', { name: /^Coffee bean/ })).toHaveTextContent(/reason|photo/i)
+    expect(lines.getByRole('button', { name: /^Fresh milk/ })).toHaveTextContent(/reason|photo/i)
   })
 
   it('AC-1005 changing unit keeps the chosen product detail and the typed quantity unconverted', async () => {
     mockSubmit.mockResolvedValue(submitResult('receipt-1', [receiptLine({ unit_name: 'bag' })]))
     renderPage()
     const bean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
-    expect(within(screen.getByRole('group', { name: /Fresh milk/ })).queryByRole('button', { name: 'Change unit' })).toBeNull()
+    expect(within(screen.getByRole('row', { name: /Fresh milk/ })).queryByRole('button', { name: 'Change unit' })).toBeNull()
     fireEvent.change(bean, { target: { value: '2,5' } })
     fireEvent.click(screen.getByRole('button', { name: 'Change unit' }))
     fireEvent.click(screen.getByRole('radio', { name: 'bag' }))
 
     expect(bean).toHaveValue('2,5')
-    expect(bean.parentElement).toHaveTextContent('bag')
-    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
+    expect(within(bean.closest('[role="row"]') as HTMLElement).getAllByLabelText('bag').length).toBeGreaterThan(0)
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock quantities' }))
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
     expect(mockSubmit.mock.calls[0]).toEqual([
       streamMocks.kitchen, '2026-10-06', 'receipt-key-1', [{ item_unit_id: 'unit-bag', quantity: '2.5', damaged_wrong: false }],
@@ -683,9 +714,9 @@ describe('CafeReceivePage', () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
     expect(screen.getByText('1 line')).toBeInTheDocument()
-    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock quantities' }))
 
-    const locked = await screen.findByRole('heading', { name: 'Counts locked' })
+    const locked = await screen.findByRole('heading', { name: 'Quantities locked' })
     await waitFor(() => expect(locked).toHaveFocus())
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('textbox', { name: 'Received for Fresh milk' })).toBeNull()
@@ -706,7 +737,7 @@ describe('CafeReceivePage', () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '3' } })
     const step = await openLockStep()
-    const lock = within(step).getByRole('button', { name: 'Lock counts' })
+    const lock = within(step).getByRole('button', { name: 'Lock quantities' })
     fireEvent.click(lock)
 
     expect(await within(step).findByRole('alert')).toHaveTextContent('could not be submitted')
@@ -715,24 +746,24 @@ describe('CafeReceivePage', () => {
     fireEvent.click(lock)
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(2))
     expect(mockSubmit.mock.calls[1][2]).toBe(mockSubmit.mock.calls[0][2])
-    expect(await screen.findByRole('heading', { name: 'Counts locked' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Quantities locked' })).toBeInTheDocument()
   })
 
   it('issue 1422: an invalid typed quantity blocks Count submit and says why in the send bar', async () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: 'abc' } })
-    const submit = screen.getByRole('button', { name: 'Lock counts' })
+    const submit = screen.getByRole('button', { name: 'Lock quantities' })
 
     expect(submit).toBeDisabled()
-    expect(within(submit.closest('.cafe-count__footer') as HTMLElement).getByText('Fix 1 quantity to continue')).toBeInTheDocument()
+    expect(screen.getAllByText('Fix 1 quantity to continue').length).toBeGreaterThan(0)
     fireEvent.click(submit)
     expect(mockSubmit).not.toHaveBeenCalled()
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '1' } })
     expect(submit).toBeEnabled()
   })
 
-  it('issue 1437: Lock counts opens a confirm step listing every line and submits nothing yet', async () => {
+  it('issue 1437: Lock quantities opens a confirm step listing every line and submits nothing yet', async () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2,5' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
@@ -740,19 +771,19 @@ describe('CafeReceivePage', () => {
 
     expect(step).toHaveAccessibleName('Lock 2 lines?')
     expect(within(step).getAllByRole('listitem').map(line => line.textContent)).toEqual([
-      'Coffee bean2.5 × kg',
-      'Fresh milk12 × l',
+      'RAW - Coffee bean2.5 × kg',
+      'RAW - Fresh milk12 × l',
     ])
     expect(within(step).getAllByText(/cannot change after locking/)).toHaveLength(1)
     expect(within(step).getByRole('button', { name: 'Back to edit' })).toHaveFocus()
     expect(mockSubmit).not.toHaveBeenCalled()
   })
 
-  it('issue 1437: Back to edit closes the step with every entry intact and focus on Lock counts', async () => {
+  it('issue 1437: Back to edit closes the step with every entry intact and focus on Lock quantities', async () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2,5' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
-    const pageLock = screen.getByRole('button', { name: 'Lock counts' })
+    const pageLock = screen.getByRole('button', { name: 'Lock quantities' })
     const step = await openLockStep()
 
     fireEvent.click(within(step).getByRole('button', { name: 'Back to edit' }))
@@ -770,7 +801,7 @@ describe('CafeReceivePage', () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2,5' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
-    const lock = within(await openLockStep()).getByRole('button', { name: 'Lock counts' })
+    const lock = within(await openLockStep()).getByRole('button', { name: 'Lock quantities' })
 
     fireEvent.click(lock)
     fireEvent.click(lock)
@@ -779,7 +810,7 @@ describe('CafeReceivePage', () => {
       receiptLine({ id: 'line-2', item_name: 'Fresh milk', item_category: 'Dairy', unit_name: 'l', received_quantity: '12' }),
     ]))
 
-    expect(await screen.findByRole('heading', { name: 'Counts locked' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Quantities locked' })).toBeInTheDocument()
     expect(mockSubmit).toHaveBeenCalledTimes(1)
     expect(mockSubmit.mock.calls[0][3]).toEqual([
       { item_unit_id: 'unit-kg', quantity: '2.5', damaged_wrong: false },
@@ -793,7 +824,7 @@ describe('CafeReceivePage', () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
     const step = await openLockStep()
-    const lock = within(step).getByRole('button', { name: 'Lock counts' })
+    const lock = within(step).getByRole('button', { name: 'Lock quantities' })
     lock.focus()
     fireEvent.click(lock)
     await within(step).findByRole('button', { name: 'Locking…' })
@@ -809,15 +840,15 @@ describe('CafeReceivePage', () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
     const step = await openLockStep()
-    fireEvent.click(within(step).getByRole('button', { name: 'Lock counts' }))
+    fireEvent.click(within(step).getByRole('button', { name: 'Lock quantities' }))
 
     expect(await within(step).findByRole('alert')).toHaveTextContent('Go back to edit and check Your recent receipts.')
-    expect(within(step).queryByRole('button', { name: 'Lock counts' })).toBeNull()
+    expect(within(step).queryByRole('button', { name: 'Lock quantities' })).toBeNull()
     expect(within(step).getByRole('button', { name: 'Back to edit' })).toHaveFocus()
     expect(mockSubmit).toHaveBeenCalledTimes(1)
   })
 
-  it('issue 1437: going offline in the confirm step says so there and blocks Lock counts', async () => {
+  it('issue 1437: going offline in the confirm step says so there and blocks Lock quantities', async () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
     const step = await openLockStep()
@@ -826,7 +857,7 @@ describe('CafeReceivePage', () => {
     act(() => { window.dispatchEvent(new Event('offline')) })
 
     expect(within(step).getByRole('alert')).toHaveTextContent('Reconnect to send this receipt.')
-    expect(within(step).getByRole('button', { name: 'Lock counts' })).toBeDisabled()
+    expect(within(step).getByRole('button', { name: 'Lock quantities' })).toBeDisabled()
     expect(mockSubmit).not.toHaveBeenCalled()
   })
 
@@ -843,13 +874,13 @@ describe('CafeReceivePage', () => {
     expect(screen.getByLabelText('Open calendar')).toHaveAttribute('max', '2026-10-06')
   })
 
-  it('keeps an invalid typed arrival date from enabling Lock counts', async () => {
+  it('keeps an invalid typed arrival date from enabling Lock quantities', async () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '2' } })
     const date = screen.getByLabelText('Arrival date')
     fireEvent.change(date, { target: { value: '35/13/2026' } })
     fireEvent.blur(date)
-    expect(screen.getByRole('button', { name: 'Lock counts' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Lock quantities' })).toBeDisabled()
     expect(screen.getByRole('alert')).toHaveTextContent('That date doesn\'t exist')
   })
 
@@ -857,9 +888,9 @@ describe('CafeReceivePage', () => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
     const first = renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
-    expect(await screen.findByText(/Saved on this device, nothing sent\. Reconnect to lock counts\./)).toBeInTheDocument()
+    expect(await screen.findByText(/Saved on this device, nothing sent\. Reconnect to lock quantities\./)).toBeInTheDocument()
     expect(screen.getAllByText(/Saved on this device/)).toHaveLength(1)
-    expect(screen.getByRole('button', { name: 'Lock counts' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Lock quantities' })).toBeDisabled()
     first.unmount()
 
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
@@ -868,9 +899,9 @@ describe('CafeReceivePage', () => {
     const bean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
     expect(bean).toHaveValue('2.5')
     expect(mockSubmit).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Lock counts' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Lock quantities' })).toBeEnabled()
 
-    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock quantities' }))
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
   })
 
@@ -910,8 +941,8 @@ describe('CafeReceivePage', () => {
     mockSend.mockResolvedValue({ status: 'Submitted', row_version: 2 })
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
-    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
-    await screen.findByRole('heading', { name: 'Counts locked' })
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock quantities' }))
+    await screen.findByRole('heading', { name: 'Quantities locked' })
     fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Receive another delivery' }))
 
@@ -923,8 +954,8 @@ describe('CafeReceivePage', () => {
     mockSend.mockResolvedValue({ status: 'Submitted', row_version: 2 })
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
-    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
-    await screen.findByRole('heading', { name: 'Counts locked' })
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock quantities' }))
+    await screen.findByRole('heading', { name: 'Quantities locked' })
     fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
     await screen.findByRole('heading', { name: 'Sent for review' })
 
@@ -991,7 +1022,7 @@ describe('CafeReceivePage', () => {
   })
 })
 
-describe('AC-1010 the difference after Lock counts', () => {
+describe('AC-1010 the difference after Lock quantities', () => {
   const AS_OF = '2026-10-06T02:10:00Z'
   function difference(item_unit_id: string, outcome: 'over' | 'short' | 'matches' | 'no_open_po' | 'unknown') {
     return { receipt_id: 'receipt-1', line_id: `line-${item_unit_id}`, item_unit_id, outcome, cache_as_of: AS_OF }
@@ -1005,8 +1036,8 @@ describe('AC-1010 the difference after Lock counts', () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '3' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '5' } })
-    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
-    await screen.findByRole('heading', { name: 'Counts locked' })
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock quantities' }))
+    await screen.findByRole('heading', { name: 'Quantities locked' })
   }
 
   function lockedLine(name: string) {
@@ -1051,29 +1082,29 @@ describe('AC-1010 the difference after Lock counts', () => {
     mockDifferences.mockRejectedValue(new Error('network'))
     await lockBeanAndMilk()
 
-    expect(await screen.findByText(/MOS can’t compare/)).toBeInTheDocument()
+    expect((await screen.findAllByText(/MOS can’t compare/)).length).toBeGreaterThan(0)
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getByRole('button', { name: 'Send for review' })).toBeEnabled()
   })
 })
 
 describe('one open Counted receipt per receiver per branch', () => {
-  it('FR-1012 a second Lock counts while an earlier receipt is not sent says so inside the confirm step, then on the page', async () => {
+  it('FR-1012 a second Lock quantities while an earlier receipt is not sent says so inside the confirm step, then on the page', async () => {
     mockSubmit.mockRejectedValue(new Error('submitCafeReceipt failed: CAFE_RECEIPT_COUNTED_PENDING: send your locked receipt'))
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '3' } })
     const step = await openLockStep()
-    fireEvent.click(within(step).getByRole('button', { name: 'Lock counts' }))
+    fireEvent.click(within(step).getByRole('button', { name: 'Lock quantities' }))
 
     expect(await within(step).findByRole('alert')).toHaveTextContent(
-      'Your earlier locked counts at this branch are not sent yet. Go back to edit, send them from Your recent receipts, then lock these.')
-    expect(within(step).queryByRole('button', { name: 'Lock counts' })).toBeNull()
+      'Your earlier locked quantities at this branch are not sent yet. Go back to edit, send them from Your recent receipts, then lock these.')
+    expect(within(step).queryByRole('button', { name: 'Lock quantities' })).toBeNull()
     expect(mockSubmit).toHaveBeenCalledTimes(1)
 
     fireEvent.click(within(step).getByRole('button', { name: 'Back to edit' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'Your earlier locked counts at this branch are not sent yet. Send them from Your recent receipts below, then lock these.')
+      'Your earlier locked quantities at this branch are not sent yet. Send them from Your recent receipts below, then lock these.')
     expect(screen.getByRole('textbox', { name: 'Received for Fresh milk' })).toHaveValue('3')
   })
 })
@@ -1093,14 +1124,16 @@ const SEAL_PHOTO = { lineId: 'line-1', path: 'org-1/receipt-1/line-1/photo.jpg',
 async function continueListed() {
   fireEvent.click(await screen.findByRole('button', { name: 'Continue receipt' }))
   await waitFor(() => expect(screen.queryByText(/^Checking against the branch/)).toBeNull())
+  await openLine('Coffee bean')
 }
 
 async function lockWith(lines: CafeReceiptLine[]) {
   mockSubmit.mockResolvedValue(submitResult('receipt-1', lines))
   renderPage()
   fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
-  fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
-  await screen.findByRole('heading', { name: 'Counts locked' })
+  fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock quantities' }))
+  await screen.findByRole('heading', { name: 'Quantities locked' })
+  await openLine('Coffee bean')
 }
 
 describe('issue 1425 condition evidence', () => {
@@ -1140,10 +1173,12 @@ describe('issue 1425 condition evidence', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
 
-    const [kgLine, bagLine] = screen.getAllByRole('region', { name: 'Coffee bean' })
-    expect(await within(bagLine).findByRole('alert')).toHaveTextContent('Add at least one private photo for Coffee bean before sending for review.')
+    const refusal = await screen.findByRole('alert')
+    const bagLine = await lineRegion('Coffee bean')
+    expect(bagLine).toContainElement(refusal)
+    expect(refusal).toHaveTextContent('Add at least one private photo for Coffee bean before sending for review.')
     expect(within(bagLine).getAllByText(/at least one private photo/i)).toHaveLength(1)
-    expect(within(kgLine).queryByRole('alert')).toBeNull()
+    expect(screen.getByText('3 bag')).toBeInTheDocument()
     expect(screen.queryByText(/is still missing its reason or private photo/)).toBeNull()
     expect(mockSaveExplanation).not.toHaveBeenCalled()
   })
@@ -1174,7 +1209,7 @@ describe('issue 1425 condition evidence', () => {
 
     vi.mocked(listCafeReceipts).mockResolvedValue([countedReceipt([receiptLine({ conditions: ['damaged_wrong'] })], { status: 'Submitted' })])
     renderPage()
-    await screen.findByRole('region', { name: 'Your recent receipts' })
+    await screen.findByRole('heading', { name: 'Your recent receipts' })
 
     await waitFor(() => expect(Object.keys(localStorage).filter(key => key.startsWith('mos.cafe.receiptExplanations.'))).toEqual([]))
   })
@@ -1184,7 +1219,7 @@ describe('issue 1425 condition evidence', () => {
     renderPage()
     await continueListed()
 
-    const line = screen.getByRole('region', { name: 'Coffee bean' })
+    const line = (await lineRegion('Coffee bean'))
     expect(within(line).getByText('Photos unavailable')).toBeInTheDocument()
     expect(within(line).queryByText('No photo yet.')).toBeNull()
     expect(within(line).queryByText('Add at least one photo before sending.')).toBeNull()
@@ -1192,7 +1227,7 @@ describe('issue 1425 condition evidence', () => {
 
   it('NFR-1005 the photo control is named for its item but shows a short label', async () => {
     await lockWith([receiptLine({ conditions: ['damaged_wrong'] })])
-    const line = screen.getByRole('region', { name: 'Coffee bean' })
+    const line = (await lineRegion('Coffee bean'))
 
     expect(within(line).getByLabelText('Add a photo for Coffee bean')).toHaveAttribute('type', 'file')
     expect(within(line).getByText('Add photo')).toBeInTheDocument()
@@ -1234,10 +1269,11 @@ describe('issue 1425 condition evidence', () => {
     vi.mocked(listCafeReceipts).mockResolvedValue([countedReceipt([receiptLine({ conditions: ['damaged_wrong'] })], { photosUnavailable: true })])
     renderPage()
 
-    const recent = await screen.findByRole('region', { name: 'Your recent receipts' })
+    const continueButton = await screen.findByRole('button', { name: 'Continue receipt' })
+    const recent = continueButton.closest('li') as HTMLElement
     expect(within(recent).getByText('Photos unavailable')).toBeInTheDocument()
-    fireEvent.click(within(recent).getByRole('button', { name: 'Continue receipt' }))
-    expect(await screen.findByRole('heading', { name: 'Counts locked' })).toBeInTheDocument()
+    fireEvent.click(continueButton)
+    expect(await screen.findByRole('heading', { name: 'Quantities locked' })).toBeInTheDocument()
   })
 
   it('DESIGN compact capture row: the damage flag appears only once its row has a quantity', async () => {
@@ -1259,8 +1295,8 @@ describe('issue 1425 condition evidence', () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
-    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
-    await screen.findByRole('heading', { name: 'Counts locked' })
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock quantities' }))
+    await screen.findByRole('heading', { name: 'Quantities locked' })
 
     expect(screen.getAllByText(/Flag a line when accepted goods were damaged or incorrect/)).toHaveLength(1)
   })

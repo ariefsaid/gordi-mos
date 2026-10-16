@@ -36,9 +36,10 @@ test('a pasted collection link names a record and opens its full page at 1440px'
 
 // Phone open + Back is owned by work-record-opening.spec.ts (all four collections); promoting the
 // desktop side panel to the canonical page is specific to this file.
-test.describe('Signal panel promotion at 1440px', () => {
+// The record opens beside the list only on a wide content track (1440px opens the full page directly).
+test.describe('Signal panel promotion at 1920px', () => {
   test.beforeEach(async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.setViewportSize({ width: 1920, height: 1080 })
     await loginAs(page, DIRECTOR, DEMO_PASSWORD)
   })
 

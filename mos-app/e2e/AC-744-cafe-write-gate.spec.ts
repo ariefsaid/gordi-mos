@@ -81,6 +81,7 @@ const BRANCH_SQL =
   `(select b.id from shared.branches b where b.org_id = '${ORG}' and b.code = '${BAR_STREAM.branchCode}')`
 
 test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales cannot', () => {
+  const fixtureTime = new Date()
   const today = wibToday()
 
   async function resetFixtureRows() {
@@ -124,6 +125,8 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
 
   test('restored and other-date drafts remain readable at phone, tablet and desktop widths in both locales', async ({ page }) => {
     test.setTimeout(120_000)
+    // Keep the browser on the fixture's WIB date even when the suite crosses midnight.
+    await page.clock.setFixedTime(fixtureTime)
     let locale: 'en' | 'id' = 'en'
     await page.route(/\/rest\/v1\/person_preferences\?/, route =>
       route.fulfill({ json: [{ locale }] }),
@@ -190,6 +193,10 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
         await expect(page.getByRole('spinbutton', { name: quantityLabel })).toHaveValue('9')
         const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth)
         expect(documentWidth, `horizontal overflow at ${width}px (${locale})`).toBeLessThanOrEqual(width)
+        // The other dates' drafts sit in a Drafts panel that starts closed.
+        const draftsPanel = page.locator('details.kl-capture-draft-list')
+        if (await draftsPanel.getAttribute('open') === null) await draftsPanel.locator('summary').first().click()
+        await expect(draftsPanel.locator('article')).toBeVisible()
         if (width === 390) {
           const otherDateDetails = page.locator('.kl-capture-draft-list article details')
           if (await otherDateDetails.getAttribute('open') === null) await otherDateDetails.locator('summary').click()

@@ -6,6 +6,7 @@ import { canManageCafeItemSettings, listCafeItemSettings, toCafeLogItem } from '
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { streamLabel } from '@/lib/kitchen-action-label'
 import { useT } from '@/i18n/use-t'
+import { useOptionalSignalComposer } from '@/shell/signal-composer-host'
 import './cafe-items-empty-state.css'
 
 export interface CafeItemsEmptyStateProps {
@@ -25,6 +26,7 @@ type Diagnosis =
 
 export function CafeItemsEmptyState({ stream, esbItemCount, canManage, requiresStockUnit = false }: CafeItemsEmptyStateProps) {
   const t = useT()
+  const composer = useOptionalSignalComposer()
   const [diagnosis, setDiagnosis] = useState<Diagnosis>({ kind: 'loading' })
 
   useEffect(() => {
@@ -91,21 +93,24 @@ export function CafeItemsEmptyState({ stream, esbItemCount, canManage, requiresS
         className="cie"
         variant="next-step"
         title={t('cafe.itemsEmpty.setup.title', { stream: label })}
-        copy={t(one ? 'cafe.itemsEmpty.setup.manage.one' : 'cafe.itemsEmpty.setup.manage.other', { count: diagnosis.count })}
+        copy={t(one ? 'cafe.itemsEmpty.setup.manage.one' : 'cafe.itemsEmpty.setup.manage.other', { count: diagnosis.count, stream: label })}
       >
-        <Link to="/cafe/items" className="btn btn-outline btn-touch">{t('cafe.itemsEmpty.action')}</Link>
+        {/* The one thing that unblocks the floor: the items that still need a default unit. */}
+        <Link to={`/cafe/items?unit=${encodeURIComponent('Needs unit')}`} className="btn btn-primary btn-touch">{t('cafe.itemsEmpty.action')}</Link>
       </EmptyState>
     )
   }
+  // A floor worker cannot fix this; say who can, and give them the one thing they can do.
   return (
     <EmptyState
       className="cie"
       variant="blank"
       title={t('cafe.itemsEmpty.setup.title', { stream: label })}
-      copy={t(one ? 'cafe.itemsEmpty.setup.ask.one' : 'cafe.itemsEmpty.setup.ask.other', {
-        count: diagnosis.count,
-        manager: t(stream.activity === 'bar' ? 'cafe.itemsEmpty.manager.bar' : 'cafe.itemsEmpty.manager.kitchen'),
-      })}
-    />
+      copy={t(stream.activity === 'bar' ? 'cafe.itemsEmpty.setup.ask.bar' : 'cafe.itemsEmpty.setup.ask.kitchen')}
+    >
+      {composer && composer.canPost !== false && (
+        <button type="button" className="btn btn-outline btn-touch" onClick={() => composer.open()}>{t('signals.action.share')}</button>
+      )}
+    </EmptyState>
   )
 }

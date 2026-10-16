@@ -186,7 +186,7 @@ describe('listCurrentPersonKitchenWasteDrafts', () => {
     expect(drafts[1]).toMatchObject({ logId: 'unavailable', itemUnitId: state === 'no-id' ? null : 'unit-2', unitName: null, quantity: 2.5, logDate: '2026-10-01' })
   })
 
-  it('keeps draft facts when the unit-label read is temporarily unavailable', async () => {
+  it('surfaces a failed unit-label read while recovering waste drafts', async () => {
     stubTables({
       kitchen_logs: { data: [{ id: 'draft-1', wip_item_id: 'item-1', item_unit_id: 'unit-1', qty_porsi: 2.5, created_at: '2026-10-01T00:00:00.000Z', log_date: '2026-10-01' }], error: null },
       item_units: { data: null, error: { message: 'Temporary read failure' } },
@@ -194,7 +194,7 @@ describe('listCurrentPersonKitchenWasteDrafts', () => {
     })
     await expect(listCurrentPersonKitchenWasteDrafts({
       orgId: 'org-1', personId: 'person-1', branchId: 'branch-1', activity: 'bar',
-    })).resolves.toEqual([expect.objectContaining({ logId: 'draft-1', itemUnitId: 'unit-1', unitName: null, quantity: 2.5 })])
+    })).rejects.toThrow('Temporary read failure')
   })
 
 })

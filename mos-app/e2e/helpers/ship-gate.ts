@@ -8,4 +8,4 @@
 //
 // Imported from the app's own module, never re-listed: a second copy of the list is exactly the
 // drift the gate exists to prevent.
-export { isShipGated, SHIP_GATED_PATHS } from '../../src/lib/ship-gate'
+export { isShipGated,  } from '../../src/lib/ship-gate'

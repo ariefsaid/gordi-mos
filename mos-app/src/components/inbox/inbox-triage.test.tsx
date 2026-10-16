@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { translateFor } from '@/i18n/use-t'
 import { InboxTriage, type InboxTriageProps } from './inbox-triage'
@@ -34,7 +35,9 @@ function renderTriage(props: Partial<InboxTriageProps> = {}, locale: 'en' | 'id'
   }
   render(
     <I18nProvider initialLocale={locale}>
-      <InboxTriage {...full} />
+      <MemoryRouter>
+        <InboxTriage {...full} />
+      </MemoryRouter>
     </I18nProvider>,
   )
   return full
@@ -75,11 +78,11 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
     expect(props.onRetry).toHaveBeenCalled()
   })
 
-  it('empty state shows the caught-up message via the shared kit', () => {
+  it('empty state shows the no-notifications message via the shared kit', () => {
     renderTriage({ state: 'empty', rows: [] })
     const empty = screen.getByTestId('empty-state')
     expect(empty).toHaveAttribute('data-empty-variant', 'quiet')
-    expect(empty).toHaveTextContent(/caught up/i)
+    expect(empty).toHaveTextContent(/no notifications yet/i)
   })
 
   it('F13 (OD-91 #26): the unread view empty with read items hidden shows filter-aware copy + a Show all escape (not a false all-clear)', () => {
@@ -88,14 +91,14 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
     expect(empty).toHaveTextContent(/no unread/i)
     expect(empty).toHaveTextContent(/3 read hidden/i)
     // The all-clear affirmation is NOT shown — that would be dishonest while read items exist.
-    expect(empty).not.toHaveTextContent(/caught up/i)
+    expect(empty).not.toHaveTextContent(/no notifications yet/i)
     fireEvent.click(screen.getByRole('button', { name: /show all/i }))
     expect(props.onFilterChange).toHaveBeenCalledWith('all')
   })
 
   it('F13 (OD-91 #26): a truly empty unread view (nothing hidden) keeps the earned all-clear', () => {
     renderTriage({ state: 'empty', rows: [], filter: 'unread', hiddenCount: 0 })
-    expect(screen.getByTestId('empty-state')).toHaveTextContent(/caught up/i)
+    expect(screen.getByTestId('empty-state')).toHaveTextContent(/no notifications yet/i)
   })
 
   it('ready state renders one row per notification with title and body', () => {
@@ -167,7 +170,7 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
       // reinvented format here would drift from it the first time either one changes.
       const expected = formatAge('2026-07-20T00:00:00Z', new Date())
       const row = screen.getByText('Title a').closest('.inbox-row')!
-      expect(within(row as HTMLElement).getByText(expected)).toBeInTheDocument()
+      expect(row as HTMLElement).toHaveTextContent(expected)
     } finally {
       vi.useRealTimers()
     }
@@ -181,16 +184,16 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
       const expected = formatAge('2026-07-20T00:00:00Z', new Date(), 'id')
       expect(expected).toBe('3jam') // sanity: not the en "3h" the Pill's neighbour used to show
       const row = screen.getByText('Title a').closest('.inbox-row')!
-      expect(within(row as HTMLElement).getByText(expected)).toBeInTheDocument()
+      expect(row as HTMLElement).toHaveTextContent(expected)
     } finally {
       vi.useRealTimers()
     }
   })
 
-  it('an unread row is marked unread in its accessible name and style hook', () => {
+  it('an unread row is marked unread in its accessible name', () => {
     renderTriage({ rows: [trow('a')] })
-    const btn = screen.getByRole('button', { name: /Title a \(unread\)/ })
-    expect(btn.closest('.inbox-row')).toHaveClass('inbox-row--unread')
+    expect(screen.getByRole('button', { name: /Unread: .*Title a/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Unread: .*Title b/ })).toBeNull()
   })
 
   it('clicking a row calls onOpen with that notification', () => {
@@ -289,7 +292,7 @@ describe('OD-WAY-86 (#141) — re-nudge age badge', () => {
 
   it('the badge is part of the row open-button accessible name', () => {
     renderTriage({ rows: [trow('aged', { created_at: daysAgo(3) })] })
-    expect(screen.getByRole('button', { name: /Title aged \(unread\) \(3 days\)/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Unread: .*3 days.*Title aged/ })).toBeInTheDocument()
   })
 
   it('the badge localizes: en "3 days", id "3 hari" (OD-WAY-86: both locales)', () => {

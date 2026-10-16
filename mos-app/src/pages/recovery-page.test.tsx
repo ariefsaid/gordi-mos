@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 
 // Mock supabase
@@ -37,6 +39,11 @@ import { supabase } from '@/lib/supabase'
 
 const mockUpdateUser = vi.mocked(supabase.auth.updateUser)
 const mockResetPassword = vi.mocked(supabase.auth.resetPasswordForEmail)
+
+// The page links back to sign-in, so it always renders under a router.
+function render(ui: ReactElement) {
+  return rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+}
 
 describe('RecoveryPage', () => {
   beforeEach(() => {

@@ -135,7 +135,7 @@ test.describe('AC-1241: Café waste capture and MOS review', () => {
     await expect(page.getByTestId('page-head').getByRole('heading', { level: 1, name: 'Waste', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: /Rumah Rames · Bar/i })).toBeVisible()
     // OD-TERM-ESB: review copy uses the approved ESB name, never ERP.
-    await expect(page.getByText('Waste stays in MOS review. Posting to ESB is held.', { exact: true })).toBeVisible()
+    await expect(page.getByText('Waste stays in MOS review. Posting to ESB is held.')).toBeVisible()
     const quantity = page.getByRole('spinbutton', { name: `Waste quantity for ${ITEM_NAME}` })
     await expect(quantity).toBeVisible()
     await expect(quantity).toHaveCSS('font-size', '16px')
@@ -164,12 +164,12 @@ test.describe('AC-1241: Café waste capture and MOS review', () => {
     await capture(page, testInfo, 'cafe-waste-photo-uploaded-390')
 
     await page.setViewportSize({ width: 1920, height: 1080 })
-    await expect(page.locator('.cwl-list .dt-table')).toBeVisible()
+    await expect(page.getByRole('table', { name: 'Café waste items' })).toBeVisible()
     await assertNoOverflow(page, 1920)
     await capture(page, testInfo, 'cafe-waste-capture-1920')
 
     await page.setViewportSize({ width: 1440, height: 960 })
-    await expect(page.locator('.cwl-list .dt-table')).toBeVisible()
+    await expect(page.getByRole('table', { name: 'Café waste items' })).toBeVisible()
     await assertNoOverflow(page, 1440)
     await capture(page, testInfo, 'cafe-waste-capture-1440')
 
@@ -213,12 +213,14 @@ test.describe('AC-1241: Café waste capture and MOS review', () => {
     const queue = page.getByRole('table', { name: /Submitted logs awaiting review/i })
     const reviewRow = queue.getByRole('row', { name: new RegExp(ITEM_NAME) })
     await expect(reviewRow).toBeVisible({ timeout: 20_000 })
-    const photoLink = reviewRow.getByRole('link', { name: 'Open waste photo 1 of 1' })
+    // The queue is a list with the selected log's detail beside it.
+    const detail = page.getByRole('article').filter({ has: page.getByRole('heading', { name: ITEM_NAME }) })
+    const photoLink = detail.getByRole('link', { name: 'Open waste photo 1 of 1' })
     await expect(photoLink).toBeVisible()
     const reviewImage = photoLink.locator('img')
     await expect(reviewImage).toBeVisible()
     await expect.poll(() => reviewImage.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
-    await expect(reviewRow.getByRole('button', { name: new RegExp(`Approve ${ITEM_NAME}`, 'i') })).toBeEnabled()
+    await expect(detail.getByRole('button', { name: new RegExp(`Approve ${ITEM_NAME}`, 'i') })).toBeEnabled()
     await assertNoOverflow(page, 1440)
     await capture(page, testInfo, 'cafe-waste-review-1440')
   })

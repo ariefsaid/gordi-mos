@@ -6,8 +6,10 @@
 // Design authority: docs/specs/plan-budget.spec.md + docs/plans/2026-07-07-plan-budget.md.
 // States: loading skeleton, empty (no BOM), error+retry (non-secret), populated.
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { useIsRecordSplit } from '@/shell/use-is-split-width'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { saveErrorMessage } from '@/lib/save-error'
@@ -34,6 +36,8 @@ import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { TextInput } from '@/components/ui/text-input'
+import { LinkedCostPanel } from '@/components/money/linked-cost-panel'
+import type { MessageKey } from '@/i18n/messages'
 import './budget-page.css'
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
@@ -44,6 +48,14 @@ const HEAD_META_PLACEHOLDER = <span className="ch-meta-line tabular-nums">—</s
 
 export function BudgetPage() {
   const t = useT()
+  const isWide = useIsRecordSplit()
+  const [searchParams] = useSearchParams()
+  const requestedMenu = searchParams.get('menu') ?? ''
+  const requestedScenario = searchParams.get('scenario') ?? ''
+  const [selectedCost, setSelectedCost] = useState<IngredientCostLine | null>(null)
+  const [costsOpen, setCostsOpen] = useState(false)
+  const [focusedScenario, setFocusedScenario] = useState(false)
+  const tx = (key: string) => t(key as MessageKey)
   useDocumentTitle(t('common.docTitle', { page: t('plan.budget.title') }))
   const auth = useAuth()
   const personId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
@@ -55,7 +67,7 @@ export function BudgetPage() {
   const [bus, setBus] = useState<BusinessUnitOption[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
-  const [selectedMenu, setSelectedMenu] = useState<string>('')
+  const [selectedMenu, setSelectedMenu] = useState<string>(requestedMenu)
   const [scenarioLabel, setScenarioLabel] = useState('Baseline')
   const [scenarioType, setScenarioType] = useState<BudgetRow['scenario_type']>('baseline')
   const [owningBu, setOwningBu] = useState<string>('')
@@ -78,13 +90,13 @@ export function BudgetPage() {
       setMetric(m)
       setBus(unitList)
       const menuCodes = Array.from(new Set(b.map((x) => x.menu_item_esb_code))).sort()
-      setSelectedMenu((prev) => (prev && menuCodes.includes(prev) ? prev : menuCodes[0] ?? ''))
+      setSelectedMenu((prev) => (prev && menuCodes.includes(prev) ? prev : requestedMenu && menuCodes.includes(requestedMenu) ? requestedMenu : menuCodes[0] ?? ''))
       if (unitList.length > 0) setOwningBu((prev) => prev || unitList[0].id)
       setLoad({ kind: 'ready' })
     } catch {
       setLoad({ kind: 'error' })
     }
-  }, [])
+  }, [requestedMenu])
 
   useEffect(() => {
     fetchAll()
@@ -130,6 +142,26 @@ export function BudgetPage() {
       }),
     [cogs.basis_as_of, metric],
   )
+
+  useEffect(() => {
+    if (load.kind !== 'ready') return
+    const costCode = window.location.hash.startsWith('#cost-line-') ? window.location.hash.slice('#cost-line-'.length) : ''
+    const linkedCost = costs.find((cost) => cost.ingredient_esb_code === costCode)
+    if (linkedCost) {
+      setCostsOpen(true)
+      setSelectedCost(linkedCost)
+      window.requestAnimationFrame(() => document.getElementById(`cost-line-${costCode}`)?.focus())
+    }
+  }, [costs, load.kind])
+
+  useEffect(() => {
+    if (!requestedScenario || budgets.length === 0 || focusedScenario) return
+    const row = document.getElementById(`budget-scenario-${CSS.escape(requestedScenario)}`)
+    if (!row) return
+    setFocusedScenario(true)
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#captured-scenarios`)
+    window.requestAnimationFrame(() => row.scrollIntoView({ block: 'center' }))
+  }, [budgets, focusedScenario, requestedScenario])
 
   const canCapture =
     !!selectedMenu &&
@@ -190,8 +222,8 @@ export function BudgetPage() {
     return (
       <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.plan.budget')} meta={HEAD_META_PLACEHOLDER} state="empty">
         <EmptyState
-          title="No BOM snapshot data yet"
-          copy="No BOM rows are available yet. The next warehouse snapshot will populate this page."
+          title={tx('moneyB.budget.noBomTitle')}
+          copy={tx('moneyB.budget.noBomCopy')}
         />
       </PageFamilyFrame>
     )
@@ -202,217 +234,112 @@ export function BudgetPage() {
       family="workspace"
       title={t('plan.budget.title')}
       jobSentence={t('job.plan.budget')}
+     
       meta={
         // r5 F-1 (GUARD-R2 class): a labeled sentence, never a naked count pill.
         <span className="ch-meta-line tabular-nums">
-          {budgets.length} {budgets.length === 1 ? 'scenario' : 'scenarios'}
+          {t((budgets.length === 1 ? 'moneyB.budget.scenarioCount.one' : 'moneyB.budget.scenarioCount.other') as MessageKey, { count: String(budgets.length) })}
         </span>
       }
       state={saving ? 'saving' : savedId ? 'saved' : saveError ? 'validation' : 'default'}
     >
-      {/* The section is a single-field wrapper — no aria-label landmark: a region named
-          identically to its sole field ("Menu item") made `getByLabel('Menu item')` ambiguous
-          (section + select) and created a duplicate accessible name for screen-reader users.
-          The field's own <label> is the unambiguous name. */}
-      <section className="bp-section">
-        <div className="bp-field">
-          <label className="bp-label" htmlFor="budget-menu-item">Menu item</label>
-          <Select
-            id="budget-menu-item"
-            fullWidth
-            value={selectedMenu}
-            onChange={(e) => setSelectedMenu(e.target.value)}
-          >
-            {menuCodes.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </Select>
-        </div>
+      <div className={`bp-page-layout${selectedCost && isWide ? ' record-split' : ''}`}>
+      <div className="bp-page-main">
+      <section className="bp-menu-scope">
+        <label className="bp-label" htmlFor="budget-menu-item">{tx('moneyB.budget.menuItem')}</label>
+        <Select id="budget-menu-item" fullWidth value={selectedMenu} onChange={(e) => setSelectedMenu(e.target.value)}>
+          {menuCodes.map((code) => <option key={code} value={code}>{code}</option>)}
+        </Select>
       </section>
 
-      <section className="bp-section bp-cogs" aria-label="Budgeted COGS preview">
-        <div className="bp-cogs-head">
-          <h2 className="bp-h2">Budgeted COGS (linked BOM × ingredient cost lines)</h2>
-          <FailLoudBadge status={status} />
-        </div>
-        {cogs.total === null ? (
-          <p className="bp-muted">No linked cost lines for this BOM — capture is unavailable.</p>
-        ) : (
-          <p className="bp-total tabular">
-            {formatIDR(cogs.total)}
-            {!cogs.complete && <span className="bp-incomplete"> · incomplete (a BOM line has no linked cost)</span>}
-          </p>
-        )}
+      <div className="bp-workspace">
+        <section className="bp-readiness" aria-label="Budgeted COGS preview">
+          <div className="bp-cogs-head">
+            <h2 className="bp-h2">{tx('moneyB.budget.readiness')}</h2>
+            <FailLoudBadge status={status} />
+          </div>
+          <p className="bp-basis-date">{t('moneyB.budget.basisAsOf' as MessageKey, { date: cogs.basis_as_of ? shortDate(cogs.basis_as_of) : '—' })}</p>
+          {cogs.total === null ? <p className="bp-muted">{tx('moneyB.budget.noLinkedCosts')}</p> : (
+            <p className="bp-total tabular">{formatIDR(cogs.total)} {!cogs.complete && <span className="bp-incomplete">· {tx('moneyB.budget.incomplete')}</span>}</p>
+          )}
+        </section>
 
-        <div className="bp-table-scroll">
-        <table className="bp-table">
-          <caption>BOM × linked ingredient cost lines — the cost is resolved from the linked record, never copied</caption>
-          <thead>
-            <tr>
-              <th scope="col">Ingredient</th>
-              <th scope="col">Qty</th>
-              <th scope="col">Unit cost (linked)</th>
-              <th scope="col">As of</th>
-              <th scope="col">Line total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cogs.lines.map((l) => (
-              <tr
-                key={l.ingredient_esb_code}
-                data-testid="budget-bom-line"
-                data-ingredient={l.ingredient_esb_code}
-              >
-                <th scope="row">
-                  <span className="bp-ing-name">{l.ingredient_name}</span>
-                  <span className="bp-ing-code">{l.ingredient_esb_code}</span>
-                </th>
-                <td className="tabular">
-                  {l.recipe_qty} {l.qty_unit}
-                </td>
-                <td className="tabular">
-                  {l.unit_cost !== null ? (
-                    <a
-                      className="bp-cost-link"
-                      href={`#cost-line-${l.ingredient_esb_code}`}
-                      aria-label={`Linked cost line for ${l.ingredient_name}`}
-                      data-testid="drill-cost-line"
-                    >
-                      {formatIDR(l.unit_cost)}
-                    </a>
-                  ) : (
-                    <span className="bp-muted">no linked cost line</span>
-                  )}
-                </td>
-                <td className="tabular">{l.cost_as_of ? shortDate(l.cost_as_of) : '—'}</td>
-                <td className="tabular">{l.line_total !== null ? formatIDR(l.line_total) : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-      </section>
+        <section className="bp-capture" aria-label="Capture budget scenario">
+          <h2 className="bp-h2">{tx('moneyB.budget.captureHeading')}</h2>
+          <p className="bp-help">{tx('moneyB.budget.captureHelp')}</p>
+          <p className="bp-selected-menu">{t('moneyB.budget.selectedMenu' as MessageKey, { menu: selectedMenu })}</p>
+          <div className="bp-form">
+            <TextInput id="budget-scenario-label" label={tx('moneyB.budget.scenarioLabel')} fullWidth value={scenarioLabel} onChange={(e) => setScenarioLabel(e.target.value)} />
+            <div className="bp-field">
+              <label className="bp-label" htmlFor="budget-scenario-type">{tx('moneyB.budget.scenarioType')}</label>
+              <Select id="budget-scenario-type" fullWidth value={scenarioType} onChange={(e) => setScenarioType(e.target.value as BudgetRow['scenario_type'])}>
+                <option value="baseline">{tx('moneyB.budget.type.baseline')}</option><option value="promo">{tx('moneyB.budget.type.promo')}</option><option value="new_branch">{tx('moneyB.budget.type.newBranch')}</option><option value="menu">{tx('moneyB.budget.type.menu')}</option>
+              </Select>
+            </div>
+            <div className="bp-field">
+              <label className="bp-label" htmlFor="budget-owning-bu">{tx('moneyB.budget.owningBU')}</label>
+              <Select id="budget-owning-bu" fullWidth value={owningBu} onChange={(e) => setOwningBu(e.target.value)}>
+                {bus.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </Select>
+            </div>
+            <div className="bp-field bp-actions">
+              <Button onClick={handleCapture} disabled={!canCapture}>{saving ? tx('moneyB.budget.capturing') : tx('moneyB.budget.capture')}</Button>
+              {savedId && <span className="bp-saved" role="status">{tx('moneyB.budget.saved')}</span>}
+              {saveError && <span className="bp-error" role="alert">{saveError}</span>}
+              {!canCapture && !saving && <p className="bp-muted">{tx('moneyB.budget.captureNeeds')}</p>}
+            </div>
+          </div>
+        </section>
 
-      <section className="bp-section bp-capture" aria-label="Capture budget scenario">
-        <h2 className="bp-h2">Capture a budget scenario</h2>
-        <p className="bp-help">
-          MOS reads the BOM + cost lines and captures this as the certified budgeted COGS pricing links to
-          (never a forked copy). The actual price still lands in ecommerce/POS — MOS never writes it.
-        </p>
-        <div className="bp-form">
-          <div className="bp-field">
-            <TextInput
-              id="budget-scenario-label"
-              label="Scenario label"
-              fullWidth
-              value={scenarioLabel}
-              onChange={(e) => setScenarioLabel(e.target.value)}
-            />
-          </div>
-          <div className="bp-field">
-            <label className="bp-label" htmlFor="budget-scenario-type">Scenario type</label>
-            <Select
-              id="budget-scenario-type"
-              fullWidth
-              value={scenarioType}
-              onChange={(e) => setScenarioType(e.target.value as BudgetRow['scenario_type'])}
-            >
-              <option value="baseline">Baseline</option>
-              <option value="promo">Promo</option>
-              <option value="new_branch">New branch</option>
-              <option value="menu">Menu</option>
-            </Select>
-          </div>
-          <div className="bp-field">
-            <label className="bp-label" htmlFor="budget-owning-bu">Owning business unit</label>
-            <Select
-              id="budget-owning-bu"
-              fullWidth
-              value={owningBu}
-              onChange={(e) => setOwningBu(e.target.value)}
-            >
-              {bus.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="bp-field bp-actions">
-            <Button onClick={handleCapture} disabled={!canCapture}>
-              {saving ? 'Capturing…' : 'Capture budget'}
-            </Button>
-            {savedId && <span className="bp-saved">Saved scenario.</span>}
-            {saveError && <span className="bp-error" role="alert">{saveError}</span>}
-          </div>
-        </div>
-      </section>
-
-      <section className="bp-section bp-scenarios" aria-label="Captured scenarios">
-        <h2 className="bp-h2">Captured scenarios for {selectedMenu}</h2>
-        {budgets.length === 0 ? (
-          <p className="bp-muted">No scenarios captured yet for this menu item.</p>
-        ) : (
+        <section className="bp-bom" aria-label="Linked BOM evidence">
+          <h2 className="bp-h2">{tx('moneyB.budget.linkedBom')}</h2>
           <div className="bp-table-scroll">
-          <table className="bp-table">
-            <caption>Scenario comparison — the certified baseline plus what-if captures, one linked record each</caption>
-            <thead>
-              <tr>
-                <th scope="col">Scenario</th>
-                <th scope="col">Type</th>
-                <th scope="col">Budgeted COGS</th>
-                <th scope="col">Basis as of</th>
-              </tr>
-            </thead>
-            <tbody>
-              {budgets.map((b) => (
-                <tr key={b.id} data-testid="budget-scenario-row">
-                  <th scope="row">{b.scenario_label}</th>
-                  <td>{b.scenario_type}</td>
-                  <td className="tabular">{formatIDR(b.total_budgeted_cogs)}</td>
-                  <td className="tabular">{shortDate(b.cost_basis_as_of)}</td>
+            <table className="bp-table bp-table--bom">
+              <caption>{tx('moneyB.budget.bomCaption')}</caption>
+              <thead><tr><th scope="col">{tx('moneyB.budget.ingredient')}</th><th scope="col">{tx('moneyB.budget.quantity')}</th><th scope="col">{tx('moneyB.budget.unitCost')}</th><th scope="col">{tx('moneyB.linkedCost.asOf')}</th><th scope="col">{tx('moneyB.budget.lineTotal')}</th></tr></thead>
+              <tbody>{cogs.lines.map((line) => {
+                const cost = costs.find((entry) => entry.ingredient_esb_code === line.ingredient_esb_code)
+                return <tr key={line.ingredient_esb_code} data-testid="budget-bom-line" data-ingredient={line.ingredient_esb_code}>
+                  <th scope="row"><span className="bp-ing-name">{line.ingredient_name}</span><span className="bp-ing-code">{line.ingredient_esb_code}</span></th>
+                  <td className="tabular"><span className="bp-mobile-label">{tx('moneyB.budget.quantity')}</span>{line.recipe_qty} {line.qty_unit}</td>
+                  <td className="tabular"><span className="bp-mobile-label">{tx('moneyB.budget.unitCost')}</span>{cost ? <a className="bp-cost-link" href={`#cost-line-${line.ingredient_esb_code}`} aria-label={`Linked cost line for ${line.ingredient_name}`} data-testid="drill-cost-line" onClick={(event) => { event.preventDefault(); window.history.pushState(null, '', `#cost-line-${line.ingredient_esb_code}`); setCostsOpen(true); setSelectedCost(cost) }}>{formatIDR(line.unit_cost!)}</a> : <span className="bp-muted">{tx('moneyB.budget.noLinkedCost')}</span>}</td>
+                  <td className="tabular"><span className="bp-mobile-label">{tx('moneyB.linkedCost.asOf')}</span>{line.cost_as_of ? shortDate(line.cost_as_of) : '—'}</td>
+                  <td className="tabular"><span className="bp-mobile-label">{tx('moneyB.budget.lineTotal')}</span>{line.line_total !== null ? formatIDR(line.line_total) : '—'}</td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              })}</tbody>
+            </table>
           </div>
+        </section>
+      </div>
+
+      <section id="captured-scenarios" className="bp-section bp-scenarios" aria-label="Captured scenarios">
+        <h2 className="bp-h2">{t('moneyB.budget.scenariosFor' as MessageKey, { menu: selectedMenu })}</h2>
+        {budgets.length === 0 ? <p className="bp-muted">{tx('moneyB.budget.noScenarios')}</p> : (
+          <div className="bp-table-scroll"><table className="bp-table">
+            <caption>{tx('moneyB.budget.scenarioCaption')}</caption>
+            <thead><tr><th scope="col">{tx('moneyB.budget.scenario')}</th><th scope="col">{tx('moneyB.budget.type')}</th><th scope="col">{tx('moneyB.budget.readiness')}</th><th scope="col">{tx('moneyB.budget.basisAsOfColumn')}</th></tr></thead>
+            <tbody>{budgets.map((budget) => <tr key={budget.id} id={`budget-scenario-${budget.id}`} data-testid="budget-scenario-row">
+              <th scope="row">{budget.scenario_label}</th><td>{budget.scenario_type}</td><td className="tabular">{formatIDR(budget.total_budgeted_cogs)}</td><td className="tabular">{shortDate(budget.cost_basis_as_of)}</td>
+            </tr>)}</tbody>
+          </table></div>
         )}
       </section>
 
-      {/* Drill targets — the linked ingredient cost lines (anchor A5: the consumer reads the linked
-          record, not a copy). Anchored here so the drill link resolves to the live certified record. */}
-      <section className="bp-section bp-costlines" aria-label="Linked ingredient cost lines">
-        <h2 className="bp-h2">Linked ingredient cost lines</h2>
-        <p className="bp-help">
-          Finance + Procurement own these. A budget links them by esb code; the unit cost shown is read
-          from this record, never copied. (Trend + Normal-market-variation alerts are a deferred layer.)
-        </p>
-        <div className="bp-table-scroll">
-        <table className="bp-table">
-          <caption>Ingredient cost lines (basis ESB last_hpp)</caption>
-          <thead>
-            <tr>
-              <th scope="col">Code</th>
-              <th scope="col">Name</th>
-              <th scope="col">Unit cost</th>
-              <th scope="col">As of</th>
-            </tr>
-          </thead>
-          <tbody>
-            {costs.map((c) => (
-              <tr key={c.ingredient_esb_code} id={`cost-line-${c.ingredient_esb_code}`} data-testid="cost-line-row">
-                <th scope="row">{c.ingredient_esb_code}</th>
-                <td>{c.name}</td>
-                <td className="tabular">{formatIDR(c.unit_cost)}/{c.unit}</td>
-                <td className="tabular">{shortDate(c.as_of)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
+      <section className="bp-section bp-costlines">
+        <button className="bp-costlines-toggle" type="button" aria-expanded={costsOpen} aria-controls="budget-cost-catalogue" onClick={() => setCostsOpen((open) => !open)}>{tx('moneyB.budget.costCatalogue')} <span aria-hidden="true">{costsOpen ? '−' : '+'}</span></button>
+        <p className="bp-help">{tx('moneyB.budget.costCatalogueHelp')}</p>
+        {costsOpen && <div id="budget-cost-catalogue" className="bp-table-scroll">
+          <table className="bp-table"><caption>{tx('moneyB.budget.costCatalogueCaption')}</caption>
+            <thead><tr><th scope="col">Code</th><th scope="col">Name</th><th scope="col">Unit cost</th><th scope="col">As of</th></tr></thead>
+            <tbody>{costs.map((cost) => <tr key={cost.ingredient_esb_code} id={`cost-line-${cost.ingredient_esb_code}`} tabIndex={-1} data-testid="cost-line-row">
+              <th scope="row">{cost.ingredient_esb_code}</th><td>{cost.name}</td><td className="tabular">{formatIDR(cost.unit_cost)}/{cost.unit}</td><td className="tabular">{shortDate(cost.as_of)}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>}
       </section>
+      </div>
+      {selectedCost && <LinkedCostPanel cost={selectedCost} onClose={() => setSelectedCost(null)} />}
+      </div>
     </PageFamilyFrame>
   )
 }

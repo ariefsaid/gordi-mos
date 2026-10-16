@@ -3,13 +3,14 @@
 // message with provenance subline, Team, occurred-at, and attention. A retracted Signal renders an explicit
 // tombstone (message + reason), and it is present in the projection only when the typed query asks
 // for it. Signals have NO PIC, Supervisor, or Task Status columns — the adapter never invents them.
+import { StatusBadge, ATTENTION_STATUS_KEY } from '@/components/ui/status-badge'
 import { useT } from '@/i18n/use-t'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useCollectionKeyboard } from '@/components/record-collection/use-collection-keyboard'
-import { formatWibDateTime } from '@/lib/format/date'
-import { attentionSlug, SIGNAL_CATEGORIES, type Attention, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
+import { formatWibWeekdayTime } from '@/lib/format/date'
+import { SIGNAL_CATEGORIES, type Attention, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
 import type { CollectionPresentationProps, CollectionProjection } from '@/lib/record-collection/types'
 import type { SignalCollectionContext, SignalCollectionQuery, SignalRenderGroup } from './signal-collection-adapter'
 import { useSignalCollectionActions } from './signal-collection-actions'
@@ -65,11 +66,12 @@ export function SignalTablePresentation({
   const showTeamColumn = flatRows.some((signal) => signal.owning_team_id)
   const cursorId = keyboard.cursor >= 0 ? flatRows[keyboard.cursor]?.id ?? null : null
 
-  // AC-027 (#770): the ratified column order is Message (category subline) · Team · Attention ·
-  // Occurred — a weekly review scans who/what, then how loud, then how long ago.
+  // Column order follows UX-STANDARD CT4: identity (Message, category subline), status (Attention),
+  // Team, then the date.
   const columns: DataTableColumn<SignalRow>[] = [
     {
       key: 'message',
+      className: 'sig-col-message',
       header: t('signals.table.message'),
       cardLabel: '',
       render: (signal) =>
@@ -94,29 +96,30 @@ export function SignalTablePresentation({
           </div>
         ),
     },
-    ...(showTeamColumn ? [{
-      key: 'team',
-      header: t('signals.table.team'),
-      render: (signal: SignalRow) => signal.owning_team_id ? (context.teamNamesById.get(signal.owning_team_id) ?? '') : '',
-    }] : []),
     {
       key: 'attention',
+      className: 'sig-col-attention',
       header: t('signals.table.attention'),
       sortable: Boolean(actions.onSort),
       render: (signal) =>
         signal.retracted_at ? (
           <span aria-hidden="true">—</span>
         ) : (
-          <span className={`signal-table-attention signal-table-attention--${attentionSlug(signal.attention)}`}>
-            {attentionLabel(t, signal.attention)}
-          </span>
+          <StatusBadge status={ATTENTION_STATUS_KEY[signal.attention]} />
         ),
     },
+    ...(showTeamColumn ? [{
+      key: 'team',
+      className: 'sig-col-team',
+      header: t('signals.table.team'),
+      render: (signal: SignalRow) => signal.owning_team_id ? (context.teamNamesById.get(signal.owning_team_id) ?? '') : '',
+    }] : []),
     {
       key: 'occurredAt',
+      className: 'sig-col-occurred',
       header: t('signals.table.occurredAt'),
       sortable: Boolean(actions.onSort),
-      render: (signal) => formatWibDateTime(signal.occurred_at),
+      render: (signal) => formatWibWeekdayTime(signal.occurred_at),
     },
   ]
 

@@ -10,7 +10,7 @@
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px 20px;
+  gap: var(--mos-field-gap) var(--mos-gutter);
   max-width: 40rem;
 }
 .form-grid__field { min-width: 0; }

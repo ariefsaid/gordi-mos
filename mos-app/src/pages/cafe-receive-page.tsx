@@ -1,11 +1,15 @@
+import { useSearchParamState } from '@/lib/use-search-param-state'
+import { CafeNoMatch } from '@/components/kitchen/cafe-no-match'
+import { ArrowRightIcon } from '@/shell/icons'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
+import { LocationLineOverride, LocationPanelFields } from '@/components/preview/location-preview-fields'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { DateField } from '@/components/ui/date-field'
-import { CafeCaptureQuantityControl, CafeCaptureTable } from '@/components/kitchen/cafe-capture-table'
+import { CaptureQuantityControl, CaptureRow, CaptureTable } from '@/components/kitchen/capture-row'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { CafeReceiptState } from '@/components/kitchen/cafe-receipt-state'
 import {
@@ -14,9 +18,12 @@ import {
   type EvidenceValidation,
 } from '@/components/kitchen/cafe-receipt-line-condition'
 import { CafeReceiveLockConfirm } from '@/components/kitchen/cafe-receive-lock-confirm'
-import { CafeReceiptLineRow } from '@/components/kitchen/cafe-receipt-difference'
+import { CafeReceiptDifferenceLabel } from '@/components/kitchen/cafe-receipt-difference'
 import { CafeReceiptIssuesLink } from '@/components/kitchen/cafe-receipt-issues-link'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
+import { Panel, Worksheet } from '@/components/cafe/redesign/worksheet'
+import { ActionBar } from '@/components/ui/action-bar'
+import { CafeReceiveHistoryPanel, CafeReceivePoPanel, CafeReceiveWorkspace } from '@/components/cafe/redesign/cafe-receive-workspace'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useT } from '@/i18n/use-t'
@@ -61,13 +68,16 @@ import {
 } from '@/lib/cafe-receive-drafts'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
+import { cafeItemLabel } from '@/lib/cafe-item-label'
 import { streamLabel } from '@/lib/kitchen-action-label'
 import { useKitchenItemTable } from '@/lib/kitchen-item-list'
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { recordsHref } from '@/lib/cafe-records/url-state'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { formatWeekdayDayMonth, formatWibShortDateTime } from '@/lib/format/date'
-import '@/components/kitchen/cafe-capture-controls.css'
+import { Notice } from '@/components/ui/notice'
+import '@/components/ui/Disclosure.css'
 import './cafe-receive-page.css'
 
 type Entry = { quantity: string; unitId: string; changingUnit: boolean; damagedWrong: boolean }
@@ -83,6 +93,7 @@ function isInvalidEntry(entry: Entry | undefined): boolean {
 }
 type Counted = {
   receiptId: string
+  arrivalDate: string
   rowVersion: number
   lines: CafeReceiptLine[]
   /** Each line's explanation as the server holds it, so Send saves exactly the lines that differ. */
@@ -197,13 +208,16 @@ export function CafeReceivePage() {
   const [openPoRetryKey, setOpenPoRetryKey] = useState(0)
   // The list waits behind its toggle: listed on open, its cards push the first capture row past DESIGN's 300px.
   const [openPoPickerExpanded, setOpenPoPickerExpanded] = useState(false)
+  // Phone: the receipt details fold, and the PO choice inside them folds again; a visible control opens both.
+  const [setupOpen, setSetupOpen] = useState(false)
+  const [poPanelOpen, setPoPanelOpen] = useState(false)
   const [openPoState, setOpenPoState] = useState<OpenPoState>({ branchId: null, status: 'loading', cache: null })
   const [selectedPoByBranch, setSelectedPoByBranch] = useState<Record<string, string>>({})
   const openPoPickerToggleRef = useRef<HTMLButtonElement>(null)
   const [items, setItems] = useState<CafeReceivableItem[]>([])
   const [entries, setEntries] = useState<Record<string, Entry>>({})
-  const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('All')
+  const [search, setSearch] = useSearchParamState('q', '')
+  const [category, setCategory] = useSearchParamState('category', 'All')
   const [arrivalDate, setArrivalDate] = useState(today)
   const [arrivalDateInvalid, setArrivalDateInvalid] = useState(false)
   const [clientKey, setClientKey] = useState('')
@@ -217,6 +231,8 @@ export function CafeReceivePage() {
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<ReturnType<typeof submitErrorKey> | 'cafe.receive.error.send' | 'cafe.receive.error.evidence' | 'cafe.receive.draft.saveFailed' | null>(null)
   const [counted, setCounted] = useState<Counted | null>(null)
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null)
+  const [mobileEvidenceOpen, setMobileEvidenceOpen] = useState(false)
   const [evidenceValidation, setEvidenceValidation] = useState<Record<string, EvidenceValidation>>({})
   const [difference, setDifference] = useState<CafeReceiptDifferenceSummary | 'checking'>('checking')
   const [deliveryNote, setDeliveryNote] = useState('')
@@ -377,7 +393,7 @@ export function CafeReceivePage() {
   })
   const lockLines = lines.map(({ item, entry, quantity }) => ({
     unitId: entry.unitId,
-    name: item.name,
+    name: cafeItemLabel(item),
     quantity,
     unit: item.units.find(unit => unit.id === entry.unitId)?.name ?? '',
     damagedWrong: entry.damagedWrong,
@@ -470,10 +486,13 @@ export function CafeReceivePage() {
    * Open a Counted receipt, with this person's unsaved explanations from this device laid over the
    * server's. A draft started from an older server value is dropped: the later save wins.
    */
-  function openCounted(receiptId: string, rowVersion: number, lines: CafeReceiptLine[], photosUnavailable = false) {
+  function openCounted(receiptId: string, rowVersion: number, lines: CafeReceiptLine[], photosUnavailable = false, receiptArrivalDate = arrivalDate) {
     const drafts = viewerId ? readCafeReceiptExplanationDrafts(viewerId, receiptId) : {}
+    setSelectedLineId(lines[0]?.id ?? null)
+    setMobileEvidenceOpen(false)
     setCounted({
       receiptId,
+      arrivalDate: receiptArrivalDate,
       rowVersion,
       lines: lines.map(line => {
         const draft = drafts[line.id]
@@ -546,7 +565,11 @@ export function CafeReceivePage() {
       else if (missingPhoto) validation[line.id] = 'photo'
     }
     setEvidenceValidation(validation)
-    if (Object.keys(validation).length > 0) return
+    if (Object.keys(validation).length > 0) {
+      setSelectedLineId(Object.keys(validation)[0])
+      setMobileEvidenceOpen(true)
+      return
+    }
 
     setBusy(true)
     setError(null)
@@ -567,7 +590,11 @@ export function CafeReceivePage() {
       const message = cause instanceof Error ? cause.message : ''
       const refusal = sendRefusal(message)
       const refusedLine = refusal && target.lines.find(line => line.id === refusal.lineId)
-      if (refusal && refusedLine) setEvidenceValidation({ [refusedLine.id]: refusal.missing })
+      if (refusal && refusedLine) {
+        setEvidenceValidation({ [refusedLine.id]: refusal.missing })
+        setSelectedLineId(refusedLine.id)
+        setMobileEvidenceOpen(true)
+      }
       else setError(refusal ? 'cafe.receive.error.evidence' : 'cafe.receive.error.send')
     } finally {
       markSaved(saved)
@@ -577,7 +604,7 @@ export function CafeReceivePage() {
 
   function continueReceipt(receipt: CafeReceipt) {
     if (receipt.status !== 'Counted' || busy) return
-    openCounted(receipt.id, receipt.row_version, receipt.lines, receipt.photosUnavailable)
+    openCounted(receipt.id, receipt.row_version, receipt.lines, receipt.photosUnavailable, receipt.arrival_date)
     setDeliveryNote(receipt.delivery_note_number ?? '')
     setSent(false)
   }
@@ -614,8 +641,9 @@ export function CafeReceivePage() {
     const poUnit = selectedPo?.items.find(poItem => item.units.some(unit => unit.id === poItem.itemUnitId))
     const poUnitName = poUnit?.unitName ?? item.units.find(unit => unit.id === poUnit?.itemUnitId)?.name ?? ''
     const errorId = `cafe-receive-${item.id}-quantity-error`
-    return (
-      <CafeCaptureQuantityControl
+  
+  return (
+      <CaptureQuantityControl
         id={`cafe-receive-${item.id}`}
         itemName={item.name}
         quantityFor={t('cafe.receive.quantityFor', { item: item.name })}
@@ -647,7 +675,7 @@ export function CafeReceivePage() {
             {t('cafe.receive.damageFlag')}
           </label>
         )}
-      </CafeCaptureQuantityControl>
+      </CaptureQuantityControl>
     )
   }
 
@@ -656,9 +684,176 @@ export function CafeReceivePage() {
     return <p id={`cafe-receive-${item.id}-quantity-error`} className="cafe-count__field-error" role="alert">{t('cafe.receive.quantityInvalid')}</p>
   }
 
+  const poPanel = (
+                <CafeReceivePoPanel open={poPanelOpen} onOpenChange={setPoPanelOpen} unavailable={!selectedPo && !(openPosPickable && openPos.length > 0)} title={selectedPo ? t('cafe.receive.openPos.onPo', { poNumber: selectedPo.poNumber }) : t(openPosPickable && openPos.length > 0 ? 'cafe.receive.openPos.title' : 'cafe.receive.poUnavailable')}><section className="cafe-receive__open-pos" aria-labelledby="cafe-receive-open-pos-title" onKeyDown={closeOpenPoListOnEscape}>
+      <div className="cafe-receive__open-pos-head">
+        <div className="cafe-receive__open-pos-lead">
+          <h2 id="cafe-receive-open-pos-title" className="cafe-receive__open-pos-title">{t('cafe.receive.openPos.title')}</h2>
+          {selectedPo ? (
+            <div className="cafe-receive__open-po cafe-receive__open-po--picked" role="group" aria-labelledby="cafe-receive-picked-po">
+              <PoIdentity po={selectedPo} titleId="cafe-receive-picked-po" title={t('cafe.receive.openPos.onPo', { poNumber: selectedPo.poNumber })} />
+              {selectedPoNotInMos.length > 0 && (
+                <p className="cafe-receive__open-po-note">{t('cafe.receive.openPos.notReceivable', { items: selectedPoNotInMos.join(', ') })}</p>
+              )}
+            </div>
+          ) : openPos.length > 0 && openPosPickable && (
+            <p className="cafe-receive__open-pos-help">{t('cafe.receive.openPos.help')}</p>
+          )}
+        </div>
+        {openPos.length > 0 && (
+          <div className="cafe-receive__open-po-actions">
+            <button
+              ref={openPoPickerToggleRef}
+              type="button"
+              className="btn btn-outline btn-touch"
+              aria-expanded={openPoPickerExpanded}
+              aria-controls="cafe-receive-open-po-list"
+              onClick={() => setOpenPoPickerExpanded(value => !value)}
+            >
+              {selectedPo
+                ? t('cafe.receive.openPos.change')
+                : t(openPos.length === 1 ? 'cafe.receive.openPos.choose.one' : 'cafe.receive.openPos.choose.other', { count: openPos.length })}
+            </button>
+            {selectedPo && (
+              <button type="button" className="btn btn-outline btn-touch" onClick={() => pickPurchaseOrder(null)}>
+                {t('cafe.receive.openPos.withoutPo')}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      {poStateForBranch.status === 'loading' && <p role="status">{t('cafe.receive.openPos.loading')}</p>}
+      {poStateForBranch.status === 'forbidden' && <Notice tone="info">{t('cafe.receive.openPos.forbidden')}</Notice>}
+      {poStateForBranch.status === 'error' && (
+        <Notice tone="urgent" action={<button type="button" className="btn btn-outline btn-touch" onClick={() => setOpenPoRetryKey(value => value + 1)}>{t('cafe.receive.openPos.retry')}</button>}>{t('cafe.receive.openPos.error')}</Notice>
+      )}
+      {poStateForBranch.status === 'ready' && poStateForBranch.cache && (
+        <>
+          {!poStateForBranch.cache.asOf && (
+            <Notice tone="attention" action={<button type="button" className="btn btn-outline btn-touch" onClick={() => setOpenPoRetryKey(value => value + 1)}>{t('cafe.receive.openPos.retry')}</button>}>{t('cafe.receive.openPos.notRead')} {t('cafe.receive.openPos.canContinue')}</Notice>
+          )}
+          {poStateForBranch.cache.asOf && !poStateForBranch.cache.isCurrent && (
+            <Notice tone="attention" action={<button type="button" className="btn btn-outline btn-touch" onClick={() => setOpenPoRetryKey(value => value + 1)}>{t('cafe.receive.openPos.retry')}</button>}>{t('cafe.receive.openPos.stale', { time: formatWibShortDateTime(poStateForBranch.cache.asOf, locale) })}</Notice>
+          )}
+          {poStateForBranch.cache.asOf && poStateForBranch.cache.isCurrent && openPos.length === 0 && (
+            <Notice tone="info">{t('cafe.receive.openPos.empty')}</Notice>
+          )}
+          {openPos.length > 0 && (
+            <ul
+              id="cafe-receive-open-po-list"
+              className="cafe-receive__open-po-list"
+              aria-label={t('cafe.receive.openPos.listAria')}
+              hidden={!openPoPickerExpanded}
+            >
+              {openPos.map((po, index) => {
+                const picked = selectedPo?.poNumber === po.poNumber
+                const hiddenItems = po.items.length - PO_CARD_ITEMS
+                return (
+                  <li
+                    key={po.poNumber}
+                    className={picked ? 'cafe-receive__open-po cafe-receive__open-po--picked' : 'cafe-receive__open-po'}
+                    aria-labelledby={`cafe-receive-open-po-${index}`}
+                  >
+                    <PoIdentity po={po} titleId={`cafe-receive-open-po-${index}`} title={po.poNumber} />
+                    <ul className="cafe-receive__open-po-items">
+                      {po.items.slice(0, PO_CARD_ITEMS).map((item, itemIndex) => (
+                        <li className="cafe-receive__open-po-item" key={`${item.itemUnitId ?? item.itemName}-${itemIndex}`}>
+                          <span>{item.itemName}</span>
+                          {item.unitName && <span className="cafe-receive__open-po-unit">{item.unitName}</span>}
+                        </li>
+                      ))}
+                      {hiddenItems > 0 && (
+                        <li className="cafe-receive__open-po-more">{t('cafe.receive.openPos.more', { count: hiddenItems })}</li>
+                      )}
+                    </ul>
+                    {!openPosPickable ? (
+                      <p className="cafe-receive__open-po-note">{t('cafe.receive.openPos.staleCard')}</p>
+                    ) : picked ? (
+                      <p className="cafe-receive__open-po-note">{t('cafe.receive.openPos.picked')}</p>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-touch"
+                        aria-label={t('cafe.receive.openPos.chooseThisAria', { poNumber: po.poNumber })}
+                        onClick={() => pickPurchaseOrder(po)}
+                      >
+                        {t('cafe.receive.openPos.chooseThis')}
+                      </button>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </>
+      )}
+    </section></CafeReceivePoPanel>
+  )
+
+  const intake = (
+    <div className="cafe-receive__intake">
+            <div className="cafe-receive__date">
+              <label htmlFor="cafe-receive-arrival">{t('cafe.receive.arrivalDate')}</label>
+              <DateField
+                id="cafe-receive-arrival" ref={arrivalDateRef} value={arrivalDate}
+                min={dateBounds.min} max={dateBounds.max} fullWidth required disabled={busy}
+                onValidityChange={setArrivalDateInvalid} onChange={value => {
+                  if (hasDraftData && !persistCurrentDraft()) return
+                  setError(null); setNotRestored([])
+                  setArrivalDate(value || today)
+                }} />
+            </div>
+            {loadState === 'ready' && canCapture && !counted && (
+              <CafeReceiveHistoryPanel><details className="cafe-receive__recent-disclosure">
+                <summary>{t('cafe.receive.recent.title')}</summary>
+                {recentForStream.length > 0 ? <Panel title={t('cafe.receive.recent.continue', { count: recentForStream.filter(receipt => receipt.status === 'Counted').length })} className="cafe-receive__recent">
+                <h2>{t('cafe.receive.recent.title')}</h2>
+                <ul>
+                  {recentForStream.map(receipt => (
+                    <li key={receipt.id}>
+                      <span className="tabular">{formatWeekdayDayMonth(receipt.arrival_date)}</span>
+                      <span>{t(receipt.lines.length === 1 ? 'cafe.receive.lines.one' : 'cafe.receive.lines.other', { count: receipt.lines.length })}</span>
+                      <CafeReceiptState receipt={receipt} />
+                      {receipt.photosUnavailable && <span className="cafe-receive__photos-unavailable">{t('cafe.receipts.photosUnavailable')}</span>}
+                      {receipt.status === 'Counted' && (
+                        <button type="button" className="btn btn-outline btn-touch" disabled={!isOnline || busy} onClick={() => continueReceipt(receipt)}>
+                          {t('cafe.receive.continue')}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </Panel> : <p>{t('cafe.receive.recent.empty')}</p>}
+              </details></CafeReceiveHistoryPanel>
+            )}
+            </div>
+  )
+
+  const phoneSetup = !isDesktop && items.length > 0
+  const stageDetails = (
+            <details className="cafe-receive__stage-details" open={isDesktop}><summary>{t('cafe.receive.stages.count')}</summary>
+            <nav className="cafe-receive__stages" aria-label={t('cafe.receive.stages.label')}>
+              <span aria-current="step">{t('cafe.receive.stages.count')}</span><ArrowRightIcon /><span>{t('cafe.receive.stages.explain')}</span><ArrowRightIcon /><span>{t('cafe.receive.stages.sent')}</span>
+            </nav>
+            <p className="cafe-receive__help">{t('cafe.receive.blindHelp')}</p>
+            </details>
+  )
+
+  const pageLinks = (
+    <nav className="cafe-capture-page-links" aria-label={t('cafe.receive.linksAria')}>
+      {canReview && <Link to="/cafe/review?queue=receipts">{t('cafe.receipts.review.title')}<ArrowRightIcon /></Link>}
+      <CafeReceiptIssuesLink canReview={canReview} receiverId={recent.length > 0 ? viewerId : null} />
+    </nav>
+  )
+  // Desktop capture: the steps, arrival date, PO, recent receipts and the page links share one row above the list.
+  const captureBar = isDesktop && loadState === 'ready' && !!stream && canCapture && captureReady && !counted
+
   return (
-    <CafePageFrame page="receive" streamBar={streamBar} state={pageState}>
+    <CafePageFrame page="receive" streamBar={streamBar} state={pageState}
+      recordsHref={recordsHref({ question: 'received', reading: 'entries', from: arrivalDate, to: arrivalDate, stream: stream ? { branchId: stream.branch.id, activity: stream.activity } : null, today: today })}>
       <div className="cafe-capture-page cafe-count cafe-receive">
+        {!captureBar && pageLinks}
+        <CafeReceiveWorkspace stage={counted ? sent ? 'sent' : 'explain' : 'count'}>
         {loadState === 'loading' && <LoadingShell count={3} />}
         {loadState === 'error' && (
           <ErrorState
@@ -671,13 +866,20 @@ export function CafeReceivePage() {
           <CafeStreamChoices options={streamOptions} homeStream={homeStream} myStreamKeys={myStreamKeys} onChoose={chooseStream} />
         )}
         {loadState === 'ready' && stream && !canCapture && (
-          <p className="cafe-count__notice" role="status">{t('cafe.receive.readOnly')}</p>
+          <Notice tone="info">{t('cafe.receive.readOnly')}</Notice>
         )}
         {loadState === 'ready' && stream && canCapture && counted && (
           <section className="cafe-receive__counted" aria-labelledby="cafe-receive-counted-title">
-            <h2 id="cafe-receive-counted-title" ref={countedHeadingRef} tabIndex={-1}>{sent ? t('cafe.receive.sent.title') : t('cafe.receive.counted.title')}</h2>
-            <p>{sent ? t('cafe.receive.sent.copy') : t('cafe.receive.counted.copy')}</p>
+            <nav className="cafe-receive__stages" aria-label={t('cafe.receive.stages.label')}>
+              <span>{t('cafe.receive.stages.count')}</span><ArrowRightIcon /><span aria-current={!sent ? 'step' : undefined}>{t('cafe.receive.stages.explain')}</span><ArrowRightIcon /><span aria-current={sent ? 'step' : undefined}>{t('cafe.receive.stages.sent')}</span>
+            </nav>
+            <p className="cafe-receive__scope-lock">{t('cafe.receive.scopeLocked', { date: formatWeekdayDayMonth(counted.arrivalDate), stream: streamLabel(t, stream) })}</p>
+            <div className="cafe-receive__stage-head">
+              <h2 id="cafe-receive-counted-title" ref={countedHeadingRef} tabIndex={-1}>{sent ? t('cafe.receive.sent.title') : t('cafe.receive.counted.title')}</h2>
+              <p>{sent ? t('cafe.receive.sent.copy', { stream: streamLabel(t, stream) }) : t('cafe.receive.counted.copy')}</p>
+            </div>
             {!sent && <p>{t('cafe.receive.conditionHelp')}</p>}
+            {!isOnline && !sent && <Notice tone="attention" role="alert">{t('cafe.receive.offline')}</Notice>}
             {counted.photosUnavailable && <p role="status">{t('cafe.receipts.photosUnavailable')}</p>}
             <p className="cafe-receive__difference" role="status" aria-live="polite">
               {difference === 'checking' ? t('cafe.receive.difference.checking')
@@ -685,16 +887,37 @@ export function CafeReceivePage() {
                 : difference.differing === 0 ? t('cafe.receive.difference.allMatch')
                 : t('cafe.receive.difference.differ', { count: difference.differing, total: difference.total })}
             </p>
-            <ul className="cafe-receipt-lines cafe-receive__counted-lines" aria-label={t('cafe.receive.counted.linesAria')}>
-              {counted.lines.map(line => (
-                <CafeReceiptLineRow
-                  key={line.id}
-                  name={line.item_name}
-                  quantity={line.received_quantity}
-                  unit={line.unit_name}
-                  withDifference
-                  outcome={difference !== 'checking' && difference.known ? difference.byUnit.get(line.item_unit_id) : undefined}
-                >
+            <div className="cafe-receive__locked-workspace">
+              {(isDesktop || !mobileEvidenceOpen) && <ul className="cafe-receive__line-master" aria-label={t('cafe.receive.counted.linesAria')}>
+                {counted.lines.map(line => {
+                  const outcome = difference !== 'checking' && difference.known ? difference.byUnit.get(line.item_unit_id) : undefined
+                  const validation = evidenceValidation[line.id]
+                  const condition = line.conditions.includes('damaged_wrong')
+                  return (
+                    <li key={line.id}>
+                      <button id={`cafe-receive-line-${line.id}`} type="button" className="cafe-receive__line-select" aria-current={selectedLineId === line.id ? 'true' : undefined} onClick={() => { setSelectedLineId(line.id); setMobileEvidenceOpen(true) }}>
+                        <span className="cafe-receive__line-name">{line.item_name}</span>
+                        <span className="tabular">{line.received_quantity} {line.unit_name}</span>
+                        <span className="cafe-receive__line-difference">
+                          {difference === 'checking' ? t('cafe.receive.difference.checking') : !difference.known ? t('cafe.receive.difference.unknown') : outcome ? <CafeReceiptDifferenceLabel outcome={outcome} /> : t('cafe.receive.difference.unknown')}
+                        </span>
+                        <span className="cafe-receive__line-flags">
+                          {condition && <span>{t('cafe.receive.damageFlag')}</span>}
+                          {validation && <span className="cafe-count__field-error">{t(validation === 'both' ? 'cafe.receive.reasonAndPhotoRequired' : validation === 'reason' ? 'cafe.receive.reasonRequired' : 'cafe.receive.photoRequired', { item: line.item_name })}</span>}
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>}
+              {(isDesktop || mobileEvidenceOpen) && counted.lines.filter(line => line.id === selectedLineId).map(line => (
+                <section className="cafe-receive__line-workbench" key={line.id} aria-label={line.item_name}>
+                  {!isDesktop && <button type="button" className="btn btn-outline btn-touch" onClick={() => {
+                    setMobileEvidenceOpen(false)
+                    window.requestAnimationFrame(() => document.getElementById(`cafe-receive-line-${line.id}`)?.focus())
+                  }}>{t('cafe.receive.backToLines')}</button>}
+                  <h3>{line.item_name}</h3>
+                  <p className="cafe-receive__locked-quantity">{line.received_quantity} {line.unit_name}</p>
                   {sent ? (
                     <CafeReceiptLineEvidence line={line} />
                   ) : (
@@ -710,11 +933,11 @@ export function CafeReceivePage() {
                       onSaved={explanation => markSaved({ [line.id]: explanation })}
                     />
                   )}
-                </CafeReceiptLineRow>
+                </section>
               ))}
-            </ul>
+            </div>
             {!sent && (
-              <div className="cafe-receive__send">
+              <Panel title={t('cafe.receive.deliveryNote')} className="cafe-receive__delivery-panel">
                 <label htmlFor="cafe-receive-delivery-note">{t('cafe.receive.deliveryNote')}</label>
                 <input
                   id="cafe-receive-delivery-note"
@@ -725,152 +948,50 @@ export function CafeReceivePage() {
                   disabled={busy}
                   onChange={event => setDeliveryNote(event.target.value)}
                 />
-                <button
-                  type="button"
-                  className="btn btn-primary btn-touch"
-                  disabled={!isOnline || busy}
-                  onClick={() => void handleSend(counted.receiptId, counted.rowVersion, deliveryNote)}
-                >
-                  {busy ? t('common.working') : t('cafe.receive.send')}
-                </button>
-              </div>
+              </Panel>
             )}
             {error && <p className="cafe-count__field-error" role="alert">{t(error)}</p>}
-            {sent && (
-              <button type="button" className="btn btn-outline btn-touch" onClick={startAnother}>
-                {t('cafe.receive.another')}
-              </button>
-            )}
+            <ActionBar
+              className="cafe-receive__locked-bar"
+              summary={!sent ? t('cafe.receive.evidenceProgress', { missing: counted.lines.filter(line => line.conditions.includes('damaged_wrong') && (!line.condition_reason?.trim() || (line.photos.length === 0 && !counted.photosUnavailable))).length }) : undefined}
+              primary={!sent
+                ? <button type="button" className="btn btn-primary btn-touch" disabled={!isOnline || busy} onClick={() => void handleSend(counted.receiptId, counted.rowVersion, deliveryNote)}>
+                    {busy ? t('common.working') : t('cafe.receive.send')}
+                  </button>
+                : <button type="button" className="btn btn-outline btn-touch" onClick={startAnother}>{t('cafe.receive.another')}</button>}
+            />
           </section>
         )}
         {loadState === 'ready' && stream && canCapture && captureReady && !counted && (
           <>
-            <div className="cafe-count__intro">
-              <p className="cafe-receive__help">{t('cafe.receive.blindHelp')}</p>
-              {/* With a draft the band says it is kept and how to send it; nothing is added above the rows. */}
-              {!isOnline && !(draftSaved && hasDraftData) && <p className="cafe-count__notice" role="alert">{t('cafe.receive.offline')}</p>}
-            </div>
-            <div className="cafe-receive__date">
-              <label htmlFor="cafe-receive-arrival">{t('cafe.receive.arrivalDate')}</label>
-              <DateField
-                id="cafe-receive-arrival" ref={arrivalDateRef} value={arrivalDate}
-                min={dateBounds.min} max={dateBounds.max} fullWidth required disabled={busy}
-                onValidityChange={setArrivalDateInvalid} onChange={value => {
-                  if (hasDraftData && !persistCurrentDraft()) return
-                  setError(null); setNotRestored([])
-                  setArrivalDate(value || today)
-                }} />
-            </div>
+            {captureBar ? <div className="cafe-receive__bar">{stageDetails}<div className="cafe-receive__scope-row">{intake}{items.length > 0 && poPanel}</div>{pageLinks}</div> : null}
+            {phoneSetup ? (
+              <>
+              <details className="cafe-receive__setup" open={setupOpen} onToggle={event => setSetupOpen(event.currentTarget.open)}>
+                <summary><span>{t('cafe.receive.setup')}</span><span className="cafe-receive__setup-summary">{formatWeekdayDayMonth(arrivalDate)}{selectedPo ? ` · ${selectedPo.poNumber}` : ''}</span></summary>
+                {intake}
+                {poPanel}
+              </details>
+              {/* The PO is the one choice most deliveries need, so it is not left behind two folds. */}
+              {!selectedPo && openPosPickable && openPos.length > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-outline btn-touch cafe-receive__choose-po"
+                  onClick={() => { setSetupOpen(true); setPoPanelOpen(true); setOpenPoPickerExpanded(true) }}
+                >
+                  {t(openPos.length === 1 ? 'cafe.receive.openPos.choose.one' : 'cafe.receive.openPos.choose.other', { count: openPos.length })}
+                </button>
+              )}
+              </>
+            ) : captureBar ? null : <div className="cafe-receive__scope-row">{intake}{items.length > 0 && poPanel}</div>}
+            {/* With a draft the band says it is kept and how to send it; nothing is added above the rows. */}
+            {!isOnline && !(draftSaved && hasDraftData) && <Notice tone="attention" role="alert">{t('cafe.receive.offline')}</Notice>}
             {items.length === 0 ? (
               <CafeItemsEmptyState stream={stream} requiresStockUnit />
             ) : (
               <>
-                <section className="cafe-receive__open-pos" aria-labelledby="cafe-receive-open-pos-title" onKeyDown={closeOpenPoListOnEscape}>
-                  <div className="cafe-receive__open-pos-head">
-                    <div className="cafe-receive__open-pos-lead">
-                      <h2 id="cafe-receive-open-pos-title" className="cafe-receive__open-pos-title">{t('cafe.receive.openPos.title')}</h2>
-                      {selectedPo ? (
-                        <div className="cafe-receive__open-po cafe-receive__open-po--picked" role="group" aria-labelledby="cafe-receive-picked-po">
-                          <PoIdentity po={selectedPo} titleId="cafe-receive-picked-po" title={t('cafe.receive.openPos.onPo', { poNumber: selectedPo.poNumber })} />
-                          {selectedPoNotInMos.length > 0 && (
-                            <p className="cafe-receive__open-po-note">{t('cafe.receive.openPos.notReceivable', { items: selectedPoNotInMos.join(', ') })}</p>
-                          )}
-                        </div>
-                      ) : openPos.length > 0 && openPosPickable && (
-                        <p className="cafe-receive__open-pos-help">{t('cafe.receive.openPos.help')}</p>
-                      )}
-                    </div>
-                    {openPos.length > 0 && (
-                      <div className="cafe-receive__open-po-actions">
-                        <button
-                          ref={openPoPickerToggleRef}
-                          type="button"
-                          className="btn btn-outline btn-touch"
-                          aria-expanded={openPoPickerExpanded}
-                          aria-controls="cafe-receive-open-po-list"
-                          onClick={() => setOpenPoPickerExpanded(value => !value)}
-                        >
-                          {selectedPo
-                            ? t('cafe.receive.openPos.change')
-                            : t(openPos.length === 1 ? 'cafe.receive.openPos.choose.one' : 'cafe.receive.openPos.choose.other', { count: openPos.length })}
-                        </button>
-                        {selectedPo && (
-                          <button type="button" className="btn btn-outline btn-touch" onClick={() => pickPurchaseOrder(null)}>
-                            {t('cafe.receive.openPos.withoutPo')}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {poStateForBranch.status === 'loading' && <p role="status">{t('cafe.receive.openPos.loading')}</p>}
-                  {poStateForBranch.status === 'forbidden' && <p role="status">{t('cafe.receive.openPos.forbidden')}</p>}
-                  {poStateForBranch.status === 'error' && (
-                    <div className="cafe-receive__open-pos-state">
-                      <p role="alert">{t('cafe.receive.openPos.error')}</p>
-                      <button type="button" className="btn btn-outline btn-touch" onClick={() => setOpenPoRetryKey(value => value + 1)}>
-                        {t('cafe.receive.openPos.retry')}
-                      </button>
-                    </div>
-                  )}
-                  {poStateForBranch.status === 'ready' && poStateForBranch.cache && (
-                    <>
-                      {!poStateForBranch.cache.asOf && <p role="status">{t('cafe.receive.openPos.notRead')}</p>}
-                      {poStateForBranch.cache.asOf && !poStateForBranch.cache.isCurrent && (
-                        <p role="status">{t('cafe.receive.openPos.stale', { time: formatWibShortDateTime(poStateForBranch.cache.asOf, locale) })}</p>
-                      )}
-                      {poStateForBranch.cache.asOf && poStateForBranch.cache.isCurrent && openPos.length === 0 && (
-                        <p role="status">{t('cafe.receive.openPos.empty')}</p>
-                      )}
-                      {openPos.length > 0 && (
-                        <ul
-                          id="cafe-receive-open-po-list"
-                          className="cafe-receive__open-po-list"
-                          aria-label={t('cafe.receive.openPos.listAria')}
-                          hidden={!openPoPickerExpanded}
-                        >
-                          {openPos.map((po, index) => {
-                            const picked = selectedPo?.poNumber === po.poNumber
-                            const hiddenItems = po.items.length - PO_CARD_ITEMS
-                            return (
-                              <li
-                                key={po.poNumber}
-                                className={picked ? 'cafe-receive__open-po cafe-receive__open-po--picked' : 'cafe-receive__open-po'}
-                                aria-labelledby={`cafe-receive-open-po-${index}`}
-                              >
-                                <PoIdentity po={po} titleId={`cafe-receive-open-po-${index}`} title={po.poNumber} />
-                                <ul className="cafe-receive__open-po-items">
-                                  {po.items.slice(0, PO_CARD_ITEMS).map((item, itemIndex) => (
-                                    <li className="cafe-receive__open-po-item" key={`${item.itemUnitId ?? item.itemName}-${itemIndex}`}>
-                                      <span>{item.itemName}</span>
-                                      {item.unitName && <span className="cafe-receive__open-po-unit">{item.unitName}</span>}
-                                    </li>
-                                  ))}
-                                  {hiddenItems > 0 && (
-                                    <li className="cafe-receive__open-po-more">{t('cafe.receive.openPos.more', { count: hiddenItems })}</li>
-                                  )}
-                                </ul>
-                                {!openPosPickable ? (
-                                  <p className="cafe-receive__open-po-note">{t('cafe.receive.openPos.staleCard')}</p>
-                                ) : picked ? (
-                                  <p className="cafe-receive__open-po-note">{t('cafe.receive.openPos.picked')}</p>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    className="btn btn-outline btn-touch"
-                                    aria-label={t('cafe.receive.openPos.chooseThisAria', { poNumber: po.poNumber })}
-                                    onClick={() => pickPurchaseOrder(po)}
-                                  >
-                                    {t('cafe.receive.openPos.chooseThis')}
-                                  </button>
-                                )}
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      )}
-                    </>
-                  )}
-                </section>
+                <div className="cafe-receive__count-layout">
+                <div className="cafe-receive__count-list">
                 <KitchenToolbar
                   search={search}
                   onSearchChange={setSearch}
@@ -881,72 +1002,56 @@ export function CafeReceivePage() {
                   onCategoryChange={setCategory}
                   searchPlaceholder={t('kitchen.log.searchPlaceholder')}
                   ariaLabel={t('kitchen.log.toolbarAria')}
+                  resultCount={{ shown: searchMatchedItems.length, total: items.length }}
+                  sortLabel={t('cafe.toolbar.sorted.az')}
                 />
-                {rowGroups.length === 0 && <p className="cafe-count__intro">{t('kitchen.filter.noMatch')}</p>}
-                {rowGroups.map(group => (
-                  <section className="cafe-receive__row-group" key={group.key} aria-labelledby={group.label ? `cafe-receive-rows-${group.key}` : undefined}>
-                    {group.label && <h3 id={`cafe-receive-rows-${group.key}`} className="cafe-receive__row-group-label">{group.label}</h3>}
-                    <CafeCaptureTable
-                      rows={group.items}
-                      caption={group.label ?? t('cafe.receive.listAria')}
-                      quantityHeader={t('cafe.receive.quantityLabel')}
-                      isDesktop={isDesktop}
-                      renderControls={renderItemControls}
-                      renderFeedback={renderItemFeedback}
-                    />
-                  </section>
-                ))}
+                <>
+                <Worksheet label={t('cafe.receive.listAria')} className="cafe-receive__count-sheet">
+                  <CaptureTable
+                    caption={t('cafe.receive.listAria')}
+                    columns={{ item: t('kitchen.log.col.item'), itemSort: 'asc', controls: [{ label: t('cafe.receive.quantityLabel') }] }}
+                    groups={rowGroups.map(group => ({ key: group.key, label: group.label || null, rows: group.items }))}
+                    state={rowGroups.length > 0 ? 'ready' : 'empty'}
+                    emptyLabel={<CafeNoMatch bare onClear={() => { setSearch(''); setCategory('All') }} />}
+                    renderRow={item => (
+                      <CaptureRow
+                        id={item.id}
+                        name={item.name}
+                        kind={new Set(items.map(entry => entry.kind)).size > 1 ? item.kind : null}
+                        category={new Set(items.map(entry => entry.category).filter(Boolean)).size > 1 ? item.category : null}
+                        controls={[{ node: renderItemControls(item) }]}
+                        detail={renderItemFeedback(item)}
+                      />
+                    )}
+                  />
+                </Worksheet>
+                </>
+                </div>
+                <Panel open={isDesktop} title={t('cafe.receive.acceptedInspect', { count: lines.length })} className="cafe-receive__accepted-inspect">
+                  {lines.length === 0 && <p>{t('cafe.receive.noAccepted')}</p>}
+                  <ul>
+                    {lines.map(({ item, entry, quantity }) => (
+                      <li key={item.id}>
+                        <span>{cafeItemLabel(item)}</span>
+                        <span className="tabular">{quantity} {item.units.find(unit => unit.id === entry.unitId)?.name}</span>
+                        {entry.damagedWrong && <span>{t('cafe.receive.damageFlag')}</span>}
+                        <LocationLineOverride />
+                      </li>
+                    ))}
+                  </ul>
+                  {/* Where the delivery goes is decided here, beside Lock quantities (preview only; nothing when the preview is off). */}
+                  <LocationPanelFields kind="receive" />
+                </Panel>
+                </div>
               </>
             )}
           </>
         )}
-        {loadState === 'ready' && canCapture && recentForStream.length > 0 && (
-          <section className="cafe-receive__recent" aria-labelledby="cafe-receive-recent-title">
-            <h2 id="cafe-receive-recent-title">{t('cafe.receive.recent.title')}</h2>
-            <ul>
-              {recentForStream.map(receipt => (
-                <li key={receipt.id}>
-                  <span className="tabular">{formatWeekdayDayMonth(receipt.arrival_date)}</span>
-                  <span>{t(receipt.lines.length === 1 ? 'cafe.receive.lines.one' : 'cafe.receive.lines.other', { count: receipt.lines.length })}</span>
-                  <CafeReceiptState receipt={receipt} />
-                  {receipt.photosUnavailable && <span className="cafe-receive__photos-unavailable">{t('cafe.receipts.photosUnavailable')}</span>}
-                  {receipt.status === 'Counted' && receipt.id !== counted?.receiptId && (
-                    <button
-                      type="button"
-                      className="btn btn-outline"
-                      disabled={!isOnline || busy}
-                      onClick={() => continueReceipt(receipt)}
-                    >
-                      {t('cafe.receive.continue')}
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-        <nav className="cafe-capture-page-links" aria-label={t('cafe.receive.linksAria')}>
-          {canReview && <Link to="/cafe/receive/review">{t('cafe.receipts.review.title')}</Link>}
-          <CafeReceiptIssuesLink canReview={canReview} receiverId={recent.length > 0 ? viewerId : null} />
-        </nav>
+        {!isDesktop && loadState === 'ready' && stream && canCapture && captureReady && !counted && items.length > 0 && stageDetails}
         {loadState === 'ready' && stream && canCapture && captureReady && !counted && items.length > 0 && (
-          <div className="cafe-capture-footer cafe-count__footer">
-            <div className="cafe-receive__band-status">
-              <div className="cafe-receive__band-row">
-                <p className="cafe-count__tally" aria-live="polite">
-                  {t(lines.length === 1 ? 'cafe.receive.lines.one' : 'cafe.receive.lines.other', { count: lines.length })}
-                </p>
-                {hasDraftData && (
-                  <button type="button" className="cafe-receive__discard-draft" onClick={() => setDiscardingDraft(true)}>
-                    {t('cafe.receive.draft.discard')}
-                  </button>
-                )}
-              </div>
-              {invalidCount > 0 && (
-                <p className="cafe-count__field-error" role="status">
-                  {t(invalidCount === 1 ? 'cafe.receive.fixInvalid.one' : 'cafe.receive.fixInvalid.other', { count: invalidCount })}
-                </p>
-              )}
+          <ActionBar
+            className="cafe-capture-footer"
+            alert={<>
               {error && !confirming && <p className="cafe-count__field-error" role="alert">{t(error)}</p>}
               {notRestored.length > 0 && (
                 <p className="cafe-receive__band-note" role="status">
@@ -956,17 +1061,27 @@ export function CafeReceivePage() {
               {draftSaved && hasDraftData && (
                 <p className="cafe-receive__band-note" role="status">{t(isOnline ? 'cafe.receive.draft.saved' : 'cafe.receive.draft.offline')}</p>
               )}
-            </div>
-            <button
-              ref={lockButtonRef}
-              type="button"
-              className="btn btn-primary cafe-count__submit"
-              disabled={!canLock}
-              onClick={() => setConfirming(true)}
-            >
+            </>}
+            summary={<>
+              <span aria-live="polite">{t(lines.length === 1 ? 'cafe.receive.lines.one' : 'cafe.receive.lines.other', { count: lines.length })}</span>
+              {hasDraftData && (
+                <button type="button" className="cafe-receive__discard-draft" onClick={() => setDiscardingDraft(true)}>
+                  {t('cafe.receive.draft.discard')}
+                </button>
+              )}
+            </>}
+            reason={<>
+              {lines.length === 0 && isOnline && <span className="cafe-count__bar-status" role="status">{t('cafe.capture.needsQuantity')}</span>}
+              {invalidCount > 0 && (
+                <span className="cafe-count__field-error" role="status">
+                  {t(invalidCount === 1 ? 'cafe.receive.fixInvalid.one' : 'cafe.receive.fixInvalid.other', { count: invalidCount })}
+                </span>
+              )}
+            </>}
+            primary={<button ref={lockButtonRef} type="button" className="btn btn-primary cafe-count__submit" disabled={!canLock} onClick={() => setConfirming(true)}>
               {t('cafe.receive.countSubmit')}
-            </button>
-          </div>
+            </button>}
+          />
         )}
         <CafeReceiveLockConfirm
           open={confirming && !counted}
@@ -1019,6 +1134,7 @@ export function CafeReceivePage() {
           }}
           onCancel={() => setPendingStream(null)}
         />
+        </CafeReceiveWorkspace>
       </div>
     </CafePageFrame>
   )

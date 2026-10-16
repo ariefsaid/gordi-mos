@@ -1,3 +1,4 @@
+import { StatusBadge, ATTENTION_STATUS_KEY } from '@/components/ui/status-badge'
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useT } from '@/i18n/use-t'
@@ -6,7 +7,7 @@ import { useListboxPopover } from '@/components/ui/use-listbox-popover'
 import { usePopoverReflow } from '@/components/ui/use-popover-reflow'
 import { POPOVER_GAP_PX, shouldFlipUp, shouldPullIn } from './signal-attention-placement'
 import { attentionLabel } from './signal-attention-label'
-import { attentionSlug, type Attention } from '@/lib/db/signals.types'
+import { type Attention } from '@/lib/db/signals.types'
 import './signal-attention-picker.css'
 
 const ATTENTIONS: readonly Attention[] = ['FYI', 'Needs attention', 'Urgent']
@@ -85,19 +86,19 @@ export function SignalAttentionPicker({ id, value, onChange, label }: SignalAtte
 
   return (
     <div className="signal-attention-picker" ref={rootRef}>
-      <span className="signal-attention-picker-label" aria-hidden="true">{groupLabel}</span>
+      <span className="signal-attention-picker-label">{groupLabel}</span>
       <button
         id={id}
         ref={triggerRef}
         type="button"
-        className={`signal-attention-picker-trigger signal-attention-picker-trigger--${attentionSlug(value)}`}
+        className="signal-attention-picker-trigger"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
         aria-label={`${groupLabel}: ${attentionLabel(t, value)}`}
         onClick={() => setOpen((wasOpen) => !wasOpen)}
       >
-        {attentionLabel(t, value)}
+        <StatusBadge status={ATTENTION_STATUS_KEY[value]} />
         <svg className="signal-attention-picker-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
       </button>
       {open && createPortal(
@@ -120,9 +121,7 @@ export function SignalAttentionPicker({ id, value, onChange, label }: SignalAtte
               className={`signal-attention-picker-option${index === activeIndex ? ' is-active' : ''}`}
               onClick={() => { setActiveIndex(index); onChange(attention); setOpen(false) }}
             >
-              <span className={`signal-attention signal-attention--${attentionSlug(attention)}`}>
-                {attentionLabel(t, attention)}
-              </span>
+              <StatusBadge status={ATTENTION_STATUS_KEY[attention]} />
               <span className="signal-attention-picker-meaning">
                 {t(MEANING_KEYS[attention])}
               </span>

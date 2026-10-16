@@ -10,6 +10,8 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 export interface ToastState {
   message: string
   id: number
+  /** An optional action beside the message ("Undo"). */
+  action?: { label: string; onClick: () => void }
 }
 
 export function useToast() {

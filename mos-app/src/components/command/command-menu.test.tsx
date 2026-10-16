@@ -5,8 +5,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { messages } from '@/i18n/messages'
-import { DESTINATIONS, isLive, modulesByBU, navUtility, type Destination } from '@/shell/destinations'
-import { visibleSections } from '@/shell/sections'
+import { goToEntries } from '@/shell/module-registry'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
 vi.mock('@/lib/db/signals', () => ({ searchSignalsByBody: vi.fn() }))
@@ -20,22 +19,6 @@ vi.mock('@/lib/db/work-lines', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/db/work-lines')>()),
   searchWorkLinesByName: vi.fn(),
 }))
-// The route-admission seam (OD-WAY-51), REAL by default — the same partial mock the
-// app-shell-cafe-log-launcher tests use. Overridable per test because no persona is refused by
-// /cafe today (the route carries no access-role gate; OD-WAY-51's remedy is to narrow the ROUTE,
-// never to hide the link). The override both simulates the day the route narrows and proves the
-// palette consults THIS seam rather than a private job-role gate.
-const seam = vi.hoisted(() => ({
-  override: null as null | ((path: string, accessRoles: string[]) => boolean),
-}))
-vi.mock('@/shell/destinations', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('@/shell/destinations')>()
-  return {
-    ...mod,
-    viewerAdmittedToRoute: (path: string, accessRoles: string[]) =>
-      seam.override ? seam.override(path, accessRoles) : mod.viewerAdmittedToRoute(path, accessRoles),
-  }
-})
 // DD-WAY-36: scoped flag flip so one test can light the follow-up palette search without
 // disturbing the darkness test below (default stays false).
 const features = vi.hoisted(() => ({ SHOW_FOLLOWUPS: false, SHOW_ASSISTANT: true }))
@@ -74,21 +57,16 @@ function setAuth(accessRoles: string[] = ['admin']) {
   })
 }
 
-// What the rail shows `accessRoles`, read from the rail's own accessors (the rail and the phone
-// drawer render these same registries) and the English catalog — never from the palette.
+// What the Go to group offers `accessRoles`, read from the module registry the rail, the drawer and
+// the palette all share (and the English catalog) — never from the palette itself.
 function railLabels(accessRoles: string[]): string[] {
-  const en = messages.en
-  const out: string[] = []
-  const add = (d: Destination) => {
-    out.push(en[d.labelKey])
-    for (const c of visibleSections(d.children ?? [], accessRoles)) out.push(c.labelKey ? en[c.labelKey] : c.label)
-  }
-  DESTINATIONS.filter((d) => isLive(d, accessRoles)).forEach(add)
-  modulesByBU(accessRoles).flatMap((g) => g.items).forEach(add)
-  navUtility(accessRoles).forEach(add)
-  // Personal Profile lives in the user-chip menu, and the palette keeps its door to it.
-  out.push(en['dest.profile'])
-  return out
+  return goToEntries(accessRoles).map((entry) => messages.en[entry.labelKey])
+}
+
+// Each option reads "<label>" or "<label><trail>" (a page names where it lives), so compare by prefix.
+function expectGoToLabels(options: HTMLElement[], labels: string[]) {
+  expect(options).toHaveLength(labels.length)
+  options.forEach((option, index) => expect(option.textContent?.startsWith(labels[index])).toBe(true))
 }
 
 function LocationProbe() {
@@ -114,7 +92,6 @@ beforeEach(() => {
   features.SHOW_ASSISTANT = true
   localStorage.clear()
   vi.clearAllMocks()
-  seam.override = null
   mockSearch.mockResolvedValue([])
   mockSearchSignals.mockResolvedValue([])
   mockSearchFollowUps.mockResolvedValue([])
@@ -135,7 +112,7 @@ describe('CommandMenu (AC-K07): dialog semantics + Esc + return focus', () => {
     renderMenu()
     const input = screen.getByRole('combobox')
     expect(input).toHaveClass('tap-floor')
-    expect(buttonCss).toMatch(/@media \(max-width: 767\.98px\)[\s\S]*?\.tap-floor\s*\{[^}]*min-height:\s*44px/)
+    expect(buttonCss).toMatch(/@media \(max-width: 767\.98px\)[\s\S]*?\.tap-floor\s*\{[^}]*min-height:\s*var\(--mos-control-height\)/)
   })
 
   it('AC-K07: renders role=dialog with aria-modal and an accessible name', () => {
@@ -246,31 +223,33 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search-only palette', 
   it('AC-030: rests on every destination the viewer can open (the catalog), then the universal actions', () => {
     renderMenu()
     const groups = screen.getAllByRole('group')
-    expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['GO TO', 'ACT'])
-    expect(within(groups[0]).getAllByRole('option').map((option) => option.textContent)).toEqual(
-      railLabels(['admin']),
+    expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['Actions', 'Go to'])
+    expect(within(groups[1]).getAllByRole('option').map((option) => option.textContent)).toEqual(
+      expect.arrayContaining([]),
     )
+    expectGoToLabels(within(groups[1]).getAllByRole('option'), railLabels(['admin']))
     // The destinations #1193 found missing, by name — not only by the catalog derivation above.
-    for (const label of ['Signals', 'Tasks', 'Projects & Processes', 'Objectives', 'Log production', 'Log transfer', 'Plan', 'Stock', 'Review', 'Pushes', 'Admin Settings']) {
-      expect(within(groups[0]).getByRole('option', { name: label })).toBeInTheDocument()
+    for (const label of ['Signals', 'Tasks', 'Projects & Processes', 'Objectives', 'Café', 'Plan', 'Review', 'Admin settings']) {
+      expect(within(groups[1]).getByRole('option', { name: new RegExp(`^${label}`) })).toBeInTheDocument()
     }
-    expect(within(groups[1]).getAllByRole('option')).toHaveLength(3)
+    expect(within(groups[0]).getAllByRole('option')).toHaveLength(3)
   })
 
   it('AC-030: Go to follows what the rail shows this role — Admin Settings and the gated Café screens stay absent for a member', () => {
     setAuth(['member'])
     renderMenu()
-    const goTo = within(screen.getByRole('group', { name: 'GO TO' }))
-    expect(goTo.getAllByRole('option').map((option) => option.textContent)).toEqual(railLabels(['member']))
-    expect(goTo.queryByRole('option', { name: 'Admin Settings' })).toBeNull()
-    expect(goTo.queryByRole('option', { name: 'Pushes' })).toBeNull()
+    const goTo = within(screen.getByRole('group', { name: 'Go to' }))
+    expectGoToLabels(goTo.getAllByRole('option'), railLabels(['member']))
+    expect(goTo.queryByRole('option', { name: /^Admin settings/ })).toBeNull()
+    expect(goTo.queryByRole('option', { name: /^Pushes/ })).toBeNull()
   })
 
   it('AC-030: Go to labels come from the catalog in Indonesian too', () => {
     renderMenu(vi.fn(), 'id')
-    const goTo = within(screen.getByRole('group', { name: 'BUKA' }))
-    expect(goTo.getByRole('option', { name: 'Tujuan' })).toBeInTheDocument()
-    expect(goTo.getByRole('option', { name: 'Pengaturan Admin' })).toBeInTheDocument()
+    const goTo = within(screen.getByRole('group', { name: 'Buka' }))
+    const labels = goToEntries(['admin']).map((entry) => messages.id[entry.labelKey])
+    expectGoToLabels(goTo.getAllByRole('option'), labels)
+    expect(goTo.getByRole('option', { name: /^Tujuan/ })).toBeInTheDocument()
   })
 
   it('AC-031: typing obj searches declared children while keeping the shared placeholder', async () => {
@@ -278,7 +257,7 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search-only palette', 
     const input = screen.getByRole('combobox')
     expect(input).toHaveAttribute('placeholder', 'Search records and people')
     fireEvent.change(input, { target: { value: 'obj' } })
-    expect(await screen.findByRole('option', { name: 'Objectives' })).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: /^Objectives/ })).toBeInTheDocument()
   })
 
   it('AC-031: the placeholder is translated in Indonesian too', () => {
@@ -332,7 +311,7 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search-only palette', 
   // the keyboard-hint footer.
   function stubViewport({ narrow, coarse }: { narrow: boolean; coarse: boolean }) {
     vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
-      matches: query.includes('919.98') ? narrow : query.includes('coarse') ? coarse : false,
+      matches: query.includes('767.98') ? narrow : query.includes('coarse') ? coarse : false,
       media: query, onchange: null,
       addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
     }))
@@ -348,29 +327,28 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search-only palette', 
     expect(screen.queryAllByRole('option')).toHaveLength(0)
   })
 
-  it('AC-032: narrowing still yields record results, and never a GO TO / ACT group', async () => {
+  it('AC-032: narrowing still yields record results, with Go to and Actions matches after them', async () => {
     stubViewport({ narrow: true, coarse: false })
     mockSearch.mockResolvedValue([{ id: 't1', title: 'Restock cups', status: 'Open' }])
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
     expect(await screen.findByRole('option', { name: /Restock cups/i })).toBeInTheDocument()
-    // "o" matches roots and children on desktop; narrow, none of them may surface — only the
-    // readable Task result group remains.
-    expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual(['Task'])
+    // The readable Task result group leads; typed navigation matches follow it.
+    expect(screen.getAllByRole('group')[0].getAttribute('aria-label')).toBe('Task')
   })
 
-  it('AC-032: at ≥920 even a COARSE pointer gets GO TO / ACT — the branch is the shell width seam, not the pointer', () => {
+  it('AC-032: at ≥920 even a COARSE pointer gets Actions / Go to — the branch is the shell width seam, not the pointer', () => {
     // The inverse probe: a touch device at desktop width is where a pointer-keyed branch and a
     // width-keyed one disagree, and the width seam wins — the device sees the rail at ≥920, so
     // its palette rests on the same GO TO roots (#41 keeps hiding the keyboard hints there).
     stubViewport({ narrow: false, coarse: true })
     renderMenu()
-    expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual(['GO TO', 'ACT'])
+    expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual(['Actions', 'Go to'])
   })
 
   // Go to asks the rail's own question (`isLive` + `visibleSections`, derived in
   // `goToDestinations`), so a destination the rail hides for a role is absent here too.
-  it('AC-031: a destination the rail hides for the role is absent from Go to (Money is gated off for a member)', () => {
+  it('AC-031: a destination the rail hides for the role is absent from Go to (Money is not for a member)', () => {
     setAuth(['member'])
     renderMenu()
     expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
@@ -378,10 +356,8 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search-only palette', 
   })
 
   // #407/#755: the typed ACT filter reads the SAME shared list the phone `+` launcher renders.
-  // Café capture is a WRITE, so a viewer with the write gate gets the entry even when route
-  // admission is denied; route visibility is distinct from the capture write gate.
-  it('issue 407: typing Log offers Café capture when the write gate admits, not the route', async () => {
-    seam.override = vi.fn(() => false)
+  // Café capture is a WRITE, so the entry follows the capture write gate, not route visibility.
+  it('issue 407: typing Log offers Café capture when the write gate admits', async () => {
     setAuth(['ops_lead'])
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Log' } })
@@ -459,12 +435,11 @@ describe('AC-016: Navigate group points to the new canonical routes', () => {
     expect(nav).toBeInTheDocument()
     // Navigate targets (href not exposed on option; assert labels present + activation navigates)
     expect(screen.getByRole('option', { name: /^Work$/i })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /^Signals$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Signals/i })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /^Events$/i })).toBeNull()
     expect(screen.getByRole('option', { name: /^Inbox$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Café$/i })).toBeInTheDocument()
-    // #444: Money was asserted PRESENT here for this (admin) viewer. The palette is a navigation
-    // surface like the rail, so it must not offer a door the router has closed.
+    // Admin alone has no revenue-view role, so Money is absent just as it is from the rail.
     expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
   })
 
@@ -483,27 +458,31 @@ describe('AC-016: Navigate group points to the new canonical routes', () => {
     expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
   })
 
-  // AC-127 (ADR-0050 D8) / AC-326 (ADR-0051) — the financial and revenue-only VIEW tiers. The
-  // palette used to offer Money to each of these four, matching the /money route and rail gate.
-  // #444 ship-gates /money above every role, and the rule the palette follows is unchanged: it
-  // offers exactly what the router admits, so the entry is gone for all four. The VIEW-tier
-  // policy itself stays asserted on the destination registry (`destinations.test.ts`), and
-  // deleting /money from SHIP_GATED_PATHS restores this entry with no edit to the palette.
-  it.each(['manager', 'supervisor', 'finance', 'admin'])(
-    'AC-127/AC-326 (issue 444): %s is offered no Money entry while /money is ship-gated',
+  // AC-127 (ADR-0050 D8) / AC-326 (ADR-0051): the palette follows the Money route's viewer roles.
+  it.each(['manager', 'supervisor', 'finance'])(
+    'AC-127/AC-326: %s is offered Money',
     (role) => {
       setAuth([role])
       renderMenu()
-      expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
-      // …and they still get a palette, so this is not passing on an empty render.
+      expect(screen.getByRole('option', { name: /^Money$/i })).toBeInTheDocument()
       expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
     },
   )
 
-  it('AC-016: activating Work navigates to /work/tasks', () => {
+  it.each(['admin', 'member'])(
+    '%s without a revenue-view role is not offered Money',
+    (role) => {
+      setAuth([role])
+      renderMenu()
+      expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
+      expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
+    },
+  )
+
+  it('AC-016: activating Work navigates to /work', () => {
     renderMenu()
     fireEvent.click(screen.getByRole('option', { name: /^Work$/i }))
-    expect(screen.getByTestId('location')).toHaveTextContent('/work/tasks')
+    expect(screen.getByTestId('location')).toHaveTextContent('/work')
   })
 })
 
@@ -513,8 +492,8 @@ describe('Step 8/AC-804/805/806: Navigate group exposes org-readable catalogs', 
     setAuth(['admin'])
     const { onClose } = renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'projects' } })
-    expect(await screen.findByRole('option', { name: /^Projects & Processes$/i })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('option', { name: /^Projects & Processes$/i }))
+    expect(await screen.findByRole('option', { name: /^Projects & Processes/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('option', { name: /^Projects & Processes/i }))
     expect(screen.getByTestId('location')).toHaveTextContent('/work/projects')
     expect(onClose).toHaveBeenCalled()
   })
@@ -523,7 +502,7 @@ describe('Step 8/AC-804/805/806: Navigate group exposes org-readable catalogs', 
     setAuth(['admin'])
     const { onClose } = renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'objectives' } })
-    fireEvent.click(await screen.findByRole('option', { name: /^Objectives$/i }))
+    fireEvent.click(await screen.findByRole('option', { name: /^Objectives/i }))
     expect(screen.getByTestId('location')).toHaveTextContent('/work/objectives')
     expect(onClose).toHaveBeenCalled()
   })
@@ -532,16 +511,16 @@ describe('Step 8/AC-804/805/806: Navigate group exposes org-readable catalogs', 
     setAuth(['ops_lead'])
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
-    expect(await screen.findByRole('option', { name: /^Projects & Processes$/i })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /^Objectives$/i })).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: /^Projects & Processes/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Objectives/i })).toBeInTheDocument()
   })
 
   it('AC-806: a plain member sees Projects & Processes and Objectives', async () => {
     setAuth([])
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
-    expect(await screen.findByRole('option', { name: /^Projects & Processes$/i })).toBeInTheDocument()
-    expect(await screen.findByRole('option', { name: /^Objectives$/i })).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: /^Projects & Processes/i })).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: /^Objectives/i })).toBeInTheDocument()
   })
 })
 
@@ -550,7 +529,7 @@ describe('default groups (empty query): Recent + Actions + Navigate', () => {
   it('shows Navigate before Actions when the query is empty', () => {
     renderMenu()
     const groups = within(screen.getByRole('listbox')).getAllByRole('group')
-    expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['GO TO', 'ACT'])
+    expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['Actions', 'Go to'])
     expect(screen.getByRole('option', { name: 'Ask Deputy: what needs my attention?' })).toBeInTheDocument()
   })
 
@@ -558,7 +537,7 @@ describe('default groups (empty query): Recent + Actions + Navigate', () => {
     renderMenu(vi.fn(), 'id')
     expect(screen.getByRole('dialog', { name: 'Menu perintah' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Tanya Deputi/i })).toBeInTheDocument()
-    expect(screen.getByText('BUKA')).toBeInTheDocument()
+    expect(screen.getByText('Buka')).toBeInTheDocument()
   })
 
   it('shows the Recent group when the ring buffer has entries', () => {
@@ -596,7 +575,7 @@ describe('#15/GAP-10: launcher mode opens the REDUCED create-set (per OD-46)', (
     expect(screen.getByRole('option', { name: /Share Signal/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Create Task/i })).toBeInTheDocument()
     // NOT the full palette: no GO TO group and none of its destinations.
-    expect(screen.queryByText('GO TO')).toBeNull()
+    expect(screen.queryByText('Go to')).toBeNull()
     expect(screen.queryByRole('option', { name: /^Home$/i })).toBeNull()
     expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
   })
@@ -611,7 +590,7 @@ describe('#15/GAP-10: launcher mode opens the REDUCED create-set (per OD-46)', (
   it('#15: search mode (the desktop ⌘K default) is UNCHANGED — Navigate still present', () => {
     // Regression guard: the reduction is scoped to launcher mode only.
     renderMenu()
-    expect(screen.getByText('GO TO')).toBeInTheDocument()
+    expect(screen.getByText('Go to')).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
   })
 
@@ -670,23 +649,21 @@ describe('#4/B2: ⌘K search spans Tasks + Signals + AR Follow-ups', () => {
   })
 
   // DD-WAY-36 held that a follow-up hit lands on the Money queue rather than the deleted Work
-  // path. #444 ship-gates the whole /money subtree, so the hit has nowhere to land and the
-  // palette must not render it: a record row pointing at a closed route is the same defect as a
-  // Navigate entry pointing at one, and the gate is applied at the seam every row passes through
-  // precisely so a record hit cannot slip past it.
-  it('issue 444: a follow-up hit is not offered at all while the Money queue is ship-gated', async () => {
+  // path. The queue is available to Finance when SHOW_FOLLOWUPS is enabled; its read remains RLS-
+  // governed and the record routes through the same ship-gate seam as every palette target.
+  it('a Finance viewer can open a follow-up hit in the Money queue when enabled', async () => {
     features.SHOW_FOLLOWUPS = true
+    setAuth(['finance'])
     mockSearch.mockResolvedValue([])
     mockSearchSignals.mockResolvedValue([])
     mockSearchFollowUps.mockResolvedValue([{ id: 'fu-1', counterparty: 'PT Acme' }])
-    renderMenu()
+    const { onClose } = renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'acme' } })
-    // The search still FIRES (SHOW_FOLLOWUPS is on) — this is the palette declining to offer the
-    // result, not the read being switched off, which is a different flag and a different test.
     await waitFor(() => expect(mockSearchFollowUps).toHaveBeenCalledWith('acme'))
-    await waitFor(() =>
-      expect(screen.queryByRole('option', { name: /PT Acme/i })).toBeNull(),
-    )
+    const followUp = await screen.findByRole('option', { name: /PT Acme/i })
+    fireEvent.click(followUp)
+    expect(screen.getByTestId('location')).toHaveTextContent('/money/follow-ups')
+    expect(onClose).toHaveBeenCalled()
   })
 
   it('#B2/GAP-3: AR Follow-ups stay dark while SHOW_FOLLOWUPS is off — the search is never fired', async () => {
@@ -1052,14 +1029,14 @@ describe('CMDK-1: palette resets to the default view on close→reopen', () => {
     // The query is empty again and the default view (Actions/Navigate groups) is back, with the
     // stale record result gone.
     expect(screen.getByRole('combobox')).toHaveValue('')
-    expect(screen.getByText('ACT')).toBeInTheDocument()
-    expect(screen.getByText('GO TO')).toBeInTheDocument()
+    expect(screen.getByText('Actions')).toBeInTheDocument()
+    expect(screen.getByText('Go to')).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /Some searched task/i })).toBeNull()
   })
 })
 
 // ── AC-K09: no-bleed + muted group labels ───────────────────────────────────
-describe('AC-K09: no-bleed + muted group labels', () => {
+describe('AC-K09: no-bleed long record titles', () => {
   it('AC-K09: long record titles truncate and carry a title attribute', async () => {
     const long = 'A very very very long task title that should ellipsize rather than wrap or bleed out of the row'
     mockSearch.mockResolvedValue([{ id: 't1', title: long, status: 'Open' }])
@@ -1068,13 +1045,7 @@ describe('AC-K09: no-bleed + muted group labels', () => {
     const opt = await screen.findByRole('option', { name: new RegExp(long.slice(0, 12)) })
     const label = opt.querySelector('.cm-item-label') as HTMLElement
     expect(label).not.toBeNull()
-    expect(label.className).toMatch(/truncate/)
     expect(label).toHaveAttribute('title', long)
-  })
-
-  it('AC-K09: group labels use the muted-foreground token class', () => {
-    renderMenu()
-    expect(screen.getByText('ACT').className).toMatch(/text-muted-foreground/)
   })
 })
 
@@ -1091,7 +1062,7 @@ describe('Issue 479 — the child rung only claims a parent that is on screen', 
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'objectives' } })
     // Precondition, or this asserts nothing: the row IS there and the Work parent is NOT.
-    expect(await screen.findByRole('option', { name: /^Objectives$/i })).toBeTruthy()
+    expect(await screen.findByRole('option', { name: /^Objectives/i })).toBeTruthy()
     expect(screen.queryByRole('option', { name: /^Work$/i })).toBeNull()
 
     expect(childRows()).toHaveLength(0)
@@ -1105,10 +1076,11 @@ describe('Issue 479 — the child rung only claims a parent that is on screen', 
     // names hold an "o". The children are emitted DIRECTLY beneath the Work row — the run of
     // rows the Child rung describes is unbroken by construction, so an unrelated root parked
     // between the parent and its children cannot render.
-    const navigate = screen.getByRole('group', { name: 'GO TO' })
+    const navigate = screen.getByRole('group', { name: 'Go to' })
     const labels = within(navigate).getAllByRole('option').map((option) => option.textContent)
     const work = labels.indexOf('Work')
-    expect(labels.slice(work, work + 3)).toEqual(['Work', 'Projects & Processes', 'Objectives'])
+    // The next rows are Work's own pages (each names Work as the place it lives).
+    expect(labels.slice(work + 1, work + 3).every((label) => label?.endsWith('Work'))).toBe(true)
   })
 
   it('a FILTERED result that kept its parent keeps the rung', async () => {

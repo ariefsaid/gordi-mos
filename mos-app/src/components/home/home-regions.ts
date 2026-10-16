@@ -8,7 +8,7 @@ import type { MessageKey } from '@/i18n/messages'
 
 export type HomeRegionId = 'needs-you' | 'failed-checks' | 'my-work'
 
-export interface HomeRegionDrillTo {
+interface HomeRegionDrillTo {
   /** Where this region's FULL scope lives in the app. */
   route: string
   /** The count at that destination — present only where the region has an honest full-scope

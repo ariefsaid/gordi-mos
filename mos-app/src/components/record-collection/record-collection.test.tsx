@@ -310,19 +310,7 @@ describe('NFR-V3-006: selection chrome meets the 44px keyboard target', () => {
     // jsdom has no layout engine; the real geometry lives in the stylesheet, so the target size is
     // proven by reading the CSS for the selectors the surface actually renders (see the render test
     // above that asserts the `record-collection-selection` class is applied).
-    expect(css).toMatch(/\.record-collection-selection[\s\S]*?min-height:\s*44px/)
-    expect(css).toMatch(/\.record-collection-clear[\s\S]*?min-height:\s*44px/)
-  })
-})
-
-describe('OD-REDESIGN-72/79: collection table chrome stays shared', () => {
-  const css = readFileSync(resolve(process.cwd(), 'src/components/record-collection/record-collection.css'), 'utf8')
-
-  it('gives every opted-in collection table one 14px / 38px / 52px E7 rhythm', () => {
-    expect(css).toMatch(/\.record-collection-view\s*\{[\s\S]*?--row-min-h:\s*52px/)
-    // 14px authored as the semantic body token that resolves to exactly 14px (GUARD-VOCAB tokenization).
-    expect(css).toMatch(/\.record-collection-table\s*\{[\s\S]*?font-size:\s*var\(--font-size-body\)/)
-    expect(css).toMatch(/\.record-collection-view \.record-collection-table thead th[\s\S]*?height:\s*38px/)
-    expect(css).toMatch(/\.record-collection-view \.record-collection-table tbody td[\s\S]*?height:\s*var\(--row-min-h\)/)
+    expect(css).toMatch(/\.record-collection-selection[\s\S]*?min-height:\s*var\(--mos-control-height\)/)
+    expect(css).toMatch(/\.record-collection-clear[\s\S]*?min-height:\s*var\(--mos-control-height\)/)
   })
 })

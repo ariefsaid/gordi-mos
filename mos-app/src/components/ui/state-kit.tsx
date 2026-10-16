@@ -1,14 +1,18 @@
 // StateKit — the ONE error/empty/skeleton kit (IXD-5, PR-2).
-// ErrorState: role=alert message + optional .btn-outline Retry.
+// ErrorState: the shared Notice (urgent tone, role=alert) + optional .btn-outline Retry.
 // EmptyState: title + copy + actions slot.
 // SkeletonRows: N shimmer rows (default bar; pass `row` for pane-specific shapes).
 // Used across the data panes (Tasks, Ops, weekly). The lightweight inline "Retry"
 // link in the My Week 56–64px density strips stays inline (their height can't fit
 // the full block) — those strips do NOT use this kit.
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
+import { areaTitleKeyForPath, linkTitleKeyForPath } from '@/shell/module-registry'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import { Button } from './button'
+import { Notice } from './notice'
+import { CheckIcon, RefreshIcon } from '@/shell/icons'
 import './CardHead.css' // owns the error-state / empty-state / skeleton tokens
 
 export interface ErrorStateProps {
@@ -23,14 +27,14 @@ export function ErrorState({ message, onRetry, retryLabel, className }: ErrorSta
   // sites pass nothing, so the literal was the app's most widespread untranslated string.
   const t = useT()
   return (
-    <div role="alert" className={`error-state${className ? ` ${className}` : ''}`}>
-      <span className="error-state-text">{message}</span>
-      {onRetry && (
-        <Button variant="outline" onClick={onRetry}>
-          {retryLabel ?? t('common.retry')}
-        </Button>
-      )}
-    </div>
+    <Notice
+      tone="urgent"
+      role="alert"
+      className={`error-state${className ? ` ${className}` : ''}`}
+      action={onRetry ? <Button variant="outline" onClick={onRetry}>{retryLabel ?? t('common.retry')}</Button> : undefined}
+    >
+      {message}
+    </Notice>
   )
 }
 
@@ -64,7 +68,7 @@ export function NetworkErrorState({ onRetry, className }: NetworkErrorStateProps
 export type EmptyStateVariant = 'quiet' | 'next-step' | 'awaiting' | 'blank'
 
 /** A pickable starter prompt (the Assistant's empty-state suggestions — v4 cohesion item #2). */
-export interface EmptyStateSuggestion {
+interface EmptyStateSuggestion {
   label: string
   onSelect: () => void
 }
@@ -118,12 +122,12 @@ function defaultEmptyGlyph(variant: EmptyStateVariant) {
     case 'next-step':
       return null // the action below is the invitation; a "+" disc reads as a button that does nothing
     case 'awaiting':
-      return '↻' // a real data source exists and will fill this
+      return <RefreshIcon /> // a real data source exists and will fill this
     case 'blank':
-      return '—' // empty BY DESIGN: no source, nothing pending — never ✓ (false success) nor ↻ (false pending)
+      return null // empty BY DESIGN: no source, nothing pending; no false success or false pending mark
     case 'quiet':
     default:
-      return '✓' // an EARNED all-clear ("you're all caught up") — not a generic empty
+      return <CheckIcon /> // an EARNED all-clear ("you're all caught up") — not a generic empty
   }
 }
 
@@ -152,7 +156,7 @@ export function EmptyState({
 }: EmptyStateProps) {
   const titleId = useId()
   const Heading = `h${headingLevel}` as const
-  const glyph = icon ?? defaultEmptyGlyph(variant)
+  const glyph = icon === undefined ? defaultEmptyGlyph(variant) : icon
   const headingRef = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
     if (autoFocus) headingRef.current?.focus()
@@ -201,11 +205,11 @@ export function EmptyState({
   )
 }
 
-export function FilteredEmptyState({ items, onClear, title, copy, children }: { items: string; onClear: () => void; title?: string; copy?: string; children?: ReactNode }) {
+export function FilteredEmptyState({ items, onClear, clearLabel, title, copy, children }: { items: string; onClear: () => void; clearLabel?: string; title?: string; copy?: string; children?: ReactNode }) {
   const t = useT()
   return (
     <EmptyState variant="blank" title={title ?? t('collection.filteredEmpty.title', { items })} copy={copy}>
-      <Button variant="outline" className="record-collection-clear" onClick={onClear}>{t('common.clearFilters')}</Button>
+      <Button variant="outline" className="record-collection-clear" onClick={onClear}>{clearLabel ?? t('common.clearFilters')}</Button>
       {children}
     </EmptyState>
   )
@@ -247,6 +251,11 @@ export interface LoadingShellProps {
   className?: string
   /** Custom row renderer, forwarded to SkeletonRows for pane-specific shapes. */
   row?: (i: number) => ReactNode
+  /**
+   * Route-level fallback inside the router: name the page from the route (the nav registry's own words
+   * for the path), so a lazy page whose code is still loading never leaves the screen without its h1.
+   */
+  routeTitle?: boolean
 }
 
 /**
@@ -258,7 +267,17 @@ export interface LoadingShellProps {
  * SkeletonRows alone is `aria-hidden`, so a bare skeleton fallback would leave a screen reader
  * with silence while a chunk downloads.
  */
-export function LoadingShell({ count = 3, label, labelKey, title, titleKey, className, row }: LoadingShellProps) {
+export function LoadingShell({ routeTitle, ...props }: LoadingShellProps) {
+  return routeTitle ? <RouteTitledLoadingShell {...props} /> : <LoadingShellBody {...props} />
+}
+
+function RouteTitledLoadingShell(props: LoadingShellProps) {
+  const { pathname } = useLocation()
+  const routeKey = linkTitleKeyForPath(pathname) ?? areaTitleKeyForPath(pathname)
+  return <LoadingShellBody {...props} titleKey={props.titleKey ?? routeKey ?? undefined} />
+}
+
+function LoadingShellBody({ count = 3, label, labelKey, title, titleKey, className, row }: LoadingShellProps) {
   const t = useT()
   const status = (
     <div
@@ -274,7 +293,7 @@ export function LoadingShell({ count = 3, label, labelKey, title, titleKey, clas
   if (!resolvedTitle) return status
   return (
     <div className="loading-shell-page">
-      <h1 className="loading-shell-page__title">{resolvedTitle}</h1>
+      <h1 className="page-title loading-shell-page__title">{resolvedTitle}</h1>
       {status}
     </div>
   )

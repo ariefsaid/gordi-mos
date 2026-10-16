@@ -24,6 +24,7 @@ vi.mock('../../lib/db/directory', () => ({
   getPersonTeams: () => Promise.resolve([]),
   getTeamsByIds: () => Promise.resolve([]),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getDirectManagerPersonIds: () => Promise.resolve([]),
 }))
 vi.mock('../../lib/comments/postComment', () => ({ listComments: vi.fn(), postComment: vi.fn() }))
 
@@ -31,7 +32,6 @@ import { getTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { TaskDrawer } from './task-drawer'
-import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 import { listComments, postComment } from '@/lib/comments/postComment'
 
 const mockGetTask = vi.mocked(getTask)
@@ -41,12 +41,13 @@ const VIEWER_ID = 'viewer-person-id'
 
 // Width-regime stub: control which width queries match (1100 split / 920 band / 768 desktop).
 function stubWidths({ split, band, desktop }: { split: boolean; band?: boolean; desktop?: boolean }) {
+  // The split also needs a content track wide enough for list + panel; with no shell mounted the track is the viewport.
+  Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: split ? 1600 : 1024 })
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: (query: string) => {
       let matches = false
-      if (query.includes(`${TASKS_SPLIT_MIN_WIDTH}`)) matches = split
-      else if (query.includes('1100')) matches = split
+      if (query.includes('1100')) matches = split
       else if (query.includes('920')) matches = band ?? false
       else if (query.includes('768')) matches = desktop ?? true
       return {

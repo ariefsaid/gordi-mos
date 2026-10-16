@@ -1,75 +1,34 @@
-.signal-attention-picker { position: relative; display: inline-flex; flex-direction: column; gap: 6px; }
-.signal-attention-picker-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-/* The trigger IS the tone pill — sized/radiused to match the neighbouring occurred-at chip
-   (.signal-composer-context-pill: 32px min-height, 0 10px padding, radius-pill). */
+/* Attention picker: a field (label above) whose trigger wears the one control box. */
+.signal-attention-picker { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: var(--mos-label-gap); }
+.signal-attention-picker-label { font: var(--mos-type-label); color: var(--mos-ink); }
 .signal-attention-picker-trigger {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px;
-  border: 1px solid transparent; border-radius: var(--radius-pill);
-  font: inherit; font-size: var(--font-size-label); font-weight: 600; white-space: nowrap; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap);
+  box-sizing: border-box; min-width: 200px; min-height: var(--mos-control-height); padding: 0 var(--mos-row-pad-x);
+  border: 0; border-radius: var(--radius-sm); background: var(--mos-surface); color: var(--mos-ink);
+  box-shadow: inset 0 0 0 1px var(--mos-control); font: var(--mos-type-control); cursor: pointer;
 }
-.signal-attention-picker-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.signal-attention-picker-trigger--urgent,
-.signal-attention-picker-trigger--needs-attention {
-  background: color-mix(in srgb, var(--warning) 18%, transparent);
-  color: var(--warning-foreground);
-}
-.signal-attention-picker-trigger--urgent::before {
-  content: ""; flex: none; width: 6px; height: 6px; margin-right: -2px;
-  border-radius: var(--radius-pill); background: var(--warning);
-}
-/* FYI's --secondary tint sits almost flush with the card background; the border keeps it
-   readable as a pill instead of blending into the surface behind it. */
-.signal-attention-picker-trigger--fyi {
-  background: var(--secondary); color: var(--muted-foreground); border-color: var(--border);
-}
-.signal-attention-picker-chevron { flex: none; opacity: 0.7; }
-.signal-attention-picker .signal-attention {
-  display: inline-flex; align-items: center; flex: none; height: 22px; margin-left: 0;
-  padding: 0 9px; border-radius: var(--radius-pill); font-size: var(--font-size-label);
-  font-weight: 600; white-space: nowrap;
-}
-.signal-attention-picker .signal-attention--urgent,
-.signal-attention-picker .signal-attention--needs-attention {
-  background: color-mix(in srgb, var(--warning) 18%, transparent);
-  color: var(--warning-foreground);
-}
-.signal-attention-picker .signal-attention--urgent::before {
-  content: ""; flex: none; width: 6px; height: 6px; margin-right: 5px;
-  border-radius: var(--radius-pill); background: var(--warning);
-}
-/* Same border-for-contrast treatment as the trigger, scoped to this picker's own option rows —
-   the app-wide `.signal-attention--fyi` (feed rows, table, record header) is untouched. */
-.signal-attention-picker .signal-attention--fyi {
-  background: var(--secondary);
-  color: var(--muted-foreground);
-  border: 1px solid var(--border);
-}
-/* Portaled to <body> and positioned in viewport pixels via inline style (signal-attention-picker.tsx)
-   — fixed, not absolute, so it never becomes part of the dialog's own scrollable content and
-   focusing it cannot drag the dialog's scroll position. It opens from inside a modal, so it stacks
-   above --z-modal, on the same layer as the shared picker menu (picker.css). */
+.signal-attention-picker-trigger:hover { box-shadow: inset 0 0 0 1px var(--mos-ink); }
+.signal-attention-picker-trigger[aria-expanded='true'] { box-shadow: inset 0 0 0 2px var(--mos-accent); }
+.signal-attention-picker-chevron { flex: none; width: var(--mos-icon-sm); height: var(--mos-icon-sm); color: var(--mos-muted); }
+/* Portaled to <body>, fixed in viewport pixels (signal-attention-picker.tsx); above modals. */
 .signal-attention-picker-options {
-  position: fixed; z-index: var(--z-popover-top); min-width: 220px;
-  display: flex; flex-direction: column; gap: 2px; padding: 6px;
-  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card);
-  box-shadow: var(--shadow-overlay);
+  position: fixed; z-index: var(--z-popover-top); min-width: 240px;
+  display: flex; flex-direction: column; gap: var(--mos-stack-gap); padding: var(--mos-menu-pad);
+  border-radius: var(--radius-sm); background: var(--mos-surface);
+  box-shadow: inset 0 0 0 1px var(--mos-line), var(--shadow-overlay);
 }
 .signal-attention-picker-option {
-  display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; min-height: 44px;
-  padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: transparent;
-  color: var(--foreground); font: inherit; font-size: var(--font-size-label); text-align: left; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--mos-row-gap); width: 100%; min-height: var(--mos-control-height);
+  padding: var(--mos-control-pad-y) var(--mos-row-pad-x); border: 0; border-radius: var(--radius-sm); background: transparent;
+  color: var(--mos-ink); font: var(--mos-type-control); text-align: left; cursor: pointer;
 }
-.signal-attention-picker-option:hover { background: var(--secondary); }
-.signal-attention-picker-option[aria-selected='true'] { font-weight: 600; }
-.signal-attention-picker-option[data-active='true'] { background: var(--surface-tertiary); outline: 2px solid var(--ring); outline-offset: -2px; }
-.signal-attention-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.signal-attention-picker-meaning { flex: 1; color: var(--muted-foreground); font-size: var(--font-size-overline); font-weight: 400; white-space: nowrap; }
-.signal-attention-picker-check { flex: none; color: var(--foreground); }
-
-/* #708: the pill's height already met the 44px phone floor; its content-driven width (43.2px /
-   42.2px measured) did not. Scoped to phone so the desktop 1440 render (already ≥44 by content)
-   is untouched. */
-@media (max-width: 767.98px) {
-  .signal-attention-picker-trigger,
-  .signal-attention-picker-option { min-width: 44px; min-height: 44px; }
-}
+.signal-attention-picker-option:hover { background: var(--mos-hover); }
+.signal-attention-picker-option[aria-selected='true'] { font-weight: var(--mos-weight-semibold); }
+.signal-attention-picker-option[data-active='true'] { background: var(--mos-hover); outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: calc(-1 * var(--mos-focus-width)); }
+.signal-attention-picker-option:focus-visible { outline-offset: calc(-1 * var(--mos-focus-width)); }
+.signal-attention-picker-meaning { flex: 1; color: var(--mos-muted); font: var(--mos-type-body); font-size: var(--mos-size-2); white-space: nowrap; }
+.signal-attention-picker-check { flex: none; color: var(--mos-ink); }
+/* In a record's facts line the badge and its chevron are the whole control: the name is for assistive tech. */
+.rp-facts .signal-attention-picker-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.rp-facts .signal-attention-picker-trigger { min-width: 0; min-height: 0; padding: 0; box-shadow: none; background: transparent; gap: var(--mos-space-1); }
+@media (max-width: 767.98px) { .rp-facts .signal-attention-picker-trigger { min-height: var(--mos-control-height); } }

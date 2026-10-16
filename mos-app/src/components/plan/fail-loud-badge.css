@@ -13,14 +13,14 @@
   gap: 6px;
   padding: 3px 10px;
   border-radius: var(--radius-sm);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   font-weight: 600;
   line-height: 1.4;
 }
 .fail-loud-dot {
   width: 8px;
   height: 8px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-round);
   flex: none;
   margin-top: 4px;
   background: currentColor;
@@ -30,9 +30,9 @@
 }
 .fail-loud--warn {
   color: var(--status-lost-text);
-  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+  background: var(--mos-danger-tint);
 }
 .fail-loud--ok {
   color: var(--status-won-text);
-  background: color-mix(in srgb, var(--success) 14%, transparent);
+  background: var(--mos-success-tint);
 }

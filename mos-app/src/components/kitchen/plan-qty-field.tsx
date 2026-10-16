@@ -1,35 +1,13 @@
-// PlanQtyField — the ONE typed plan-qty control (DESIGN.md "Compact capture row"),
-// ported from the v4 line (DD-5).
+// PlanQtyField — the ONE typed plan-qty control (DD-5): one right-aligned numeric box with the unit beside it, placed
+// by the capture row's box and unit tracks (capture-row.css). `inputmode="decimal"`, `enterkeyhint="next"`, 16px type.
 //
-// WHY THIS EXISTS: DD-5. The owner killed the −/+ stepper on Café · Log — *"the production
-// is not logged incrementally. it should be typed in the amount being produced. mostly are
-// 10-20+. incremental is just too tedious."* Log was fixed and Plan was never ported, so the
-// very next screen in the same module still asked a planner to tap `+` twenty-five times to
-// plan twenty-five portions. Same job, same thumb, same numbers — one control.
+// On Plan the field IS the saved plan, so it shows `value` when > 0 and a greyed "0" otherwise: an unplanned dish reads
+// as blank instead of a column of hard black zeros, and a committed figure is never greyed out as if unset.
 //
-// It is the SAME field as Café · Log's (wip-item-stepper.tsx `.kls-qty`), not a third
-// variant: one right-aligned numeric input at the thumb, `inputmode="decimal"` so the phone
-// opens a number pad, `enterkeyhint="next"` so the keyboard walks the list, 44px tall, and
-// `--font-size-touch-input` (16px) because anything smaller makes mobile Safari zoom the
-// viewport on focus — unacceptable on a field tapped once per dish down a 30-dish list.
-//
-// ONE DELIBERATE DIFFERENCE from Log, and it is a data-honesty one. On Log the field captures
-// a NEW number and the *plan* is a different number, so the plan is echoed as a greyed
-// placeholder anchor. On Plan the field IS the saved plan: there is no second number to
-// anchor against, and greying out a committed value would render saved data as if it were
-// unset. So it follows Log's rule literally — `value` when > 0, blank when 0 with a greyed
-// "0" — which means an unplanned dish reads as genuinely blank instead of a column of hard
-// black zeros, and a planned dish shows its real, black, committed figure.
-//
-// I5 inline-edit (OD-REDESIGN-22 / docs/interaction-contract.md, item 13): routed through
-// the one primitive (useInlineCommit) — Enter/Tab/blur COMMIT, Escape DISCARDS and restores
-// the saved qty, an unchanged blur is a no-op (no needless upsert). Commit state
-// (Saving… / ✓ Saved) is NOT rendered here: it belongs beside/beneath the field at the page
-// (kp-cell-status), which renders only when it has something to say — inline it would
-// reflow the row's one control mid-entry.
-// Token-only (DESIGN.md); .pqf-* namespace (C1 guard).
+// Inline edit (useInlineCommit): Enter/Tab/blur COMMIT, Escape DISCARDS and restores the saved qty, an unchanged blur is
+// a no-op. Commit state (Saving… / ✓ Saved) is the page's `status`, shown under the unit so the row does not reflow.
 
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { QuantityField } from '@/components/ui/quantity-field'
 import { useInlineCommit } from '@/components/ui/use-inline-commit'
 import { useT } from '@/i18n/use-t'
@@ -43,19 +21,13 @@ interface PlanQtyFieldProps {
   disabled: boolean
   /** commit (≥ 0) → upsertKitchenPlan at the page */
   onSave: (next: number) => void
-  /**
-   * v4 (DD-5 desktop port): sizes to DESIGN.md's 32px control height / --font-size-control
-   * instead of the 44px touch floor — the desktop DataTable "Plan" cell is a pointer
-   * surface, not a touch target, mirroring WipItemStepper's own dense variant
-   * (wip-item-stepper.css, ".kls-dense .kls-qty"). Same field, same behavior, only sizing
-   * changes — this is the ONE typed-qty control, not a second one wearing a costume.
-   */
-  dense?: boolean
+  /** Commit state (Saving… / ✓ Saved) the page has to say; rendered under the unit. */
+  status?: ReactNode
   /** The unit the plan quantity is in: the item's default ESB unit; omitted means porsi, null none. */
   unitName?: string | null
 }
 
-export function PlanQtyField({ itemName, qty, disabled, onSave, dense = false, unitName }: PlanQtyFieldProps) {
+export function PlanQtyField({ itemName, qty, disabled, onSave, status, unitName }: PlanQtyFieldProps) {
   const t = useT()
   const { draft, setDraft, pending, onKeyDown, onBlur } = useInlineCommit<number>({
     value: qty,
@@ -80,7 +52,7 @@ export function PlanQtyField({ itemName, qty, disabled, onSave, dense = false, u
   }
 
   return (
-    <div className={`pqf${dense ? ' pqf-dense' : ''}`}>
+    <div className="pqf">
       <QuantityField
         label={t('kitchen.qty.plannedAria', { item: itemName })}
         className="pqf-qty"
@@ -99,7 +71,7 @@ export function PlanQtyField({ itemName, qty, disabled, onSave, dense = false, u
         disabled={disabled || pending}
         busy={pending}
         touchTarget
-        suffix={unitName !== null ? <span className="pqf-unit">{unitName ?? t('kitchen.unit.porsi')}</span> : undefined}
+        suffix={unitName !== null || status ? <>{unitName !== null && <span className="pqf-unit">{unitName ?? t('kitchen.unit.porsi')}</span>}{status}</> : undefined}
         suffixPosition="inline"
       />
     </div>

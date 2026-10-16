@@ -53,7 +53,6 @@ import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listComments, postComment } from '@/lib/comments/postComment'
 import { TasksLayout } from './tasks-layout'
-import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 import { TaskDrawer, type TaskDrawerOutletContext } from '@/components/tasks/task-drawer'
 import { TaskSurface } from '@/components/tasks/task-surface'
 import { routeConfig } from '@/router'
@@ -77,6 +76,7 @@ const mockGetPersonTeams = directoryMocks.getPersonTeams
 const mockGetTeamsByIds = directoryMocks.getTeamsByIds
 
 function stubMatchMedia(matches: boolean) {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: matches ? 1600 : 1024 })
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: (query: string) => ({
@@ -98,7 +98,7 @@ function stubDynamicSplitWidth() {
       // record-panel-host / rail-compact key off the generic 1100px overlay breakpoint (a
       // DIFFERENT hook, useIsWideOverlayWidth) to decide panel presentation — it must track
       // the same split state here or the drawer never renders as a `complementary` panel.
-      const isSplitQuery = query.includes(`${TASKS_SPLIT_MIN_WIDTH}`) || query.includes('1100')
+      const isSplitQuery = query.includes('1100')
       return {
         get matches() {
           if (isSplitQuery) return split
@@ -120,6 +120,9 @@ function stubDynamicSplitWidth() {
   return {
     setSplit(next: boolean) {
       split = next
+      // The split also needs a content track wide enough for list + panel (no shell here, so the viewport).
+      Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: next ? 1600 : 1024 })
+      window.dispatchEvent(new Event('resize'))
       listeners.forEach((cb) => cb({ matches: next } as MediaQueryListEvent))
     },
   }
@@ -127,12 +130,13 @@ function stubDynamicSplitWidth() {
 
 // Width-aware stub: control split (≥1100) and desktop (≥768) independently.
 function stubWidths({ split, desktop = true }: { split: boolean; desktop?: boolean }) {
+  // The split also needs a content track wide enough for list + panel (no shell here, so the viewport).
+  Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: split ? 1600 : 1024 })
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: (query: string) => {
       let matches = false
-      if (query.includes(`${TASKS_SPLIT_MIN_WIDTH}`)) matches = split
-      else if (query.includes('1100')) matches = split
+      if (query.includes('1100')) matches = split
       else if (query.includes('768')) matches = desktop
       else if (query.includes('919')) matches = !desktop // useIsNarrow (max-width)
       return {
@@ -386,8 +390,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Mine task' })])
     renderAt('/work/tasks?view=mine')
     await waitFor(() => screen.getByText('Mine task'))
-    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
-    expect(document.querySelectorAll('.assembly')).toHaveLength(1)
+    expect(screen.getByRole('combobox', { name: 'Task views' })).toHaveTextContent('My work')
   })
 
   it('§Task-11: the legacy view=team query aliases to Team work and applies real Team membership', async () => {
@@ -399,23 +402,22 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     })])
     renderAt('/work/tasks?view=team')
     await waitFor(() => screen.getByText('Shared task'))
-    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')
-    // OD-TASK-3: the member's broadest-view chip reads Relevant — same `view=all` control.
-    expect(screen.getByRole('button', { name: 'Relevant' })).toHaveAttribute('aria-pressed', 'false')
-    expect(document.querySelectorAll('.assembly')).toHaveLength(1)
-    expect(document.querySelectorAll('.drawer, [role="dialog"]')).toHaveLength(0)
+    const views = screen.getByRole('combobox', { name: 'Task views' })
+    expect(views).toHaveTextContent('Team work')
+    // OD-TASK-3: the member's broadest view reads Relevant — same `view=all` choice.
+    fireEvent.click(views)
+    expect(screen.getByRole('option', { name: 'Relevant' })).toBeInTheDocument()
   })
 
   it('AC-304: /work/tasks?view=bogus falls back safely with no active saved-view chip', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Fallback task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' })])
     renderAt('/work/tasks?view=bogus')
     await waitFor(() => screen.getByText('Fallback task'))
-    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('button', { name: 'Team work' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('button', { name: 'Overdue' })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.queryByRole('button', { name: 'AR Follow-ups' })).toBeNull()
-    expect(document.querySelectorAll('.assembly')).toHaveLength(1)
+    const views = screen.getByRole('combobox', { name: 'Task views' })
+    expect(views).toHaveTextContent('Relevant')
+    fireEvent.click(views)
+    expect(screen.getAllByRole('option').map((option) => option.textContent?.trim())).toEqual(['Relevant', 'My work', 'Team work', 'Overdue'])
+    expect(screen.queryByRole('option', { name: 'AR Follow-ups' })).toBeNull()
   })
 
   it('AC-309: /work/tasks/task-1?view=mine keeps one table host and one drawer host', async () => {
@@ -461,7 +463,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     await waitFor(() => expect(document.querySelector('tr.task-row.row-selected')).toBeTruthy())
     // table row shows the Open status tag initially (soft Tag, .mk-tag)
     const row = () => document.querySelector('tr.task-row.row-selected')
-    expect(row()?.querySelector('.mk-tag')?.textContent).toContain('Open')
+    expect(row()).toHaveTextContent('Open')
     // The shared RecordViewer exposes the status as the same labelled Picker in
     // panel and page modes; scope to the record panel, not the collection toolbar.
     const drawer = screen.getByRole('complementary', { name: /task detail/i })
@@ -471,8 +473,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     fireEvent.click(status)
     fireEvent.click(screen.getByRole('option', { name: 'Blocked' }))
     await waitFor(() => {
-      const pill = row()?.querySelector('.mk-tag')
-      expect(pill?.textContent).toContain('Blocked')
+      expect(row()).toHaveTextContent('Blocked')
     })
   })
 
@@ -501,7 +502,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(header).toBeTruthy()
       const selectedRow = document.querySelector('tr.task-row.row-selected')
       expect(selectedRow).toBeTruthy()
-      expect(selectedRow!.querySelector('.mk-tag')?.textContent).toContain('Blocked')
+      expect(selectedRow).toHaveTextContent('Blocked')
       expect(selectedRow!.compareDocumentPosition(header!) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
     })
   })
@@ -813,7 +814,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
   it('AC-023: the true-empty collection\'s Create task starts the draft row, title focused', async () => {
     mockListTasks.mockResolvedValue([])
     renderAt('/work/tasks')
-    const create = await screen.findByRole('link', { name: /\+ create task/i })
+    const create = await screen.findByRole('link', { name: /new task|create task/i })
     fireEvent.click(create)
     const titleInput = await screen.findByLabelText('Title')
     await waitFor(() => expect(titleInput).toHaveFocus())
@@ -848,12 +849,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     renderAt('/work/tasks?create=1')
     // The draft row mounts with its editor focused.
     const titleInput = await screen.findByLabelText('Title')
-    // The meta sentence names the open count and the server window scope.
-    await waitFor(() => {
-      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('0 open in this view · Active + Done in the last 30 days')
-    })
-
-    // Type the title and press Enter — the draft commits through the same createTask path.
+    // Type the title and press Create task — the draft commits through the same createTask path.
     fireEvent.change(titleInput, { target: { value: 'Freshly created' } })
     // Inline creation requires a real Team and an independently selected Supervisor; choosing
     // both before Enter exercises the ownership controls instead of relying on a BU/PIC fallback.
@@ -861,7 +857,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Kitchen Team' }))
     fireEvent.click(screen.getByRole('combobox', { name: 'Supervisor' }))
     fireEvent.click(screen.getByRole('option', { name: 'Supervisor Person' }))
-    fireEvent.keyDown(titleInput, { key: 'Enter' })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Create task' }).find((button) => button.getAttribute('type') === 'submit')!)
 
     // The new row appears in the table and the count reflects it — no reload.
     await waitFor(() => {
@@ -877,7 +873,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(screen.getByText('Freshly created')).toBeInTheDocument()
     })
     await waitFor(() => {
-      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open in this view · Active + Done in the last 30 days')
+      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 task · 1 open in this view')
     })
     // Inline create never navigates — the draft was already on the table — so there is no
     // ?highlight= flash (that belonged to the retired create-form door).
@@ -1097,7 +1093,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockArchiveTask.mockResolvedValue()
     renderAt('/work/tasks/task-2')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
-    await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 open in this view · Active + Done in the last 30 days'))
+    await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 tasks · 2 open in this view'))
 
     // Archive is grouped with the record's other secondary actions.
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
@@ -1117,7 +1113,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(screen.queryByText('Archive me')).toBeNull()
     }, { timeout: 4000 })
     expect(screen.getByText('Keep me')).toBeInTheDocument()
-    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open in this view · Active + Done in the last 30 days')
+    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 task · 1 open in this view')
   }, 10_000)
 })
 

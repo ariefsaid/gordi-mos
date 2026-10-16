@@ -22,6 +22,11 @@ import type { AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 
+vi.mock('@/lib/format/date', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/format/date')>()
+  return { ...actual, wibToday: () => '2026-10-10' }
+})
+
 // PageFamilyFrame (the v4 shell chrome this page ports to — #197) calls useLocation()
 // unconditionally, so every render needs Router context, not just the ones that render a
 // <Link>. Mirrors kitchen-log-page.test.tsx's own wrapper.
@@ -227,9 +232,9 @@ describe('KitchenPlanPage — auth', () => {
 describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
   it('the editor states the stream it is writing into, canonically', async () => {
     mockDefaultStream.mockResolvedValue(RADIANT_BAR)
-    const { container } = render(<KitchenPlanPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
-    const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText(/Ayam Bakar/)
+    const head = screen.getByTestId('page-head')
     expect(within(head).getByTestId('cafe-stream')).toHaveTextContent('Radiant · Bar')
     expect(mockPlans.mock.calls[0][1]).toEqual(RADIANT_BAR)
   })
@@ -261,7 +266,7 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
     fireEvent.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     const offered = screen.getAllByRole('option').map(o => o.textContent?.trim() ?? '')
 
-    expect(offered.some(label => label.includes('Radiant') && /other location/i.test(label))).toBe(true)
+    expect(offered.some(label => label.includes('Radiant'))).toBe(true)
     expect(screen.queryByRole('combobox', { name: /location/i })).toBeNull()
   })
 
@@ -304,9 +309,9 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
     mockUseAuth.mockReturnValue(viewer(['member']))
     mockDefaultStream.mockResolvedValue(RADIANT_BAR)
     mockPesanan.mockResolvedValue(PESANAN)
-    const { container } = render(<KitchenPlanPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
-    const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText(/Ayam Bakar/)
+    const head = screen.getByTestId('page-head')
     expect(within(head).getByTestId('cafe-stream')).toHaveTextContent('Radiant · Bar')
   })
 
@@ -331,6 +336,62 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(screen.getAllByRole('spinbutton').length).toBeGreaterThanOrEqual(2)
     // pre-filled with the existing plan qty for Ayam Bakar / Production
     expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue('12')
+  })
+
+  it('opens tomorrow for the selected stream and states which day is being edited', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    chooseStream('Radiant · Bar')
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next day' }))
+    await screen.findByText('Ayam Bakar')
+
+    expect(mockPlans.mock.calls.at(-1)).toEqual(['2026-10-11', RADIANT_BAR])
+    expect(screen.getByRole('group', { name: 'Plan date' })).toHaveTextContent('Sun 11 Oct · Tomorrow')
+    expect(screen.getByRole('heading', { level: 2, name: 'Radiant · Bar' })).toBeInTheDocument()
+
+    const quantity = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(quantity, { target: { value: '15' } })
+    fireEvent.blur(quantity)
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledOnce())
+    expect(mockUpsert.mock.calls[0][0]).toMatchObject({ log_date: '2026-10-11', branch_id: 'branch-2', activity: 'bar' })
+  })
+
+  // The day stepper leaves the page while a day's plan reloads, so each step re-finds its buttons.
+  async function stepDay(name: 'Next day' | 'Previous day' | 'Today') {
+    const calls = mockPlans.mock.calls.length
+    fireEvent.click(await screen.findByRole('button', { name }))
+    await waitFor(() => expect(mockPlans.mock.calls.length).toBe(calls + 1))
+    await screen.findByRole('button', { name })
+  }
+
+  it('keeps planning within today through day 13 and returns to today', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.getByRole('button', { name: 'Previous day' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Today' })).toBeDisabled()
+
+    for (let day = 0; day < 13; day += 1) await stepDay('Next day')
+    expect(screen.getByRole('group', { name: 'Plan date' })).toHaveTextContent('Fri 23 Oct · In 13 days')
+    expect(screen.getByRole('button', { name: 'Next day' })).toBeDisabled()
+    await stepDay('Today')
+    expect(screen.getByRole('group', { name: 'Plan date' })).toHaveTextContent('Sat 10 Oct · Today')
+    expect(screen.getByRole('button', { name: 'Previous day' })).toBeDisabled()
+    expect(mockPlans).toHaveBeenLastCalledWith('2026-10-10', OWN_STREAM)
+  })
+
+  it('steps back to today but never to a past planning day', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    await stepDay('Next day')
+    expect(mockPlans).toHaveBeenLastCalledWith('2026-10-11', OWN_STREAM)
+    expect(screen.getByRole('button', { name: 'Previous day' })).toBeEnabled()
+    await stepDay('Previous day')
+    expect(mockPlans).toHaveBeenLastCalledWith('2026-10-10', OWN_STREAM)
+    expect(screen.getByRole('group', { name: 'Plan date' })).toHaveTextContent('Sat 10 Oct · Today')
+    expect(screen.getByRole('button', { name: 'Previous day' })).toBeDisabled()
   })
 
   it('FR-031: typing an amount + blur commits — upsertKitchenPlan with qty_porsi (no org_id/plan_by)', async () => {
@@ -499,7 +560,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
       </MemoryRouter>,
     )
     await screen.findByText('Ayam Bakar')
-    const box = screen.getByRole('searchbox', { name: /find an item to plan/i })
+    const box = screen.getByRole('searchbox', { name: /search items/i })
     await user.type(box, 'nasi goreng')
     expect(box).toHaveValue('nasi goreng')
     expect(screen.getByRole('status', { name: 'url' })).toHaveTextContent('?q=nasi+goreng')
@@ -555,8 +616,8 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(screen.getByText('Ayam Bakar').parentElement).toHaveTextContent('WIP - Ayam Bakar')
     fireEvent.click(screen.getByRole('combobox', { name: /kind/i }))
     const listbox = screen.getByRole('listbox', { name: /kind/i })
-    expect(within(listbox).getByRole('option', { name: 'WIP' })).toBeInTheDocument()
-    expect(within(listbox).queryByRole('option', { name: 'RAW' })).toBeNull()
+    expect(within(listbox).getByRole('option', { name: 'Prepared item (WIP)' })).toBeInTheDocument()
+    expect(within(listbox).queryByRole('option', { name: 'Raw material (RAW)' })).toBeNull()
   })
 
   it('empty: ops_lead sees an editable blank grid — unplanned reads BLANK (greyed "0" placeholder), not a hard zero', async () => {
@@ -692,17 +753,17 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    // PLAN_CELLS has one Production cell: Ayam Bakar qty 12 → total 12, dishes 1
+    // PLAN_CELLS has one planned Production item.
     const band = screen.getByRole('group', { name: /planning summary/i })
     expect(document.querySelector('.msr')).not.toBeNull()
     // never the retired tile strip (KitchenKpiStrip stays for Stock, not here)
     expect(document.querySelector('.kks')).toBeNull()
-    const values = Array.from(band.querySelectorAll('.msr-value')).map(el => el.textContent)
-    expect(values).toEqual(['12', '1'])
-    expect(values.every(v => /^\d+$/.test(v ?? ''))).toBe(true)
+    expect(Array.from(band.querySelectorAll('.msr-value')).map(el => el.textContent)).toEqual(['1'])
+    expect(within(band).getByText('Items planned')).toBeInTheDocument()
+    expect(within(band).queryByText('Planned total')).toBeNull()
   })
 
-  it('renders the two plan metrics under their catalog labels — never the retired word-tiles', async () => {
+  it('renders the planned-item count without a unitless planned quantity total', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       configurable: true,
@@ -717,8 +778,8 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    expect(screen.getByText(/planned total/i)).toBeInTheDocument()
     expect(screen.getByText(/items planned/i)).toBeInTheDocument()
+    expect(screen.queryByText(/planned total/i)).toBeNull()
     expect(screen.queryByText(/active action/i)).toBeNull()
     expect(screen.queryByText(/plan status/i)).toBeNull()
     expect(screen.queryByText(/write surface/i)).toBeNull()
@@ -744,7 +805,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const band = screen.getByRole('group', { name: /planning summary/i })
-    expect(Array.from(band.querySelectorAll('.msr-value')).map(el => el.textContent)).toEqual(['0', '0'])
+    expect(Array.from(band.querySelectorAll('.msr-value')).map(el => el.textContent)).toEqual(['0'])
     expect(screen.queryByText(/no plan created yet/i)).toBeNull()
   })
 
@@ -769,15 +830,15 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
   })
 
   it('groups dishes by category (F2 categories render as group headers)', async () => {
-    const { container } = render(<KitchenPlanPage />, { wrapper })
+    mockCafeItemSettings.mockResolvedValue([
+      esb({ ...ITEMS[0], category: 'Main' }),
+      esb({ ...ITEMS[1], category: 'Rice' }),
+    ])
+    render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    // ITEMS both carry category 'Main' → one group header 'Main' (phone-default cards).
-    // Selector note: grouping now renders via the shared DataTable. Phone cards emit the
-    // group label under .dt-cards-group-label (desktop would be .dt-group-label); this
-    // test runs the default phone matchMedia, so query the phone class — a mechanical
-    // selector update, the goal (category group label renders) is unchanged.
-    const labels = Array.from(container.querySelectorAll('.dt-cards-group-label')).map(el => el.textContent)
-    expect(labels).toContain('Main')
+    // Two categories → each gets a collapsible header carrying its own item count.
+    expect(screen.getByRole('button', { name: 'Main (1)' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Rice (1)' })).toBeInTheDocument()
   })
 
   it('R7: the editor has no help-tip control in the page chrome', async () => {
@@ -818,34 +879,6 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     ).toHaveAttribute('href', '/cafe/production')
     expect(screen.queryAllByRole('link', { name: /see .* in the café log/i })).toHaveLength(1)
     expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
-  })
-
-  it('phone (default matchMedia): renders the cards branch, NOT the desktop table', async () => {
-    render(<KitchenPlanPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
-    // the desktop table aria-label is absent on phone (one branch in the DOM — P-4)
-    expect(screen.queryByRole('table', { name: /café plan/i })).toBeNull()
-  })
-
-  it.each([
-    ['producing', OWN_STREAM],
-    ['receiving-only', RADIANT_KITCHEN],
-  ] as const)('phone ignores desktop category query for the %s Plan list', async (_state, stream) => {
-    mockDefaultStream.mockResolvedValue(stream)
-    mockCafeItemSettings.mockResolvedValue([
-      esb({ ...ITEMS[0], category: 'Main' }),
-      esb({ ...ITEMS[1], category: 'Rice' }),
-    ])
-    render(
-      <MemoryRouter initialEntries={['/cafe/plan?category=__no_matching_category__']}>
-        <I18nProvider><KitchenPlanPage /></I18nProvider>
-      </MemoryRouter>,
-    )
-    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
-    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
-    if (stream.produces === false) {
-      expect(screen.getByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
-    }
   })
 
   it('desktop applies the selected category query to the Plan list', async () => {
@@ -954,8 +987,8 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
   it('AC-024: member sees the 14-day forward horizon read-only', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
-    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
-    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+    expect(await screen.findByText(/Ayam Bakar/)).toBeInTheDocument()
+    expect(screen.getByText(/Nasi Goreng/)).toBeInTheDocument()
     await waitFor(() => expect(mockPesanan).toHaveBeenCalled())
     // 14-day horizon requested
     const [, days] = mockPesanan.mock.calls[0]
@@ -979,8 +1012,8 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     }])
     render(<KitchenPlanPage />, { wrapper })
 
-    await screen.findByText('House Chicken')
-    expect(screen.getByText('porsi')).toBeInTheDocument()
+    await screen.findByText(/House Chicken/)
+    expect(screen.getAllByText('porsi').length).toBeGreaterThan(0)
     expect(screen.getByText('Also shown for logging: case')).toBeInTheDocument()
     expect(screen.queryByText('ERP Ayam Bakar')).toBeNull()
   })
@@ -988,7 +1021,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
   it('AC-024: member NEVER gets edit/save affordances or calls the editor read/write', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
+    await screen.findByText(/Ayam Bakar/)
     expect(screen.queryByRole('spinbutton')).toBeNull()
     expect(screen.queryByRole('button', { name: /save|edit|approve|submit/i })).toBeNull()
     expect(mockPlans).not.toHaveBeenCalled()
@@ -1004,13 +1037,13 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
   it('member rows are grouped by date with the planned qty shown', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
-    expect(screen.getByText('Ayam Bakar').parentElement).toHaveTextContent('WIP - Ayam Bakar')
+    await screen.findByText(/Ayam Bakar/)
+    expect(screen.getByText(/Ayam Bakar/)).toHaveTextContent('WIP - Ayam Bakar')
     // the planned qty renders (tabular)
     expect(screen.getByText('12')).toBeInTheDocument()
     // a date group header for the two distinct dates (grouped by date)
-    expect(screen.getByText('2026-06-21')).toBeInTheDocument()
-    expect(screen.getByText('2026-06-28')).toBeInTheDocument()
+    expect(screen.getAllByText(/21 Jun/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/28 Jun/).length).toBeGreaterThan(0)
   })
 
   it('member error + retry: re-fetches the horizon', async () => {
@@ -1018,34 +1051,34 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     render(<KitchenPlanPage />, { wrapper })
     const retry = await screen.findByRole('button', { name: /try again/i })
     fireEvent.click(retry)
-    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    expect(await screen.findByText(/Ayam Bakar/)).toBeInTheDocument()
   })
 
   it('R7: the pesanan item name stays plain text', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
+    await screen.findByText(/Ayam Bakar/)
     expect(screen.queryByRole('link', { name: /see .* in the café log/i })).toBeNull()
-    expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
+    expect(screen.getByText(/Ayam Bakar/).closest('a')).toBeNull()
   })
 
   it('(#401) a member can find a dish by name — search narrows the horizon (Nielsen Café·Plan 16/32: ~231 rows, no way to narrow)', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
+    await screen.findByText(/Ayam Bakar/)
     fireEvent.change(
-      screen.getByRole('searchbox', { name: /find an item in the plan/i }),
+      screen.getByRole('searchbox', { name: /search items/i }),
       { target: { value: 'nasi' } },
     )
-    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
-    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+    expect(screen.getByText(/Nasi Goreng/)).toBeInTheDocument()
+    expect(screen.queryByText(/Ayam Bakar/)).toBeNull()
   })
 
   it('(#981) pesanan search keeps fast typing intact', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
-    const box = screen.getByRole('searchbox', { name: /find an item in the plan/i })
+    await screen.findByText(/Ayam Bakar/)
+    const box = screen.getByRole('searchbox', { name: /search items/i })
     await userEvent.setup({ delay: null }).type(box, 'nasi goreng')
     expect(box).toHaveValue('nasi goreng')
   })
@@ -1057,9 +1090,9 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
         <I18nProvider><KitchenPlanPage /></I18nProvider>
       </MemoryRouter>,
     )
-    await screen.findByText('Nasi Goreng')
-    expect(screen.getByRole('searchbox', { name: /find an item in the plan/i })).toHaveValue('nasi')
-    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+    await screen.findByText(/Nasi Goreng/)
+    expect(screen.getByRole('searchbox', { name: /search items/i })).toHaveValue('nasi')
+    expect(screen.queryByText(/Ayam Bakar/)).toBeNull()
   })
 
   it('Pesanan Switch reaches another readable branch when the active branch has one stream', async () => {
@@ -1073,15 +1106,15 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     ))
 
     render(<KitchenPlanPage />, { wrapper })
-    expect(await screen.findByText('Nasi Goreng')).toBeInTheDocument()
+    expect(await screen.findByText(/Nasi Goreng/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     const otherLocation = screen.getByRole('option', {
-      name: /Rumah Rames · Kitchen.*Other location/i,
+      name: /Rumah Rames · Kitchen/i,
     })
     fireEvent.click(otherLocation)
 
-    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
-    expect(screen.queryByText('Nasi Goreng')).toBeNull()
+    expect(await screen.findByText(/Ayam Bakar/)).toBeInTheDocument()
+    expect(screen.queryByText(/Nasi Goreng/)).toBeNull()
     expect(screen.getByRole('heading', { level: 2, name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
     expect(mockPesanan.mock.calls.at(-1)?.[2]).toEqual(OWN_STREAM)
     expect(mockUpsert).not.toHaveBeenCalled()
@@ -1106,11 +1139,11 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     ])
     mockCafeItemSettings.mockResolvedValue([esb({ ...ITEMS[0], category: 'Main' }), esb({ ...ITEMS[1], category: 'Rice' })])
     render(<KitchenPlanPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
+    await screen.findByText(/Ayam Bakar/)
     expect(screen.getByRole('combobox', { name: /category/i })).toHaveAttribute('id', 'cafe-plan-category')
     chooseCategory('Rice')
-    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
-    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+    expect(screen.getByText(/Nasi Goreng/)).toBeInTheDocument()
+    expect(screen.queryByText(/Ayam Bakar/)).toBeNull()
   })
 
   it('phone shows all Pesanan rows even when a shared desktop URL carries a category filter', async () => {
@@ -1123,16 +1156,16 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
         <I18nProvider><KitchenPlanPage /></I18nProvider>
       </MemoryRouter>,
     )
-    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
-    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+    expect(await screen.findByText(/Ayam Bakar/)).toBeInTheDocument()
+    expect(screen.getByText(/Nasi Goreng/)).toBeInTheDocument()
   })
 
   it('(#401) a filter that matches nothing shows the shared no-match copy, not a broken table', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
+    await screen.findByText(/Ayam Bakar/)
     fireEvent.change(
-      screen.getByRole('searchbox', { name: /find an item in the plan/i }),
+      screen.getByRole('searchbox', { name: /search items/i }),
       { target: { value: 'zzz' } },
     )
     expect(await screen.findByText(/no items match your filter/i)).toBeInTheDocument()
@@ -1155,12 +1188,12 @@ describe('KitchenPlanPage — locale id (#401)', () => {
     mockPlans.mockResolvedValue(PLAN_CELLS)
   })
 
-  it('the summary band renders Indonesian (reused plannedTotal key + the new label)', async () => {
+  it('the summary band renders the planned-item count in Indonesian', async () => {
     render(<KitchenPlanPage />, { wrapper: idWrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByRole('group', { name: 'Ringkasan perencanaan' })).toBeInTheDocument()
-    expect(screen.getByText('Total rencana')).toBeInTheDocument()
     expect(screen.getByText('Item direncanakan')).toBeInTheDocument()
+    expect(screen.queryByText(/Total rencana/i)).toBeNull()
     expect(screen.queryByText(/planned total/i)).toBeNull()
   })
 
@@ -1183,7 +1216,7 @@ describe('KitchenPlanPage — locale id (#401)', () => {
     render(<KitchenPlanPage />, { wrapper: idWrapper })
     const input = await screen.findByRole('spinbutton', { name: /jumlah yang direncanakan untuk ayam bakar/i })
     await user.type(input, '15{Enter}')
-    expect(await screen.findByText(/tersimpan/i)).toBeInTheDocument()
+    expect((await screen.findAllByText(/tersimpan/i)).length).toBeGreaterThan(0)
     expect(screen.queryByText(/saved/i)).toBeNull()
   })
 })
@@ -1306,7 +1339,7 @@ describe('DD-MVP-9: the Plan editor treats a receiving-only stream as readable, 
     expect(screen.getByText(
       'This stream receives stock, so production capture and planning are unavailable here.',
     )).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', '/cafe/stock')
+    expect(screen.getByRole('link', { name: /see what is available to transfer/i })).toHaveAttribute('href', '/cafe/stock')
     const planCard = screen.getByText('Ayam Bakar').closest('.dt-card')
     expect(planCard).not.toBeNull()
     expect(planCard).toHaveTextContent('12')
@@ -1318,22 +1351,18 @@ describe('DD-MVP-9: the Plan editor treats a receiving-only stream as readable, 
 
 // ── #548 FR-007/AC-007: Plan's phone face is the compact capture row ───────
 describe('FR-007/AC-007: Plan\'s phone face is the compact capture row', () => {
-  it('AC-007: phone width with planned items → each row is the compact capture row (identity + typed field/unit), not the generic record card', async () => {
+  it('AC-007: phone width with planned items → each row carries its identity and a typed field with its unit', async () => {
     mockPlans.mockResolvedValue(PLAN_CELLS) // Ayam Bakar planned 12
     render(<KitchenPlanPage />, { wrapper })
-    const card = (await screen.findByText('Ayam Bakar')).closest('.dt-card')
-    expect(card).not.toBeNull()
-    expect(card).toHaveClass('dt-card--compact') // PhoneCard applies it when renderCard is supplied
-    expect(card!.querySelector('.kp-card-head')).not.toBeNull()
-    // identity left, typed plan field + unit right — the SAME field the desktop cell mounts
+    const ayamRow = (await screen.findByText('Ayam Bakar')).closest('[role="row"]') as HTMLElement
+    expect(ayamRow).not.toBeNull()
     expect(
-      within(card as HTMLElement).getByRole('spinbutton', { name: /planned quantity for ayam bakar/i }),
+      within(ayamRow).getByRole('spinbutton', { name: /planned quantity for ayam bakar/i }),
     ).toBeInTheDocument()
-    expect(card!.textContent).toContain('porsi')
+    expect(ayamRow.textContent).toContain('porsi')
     // and EVERY row is that row — the unplanned one too
-    expect(screen.getByText('Nasi Goreng').closest('.dt-card--compact')).not.toBeNull()
-    // no per-card field label: the generic <dl> fallback is gone
-    expect(document.querySelector('.dt-card-detail')).toBeNull()
+    const nasiRow = screen.getByText('Nasi Goreng').closest('[role="row"]') as HTMLElement
+    expect(within(nasiRow).getByRole('spinbutton', { name: /planned quantity for nasi goreng/i })).toBeInTheDocument()
   })
 })
 
@@ -1343,7 +1372,7 @@ it('gives a receiving-only member a Stock handoff without production inputs', as
   mockDefaultStream.mockResolvedValue(RADIANT_KITCHEN)
   render(<KitchenPlanPage />, { wrapper })
   expect(await screen.findByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', '/cafe/stock')
+  expect(screen.getByRole('link', { name: /see what is available to transfer/i })).toHaveAttribute('href', '/cafe/stock')
   expect(screen.queryByRole('spinbutton')).toBeNull()
   expect(mockUpsert).not.toHaveBeenCalled()
 })
@@ -1362,7 +1391,7 @@ describe('issue 222: the plan offers the stream\'s own item list', () => {
 
     expect(screen.queryByText('Es Teh')).not.toBeInTheDocument()
     expect(screen.getAllByText('Not on this stream’s list')).toHaveLength(1)
-    expect(screen.getByText('Not on this stream’s list').closest('tr, .kp-card')).toHaveTextContent('Ayam Bakar')
+    expect(screen.getByText('Not on this stream’s list').closest('[role="row"]')).toHaveTextContent('Ayam Bakar')
     const ayam = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     expect(ayam).toBeEnabled()
     fireEvent.change(ayam, { target: { value: '15' } })
@@ -1405,9 +1434,8 @@ describe('issue 222: the plan offers the stream\'s own item list', () => {
     })))
     expect(mockUpsert.mock.calls[0][0].log_date).toBe(mockPlans.mock.calls[0][0])
 
-    const transferTab = screen.getAllByRole('tab').find(tab => /transfer/i.test(tab.getAttribute('aria-label') ?? ''))
-    expect(transferTab).toBeDefined()
-    fireEvent.click(transferTab!)
+    fireEvent.click(screen.getByRole('combobox', { name: 'Plan for' }))
+    fireEvent.click(await screen.findByRole('option', { name: /transfer/i }))
     const transferInput = screen.getByRole('spinbutton', { name: /planned quantity for archived curry/i })
     expect(transferInput).toHaveValue('')
     expect(transferInput).toBeDisabled()

@@ -1,18 +1,14 @@
 import { useEffect, useRef, useCallback } from 'react'
-import type React from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import {
-  DESTINATIONS,
-  navUtility,
-  isLive,
-  modulesByBU,
-  primaryModuleForViewer,
-  moduleChildrenForViewer,
-  type Destination,
-} from './destinations'
-import { visibleSections, type Section } from './sections'
+import { isShipGated } from '@/lib/ship-gate'
+import { useLocation } from 'react-router-dom'
 import { UserChip } from './user-chip'
-import { CloseIcon, Chevron } from './icons'
+import { CloseIcon } from './icons'
+import { AreaLink, PageLinks } from './nav-parts'
+import {
+  FIXED_AREAS, INBOX_AREA, admittedModules, currentPagePath, footerAreas, pageCount, pageGroupsFor, destinationForPath, rowState,
+  type Destination,
+} from './module-registry'
+import { useNavBadges } from './use-nav'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { focusableWithin } from '@/lib/focusable'
@@ -20,12 +16,9 @@ import { OverlayPortal } from '@/components/ui/overlay-portal'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { useInertAppRoot } from '@/components/ui/use-inert-app-root'
 import './mobile-drawer.css'
-// DD-WAY-33 (#439): the phone drawer wears the SAME three-rung ladder as the desktop rail
-// (rail-nav.css owns it). One ladder, two surfaces — a destination must not read as a child
-// just because the viewport shrank. Imported explicitly rather than relied on from rail-nav.tsx:
-// below 920px the rail does not mount, and a stylesheet that arrives only via someone else's
-// import is exactly how a class ends up resolving to nothing.
-import './rail-nav.css'
+// The phone drawer wears the SAME grammar as the desktop nav (nav.css): one ladder, two surfaces — a
+// destination must not read as a child just because the viewport shrank.
+import './nav.css'
 
 interface MobileDrawerProps {
   open: boolean
@@ -34,72 +27,24 @@ interface MobileDrawerProps {
   focusOpener?: () => void
 }
 
-// Work's always-expanded children, capability-filtered exactly as the desktop rail filters them
-// (rail-nav.tsx) — a capability-gated child (Projects & Processes) renders only for a viewer whose
-// access roles grant it.
-//
-// #446: ORDER comes from `destinations.tsx` and from nowhere else. This surface always rendered
-// `children` as declared; the desktop rail used to re-sort them through a local table, so the same
-// five items were listed two ways and the phone contradicted the laptop. The rail's table is gone,
-// both surfaces render declaration order, and `work-child-order.test.tsx` fails if they diverge.
-function workChildren(d: Destination, accessRoles: string[]): Section[] {
-  return visibleSections(d.children ?? [], accessRoles)
+const HOME = FIXED_AREAS[0]
+const WORK = FIXED_AREAS[1]
+
+function landingOf(destination: Destination): string {
+  return destination.primaryPath ?? destination.links[0].path
 }
 
-// One row renderer shared by both Destination and Work-child (Section) rows — same visual
-// grammar, same touch-target floor, one place to change it.
-//
-// #446 asked why a child carries an icon here and not on the full-width rail. Decided, not
-// inherited: the drawer keeps its child icons. Every drawer row is an icon+label pair, so dropping
-// the glyph on children alone would leave a ragged column with a hole where the icons line up —
-// and on a phone the glyph is the part a thumb aims at. The full-width rail's icon-less children
-// are the owner-ratified B2 treatment (see rail-nav.tsx) and stay as they are. The two surfaces
-// agree on ORDER, which is what a person carries between them; they are allowed to differ on
-// density, which is what a 320px drawer and a 232px rail do not share. `rung` picks which step of the
-// shared rail ladder (rail-nav.css) the row sits on: `dest` (13.5px/600, foreground, 17px icon)
-// or `child` (13px/500, muted-foreground, 15px icon). Neither the icon nor the label carries a
-// colour class of its own — both inherit the rung, so glyph and label move together.
-function DrawerRow({ to, label, Icon, onNavigate, rung = 'dest', showChevron = false }: { to: string; label: string; Icon: React.FC; onNavigate: () => void; rung?: 'dest' | 'child'; showChevron?: boolean }) {
-  return (
-    <Link
-      to={to}
-      onClick={onNavigate}
-      // SYS-2: the More drawer is a phone-only surface, so its 36px rows fall below the
-      // 44px touch floor. The shared tap-target-phone marker (Button.css) raises them.
-      className={`rail-item rail-item--${rung} tap-target-phone flex items-center gap-[10px] rounded-sm px-2 hover:bg-accent/60`}
-      style={{ height: 36 }}
-    >
-      <span>
-        <Icon />
-      </span>
-      <span>{label}</span>
-      {showChevron && <Chevron className="rail-module-chevron" />}
-    </Link>
-  )
-}
-
-// Overline group label — the ladder's quietest rung, shared with the rail (.rail-item-overline).
-// aria-hidden visual divider, not a nav landmark; the group's rows stay directly reachable in
-// document order.
-function DrawerGroupLabel({ children }: { children: string }) {
-  return (
-    <div className="rail-item-overline px-2 pt-2.5 pb-1" aria-hidden="true">
-      {children}
-    </div>
-  )
+function rootOf(destination: Destination): string {
+  return `/${landingOf(destination).split('/')[1] ?? ''}`
 }
 
 /**
- * MobileDrawer — v4 shell rebuild (Task 4). The real two-zone nav drawer, derived from the SAME
- * destinations.tsx registry the desktop rail reads (no second hand-maintained list): workspace
- * roots (+ Work's 5 declared always-expanded children, 4 of them past the ship gate today) ·
- * Modules grouped by BU (modulesByBU,
- * viewer-scoped) · Utility. The viewer's promoted module is already a bottom-tab, so it's
- * excluded from the Modules zone here — it lives on exactly one nav surface. Links carry no
- * aria-current (the bottom-tab-bar / breadcrumb leaf own that; Rule 5 — see breadcrumb.tsx).
- * Every close path — Esc, backdrop click, the ✕, and clicking a destination link — routes
- * through the SAME `closeAndReturn` so focus always returns to the launcher (interaction-
- * contract I2), never left dangling on a link about to unmount.
+ * MobileDrawer — the phone's More: a drawer, not a page. It is derived from the SAME module registry as the
+ * desktop nav: Home, Work, Inbox, the admitted Modules (only the module you are in expands, with its grouped
+ * pages), then Admin settings, Personal profile and the account chip (language, appearance, sign out) in a
+ * foot that stays on screen while the navigation scrolls. Every close path — Esc, backdrop click, the ✕, and
+ * selecting a destination — routes through the SAME `closeAndReturn` so focus always returns to the opener
+ * (interaction-contract I2), never left dangling on a link about to unmount.
  */
 export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null)
@@ -110,13 +55,11 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   const auth = useAuth()
   const { pathname } = useLocation()
   const t = useT()
+  const badges = useNavBadges()
   const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
-  const affiliated = viewer?.affiliated ?? []
 
   const closeAndReturn = useCallback(() => {
-    const appRoot = document.getElementById('root')
-    if (!appRoot?.hasAttribute('inert')) focusOpenerRef.current?.()
     onClose()
   }, [onClose])
 
@@ -131,6 +74,8 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
     if (!open) return
     const [first] = focusableWithin(panelRef.current)
     first?.focus()
+    // The page the viewer is on may sit below the fold of a long module menu: bring it into view.
+    panelRef.current?.querySelector<HTMLElement>('nav [aria-current="page"]')?.scrollIntoView({ block: 'center' })
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
@@ -143,35 +88,15 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
 
   if (!open) return null
 
-  // Zone 1 — workspace roots (Home · Work · Signals · Money[gated] · Inbox), same isLive gate
-  // the rail applies. Zone 2 — modules grouped by BU, viewer-scoped, minus the one already
-  // promoted to a bottom-tab. Zone 3 — utility (Admin[gated] · Profile).
-  const liveWorkspace = DESTINATIONS.filter((d) => isLive(d, accessRoles))
-  const promotedModule = primaryModuleForViewer(affiliated, accessRoles)
-  // Zone 2 keeps every viewer-scoped module. The promoted one contributes only its CHILDREN — its
-  // own row is already the bottom bar's module tab, so repeating it here would be the duplicate
-  // the "exactly one surface owns the module" rule exists to prevent.
-  //
-  // It used to be dropped whole, children included (#242). Below 920px there is no rail, and the
-  // bottom bar renders one link per module with no children — so for every viewer who HAS a
-  // module (Café is always the promoted one for kitchen staff) that module's sub-screens had no
-  // nav entry on a phone at all. Café's five screens are the ones kitchen staff use daily, on
-  // their primary device.
-  const moduleGroups = modulesByBU(accessRoles)
-    .map((g) => ({
-      bu: g.bu,
-      items: g.items
-        .map((m) => ({
-          module: m,
-          showParent: m.id !== promotedModule?.id,
-          children: moduleChildrenForViewer(m, pathname, affiliated, accessRoles),
-        }))
-        .filter((i) => i.showParent || i.children.length > 0),
-    }))
-    .filter((g) => g.items.length > 0)
-  // Admin Settings only; Personal Profile is in the UserChip row at the top of this drawer
-  // (owner, 2026-08-26). See navUtility() in destinations.tsx.
-  const liveUtility = navUtility(accessRoles)
+  const area = destinationForPath(pathname)
+  const modules = admittedModules(accessRoles)
+  const footer = footerAreas(accessRoles)
+  const admin = footer.find((d) => d.id === 'admin')
+  const profile = footer.find((d) => d.id === 'profile')
+  const workGroups = pageGroupsFor(WORK, accessRoles)
+  const adminGroups = admin ? pageGroupsFor(admin, accessRoles) : []
+  const state = (destination: Destination, groups: ReturnType<typeof pageGroupsFor>) =>
+    rowState(pathname, landingOf(destination), destination.id === 'home' ? '/' : rootOf(destination), currentPagePath(groups, pathname))
 
   return (
     <OverlayPortal>
@@ -182,121 +107,74 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
         role="dialog"
         aria-modal="true"
         aria-label={t('nav.more')}
-        // OD-REDESIGN-91 #37: opens from the LEFT (left-0 + slide-in-from-left) to match the ☰
-        // hamburger position (top-left) and the rail side — the prior right-slide was "not natural".
-        className="mobile-drawer-panel fixed inset-y-0 left-0 bg-secondary flex flex-col overflow-auto"
-        style={{ width: 'min(320px, 80vw)', zIndex: 'var(--z-drawer)' }}
+        className="mobile-drawer-panel fixed inset-x-0 bottom-0 bg-background flex flex-col overflow-hidden"
+        style={{ zIndex: 'var(--z-drawer)' }}
       >
-        <div className="flex items-center justify-between px-4" style={{ height: 'var(--header-h)' }}>
-          <span className="font-semibold text-foreground">{t('nav.more')}</span>
+        <div className="mobile-drawer-head">
+          <span className="mobile-drawer-head__title">{t('nav.more')}</span>
           <button
             type="button"
             aria-label={t('record.close')}
-            className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm hover:bg-accent"
-            style={{ width: 32, height: 32 }}
+            className="mk-iconbtn mk-iconbtn--tertiary"
             onClick={closeAndReturn}
           >
             <CloseIcon />
           </button>
         </div>
 
-        {/* Identity + sign-out row (security audit HIGH-1, 2026-07-17). Phone has no rail, so the
-            drawer is the only place a viewer can see who is signed in and end the session — the
-            'drawer' variant reuses UserChip (Rule 11) with a downward-opening menu (there is no
-            room above the drawer's fixed top edge, unlike the desktop rail footer) and a visible
-            disclosure chevron (Task 7 a11y — a menu-opening row needs a visible affordance cue). */}
-        {viewer && (
-          <div className="px-2 pt-2">
-            <UserChip variant="drawer" onNavigate={closeAndReturn} />
+        <nav aria-label={t('nav.moreDestinations')} className="mobile-drawer-nav">
+          <div className="nav-list">
+            {!isShipGated('/') && <AreaLink destination={HOME} to="/" state={state(HOME, [])} onNavigate={closeAndReturn} />}
+            {!isShipGated('/work') && <div>
+              <AreaLink destination={WORK} to={landingOf(WORK)} state={state(WORK, workGroups)} onNavigate={closeAndReturn} />
+              {area?.id === 'work' && (
+                <div className="nav-children">
+                  <PageLinks groups={workGroups} pathname={pathname} forPath={badges.forPath} onNavigate={closeAndReturn} />
+                </div>
+              )}
+            </div>}
+            {/* Inbox has no desktop menu row (it is the bell); on a phone the bell is on the top bar and here. */}
+            <AreaLink destination={INBOX_AREA} to={landingOf(INBOX_AREA)} state={state(INBOX_AREA, [])} onNavigate={closeAndReturn} />
           </div>
-        )}
 
-        <nav aria-label="More destinations" className="flex flex-col gap-2 p-2 overflow-auto">
-          <div>
-            <DrawerGroupLabel>{t('rail.destinations')}</DrawerGroupLabel>
-            <ul className="flex flex-col gap-[2px]">
-              {liveWorkspace.map((d) => {
-                if (d.children) {
-                  const children = workChildren(d, accessRoles)
+          {modules.length > 0 && (
+            <>
+              <div className="nav-group-heading nav-group-heading--top">{t('shell.nav.modules')}</div>
+              <div className="nav-list">
+                {modules.map((module) => {
+                  const groups = pageGroupsFor(module, accessRoles)
+                  const here = area?.id === module.id && pageCount(groups) >= 2
                   return (
-                    <li key={d.id}>
-                      <DrawerRow to={d.primaryPath ?? d.links[0].path} label={t(d.labelKey)} Icon={d.Icon} onNavigate={closeAndReturn} />
-                      {children.length > 0 && (
-                        <ul className="flex flex-col gap-[2px] rail-item-children">
-                          {children.map((c) => (
-                            <li key={c.path}>
-                              <DrawerRow
-                                to={c.path}
-                                label={c.labelKey ? t(c.labelKey) : c.label}
-                                Icon={c.Icon}
-                                onNavigate={closeAndReturn}
-                                rung="child"
-                              />
-                            </li>
-                          ))}
-                        </ul>
+                    <div key={module.id}>
+                      <AreaLink destination={module} to={landingOf(module)} state={state(module, here ? groups : [])} onNavigate={closeAndReturn} badge={here ? undefined : badges.forDestination(module.id)} />
+                      {here && (
+                        <div className="nav-children">
+                          <PageLinks groups={groups} pathname={pathname} forPath={badges.forPath} onNavigate={closeAndReturn} />
+                        </div>
                       )}
-                    </li>
+                    </div>
                   )
-                }
-                return (
-                  <li key={d.id}>
-                    <DrawerRow to={d.primaryPath ?? d.links[0].path} label={t(d.labelKey)} Icon={d.Icon} onNavigate={closeAndReturn} />
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
+                })}
+              </div>
+            </>
+          )}
 
-          {/* Zone 2 — modules grouped by BU (OD-REDESIGN-1: "Modules grouped by Business
-              Unit"), viewer-scoped exactly as the rail scopes them. Empty for an org-wide role. */}
-          {moduleGroups.map((g) => (
-            <div key={g.bu}>
-              <DrawerGroupLabel>{t(g.bu)}</DrawerGroupLabel>
-              <ul className="flex flex-col gap-[2px]">
-                {g.items.map(({ module: m, showParent, children }) => (
-                  <li key={m.id}>
-                    {showParent && (
-                      <DrawerRow to={m.primaryPath ?? m.links[0].path} label={t(m.labelKey)} Icon={m.Icon} onNavigate={closeAndReturn} showChevron={Boolean(m.children?.length)} />
-                    )}
-                    {/* A module's own screens. This drawer is the phone's ONLY route to them —
-                        the bottom bar gives a module one tab and no children — so a module whose
-                        children are not drawn here has no phone nav at all. Gated children
-                        (Review · Pushes) are filtered by the same helper the rail uses, against
-                        the same roles their route enforces. Indented under a parent row; flush
-                        when the parent is the bottom tab and only the children render here. */}
-                    {children.length > 0 && (
-                      <ul className={`flex flex-col gap-[2px] ${showParent ? 'rail-item-children' : ''}`}>
-                        {children.map((c) => (
-                          <li key={c.path}>
-                            <DrawerRow
-                              to={c.path}
-                              label={c.labelKey ? t(c.labelKey) : c.label}
-                              Icon={c.Icon}
-                              onNavigate={closeAndReturn}
-                              rung="child"
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-
-          {/* Zone 3 — utility (Admin Settings[gated] · Personal Profile). */}
-          {liveUtility.length > 0 && (
-            <ul className="flex flex-col gap-[2px]">
-              {liveUtility.map((u) => (
-                <li key={u.id}>
-                  <DrawerRow to={u.primaryPath ?? u.links[0].path} label={t(u.labelKey)} Icon={u.Icon} onNavigate={closeAndReturn} />
-                </li>
-              ))}
-            </ul>
+          {area?.id === 'admin' && adminGroups.length > 0 && (
+            <>
+              <div className="nav-group-heading nav-group-heading--top">{t('dest.admin')}</div>
+              <PageLinks groups={adminGroups} pathname={pathname} forPath={badges.forPath} onNavigate={closeAndReturn} />
+            </>
           )}
         </nav>
+
+        {/* Foot: Admin settings and Personal profile, then the account (language, appearance, sign out). */}
+        <div className="mobile-drawer-foot">
+          <div className="nav-list">
+            {admin && <AreaLink destination={admin} to={landingOf(admin)} state={state(admin, adminGroups)} onNavigate={closeAndReturn} />}
+            {profile && <AreaLink destination={profile} to="/profile" state={rowState(pathname, '/profile', '/profile', undefined)} onNavigate={closeAndReturn} />}
+          </div>
+          {viewer && <UserChip variant="drawer" />}
+        </div>
       </div>
       </>
     </OverlayPortal>

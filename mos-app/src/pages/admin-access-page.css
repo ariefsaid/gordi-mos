@@ -1,20 +1,89 @@
-/* Admin Settings' Teams and Roles & permissions pages use the shared management frame; this file
-   only owns their field and feedback seams. Layout tokens and responsive composition live with the
-   admin settings nav. */
-.admin-access-panel > .error-state {
-  margin: 12px 16px;
+/* Access levels: pick a level, edit what it can do; the comparison matrix is a disclosure under it. */
+.page-frame--v3:has(.admin-settings-nav, .profile-page, .agent-connections-self) { background: var(--mos-canvas); }
+.admin-access-stack { display: flex; flex-direction: column; gap: var(--mos-section-gap); }
+.access-policy { min-width: 0; }
+.access-policy__intro { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-space-5); padding: var(--mos-space-3) 0; }
+.access-policy__intro h2 { margin: 0; color: var(--mos-ink); font: var(--mos-type-section); }
+.access-policy__selected h3 { margin: 0; color: var(--mos-ink); font: var(--mos-type-group); }
+.access-policy__workspace { display: grid; grid-template-columns: minmax(190px, .65fr) minmax(0, 2fr); gap: var(--mos-space-6); align-items: start; }
+
+/* Levels: nav rows, one selected. */
+.access-policy__levels { display: grid; border-top: 1px solid var(--mos-line); }
+.access-policy__level { display: grid; align-content: center; min-height: calc(var(--mos-row-min) + var(--mos-space-2)); border-bottom: 1px solid var(--mos-line); }
+.access-policy__level-button {
+  width: 100%; min-height: var(--mos-control-height); padding: var(--mos-space-2) var(--mos-space-3); border: 0; background: transparent;
+  color: var(--mos-ink); font: var(--mos-type-nav); text-align: start; cursor: pointer;
+}
+.access-policy__level-button:hover { background: var(--mos-hover); }
+.access-policy__level-button--active, .access-policy__level-button--active:hover { background: var(--mos-accent-tint); color: var(--mos-accent); font-weight: var(--mos-weight-semibold); }
+.access-policy__level-button:focus-visible { outline-offset: calc(-1 * var(--mos-focus-width)); }
+.access-policy__source { padding: 0 var(--mos-space-3) var(--mos-space-2); }
+.access-policy__source a, .access-policy__mobile-level a, .admin-access-derived { color: var(--mos-muted); font: var(--mos-type-subnav); text-decoration: underline; text-underline-offset: 3px; }
+.access-policy__source a:hover, .access-policy__mobile-level a:hover, .admin-access-derived:hover { color: var(--mos-ink); }
+.access-policy__mobile-level { display: none; }
+.access-policy__selected { padding: 0 0 var(--mos-toolbar-gap); }
+
+/* The editor: groups of actions, one scope picker per action. */
+.access-editor { display: flex; flex-direction: column; gap: var(--mos-group-above); max-width: 640px; }
+.access-editor__group h3 { margin: 0; padding: 0 0 var(--mos-group-below); border-bottom: 1px solid var(--mos-line); color: var(--mos-ink); font: var(--mos-type-label); }
+.access-editor__row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, 260px); align-items: center; gap: var(--mos-gutter); min-height: var(--mos-row-min); padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--mos-line); }
+.access-editor__action { min-width: 0; color: var(--mos-ink); font: var(--mos-type-control); }
+.access-editor__scope { min-width: 0; }
+.access-editor__scope .picker__trigger { min-height: var(--mos-control-height); }
+.admin-access-fixed { display: inline-flex; align-items: center; min-height: var(--mos-control-height); color: var(--mos-muted); font: var(--mos-type-label); }
+
+/* Comparison matrix (desktop disclosure): scrolls inside its own frame. */
+.access-policy__comparison { margin-top: var(--mos-section-gap); padding-top: var(--mos-field-gap); border-top: 1px solid var(--mos-line); }
+.admin-access-table-frame { position: relative; min-width: 0; }
+.admin-access-table-wrap { overflow-x: auto; container: access-matrix / inline-size; }
+.admin-access-table--responsive { width: 100%; min-width: 1086px; border-collapse: collapse; }
+@container access-matrix (min-width: 1086px) { .admin-access-table--responsive { min-width: 100%; table-layout: fixed; } }
+.admin-access-table :is(th, td) { padding: var(--mos-row-pad-y) var(--mos-row-pad-x); border-bottom: 1px solid var(--mos-line); text-align: start; vertical-align: middle; }
+.admin-access-table__action { width: 190px; min-width: 190px; color: var(--mos-ink); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); }
+.admin-access-table tr > :first-child { position: sticky; inset-inline-start: 0; z-index: 1; min-width: 190px; background: var(--mos-canvas); }
+.admin-access-table thead tr > :first-child { background: var(--mos-band); }
+.admin-access-table__role { min-width: 112px; }
+.admin-access-table .picker { width: 100%; }
+/* Matrix cells are narrow: scope names wrap instead of truncating, at the label step. */
+.admin-access-table .picker__trigger { width: 100%; min-height: var(--mos-control-height); align-items: center; gap: var(--mos-label-gap); padding: var(--mos-label-gap) var(--mos-inline-gap); font-size: var(--mos-size-2); }
+.admin-access-table__value--wrap-no-ellipsis .picker__trigger > svg { display: none; }
+.admin-access-table__value--wrap-no-ellipsis .picker__trigger > span { display: block; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; -webkit-line-clamp: unset; line-clamp: unset; }
+/* Comparison header: the level name and its source link stack and wrap inside the column. */
+:root .page-frame--v3 .admin-access-table-wrap .admin-access-table thead th { white-space: normal; vertical-align: top; padding-block: var(--mos-band-pad-y); }
+.admin-access-table__role-name { display: block; }
+.admin-access-table thead .admin-access-derived { display: block; margin-top: var(--mos-label-gap); font-weight: 400; overflow-wrap: anywhere; }
+.admin-access-scroll-hint { margin: 0 0 var(--mos-space-2); color: var(--mos-muted); font: var(--mos-type-subnav); }
+.admin-access-table-frame--more::after, .admin-access-table-frame--more-left::before { content: ''; position: absolute; z-index: var(--z-inline-raised); top: 0; bottom: 0; width: 40px; pointer-events: none; }
+.admin-access-table-frame--more::after { right: 0; background: linear-gradient(to right, transparent, var(--mos-canvas)); }
+.admin-access-table-frame--more-left::before { left: 0; background: linear-gradient(to left, transparent, var(--mos-canvas)); }
+
+/* Unsaved changes: what will change, old → new. */
+.access-change-summary { margin-top: var(--mos-group-above); padding-top: var(--mos-toolbar-gap); border-top: 1px solid var(--mos-line); }
+.access-change-summary h3 { margin: 0 0 var(--mos-group-below); color: var(--mos-ink); font: var(--mos-type-label); }
+.access-change-summary ul { display: grid; margin: 0; padding: 0; list-style: none; }
+.access-change-summary li { display: flex; justify-content: space-between; gap: var(--mos-field-gap); padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--mos-line); font: var(--mos-type-body); }
+.access-change-summary li span:last-child { color: var(--mos-muted); text-align: end; }
+
+@media (max-width: 767.98px) {
+  .admin-access-stack { gap: var(--mos-field-gap); }
+  .access-policy__intro { flex-direction: column; align-items: flex-start; padding: var(--mos-space-3) 0 var(--mos-space-1); }
+  .access-policy__workspace { display: block; }
+  .access-policy__selected { padding-bottom: var(--mos-space-2); }
+  .access-policy__levels { display: none; }
+  .access-policy__mobile-level { display: grid; gap: var(--mos-space-1); margin-bottom: var(--mos-space-2); }
+  /* The three action groups: a segmented control, one job. */
+  .access-policy__mobile-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--mos-inline-gap); margin-bottom: var(--mos-toolbar-gap); }
+  .access-policy__mobile-groups button {
+    min-width: 0; min-height: var(--mos-control-height); padding: var(--mos-label-gap) var(--mos-inline-gap); border: 0; border-radius: var(--radius-sm);
+    background: var(--mos-surface); box-shadow: inset 0 0 0 1px var(--mos-control); color: var(--mos-ink); font: var(--mos-type-label); line-height: 1.25; overflow-wrap: anywhere;
+  }
+  .access-policy__mobile-groups button[aria-pressed='true'] { background: var(--mos-accent-tint); box-shadow: inset 0 0 0 1px var(--mos-accent); color: var(--mos-accent); }
+  .access-editor { gap: var(--mos-space-2); }
+  .access-editor__group h3 { padding-bottom: var(--mos-group-below); }
+  .access-policy__compare-mobile { min-height: var(--mos-control-height); margin-top: var(--mos-space-4); }
+  .access-editor__row { grid-template-columns: minmax(0, 1fr) minmax(160px, 46%); gap: var(--mos-row-gap); min-height: var(--mos-row-min); padding: var(--mos-row-pad-y) 0; }
+  .access-editor__action { font: var(--mos-type-body); font-weight: var(--mos-weight-medium); }
+  .access-change-summary li { flex-direction: column; gap: var(--mos-stack-gap); }
+  .access-change-summary li span:last-child { text-align: start; }
 }
 
-.admin-access-panel > .admin-access-feedback--saved {
-  margin: 12px 16px 0;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--success) 32%, var(--border));
-  border-radius: var(--radius-sm);
-  color: var(--status-won-text);
-  background: color-mix(in srgb, var(--success) 9%, var(--card));
-  font-size: var(--font-size-body);
-}
-
-.admin-teams__row .error-state {
-  margin: 0;
-}

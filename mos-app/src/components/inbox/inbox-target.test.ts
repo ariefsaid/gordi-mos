@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import type { NotificationRow } from '@/lib/db/notifications'
 import {
   resolveNotificationTarget,
-  ALLOWED_TARGET_TYPES,
   type NotificationTargetRef,
   type ResolveTargetDeps,
 } from './inbox-target'
@@ -68,10 +67,6 @@ describe('profile-aware Inbox doors', () => {
 })
 
 describe('resolveNotificationTarget — typed, fail-closed notification doors (FR-V3-008 / J06)', () => {
-  it('allow-list is exactly task, signal, follow_up', () => {
-    expect([...ALLOWED_TARGET_TYPES].sort()).toEqual(['follow_up', 'signal', 'task'])
-  })
-
   it('resolves a safe Task target to its canonical adapter pageTo and typed entry', () => {
     const res = resolveNotificationTarget(row({ entity: { type: 'task', id: 't1' } }), deps())
     expect(res.status).toBe('available')

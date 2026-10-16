@@ -1,11 +1,28 @@
+/* The shell's translucent secondary wash cools Café pages away from the Round-1 canvas. */
+body:has(.cafe-page-head) .h-dvh { background: var(--mos-canvas); }
+.cafe-page-context { display:flex; flex-direction:column; align-items:flex-start; gap:0; min-width:0; }
+/* Keep the Café task title on the same page-title rung even where legacy page CSS
+   tightens a title for a different workspace; every Café route shares this head. */
+.mos-cafe-design .cafe-page-head { font-family:var(--font-sans); }
+.cafe-page-description { max-width: 65ch; margin: 0 0 var(--mos-label-gap); color: var(--mos-muted); font: var(--mos-type-body); }
+@media (max-width:767px) {
+  .cafe-page-head .ch-action { margin-inline-start:auto; }
+  .cafe-page-head .ch-status-row { margin-top:0; }
+    .cafe-page-head.content-header { margin-bottom:6px; gap: var(--mos-label-gap) var(--mos-row-gap); padding-bottom:4px; }
+}
+
 .cafe-page-head .cafe-stream__value--heading {
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
   font-weight: 400;
 }
 
+/* Café task titles keep the Round-1 primary-heading rung even when the shared shell
+   compacts headers that carry a second status row. Supporting date/context stays put. */
 /* One shared inline title/meta row for every Café route. The status stream remains the head's
    second row; meta stays beside the title on phone whenever the localized pair fits. */
 @media (max-width: 767.98px) {
+  /* The date sits on the title's baseline, not at the top of its line. */
+  .cafe-page-head.content-header { align-items: baseline; }
   .cafe-page-head.content-header .ch-meta {
     order: 0;
     flex: 0 1 auto;
@@ -13,6 +30,41 @@
   }
 }
 
-/* The page head replaces the breadcrumb leaf on every Café route, not only capture pages. */
-.h-dvh:has(.cafe-page-head) .top-bar__breadcrumb-leaf { display: none; }
-.h-dvh:has(.cafe-page-head) .top-bar__breadcrumb-fixed:last-of-type > [aria-hidden] { display: none; }
+/* The Select bridge is a clipped, aria-hidden native control; Café never submits it natively, so
+   it takes no hit area (a 1px control would otherwise read as a sub-44px touch target). */
+body:has(.cafe-page-head) .mk-select__native { visibility: hidden; }
+
+/* Closed disclosures take no layout: their content stays mounted but never occupies, or is
+   probed at, a position under the controls that follow. */
+body:has(.cafe-page-head) details:not([open]) > :not(summary) { display: none; }
+
+/* No items match the search or filters: one state for every Café list. Left on the page edge, body type,
+   40px desktop / 24px phone above and below; the search clear and Clear all chip in the toolbar are the way back. */
+.cafe-no-match,
+:is(.cap-table) .dt-empty {
+  margin: 0;
+  padding: var(--mos-space-10) var(--mos-space-3);
+  color: var(--mos-muted);
+  font: var(--mos-type-body);
+  text-align: start;
+}
+.cafe-no-match, :is(.cap-table) .dt-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--mos-space-3); }
+@media (max-width: 767.98px) {
+  .cafe-no-match,
+  :is(.cap-table) .dt-empty { padding-block: var(--mos-space-6); }
+}
+
+/* "View records": the one secondary link under a capture page's scope line. Accent control text, a 44px phone target. */
+.cafe-page-records-link {
+  display: inline-flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height);
+  color: var(--mos-accent); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); text-decoration: none;
+}
+.cafe-page-records-link:hover { color: var(--mos-accent-hover); text-decoration: underline; text-underline-offset: 3px; }
+.cafe-page-records-link:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.cafe-page-records-link svg { width: var(--mos-icon-sm); height: var(--mos-icon-sm); flex-shrink: 0; }
+
+/* A queue inside Review: the page's own title and way back live on the host frame; the queue keeps its scope line and content. */
+.cafe-review-queue { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); min-width: 0; }
+
+/* "View records" beside "View stock comparison" (preview): two secondary links on one line, wrapping on a narrow phone. */
+.cafe-page-links { display: flex; flex-wrap: wrap; column-gap: var(--mos-space-5); align-items: center; }

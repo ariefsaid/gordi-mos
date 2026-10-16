@@ -141,6 +141,12 @@ describe('CreatePersonDialog (AC-011)', () => {
     })
   })
 
+  it('AC-1503: no-email and access-role options use the shared touch checkbox rows', () => {
+    renderDialog()
+    expect(screen.getByRole('checkbox', { name: 'No email — this person has no email' }).closest('.admin-check-row')).not.toBeNull()
+    expect(screen.getByRole('checkbox', { name: 'Ops Lead' }).closest('.admin-check-row')).not.toBeNull()
+  })
+
   it('AC-011: access-role rows show human labels + descriptions, never raw slugs', () => {
     renderDialog()
     // Human labels for the assignable roles
@@ -149,7 +155,7 @@ describe('CreatePersonDialog (AC-011)', () => {
     expect(screen.getByText('Admin')).toBeInTheDocument()
     expect(screen.getByText('Finance')).toBeInTheDocument()
     // Description line under each role
-    expect(screen.getByText('Plans and approves')).toBeInTheDocument()
+    expect(screen.getByText('Plans and approves Café work')).toBeInTheDocument()
     // Raw slug must not leak into the UI
     expect(screen.queryByText('ops_lead')).not.toBeInTheDocument()
     // Checkbox accessible name is the human label
@@ -204,7 +210,7 @@ describe('CreatePersonDialog (AC-011)', () => {
     expect(screen.getByText(/copy this now/i)).toBeInTheDocument()
 
     // "Done" button is present (no Esc dismiss — intentional)
-    expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /hide password and close/i })).toBeInTheDocument()
     const dialog = screen.getByRole('alertdialog')
     expect(dialog).toHaveClass('create-person-dialog')
     expect(dialog.querySelector('.create-person-dialog__form')).not.toBeInTheDocument()
@@ -227,7 +233,7 @@ describe('CreatePersonDialog (AC-011)', () => {
     await screen.findByText('TempPw9999')
 
     // Click Done
-    await user.click(screen.getByRole('button', { name: /done/i }))
+    await user.click(screen.getByRole('button', { name: /hide password and close/i }))
 
     // onClose called, password gone from DOM
     expect(onClose).toHaveBeenCalled()

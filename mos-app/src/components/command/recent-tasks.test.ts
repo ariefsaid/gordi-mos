@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { readRecentTasks, pushRecentTask, RECENT_TASKS_KEY } from './recent-tasks'
+import { readRecentTasks, pushRecentTask } from './recent-tasks'
+
+const RECENT_TASKS_KEY = 'mos.command.recentTasks'
 
 beforeEach(() => localStorage.clear())
 

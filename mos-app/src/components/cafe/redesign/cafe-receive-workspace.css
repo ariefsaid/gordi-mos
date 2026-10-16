@@ -1,0 +1,15 @@
+.cafe-receive-workspace { display: grid; gap: var(--mos-inline-gap); min-width: 0; padding-bottom: 88px; }
+.cafe-receive-workspace[data-stage='count'] { grid-template-columns: minmax(0, 1fr); }
+.cafe-receive-workspace[data-stage='explain'],
+.cafe-receive-workspace[data-stage='sent'] { grid-template-columns: minmax(0, 1fr); }
+.cafe-receive-po-panel,
+.cafe-receive-history-panel { min-width: 0; }
+@media (min-width: 900px) {
+  .cafe-receive-workspace[data-stage='explain'] { grid-template-columns: minmax(280px, .8fr) minmax(0, 1.2fr); align-items: start; }
+  .cafe-receive-workspace[data-stage='explain'] > .cafe-receive__stage-head,
+  .cafe-receive-workspace[data-stage='explain'] > .cafe-receive__difference,
+  .cafe-receive-workspace[data-stage='explain'] > .cafe-receive__locked-workspace,
+  .cafe-receive-workspace[data-stage='explain'] > .cafe-receive__delivery-panel,
+  .cafe-receive-workspace[data-stage='explain'] > .cafe-receive__locked-bar,
+  .cafe-receive-workspace[data-stage='explain'] > .cafe-count__field-error { grid-column: 1 / -1; }
+}

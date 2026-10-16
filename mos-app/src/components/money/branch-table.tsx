@@ -5,7 +5,8 @@
 //
 // One DOM for every width: at phone width each row reflows into a stacked card and a "Sort by"
 // control stands in for the header buttons (branch-table.css).
-import { useId, useMemo, type ReactNode } from 'react'
+import { SortIndicator } from '@/components/ui/sort-indicator'
+import { useId, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   getCoreRowModel,
@@ -18,10 +19,14 @@ import {
 import { MoneyTableShell } from '@/components/money/money-table-shell'
 import { Pill } from '@/components/ui/pill'
 import { Select } from '@/components/ui/select'
+import { GroupHeader } from '@/components/ui/group-header'
+import { MoneyDelta, MoneyPoints } from '@/components/money/money-delta'
+import { MoneySpark } from '@/components/money/money-spark'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useT, type Translate } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
-import { formatIDRCompact, signedChange } from '@/lib/sales-dashboard'
-import { formatPercent, formatSignedPoints } from '@/lib/format/percent'
+import { formatIDR } from '@/lib/format/money'
+import { formatPercent } from '@/lib/format/percent'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import {
   MARGIN_COLUMNS,
@@ -30,7 +35,8 @@ import {
   type BranchTable as BranchTableData,
   type CompanyRow,
   type MoneyColumn,
-  type MoneyPeriod,
+  moneyBranchHref,
+  type MoneySelection,
   type MoneySort,
 } from '@/lib/money-branch-table'
 import '@/components/collection-grammar.css'
@@ -47,43 +53,38 @@ function Muted({ children }: { children: ReactNode }) {
   return <span className="money-table__muted">{children}</span>
 }
 
-function Delta({ value, t }: { value: number | null; t: Translate }) {
-  if (value === null) return <Muted>{t('money.delta.noComparison')}</Muted>
-  const { text, tone } = signedChange(value)
-  return <Pill tone={tone} dot={false} className="money-table__delta tabular">{text}</Pill>
-}
-
 function Money({ value }: { value: number }) {
-  return <span className="tabular">{formatIDRCompact(value)}</span>
+  return <span className="tabular">{formatIDR(value)}</span>
 }
 
-/** A margin figure: blank on a B2B row (margin covers POS only), "not received" when the branch
- *  sent no cost for the period. */
-function marginCell(pick: (m: NonNullable<Figures['margin']>) => number | null, show: (v: number, t: Translate) => string) {
+/** A margin figure: "not received" when the branch sent no cost for the period. B2B rows carry no
+ *  margin at all; they get one cell that says so (see `b2bUnavailable`). */
+function marginCell(pick: (m: NonNullable<Figures['margin']>) => number | null, show: (v: number, t: Translate) => ReactNode) {
   return (row: Figures, t: Translate) => {
     if (row.margin === null || row.margin === undefined) return null
     const value = pick(row.margin)
-    return value === null ? <Muted>{t('money.table.notReceived')}</Muted> : <span className="tabular">{show(value, t)}</span>
+    if (value === null) return <Muted>{t('money.table.notReceived')}</Muted>
+    return show(value, t)
   }
 }
 
 const COLUMN_META: Record<MoneyColumn, ColumnMeta> = {
   branch: { labelKey: 'money.table.col.branch', cell: () => null },
   revenue: { labelKey: 'money.table.col.revenue', cell: (row) => <Money value={row.revenue} /> },
-  'vs-previous': { labelKey: 'money.table.col.vsPrevious', cell: (row, t) => <Delta value={row.vsPrevious} t={t} /> },
+  'vs-previous': { labelKey: 'money.table.col.vsPrevious', cell: (row, t) => <MoneyDelta value={row.vsPrevious} t={t} /> },
   'latest-day': {
     labelKey: 'money.table.col.latestDay',
     cell: (row, t) => row.latestDay === null
       ? <Pill tone="warning" dot={false}>{t('money.table.notReceived')}</Pill>
       : <Money value={row.latestDay} />,
   },
-  'vs-weekday': { labelKey: 'money.table.col.vsWeekday', cell: (row, t) => <Delta value={row.vsWeekday} t={t} /> },
-  margin: { labelKey: 'money.table.col.margin', cell: marginCell((m) => m.pct, (v) => formatPercent(v, 1)) },
+  'vs-weekday': { labelKey: 'money.table.col.vsWeekday', cell: (row, t) => <MoneyDelta value={row.vsWeekday} t={t} /> },
+  margin: { labelKey: 'money.table.col.margin', cell: marginCell((m) => m.pct, (v) => <span className="tabular">{formatPercent(v, 1)}</span>) },
   'cogs-vs-budget': {
     labelKey: 'money.table.col.cogsVsBudget',
-    cell: marginCell((m) => m.cogsVsBudget, (v, t) => t('money.table.points', { value: formatSignedPoints(v) })),
+    cell: marginCell((m) => m.cogsVsBudget, (v, t) => <MoneyPoints value={v} t={t} overIsBad />),
   },
-  coverage: { labelKey: 'money.table.col.coverage', cell: marginCell((m) => m.coverage, (v) => formatPercent(v, 0)) },
+  coverage: { labelKey: 'money.table.col.coverage', cell: marginCell((m) => m.coverage, (v) => <span className="tabular">{formatPercent(v, 1)}</span>) },
 }
 
 // Nulls sort last in both directions (TanStack's `sortUndefined: 'last'`).
@@ -110,21 +111,20 @@ function columnDefs(ids: readonly MoneyColumn[]): ColumnDef<BranchRow>[] {
 
 const ALL_COLUMNS: readonly MoneyColumn[] = [...REVENUE_COLUMNS, ...MARGIN_COLUMNS]
 
-function branchHref(code: string, period: MoneyPeriod): string {
-  return `/money/branch/${encodeURIComponent(code)}?period=${period}`
-}
-
 export interface BranchTableProps {
   data: BranchTableData
-  period: MoneyPeriod
+  selection: MoneySelection
   sort: MoneySort
   onSortChange: (sort: MoneySort) => void
 }
 
-export function BranchTable({ data, period, sort, onSortChange }: BranchTableProps) {
+export function BranchTable({ data, selection, sort, onSortChange }: BranchTableProps) {
   const t = useT()
   const navigate = useNavigate()
   const sortId = useId()
+  const isDesktop = useIsDesktop()
+  const [b2bOpen, setB2bOpen] = useState(true)
+  const b2bId = `${sortId}-b2b`
   const withMargin = 'margin' in data.company
   const ids: readonly MoneyColumn[] = withMargin ? ALL_COLUMNS : REVENUE_COLUMNS
   const columns = useMemo(() => columnDefs(withMargin ? ALL_COLUMNS : REVENUE_COLUMNS), [withMargin])
@@ -149,34 +149,29 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
     getSortedRowModel: getSortedRowModel(),
   })
   const leafColumns = table.getVisibleLeafColumns()
+  const figureColumns = leafColumns.slice(1)
 
-  const figureCells = (row: Figures, summary?: ReactNode) => leafColumns.slice(1).map((column) => {
-    const id = column.id as MoneyColumn
-    return (
-      <td key={id} className={`money-table__cell money-table__cell--${id}`}>
-        <span className="money-table__cell-label">{t(COLUMN_META[id].labelKey)}</span>
-        <span className="money-table__cell-value">{COLUMN_META[id].cell(row, t)}</span>
-        {id === 'margin' && summary}
-      </td>
-    )
-  })
+  const figureCells = (row: Figures, isB2B = false) => {
+    const cells: ReactNode[] = []
+    let skippedMargin = false
+    for (const column of figureColumns) {
+      const id = column.id as MoneyColumn
+      const unavailable = isB2B && withMargin && (MARGIN_COLUMNS as readonly string[]).includes(id)
+      if (unavailable) {
+        if (!skippedMargin) {
+          skippedMargin = true
+          cells.push(<td key="b2b-unavailable" colSpan={MARGIN_COLUMNS.length} className="money-table__cell money-table__cell--unavailable">{t('money.table.b2bUnavailable')}</td>)
+        }
+        continue
+      }
+      cells.push(<td key={id} className={`money-table__cell money-table__cell--${id}`}>{COLUMN_META[id].cell(row, t)}</td>)
+    }
+    return cells
+  }
+  const trendCell = (row: Figures) => <td className="money-table__cell money-table__cell--trend"><MoneySpark values={row.trend} /></td>
 
-  // Phone: the company's three margin figures read as one line (branch-table.css shows it <768px).
-  const companyMargin = data.company.margin
-  const companySummary = companyMargin ? (
-    <span className="money-table__company-margin tabular">
-      {t('money.table.companyMargin', {
-        margin: companyMargin.pct === null ? t('money.table.notReceived') : formatPercent(companyMargin.pct, 1),
-        budget: companyMargin.cogsVsBudget === null
-          ? t('money.table.notReceived')
-          : t('money.table.points', { value: formatSignedPoints(companyMargin.cogsVsBudget) }),
-        coverage: companyMargin.coverage === null ? t('money.table.notReceived') : formatPercent(companyMargin.coverage, 0),
-      })}
-    </span>
-  ) : undefined
-
-  const linkedRow = (row: BranchRow, name: string) => {
-    const href = branchHref(row.code, period)
+  const linkedRow = (row: BranchRow, name: string, isB2B = false) => {
+    const href = moneyBranchHref(row.code, { ...selection, sort })
     return (
       <tr
         key={row.code}
@@ -189,7 +184,8 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
         <th scope="row" className="money-table__cell money-table__cell--branch">
           <Link to={href} className="money-table__name">{name}</Link>
         </th>
-        {figureCells(row)}
+        {figureCells(row, isB2B)}
+        {trendCell(row)}
       </tr>
     )
   }
@@ -198,12 +194,49 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
   const sortLabel = (column: MoneyColumn, desc: boolean) => column === 'branch'
     ? t(desc ? 'money.sort.za' : 'money.sort.az')
     : t(desc ? 'money.sort.highFirst' : 'money.sort.lowFirst')
+  const missingNote = data.company.missingLatest > 0
+    ? (data.company.missingLatest === 1 ? t('money.table.missing.one') : t('money.table.missing.other', { count: String(data.company.missingLatest) }))
+    : null
 
-  return (
-    <MoneyTableShell
-      className="branch-money-table"
-      tableClassName={withMargin ? 'money-table--margin' : undefined}
-      beforeTable={(
+  const basisNote = withMargin && (
+    <p className="money-table__basis">
+      <span>{t('money.note.interim')}</span>
+      {data.b2b.length > 0 && <span>{t('money.note.b2b')}</span>}
+    </p>
+  )
+
+  if (!isDesktop) {
+    // Phone: one card per row: name and revenue, trend and change, then two muted lines. The labels are short because
+    // the sort control above already names every column.
+    const card = (row: Figures, { key, name, href, company = false, b2b = false }: { key: string; name: ReactNode; href?: string; company?: boolean; b2b?: boolean }) => (
+      <li
+        key={key}
+        className={`branch-card${company ? ' branch-card--company' : ''}`}
+        onClick={href ? (event) => { if (!(event.target as Element).closest('a, button')) navigate(href) } : undefined}
+      >
+        <div className="branch-card__head">
+          {href ? <Link to={href} className="money-table__name">{name}</Link> : <span className="money-table__name">{name}</span>}
+          <span className="branch-card__revenue tabular">{formatIDR(row.revenue)}</span>
+        </div>
+        {company && missingNote && <p className="money-table__note">{missingNote}</p>}
+        <div className="branch-card__trend">
+          <MoneySpark values={row.trend} />
+          <span className="branch-card__previous">{t('money.short.vsPrevious')} <MoneyDelta value={row.vsPrevious} t={t} /></span>
+        </div>
+        <p className="branch-card__meta">
+          <span>{t('money.short.latest')} {row.latestDay === null ? <Pill tone="warning" dot={false}>{t('money.table.notReceived')}</Pill> : <><span className="tabular">{formatIDR(row.latestDay)}</span> <MoneyDelta value={row.vsWeekday} t={t} /> {t('money.short.vsWeekday')}</>}</span>
+        </p>
+        {withMargin && (b2b
+          ? <p className="branch-card__meta"><span>{t('money.table.b2bUnavailable')}</span></p>
+          : row.margin && <p className="branch-card__meta">
+            <span>{t('money.short.margin')} {row.margin.pct === null ? <Muted>{t('money.table.notReceived')}</Muted> : <span className="tabular">{formatPercent(row.margin.pct, 1)}</span>}</span>
+            <span>{t('money.short.cogs')} {row.margin.cogsVsBudget === null ? <Muted>{t('money.table.notReceived')}</Muted> : <MoneyPoints value={row.margin.cogsVsBudget} t={t} overIsBad />}</span>
+            <span>{t('money.short.coverage')} {row.margin.coverage === null ? <Muted>{t('money.table.notReceived')}</Muted> : <span className="tabular">{formatPercent(row.margin.coverage, 1)}</span>}</span>
+          </p>)}
+      </li>
+    )
+    return (
+      <div className="money-table-block branch-money-table">
         <div className="money-table__phone-sort">
           <label className="money-table__phone-sort-label" htmlFor={sortId}>{t('money.sort.label')}</label>
           <Select
@@ -222,67 +255,71 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
             {sortLabel(sort.column, sort.desc)}
           </button>
         </div>
-      )}
-      afterTable={withMargin && (
-        <p className="money-table__basis">
-          <span>{t('money.note.interim')}</span>
-          {data.b2b.length > 0 && <span>{t('money.note.b2b')}</span>}
-        </p>
-      )}
-    >
-          <caption className="sr-only">
-            {t('money.table.caption', { days: String(period), date: formatWeekdayDayMonth(data.latestDate) })}
-          </caption>
-          <thead>
-            <tr>
-              {table.getHeaderGroups()[0].headers.map((header) => {
-                const id = header.column.id as MoneyColumn
-                const sorted = header.column.getIsSorted()
-                return (
-                  <th
-                    key={header.id}
-                    scope="col"
-                    className={`money-table__head money-table__cell--${id}`}
-                    aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none'}
-                  >
-                    <button
-                      type="button"
-                      className="money-table__sort collection-grammar-sort-button"
-                      onClick={header.column.getToggleSortingHandler()}
-                    >
-                      {t(COLUMN_META[id].labelKey)}
-                      <span className="collection-grammar-sort-indicator" aria-hidden="true">
-                        {sorted === 'asc' ? '↑' : sorted === 'desc' ? '↓' : ''}
-                      </span>
-                    </button>
-                  </th>
-                )
-              })}
-            </tr>
-          </thead>
-          <tbody className="money-table__group money-table__group--company">
-            <tr className="money-table__row money-table__row--company">
-              <th scope="row" className="money-table__cell money-table__cell--branch">
-                <span className="money-table__name">{t('money.table.company')}</span>
-                {data.company.missingLatest > 0 && (
-                  <span className="money-table__note">
-                    {data.company.missingLatest === 1
-                      ? t('money.table.missing.one')
-                      : t('money.table.missing.other', { count: String(data.company.missingLatest) })}
-                  </span>
-                )}
+        <ul className="branch-cards" aria-label={t('money.table.caption', { days: String(data.daysCount), date: formatWeekdayDayMonth(data.latestDate) })}>
+          {table.getRowModel().rows.map((r) => card(r.original, { key: r.original.code, name: r.original.name, href: moneyBranchHref(r.original.code, { ...selection, sort }) }))}
+          {!selection.branchCode && card(data.company, { key: '__company', name: t('money.table.company'), company: true })}
+        </ul>
+        {data.b2b.length > 0 && <>
+          <GroupHeader className="branch-cards__group" level={3} label={t('money.table.b2b')} count={data.b2b.length} open={b2bOpen} onToggle={() => setB2bOpen((open) => !open)} controlsId={b2bId} />
+          {b2bOpen && <ul id={b2bId} className="branch-cards" aria-label={t('money.table.b2b')}>
+            {data.b2b.map((row) => card(row, { key: row.code, name: b2bName(row), href: moneyBranchHref(row.code, { ...selection, sort }), b2b: true }))}
+          </ul>}
+        </>}
+        {basisNote}
+      </div>
+    )
+  }
+
+  return (
+    <MoneyTableShell className="branch-money-table" tableClassName={withMargin ? 'money-table--margin' : undefined} afterTable={basisNote}>
+      <caption className="sr-only">
+        {t('money.table.caption', { days: String(data.daysCount), date: formatWeekdayDayMonth(data.latestDate) })}
+      </caption>
+      <thead>
+        <tr>
+          {table.getHeaderGroups()[0].headers.map((header) => {
+            const id = header.column.id as MoneyColumn
+            const sorted = header.column.getIsSorted()
+            return (
+              <th
+                key={header.id}
+                scope="col"
+                className={`money-table__head money-table__cell--${id}`}
+                aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none'}
+              >
+                <button
+                  type="button"
+                  className="money-table__sort collection-grammar-sort-button"
+                  onClick={header.column.getToggleSortingHandler()}
+                >
+                  {t(COLUMN_META[id].labelKey)}
+                  <SortIndicator dir={sorted || null} />
+                </button>
               </th>
-              {figureCells(data.company, companySummary)}
-            </tr>
-          </tbody>
-          <tbody className="money-table__group">
-            {table.getRowModel().rows.map((row) => linkedRow(row.original, row.original.name))}
-          </tbody>
-          {data.b2b.length > 0 && (
-            <tbody className="money-table__group money-table__group--b2b">
-              {data.b2b.map((row) => linkedRow(row, b2bName(row)))}
-            </tbody>
-          )}
+            )
+          })}
+          <th scope="col" className="money-table__head money-table__cell--trend">{t('money.table.col.trend')}</th>
+        </tr>
+      </thead>
+      <tbody className="money-table__group money-table__group--branches">
+        {table.getRowModel().rows.map((row) => linkedRow(row.original, row.original.name))}
+      </tbody>
+      {!selection.branchCode && <tbody className="money-table__group money-table__group--company">
+        <tr className="money-table__row money-table__row--company">
+          <th scope="row" className="money-table__cell money-table__cell--branch">
+            <span className="money-table__name">{t('money.table.company')}</span>
+            {missingNote && <span className="money-table__note">{missingNote}</span>}
+          </th>
+          {figureCells(data.company)}
+          {trendCell(data.company)}
+        </tr>
+      </tbody>}
+      {data.b2b.length > 0 && (
+        <tbody id={b2bId} className="money-table__group money-table__group--b2b">
+          <tr className="money-table__group-heading"><th scope="rowgroup" colSpan={ids.length + 1}><GroupHeader level={3} label={t('money.table.b2b')} count={data.b2b.length} open={b2bOpen} onToggle={() => setB2bOpen((open) => !open)} controlsId={b2bId} /></th></tr>
+          {b2bOpen && data.b2b.map((row) => linkedRow(row, b2bName(row), true))}
+        </tbody>
+      )}
     </MoneyTableShell>
   )
 }

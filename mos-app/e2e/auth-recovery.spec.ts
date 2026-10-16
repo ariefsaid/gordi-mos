@@ -105,14 +105,14 @@ test('AC-005: password-recovery journey — link opens set-password form, rotati
   // Wait for login form to be fully interactive after sign-out
   await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible({ timeout: 5_000 })
   await page.getByLabel('Email').fill(RECOVERY_VIEWER.email)
-  await page.getByLabel('Password').fill(RECOVERY_VIEWER.password) // the original
+  await page.getByLabel('Password', { exact: true }).fill(RECOVERY_VIEWER.password) // the original
   await page.getByRole('button', { name: /sign in/i }).click()
   await expect(page.getByRole('alert')).toBeVisible({ timeout: 5_000 })
   // Must remain on /login — no redirect to home
   await expect(page).toHaveURL(/\/login/)
 
   // ── Step 9 (goal-oracle): new password WORKS ─────────────────────────────
-  await page.getByLabel('Password').fill(NEW_PASSWORD)
+  await page.getByLabel('Password', { exact: true }).fill(NEW_PASSWORD)
   await page.getByRole('button', { name: /sign in/i }).click()
   await expect(
     page.getByRole('button', { name: RECOVERY_VIEWER.displayName }),

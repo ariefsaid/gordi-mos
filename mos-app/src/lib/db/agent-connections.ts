@@ -13,7 +13,7 @@ export interface AdminAgentConnectionRow {
   scopes: string | null
 }
 
-export interface TrustedAgentClient {
+interface TrustedAgentClient {
   client_id: string
   display_name: string
   enabled: boolean

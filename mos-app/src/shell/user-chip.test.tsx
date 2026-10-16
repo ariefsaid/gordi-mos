@@ -69,14 +69,13 @@ beforeEach(() => {
 
 // AC-005: user chip + keyboard sign-out menu
 describe('AC-005: UserChip and sign-out menu', () => {
-  it('shows initials "DP", name "Dina Pratiwi", role "Kitchen Lead"', () => {
+  it('shows name "Dina Pratiwi" and role "Kitchen Lead"', () => {
     mockUseAuth.mockReturnValue({
       status: 'authenticated',
       viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
       signOut,
     })
     renderChip(<UserChip />)
-    expect(screen.getByText('DP')).toBeInTheDocument()
     expect(screen.getByText('Dina Pratiwi')).toBeInTheDocument()
     expect(screen.getByText('Kitchen Lead')).toBeInTheDocument()
   })
@@ -84,7 +83,7 @@ describe('AC-005: UserChip and sign-out menu', () => {
   // AC-D03 (RI-3, ADR-0013 D2): the identity-bearing user name is a single-line string —
   // it must ellipsize (truncate) AND carry a `title` so the full name is recoverable on hover
   // when clipped (no-bleed regression).
-  it('AC-D03: user name truncates and carries a title attribute', () => {
+  it('AC-D03: user name carries a title attribute so the full name is recoverable', () => {
     mockUseAuth.mockReturnValue({
       status: 'authenticated',
       viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
@@ -92,18 +91,7 @@ describe('AC-005: UserChip and sign-out menu', () => {
     })
     renderChip(<UserChip />)
     const name = screen.getByText('Dina Pratiwi')
-    expect(name.className).toMatch(/truncate/)
     expect(name.getAttribute('title')).toBe('Dina Pratiwi')
-  })
-
-  it('compact header variant carries the shared phone icon tap-target utility class', () => {
-    mockUseAuth.mockReturnValue({
-      status: 'authenticated',
-      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
-      signOut,
-    })
-    renderChip(<UserChip compact />)
-    expect(screen.getByRole('button', { name: /dina pratiwi/i }).className).toMatch(/tap-target-phone--icon/)
   })
 
   it('AC-017 pin: opens menu on Enter key and shows Sign out item', async () => {

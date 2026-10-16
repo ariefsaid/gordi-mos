@@ -3,12 +3,14 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { DemoLogin } from './demo-login'
-import { DEMO_PASSWORD, DEMO_PERSONAS, SAMPLE_PERSONAS } from './demo-personas'
+import { DEMO_PASSWORD, DEMO_PERSONAS } from './demo-personas'
+
+const SAMPLE_PERSONAS = [{ label: 'Director', email: 'director@sample.gordi.test' }]
 
 describe('DemoLogin — dev-only one-click sign-in panel', () => {
-  it('renders the DEMO LOGIN heading', () => {
+  it('renders the demo accounts disclosure', () => {
     render(<DemoLogin onPick={vi.fn()} busyEmail={null} disabled={false} />)
-    expect(screen.getByText(/demo login/i)).toBeInTheDocument()
+    expect(screen.getByText(/demo accounts/i)).toBeInTheDocument()
   })
 
   it('shows the shared dev password', () => {

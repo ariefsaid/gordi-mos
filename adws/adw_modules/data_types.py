@@ -121,7 +121,7 @@ class ReviewOutput(EnvelopeBase):
 
 
 class AuditFinding(BaseModel):
-    """One design defect, tied to the surface it was seen on (adw_design_audit)."""
+    """One design defect, tied to the surface it was seen on."""
 
     surface: str                    # the surface id the defect was seen on
     severity: Literal["critical", "important", "minor"]
@@ -138,7 +138,7 @@ class SurfaceVerdict(BaseModel):
 
 
 class AuditOutput(EnvelopeBase):
-    """The milestone design-audit verdict (adw_design_audit, OD-WAY-55).
+    """The milestone design-audit verdict, OD-WAY-55.
 
     Per-surface and artifact-backed: the chain's gates hold every verdict to its
     screenshots and every failing surface to its findings — a verdict without

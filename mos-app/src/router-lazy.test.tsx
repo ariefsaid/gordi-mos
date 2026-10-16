@@ -23,6 +23,7 @@ import { isShipGated } from './lib/ship-gate'
 import { HomePage } from './pages/home-page'
 import { LoginPage } from './pages/login-page'
 import { TasksLayout } from './pages/tasks-layout'
+import { WorkHomePage } from './pages/work-home-page'
 import { TaskDrawer } from './components/tasks/task-drawer'
 import { SignalsArchivePage, SignalRecordPage } from './pages/signals-archive-page'
 import { ProfilePage } from './pages/profile-page'
@@ -39,21 +40,23 @@ import { KitchenLogPage } from './pages/kitchen-log-page'
 import { KitchenPlanPage } from './pages/kitchen-plan-page'
 import { KitchenStockPage } from './pages/kitchen-stock-page'
 import { CafeItemSettingsPage } from './pages/cafe-item-settings-page'
+import { CafeRecipesPage } from './pages/cafe-recipes-page'
 import { CafeWastePage } from './pages/cafe-waste-page'
 import { CafeCountPage } from './pages/cafe-count-page'
+import { CafeRecordsPage } from './pages/cafe-records-page'
 import { CafeReceivePage } from './pages/cafe-receive-page'
-import { CafeReceiptReviewPage } from './pages/cafe-receipt-review-page'
 import { CafeReceiptIssuesPage } from './pages/cafe-receipt-issues-page'
 import { CafeRequestPage } from './pages/cafe-request-page'
-import { CafeRequestReviewPage } from './pages/cafe-request-review-page'
-import { KitchenReviewPage } from './pages/kitchen-review-page'
+import { CafeReviewPage } from './pages/cafe-review-page'
 import { KitchenPushesPage } from './pages/kitchen-pushes-page'
 import { CafeRootPage } from './pages/cafe-opening-page'
 import { MoneyPage } from './pages/money-page'
+import { MoneyBranchPage } from './pages/money-branch-page'
 import { PendingBillsPage } from './pages/pending-bills-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
 import { AdminUsersPage } from './pages/admin-users-page'
+import { AdminPersonPage } from './pages/admin-person-page'
 import { AdminAccessPage } from './pages/admin-access-page'
 import { AdminAgentConnectionsPage } from './pages/admin-agent-connections-page'
 import { AdminTeamsPage } from './pages/admin-teams-page'
@@ -91,9 +94,9 @@ describe('AC-019: every route but login loads on demand, behind one loading shel
   const routes = surfaceRoutes()
 
   it('the sweep enumerates the whole table, so it cannot pass by finding nothing', () => {
-    // Floor lowered from 25 with the ship gate (#444): ten page routes now forward home instead
-    // of rendering, so they are no longer split-loading anything and drop out of this sweep. The
-    // wiring ledger below still holds each of them to its page module in the written table.
+    // Ship-gated routes forward home instead of rendering, so they are no longer split-loading
+    // anything and drop out of this sweep. The wiring ledger below still holds each path to its
+    // page module in the written table.
     expect(routes.length).toBeGreaterThan(18)
     // Each exemption is really in the table — otherwise the exemption set is silently dead.
     for (const path of EAGER_BY_DESIGN) {
@@ -143,6 +146,7 @@ describe('AC-019: every route but login loads on demand, behind one loading shel
 // It is also the ledger every later surface ticket edits: porting a surface flips exactly one row.
 const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenance: string]> = [
   ['/', HomePage, 'dev'],
+  ['/work', WorkHomePage, 'work-lane-a'],
   ['/work/tasks', TasksLayout, 'dev'],
   ['/work/tasks/:taskId', TaskDrawer, 'dev'],
   // Signals supersedes Weekly Updates (v4 redirects /updates here, and routes neither path at an
@@ -157,6 +161,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/work/projects/:workLineId', WorkLineRecordPage, 'redesign'],
   ['/work/events', EventsWorkspacePage, 'dev'], 
   ['/money', MoneyPage, 'dev'],
+  ['/money/branch/:code', MoneyBranchPage, 'dev'],
   ['/money/pending-bills', PendingBillsPage, '1464'],
   ['/money/budget', BudgetPage, 'dev'],
   ['/money/pricing', PricingPage, 'dev'],
@@ -168,16 +173,17 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/cafe/production', KitchenLogPage, 'dev'],
   ['/cafe/transfer', KitchenLogPage, 'dev'],
   ['/cafe/waste', CafeWastePage, '1241'],
+  ['/cafe/records', CafeRecordsPage, 'redesign'],
   ['/cafe/count', CafeCountPage, '1366'],
   ['/cafe/receive', CafeReceivePage, '1422'],
-  ['/cafe/receive/review', CafeReceiptReviewPage, '1422'],
   ['/cafe/receive/issues', CafeReceiptIssuesPage, '1422'],
   ['/cafe/request', CafeRequestPage, '1428'],
-  ['/cafe/request/review', CafeRequestReviewPage, '1428'],
   ['/cafe/plan', KitchenPlanPage, 'dev'],
   ['/cafe/stock', KitchenStockPage, 'dev'],
   ['/cafe/items', CafeItemSettingsPage, '1242'],
-  ['/cafe/review', KitchenReviewPage, 'dev'],
+  ['/cafe/recipes', CafeRecipesPage, '1642'],
+  // One Review page with queues; /cafe/receive/review and /cafe/request/review redirect into it.
+  ['/cafe/review', CafeReviewPage, 'dev'],
   ['/cafe/pushes', KitchenPushesPage, 'dev'],
   ['/ecommerce', SliceStubPage, 'stub'],
   ['/roastery', SliceStubPage, 'stub'],
@@ -188,6 +194,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/oauth/consent', OAuthConsentPage, 'redesign'],
   ['/profile/connected-agents', ProfileConnectedAgentsPage, 'review-stamp'],
   ['/admin/people', AdminUsersPage, 'dev'],
+  ['/admin/people/:personId', AdminPersonPage, 'redesign'],
   ['/admin/teams', AdminTeamsPage, 'redesign'],
   ['/admin/access', AdminAccessPage, 'redesign'],
   ['/admin/agents', AdminAgentConnectionsPage, 'review-stamp'],
@@ -216,14 +223,15 @@ describe('AC-020: a route whose surface is not yet ported serves the surface cur
 
   // A ship-gated path (#444) forwards home in the SHIPPED table, so `resolvePageAt` finds no
   // module there — that is the gate working, and `shell/ship-gate.test.tsx` asserts it from the
-  // other side. What still has to be true is that the surface was HIDDEN, not deleted: the entry
-  // as written is still pointed at its real page module, so removing the path from
-  // SHIP_GATED_PATHS restores the screen with no edit to the table. That is what these two
-  // assertions hold, read off the table BEFORE the gate is applied.
+  // other side. The remaining gates keep their surfaces wired in the authored table.
   const gatedWiring = WIRING.filter(([path]) => isShipGated(path))
 
-  it('the gated set is non-empty — these assertions cannot pass by finding nothing', () => {
-    expect(gatedWiring.length).toBeGreaterThan(5)
+  it('the remaining gated set is Events, Ecommerce and Roastery', () => {
+    expect(gatedWiring.map(([path]) => path).sort()).toEqual([
+      '/ecommerce',
+      '/roastery',
+      '/work/events',
+    ])
   })
 
   it.each(gatedWiring.map(([path, component]) => [path, component] as const))(

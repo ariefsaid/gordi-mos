@@ -8,14 +8,20 @@
 // Requires the live stack (supabase up on 44321) + global-setup seed.
 // Adds 11 demo tasks in beforeAll (idempotent by UUID); cleaned up in afterAll.
 
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
 import { chooseSelectOption } from './helpers/select'
 import { MANAGER } from './fixtures/users'
-import { openViewFilters } from './helpers/tasks'
+import { openViewFilters, selectTaskView } from './helpers/tasks'
+
+// A group header: the "<label> (<count>)" heading, and its row (which also carries the group's
+// overdue shortcut and Create task buttons).
+const groupHeading = (page: Page, label: string | RegExp) =>
+  page.getByRole('heading', { level: 2, name: typeof label === 'string' ? new RegExp(`^${label} \\(\\d+\\)$`) : label })
+const groupRow = (page: Page, label: string) => page.getByRole('row', { name: new RegExp(`^${label} \\(\\d+\\)`) })
 
 // ── Supabase direct-SQL helper (mirrors global-setup.ts pattern) ──────────────
 function loadEnvFile(filePath: string): Record<string, string> {
@@ -81,6 +87,9 @@ const T = {
 }
 
 const ALL_T_IDS = Object.values(T).map(id => `'${id}'`).join(',')
+
+// The record opens beside the list only on a wide content track.
+test.use({ viewport: { width: 1920, height: 1080 } })
 
 test.beforeAll(async () => {
   if (!SERVICE_KEY) {
@@ -163,14 +172,14 @@ test.beforeEach(async ({ page }) => {
   // Switch to "All" so Dewi sees the full seeded dataset (not just her R/A tasks).
   // STALE→fixed (#284's repair, mirrored): the saved-view chips are BUTTONS inside the
   // role="group" "Tasks saved views" (tasks-toolbar.tsx) — a 'tab' role never existed here.
-  await page.getByRole('button', { name: 'All', exact: true }).click()
+  await selectTaskView(page, 'All')
   // Group by Status. The workspace now defaults to a flat list (OD-P5-1: group-by is an explicit
   // toolbar toggle, default None); this AC's journey is the grouped-Status view, so select it.
   // #870: Group now lives behind the desktop "View & filters" door too — open it first.
   await openViewFilters(page)
   await chooseSelectOption(page, page.getByRole('combobox', { name: 'Group', exact: true }), 'Status')
   // Wait for at least one group header to appear (TanStack row model, one render cycle).
-  await page.waitForSelector('tr.grp', { timeout: 10_000 })
+  await expect(groupHeading(page, /.+/)).not.toHaveCount(0, { timeout: 10_000 })
 })
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -188,36 +197,31 @@ test(
 
   // All four status groups must be visible.
   for (const label of ['In Progress', 'Blocked', 'Open', 'Done']) {
-    await expect(
-      page.locator('tr.grp').filter({ hasText: label }),
-    ).toBeVisible({ timeout: 10_000 })
+    await expect(groupHeading(page, label)).toBeVisible({ timeout: 10_000 })
   }
 
-  // In Progress group: count badge present, overdue subtotal present (IP1 is overdue).
-  const ipHeader = page.locator('tr.grp').filter({ hasText: 'In Progress' })
-  const ipCount  = ipHeader.locator('.gcount')
-  await expect(ipCount).toBeVisible()
-  expect(parseInt((await ipCount.textContent()) ?? '0')).toBeGreaterThanOrEqual(1)
-  await expect(ipHeader.locator('.gsub')).toBeVisible()
+  // In Progress group: count present, overdue shortcut present (IP1 is overdue).
+  const ipCount = (await groupHeading(page, 'In Progress').textContent())?.match(/\((\d+)\)/)?.[1] ?? '0'
+  expect(parseInt(ipCount)).toBeGreaterThanOrEqual(1)
+  await expect(groupRow(page, 'In Progress').getByRole('button', { name: /^Filter to \d+ overdue/ })).toBeVisible()
 
-  // Blocked group: 2 overdue rows → overdue subtotal must say "N overdue" (N ≥ 1).
-  const blHeader  = page.locator('tr.grp').filter({ hasText: 'Blocked' })
-  const blSub     = blHeader.locator('.gsub')
+  // Blocked group: 2 overdue rows → the overdue shortcut says "N overdue" (N ≥ 1).
+  const blSub = groupRow(page, 'Blocked').getByRole('button', { name: /^Filter to \d+ overdue/ })
   await expect(blSub).toBeVisible()
   const blSubText = (await blSub.textContent()) ?? ''
   expect(blSubText).toMatch(/\d+ overdue/)
   expect(parseInt(blSubText.match(/(\d+) overdue/)?.[1] ?? '0')).toBeGreaterThanOrEqual(1)
 
-  // C1 fix oracle: Done group has tasks with past due-dates, but MUST NOT show .gsub.
-  await expect(page.locator('tr.grp').filter({ hasText: 'Done' }).locator('.gsub')).not.toBeVisible()
+  // C1 fix oracle: Done group has tasks with past due-dates, but MUST NOT show an overdue shortcut.
+  await expect(groupRow(page, 'Done').getByRole('button', { name: /overdue/ })).toHaveCount(0)
 
-  // Open group: all future due-dates → no overdue subtotal.
-  await expect(page.locator('tr.grp').filter({ hasText: 'Open' }).locator('.gsub')).not.toBeVisible()
+  // Open group: all future due-dates → no overdue shortcut.
+  await expect(groupRow(page, 'Open').getByRole('button', { name: /overdue/ })).toHaveCount(0)
 
   // ─── Step 2: open a row → drawer opens in place, URL is canonical /tasks/:id ────────────
   // THIS spec's IP1 row, by id: the fixture titles mirror the dev seed's, so "the first row" can
   // be a seed task — which the status change below would then flip and never restore.
-  const firstRow = page.locator('tr.task-row', { has: page.locator(`a[href*="/work/tasks/${T.IP1}"]`) })
+  const firstRow = page.getByRole('row').filter({ has: page.locator(`a[href*="/work/tasks/${T.IP1}"]`) })
   await expect(firstRow).toBeVisible({ timeout: 8_000 })
   // Click the title link itself, not the row's own bounding-box center: task-row.tsx's Status/
   // PIC/Due cells are each an `inline-cell-trigger` button that stopPropagation()s to start inline
@@ -242,14 +246,14 @@ test(
 
   // DO-18: an in-app record overlay selects its row with aria-selected; aria-current is
   // reserved for route navigation (tasks-workspace row-selection contract).
-  const currentRow = page.locator('tr.task-row[aria-selected="true"]')
+  const currentRow = page.getByRole('row', { selected: true })
   await expect(currentRow).toBeVisible()
 
   // ─── Step 3: change status inline → row reflects it optimistically, no nav ─────────────
   // AC-117 oracle: same URL, same row updated in the table, no page reload.
   const statusEdit = drawer.getByRole('button', { name: /edit status/i })
   await statusEdit.click()
-  const statusSelect = drawer.getByLabel('Status')
+  const statusSelect = drawer.getByRole('combobox', { name: 'Status', exact: true })
   await chooseSelectOption(page, statusSelect, 'Open')
   await expect(statusSelect).toContainText('Open')
 
@@ -260,8 +264,8 @@ test(
   // grouped-table row stuck in its stale status group (#901). #901's fix reprojects the render
   // groups from the live status override, so this assertion is now a live oracle, not a marker.
   // Same table row now shows "Open" — AC-117 optimistic sync without view transition.
-  const reopenedRow = page.locator('tr.task-row', { has: page.locator(`a[href*="/work/tasks/${T.IP1}"]`) })
-  await expect(reopenedRow.locator('.td-status').getByText('Open')).toBeVisible({ timeout: 8_000 })
+  const reopenedRow = page.getByRole('row').filter({ has: page.locator(`a[href*="/work/tasks/${T.IP1}"]`) })
+  await expect(reopenedRow.getByRole('cell', { name: 'Open', exact: true })).toBeVisible({ timeout: 8_000 })
 
   // ─── Step 4: regroup by Owner → Owner group headers appear for all persons ─────────────
   // Opening the row above was a click outside the door (collection-toolbar.tsx's own outside-
@@ -272,15 +276,13 @@ test(
   // All 6 seeded persons must have group headers (OD-P3-6: empty groups always shown).
   for (const name of ['Dewi Director', 'Cahya Cafe', 'Krishna Kitchen',
                        'Rama Roastery', 'Sari Sales', 'Fitri Finance']) {
-    await expect(
-      page.locator('tr.grp').filter({ hasText: name }),
-    ).toBeVisible({ timeout: 8_000 })
+    await expect(groupHeading(page, name)).toBeVisible({ timeout: 8_000 })
   }
 
   // ─── Step 5: "+ Add task" in Rama Roastery's Owner group → inline draft, PIC pre-filled ───
   // AC-125 oracle: the group's create affordance opens the inline draft row in place (the
   // /tasks/new door is retired and redirects into this workspace) with the group's person as PIC.
-  const ramaHeader = page.locator('tr.grp').filter({ hasText: 'Rama Roastery' })
+  const ramaHeader = groupRow(page, 'Rama Roastery')
   await expect(ramaHeader).toBeVisible()
 
   const addTaskBtn = ramaHeader.getByRole('button', { name: /create task in Rama Roastery/i })

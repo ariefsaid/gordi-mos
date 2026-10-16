@@ -59,12 +59,3 @@ export function useRailCollapsePref(): RailCollapsePref {
   const toggle = useCallback(() => { setCollapsedStore(!snapshot) }, [])
   return { collapsed, setCollapsed, toggle }
 }
-
-/**
- * Test-only reset: re-reads `localStorage` into the module snapshot so the shared store does not
- * leak between cases after a `localStorage.clear()`. Same escape hatch `useTasksViewPref` ships.
- */
-export function __resetRailCollapsePrefForTests() {
-  snapshot = readCollapsed()
-  for (const cb of subscribers) cb()
-}

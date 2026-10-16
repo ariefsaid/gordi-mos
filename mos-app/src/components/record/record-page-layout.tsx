@@ -26,12 +26,13 @@
 import { createContext, useContext, useId, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { SkeletonRows } from '@/components/ui/state-kit'
+import { PhoneActionBarContext, usePhoneActionBar } from '@/shell/page-action-bar'
 import { useIsWideRecordPage } from './use-is-wide-record-page'
 import './record-page.css'
 
 const HeadingLevelContext = createContext<1 | 2>(1)
 
-export type RecordSectionAction = {
+type RecordSectionAction = {
   label: string
   onClick: () => void
   disabled?: boolean
@@ -148,7 +149,7 @@ export function RecordDisclosure({ title, count, defaultOpen = false, open: cont
   )
 }
 
-export type RecordAboutItem = {
+type RecordAboutItem = {
   key: string
   label: string
   value: ReactNode
@@ -184,7 +185,10 @@ export type RecordPageLayoutProps = {
 
 export function RecordPageLayout({ label, mode, headingLevel, header, notice, setup, children, about, history, kind }: RecordPageLayoutProps) {
   const wide = useIsWideRecordPage() && mode === 'page'
+  // Only a record's own page uses the phone action bar; a panel keeps its primary in its header.
+  const pageBar = usePhoneActionBar()
   return (
+    <PhoneActionBarContext.Provider value={mode === 'page' ? pageBar : null}>
     <HeadingLevelContext.Provider value={headingLevel}>
       <section className={`rp rp--${mode}`} data-record-mode={mode} data-record-kind={kind} aria-label={label}>
         {header}
@@ -193,15 +197,15 @@ export function RecordPageLayout({ label, mode, headingLevel, header, notice, se
           <div className="rp-main">
             {setup}
             {children}
-            {!wide && about ? (
+            {!(wide && (about || history)) && about ? (
               <section className="rp-section rp-about" aria-label={about.title}>
                 <SectionHeading className="rp-section__title">{about.title}</SectionHeading>
                 {about.node}
               </section>
             ) : null}
-            {!wide && history ? <RecordDisclosure title={history.title} count={history.count}>{history.node}</RecordDisclosure> : null}
+            {!(wide && (about || history)) && history ? <RecordDisclosure title={history.title} count={history.count}>{history.node}</RecordDisclosure> : null}
           </div>
-          {wide ? (
+          {wide && (about || history) ? (
             <aside className="rp-aside">
               {about ? (
                 <section className="rp-aside__block" aria-label={about.title}>
@@ -215,6 +219,7 @@ export function RecordPageLayout({ label, mode, headingLevel, header, notice, se
         </div>
       </section>
     </HeadingLevelContext.Provider>
+    </PhoneActionBarContext.Provider>
   )
 }
 

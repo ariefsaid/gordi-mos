@@ -30,7 +30,7 @@ const BOOT_NAV =
  * The arguments are injectable so boot-navigation behavior is deterministic in unit
  * tests; the default capture below is the only module-level browser observation.
  */
-export function readBootRecordId(
+function readBootRecordId(
   navigation: BootNavigation | undefined = BOOT_NAV,
   pathname: string | null = typeof window !== 'undefined' ? window.location.pathname : null,
 ): string | null {
@@ -49,7 +49,7 @@ export function readBootRecordId(
 /** The record id the SPA hard-loaded onto, or null (booted elsewhere / in-app nav). */
 const BOOT_DIRECT_RECORD_ID = readBootRecordId()
 
-export type TaskNavigationType = 'POP' | 'PUSH' | 'REPLACE'
+type TaskNavigationType = 'POP' | 'PUSH' | 'REPLACE'
 
 export type TaskPageModeInput = {
   taskId: string | null | undefined

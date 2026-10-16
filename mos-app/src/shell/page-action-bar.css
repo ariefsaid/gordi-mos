@@ -1,0 +1,16 @@
+/* Phone: the page's bottom action bar lives in this slot, below the scrolling page and above the tab
+   bar. It is a sibling of the scroller, never an overlay, so it cannot cover a row. */
+.page-action-bar {
+  /* Pinned to the foot of the page column: the scroller above it ends where the bar begins. */
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-inline-raised);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: var(--mos-bar-pad-y) var(--mos-bar-pad-x) max(var(--mos-bar-pad-y), env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border);
+  background: var(--background);
+}
+.page-action-bar:empty { display: none; }
+.page-action-bar > .btn { flex: 1 1 auto; min-height: var(--mos-control-height); }

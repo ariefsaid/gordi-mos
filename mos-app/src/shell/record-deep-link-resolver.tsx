@@ -27,7 +27,7 @@ import { FollowUpRecordHost } from '@/components/follow-ups/follow-up-record-hos
  * the registry below carries their hosts; a future kind arrives with the surface that owns it, the
  * same way.
  */
-export interface RecordKindDescriptor {
+interface RecordKindDescriptor {
   /** Which slot may render this kind's panel. */
   owner: OverlayOwner
   /** Catalog key for the panel's accessible label and chrome title. */

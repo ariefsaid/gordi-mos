@@ -20,14 +20,17 @@
 // { type:'field' } a label + click-to-edit value · { type:'group' } several fields sharing one visible
 // label (a quarter and a year read as "Period Q4 2026"); without a label they read as one linked line.
 import type { ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
+import { PillIcon } from '@/components/ui/pill'
 import { RecordField } from '@/components/records/record-field'
 import type { RecordFieldSpec, RecordValue } from '@/components/records/record-viewer.types'
 import { RecordMenu, type RecordMenuItem } from './record-menu'
+import { usePhoneActionBar } from '@/shell/page-action-bar'
 import './record-page.css'
 
 export type RecordFactTone = 'neutral' | 'warning' | 'success' | 'primary' | 'destructive'
-export type RecordPersonRole = 'responsible' | 'accountable' | 'neutral'
+type RecordPersonRole = 'responsible' | 'accountable' | 'neutral'
 
 export type RecordFact =
   | { type: 'state'; key: string; label: string; tone: RecordFactTone; dot?: boolean }
@@ -80,6 +83,8 @@ export function RecordPageHeader({
   title, headingLevel, facts, primary, menu = [], menuLabel, menuMinItems, factsLabel, note,
   onCommitField, onDirtyChange, fieldCommitsFrozen = false,
 }: RecordPageHeaderProps) {
+  // On a phone page the primary rides the bar below the page; in a panel it stays in the header.
+  const barSlot = usePhoneActionBar()
   const field = (spec: RecordFieldSpec, extra?: Partial<RecordFieldSpec>) => (
     <RecordField
       key={spec.key}
@@ -89,6 +94,11 @@ export function RecordPageHeader({
       commitsFrozen={fieldCommitsFrozen}
     />
   )
+  const primaryButton = primary ? (
+    <Button variant={primary.variant ?? 'primary'} disabled={primary.disabled || primary.busy} aria-busy={primary.busy || undefined} onClick={primary.onClick}>
+      {primary.label}
+    </Button>
+  ) : null
   return (
     <header className="rp-head" data-record-header="true">
       <div className="rp-title">
@@ -101,20 +111,17 @@ export function RecordPageHeader({
           commitsFrozen={fieldCommitsFrozen}
         />
       </div>
-      {primary ? (
-        <div className="rp-head__primary">
-          <Button variant={primary.variant ?? 'primary'} disabled={primary.disabled || primary.busy} aria-busy={primary.busy || undefined} onClick={primary.onClick}>
-            {primary.label}
-          </Button>
-        </div>
+      {primary && !barSlot ? (
+        <div className="rp-head__primary">{primaryButton}</div>
       ) : null}
+      {primary && barSlot ? createPortal(primaryButton, barSlot) : null}
       <div className="rp-head__more"><RecordMenu items={menu} label={menuLabel} minItems={menuMinItems} /></div>
       <ul className="rp-facts" aria-label={factsLabel}>
         {facts.map((fact) => {
           if (fact.type === 'state') {
             return (
               <li key={fact.key} className="rp-fact rp-fact--state">
-                <span className={`pill pill--${fact.tone}`}>{fact.dot === false ? null : <span className="dot" aria-hidden="true" />}{fact.label}</span>
+                <span className={`pill pill--${fact.tone}`}>{fact.dot === false ? null : <PillIcon tone={fact.tone} />}{fact.label}</span>
               </li>
             )
           }

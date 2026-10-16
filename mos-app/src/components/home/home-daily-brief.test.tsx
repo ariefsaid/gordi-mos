@@ -56,26 +56,19 @@ describe('HomeDailyBrief', () => {
     expect(screen.queryByRole('region', { name: /^Needs you now/ })).toBeNull()
   })
 
-  it('puts attention then My work in the main track and keeps Signals in a subordinate aside', async () => {
-    const { container } = await renderBrief()
-    const brief = screen.getByTestId('home-daily-brief')
-    const main = brief.querySelector('.home-layout > div')!
-    const aside = brief.querySelector('.home-brief-aside')!
-
-    expect(container.querySelector('.stream-group')).not.toBeNull()
-    expect(container.querySelector('[role="tablist"]')).toBeNull()
-    expect(container.querySelector('.home-bento')).toBeNull()
-    expect(main).toContainElement(screen.getByRole('heading', { name: /^Needs you now/ }))
-    expect(main).toContainElement(screen.getByRole('heading', { name: /^My open work/ }))
-    expect(aside).not.toContainElement(screen.getByRole('heading', { name: /^My open work/ }))
-    expect(aside).toContainElement(screen.getByTestId('supporting-feed'))
-    expect(main.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  it('shows the next task, the attention and My work regions, and keeps Signals alongside', async () => {
+    await renderBrief()
+    expect(screen.getByRole('region', { name: 'Next task' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /^Needs you now/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /^My open work/ })).toBeInTheDocument()
+    expect(screen.getByTestId('supporting-feed')).toBeInTheDocument()
+    expect(screen.queryByRole('tablist')).toBeNull()
   })
 
-  it('shows an explicit next action in the canonical attention link', async () => {
+  it('shows an explicit next action in the canonical next-task link', async () => {
     await renderBrief()
-    const queue = await screen.findByRole('region', { name: /^Needs you now/ })
-    const taskLink = await within(queue).findByRole('link', { name: /fix the espresso grinder/i })
+    const next = await screen.findByRole('region', { name: 'Next task' })
+    const taskLink = await within(next).findByRole('link', { name: /fix the espresso grinder/i })
 
     expect(taskLink).toHaveAttribute('href', '/work/tasks/late')
     expect(within(taskLink).getByText('Open task')).toBeInTheDocument()
@@ -99,9 +92,14 @@ describe('HomeDailyBrief', () => {
 
   it('distinguishes a genuinely empty brief from a pending or failed read', async () => {
     await renderBrief({ failedChecks: [], overdue: [], myWork: [] })
-    expect(await screen.findAllByText("You're all caught up")).toHaveLength(1)
+    const allClear = await screen.findByText("You're all caught up")
     expect(await screen.findByText('No failed checks')).toBeInTheDocument()
     expect(await screen.findByText(/Nothing else open/i)).toBeInTheDocument()
+    const emptyStates = screen.getAllByTestId('empty-state')
+    expect(emptyStates).toHaveLength(3)
+    const allClearState = allClear.closest('[data-testid="empty-state"]') as HTMLElement
+    expect(within(allClearState).getByRole('link', { name: 'View tasks →' }))
+      .toHaveAttribute('href', '/work/tasks?view=my-work')
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.queryByRole('status')).toBeNull()
   })
@@ -111,7 +109,7 @@ describe('HomeDailyBrief', () => {
     const brief = screen.getByTestId('home-daily-brief')
     expect(within(brief).getAllByRole('status')).toHaveLength(2)
     // The shared task projection keeps both task-derived lanes pending; failed checks resolved empty.
-    expect(within(brief).getAllByText('—')).toHaveLength(2)
+    expect(within(brief).getAllByText('(—)')).toHaveLength(2)
     expect(within(brief).getByRole('heading', { name: /^My open work/ })).toBeInTheDocument()
 
     const regions = buildHomeRegions({
@@ -148,7 +146,9 @@ describe('HomeDailyBrief', () => {
       failedChecks: [], failedChecksAdmitted: false,
       myWorkFullCount: 9,
     })
-    expect(screen.getByRole('heading', { name: 'My open work · 2 shown' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /^My open work/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /2 shown · 9 open/ })).toBeInTheDocument()
+    expect(screen.queryByText(/\b9 shown\b/)).toBeNull()
   })
 
   it('keeps the full My work collection door beside the wide main lane', async () => {

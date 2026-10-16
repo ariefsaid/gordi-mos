@@ -1,19 +1,17 @@
 import { Link } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { PicCell } from './pic-cell'
 import { StatusPill } from './status-pill'
-import { Chevron } from '@/shell/icons'
+import { GroupHeader } from '@/components/ui/group-header'
 import { Tag } from '@/components/ui/tag'
 import { dueStatus, isOverdue } from '@/lib/due-status'
-import { formatDate } from './task-formatters'
+import { formatDate, overdueDays } from './task-formatters'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { ObjectiveHint } from './objective-hint'
 import type { TaskTeamOption } from './task-row'
-import { TaskCreateForm } from './task-create-form'
 
 // ── Shared group-model type (aligned with TasksWorkspace.RenderGroup) ─────────
-export type MobileRenderGroup = {
+type MobileRenderGroup = {
   key: string
   label: string
   rows: TaskListRow[]
@@ -129,9 +127,7 @@ type TaskCardProps = {
 }
 
 function TaskCard({
-  task, now, buName, teamName, rName, supervisorName, recordSearch = '', provenanceRoleName, onOpenTask,
-  onEditTitle, onEditPic, onEditTeam, onEditSupervisor, personOptions = [], supervisorOptions = [],
-  teamOptions = [], isNew = false, onDiscardNewTask, viewerHasNoDownline = false,
+  task, now, buName, rName, recordSearch = '', provenanceRoleName, onOpenTask,
 }: TaskCardProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -141,60 +137,26 @@ function TaskCard({
   // C1: only genuinely-overdue (non-Done, non-archived) gets red class / "Overdue · " prefix.
   const dueClass = taskOverdue ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
   const dueText = task.due_date
-    ? (taskOverdue ? t('tasks.overdueDate', { date: formatDate(task.due_date, locale) }) : formatDate(task.due_date, locale))
+    ? (taskOverdue
+      ? `${formatDate(task.due_date, locale)} · ${t(overdueDays(task.due_date, now) === 1 ? 'tasks.due.overdueDays.one' : 'tasks.due.overdueDays', { days: overdueDays(task.due_date, now) })}`
+      : formatDate(task.due_date, locale))
     : '—'
-
-  // The draft renders the SAME TaskCreateForm the desktop table renders — one component,
-  // single column, no bespoke phone-only draft markup.
-  if (isNew) {
-    return (
-      <article data-testid="task-card" className="task-card collection-grammar-card">
-        <div className="task-card-link task-card-draft collection-grammar-card-body">
-          <TaskCreateForm
-            task={task}
-            businessUnitName={buName}
-            teamOptions={teamOptions}
-            personOptions={personOptions}
-            supervisorOptions={supervisorOptions}
-            ownerName={rName}
-            supervisorName={supervisorName}
-            onEditTeam={onEditTeam ?? (async () => {})}
-            onEditPic={onEditPic ?? (async () => {})}
-            onEditSupervisor={onEditSupervisor ?? (async () => {})}
-            onCreate={(title) => (onEditTitle ? onEditTitle(task.id, title) : Promise.resolve())}
-            onCancel={() => onDiscardNewTask?.()}
-            viewerHasNoDownline={viewerHasNoDownline}
-          />
-        </div>
-      </article>
-    )
-  }
 
   const cardContent = (
     <>
         <div className="task-card-head">
           {isArchived && <span className="archived-tag">{t('tasks.archived')}</span>}
           <span className={isArchived ? 'task-name task-name-archived collection-grammar-title' : 'task-name collection-grammar-title'}>{task.title}</span>
-          <StatusPill status={task.status} />
+          <StatusPill status={task.status} openTreatment="neutral" />
         </div>
-        <span className="task-team">{teamName || '—'}</span>
-        {/* v4 distill (layout.md/distill.md) narrowed this to PIC + Due (Wave 2c,
-            OD-REDESIGN-61..64); #760 AC-048 removes Supervisor too — it is a decision field for
-            the record, not the weekly-triage card, and now lives one tap away there. Project/
-            Process, Objective, Source, and the recency "Updated" line stay off the card for the
-            same reason (distill.md "remove redundancy"): a phone card near ~100-120px shows more
-            rows without scrolling, and full typed metadata is still one tap away on the record
-            (DESIGN.md "Progressive disclosure"). */}
-        <dl className="task-card-meta collection-grammar-card-details">
-          <div className="task-card-meta-pair">
-            <dt>{t('tasks.pic')}</dt>
-            <dd><PicCell fullName={rName} provenance={provenanceRoleName} /></dd>
-          </div>
-          <div className="task-card-meta-pair">
-            <dt>{t('tasks.dueLabel')}</dt>
-            <dd className={`tabular-nums ${dueClass}`}>{dueText}</dd>
-          </div>
-        </dl>
+        {/* One muted meta line (Business Unit, as under the title on desktop · who is responsible) and the due line; the labels live in the
+            table header on desktop and the record shows every other fact. */}
+        <p className="task-card-meta-line" title={`${t('tasks.pic')}: ${rName}`}>
+          {[buName || '—', rName ? `${rName}${provenanceRoleName ? ` (${t('tasks.pic.via', { role: provenanceRoleName })})` : ''}` : null].filter(Boolean).join(' · ')}
+        </p>
+        <p className={`task-card-due tabular-nums ${dueClass}`}>
+          <span className="sr-only">{t('tasks.dueLabel')}: </span>{dueText}
+        </p>
     </>
   )
 
@@ -279,83 +241,46 @@ export function MobileGroupedCards({
     <div className="mgc" role="list" aria-label={t('tasks.title')}>
       {groups.map(group => (
         <div key={`mgc-${group.key}`} className="mgc-group">
-          <div className="mgc-group-head collection-grammar-mobile-group">
-            <button
-              type="button"
-              className="mgc-caret"
-              aria-expanded={!isCollapsed(group.key)}
-              aria-label={isCollapsed(group.key)
-                ? t('tasks.group.expand', { label: group.label })
-                : t('tasks.group.collapse', { label: group.label })}
-              onClick={() => toggleCollapsed(group.key)}
-            >
-              {/* IXD-1: ONE shared Chevron, rotated −90° when collapsed (down = expanded). */}
-              <Chevron className={`mgc-chev${isCollapsed(group.key) ? ' mgc-chev-collapsed' : ''}`} />
-            </button>
-            {/* The Objective sits ABOVE the Project/Process title, in its own column — inline it
-                would take a third of a 390px header and break the title mid-word. */}
-            <span className="mgc-group-headings">
-              {group.objectiveHint && (
-                <ObjectiveHint hint={group.objectiveHint} className="mgc-objective-hint" />
-              )}
+          <GroupHeader
+            className="mgc-group-head"
+                        label={<span className="mgc-group-headings">
+              {/* The Objective sits ABOVE the Project/Process title, in its own line. */}
+              {group.objectiveHint && <ObjectiveHint hint={group.objectiveHint} className="mgc-objective-hint" />}
               <span className="mgc-label">{group.label}</span>
-            </span>
-            {/* Phone: the tag, count, overdue and add sit on a second line so the title keeps the full row. */}
-            <span className="mgc-group-meta">
               {/* RI-1: work-line type tag — text always present, never color-only (WCAG 1.4.1) */}
-              {group.workLineType != null && (
-                <MobileWorkLineTypeTag type={group.workLineType} />
-              )}
-              {/* Design fix wave item 3 — occurrence groups supersede the plain count with the
-                  roll-up summary, mirroring desktop's GroupHeaderRow (Rule 9 parity). Design fix
-                  wave item 6 (MINOR — "1 to assign" stutter): the same drop-clause-when-a-button-
-                  also-renders / neutral-"unassigned"-otherwise logic as GroupHeaderRow. */}
-              {group.occurrenceRollup ? (
-                <span className="mgc-count tabular-nums">
-                  {t(
-                    group.occurrenceRollup.pendingUnresolved === 0
-                      ? 'processes.rollup.summary'
-                      : onAssignPending
-                        ? 'processes.rollup.summaryNoAssign'
-                        : 'processes.rollup.summaryUnassigned',
-                    {
-                      done: group.occurrenceRollup.done, total: group.occurrenceRollup.total,
-                      overdue: group.occurrenceRollup.overdue, pending: group.occurrenceRollup.pendingUnresolved,
-                    },
-                  )}
-                </span>
-              ) : (
-                <span className="mgc-count tabular-nums">{group.rows.length}</span>
-              )}
+              {group.workLineType != null && <MobileWorkLineTypeTag type={group.workLineType} />}
+            </span>}
+            count={group.occurrenceRollup
+              ? t(
+                group.occurrenceRollup.pendingUnresolved === 0
+                  ? 'processes.rollup.summary'
+                  : onAssignPending
+                    ? 'processes.rollup.summaryNoAssign'
+                    : 'processes.rollup.summaryUnassigned',
+                {
+                  done: group.occurrenceRollup.done, total: group.occurrenceRollup.total,
+                  overdue: group.occurrenceRollup.overdue, pending: group.occurrenceRollup.pendingUnresolved,
+                },
+              )
+              : group.rows.length}
+            open={!isCollapsed(group.key)}
+            onToggle={() => toggleCollapsed(group.key)}
+            trailing={<>
               {group.occurrenceRollup && group.occurrenceRollup.pendingUnresolved > 0 && onAssignPending && (
-                <button
-                  type="button"
-                  className="mgc-sub mgc-sub-pending"
-                  onClick={() => onAssignPending(group.key)}
-                >
+                <button type="button" className="mgc-sub mgc-sub-pending" onClick={() => onAssignPending(group.key)}>
                   {t('processes.pending.assignCount', { count: group.occurrenceRollup.pendingUnresolved })}
                 </button>
               )}
               {!group.occurrenceRollup && group.overdue > 0 && (
-                <button
-                  type="button"
-                  className="mgc-sub"
-                  aria-label={t('tasks.filter.overdueAria', { count: group.overdue })}
-                  onClick={() => setOverdueOnly(true)}
-                >
-                  · {t('tasks.filter.overdueCount', { count: group.overdue })}
+                <button type="button" className="mgc-sub" aria-label={t('tasks.filter.overdueAria', { count: group.overdue })} onClick={() => setOverdueOnly(true)}>
+                  {t('tasks.filter.overdueCount', { count: group.overdue })}
                 </button>
               )}
-              <button
-                type="button"
-                className="mgc-add"
-                aria-label={t('tasks.group.add', { label: group.label })}
-                onClick={() => openAddTask(group.prefillParam)}
-              >
+              <button type="button" className="mgc-add" aria-label={t('tasks.group.add', { label: group.label })} onClick={() => openAddTask(group.prefillParam)}>
                 {t('tasks.add')}
               </button>
-            </span>
-          </div>
+            </>}
+          />
           {!isCollapsed(group.key) && group.rows.map(task => (
             <div key={task.id} role="listitem">
               <TaskCard

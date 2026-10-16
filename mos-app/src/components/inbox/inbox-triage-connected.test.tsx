@@ -164,24 +164,21 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
     })
   })
 
-  it('keeps a row busy while Mark handled is in flight and ignores a duplicate action', async () => {
-    let resolveHandled!: () => void
-    const markHandled = vi.fn(() => new Promise<void>((resolve) => { resolveHandled = resolve }))
+  it('Mark handled hides the row at once and offers Undo before anything is written; Undo brings it back', () => {
+    const markHandled = vi.fn().mockResolvedValue(undefined)
     mockUse.mockReturnValue(hook({ notifications: [notif()], markHandled }))
     renderConnected()
 
     const row = screen.getByRole('button', { name: /Budget review/ }).closest('.inbox-row')!
-    const handle = within(row as HTMLElement).getByRole('button', { name: /mark handled/i })
-    fireEvent.click(handle)
+    fireEvent.click(within(row as HTMLElement).getByRole('button', { name: /mark handled/i }))
 
-    await waitFor(() => expect(handle).toBeDisabled())
-    expect(screen.getByRole('status')).toHaveTextContent(/updating/i)
-    expect(screen.getByRole('status')).not.toHaveTextContent(/opening/i)
-    fireEvent.click(handle)
-    expect(markHandled).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: /Budget review/ })).toBeNull()
+    expect(screen.getByText('Marked handled')).toBeInTheDocument()
+    expect(markHandled).not.toHaveBeenCalled()
 
-    resolveHandled()
-    await waitFor(() => expect(handle).not.toBeDisabled())
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(screen.getByRole('button', { name: /Budget review/ })).toBeInTheDocument()
+    expect(markHandled).not.toHaveBeenCalled()
   })
 
   it('JQ-4: a signal notification mounts the shared SignalRecordHost (its actions live in the panel)', () => {
@@ -322,11 +319,11 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
     }))
     renderConnected()
 
-    expect(screen.getByRole('button', { name: 'All · 3' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Unread · 1' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Handled · 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^All\s*3$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Unread\s*1$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Handled\s*1$/ })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Handled · 1' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Handled\s*1$/ }))
     expect(screen.getByText('Handled one')).toBeInTheDocument()
     expect(screen.queryByText('Unread one')).toBeNull()
     expect(screen.queryByText('Read one')).toBeNull()
@@ -335,18 +332,18 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
   it.each([
     {
       locale: 'en' as const,
-      all: 'All · 2 in loaded items',
-      unread: 'Unread · 0 in loaded items',
-      handled: 'Handled · 0 in loaded items',
+      all: /^All\s*2\+$/,
+      unread: /^Unread\s*0\+$/,
+      handled: /^Handled\s*0\+$/,
       title: 'No unread in loaded items',
       copy: '2 read in loaded items',
       loadMore: 'Load more items',
     },
     {
       locale: 'id' as const,
-      all: 'Semua · 2 dimuat',
-      unread: 'Belum dibaca · 0 dimuat',
-      handled: 'Selesai ditangani · 0 dimuat',
+      all: /^Semua\s*2\+$/,
+      unread: /^Belum dibaca\s*0\+$/,
+      handled: /^Selesai ditangani\s*0\+$/,
       title: 'Tidak ada notifikasi belum dibaca di item yang dimuat',
       copy: '2 notifikasi sudah dibaca pada item yang dimuat',
       loadMore: 'Muat item lainnya',
@@ -389,7 +386,7 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
     }))
     renderConnected()
 
-    expect(filterGroup().getByRole('button', { name: 'All · 2 in loaded items' })).toBeInTheDocument()
+    expect(filterGroup().getByRole('button', { name: /^All\s*2\+$/ })).toBeInTheDocument()
     expect(screen.getByText('2 items loaded')).toBeInTheDocument()
     expect(screen.queryByText('3 items loaded')).toBeNull()
   })
@@ -474,13 +471,13 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
   it.each([
     {
       locale: 'en' as const,
-      mentionTrigger: 'mentions you in a Signal or a comment',
-      retractionTrigger: 'retracts a Signal you wrote',
+      mentionTrigger: 'Mentions',
+      retractionTrigger: 'Signal retractions',
     },
     {
       locale: 'id' as const,
-      mentionTrigger: 'menyebut Anda di Sinyal atau komentar',
-      retractionTrigger: 'menarik kembali Sinyal yang Anda tulis',
+      mentionTrigger: 'Sebutan',
+      retractionTrigger: 'penarikan Sinyal',
     },
   ])('bell quick-triage empty copy names Signal and comment triggers without promising urgent delivery ($locale)', ({
     locale,
@@ -507,10 +504,9 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
 
   it('renders the shared loading skeleton (never a bare/empty surface) while data is in flight', () => {
     mockUse.mockReturnValue(hook({ loading: true }))
-    const { container } = renderConnected()
-    const status = screen.getByRole('status')
-    expect(status).toHaveAttribute('aria-busy', 'true')
-    expect(container.querySelector('.skeleton-rows')).not.toBeNull()
+    renderConnected()
+    expect(screen.getAllByRole('status').some((status) => status.getAttribute('aria-busy') === 'true')).toBe(true)
+    expect(screen.queryByTestId('empty-state')).toBeNull()
   })
 
   it('renders the shared retryable error state and calls refresh', () => {

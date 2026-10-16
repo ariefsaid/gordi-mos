@@ -126,8 +126,7 @@ describe('shared Toast placement', () => {
     const status = screen.getByRole('status')
     expect(recordPanel.parentElement).toBe(overlayRoot)
     expect(status.parentElement).toBe(overlayRoot)
-    expect(status).toHaveStyle({ zIndex: 'var(--z-toast)' })
-    screen.getByRole('button', { name: 'Dismiss notification' }).click()
+    screen.getByRole('button', { name: 'Dismiss' }).click()
     expect(onDismiss).toHaveBeenCalledOnce()
 
     pageLayer.remove()

@@ -39,7 +39,7 @@ export interface RehomeContext {
 
 /** Why a legacy Task could not be resolved deterministically. Each maps to a migration-report
  *  reason category and to an explicit owner decision before final NOT NULL enforcement. */
-export type RehomeUnresolvedReason =
+type RehomeUnresolvedReason =
   | 'missing-run' // process_run_id set but the run row is gone
   | 'cross-org-run' // the run belongs to another org (data anomaly)
   | 'missing-run-team' // the run's owning Team no longer exists
@@ -103,13 +103,13 @@ export function classifyTaskTeamRehome(
   }
 }
 
-export interface RehomeResolvedRow {
+interface RehomeResolvedRow {
   taskId: string
   teamId: string
   method: 'via-run'
 }
 
-export interface RehomeUnresolvedRow {
+interface RehomeUnresolvedRow {
   taskId: string
   orgId: string
   businessUnitId: string

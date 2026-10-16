@@ -9,10 +9,14 @@ type Outcome = { branchId: string; text: string; failed: boolean }
  * FR-1030: once a branch posts receipts, an ops lead or admin releases its held receipts. The server
  * lists only for them; `refreshKey` re-reads the list after the queue decides a receipt.
  */
-export function CafeReceiptRelease({ online, refreshKey = 0 }: { online: boolean; refreshKey?: number }) {
+export function CafeReceiptRelease({ online, refreshKey = 0, onCount }: { online: boolean; refreshKey?: number; onCount?: (heldReceipts: number) => void }) {
   const t = useT()
   const titleId = useId()
-  const [branches, setBranches] = useState<CafeHeldReceipts[] | 'failed'>([])
+  const [branches, setBranchesState] = useState<CafeHeldReceipts[] | 'failed'>([])
+  const setBranches = useCallback((next: CafeHeldReceipts[] | 'failed') => {
+    setBranchesState(next)
+    onCount?.(next === 'failed' ? 0 : next.reduce((total, row) => total + row.heldReceipts, 0))
+  }, [onCount])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [outcome, setOutcome] = useState<Outcome | null>(null)
   const outcomeRef = useRef<HTMLParagraphElement>(null)
@@ -25,7 +29,7 @@ export function CafeReceiptRelease({ online, refreshKey = 0 }: { online: boolean
     let active = true
     void load().then(rows => { if (active) setBranches(rows) })
     return () => { active = false }
-  }, [load, refreshKey])
+  }, [load, refreshKey, setBranches])
 
   // The pressed row may leave the list, so focus moves to the outcome that replaces it.
   useEffect(() => { if (outcome) outcomeRef.current?.focus() }, [outcome])

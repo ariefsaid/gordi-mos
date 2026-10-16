@@ -1,8 +1,8 @@
 import type { RolesRow } from '@/lib/database.types'
 
-export type FollowUpLane = 'b2b_sales' | 'retail_ops'
+type FollowUpLane = 'b2b_sales' | 'retail_ops'
 
-export function roleBusinessUnitCodes(roles: readonly Pick<RolesRow, 'business_unit_id'>[], businessUnits: readonly { id: string; code?: string | null }[]): Set<string> {
+function roleBusinessUnitCodes(roles: readonly Pick<RolesRow, 'business_unit_id'>[], businessUnits: readonly { id: string; code?: string | null }[]): Set<string> {
   const codeByBu = new Map(businessUnits.map((bu) => [bu.id, bu.code ?? null]))
   const codes = new Set<string>()
   for (const role of roles) {
@@ -12,7 +12,7 @@ export function roleBusinessUnitCodes(roles: readonly Pick<RolesRow, 'business_u
   return codes
 }
 
-export function canWorkLane(lane: FollowUpLane, roles: readonly Pick<RolesRow, 'business_unit_id'>[], businessUnits: readonly { id: string; code?: string | null }[], accessRoles: readonly string[] = []): boolean {
+function canWorkLane(lane: FollowUpLane, roles: readonly Pick<RolesRow, 'business_unit_id'>[], businessUnits: readonly { id: string; code?: string | null }[], accessRoles: readonly string[] = []): boolean {
   if (accessRoles.includes('admin')) return true
   return roleBusinessUnitCodes(roles, businessUnits).has(lane)
 }

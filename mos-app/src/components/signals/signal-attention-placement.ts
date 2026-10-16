@@ -4,7 +4,7 @@
 // caller supplies the trigger rect, the menu's measured size, and the available viewport (or a
 // clipping ancestor's) bounds.
 export const POPOVER_GAP_PX = 4
-export const VIEWPORT_MARGIN_PX = 8
+const VIEWPORT_MARGIN_PX = 8
 
 /** True when the menu should open ABOVE the trigger instead of below it.
  *

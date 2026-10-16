@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { BreadcrumbTitleProvider, useSetBreadcrumbTitle, useSetCollectionLeaf } from './breadcrumb-title'
 import { Breadcrumb } from './breadcrumb'
-import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
+import { isShipGated } from '@/lib/ship-gate'
 import { useT } from '@/i18n/use-t'
 
 function TestCollectionChrome() {
@@ -72,18 +72,26 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
   })
 
   // #444 — a ship-gated path resolves to NOTHING, the same answer an unknown path gets, and for
-  // the same reason: nothing routes there. `/work/projects`, `/work/objectives`, `/work/events`,
-  // `/money` and `/money/detail` each read "Work · …" / "Money · …" here until the gate closed
-  // them. Printing a crumb for a surface the router forwards away from would name a page the
-  // viewer is not on. Delete a path from SHIP_GATED_PATHS and its crumb comes back with no edit
-  // to breadcrumb.tsx.
-  it.each([...SHIP_GATED_PATHS, '/money/detail'])(
+  // the same reason: nothing routes there. Printing a crumb for a surface the router forwards away
+  // from would name a page the viewer is not on. Money is no longer in the ship-gate list.
+  it.each(['/work/events', '/ecommerce', '/roastery'])(
     'the ship-gated %s renders no crumb at all',
     (path) => {
+      expect(isShipGated(path)).toBe(true)
       renderBC(path)
       expect(crumbText()).toBe('')
     },
   )
+
+  it('/money → "Money"', () => {
+    renderBC('/money')
+    expect(crumbText()).toBe('Money')
+  })
+
+  it('/money/detail resolves the Money crumb before its route redirect', () => {
+    renderBC('/money/detail')
+    expect(crumbText()).toBe('Money')
+  })
 
   it('/inbox → "Inbox"', () => {
     renderBC('/inbox')
@@ -101,10 +109,10 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
   })
 
   it.each([
-    ['/admin/people', 'Admin Settings · People'],
-    ['/admin/teams', 'Admin Settings · Teams'],
-    ['/admin/access', 'Admin Settings · Roles & permissions'],
-    ['/admin/agents', 'Admin Settings · Connected agents'],
+    ['/admin/people', 'Admin settings · People'],
+    ['/admin/teams', 'Admin settings · Teams'],
+    ['/admin/access', 'Admin settings · Access levels'],
+    ['/admin/agents', 'Admin settings · Agent apps'],
   ])('%s → "%s"', (path, trail) => {
     renderBC(path)
     expect(crumbText()).toBe(trail)
@@ -112,20 +120,31 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
 
   it('localizes the connected-agents breadcrumb in Indonesian', () => {
     renderBC('/admin/agents', 'id')
-    expect(crumbText()).toBe('Pengaturan Admin · Agen terhubung')
+    expect(crumbText()).toBe('Pengaturan admin · Aplikasi agen')
   })
 
-  it('/profile → "Personal Profile"', () => {
+  it('/profile → "Personal profile"', () => {
     renderBC('/profile')
-    expect(crumbText()).toBe('Personal Profile')
+    expect(crumbText()).toBe('Personal profile')
   })
 
-  it('desktop: the leaf owns /profile, which has no rail row (OD-WAY-77), while Admin and Work leaves do not', () => {
-    // Rule 5: exactly one element carries aria-current. Admin pins to the rail foot and Work is a
-    // rail row, so the rail owns them; Personal Profile lives in the identity menu, so its leaf
-    // is the only thing on screen that can say where the viewer is.
+  it('desktop: the leaf owns Inbox, which has no menu row, while Profile, Admin and Work leaves do not', () => {
+    // Rule 5: exactly one element carries aria-current. Admin settings and Personal profile are rows at the nav
+    // foot and Work is a nav row, so the nav owns them; Inbox is the bell, so its leaf is the one that says where
+    // the viewer is.
+    // The full labelled nav (>=1280px), not the folded rail whose pages sit behind a flyout.
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query.includes('min-width: 1280px'), media: query, onchange: null,
+        addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+      }),
+    })
+    renderBC('/inbox')
+    expect(screen.getByText('Inbox')).toHaveAttribute('aria-current', 'page')
     renderBC('/profile')
-    expect(screen.getByText('Personal Profile')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByText('Personal profile')).not.toHaveAttribute('aria-current')
     renderBC('/admin/people')
     expect(screen.getByText('People')).not.toHaveAttribute('aria-current')
     renderBC('/work/tasks')
@@ -271,13 +290,13 @@ describe('AC-020: below rail-collapse the breadcrumb is the leaf title only (A-3
     expect(leaf).toHaveAttribute('aria-current', 'page')
   })
 
-  it('the phone header names every Admin Settings tab', () => {
+  it('the phone header names every Admin settings tab', () => {
     renderBCNarrow('/admin/access')
-    expect(screen.getByText('Roles & permissions')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByText('Access levels')).toHaveAttribute('aria-current', 'page')
   })
 
   it('the phone header names and marks the connected-agents tab in Indonesian', () => {
     renderBCNarrow('/admin/agents', undefined, 'id')
-    expect(screen.getByText('Agen terhubung')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByText('Aplikasi agen')).toHaveAttribute('aria-current', 'page')
   })
 })

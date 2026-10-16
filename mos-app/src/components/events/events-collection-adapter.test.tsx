@@ -4,9 +4,10 @@ vi.mock('@/lib/db/events', () => ({ listEventsOverlapping: vi.fn(), EVENTS_WINDO
 vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn() }))
 import { listEventsOverlapping } from '@/lib/db/events'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
-import { eventCollectionQuery, eventsCollectionDescriptor } from './events-collection-adapter'
+import { eventsCollectionDescriptor } from './events-collection-adapter'
 
 const list = vi.mocked(listEventsOverlapping)
+const eventCollectionQuery = eventsCollectionDescriptor.query
 
 describe('Events collection descriptor', () => {
   beforeEach(() => {

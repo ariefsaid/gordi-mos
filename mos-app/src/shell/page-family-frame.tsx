@@ -1,11 +1,14 @@
 import type { ReactNode } from 'react'
-import {
-  PAGE_FAMILY_CONTRACTS,
-  type PageFamily,
-  type PageFamilyState,
-} from './page-families'
+import type { PageFamily, PageFamilyState } from './page-families'
 import { PageFrame } from './page-frame'
 import { PageHead } from './page-head'
+import { useState } from 'react'
+import type { To } from 'react-router-dom'
+import { ActionBar } from '@/components/ui/action-bar'
+import { useIsDesktop } from './use-is-desktop'
+import { PhoneActionBarContext } from './page-action-bar'
+import { useT } from '@/i18n/use-t'
+import './page-action-bar.css'
 
 export interface PageFamilyFrameProps {
   family: PageFamily
@@ -21,9 +24,15 @@ export interface PageFamilyFrameProps {
   count?: number | string | null
   meta?: ReactNode
   action?: ReactNode
+  /** Why the primary action is disabled; sits next to the button (head on desktop, action bar on phone). */
+  actionReason?: ReactNode
   /** Full-width row below the title row, inside the same header block (see PageHead.statusRow).
    *  A head that carries one is rendered compact so the block keeps its ~70px budget. */
   statusRow?: ReactNode
+  /** The one way back to the parent page: above the title, left edge (NV2). */
+  back?: { to?: To; onClick?: () => void; label: string }
+  /** The one freshness line under the subtitle. */
+  freshness?: ReactNode
   state?: PageFamilyState
   surfaceWash?: boolean
   /**
@@ -40,6 +49,10 @@ export interface PageFamilyFrameProps {
   hideHead?: boolean
   /** Passthrough to PageHead.headClassName — per-head opt-in modes of the shared grammar. */
   headClassName?: string
+  /** Phone: the head's primary `action` moves out of the head into the shared bottom action bar
+   *  (UX-STANDARD AC2); desktop keeps it top-right in the head. Default on; pass false only when
+   *  the `action` is not the page's primary. */
+  phoneActionBar?: boolean
   children: ReactNode
 }
 
@@ -52,38 +65,48 @@ export function PageFamilyFrame({
   count,
   meta,
   action,
+  actionReason,
   statusRow,
+  back,
+  freshness,
   state = 'default',
   surfaceWash,
   hideHead = false,
   headClassName,
+  phoneActionBar = true,
   children,
 }: PageFamilyFrameProps) {
-  const contract = PAGE_FAMILY_CONTRACTS[family]
+  const t = useT()
+  const isDesktop = useIsDesktop()
+  const [barEl, setBarEl] = useState<HTMLElement | null>(null)
+  const phone = !isDesktop
+  const barAction = phoneActionBar && phone && action ? action : null
 
+  const content = <>
+    {!hideHead && (
+      <PageHead
+        family={family}
+        title={title}
+        subtitle={subtitle}
+        jobSentence={jobSentence}
+        titleHelp={titleHelp}
+        count={count}
+        meta={meta}
+        action={barAction ? undefined : action}
+        actionReason={barAction ? undefined : actionReason}
+        statusRow={statusRow}
+        back={back}
+        freshness={freshness}
+        headClassName={headClassName}
+      />
+    )}
+    {children}
+  </>
   return (
-    <PageFrame
-      family={family}
-      state={state}
-      variant="data"
-      surfaceWash={surfaceWash}
-    >
-      {!hideHead && (
-        <PageHead
-          family={family}
-          variant={contract.headVariant}
-          title={title}
-          subtitle={subtitle}
-          jobSentence={jobSentence}
-          titleHelp={titleHelp}
-          count={count}
-          meta={meta}
-          action={action}
-          statusRow={statusRow}
-          headClassName={headClassName}
-        />
-      )}
-      {children}
-    </PageFrame>
+    <PhoneActionBarContext.Provider value={phone ? (barEl ?? 'pending') : null}>
+      <PageFrame family={family} state={state} variant="data" surfaceWash={surfaceWash}>{content}</PageFrame>
+      {phone ? <div ref={setBarEl} role="region" aria-label={t('shell.pageActions')} className="page-action-bar" data-testid="page-action-bar" /> : null}
+      {barAction && barEl ? <ActionBar primary={barAction} reason={actionReason} /> : null}
+    </PhoneActionBarContext.Provider>
   )
 }

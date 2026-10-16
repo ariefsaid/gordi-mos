@@ -9,17 +9,20 @@
 //   item 4: focus trap (useFocusTrap), focus returns on close
 //   item 6: onShowToast prop — success toast after no-login create
 //   item 11: dead useAuth() removed; isDisabled simplified to isSubmitting
-//   item 13: heading uses .heading CSS class instead of fontSize: '20px'
+//   item 13: heading uses .heading CSS class instead of fontSize: 'var(--mos-size-4)'
 
 import { useState, useEffect, useId } from 'react'
 import { useT } from '@/i18n/use-t'
 import { TextInput } from '@/components/ui/text-input'
-import { Checkbox } from '@/components/ui/checkbox'
+import { CheckboxRow } from './checkbox-row'
 import { Toggle } from '@/components/ui/toggle'
 import { Button } from '@/components/ui/button'
+import { ActionBar } from '@/components/ui/action-bar'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { ErrorState } from '@/components/ui/state-kit'
 import { ModalShell } from '@/components/ui/modal-shell'
+import { RouteLeaveGuard } from '@/shell/route-leave-guard'
+import { useIsOffline } from '@/shell/use-is-offline'
 import { PasswordReveal } from './password-reveal'
 import { synthesizeEmail, createPerson, createLogin } from '@/lib/db/admin-users'
 import { ASSIGNABLE_ROLES, localizedRoleMeta } from '@/lib/db/admin-users.types'
@@ -27,6 +30,7 @@ import './create-person-dialog.css'
 
 export interface CreatePersonDialogProps {
   open: boolean
+  presentation?: 'dialog' | 'workspace'
   onClose: () => void
   onCreated: () => void
   /** The currently taken emails (for uniqueness suffix, AC-011/FR-021). */
@@ -47,6 +51,7 @@ export function CreatePersonDialog({
   onCreated,
   takenEmails,
   onShowToast,
+  presentation = 'dialog',
 }: CreatePersonDialogProps) {
   const t = useT()
   const [phase, setPhase] = useState<Phase>('form')
@@ -66,6 +71,7 @@ export function CreatePersonDialog({
   const nameId = useId()
   const emailId = useId()
   const titleId = useId()
+  const formDomId = useId()
 
   // Derived synthetic email
   const syntheticEmail =
@@ -87,6 +93,7 @@ export function CreatePersonDialog({
   }, [open])
 
   const formRef = useFocusRestore<HTMLFormElement>(phase === 'submitting', !!submitError)
+  const offline = useIsOffline()
 
   if (!open) return null
 
@@ -165,6 +172,159 @@ export function CreatePersonDialog({
 
   const isSubmitting = phase === 'submitting'
   const isReveal = phase === 'reveal'
+  // Typed input is lost on leaving: the workspace asks first (EN7). Once it is submitting it is not.
+  const dirty = phase === 'form' && (fullName !== '' || email !== '' || noEmail || createLoginNow || selectedRoles.size > 0)
+
+  const content = isReveal && revealData ? (
+        <div className="create-person-dialog__reveal">
+          <PasswordReveal
+            personName={revealData.personName}
+            password={revealData.password}
+            email={revealData.email}
+            context="create"
+            onDone={handleRevealDone}
+            headingId={REVEAL_HEADING_ID}
+            warningId={REVEAL_WARNING_ID}
+          />
+        </div>
+      ) : (
+          <form
+            id={formDomId}
+            ref={formRef}
+            className="create-person-dialog__form"
+            onSubmit={handleSubmit}
+            onKeyDown={(event) => { if (event.key === 'Escape' && !isSubmitting && presentation === 'workspace') onClose() }}
+            noValidate
+          >
+            {presentation === 'workspace' && <RouteLeaveGuard when={dirty} includeSearch message={t('admin.create.leaveMessage')} />}
+            {/* Header — considered title + caption, hairline divider seams it to the body */}
+            <div className="create-person-dialog__header">
+              <h2 id={titleId} className="create-person-dialog__title">{t('admin.create.title')}</h2>
+              <p className="create-person-dialog__subtitle">{t('admin.create.subtitle')}</p>
+            </div>
+            <div className="create-person-dialog__rule" />
+
+            {/* Body — consistent field rhythm */}
+            <div className="create-person-dialog__body">
+              {/* Full name + email (#959: short fields share a row on desktop, stack at ≤600px —
+                  the shared form-grid rule, styles/form-grid.css, rather than a one-off width). */}
+              <div className="form-grid">
+                <div className="form-grid__field create-person__field">
+                  <TextInput
+                    id={nameId}
+                    label={t('admin.create.fullName')}
+                    requiredMark
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    error={!!nameError}
+                    fullWidth
+                    required
+                    disabled={isSubmitting}
+                    aria-describedby={nameError ? `${nameId}-err` : undefined}
+                  />
+                  {nameError && (
+                    <p id={`${nameId}-err`} className="create-person__error" role="alert">{nameError}</p>
+                  )}
+                </div>
+
+                {/* Email + "no email" affordance */}
+                <div className="form-grid__field create-person__field">
+                  <TextInput
+                    id={emailId}
+                    label={t('admin.create.email')}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    fullWidth
+                    disabled={noEmail || isSubmitting}
+                    aria-disabled={noEmail || undefined}
+                  />
+
+                  <div className="create-person__option">
+                    <CheckboxRow
+                      label={t('admin.create.noEmail')}
+                      ariaLabel={t('admin.create.noEmailAria')}
+                      checked={noEmail}
+                      onToggle={() => setNoEmail((value) => !value)}
+                      disabled={isSubmitting}
+                    />
+                  </div>
+
+                  {/* Synthetic sign-in name preview — cleanly presented in a quiet fill panel */}
+                  {noEmail && syntheticEmail && (
+                    <div className="create-person__signin-name">
+                      <div className="create-person__signin-label">{t('admin.create.signInName')}</div>
+                      <code className="create-person__signin-value">{syntheticEmail}</code>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Access roles — neat selectable rows in a grouped, bordered container */}
+              <fieldset className="create-person__access">
+                <legend className="field-label">{t('admin.people.col.access')}</legend>
+                <div className="admin-choice-list">
+                  {(ASSIGNABLE_ROLES as readonly string[]).map((role, i) => {
+                    // At create-time the new person is never the actor — self-assign guard never
+                    // fires here (design-plan §4.3: "default-safe pick: enabled"). item 11.
+                    const isDisabled = isSubmitting
+                    const meta = localizedRoleMeta(role, t)
+
+                    return (
+                      <CheckboxRow
+                        key={role}
+                        label={meta.label}
+                        description={meta.description}
+                        checked={selectedRoles.has(role)}
+                        onToggle={() => toggleRole(role)}
+                        disabled={isDisabled}
+                        divider={i > 0}
+                      />
+                    )
+                  })}
+                </div>
+              </fieldset>
+
+              {/* Create a login now — aligned switch row + helper */}
+              <div className="create-person__login">
+                <label className={isSubmitting ? 'create-person__login-row create-person__login-row--locked' : 'create-person__login-row'}>
+                  <Toggle
+                    value={createLoginNow}
+                    onChange={(v) => setCreateLoginNow(v)}
+                    disabled={isSubmitting}
+                    aria-label={t('admin.create.createLoginNow')}
+                  />
+                  <span className="create-person__login-label">{t('admin.create.createLoginNow')}</span>
+                </label>
+                <p className="create-person__login-help">
+                  {createLoginNow ? t('admin.create.loginHelpOn') : t('admin.create.loginHelpOff')}
+                </p>
+              </div>
+
+              {/* Form-level error */}
+              {submitError && (
+                <ErrorState message={t('admin.create.error')} />
+              )}
+            </div>
+
+            <ActionBar
+              className="create-person-dialog__footer"
+              reason={offline ? <span role="status">{t('common.offline.reconnect')}</span> : undefined}
+              secondary={<Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>{t('common.cancel')}</Button>}
+              primary={<Button type="submit" form={formDomId} variant="primary" disabled={isSubmitting || offline}>
+                {isSubmitting ? t('admin.create.creating') : t('admin.create.submit')}
+              </Button>}
+            />
+        </form>
+      )
+
+  if (presentation === 'workspace' && !isReveal) {
+    return (
+      <section className="create-person-workspace" aria-labelledby={titleId}>
+        {content}
+      </section>
+    )
+  }
 
   return (
     <ModalShell
@@ -178,225 +338,7 @@ export function CreatePersonDialog({
       phoneMode="centered"
       className="create-person-dialog"
     >
-      {isReveal && revealData ? (
-        <div className="p-6">
-          <PasswordReveal
-            personName={revealData.personName}
-            password={revealData.password}
-            email={revealData.email}
-            context="create"
-            onDone={handleRevealDone}
-            headingId={REVEAL_HEADING_ID}
-            warningId={REVEAL_WARNING_ID}
-          />
-        </div>
-      ) : (
-          <form ref={formRef} className="create-person-dialog__form" onSubmit={handleSubmit} noValidate>
-            {/* Header — considered title + caption, hairline divider seams it to the body */}
-            <div className="create-person-dialog__header px-6 pt-6 pb-4">
-              <h2
-                id={titleId}
-                className="heading text-xl font-semibold"
-                style={{ color: 'var(--foreground)' }}
-              >
-                {t('admin.create.title')}
-              </h2>
-              <p className="mt-1 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                {t('admin.create.subtitle')}
-              </p>
-            </div>
-            <div style={{ borderTop: '1px solid var(--border)' }} />
-
-            {/* Body — consistent field rhythm */}
-            <div className="create-person-dialog__body flex flex-col gap-5 px-6 py-5">
-              {/* Full name + email (#959: short fields share a row on desktop, stack at ≤600px —
-                  the shared form-grid rule, styles/form-grid.css, rather than a one-off width). */}
-              <div className="form-grid">
-                <div className="form-grid__field flex flex-col gap-1.5">
-                  <TextInput
-                    id={nameId}
-                    label={t('admin.create.fullName')}
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    error={!!nameError}
-                    fullWidth
-                    required
-                    disabled={isSubmitting}
-                    aria-describedby={nameError ? `${nameId}-err` : undefined}
-                  />
-                  {nameError && (
-                    <p
-                      id={`${nameId}-err`}
-                      className="text-xs"
-                      style={{ color: 'var(--field-error-text)' }}
-                      role="alert"
-                    >
-                      {nameError}
-                    </p>
-                  )}
-                </div>
-
-                {/* Email + "no email" affordance */}
-                <div className="form-grid__field flex flex-col gap-2">
-                  <TextInput
-                    id={emailId}
-                    label={t('admin.create.email')}
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    fullWidth
-                    disabled={noEmail || isSubmitting}
-                    aria-disabled={noEmail || undefined}
-                  />
-
-                  {/* "No email" toggle row — gets its own breathing room (no longer cramped) */}
-                  <label
-                    className={`flex items-center gap-2.5 select-none text-sm ${
-                      isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                    }`}
-                    style={{ color: 'var(--foreground)' }}
-                  >
-                    <Checkbox
-                      checked={noEmail}
-                      onChange={(v) => setNoEmail(v)}
-                      disabled={isSubmitting}
-                      aria-label={t('admin.create.noEmailAria')}
-                    />
-                    <span>{t('admin.create.noEmail')}</span>
-                  </label>
-
-                  {/* Synthetic sign-in name preview — cleanly presented in a quiet fill panel */}
-                  {noEmail && syntheticEmail && (
-                    <div
-                      className="rounded-md px-3 py-2"
-                      style={{ background: 'var(--secondary)' }}
-                    >
-                      <div
-                        className="text-xs font-medium"
-                        style={{ color: 'var(--muted-foreground)' }}
-                      >
-                        {t('admin.create.signInName')}
-                      </div>
-                      <code
-                        className="mt-0.5 block text-sm"
-                        style={{ fontFamily: 'var(--font-mono)', color: 'var(--foreground)' }}
-                      >
-                        {syntheticEmail}
-                      </code>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Access roles — neat selectable rows in a grouped, bordered container */}
-              <fieldset className="flex flex-col gap-1.5">
-                <legend
-                  className="mb-1 text-sm font-medium"
-                  style={{ color: 'var(--foreground)' }}
-                >
-                  {t('admin.people.col.access')}
-                </legend>
-                <div
-                  className="overflow-hidden rounded-md"
-                  style={{ border: '1px solid var(--input)' }}
-                >
-                  {(ASSIGNABLE_ROLES as readonly string[]).map((role, i) => {
-                    // At create-time the new person is never the actor — self-assign guard never
-                    // fires here (design-plan §4.3: "default-safe pick: enabled"). item 11.
-                    const isDisabled = isSubmitting
-                    const meta = localizedRoleMeta(role, t)
-
-                    return (
-                      <label
-                        key={role}
-                        className={`flex items-start gap-3 px-3 py-2.5 ${
-                          isDisabled
-                            ? 'opacity-50 cursor-not-allowed'
-                            : 'cursor-pointer hover:bg-accent/60'
-                        }`}
-                        style={
-                          i > 0 ? { borderTop: '1px solid var(--input)' } : undefined
-                        }
-                      >
-                        <span className="mt-0.5">
-                          <Checkbox
-                            checked={selectedRoles.has(role)}
-                            onChange={() => !isDisabled && toggleRole(role)}
-                            disabled={isDisabled}
-                            aria-label={meta.label}
-                          />
-                        </span>
-                        <span className="flex flex-col">
-                          <span
-                            className="text-sm font-medium leading-tight"
-                            style={{ color: 'var(--foreground)' }}
-                          >
-                            {meta.label}
-                          </span>
-                          <span
-                            className="text-xs leading-snug"
-                            style={{ color: 'var(--muted-foreground)' }}
-                          >
-                            {meta.description}
-                          </span>
-                        </span>
-                      </label>
-                    )
-                  })}
-                </div>
-              </fieldset>
-
-              {/* Create a login now — aligned switch row + helper */}
-              <div className="flex flex-col gap-1.5">
-                <label
-                  className={`flex items-center gap-3 select-none ${
-                    isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                  }`}
-                >
-                  <Toggle
-                    value={createLoginNow}
-                    onChange={(v) => setCreateLoginNow(v)}
-                    disabled={isSubmitting}
-                    aria-label={t('admin.create.createLoginNow')}
-                  />
-                  <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-                    {t('admin.create.createLoginNow')}
-                  </span>
-                </label>
-                <p
-                  className="text-xs"
-                  style={{
-                    color: 'var(--muted-foreground)',
-                    paddingLeft: 'calc(28px + 0.75rem)',
-                  }}
-                >
-                  {createLoginNow ? t('admin.create.loginHelpOn') : t('admin.create.loginHelpOff')}
-                </p>
-              </div>
-
-              {/* Form-level error */}
-              {submitError && (
-                <ErrorState message={t('admin.create.error')} />
-              )}
-            </div>
-
-            {/* Footer — seamed below a hairline, flat utility surface */}
-            <div style={{ borderTop: '1px solid var(--border)' }} />
-            <div className="create-person-dialog__footer flex items-center justify-end gap-2 px-6 py-4">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={onClose}
-                disabled={isSubmitting}
-              >
-                {t('common.cancel')}
-              </Button>
-              <Button type="submit" variant="primary" disabled={isSubmitting}>
-                {isSubmitting ? t('admin.create.creating') : t('admin.create.submit')}
-              </Button>
-            </div>
-        </form>
-      )}
+      {content}
     </ModalShell>
   )
 }

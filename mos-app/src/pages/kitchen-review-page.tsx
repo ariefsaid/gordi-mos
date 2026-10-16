@@ -1,5 +1,6 @@
 import { ListPaging } from '@/components/ui/list-paging'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useSearchParamState } from '@/lib/use-search-param-state'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
@@ -46,9 +47,10 @@ import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/li
 import { deriveActionLabel, movementKey, streamDateKey, streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import type { Translate } from '@/i18n/use-t'
 import { getPeople } from '@/lib/db/directory'
-import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
-import { Avatar } from '@/components/ui/avatar'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { CafeQueueEmpty } from '@/components/cafe/redesign/cafe-queue-empty'
 import { Tag } from '@/components/ui/tag'
+import { Avatar } from '@/components/ui/avatar'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { DataTable } from '@/components/dashboard/data-table'
 import { DateField } from '@/components/ui/date-field'
@@ -57,12 +59,15 @@ import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 // #440: the ONE Café stream statement/picker, and the module-wide selection it writes to.
 import { ALL_STREAMS } from '@/components/kitchen/cafe-stream-bar'
 import { CafeCountReviewQueue } from '@/components/kitchen/cafe-count-review-queue'
+import { CafeCloseReviewWorkspace } from '@/components/cafe/redesign/cafe-close-review-workspace'
+import { DecisionBar } from '@/components/cafe/redesign/worksheet'
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
 import { activeCafeLocation } from '@/lib/cafe-opening-location'
 import { useReviewSummary } from '@/lib/kitchen-review-kpis'
 import { formatWeekdayDayMonth, WIB_OFFSET_MS } from '@/lib/format/date'
 import { formatUnitMultiple } from '@/lib/cafe-unit-multiples'
 import './kitchen-review-page.css'
+import { Notice } from '@/components/ui/notice'
 
 function isTransfer(a: string): boolean {
   return a.startsWith('Transfer to ')
@@ -140,6 +145,8 @@ function formatDate(iso: string): string {
 interface GroupActionsProps {
   /** production-first gate (FR-042): show the "Blocked until Production approved" message. */
   transferGated: boolean
+  /** Anchor of this date's Production group when it is on screen: the gate message then links to it. */
+  productionAnchor?: string
   /** N eligible ON-PLAN Submitted rows in the section (0 hides the bulk button — #398). */
   eligibleCount: number
   partial: boolean
@@ -153,6 +160,7 @@ interface GroupActionsProps {
 
 function GroupActions({
   transferGated,
+  productionAnchor,
   eligibleCount,
   partial,
   bulkBusy,
@@ -163,11 +171,25 @@ function GroupActions({
   const t = useT()
   return (
     <>
-      {transferGated && (
-        <span className="kr-group-gate">
-          {t('kitchen.review.gate.productionFirst')}
-        </span>
-      )}
+      {transferGated && (productionAnchor
+        ? (
+          <button
+            type="button"
+            className="kr-group-gate kr-group-gate--link"
+            onClick={() => {
+              const group = document.getElementById(productionAnchor)
+              group?.scrollIntoView?.({ block: 'center' })
+              group?.querySelector<HTMLElement>('button')?.focus()
+            }}
+          >
+            {t('kitchen.review.gate.productionFirst')}
+          </button>
+        )
+        : (
+          <span className="kr-group-gate">
+            {t('kitchen.review.gate.productionFirst')}
+          </span>
+        ))}
       {eligibleCount > 0 && (
         <button
           type="button"
@@ -364,16 +386,17 @@ type LoadState =
   | { kind: 'error' }
   | { kind: 'ready' }
 
-export function KitchenReviewPage() {
+/** `view`: which of the two Review tabs this queue shows; Review's own tab strip owns that choice, this page keeps both mounted. */
+export function KitchenReviewPage({ view = 'logs' }: { view?: 'logs' | 'counts' }) {
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : 'anonymous'
 
   // Queue data, stream defaults, and pending decisions are all viewer-scoped. Keying the
   // subtree prevents a mounted route from rendering the prior person's queue for one frame.
-  return <KitchenReviewPageForViewer key={viewerId} />
+  return <KitchenReviewPageForViewer key={viewerId} reviewView={view} />
 }
 
-function KitchenReviewPageForViewer() {
+function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'counts' }) {
   const t = useT()
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
@@ -386,7 +409,11 @@ function KitchenReviewPageForViewer() {
   const isSupervisor = accessRoles.includes('supervisor')
   const allowed = isLeadOrAdmin || isSupervisor
 
-  const [logDateFilter, setLogDateFilter] = useState('')
+  // The date and the open log live in the URL (UX-STANDARD NV4): no date = every pending
+  // date, oldest first, so an older backlog is never hidden behind today.
+  const [dateParam, setDateParam] = useSearchParamState('date', '')
+  const logDateFilter = dateParam === 'all' ? '' : dateParam
+  const setLogDateFilter = (next: string) => setDateParam(next)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [moreError, setMoreError] = useState(false)
@@ -423,6 +450,9 @@ function KitchenReviewPageForViewer() {
   const skipInitialFilterReload = useRef<string | null>(null)
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
+  const [logParam, setLogParam] = useSearchParamState('log', '')
+  const selectedLogId = logParam || null
+  const setSelectedLogId = useCallback((next: string | null) => setLogParam(next ?? ''), [setLogParam])
 
   const [submittingId, setSubmittingId] = useState<string | null>(null)
   // Bulk-approve is scoped to one GROUP — the group's key is the derived label
@@ -639,6 +669,12 @@ function KitchenReviewPageForViewer() {
     return [...filtered].sort((a, b) => a.log_date.localeCompare(b.log_date)
       || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
   }, [logs, streamFilter])
+  useEffect(() => {
+    if (load.kind !== 'ready') return
+    if (selectedLogId && visibleLogs.some(log => log.id === selectedLogId)) return
+    setSelectedLogId(isDesktop ? visibleLogs[0]?.id ?? null : null)
+  }, [isDesktop, load.kind, selectedLogId, setSelectedLogId, visibleLogs])
+  const selectedLog = visibleLogs.find(log => log.id === selectedLogId) ?? null
 
   // KPIs summarise the queue AS FILTERED — the numbers must describe the rows on screen.
   const summary = useReviewSummary(visibleLogs, streamPlans)
@@ -715,14 +751,14 @@ function KitchenReviewPageForViewer() {
 
   // #238 (FR-031). Records the confirmation and NOTHING else — no queue refetch, no gate to
   // re-evaluate, because the record gates nothing (DD-WAY-29 owns what appears on a form).
-  async function handleConfirmComplete() {
-    if (!selectedStream || !isOnline) return
-    const key = streamKey(selectedStream.branch.id, selectedStream.activity)
+  async function handleConfirmComplete(target: ProductionStream | null = selectedStream) {
+    if (!target || !isOnline) return
+    const key = streamKey(target.branch.id, target.activity)
     setConfirmingStream(key)
     setActionError('')
     setNoticeCanViewPushes(false)
     try {
-      const row = await confirmStreamComplete(selectedStream.branch.id, selectedStream.activity)
+      const row = await confirmStreamComplete(target.branch.id, target.activity)
       setCompleteness(prev => new Map(prev).set(key, row))
       setNotice(t('kitchen.review.completeness.saved'))
     } catch {
@@ -859,14 +895,18 @@ function KitchenReviewPageForViewer() {
       const eligibleCount = bulkEligible(action, logDate).length
       const groupKey = `${logDate}|${action}`
       const showActions = transferGated || eligibleCount > 0
+      const productionAnchor = groupOrder.some(group => group.logDate === logDate && group.action === 'Production')
+        ? `kr-group-${logDate}-production` : undefined
       return {
         key: groupKey,
         label: `${dateLabel} · ${actionLabel}`,
+        anchorId: action === 'Production' ? productionAnchor : undefined,
         rows,
         headerActions: showActions
           ? (
               <GroupActions
                 transferGated={transferGated}
+                productionAnchor={productionAnchor}
                 eligibleCount={eligibleCount}
                 partial={hasMore}
                 bulkBusy={bulkAction === groupKey}
@@ -880,156 +920,53 @@ function KitchenReviewPageForViewer() {
     })
     .filter(g => g.rows.length > 0)
 
-  // ── Per-row columns mirror the retired review row: item + variance Tag, plan vs
-  //    logged, submitter, time, submit note, and an Actions column whose render
-  //    returns the inline approve/reject + review-note gate (KitchenReviewDecision). ─
-  const columns: DataTableColumn<ReviewLogRow>[] = [
-    {
-      key: 'item',
-      header: t('kitchen.review.col.item'),
-      cardLabel: '',
-      render: (log) => {
-        const offPlan = log.qty_porsi !== planQtyFor(streamPlans, log)
-        return (
-          <>
-            <span className="krow-name">{log.wip_item_name}</span>
-            {log.action === 'waste' && <WastePhotoStrip photos={wastePhotosByLogId[log.id]} />}
-            {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
-            {/* #587: "All streams" groups rows from every stream under one action_type
-                heading with nothing naming which — this is that name, shown only when
-                more than one stream could be in the group (the filter is on ALL_STREAMS). */}
-            {streamFilter === ALL_STREAMS && (
-              <span className="krow-stream">{rowStreamLabel(t, streamCatalog, log)}</span>
-            )}
-            <span className="krow-variance">
-              <Tag color={offPlan ? 'amber' : 'green'}>
-                <span className="krow-dot" aria-hidden="true" />
-                {offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}
-              </Tag>
-            </span>
-          </>
-        )
-      },
+  const columns: DataTableColumn<ReviewLogRow>[] = [{
+    key: 'reviewMaster',
+    header: t('kitchen.review.master.heading'),
+    cardLabel: '',
+    render: log => {
+      const plan = planQtyFor(streamPlans, log)
+      const offPlan = log.qty_porsi !== plan
+      const canApproveInline = canDecide(log) && !rowGated(log) && (!offPlan || Boolean(log.notes?.trim()))
+      return <div className="kr-master-entry">
+        <button type="button" className="kr-master-row" aria-pressed={log.id === selectedLogId} onClick={() => setSelectedLogId(log.id)}>
+          <span className="kr-master-row__identity">{log.wip_item_name}</span>
+          <Tag color={offPlan ? 'amber' : 'green'}><span className="krow-dot" aria-hidden="true" />{offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}</Tag>
+          <span className="kr-master-row__meta">{formatWeekdayDayMonth(log.log_date)} · {deriveActionLabel(t, { action: log.action, destinationBranchId: log.destination_branch_id }, branchCatalog)}{streamFilter === ALL_STREAMS ? ` · ${rowStreamLabel(t, streamCatalog, log)}` : ''}</span>
+          {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
+          <span className="kr-master-row__meta">{t('kitchen.review.qty.plan')} {plan} · {t('kitchen.review.qty.logged')} {formatLogEntryQuantity(log)} · {peopleMap.get(log.submitted_by ?? '') ?? '—'}</span>
+        </button>
+        {canApproveInline && <button type="button" className="btn btn-outline kr-master-approve" disabled={!isOnline || submittingId !== null} onClick={() => void handleApprove(log.id, null, log.updated_at)}>{submittingId === log.id ? t('common.working') : t('kitchen.review.approve')}</button>}
+      </div>
     },
-    {
-      key: 'planVsLogged',
-      header: t('kitchen.review.col.planVsLogged'),
-      render: (log) => (
-        <span className="krow-qty">
-          <span className="krow-meta">{t('kitchen.review.qty.plan')}</span>
-          <strong>{planQtyFor(streamPlans, log)}</strong>
-          <span className="krow-meta">· {t('kitchen.review.qty.logged')}</span>
-          <strong>{formatLogEntryQuantity(log)}</strong>
-        </span>
-      ),
-    },
-    {
-      key: 'submitter',
-      header: t('kitchen.review.col.submitter'),
-      render: (log) => {
-        const name = peopleMap.get(log.submitted_by ?? '') ?? '—'
-        return (
-          <span className="krow-by">
-            <Avatar size="sm" placeholder={name} />
-            <span className="krow-byname">{name}</span>
-          </span>
-        )
-      },
-    },
-    {
-      key: 'time',
-      header: t('kitchen.review.col.time'),
-      render: (log) => <span className="krow-time">{formatTime(log.created_at)}</span>,
-    },
-    {
-      key: 'note',
-      header: t('kitchen.review.col.note'),
-      render: (log) => log.notes
-        ? <span className="krow-submitnote">“{log.notes}”</span>
-        : <span className="krow-nonote">—</span>,
-    },
-    {
-      key: 'decision',
-      header: t('kitchen.review.col.decision'),
-      render: (log) => {
-        // #236 (FR-040): a row outside the supervisor's own stream carries no decision
-        // controls — its stream's reviewer (or the ops lead) decides it. Display honesty
-        // only: the server refuses regardless (NFR-002).
-        if (!canDecide(log)) {
-          return <span className="krow-othersstream">{t('kitchen.review.opsLeadOnly')}</span>
-        }
-        const gated = rowGated(log)
-        return (
-          <KitchenReviewDecision
-            log={log}
-            planQty={planQtyFor(streamPlans, log)}
-            approveDisabled={gated || !isOnline}
-            approveDisabledReason={gated ? t('kitchen.review.gate.productionFirst') : ''}
-            submitting={submittingId === log.id}
-            onApprove={handleApprove}
-            onReject={handleReject}
-          />
-        )
-      },
-    },
-  ]
+  }]
+  const renderReviewCard = (log: ReviewLogRow) => columns[0].render?.(log) ?? null
 
-  // #422: the phone card — the generic <dl> fallback stacked all six columns as labelled
-  // rows before the decision controls were reachable. Head line: identity + variance;
-  // ONE muted meta line: plan/logged, submitter, time; the submit note only when present;
-  // then the SAME KitchenReviewDecision the desktop table mounts.
-  const renderReviewCard = (log: ReviewLogRow) => {
+  const reviewWorkbench = selectedLog ? (() => {
+    const log = selectedLog
     const planQty = planQtyFor(streamPlans, log)
     const offPlan = log.qty_porsi !== planQty
     const name = peopleMap.get(log.submitted_by ?? '') ?? '—'
     const gated = rowGated(log)
-    return (
-      <div className="krow-card">
-        <div className="krow-card-head">
-          <span className="krow-name">{log.wip_item_name}</span>
-          <div className="krow-card-tags">
-            {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
-            <Tag color={offPlan ? 'amber' : 'green'}>
-              <span className="krow-dot" aria-hidden="true" />
-              {offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}
-            </Tag>
-          </div>
-        </div>
-        {log.action === 'waste' && <WastePhotoStrip photos={wastePhotosByLogId[log.id]} />}
-        <div className="krow-card-meta">
-          {/* #587: same rule as the desktop column — only shown when the group could hold
-              more than one stream's rows. */}
-          {streamFilter === ALL_STREAMS && (
-            <span className="krow-stream">{rowStreamLabel(t, streamCatalog, log)}</span>
-          )}
-          <span className="krow-qty">
-            <span className="krow-meta">{t('kitchen.review.qty.plan')}</span> <strong>{planQty}</strong>
-            <span className="krow-meta"> · {t('kitchen.review.qty.logged')}</span> <strong>{formatLogEntryQuantity(log)}</strong>
-          </span>
-          <span className="krow-log-date">
-            <span className="sr-only">{t('kitchen.review.col.logDate')}: </span>
-            {formatWeekdayDayMonth(log.log_date)}
-          </span>
-          <span className="krow-byname">{name}</span>
-          <span className="krow-time">{formatTime(log.created_at)}</span>
-        </div>
-        {log.notes && <div className="krow-card-note">“{log.notes}”</div>}
-        {canDecide(log)
-          ? (
-              <KitchenReviewDecision
-                log={log}
-                planQty={planQty}
-                approveDisabled={gated || !isOnline}
-                approveDisabledReason={gated ? t('kitchen.review.gate.productionFirst') : ''}
-                submitting={submittingId === log.id}
-                onApprove={handleApprove}
-                onReject={handleReject}
-              />
-            )
-          : <span className="krow-othersstream">{t('kitchen.review.opsLeadOnly')}</span>}
+    return <article className="kr-workbench">
+      <h2>{log.wip_item_name}</h2>
+      <div className="kr-workbench__meta">
+        <span>{formatWeekdayDayMonth(log.log_date)} · {deriveActionLabel(t, { action: log.action, destinationBranchId: log.destination_branch_id }, branchCatalog)}</span>
+        {streamFilter === ALL_STREAMS && <span>{rowStreamLabel(t, streamCatalog, log)}</span>}
+        <span className="kr-workbench__submitter"><Avatar size="sm" placeholder={name} /><span>{name}</span><span>{formatTime(log.created_at)}</span></span>
+        {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
+        <Tag color={offPlan ? 'amber' : 'green'}><span className="krow-dot" aria-hidden="true" />{offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}</Tag>
       </div>
-    )
-  }
+      <dl className="kr-workbench__comparison">
+        <div><dt>{t('kitchen.review.qty.plan')}</dt><dd>{planQty}</dd></div>
+        <div><dt>{t('kitchen.review.qty.logged')}</dt><dd>{formatLogEntryQuantity(log)}</dd></div>
+      </dl>
+      {log.action === 'waste' && <WastePhotoStrip photos={wastePhotosByLogId[log.id]} />}
+      <section className="kr-workbench__note"><h3>{t('kitchen.review.col.note')}</h3>{log.notes ? <p>“{log.notes}”</p> : <p>{t('kitchen.review.detail.noNote')}</p>}</section>
+      {canDecide(log) ? <DecisionBar><KitchenReviewDecision log={log} planQty={planQty} approveDisabled={gated || !isOnline} approveDisabledReason={gated ? t('kitchen.review.gate.productionFirst') : ''} submitting={submittingId === log.id} onApprove={handleApprove} onReject={handleReject} /></DecisionBar>
+        : <p className="krow-othersstream">{t('kitchen.review.opsLeadOnly')}</p>}
+    </article>
+  })() : <p className="kr-workbench__empty">{t('kitchen.review.master.choose')}</p>
 
   if (auth.status === 'loading') {
     return (
@@ -1112,6 +1049,47 @@ function KitchenReviewPageForViewer() {
       })()
     : null
 
+  // Under "All streams" there is no single list to vouch for, so each stream with pending logs gets its own line:
+  // the same confirmation as the one-stream view, one tap away without switching stream first.
+  const pendingStreams = streamFilter === ALL_STREAMS && load.kind === 'ready'
+    ? [...new Set(visibleLogs.map(log => streamKey(log.branch_id, log.activity)))]
+        .map(key => streamCatalog.find(stream => streamKey(stream.branch.id, stream.activity) === key))
+        .filter((stream): stream is ProductionStream => stream !== undefined)
+    : []
+  const completenessAll = pendingStreams.length > 0 ? (
+    <section className="kr-complete-all" aria-label={t('kitchen.review.completeness.aria')}>
+      <ul>
+        {pendingStreams.map(stream => {
+          const key = streamKey(stream.branch.id, stream.activity)
+          const confirmed = completeness.get(key) ?? null
+          const canConfirm = isLeadOrAdmin || (isSupervisor && myStreamKeys.has(key))
+          const busy = confirmingStream === key
+          const name = streamLabel(t, stream)
+          return (
+            <li key={key}>
+              <span className={`kr-complete-state${confirmed ? ' kr-complete-yes' : ''}`}>
+                {confirmed
+                  ? `${name} — ${t('kitchen.review.completeness.confirmed', { who: peopleMap.get(confirmed.confirmed_by) ?? '—', when: formatDate(confirmed.confirmed_at) })}`
+                  : canConfirm ? t('cafe.review.complete.row', { stream: name }) : `${name} — ${t('kitchen.review.completeness.unconfirmed')}`}
+              </span>
+              {canConfirm && (
+                <button
+                  type="button"
+                  className="btn btn-outline kr-complete-confirm"
+                  aria-label={`${t(confirmed ? 'kitchen.review.completeness.reconfirm' : 'kitchen.review.completeness.confirm')} — ${name}`}
+                  disabled={busy || !isOnline}
+                  onClick={() => { void handleConfirmComplete(stream) }}
+                >
+                  {busy ? t('kitchen.review.completeness.saving') : t(confirmed ? 'kitchen.review.completeness.reconfirm' : 'cafe.review.complete.confirm')}
+                </button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  ) : null
+
   return (
     <CafePageFrame
       page="review"
@@ -1133,15 +1111,12 @@ function KitchenReviewPageForViewer() {
         },
         onAllStreams: () => setStreamFilter(ALL_STREAMS),
       }}
-      date={logDateFilter || undefined}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : submittedCount === 0 ? 'empty' : 'default'}
     >
-      <CafeCountReviewQueue
-        streamFilter={streamFilter}
-        streamCatalog={streamCatalog}
-        canReviewAll={isLeadOrAdmin}
-        reviewableStreamKeys={myStreamKeys}
-      />
+      <div className="kr-review-views">
+        <div className="kr-review-content">
+        <div className="kr-log-workspace" hidden={reviewView !== 'logs'}>
+      {/* Date scopes the Logs queue only (Counts has no date). */}
       <div className="kr-date-filterbar kr-block">
         <DateField
           id="kitchen-review-date-filter"
@@ -1170,29 +1145,18 @@ function KitchenReviewPageForViewer() {
           }))}
         />
       )}
+      {completenessRow}
+      {completenessAll}
 
-      {!isOnline && (
-        <div role="alert" className="kr-banner kr-banner-offline kr-block">
-          {t('kitchen.review.offline')}
-        </div>
-      )}
+      {!isOnline && <Notice tone="attention" role="alert">{t('kitchen.review.offline')}</Notice>}
 
       {notice && (
-        <div role="status" aria-live="polite" className="kr-banner kr-banner-notice kr-block">
-          <span>{notice}</span>
-          {noticeCanViewPushes && (
-            <Link to="/cafe/pushes" className="kr-notice-link">
-              {t('kitchen.review.notice.viewPushes')}
-            </Link>
-          )}
-        </div>
+        <Notice tone="success" action={noticeCanViewPushes ? <Link to="/cafe/pushes">{t('kitchen.review.notice.viewPushes')}</Link> : undefined}>
+          {notice}
+        </Notice>
       )}
 
-      {actionError && (
-        <div role="alert" className="kr-banner kr-banner-error kr-block">
-          {actionError}
-        </div>
-      )}
+      {actionError && <Notice tone="urgent">{actionError}</Notice>}
 
       {load.kind === 'loading' && <LoadingShell count={3} />}
 
@@ -1204,10 +1168,11 @@ function KitchenReviewPageForViewer() {
       )}
 
       {load.kind === 'ready' && submittedCount === 0 && (
-        <EmptyState
-          variant="awaiting"
+        <CafeQueueEmpty
           title={t(hasMore ? 'common.paging.emptyLoaded' : 'kitchen.review.empty.title')}
-          copy={hasMore ? t('common.paging.continue') : logDateFilter
+          action={<button type="button" className="btn btn-outline kr-refresh" onClick={() => setRetryKey(k => k + 1)}>{t('kitchen.review.refresh')}</button>}
+        >
+          {hasMore ? t('common.paging.continue') : logDateFilter
             ? selectedStream
               ? t('kitchen.review.empty.copyStream', { stream: streamLabel(t, selectedStream), date: formatWeekdayDayMonth(logDateFilter) })
               : t('kitchen.review.empty.copy', { date: formatWeekdayDayMonth(logDateFilter) })
@@ -1215,31 +1180,31 @@ function KitchenReviewPageForViewer() {
               ? t('kitchen.review.empty.copyStreamAll', { stream: streamLabel(t, selectedStream) })
               : t('kitchen.review.empty.copyAll')
           }
-          note={t('kitchen.review.empty.note')}
-        >
-          <button
-            type="button"
-            className="btn btn-outline kr-refresh"
-            onClick={() => setRetryKey(k => k + 1)}
-          >
-            {t('kitchen.review.refresh')}
-          </button>
-        </EmptyState>
+        </CafeQueueEmpty>
       )}
 
       {load.kind === 'ready' && submittedCount > 0 && (
-        <DataTable
-          columns={columns}
-          rows={[]}
-          groups={tableGroups}
-          isDesktop={isDesktop}
-          renderCard={renderReviewCard}
-          caption={t('kitchen.review.caption')}
+        <CafeCloseReviewWorkspace
+          label={t('kitchen.review.caption')}
+          selected={selectedLog !== null}
+          onBack={() => setSelectedLogId(null)}
+          backLabel={t('kitchen.review.master.back')}
+          master={<DataTable columns={columns} rows={[]} groups={tableGroups} isDesktop={isDesktop} renderCard={renderReviewCard} caption={t('kitchen.review.caption')} />}
+          detail={reviewWorkbench}
         />
       )}
       {load.kind === 'ready' ? <ListPaging count={visibleLogs.length} hasMore={hasMore}
         loading={loadingMore} error={moreError} onLoadMore={() => { void loadMore() }} /> : null}
-      {completenessRow}
+        </div>
+        <div hidden={reviewView !== 'counts'}><CafeCountReviewQueue
+          streamFilter={streamFilter}
+          streamCatalog={streamCatalog}
+          canReviewAll={isLeadOrAdmin}
+          reviewableStreamKeys={myStreamKeys}
+          refreshKey={retryKey}
+        /></div>
+        </div>
+      </div>
     </CafePageFrame>
   )
 }

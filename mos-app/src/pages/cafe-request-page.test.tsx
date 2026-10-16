@@ -120,11 +120,11 @@ describe('CafeRequestPage', () => {
     renderPage()
 
     if (canManage) {
-      expect(await screen.findByRole('link', { name: 'Set up items' })).toHaveAttribute('href', '/cafe/items')
+      expect(await screen.findByRole('link', { name: 'Set up items' })).toHaveAttribute('href', '/cafe/items?unit=Needs%20unit')
     } else {
-      expect(await screen.findByText(/kitchen manager or an ops lead sets it up in Café items/i)).toBeInTheDocument()
+      expect(await screen.findByText(/kitchen lead or an ops lead/i)).toBeInTheDocument()
       expect(screen.queryByRole('link', { name: 'Set up items' })).not.toBeInTheDocument()
-      expect(document.querySelector('a[href="/cafe/items"]')).not.toBeInTheDocument()
+      expect(document.querySelector('a[href^="/cafe/items"]')).not.toBeInTheDocument()
     }
   })
 
@@ -132,20 +132,20 @@ describe('CafeRequestPage', () => {
     const { container } = renderPage()
     const bean = await screen.findByRole('textbox', { name: 'Needed for Coffee bean' })
     expect(screen.getByRole('button', { name: 'Switch kitchen' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Cafe Branch · Kitchen' }).closest('.cafe-page-head')).toBeInTheDocument()
-    expect(screen.getByRole('searchbox', { name: 'Find an item' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Cafe Branch · Kitchen' })).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Search items' })).toBeInTheDocument()
     expect(mockItems).toHaveBeenCalledWith(streamMocks.kitchen)
     expect(bean).toHaveValue('')
     expect(bean).toHaveAttribute('inputmode', 'decimal')
     expect(screen.getByRole('textbox', { name: 'Needed for Fresh milk' })).toHaveValue('')
-    expect(neededBy()).toHaveValue('')
+    expect(neededBy()).toHaveValue('7 Oct 2026')
     expect(screen.getByLabelText('Note (optional)')).toHaveValue('')
     expect(screen.getByText('kg')).toBeInTheDocument()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
     expect(container.textContent).not.toMatch(/purchase order|transfer|supplier|price|ERP/i)
     expect(screen.queryByRole('combobox', { name: /type|process|transfer/i })).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item' }), { target: { value: 'bean' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search items' }), { target: { value: 'bean' } })
     await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Needed for Fresh milk' })).not.toBeInTheDocument())
     expect(screen.getByRole('textbox', { name: 'Needed for Coffee bean' })).toBeInTheDocument()
     expect(send()).toBeDisabled()
@@ -166,21 +166,22 @@ describe('CafeRequestPage', () => {
     ))
   })
 
-  it('FR-1051 needs a needed-by date and a valid quantity before sending, stated once in the band', async () => {
+  it('FR-1051 needs a needed-by date and a valid quantity before sending, stated in the band and beside the date', async () => {
     renderPage()
     const milk = await screen.findByRole('textbox', { name: 'Needed for Fresh milk' })
     fireEvent.change(milk, { target: { value: '3' } })
-    expect(screen.getByText('1 line')).toBeInTheDocument()
-    expect(screen.getByText('Choose the date this is needed by.')).toBeInTheDocument()
+    expect(screen.getByText(/^1 line/)).toBeInTheDocument()
+    setNeededBy('')
+    expect(screen.getAllByText('Choose the date this is needed by.').length).toBeGreaterThan(0)
     expect(send()).toBeDisabled()
     setNeededBy('2026-10-07')
     expect(send()).toBeEnabled()
     fireEvent.change(milk, { target: { value: '0' } })
-    expect(screen.getByText('Fix 1 quantity to continue')).toBeInTheDocument()
+    expect(screen.getAllByText('Fix 1 quantity to continue').length).toBeGreaterThan(0)
     expect(send()).toBeDisabled()
     setNeededBy('2026-10-05')
     fireEvent.change(milk, { target: { value: '3' } })
-    expect(screen.getByText('Choose a date from today up to 90 days ahead.')).toBeInTheDocument()
+    expect(screen.getAllByText('Choose a date from today up to 90 days ahead.').length).toBeGreaterThan(0)
     expect(send()).toBeDisabled()
   })
 
@@ -193,12 +194,16 @@ describe('CafeRequestPage', () => {
     expect(screen.getByRole('alert')).toHaveTextContent("That date doesn't exist")
   })
 
-  it('puts Review requests after the capture form', async () => {
+  it('offers Review requests to a reviewer and not to a plain member', async () => {
     mockUseAuth.mockReturnValue(viewer(['member', 'supervisor']))
+    const reviewer = renderPage()
+    expect(await screen.findByRole('link', { name: 'Review requests' })).toBeInTheDocument()
+    reviewer.unmount()
+
+    mockUseAuth.mockReturnValue(viewer(['member']))
     renderPage()
-    const date = await screen.findByLabelText(/Needed by/)
-    const review = await screen.findByRole('link', { name: 'Review requests' })
-    expect(date.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await screen.findByLabelText(/Needed by/)
+    expect(screen.queryByRole('link', { name: 'Review requests' })).not.toBeInTheDocument()
   })
 
   it('sends once, shows the sent lines, and starts the next request blank with a fresh key', async () => {
@@ -221,7 +226,8 @@ describe('CafeRequestPage', () => {
     expect(sentCard).toHaveTextContent('Note: Weekend menu')
     fireEvent.click(screen.getByRole('button', { name: 'Raise another request' }))
     expect(await screen.findByRole('textbox', { name: 'Needed for Fresh milk' })).toHaveValue('')
-    expect(neededBy()).toHaveValue('')
+    expect(neededBy()).toHaveValue('7 Oct 2026')
+    expect(screen.getByLabelText('Note (optional)')).toHaveValue('')
     fireEvent.change(screen.getByRole('textbox', { name: 'Needed for Fresh milk' }), { target: { value: '1' } })
     setNeededBy('2026-10-07')
     mockSubmit.mockResolvedValue({ request_id: 'q-2', outcome: 'created', row_version: 1 })

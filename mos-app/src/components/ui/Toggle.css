@@ -1,27 +1,35 @@
-/* Toggle — mos-design-kit inputs/Toggle.jsx. Switch: medium 28×16 / small 22×14.
-   off bg quaternary, on bg primary, knob primary surface, pill radius. role=switch. */
+/* Toggle: a switch, role=switch. The button is the hit area (44px square on a phone); the track and knob are drawn inside it.
+   Off = surface track with a control-colour outline and knob (3:1 against the page); on = accent track with a primary-ink knob. */
 .mk-toggle {
-  position: relative; display: inline-block; flex-shrink: 0;
-  background: var(--secondary); border: 0; cursor: pointer; padding: 0;
-  border-radius: var(--radius-pill);
-  transition: background-color var(--dur-med) ease;
+  --tw: 28px; --th: 16px; --hit-x: 0px; --hit-y: 0px;
+  position: relative; display: inline-block; flex-shrink: 0; width: calc(var(--tw) + 2 * var(--hit-x)); height: calc(var(--th) + 2 * var(--hit-y));
+  padding: 0; border: 0; background: transparent; cursor: pointer;
 }
-.mk-toggle--medium { width: 28px; height: 16px; }
-.mk-toggle--small { width: 22px; height: 14px; }
-.mk-toggle[aria-checked="true"] { background: var(--primary); }
-/* Hover — off-track darkens, on-track deepens; a subtle interactivity cue (impeccable all-states). */
-.mk-toggle:hover:not(:disabled) { background: color-mix(in srgb, var(--secondary) 82%, var(--foreground)); }
-.mk-toggle[aria-checked="true"]:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 90%, var(--foreground)); }
-.mk-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.mk-toggle--small { --tw: 22px; --th: 14px; }
+.mk-toggle::before {
+  content: ''; position: absolute; inset: var(--hit-y) var(--hit-x); border-radius: var(--radius-xs);
+  background: var(--mos-surface); box-shadow: inset 0 0 0 1.5px var(--mos-control);
+  transition: background-color var(--mos-duration-fast) ease, box-shadow var(--mos-duration-fast) ease;
+}
+.mk-toggle[aria-checked='true']::before { background: var(--mos-accent); box-shadow: none; }
+.mk-toggle:hover:not(:disabled)::before { box-shadow: inset 0 0 0 1.5px var(--mos-ink); }
+.mk-toggle[aria-checked='true']:hover:not(:disabled)::before { background: var(--mos-accent-hover); box-shadow: none; }
+.mk-toggle:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 .mk-toggle__knob {
-  position: absolute; top: 2px; left: 2px;
-  height: calc(100% - 4px); aspect-ratio: 1;
-  background: var(--background); border-radius: 50%;
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 20%, transparent);
-  transition: transform var(--dur-med) ease;
+  position: absolute; top: calc(var(--hit-y) + 3px); left: calc(var(--hit-x) + 3px);
+  width: calc(var(--th) - 6px); height: calc(var(--th) - 6px);
+  background: var(--mos-control); border-radius: var(--radius-round);
+  transition: transform var(--mos-duration-fast) ease, background-color var(--mos-duration-fast) ease;
 }
-/* knob travel = container width - knob width - 2px top offset × 2.
-   For medium: 28 - (16-4) - 4 = 12px. For small: 22 - (14-4) - 4 = 8px. */
-.mk-toggle--medium[aria-checked="true"] .mk-toggle__knob { transform: translateX(12px); }
-.mk-toggle--small[aria-checked="true"] .mk-toggle__knob { transform: translateX(8px); }
-.mk-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+.mk-toggle[aria-checked='true'] .mk-toggle__knob { background: var(--mos-primary-ink); transform: translateX(calc(var(--tw) - var(--th))); }
+.mk-toggle:disabled { cursor: not-allowed; }
+.mk-toggle:disabled::before { background: var(--mos-band); box-shadow: inset 0 0 0 1.5px var(--mos-line); }
+.mk-toggle:disabled .mk-toggle__knob { background: var(--mos-line); }
+.mk-toggle[aria-checked='true']:disabled::before { background: var(--mos-line); box-shadow: none; }
+.mk-toggle[aria-checked='true']:disabled .mk-toggle__knob { background: var(--mos-surface); }
+@media (max-width: 767.98px) {
+  .mk-toggle--medium { --hit-x: 8px; --hit-y: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mk-toggle::before, .mk-toggle__knob { transition: none; }
+}

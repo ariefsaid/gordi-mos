@@ -20,6 +20,8 @@ export interface AskDeputyActionProps {
   draft: string
   /** The record footer uses a labelled control; host chrome keeps the compact icon treatment. */
   variant?: 'icon' | 'footer'
+  /** Icon variant with its name beside it: an icon-only control is for universal icons only. */
+  labelled?: boolean
   label?: string
   helper?: string
 }
@@ -32,7 +34,7 @@ export interface AskDeputyActionProps {
  * Renders nothing when no runtime is available (SHOW_ASSISTANT=false → null runtime), so it never
  * offers an affordance that would open an inert panel.
  */
-export function AskDeputyAction({ draft, variant = 'icon', label, helper }: AskDeputyActionProps) {
+export function AskDeputyAction({ draft, variant = 'icon', labelled = false, label, helper }: AskDeputyActionProps) {
   const { runtime, openPanel } = useAgentRuntime()
   const t = useT()
   if (!runtime) return null
@@ -55,12 +57,13 @@ export function AskDeputyAction({ draft, variant = 'icon', label, helper }: AskD
   return (
     <button
       type="button"
-      className="record-panel-btn"
+      className={`record-panel-btn${labelled ? ' record-panel-btn--labelled' : ''}`}
       aria-label={t('assistant.askAboutRecord')}
       title={t('assistant.askAboutRecord')}
       onClick={() => openPanel(draft)}
     >
       <DeputySparkIcon />
+      {labelled ? <span className="record-panel-btn__label">{t('assistant.askAboutRecord')}</span> : null}
     </button>
   )
 }

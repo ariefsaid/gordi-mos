@@ -6,7 +6,7 @@ import './Toggle.css'
  * medium 28×16 / small 22×14. `role="switch"`, `aria-checked`, keyboard
  * Space/Enter. off → secondary bg, on → primary bg, knob → primary surface.
  */
-export type ToggleSize = 'medium' | 'small'
+type ToggleSize = 'medium' | 'small'
 
 export interface ToggleProps {
   value?: boolean

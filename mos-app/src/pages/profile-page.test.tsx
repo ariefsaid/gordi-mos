@@ -13,6 +13,12 @@ import type { Locale } from '@/i18n/messages'
 import { ThemeProvider } from '@/theme/theme-provider'
 import { ProfilePage } from './profile-page'
 
+const { mockGetUser, mockUpdateUser, mockReauthenticate } = vi.hoisted(() => ({
+  mockGetUser: vi.fn(), mockUpdateUser: vi.fn(), mockReauthenticate: vi.fn(),
+}))
+vi.mock('@/lib/supabase', () => ({
+  supabase: { auth: { getUser: mockGetUser, updateUser: mockUpdateUser, reauthenticate: mockReauthenticate } },
+}))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
@@ -74,7 +80,15 @@ beforeEach(() => {
   localStorage.clear()
   accountStore.clear()
   setViewer()
+  mockGetUser.mockResolvedValue({ data: { user: { app_metadata: { providers: ['email'] } } }, error: null })
+  mockUpdateUser.mockResolvedValue({ data: { user: null }, error: null })
+  mockReauthenticate.mockResolvedValue({ error: null })
 })
+
+// The password form stays folded away until the person asks to change it.
+async function openPasswordForm(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /^(Change password|Set a password)$/ }))
+}
 
 async function chooseLanguage(user: ReturnType<typeof userEvent.setup>, from: string, option: string) {
   await user.click(screen.getByRole('combobox', { name: from }))
@@ -82,27 +96,45 @@ async function chooseLanguage(user: ReturnType<typeof userEvent.setup>, from: st
 }
 
 describe('PORT-024: ProfilePage', () => {
-  it('uses the adopted 12px card/container radius token for every profile card', async () => {
+  it('submits a new password through updateUser', async () => {
+    const user = userEvent.setup()
     await renderPage()
-    const identityCard = screen.getByRole('heading', { name: 'Identity' }).closest('section')
-    const languageCard = screen.getByRole('heading', { name: 'Language' }).closest('section')
-    const layoutCard = screen.getByRole('heading', { name: 'Home layout' }).closest('section')
-
-    expect(identityCard).toHaveStyle({ borderRadius: 'var(--radius-lg)' })
-    expect(languageCard).toHaveStyle({ borderRadius: 'var(--radius-lg)' })
-    expect(layoutCard).toHaveStyle({ borderRadius: 'var(--radius-lg)' })
+    await openPasswordForm(user)
+    await user.type(screen.getByLabelText(/new password/i), 'NewPass123!')
+    await user.type(screen.getByLabelText(/confirm password/i), 'NewPass123!')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+    await waitFor(() => expect(mockUpdateUser).toHaveBeenCalledWith({ password: 'NewPass123!' }))
   })
 
-  it('keeps the remaining profile form cards at the narrow form measure', async () => {
+  it('requests a code when reauthentication is needed and resubmits the code as nonce', async () => {
+    mockUpdateUser.mockResolvedValueOnce({ error: { code: 'reauthentication_needed' } })
+    const user = userEvent.setup()
     await renderPage()
-    for (const title of ['Identity', 'Language']) {
-      expect(screen.getByRole('heading', { name: title }).closest('section')).toHaveStyle({
-        maxWidth: '560px',
-      })
-    }
-    expect(screen.getByRole('heading', { name: 'Home layout' }).closest('section')).toHaveStyle({
-      maxWidth: '754px',
-    })
+    await openPasswordForm(user)
+    for (const name of [/new password/i, /confirm password/i]) await user.type(screen.getByLabelText(name), 'NewPass123!')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+    await user.type(await screen.findByLabelText('Email verification code'), '123456')
+    expect(mockReauthenticate).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+    await waitFor(() => expect(mockUpdateUser).toHaveBeenLastCalledWith({ password: 'NewPass123!', nonce: '123456' }))
+  })
+
+  it('confirms a successful password change and clears the password fields', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+    await openPasswordForm(user)
+    for (const name of [/new password/i, /confirm password/i]) await user.type(screen.getByLabelText(name), 'NewPass123!')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+    expect(await screen.findByRole('status')).toHaveTextContent("Your password was changed. You're still signed in.")
+    expect(screen.getByLabelText(/new password/i)).toHaveValue('')
+    expect(screen.getByLabelText(/confirm password/i)).toHaveValue('')
+  })
+
+  it('offers Set a password for a Google-only account', async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: { app_metadata: { providers: ['google'] } } }, error: null })
+    await renderPage()
+    expect(await screen.findByRole('button', { name: 'Set a password' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Change password' })).toBeNull()
   })
 
   it('exposes the personal Home layout picker with Focused as the default', async () => {
@@ -166,34 +198,24 @@ describe('PORT-024: ProfilePage', () => {
     expect(screen.queryByText('Role')).toBeNull()
   })
 
-  it('shows the Language field label exactly once (card heading only; the select label is sr-only)', async () => {
-    await renderPage()
-    // The visible "Language" is the card heading; the select keeps an accessible name via an
-    // sr-only label, so getByLabelText still resolves — but there is no duplicate VISIBLE label.
-    const languageTexts = screen.getAllByText('Language')
-    const visible = languageTexts.filter((el) => !el.classList.contains('sr-only'))
-    expect(visible).toHaveLength(1)
-    expect(visible[0].tagName).toBe('H2')
-    expect(screen.getByLabelText('Language').tagName).toBe('BUTTON')
-  })
-
   it('goal (page-scope: this harness mounts ProfilePage only): selecting Bahasa re-renders in Indonesian and is saved to the account', async () => {
     const user = userEvent.setup()
     await renderPage()
     // English baseline
-    expect(screen.getByRole('heading', { name: 'Personal Profile' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Personal profile' })).toBeInTheDocument()
     await chooseLanguage(user, 'Language', 'Bahasa Indonesia')
     // The page itself re-renders in Indonesian — the goal, not the mechanism
-    expect(await screen.findByRole('heading', { name: 'Profil Pribadi' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Profil pribadi' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Bahasa' })).toHaveTextContent('Bahasa Indonesia')
     // …and its BODY re-renders too, not just the title. `useT` falls back to `en` silently when a
     // key is missing from the `id` catalog, so a page that switches its heading and keeps English
     // cards passes every title-only assertion. Found by mutation: replacing an `id` card string
     // with its `en` twin left the rest of this file green. Every card heading is checked.
-    for (const heading of ['Identitas', 'Bahasa', 'Tata letak Beranda']) {
+    for (const heading of ['Bahasa', 'Tata letak Beranda', 'Keamanan']) {
       expect(screen.getByRole('heading', { level: 2, name: heading })).toBeInTheDocument()
     }
-    for (const english of ['Identity', 'Home layout']) {
+    expect(screen.getByRole('region', { name: 'Identitas' })).toBeInTheDocument()
+    for (const english of ['Home layout', 'Security']) {
       expect(screen.queryByRole('heading', { name: english })).toBeNull()
     }
     expect(screen.getByText('Orang').tagName).toBe('DT')
@@ -205,7 +227,7 @@ describe('PORT-024: ProfilePage', () => {
     expect(localStorage.getItem('mos.locale')).toBeNull()
     cleanup()
     await renderPage()
-    expect(await screen.findByRole('heading', { name: 'Profil Pribadi' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Profil pribadi' })).toBeInTheDocument()
   })
 
   it('a failed save says so and keeps the language actually in use', async () => {
@@ -215,7 +237,7 @@ describe('PORT-024: ProfilePage', () => {
     await chooseLanguage(user, 'Language', 'Bahasa Indonesia')
     expect(await screen.findByRole('alert')).toHaveTextContent('Your language was not saved. The previous choice is still in use.')
     expect(screen.getByRole('combobox', { name: 'Language' })).toHaveTextContent('English')
-    expect(screen.getByRole('heading', { name: 'Personal Profile' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Personal profile' })).toBeInTheDocument()
     expect(accountStore.size).toBe(0)
   })
 
@@ -234,9 +256,9 @@ describe('PORT-024: ProfilePage', () => {
   it('sets the document title through the catalog, so an Indonesian session gets an Indonesian tab', async () => {
     const user = userEvent.setup()
     await renderPage()
-    expect(document.title).toBe('Personal Profile — Gordi MOS')
+    expect(document.title).toBe('Personal profile — Gordi MOS')
     await chooseLanguage(user, 'Language', 'Bahasa Indonesia')
-    await waitFor(() => expect(document.title).toBe('Profil Pribadi — Gordi MOS'))
+    await waitFor(() => expect(document.title).toBe('Profil pribadi — Gordi MOS'))
   })
 
 })

@@ -33,11 +33,12 @@
 // renders NOTHING then, which is also what keeps it from ever outranking a page's own Opening row
 // (B12 — an empty control sitting in the head previously did, simply by being there first).
 
-import { useState, useCallback, useEffect, useMemo, useRef, useId } from 'react'
+import { Fragment, useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import { useAuth } from '@/auth/use-auth'
 import { EmptyState } from '@/components/ui/state-kit'
 import { useListboxPopover } from '@/components/ui/use-listbox-popover'
+import { CheckIcon } from '@/shell/icons'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { useT, type Translate } from '@/i18n/use-t'
@@ -87,8 +88,8 @@ function taggedLabel(
   myStreamKeys: ReadonlySet<string>,
   locationBranchId?: string,
 ): string {
+  void locationBranchId // the menu groups other branches under their own heading, so the label no longer tags them
   const tags = [
-    locationBranchId && option.branch.id !== locationBranchId ? t('cafe.stream.otherLocation') : null,
     isMineStream(option, homeStream, myStreamKeys) ? t('cafe.stream.yourTeam') : null,
     option.produces === false ? t('kitchen.stream.receivingOnly.tag') : null,
   ].filter((tag): tag is string => tag !== null)
@@ -181,7 +182,8 @@ export function CafeStreamBar({
       {canSwitch && (
         <StreamSwitchMenu
           id="cafe-stream"
-          options={allStreams ? options : alternatives}
+          options={options}
+          current={allStreams ? ALL_STREAMS : stream ? streamKey(stream.branch.id, stream.activity) : null}
           homeStream={homeStream}
           myStreamKeys={myStreamKeys}
           locationBranchId={locationBranchId}
@@ -202,6 +204,8 @@ export function CafeStreamBar({
 interface StreamSwitchMenuProps {
   id: string
   options: readonly ProductionStream[]
+  /** The stream in view (or ALL_STREAMS): listed too, and marked, so the menu shows where you are. */
+  current: string | null
   homeStream: ProductionStream | null
   myStreamKeys: ReadonlySet<string>
   locationBranchId?: string
@@ -212,22 +216,23 @@ interface StreamSwitchMenuProps {
   ariaLabel: string
 }
 
-function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, locationBranchId, onAllStreams, disabled, onChange, label, ariaLabel }: StreamSwitchMenuProps) {
+function StreamSwitchMenu({ id, options, current, homeStream, myStreamKeys, locationBranchId, onAllStreams, disabled, onChange, label, ariaLabel }: StreamSwitchMenuProps) {
   const t = useT()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
 
-  const entries = useMemo<Array<{ value: string; label: string; isAllStreams: boolean }>>(() => {
+  const entries = useMemo<Array<{ value: string; label: string; isAllStreams: boolean; branch: 'this' | 'other' | null }>>(() => {
     // The All streams sentinel stays pinned first; real streams rank current memberships first.
     const ranked = [...options].sort(
       (a, b) => myRank(a, homeStream, myStreamKeys, locationBranchId) - myRank(b, homeStream, myStreamKeys, locationBranchId),
     )
     return [
-      ...(onAllStreams ? [{ value: ALL_STREAMS, label: t('kitchen.review.allStreams'), isAllStreams: true }] : []),
-      ...ranked.map((option) => ({
+      ...(onAllStreams ? [{ value: ALL_STREAMS, label: t('kitchen.review.allStreams'), isAllStreams: true, branch: null }] : []),
+      ...ranked.map(option => ({
         value: streamKey(option.branch.id, option.activity),
         label: taggedLabel(t, option, homeStream, myStreamKeys, locationBranchId),
         isAllStreams: false,
+        branch: !locationBranchId ? null : option.branch.id === locationBranchId ? 'this' as const : 'other' as const,
       })),
     ]
   }, [homeStream, locationBranchId, myStreamKeys, onAllStreams, options, t])
@@ -235,13 +240,14 @@ function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, locationBranc
   const selectIndex = useCallback((index: number) => {
     const entry = entries[index]
     if (!entry) return
+    if (entry.value === current) { setOpen(false); return }
     if (entry.isAllStreams) onAllStreams?.()
     else {
       const target = options.find((option) => streamKey(option.branch.id, option.activity) === entry.value)
       if (target) onChange(target)
     }
     setOpen(false)
-  }, [entries, onAllStreams, onChange, options])
+  }, [current, entries, onAllStreams, onChange, options])
 
   const { listboxProps, getOptionProps, activeIndex, setActiveIndex, optionId } = useListboxPopover<HTMLDivElement>({
     itemCount: entries.length,
@@ -271,6 +277,10 @@ function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, locationBranc
           aria-controls={open ? `${id}-listbox` : undefined}
           className="cafe-stream__switch"
           disabled={disabled || entries.length === 0}
+          onPointerDown={(event) => {
+            event.preventDefault()
+            event.currentTarget.focus()
+          }}
           onKeyDown={(event) => {
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
               event.preventDefault()
@@ -293,17 +303,27 @@ function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, locationBranc
           collisionPadding={12}
           data-escape-layer="nested"
         >
-          {entries.map((entry, index) => (
-            <div
-              {...getOptionProps(index)}
-              key={entry.value}
-              className="cafe-stream__option"
-              onPointerMove={() => setActiveIndex(index)}
-              onClick={() => selectIndex(index)}
-            >
-              {entry.label}
-            </div>
-          ))}
+          {entries.map((entry, index) => {
+            const heading = entry.branch && entries[index - 1]?.branch !== entry.branch
+              ? t(entry.branch === 'this' ? 'cafe.stream.thisBranch' : 'cafe.stream.otherBranches')
+              : null
+            const selected = entry.value === current
+            return (
+              <Fragment key={entry.value}>
+                {heading && <div role="presentation" className="cafe-stream__group">{heading}</div>}
+                <div
+                  {...getOptionProps(index)}
+                  aria-selected={selected}
+                  className="cafe-stream__option"
+                  onPointerMove={() => setActiveIndex(index)}
+                  onClick={() => selectIndex(index)}
+                >
+                  <span className="cafe-stream__option-label">{entry.label}</span>
+                  {selected && <CheckIcon className="cafe-stream__check" />}
+                </div>
+              </Fragment>
+            )
+          })}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -339,7 +359,6 @@ export function CafeStreamChoices({
 }: CafeStreamChoicesProps) {
   const t = useT()
   const auth = useAuth()
-  const idPrefix = useId()
   if (options.length === 0) {
     return <EmptyState variant="blank" title={t('cafe.stream.none')} />
   }
@@ -348,30 +367,24 @@ export function CafeStreamChoices({
   )
   const showAdminHint = auth.status === 'authenticated' && auth.viewer.accessRoles.includes('admin')
   return (
-    <EmptyState variant="next-step" title={t('cafe.stream.chooseTitle')} copy={t('cafe.stream.chooseCopy')}>
+    <EmptyState variant="next-step" className="cafe-stream-choose" title={t('cafe.stream.chooseTitle')} copy={t('cafe.stream.chooseCopy')}>
       <div className="cafe-stream-choices">
         <div className="cafe-stream-choices__list" role="group" aria-label={t('kitchen.log.stream.pickerAria')}>
         {ranked.map((option) => {
           const key = streamKey(option.branch.id, option.activity)
           const isMine = isMineStream(option, homeStream, myStreamKeys)
-          const receivingOnlyId = option.produces === false ? `${idPrefix}-receiving-${key}` : undefined
-          const accessibleName = [streamLabel(t, option), isMine ? t('cafe.stream.yourTeam') : null]
-            .filter((part): part is string => part !== null)
-            .join(' — ')
           return (
             <button
               key={key}
               type="button"
               className="cafe-stream-choices__option"
-              aria-label={accessibleName}
-              aria-describedby={receivingOnlyId}
               disabled={disabled}
               onClick={() => onChoose(option)}
             >
               <span className="cafe-stream-choices__name">{streamLabel(t, option)}</span>
               {isMine && <span className="cafe-stream-choices__tag">{t('cafe.stream.yourTeam')}</span>}
-              {receivingOnlyId && (
-                <span id={receivingOnlyId} className="cafe-stream-choices__tag cafe-stream-choices__tag--muted">
+              {option.produces === false && (
+                <span className="cafe-stream-choices__tag cafe-stream-choices__tag--muted">
                   {t('kitchen.stream.receivingOnly.tag')}
                 </span>
               )}

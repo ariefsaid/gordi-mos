@@ -10,10 +10,10 @@
   gap: 5px;
   height: 20px;
   padding: 0 8px;
-  border-radius: var(--radius-pill); /* rounded.full */
+  border-radius: var(--radius-xs); /* rounded.full */
   background: var(--secondary);        /* --basis-chip-bg */
   color: var(--muted-foreground);      /* --basis-chip-text */
-  font-size: var(--font-size-overline);
+  font-size: var(--mos-size-1);
   font-weight: 600;
   line-height: 1;
   width: fit-content;

@@ -10,7 +10,7 @@
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 6px 22px;
+  gap: var(--mos-inline-gap) var(--mos-gutter);
   padding-bottom: 10px;
   margin-bottom: 16px;
   border-bottom: 1px solid var(--border);
@@ -24,7 +24,7 @@
    never a viewport branch. */
 .msr--inline {
   display: inline-flex;
-  gap: 4px 14px;
+  gap: var(--mos-label-gap) var(--mos-row-gap);
   padding-bottom: 0;
   margin-bottom: 0;
   border-bottom: none;
@@ -33,20 +33,20 @@
 .msr-item {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
+  gap: var(--mos-inline-gap);
   min-width: 0;
 }
 .msr-label {
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   color: var(--muted-foreground);
 }
 .msr-value {
-  font-size: var(--font-size-body-lg);
+  font-size: var(--mos-size-3);
   font-weight: 600;
   color: var(--foreground);
 }
 .msr-delta {
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
 }
 .msr-delta--destructive { color: var(--status-lost-text); }
 .msr-delta--success { color: var(--status-won-text); }

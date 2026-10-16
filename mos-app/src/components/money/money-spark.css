@@ -1,0 +1,3 @@
+.money-spark { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.money-spark svg { display: block; }
+.money-spark__ends { color: var(--muted-foreground); font-size: var(--mos-size-1); line-height: 1.2; white-space: nowrap; }

@@ -297,8 +297,8 @@ def main(argv: list[str]) -> int:
         f"{lines}\n"
         "A build against these fails at adw_modules/permissions.py::enforce() and rolls "
         "back, after the full build cost.\n"
-        "Route the real change through the Director lane instead: scripts/lane-exempt.sh, "
-        "then a pi/subagent dispatch — not the factory.\n"
+        "Route the real change through a direct pi dispatch (Sol designs, Luna builds) — "
+        "not the factory.\n"
         "If this is only a MENTION of the path, not an edit (e.g. \"do not touch "
         "scripts/pre-pr-verify.sh\"), rerun with --allow-barred.",
         file=sys.stderr,

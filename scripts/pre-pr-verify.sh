@@ -10,8 +10,6 @@
 # never a CI check); the audit-register coverage gate is tracked separately (#295).
 # Ledger contract: the EXIT trap appends after the gate has decided; the stamp is written only on green.
 # It never alters the verification exit status, and ledger append failures never fail that result.
-# Explicit exact-commit evidence: DESIGN_AUDIT_MODE=change-gate DESIGN_AUDIT_EVIDENCE_DIR=<dir>
-# bash scripts/pre-pr-verify.sh. Unset DESIGN_AUDIT_MODE for ordinary checks.
 #
 # --dev: the light battery for a PR into dev, where CI is the full-suite gate — typecheck, lint
 # and only the tests related to files changed vs the base. It writes pre-pr-verify-dev-ok, which
@@ -51,23 +49,6 @@ record_ledger() {
 }
 trap record_ledger EXIT
 
-# Ordinary UI work keeps the changed-source detector and the normal app battery. The expensive
-# exact-commit evidence validator is an explicit change-gate lane so a stale shell export cannot
-# silently turn a bounded UI fix into a whole-matrix run.
-audit_mode="${DESIGN_AUDIT_MODE:-ordinary}"
-case "$audit_mode" in
-  ordinary|change-gate) ;;
-  *)
-    rm -f "$gitdir/pre-pr-verify-ok" "$gitdir/pre-pr-verify-dev-ok"
-    echo "✗ unknown DESIGN_AUDIT_MODE '$audit_mode' — unset it for ordinary checks or use change-gate" >&2
-    exit 1
-    ;;
-esac
-if [ "$audit_mode" = ordinary ] && [ -n "${DESIGN_AUDIT_EVIDENCE_DIR:-}" ]; then
-  rm -f "$gitdir/pre-pr-verify-ok" "$gitdir/pre-pr-verify-dev-ok"
-  echo "✗ DESIGN_AUDIT_EVIDENCE_DIR requires DESIGN_AUDIT_MODE=change-gate" >&2
-  exit 1
-fi
 rm -f "$gitdir/pre-pr-verify-ok" "$gitdir/pre-pr-verify-dev-ok"
 echo "── pre-pr-verify @ ${head:0:8} ($(git rev-parse --abbrev-ref HEAD))"
 
@@ -91,28 +72,6 @@ git rev-parse --verify "$base_ref^{commit}" >/dev/null 2>&1 || {
 base="$(git merge-base HEAD "$base_ref")"
 [ -n "$base" ] || { echo "✗ cannot find merge base with $base_ref" >&2; exit 1; }
 
-# The quantitative audit is a database-free control surface. Re-run its manifest,
-# artifact, and mutation checks whenever the harness or its chain wiring changes.
-# A live render stays behind the explicit design-quality-audit.sh door.
-design_audit_paths=""
-if [ -n "$base" ]; then
-  design_audit_paths="$(git diff --name-only "$base"...HEAD)"
-fi
-# Full battery only: on a PR into dev, CI's guards job runs this self-test on every PR.
-if [ "$light" = 0 ] && printf '%s\n' "$design_audit_paths" | grep -Eq '^(adws/adw_design_audit\.py|mos-app/e2e/design-quality/|mos-app/playwright\.design-audit\.config\.ts|mos-app/tsconfig\.e2e\.json|scripts/design-quality-audit|mos-app/package\.json|\.github/workflows/(guards|design-shots)\.yml)$'; then
-  bash scripts/design-quality-audit.test.sh
-fi
-
-# An explicit change-gate request validates the exact-commit evidence independently of the path
-# diff. Ordinary UI changes do not enter this live-render lane.
-if [ "$audit_mode" = change-gate ]; then
-  if [ -z "${DESIGN_AUDIT_EVIDENCE_DIR:-}" ]; then
-    echo "✗ DESIGN_AUDIT_MODE=change-gate requires DESIGN_AUDIT_EVIDENCE_DIR at the exact HEAD" >&2
-    exit 1
-  fi
-  node --experimental-strip-types scripts/validate-design-evidence.mjs \
-    "$DESIGN_AUDIT_EVIDENCE_DIR" "$head" --require-change-gate
-fi
 if [ -n "$base" ]; then
   changed=$(git diff --numstat "$base"...HEAD -- ':!*package-lock.json' | awk '{s+=$1+$2} END{print s+0}')
   [ "$changed" -le 400 ] || echo "⚠ diff budget: $changed changed lines (>400) — split the next ticket smaller"
@@ -184,8 +143,10 @@ if [ "$app_touched" = 1 ]; then
       'cd mos-app && npm run typecheck && npm run lint && { [ "$#" -eq 0 ] || npm exec -- vitest related "$@" --run --passWithNoTests; }' \
       _ ${related[@]+"${related[@]}"}
   else
+    # `npm run quality` = scripts/quality-checks.sh: deterministic ratchets (duplication / dead
+    # code / colour tokens) against mos-app/.quality-baseline.json.
     bash scripts/with-test-lock.sh bash -c \
-      'cd mos-app && npm run typecheck && npm run lint && npm run test:coverage && npm run build'
+      'cd mos-app && npm run typecheck && npm run lint && npm run test:coverage && npm run build && npm run quality'
   fi
 else
   mode=skipped

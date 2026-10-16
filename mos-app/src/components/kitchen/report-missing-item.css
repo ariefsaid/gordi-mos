@@ -5,18 +5,21 @@
      list above (kitchen-log-page.css) — this report line sits in that reserve, so it hugs the
      list's last row rather than adding a second gap of its own. */
   margin: 0;
-  padding: 4px 0;
+  padding: 0;
 }
+/* The launcher is a disclosure row like the others on the sheet (ui/Disclosure.css). */
+.kl-missing:not(.kl-missing-form):not(.kl-missing-done) { border-bottom: 1px solid var(--mos-line); }
 .kl-missing-cta {
-  color: var(--muted-foreground);
-  font-size: var(--font-size-control);
-  padding-inline: 8px;
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  min-height: var(--mos-control-height); padding: 0; border-radius: 0;
+  color: var(--mos-ink); font: var(--mos-type-label);
 }
+.kl-missing-chevron { flex: none; width: var(--mos-icon-sm); height: var(--mos-icon-sm); }
 .kl-missing-form {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
   max-width: 420px;
   /* Room above the pinned footer once the form is open at the end of the list. */
   margin-bottom: 12px;
@@ -25,19 +28,19 @@
 @media (max-width: 767.98px) {
   /* TextInput sets the shared desktop control size; the actual focused field must reach 16px
      on iPhone Safari to prevent auto-zoom while preserving user-controlled page zoom. */
-  .kl-missing-form .mk-textinput__field { font-size: var(--font-size-touch-input); }
+  .kl-missing-form .mk-textinput__field { font-size: var(--mos-size-3); }
   .kl-missing-cta,
-  .kl-missing-form .btn { min-height: 44px; }
+  .kl-missing-form .btn { min-height: var(--mos-control-height); }
 }
 .kl-missing-send,
-.kl-missing-cancel { min-height: 32px; }
+.kl-missing-cancel { min-height: var(--mos-control-height); }
 .kl-missing-done {
   color: var(--muted-foreground);
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
 }
 .kl-missing-error {
   flex-basis: 100%;
   margin: 0;
   color: var(--destructive);
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
 }

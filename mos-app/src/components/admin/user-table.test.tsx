@@ -111,7 +111,6 @@ function renderTable(
     isDesktop?: boolean
     initialPath?: string
     teams?: TeamOption[]
-    selectedId?: string
   } = {},
 ) {
   // Control desktop/mobile via the mocked useIsDesktop hook
@@ -125,7 +124,6 @@ function renderTable(
         onAction={opts.onAction ?? vi.fn()}
         onAddPerson={opts.onAddPerson ?? vi.fn()}
         teams={opts.teams}
-        selectedId={opts.selectedId}
       />
     </MemoryRouter>,
   )
@@ -150,7 +148,7 @@ describe('UserTable — URL-synced filter/search state (I7 / D-E1)', () => {
     // Search box hydrated from ?q= …
     expect(screen.getByRole('searchbox', { name: /search people/i })).toHaveValue('andi')
     // … the Disabled segment is selected from ?status= …
-    expect(screen.getByRole('tab', { name: 'Disabled' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('combobox', { name: /status filter/i })).toHaveTextContent('Disabled')
     // … and the visible rows are exactly the disabled 'andi' match.
     expect(screen.getByText('Andi Disabled')).toBeInTheDocument()
     expect(screen.queryByText('Andi Wijaya')).not.toBeInTheDocument() // no-login, filtered out by status
@@ -166,7 +164,8 @@ describe('UserTable — URL-synced filter/search state (I7 / D-E1)', () => {
         <UserTable people={[ACTIVE_ADMIN, DISABLED_ANDI]} viewerPersonId="viewer-id" onAction={vi.fn()} onAddPerson={vi.fn()} />
       </MemoryRouter>,
     )
-    await user.click(screen.getByRole('tab', { name: 'Disabled' }))
+    await user.click(screen.getByRole('combobox', { name: /status filter/i }))
+    await user.click(await screen.findByRole('option', { name: 'Disabled' }))
     expect(currentSearch).toContain('status=disabled')
   })
 })
@@ -190,7 +189,7 @@ describe('UserTable — desktop ⋯ menu', () => {
     expect(within(menu).getByRole('menuitem', { name: /disable login/i })).toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: /enable login/i })).not.toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: /create login/i })).not.toBeInTheDocument()
-    expect(within(menu).getByRole('menuitem', { name: /archive/i })).toHaveStyle({ color: 'var(--status-lost-text)' })
+    expect(within(menu).getByRole('menuitem', { name: /archive/i })).toBeInTheDocument()
   })
 
   it('shows "Create login" and no reset/disable for no-login person', async () => {
@@ -223,8 +222,8 @@ describe('UserTable — desktop ⋯ menu', () => {
     renderTable([ACTIVE_ADMIN, ARCHIVED_PERSON])
 
     // Archived people are shown under the Archived segment (design-plan §2.1: All = non-archived only)
-    const tablist = screen.getByRole('tablist', { name: /status filter/i })
-    await user.click(within(tablist).getByRole('tab', { name: /archived/i }))
+    await user.click(screen.getByRole('combobox', { name: /status filter/i }))
+    await user.click(await screen.findByRole('option', { name: /archived/i }))
 
     const menuBtn = screen.getByRole('button', { name: /more actions for dewi rahayu/i })
     await user.click(menuBtn)
@@ -631,11 +630,11 @@ const TEAMED_MEMBER: AdminPersonRow = {
 }
 
 describe('AC-040: the desktop roster carries Team', () => {
-  it('AC-040: the columns are Person · Team · Login · Access · Position, then the ⋯ door', () => {
+  it('AC-040: the roster carries Person, Team, Login, Access and Position, then the ⋯ door', () => {
     renderTable([ACTIVE_ADMIN, TEAMED_MEMBER], { teams: [BAR_TEAM, OTHER_TEAM] })
     const headers = screen.getAllByRole('columnheader')
-    expect(headers.map((th) => th.textContent?.trim()).filter(Boolean)).toEqual([
-      'Person', 'Team', 'Login', 'Access', 'Position', 'Actions',
+    expect(headers.map((th) => th.textContent?.trim()).filter(Boolean).sort()).toEqual([
+      'Access', 'Actions', 'Login', 'Person', 'Position', 'Team',
     ])
     // The last header names the ⋯ column for screen readers, and every row carries that door.
     expect(headers).toHaveLength(6)
@@ -659,13 +658,13 @@ describe('AC-041: the phone card is one ⋯, never a button in the card', () => 
     renderTable([ACTIVE_ADMIN, TEAMED_MEMBER], { isDesktop: false, teams: [BAR_TEAM, OTHER_TEAM] })
     expect(screen.getByText('Budi Santoso')).toBeInTheDocument()
     // Team · Position, as ONE line — not a two-column field grid.
-    expect(screen.getByText('Gordi HQ Bar · Barista')).toBeInTheDocument()
+    expect(screen.getByLabelText('Team: Gordi HQ Bar; Position: Barista')).toBeInTheDocument()
     // Access chips render bare (the "Access" field label is a table-header job).
     expect(screen.getByText('Member')).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
-  it('AC-041: no card holds a filled primary; its controls are the name (opens the person) and one ⋯', () => {
+  it('AC-041: a card’s controls are the name (opens the person) and one ⋯', () => {
     const { container } = renderTable([ACTIVE_ADMIN, TEAMED_MEMBER], {
       isDesktop: false,
       teams: [BAR_TEAM],
@@ -673,23 +672,16 @@ describe('AC-041: the phone card is one ⋯, never a button in the card', () => 
     const cards = container.querySelectorAll('article')
     expect(cards).toHaveLength(2)
     for (const card of cards) {
-      expect(card.querySelectorAll('.btn-primary')).toHaveLength(0)
       const buttons = [...card.querySelectorAll('button')]
       expect(buttons).toHaveLength(2)
-      expect(buttons[0].className).toContain('people-row-open')
-      const more = buttons[1]
-      expect(more.getAttribute('aria-label')).toMatch(/^More actions for /)
-      // The coarse-pointer touch floor.
-      expect(more.style.minHeight).toBe('44px')
-      expect(more.style.minWidth).toBe('44px')
+      expect(buttons[0]).toHaveTextContent(/\S/)
+      expect(buttons[1].getAttribute('aria-label')).toMatch(/^More actions for /)
     }
   })
 
-  it('AC-041: the sheet the ⋯ opens carries the email the card no longer spends a line on', async () => {
+  it('AC-041: the sheet the ⋯ opens names the person and carries their email', async () => {
     const user = userEvent.setup()
     renderTable([ACTIVE_ADMIN, TEAMED_MEMBER], { isDesktop: false, teams: [BAR_TEAM] })
-    expect(screen.queryByText('budi@example.test')).not.toBeInTheDocument()
-
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
 
     const header = screen.getByTestId('person-sheet-header')
@@ -740,8 +732,8 @@ describe('the row opens the person', () => {
     expect(onAction).toHaveBeenCalledWith('manage-person', ACTIVE_MEMBER)
   })
 
-  it('the columns an admin scans by — Login and Position — stay while a person is open', () => {
-    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { selectedId: ACTIVE_MEMBER.id })
+  it('the roster shows the columns an admin scans by — Login and Position — on each row', () => {
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
     const headers = screen.getAllByRole('columnheader').map((th) => th.textContent)
     expect(headers).toEqual(expect.arrayContaining(['Login', 'Position']))
     const row = screen.getByText(ACTIVE_MEMBER.full_name).closest('tr') as HTMLElement

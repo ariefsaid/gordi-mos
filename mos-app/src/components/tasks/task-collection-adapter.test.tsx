@@ -49,8 +49,6 @@ import { createRecordCollectionController } from '@/lib/record-collection/engine
 import { createReadLease } from '@/lib/scoped-reads'
 import {
   taskCollectionDescriptor,
-  taskCollectionSavedViews,
-  toTaskCollectionRecord,
   type TaskCollectionContext,
   type TaskCollectionRecord,
 } from './task-collection-adapter'
@@ -59,6 +57,22 @@ import {
   taskCollectionQuery as canonicalTaskCollectionQuery,
   type TaskCollectionQuery,
 } from './task-collection-query'
+
+// The adapter keeps the raw-row mapping and saved-view mapping private; the tests reach them through
+// the descriptor and a fixture builder.
+const taskCollectionSavedViews = taskCollectionDescriptor.savedViews
+function toTaskCollectionRecord(row: TaskRow): TaskCollectionRecord {
+  return {
+    id: row.id, title: row.title, status: row.status,
+    picId: row.responsible_person_id, supervisorId: row.accountable_person_id,
+    businessUnitId: row.business_unit_id, teamId: row.team_id ?? null,
+    createdById: row.created_by, completedAt: row.completed_at ?? null,
+    dueDate: row.due_date, workLineId: row.work_line_id, objectiveId: row.objective_id,
+    lastActivityAt: row.last_activity_at, archivedAt: row.archived_at,
+    processRunId: row.process_run_id ?? null,
+    generatedFromTaskDefinitionId: row.generated_from_task_def_id ?? null,
+  }
+}
 
 const mock = <T,>(fn: unknown) => fn as unknown as ReturnType<typeof vi.fn> & T
 

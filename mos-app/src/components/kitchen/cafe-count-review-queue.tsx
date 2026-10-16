@@ -1,3 +1,4 @@
+import { CafeQueueEmpty } from '@/components/cafe/redesign/cafe-queue-empty'
 import { useEffect, useMemo, useState } from 'react'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
@@ -6,8 +7,12 @@ import { confirmCafeCountLine, listCafeCountLines, type CafeCountLine } from '@/
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import { useIsOffline } from '@/shell/use-is-offline'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { ALL_STREAMS } from './cafe-stream-bar'
+import { CafeCloseReviewWorkspace } from '@/components/cafe/redesign/cafe-close-review-workspace'
+import { Panel } from '@/components/cafe/redesign/worksheet'
+import { Notice } from '@/components/ui/notice'
 import './cafe-count-review-queue.css'
 
 export function CafeCountReviewQueue({
@@ -15,11 +20,13 @@ export function CafeCountReviewQueue({
   streamCatalog,
   canReviewAll,
   reviewableStreamKeys,
+  refreshKey = 0,
 }: {
   streamFilter: string
   streamCatalog: readonly ProductionStream[]
   canReviewAll: boolean
   reviewableStreamKeys: ReadonlySet<string>
+  refreshKey?: number
 }) {
   const t = useT()
   const [rows, setRows] = useState<CafeCountLine[]>([])
@@ -28,7 +35,9 @@ export function CafeCountReviewQueue({
   const [actionError, setActionError] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const online = !useIsOffline()
+  const isDesktop = useIsDesktop()
   const [retry, setRetry] = useState(0)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -37,6 +46,7 @@ export function CafeCountReviewQueue({
     void listCafeCountLines().then(nextRows => {
       if (!active) return
       setRows(nextRows)
+      setSelectedId(current => nextRows.some(row => row.id === current) ? current : nextRows[0]?.id ?? null)
       setLoading(false)
     }).catch(() => {
       if (!active) return
@@ -44,7 +54,7 @@ export function CafeCountReviewQueue({
       setLoading(false)
     })
     return () => { active = false }
-  }, [retry])
+  }, [refreshKey, retry])
 
   const visibleRows = useMemo(() => rows.filter(line => {
     const key = streamKey(line.branch_id, line.activity)
@@ -52,6 +62,11 @@ export function CafeCountReviewQueue({
     return canReviewAll || reviewableStreamKeys.has(key)
   }), [canReviewAll, reviewableStreamKeys, rows, streamFilter])
   const empty = !loading && !loadError && visibleRows.length === 0
+  const selected = visibleRows.find(line => line.id === selectedId) ?? null
+  useEffect(() => {
+    if (selectedId && visibleRows.some(line => line.id === selectedId)) return
+    setSelectedId(isDesktop ? visibleRows[0]?.id ?? null : null)
+  }, [isDesktop, selectedId, visibleRows])
 
   async function confirm(line: CafeCountLine) {
     if (busyId || !online || line.status !== 'Submitted') return
@@ -74,23 +89,25 @@ export function CafeCountReviewQueue({
   }
 
   return (
-    <section className={`cafe-count-review${empty ? ' cafe-count-review--empty' : ''}`} aria-labelledby="cafe-count-review-title">
-      <header className="cafe-count-review__header">
-        <div>
-          <h2 id="cafe-count-review-title">{t('cafe.count.review.title')}</h2>
-          {!empty && <p>{t('cafe.count.review.help')}</p>}
-        </div>
-      </header>
+    <section
+      className={`cafe-count-review${empty ? ' cafe-count-review--empty' : ''}`}
+      aria-labelledby={empty ? undefined : 'cafe-count-review-title'}
+      aria-label={empty ? t('cafe.count.review.title') : undefined}
+    >
+      {/* Empty: the shared empty state carries the heading, so the section keeps no second one (named by aria-label). */}
+      {!empty && (
+        <header className="cafe-count-review__header">
+          <div>
+            <h2 id="cafe-count-review-title">{t('cafe.count.review.title')}</h2>
+            <p>{t('cafe.count.review.help')}</p>
+          </div>
+        </header>
+      )}
 
       {actionError && (
-        <div className="cafe-count-review__error" role="alert">
-          <span>{t('cafe.count.review.actionFailed')}</span>
-          <button type="button" className="btn btn-outline" onClick={() => setRetry(value => value + 1)}>
-            {t('common.retry')}
-          </button>
-        </div>
+        <Notice tone="urgent" action={<button type="button" className="btn btn-outline" onClick={() => setRetry(value => value + 1)}>{t('common.retry')}</button>}>{t('cafe.count.review.actionFailed')}</Notice>
       )}
-      {!online && <p className="cafe-count-review__offline" role="alert">{t('cafe.count.offline')}</p>}
+      {!online && <Notice tone="attention" role="alert">{t('cafe.count.offline')}</Notice>}
       {loadError ? (
         <ErrorState
           message={t('common.loadFailed', { what: t('cafe.count.review.title') })}
@@ -100,93 +117,72 @@ export function CafeCountReviewQueue({
       ) : loading ? (
         <LoadingShell count={2} />
       ) : visibleRows.length === 0 ? (
-        <div className="cafe-count-review__empty">
-          <p role="status">{streamFilter === ALL_STREAMS
+        <CafeQueueEmpty title={t('cafe.count.review.title')}>
+          {streamFilter === ALL_STREAMS
             ? t('cafe.count.review.empty.all')
             : t('cafe.count.review.empty.stream', {
               stream: streamLabel(t, streamCatalog.find(s => streamKey(s.branch.id, s.activity) === streamFilter) ?? null),
-            })}</p>
-          <button type="button" className="btn btn-outline" onClick={() => setRetry(value => value + 1)}>
-            {t('cafe.count.review.refresh')}
-          </button>
-        </div>
+            })}
+        </CafeQueueEmpty>
       ) : (
-        <ul className="cafe-count-review__list">
-          {visibleRows.map(line => {
-            const calculatedVariance = line.expected_status === 'ready' && line.expected_balance !== null
-              ? calculateCafeCountVariance(line.counted_quantity, null, line.expected_balance)
-              : null
-            const varianceMatches = calculatedVariance !== null && line.variance !== null
-              && areCafeCountDecimalsEqual(calculatedVariance, line.variance)
-            const zeroVariance = varianceMatches && calculatedVariance === '0'
-            const stream = streamCatalog.find(s => s.branch.id === line.branch_id && s.activity === line.activity) ?? null
-            const submittedAt = new Intl.DateTimeFormat(document.documentElement.lang || 'en', {
-              hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta',
-            }).format(new Date(line.submitted_at))
-            const expectedAt = line.expected_recorded_at
-              ? new Intl.DateTimeFormat(document.documentElement.lang || 'en', {
-                hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta',
-              }).format(new Date(line.expected_recorded_at))
-              : null
-            return (
-              <li className="cafe-count-review__row" key={line.id}>
-                <div className="cafe-count-review__identity">
-                  <div className="cafe-count-review__name">{line.item_name}</div>
-                  <div className="cafe-count-review__meta">
-                    <span className="cafe-count-review__date">{formatWeekdayDayMonth(line.count_date)}</span>
-                    <span>{line.item_kind}</span>
-                    {line.item_category && <span>{t('cafe.count.review.categoryTag', { category: line.item_category })}</span>}
-                    {stream && <span>{t('cafe.count.review.streamTag', { stream: streamLabel(t, stream) })}</span>}
-                    <span>{t('cafe.count.review.submittedAt', { time: submittedAt })}</span>
-                  </div>
-                </div>
-                <dl className="cafe-count-review__facts">
-                  <div>
-                    <dt>{t('cafe.count.review.count')}</dt>
-                    <dd>{formatCafeCountDecimal(line.counted_quantity, document.documentElement.lang || 'en')} <span>{line.unit_name}</span></dd>
-                  </div>
-                  <div>
-                    <dt>{t('cafe.count.review.expected')}</dt>
-                    <dd>{line.expected_status === 'ready' && line.expected_balance !== null && expectedAt
-                      ? <>{formatCafeCountDecimal(line.expected_balance, document.documentElement.lang || 'en')} <span>{line.unit_name} · {t('cafe.count.review.asOf', { time: expectedAt })}</span></>
-                      : t('cafe.count.review.expectedWaiting')}</dd>
-                  </div>
-                  <div>
-                    <dt>{t('cafe.count.review.variance')}</dt>
-                    <dd>{varianceMatches && calculatedVariance !== null
-                      ? <>{formatCafeCountDecimal(calculatedVariance, document.documentElement.lang || 'en')} <span>{line.unit_name}</span></>
-                      : t('cafe.count.review.varianceWaiting')}</dd>
-                  </div>
-                </dl>
-                <div className="cafe-count-review__decision">
-                  {line.status === 'Confirmed' ? (
-                    <span className="cafe-count-review__state" role="status">
-                      {t('cafe.count.review.confirmedNotNeeded')}
-                    </span>
-                  ) : line.expected_status !== 'ready' ? (
-                    <span className="cafe-count-review__state" role="status">{t('cafe.count.review.expectedWaiting')}</span>
-                  ) : !varianceMatches ? (
-                    <span className="cafe-count-review__state" role="status">{t('cafe.count.review.varianceWaiting')}</span>
-                  ) : zeroVariance ? (
-                    <button
-                      type="button"
-                      className="btn btn-primary cafe-count-review__confirm"
-                      disabled={!online || busyId !== null}
-                      onClick={() => void confirm(line)}
-                    >
-                      {busyId === line.id ? t('common.working') : t('cafe.count.review.confirm')}
-                    </button>
-                  ) : (
-                    <span className="cafe-count-review__state" role="status">{t('cafe.count.review.nonZero')}</span>
-                  )}
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+        <CafeCloseReviewWorkspace
+          label={t('cafe.count.review.title')}
+          selected={selected !== null}
+          onBack={() => setSelectedId(null)}
+          backLabel={t('cafe.count.review.back')}
+          master={<ul className="cafe-count-review__list">{visibleRows.map(line => (
+            <li key={line.id}>
+              <button type="button" className="cafe-count-review__master-row" aria-pressed={line.id === selectedId} onClick={() => setSelectedId(line.id)}>
+                <strong>{line.item_name}</strong><span>{formatWeekdayDayMonth(line.count_date)} · {line.status === 'Confirmed' ? t('cafe.count.review.confirmedNotNeeded') : t('cafe.count.review.submitted')}</span>
+                <small>{formatCafeCountDecimal(line.counted_quantity, document.documentElement.lang || 'en')} {line.unit_name} · {streamLabel(t, streamCatalog.find(s => s.branch.id === line.branch_id && s.activity === line.activity) ?? null)}</small>
+              </button>
+            </li>
+          ))}</ul>}
+          detail={selected ? <CountReviewDetail line={selected} streamCatalog={streamCatalog} online={online} busy={busyId !== null} onConfirm={() => void confirm(selected)} busyId={busyId} /> : <p>{t('cafe.count.review.choose')}</p>}
+        />
       )}
     </section>
   )
+}
+
+function CountReviewDetail({ line, streamCatalog, online, busy, onConfirm, busyId }: {
+  line: CafeCountLine
+  streamCatalog: readonly ProductionStream[]
+  online: boolean
+  busy: boolean
+  onConfirm: () => void
+  busyId: string | null
+}) {
+  const t = useT()
+  const calculatedVariance = line.expected_status === 'ready' && line.expected_balance !== null
+    ? calculateCafeCountVariance(line.counted_quantity, null, line.expected_balance) : null
+  const varianceMatches = calculatedVariance !== null && line.variance !== null
+    && areCafeCountDecimalsEqual(calculatedVariance, line.variance)
+  const zeroVariance = varianceMatches && calculatedVariance === '0'
+  const stream = streamCatalog.find(s => s.branch.id === line.branch_id && s.activity === line.activity) ?? null
+  const submittedAt = new Intl.DateTimeFormat(document.documentElement.lang || 'en', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(new Date(line.submitted_at))
+  const expectedAt = line.expected_recorded_at
+    ? new Intl.DateTimeFormat(document.documentElement.lang || 'en', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(new Date(line.expected_recorded_at)) : null
+  const fact = (label: string, value: React.ReactNode) => <div><dt>{label}</dt><dd>{value}</dd></div>
+  return <article className="cafe-count-review__detail">
+    <h3>{line.item_name}</h3>
+    <p className="cafe-count-review__meta">{formatWeekdayDayMonth(line.count_date)} · {line.item_kind}{line.item_category ? ` · ${line.item_category}` : ''} · {stream ? streamLabel(t, stream) : ''} · {t('cafe.count.review.submittedAt', { time: submittedAt })}</p>
+    {!online && <Notice tone="attention" role="alert">{t('cafe.count.offline')}</Notice>}
+    <Panel title={t('cafe.count.review.comparison')} open>
+      <dl className="cafe-count-review__facts">
+        {fact(t('cafe.count.review.count'), <>{formatCafeCountDecimal(line.counted_quantity, document.documentElement.lang || 'en')} <span>{line.unit_name}</span></>)}
+        {fact(t('cafe.count.review.expected'), line.expected_status === 'ready' && line.expected_balance !== null && expectedAt ? <>{formatCafeCountDecimal(line.expected_balance, document.documentElement.lang || 'en')} <span>{line.unit_name} · {t('cafe.count.review.asOf', { time: expectedAt })}</span></> : t('cafe.count.review.expectedWaiting'))}
+        {fact(t('cafe.count.review.variance'), varianceMatches && calculatedVariance !== null ? <>{formatCafeCountDecimal(calculatedVariance, document.documentElement.lang || 'en')} <span>{line.unit_name}</span></> : t('cafe.count.review.varianceWaiting'))}
+      </dl>
+    </Panel>
+    <div className="cafe-count-review__decision">
+      {line.status === 'Confirmed' ? <span role="status">{t('cafe.count.review.confirmedNotNeeded')}</span>
+        : line.expected_status !== 'ready' ? <span role="status">{t('cafe.count.review.expectedWaiting')}</span>
+        : !varianceMatches ? <span role="status">{t('cafe.count.review.varianceWaiting')}</span>
+        : zeroVariance ? <button type="button" className="btn btn-primary" disabled={!online || busy} onClick={onConfirm}>{busyId === line.id ? t('common.working') : t('cafe.count.review.confirm')}</button>
+        : <span role="status">{t('cafe.count.review.nonZero')}</span>}
+    </div>
+  </article>
 }
 
 function formatCafeCountDecimal(value: string, locale: string): string {

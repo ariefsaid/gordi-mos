@@ -7,7 +7,7 @@ import {
   // deliberately, which is the point).
 } from './inbox-record-door'
 import { resolveNotificationTarget } from './inbox-target'
-import { ROLE_CAPABILITIES } from '@/lib/capabilities'
+import { can } from '@/lib/capabilities'
 
 // A row whose typed target is a task — the common case.
 function taskRow(extra?: Partial<NotificationRow>): NotificationRow {
@@ -43,12 +43,9 @@ describe('buildInboxTargetDeps — production wiring (FR-V3-008 / J06, Luna audi
     // We can't inject a fake capability into TARGET_OPEN_CAPABILITY without editing production, so
     // instead we verify the contract by overriding canOpen directly through the same shape the
     // production function produces when a capability IS present:
-    // `dev`'s ROLE_CAPABILITIES (lib/capabilities.ts, ADR-0020 D4) is the static v1 seed — it has
-    // no `member` entry at all (only admin/finance/ops_lead are granted anything), unlike v4's
-    // richer role map. `?? []` mirrors `can()`'s own guard immediately below: an absent role key
-    // legitimately means zero capabilities, the same contract the production function relies on.
-    const adminOnlyCapability = ROLE_CAPABILITIES.admin.find((c) => !(ROLE_CAPABILITIES.member ?? []).includes(c))!
-    expect(adminOnlyCapability).toBeTruthy() // e.g. 'objective.manage'
+    const adminOnlyCapability = 'objective.manage'
+    expect(can(['admin'], adminOnlyCapability)).toBe(true)
+    expect(can(['member'], adminOnlyCapability)).toBe(false)
     const memberDeps = buildInboxTargetDeps(taskRow(), ['member'])
     // Simulate the path production takes when TARGET_OPEN_CAPABILITY has an entry: wrap canOpen so
     // it consults the real capability for the target type.
@@ -57,7 +54,7 @@ describe('buildInboxTargetDeps — production wiring (FR-V3-008 / J06, Luna audi
       canOpen: (ref: { type: string; id: string }) => {
         // Same shape as production's canOpen branch, applied to a hypothetical gated task type.
         const capability = ref.type === 'task' ? adminOnlyCapability : undefined
-        return capability == null ? true : ['member'].some((r) => (ROLE_CAPABILITIES[r] ?? []).includes(capability))
+        return capability == null ? true : can(['member'], capability)
       },
     }
     // A member viewer cannot open a gated task → resolver returns permission-denied.

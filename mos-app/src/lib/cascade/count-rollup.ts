@@ -26,7 +26,7 @@ export const UNLINKED_OBJECTIVE_KEY = '__unlinked__'
 export const NO_WORK_LINE_KEY = '__no_work_line__'
 
 /** Both synthetic group names. Callers with a `t()` in hand pass translated copy instead. */
-export const DEFAULT_CASCADE_GROUP_LABELS = {
+const DEFAULT_CASCADE_GROUP_LABELS = {
   unlinked: '(Unlinked)',
   noWorkLine: 'No Project/Process',
 } as const
@@ -44,7 +44,7 @@ export type CascadeTask = {
   accountable_person_id?: string | null
 }
 
-export type RollupTask = CascadeTask & { title?: string }
+type RollupTask = CascadeTask & { title?: string }
 
 /**
  * One (Objective, Project/Process) pair, carrying its own tasks and its count roll-up.

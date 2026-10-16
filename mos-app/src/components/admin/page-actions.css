@@ -1,0 +1,6 @@
+/* Sortable column headers (CT3): the header's own type, a 12px-gutter hit area, the shared focus ring. */
+.admin-sort {
+  display: inline-flex; align-items: center; gap: var(--mos-space-1); margin: 0 calc(-1 * var(--mos-space-1)); padding: var(--mos-space-2) var(--mos-space-1);
+  border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; font: inherit; cursor: pointer;
+}
+.admin-sort:hover { color: var(--mos-ink); }

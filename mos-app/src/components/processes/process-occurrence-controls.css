@@ -28,13 +28,13 @@
   border-radius: var(--radius-sm);
   background: var(--secondary);
   color: var(--foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
 }
 
 .process-occurrence-controls__list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--mos-row-gap);
   list-style: none;
   margin: 0;
   padding: 0;
@@ -43,10 +43,10 @@
 .process-occurrence-controls__item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px 16px;
+  gap: var(--mos-inline-gap) var(--mos-bar-pad-x);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 12px;
+  padding: var(--mos-row-pad-y);
 }
 
 .process-occurrence-controls__identity p,
@@ -59,16 +59,16 @@
   align-self: start;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: var(--mos-label-gap) var(--mos-row-gap);
   justify-content: flex-end;
   color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
 }
 
 .process-occurrence-controls__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
   grid-column: 1 / -1;
 }
 

@@ -29,7 +29,7 @@ export type CafePurchaseRequest = {
 
 export type CafePurchaseRequestDraftLine = { item_unit_id: string; quantity: string }
 
-const REQUEST_FIELDS = [
+export const REQUEST_FIELDS = [
   'id', 'branch_id', 'activity', 'required_by', 'note', 'status', 'requested_by', 'requested_at',
   'reviewed_by', 'reviewed_at', 'review_note', 'row_version',
   'lines:cafe_purchase_request_lines(id, item_name, item_category, unit_name, quantity)',
@@ -55,16 +55,19 @@ export async function listCafePurchaseRequests(
     .order('requested_at', { ascending: false })
     .limit(limit)
   if (error) throw new Error(`listCafePurchaseRequests failed: ${error.message}`)
-  return ((data ?? []) as unknown as Array<Record<string, unknown>>).map(row => {
-    if ((row.activity !== 'kitchen' && row.activity !== 'bar')
-      || !STATUSES.includes(row.status as CafePurchaseRequestStatus) || !Array.isArray(row.lines)) {
-      throw new Error('listCafePurchaseRequests failed: invalid request row')
-    }
-    return {
-      ...row,
-      lines: (row.lines as Array<Record<string, unknown>>).map(line => ({ ...line, quantity: String(line.quantity) })),
-    } as unknown as CafePurchaseRequest
-  })
+  return ((data ?? []) as unknown as Array<Record<string, unknown>>).map(parseCafePurchaseRequestRow)
+}
+
+/** One `REQUEST_FIELDS` row, validated, with line quantities as strings. */
+export function parseCafePurchaseRequestRow(row: Record<string, unknown>): CafePurchaseRequest {
+  if ((row.activity !== 'kitchen' && row.activity !== 'bar')
+    || !STATUSES.includes(row.status as CafePurchaseRequestStatus) || !Array.isArray(row.lines)) {
+    throw new Error('listCafePurchaseRequests failed: invalid request row')
+  }
+  return {
+    ...row,
+    lines: (row.lines as Array<Record<string, unknown>>).map(line => ({ ...line, quantity: String(line.quantity) })),
+  } as unknown as CafePurchaseRequest
 }
 
 /** Send: only the key, stream, needed-by date, note and (product detail, quantity) pairs cross the boundary. */

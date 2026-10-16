@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import {
   createRecordRouteAdapter,
   historyDeltaForClose,
-  OVERLAY_HISTORY_KEY,
   readOverlayMarker,
   withOverlayMarker,
 } from './overlay-navigation'
@@ -48,7 +47,7 @@ describe('overlay navigation markers', () => {
       ),
     ).toEqual({
       taskSurface: 'panel',
-      [OVERLAY_HISTORY_KEY]: {
+      __mosOverlay: {
         sessionId: 'session-1',
         depth: 0,
         entryKey: 'task:1',

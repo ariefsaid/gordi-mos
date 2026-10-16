@@ -7,7 +7,7 @@ import {
 } from '@/lib/db/work-authority'
 
 /** A lookup that has not answered by then counts as failed, so the viewer can retry instead of waiting. */
-export const WORK_AUTHORITY_TIMEOUT_MS = 10_000
+const WORK_AUTHORITY_TIMEOUT_MS = 10_000
 
 export function canCreateForScope(kind: 'work-line' | 'objective', scopes: WorkWriteScopes): boolean {
   return kind === 'work-line'

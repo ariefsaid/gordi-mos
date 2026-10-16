@@ -18,6 +18,8 @@ export type CommandItem = {
   /** Keep the palette open after this in-place command (e.g. a result-group disclosure). */
   keepOpen?: boolean
   meta?: string
+  /** Extra words the row matches on (the other language's name, the trail), never shown. */
+  keywords?: string
   record?: { id: string; title: string }
   /**
    * This row is one of Work's DECLARED children — a fact about the registry, true whatever the
@@ -42,7 +44,7 @@ export type CommandItem = {
 }
 
 /** The Work PARENT row — the row a child hangs its rung from unless its `parentId` names another. */
-export const WORK_PARENT_ID = 'n-work'
+const WORK_PARENT_ID = 'n-work'
 
 /**
  * The rung states a RELATIONSHIP, so it may only be drawn while both ends are on screen.

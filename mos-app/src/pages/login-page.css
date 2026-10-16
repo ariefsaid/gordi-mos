@@ -1,0 +1,40 @@
+/* Sign-in: heading, then capture (form + alternative methods), then sample accounts beside it on desktop. */
+.login-workbench { display: block; }
+.login-workbench :is(p, label, .notice) { text-wrap: pretty; }
+.login-workbench:has(.demo-directory) {
+  display: grid; grid-template-columns: minmax(0, 440px) minmax(260px, 1fr);
+  column-gap: clamp(var(--mos-space-8), 6vw, 88px); align-items: start;
+}
+.login-heading { grid-column: 1 / -1; }
+.login-capture { grid-column: 1; min-width: 0; }
+.login-alternatives { display: flex; flex-direction: column; gap: var(--mos-inline-gap); margin-top: var(--mos-inline-gap); }
+.login-alternatives [data-testid="google-sign-in-slot"] { display: flex; flex-direction: column; gap: var(--mos-space-2); }
+.login-alternatives [data-testid="google-sign-in-slot"][hidden] { display: none; }
+.login-or { display: flex; align-items: center; gap: var(--mos-row-gap); color: var(--mos-muted); font: var(--mos-type-body); }
+.login-or::before, .login-or::after { content: ''; flex: 1; height: 1px; background: var(--mos-line); }
+
+/* Sample accounts: a disclosure whose rows are the personas. */
+.demo-directory { width: 100%; grid-column: 2; grid-row: 2; }
+.demo-directory summary {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--mos-row-gap);
+  min-height: var(--mos-control-height); cursor: pointer; list-style: none;
+  color: var(--mos-ink); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold);
+}
+.demo-directory summary::-webkit-details-marker { display: none; }
+.demo-directory__chevron { flex: none; width: var(--mos-icon-sm); height: var(--mos-icon-sm); transition: transform var(--mos-duration-fast) ease-out; }
+.demo-directory[open] .demo-directory__chevron { transform: rotate(180deg); }
+.demo-directory__hint { margin: var(--mos-space-1) 0 0; color: var(--mos-muted); font: var(--mos-type-meta); }
+.demo-directory__list { display: flex; flex-direction: column; margin-top: var(--mos-inline-gap); }
+.demo-persona {
+  display: flex; align-items: center; gap: var(--mos-inline-gap); width: 100%; min-height: var(--mos-control-height);
+  padding: var(--mos-row-pad-y) 0; border: 0; border-bottom: 1px solid var(--mos-line); border-radius: 0; background: none; text-align: start;
+  color: var(--mos-accent); font: var(--mos-type-control); font-weight: var(--mos-weight-medium); cursor: pointer;
+}
+.demo-persona:hover:not(:disabled) { color: var(--mos-accent-hover); text-decoration: underline; text-underline-offset: 3px; }
+.demo-persona:disabled { color: var(--mos-muted); cursor: not-allowed; }
+.demo-persona[aria-busy='true'] { color: var(--mos-accent); cursor: progress; }
+@media (max-width: 767.98px) {
+  .login-workbench, .login-workbench:has(.demo-directory) { display: flex; flex-direction: column; align-items: stretch; }
+  .demo-directory { margin-top: var(--mos-space-6); padding-top: var(--mos-space-3); border-top: 1px solid var(--mos-line); }
+  .demo-persona { min-height: var(--mos-control-height); }
+}

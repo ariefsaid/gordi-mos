@@ -51,6 +51,6 @@ describe('task permission oracle (mirrors mos.can_edit_task / the archive clause
   it('AC-060: draft PIC options are self plus downline and lock copy is localized by caller', () => {
     expect(picOptions('r', [{ id: 'r', full_name: 'R' }, { id: 'd', full_name: 'Downline' }, { id: 'p', full_name: 'Peer' }], ['d']).map(p => p.id)).toEqual(['r', 'd'])
     expect(picLockMessage(true)).toBeNull()
-    expect(picLockMessage(false)).toBe('Only you can be PIC — a supervisor names others')
+    expect(picLockMessage(false)).toBe('Only you can be PIC — a Supervisor names others')
   })
 })

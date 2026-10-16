@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { daysAgoIsoDate, latestBy, readAllPages, REPORTING_WINDOW_DAYS } from '@/lib/db/reporting-shared'
+import { daysAgoIsoDate,  readAllPages, REPORTING_WINDOW_DAYS } from '@/lib/db/reporting-shared'
 
 // Data layer for reporting.sales_margin_daily (Home v1 margin KPI — ADR-0018 D6 prereq /
 // ADR-0010 D5 / ADR-0019 D3). Reads via supabase.schema('reporting') on the existing
@@ -43,8 +43,10 @@ const SELECT =
   'margin_date,esb_code,branch_code,branch_name,branch_id,revenue,cogs_interim_sm,cogs_budget_bom,margin_interim,bom_coverage_pct,snapshot_as_of,source_contract_version'
 
 export interface SalesMarginDailyFilters {
-  /** Only include rows with margin_date >= (today − sinceDays). Defaults to the dashboard's 60-day window. */
+  /** Only include rows with margin_date >= (today − sinceDays). */
   sinceDays?: number
+  fromDate?: string
+  toDate?: string
 }
 
 /**
@@ -55,17 +57,13 @@ export async function listSalesMarginDaily(
   f: SalesMarginDailyFilters = {},
 ): Promise<SalesMarginDailyRow[]> {
   const since = daysAgoIsoDate(f.sinceDays ?? REPORTING_WINDOW_DAYS)
-  return readAllPages<SalesMarginDailyRow>('listSalesMarginDaily', (from, to) =>
-    reporting().from('sales_margin_daily').select(SELECT)
-      .gte('margin_date', since)
-      .order('margin_date', { ascending: true })
+  return readAllPages<SalesMarginDailyRow>('listSalesMarginDaily', (from, to) => {
+    let query = reporting().from('sales_margin_daily').select(SELECT)
+    query = query.gte('margin_date', f.fromDate ?? since)
+    if (f.toDate) query = query.lte('margin_date', f.toDate)
+    return query.order('margin_date', { ascending: true })
       .order('esb_code', { ascending: true })
       .order('branch_code', { ascending: true })
-      .range(from, to))
-}
-
-/** Reporting-day window: the latest `margin_date` across the given rows, or null if empty.
- * Current-period metrics must key off this, not the browser's local calendar date. */
-export function latestMarginReportingDate(rows: SalesMarginDailyRow[]): string | null {
-  return latestBy(rows, r => r.margin_date)
+      .range(from, to)
+  })
 }

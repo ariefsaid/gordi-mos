@@ -57,7 +57,7 @@ export async function listComments({
   return data ?? []
 }
 
-export async function loadPersonIndex(sb: CommentSupabase): Promise<PersonMentionIndex> {
+async function loadPersonIndex(sb: CommentSupabase): Promise<PersonMentionIndex> {
   const { data, error } = await sb
     .schema('shared')
     .from<MentionPerson[]>('people')

@@ -1,0 +1,4 @@
+.orphan-guidance { display: flex; flex-direction: column; gap: var(--mos-space-3); }
+.orphan-guidance p { margin: 0; font: var(--mos-type-body); }
+.orphan-explanation { color: var(--mos-muted); }
+.orphan-signout { margin-top: var(--mos-space-6); }

@@ -23,6 +23,7 @@ import type { TaskTreeNode } from './task-group-tree'
 import type { WorkloadSummary } from './workload-caption'
 import { WorkloadCaption } from './workload-caption'
 import { useT } from '@/i18n/use-t'
+import { SortIndicator } from '@/components/ui/sort-indicator'
 
 
 // ── Skeleton row ──────────────────────────────────────────────────────────────
@@ -162,7 +163,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     // No-results-after-filter is shared with every collection; the true-empty copy stays separate.
     return (
       <FilteredEmptyState items={t('collection.items.tasks')} onClear={onClearFilters}>
-        <Link to={createHref} className="btn btn-primary">{t('tasks.new')}</Link>
+        <Link to={createHref} className="btn btn-outline">{t('tasks.new')}</Link>
       </FilteredEmptyState>
     )
   }
@@ -171,7 +172,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     // Empty-no-tasks: no filter is active (segment-aware copy)
     return (
       <EmptyState title={emptyTitle} copy={emptyCopy}>
-        {emptyCreate ? <Link to={createHref} className="btn btn-primary">{t('tasks.new')}</Link> : null}
+        {emptyCreate ? <Link to={createHref} className="btn btn-outline">{t('tasks.new')}</Link> : null}
       </EmptyState>
     )
   }
@@ -250,11 +251,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
                     {canSort ? (
                       <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={header.column.getToggleSortingHandler()}>
                         {t(meta.labelKey)}
-                        {sorted ? (
-                          <span className="collection-grammar-sort-indicator" aria-hidden="true">
-                            {sorted === 'asc' ? '↑' : '↓'}
-                          </span>
-                        ) : null}
+                        <SortIndicator dir={sorted || null} />
                       </button>
                     ) : t(meta.labelKey)}
                   </th>
@@ -298,7 +295,10 @@ export function TasksTableBody(props: TasksTableBodyProps) {
       {/* Quiet E7-style inline-edit hint (matches the F2 activation the row wires). Sits under the
           table, muted, so the affordance is discoverable without shouting. */}
       {flatRows.some(({ original }) => original.kind !== 'group') && (
-        <p className="tasks-inline-edit-hint">{t('tasks.inlineEdit.hint')}</p>
+        <details className="tasks-keyboard-help">
+          <summary>{t('tasks.keyboardHelp')}</summary>
+          <p className="tasks-inline-edit-hint">{t('tasks.inlineEdit.hint')}</p>
+        </details>
       )}
     </div>
   )

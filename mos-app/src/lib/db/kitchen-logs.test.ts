@@ -27,6 +27,7 @@ import { supabase } from '@/lib/supabase'
 import {
   listCaptureFormItems,
   fetchActualsMap,
+  fetchLatestItemLogDates,
   fetchPlanMap,
   fetchPlanMaps,
   fetchStockMap,
@@ -63,6 +64,8 @@ interface Recorder {
   fromTables: string[]
   selects: string[]
   eqs: Array<[string, unknown]>
+  gtes: Array<[string, unknown]>
+  ltes: Array<[string, unknown]>
   neqs: Array<[string, unknown]>
   iss: Array<[string, unknown]>
   nots: Array<[string, string, unknown]>
@@ -103,6 +106,14 @@ function makeSchema(
     })
     builder.eq = vi.fn((c: string, v: unknown) => {
       rec.eqs.push([c, v])
+      return builder
+    })
+    builder.gte = vi.fn((c: string, v: unknown) => {
+      rec.gtes.push([c, v])
+      return builder
+    })
+    builder.lte = vi.fn((c: string, v: unknown) => {
+      rec.ltes.push([c, v])
       return builder
     })
     builder.neq = vi.fn((c: string, v: unknown) => {
@@ -147,7 +158,7 @@ function makeSchema(
 
 function freshRec(): Recorder {
   return {
-    fromTables: [], selects: [], eqs: [], neqs: [], iss: [], nots: [],
+    fromTables: [], selects: [], eqs: [], gtes: [], ltes: [], neqs: [], iss: [], nots: [],
     inserts: [], updates: [], limits: [], orders: [], orFilters: [], rpcCalls: [], ins: [],
   }
 }
@@ -1214,6 +1225,63 @@ describe('listStreamPairs + streamCatalogFrom — the enumerable stream catalog 
     )
 
     await expect(listCafeDestinations()).rejects.toThrow('listCafeDestinations failed')
+  })
+})
+
+describe('fetchLatestItemLogDates — catalog items from one stream', () => {
+  it('reads all-time eligible logs by stream and resolves one latest timestamp per item', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      kitchen_logs: [
+        { data: [{ wip_item_id: 'w1', created_at: '2023-01-01T12:00:00Z' }], error: null },
+        { data: [
+          { wip_item_id: 'w2', created_at: '2026-08-08T12:00:00Z' },
+          { wip_item_id: 'w2', created_at: '2022-01-01T12:00:00Z' },
+        ], error: null },
+        { data: [], error: null },
+      ],
+    }, rec) as never)
+
+    await expect(fetchLatestItemLogDates(['w1', 'w2', 'w3'], STREAM)).resolves.toEqual({
+      w1: '2023-01-01T12:00:00Z',
+      w2: '2026-08-08T12:00:00Z',
+    })
+    expect(rec.fromTables).toEqual(['kitchen_logs', 'kitchen_logs', 'kitchen_logs'])
+    expect(rec.selects).toEqual(['wip_item_id,created_at', 'wip_item_id,created_at', 'wip_item_id,created_at'])
+    expect(rec.eqs).toEqual([
+      ['branch_id', BRANCH_ID], ['activity', 'kitchen'],
+      ['branch_id', BRANCH_ID], ['activity', 'kitchen'],
+      ['branch_id', BRANCH_ID], ['activity', 'kitchen'],
+    ])
+    expect(rec.ins).toEqual([
+      ['wip_item_id', ['w1', 'w2', 'w3']],
+      ['wip_item_id', ['w2', 'w3']],
+      ['wip_item_id', ['w3']],
+    ])
+    expect(rec.gtes).toEqual([])
+    expect(rec.ltes).toEqual([])
+    expect(rec.neqs).toEqual([
+      ['status', 'Rejected'], ['status', 'Rejected'], ['status', 'Rejected'],
+    ])
+    expect(rec.iss).toEqual([
+      ['superseded_by', null], ['superseded_by', null], ['superseded_by', null],
+    ])
+    expect(rec.orders).toEqual([
+      ['created_at', { ascending: false }], ['id', { ascending: false }],
+      ['created_at', { ascending: false }], ['id', { ascending: false }],
+      ['created_at', { ascending: false }], ['id', { ascending: false }],
+    ])
+    expect(rec.limits).toEqual([1000, 1000, 1000])
+  })
+
+  it('surfaces a failed history read to the optional page fallback', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      kitchen_logs: [{ data: null, error: { message: 'RLS denied' } }],
+    }, rec) as never)
+
+    await expect(fetchLatestItemLogDates(['w1'], STREAM))
+      .rejects.toThrow('fetchLatestItemLogDates failed — RLS denied')
   })
 })
 

@@ -51,7 +51,7 @@ not what the diff claims. Verify interactions via the a11y tree / DOM / computed
 screenshots in the run's handoff dir to the candidate and preview. Apply the image qualification
 rule above before claiming a pixel verdict.
 
-**In the audit chain** (`adws/adw_design_audit.py` — the milestone judgment pass, OD-WAY-55), two
+**In the audit chain** (the retired milestone judgment pass, OD-WAY-55), two
 things read differently: the app is **already running** at the base URL the prompt provides — never
 start, stop, or rebuild it (factory worktrees carry no env file, so a server you boot yourself
 renders an unauthenticated husk and every verdict on it is void); and a red guard **fails that

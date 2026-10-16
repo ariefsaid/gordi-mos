@@ -21,16 +21,16 @@ import type {
 export const COLLECTION_VIEW_SPEC_VERSION = 1 as const
 export type CollectionViewCollection = 'tasks' | 'signals' | 'events'
 export type CollectionViewScope = 'private' | 'shared_team'
-export type CollectionViewLayout = { density: 'compact' | 'comfortable' }
+type CollectionViewLayout = { density: 'compact' | 'comfortable' }
 
 export type TaskCollectionVisibleField =
   | 'title' | 'status' | 'pic' | 'supervisor' | 'due' | 'businessUnit'
   | 'workline' | 'objective' | 'source' | 'activity'
-export type SignalCollectionVisibleField =
+type SignalCollectionVisibleField =
   | 'message' | 'author' | 'team' | 'occurredAt' | 'attention' | 'category' | 'retracted'
-export type EventCollectionVisibleField = 'title' | 'time' | 'venue' | 'outbound' | 'businessUnit' | 'coordinator'
+type EventCollectionVisibleField = 'title' | 'time' | 'venue' | 'outbound' | 'businessUnit' | 'coordinator'
 
-export type TaskCollectionSavedQuery = Pick<
+type TaskCollectionSavedQuery = Pick<
   TaskCollectionQuery,
   'view' | 'q' | 'businessUnitId' | 'status' | 'picId' | 'supervisorId'
   | 'includeArchived' | 'overdueOnly' | 'occurrenceId'
@@ -38,7 +38,7 @@ export type TaskCollectionSavedQuery = Pick<
   /** Optional for backwards compatibility with specs written before the Person filter existed. */
   personId?: TaskCollectionQuery['personId']
 }
-export type SignalCollectionSavedQuery = Pick<
+type SignalCollectionSavedQuery = Pick<
   SignalCollectionQuery,
   'view' | 'q' | 'attention' | 'category' | 'teamId' | 'showRetracted'
 >
@@ -94,7 +94,7 @@ export interface PersistedCollectionView {
   archivedAt: string | null
 }
 
-export interface CollectionViewValidationIssue {
+interface CollectionViewValidationIssue {
   path: string
   code:
     | 'invalid-shape' | 'unsupported-version' | 'invalid-kind' | 'unknown-collection'

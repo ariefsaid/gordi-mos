@@ -1,0 +1,13 @@
+/* Change location (preview): one stacked form, max 640px. Tokens only. */
+.move-stock { display: grid; gap: var(--mos-field-gap); min-width: 0; max-width: 640px; align-content: start; }
+.move-stock__job, .move-stock__note { margin: 0; max-width: 60ch; color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
+.move-stock__job { font: var(--mos-type-body); color: var(--mos-ink); }
+.move-stock__badges { display: flex; flex-wrap: wrap; gap: var(--mos-inline-gap); margin: 0; }
+.move-stock__form { display: grid; gap: var(--mos-field-gap); }
+.move-stock__error { margin: 0; color: var(--mos-error-text); font: var(--mos-type-meta); }
+.move-stock__qty { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--mos-field-gap); align-items: end; }
+.move-stock__unit { display: grid; gap: var(--mos-label-gap); min-height: var(--mos-control-height); align-content: end; }
+.move-stock__label { color: var(--mos-ink); font: var(--mos-type-label); }
+.move-stock__muted { color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
+.move-stock__actions { margin-top: var(--mos-section-gap); }
+@media (max-width: 767.98px) { .move-stock__qty { grid-template-columns: minmax(0, 1fr); } }

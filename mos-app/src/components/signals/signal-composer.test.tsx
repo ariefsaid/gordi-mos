@@ -47,9 +47,9 @@ async function findMentionOption(name: RegExp) {
   return within(listbox).findByRole('option', { name })
 }
 
-function renderComposer(props: Partial<React.ComponentProps<typeof SignalComposer>> = {}) {
+function renderComposer(props: Partial<React.ComponentProps<typeof SignalComposer>> = {}, locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <div style={{ width: 390 }}>
         <SignalComposer authorId={AUTHOR_ID} authorName="Author One" canTag canMentionBu {...props} />
       </div>
@@ -165,7 +165,7 @@ describe('SignalComposer — independent notification targets (DD-MVP-27)', () =
     await userEvent.click(remove)
 
     expect(screen.getByRole('group', { name: /notification targets/i })).toHaveTextContent('Person · Peer Person')
-    expect(screen.getByText('All teams · notifies 1 person · Author One')).toBeInTheDocument()
+    expect(screen.getByText(/Notifies 1 person · Author One/)).toBeInTheDocument()
     expect(remove).toBeDisabled()
     expect(mockCreateSignal.mock.calls[0][0].mentions).toEqual([mention])
 
@@ -198,7 +198,7 @@ describe('SignalComposer — independent notification targets (DD-MVP-27)', () =
     await userEvent.click(remove)
 
     expect(screen.getByRole('group', { name: /notification targets/i })).toHaveTextContent('Person · Peer Person')
-    expect(screen.getByText('All teams · notifies 1 person · Author One')).toBeInTheDocument()
+    expect(screen.getByText(/Notifies 1 person · Author One/)).toBeInTheDocument()
     expect(remove).toBeDisabled()
     expect(mockCreateSignal).toHaveBeenCalledTimes(1)
     expect(mockCreateSignal.mock.calls[0][0].mentions).toEqual([mention])
@@ -218,9 +218,9 @@ describe('SignalComposer — capture-minimal fields (AC-420)', () => {
     // 1. Content
     const body = screen.getByRole('textbox', { name: /what happened/i })
     // 2. Occurrence time — a contextual pill backed by the native picker.
-    const occurred = screen.getByLabelText(/occurred/i)
-    // 3. Author — one metadata line with the audience, read-only (not a form control).
-    expect(screen.getByText('All teams · Author One')).toBeInTheDocument()
+    const occurred = screen.getByRole('textbox', { name: /occurred at/i })
+    // The audience is fixed to All Teams; author identity stays separate from mention notifications.
+    expect(screen.getByText(/Shared by Author One/)).toBeInTheDocument()
 
     // No owning-Team machinery anywhere: a new Signal is All Teams with no Team target.
     expect(screen.queryByRole('combobox', { name: /owning team|tim pemilik/i })).not.toBeInTheDocument()
@@ -313,7 +313,7 @@ describe('SignalComposer — Shift+Enter send (OD-REDESIGN-91 #10)', () => {
     // The occurred-at DATE is the shared day-first DateField (#1191) — it shows the unambiguous
     // "d Mon yyyy" display of the prefilled now; the TIME keeps the native picker, so the pair
     // together still carries date + time-of-day for the post.
-    const occurred = screen.getByLabelText(/occurred/i) as HTMLInputElement
+    const occurred = screen.getByRole('textbox', { name: /occurred at/i }) as HTMLInputElement
     expect(occurred.value).toMatch(/^\d{1,2} [A-Za-z]{3} \d{4}$/)
     expect(screen.getByLabelText(/time/i)).toHaveAttribute('type', 'time')
     expect(screen.getByText('WIB')).toBeInTheDocument()
@@ -323,7 +323,7 @@ describe('SignalComposer — Shift+Enter send (OD-REDESIGN-91 #10)', () => {
     renderComposer()
     await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
     await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), 'Stock arrived')
-    fireEvent.change(screen.getByLabelText(/occurred/i), { target: { value: '05/10/2026' } })
+    fireEvent.change(screen.getByRole('textbox', { name: /occurred at/i }), { target: { value: '05/10/2026' } })
     fireEvent.change(screen.getByLabelText(/time/i), { target: { value: '14:35' } })
     await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
 
@@ -343,7 +343,7 @@ describe('SignalComposer — Shift+Enter send (OD-REDESIGN-91 #10)', () => {
     })
     await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
 
-    expect(screen.getByLabelText(/occurred/i)).toHaveValue('5 Oct 2026')
+    expect(screen.getByRole('textbox', { name: /occurred at/i })).toHaveValue('5 Oct 2026')
     expect(screen.getByLabelText(/^time$/i)).toHaveValue('10:15')
   })
 
@@ -357,7 +357,7 @@ describe('SignalComposer — Shift+Enter send (OD-REDESIGN-91 #10)', () => {
         mentions: [],
       },
     })
-    fireEvent.change(screen.getByLabelText(/occurred/i), { target: { value: '05/10/2026' } })
+    fireEvent.change(screen.getByRole('textbox', { name: /occurred at/i }), { target: { value: '05/10/2026' } })
     fireEvent.change(screen.getByLabelText(/^time$/i), { target: { value: '10:15' } })
 
     await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
@@ -372,7 +372,7 @@ describe('SignalComposer — Shift+Enter send (OD-REDESIGN-91 #10)', () => {
     })
     await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
 
-    expect(screen.getByLabelText(/occurred/i)).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: /occurred at/i })).toHaveValue('')
     expect(screen.getByLabelText(/^time$/i)).toHaveValue('')
     expect(screen.getByRole('button', { name: /share signal/i })).toBeDisabled()
   })
@@ -658,7 +658,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
 
     expect(body).toHaveValue('Heads up @Pe')
     expect(screen.getByRole('listbox', { name: /mention/i })).toBeInTheDocument()
-    expect(screen.queryByRole('group', { name: /notification targets/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /from notification targets/i })).not.toBeInTheDocument()
     expect(mockCreateSignal).not.toHaveBeenCalled()
   })
 
@@ -672,7 +672,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
 
     expect(screen.queryByRole('listbox', { name: /mention/i })).not.toBeInTheDocument()
     expect(body).toHaveValue('Heads up @Pe')
-    expect(screen.queryByRole('group', { name: /notification targets/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /from notification targets/i })).not.toBeInTheDocument()
     expect(mockCreateSignal).not.toHaveBeenCalled()
   })
 
@@ -705,8 +705,19 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
   })
 })
 
+describe('SignalComposer — audience beside the Share action', () => {
+  it.each([
+    ['en', 'Audience: All teams', 'Share signal'],
+    ['id', 'Audiens: Semua tim', 'Bagikan sinyal'],
+  ] as const)('shows the current audience next to the Share action in %s', (locale, expected, shareLabel) => {
+    renderComposer({}, locale)
+    expect(screen.getByRole('button', { name: shareLabel })).toBeInTheDocument()
+    expect(screen.getByText(new RegExp(expected))).toBeInTheDocument()
+  })
+})
+
 describe('SignalComposer — All Teams visibility + dedup fan-out preview (AC-422)', () => {
-  it('shows "All teams · notifies N people · <author>" with the deduplicated count for overlapping mentions', async () => {
+  it('shows the deduplicated notification count separately from the fixed All Teams audience', async () => {
     renderComposer({ teamMembers: { 'team-hq': ['person-peer', 'person-other'] } })
     await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
@@ -719,17 +730,14 @@ describe('SignalComposer — All Teams visibility + dedup fan-out preview (AC-42
     await userEvent.click(await findMentionOption(/Peer Person/i))
 
     // SR-1 (owner ruling): the dedup count carries its noun — "notifies N people", never a naked
-    // N. One metadata line — audience, notify count, then author.
-    expect(screen.getByText('All teams · notifies 2 people · Author One')).toBeInTheDocument()
+    // N. Notification targets do not change the All Teams audience.
+    expect(screen.getByText(/Notifies 2 people · Author One/)).toBeInTheDocument()
   })
 
-  // The audience phrase is STABLE — always "All teams" — with the notify segment appended, never
-  // swapped in as a different phrase, so typing a mention can't change the wording the reader
-  // already read.
-  it('shows "All teams · <author>" with no notify suffix when no mentions are staged', async () => {
+  it('shows the author line when no notification targets are staged', async () => {
     renderComposer()
     await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
-    expect(await screen.findByText('All teams · Author One')).toBeInTheDocument()
+    expect(await screen.findByText(/Shared by Author One/)).toBeInTheDocument()
   })
 
   it('inflects the notify noun to the singular for one recipient', async () => {
@@ -739,7 +747,7 @@ describe('SignalComposer — All Teams visibility + dedup fan-out preview (AC-42
     await userEvent.type(body, '@Pe')
     await userEvent.click(await findMentionOption(/Peer Person/i))
 
-    expect(screen.getByText('All teams · notifies 1 person · Author One')).toBeInTheDocument()
+    expect(screen.getByText(/Notifies 1 person · Author One/)).toBeInTheDocument()
   })
 })
 

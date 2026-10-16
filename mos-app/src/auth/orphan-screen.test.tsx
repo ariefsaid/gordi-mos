@@ -21,15 +21,15 @@ describe('OrphanScreen', () => {
     expect(screen.getAllByText(/Contact your admin/i).length).toBe(2)
   })
 
-  it('FR-016: orphan screen — only interactive control is sign-out', () => {
+  it('FR-016: orphan screen keeps sign-out and exposes public locale controls', () => {
     const signOut = vi.fn()
     mockUseAuth.mockReturnValue({ status: 'orphan', signOut })
 
     render(<OrphanScreen />)
 
-    const buttons = screen.getAllByRole('button')
-    expect(buttons).toHaveLength(1)
-    expect(buttons[0]).toHaveAccessibleName(/sign out/i)
+    expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'EN' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'ID' })).toBeInTheDocument()
   })
 
   it('FR-016: orphan screen — clicking sign-out invokes signOut', async () => {

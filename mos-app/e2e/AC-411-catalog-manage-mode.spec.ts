@@ -78,41 +78,35 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
   test('admin: Work → Objectives → /work/objectives with down-trace', async ({ page }) => {
     await loginAs(page, ADMIN.email, ADMIN.password)
 
-    // Work → Objectives (phone opens the drawer for secondary nav). The link is no longer
-    // capability-gated: OD-V4-1 opened the READ to every authenticated viewer (#188 rail, #189
-    // route). ADMIN is used here for the down-trace fixtures, not for admission.
-    //
-    // STALE: the v4 shell has no header hamburger. Task 1 (top-bar.test.tsx, "v4 shell Task 1: no
-    // header hamburger") made the bottom-tab bar's "More" button (aria-label t('nav.more'),
-    // bottom-tab-bar.tsx) the drawer's SOLE opener — "Open navigation" does not exist on any
-    // viewport. The drawer it opens is still `role="dialog"` (mobile-drawer.tsx), so only the
-    // opener locator changes.
-    await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: /more/i }).click()
-    await page.getByRole('dialog').getByRole('link', { name: 'Objectives' }).click()
+    // Work → Objectives on a phone: the Work tab opens Tasks, "Back to Work" is the Work
+    // home, and its destinations include Objectives. The link is no longer capability-gated:
+    // OD-V4-1 opened the READ to every authenticated viewer (#188 rail, #189 route). ADMIN is
+    // used here for the down-trace fixtures, not for admission.
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Work' }).click()
+    await page.getByRole('link', { name: 'Back to Work' }).click()
+    await page.getByRole('navigation', { name: 'Work destinations' }).getByRole('link', { name: /Objectives/ }).click()
     await expect(page).toHaveURL(/\/work\/objectives$/)
     await expect(page.getByRole('heading', { name: 'Objectives', level: 1 })).toBeVisible()
 
     // WORK-13: the collection shows real linked work and task progress, not a placeholder.
-    // #1292 gives catalog rows and cells their own accessible owners, so identify the row by its record link.
-    const trace = page.getByRole('row').filter({
-      has: page.getByRole('link', { name: 'E2E Trace Objective', exact: true }),
-    })
-    await expect(trace).toBeVisible({ timeout: 10_000 })
-    await expect(trace).toContainText('E2E Trace Work Line')
-    // The Work cell names its direct Projects & Processes (catalog-list-presentation.tsx); the
-    // count string is retired, so the cell's whole accessible name is the label and the child's name.
-    await expect(trace.getByRole('cell', { name: 'Projects & Processes: E2E Trace Work Line', exact: true })).toBeVisible()
-    await expect(trace).not.toContainText(/Projects & Processes: \d/)
-    await expect(trace).toContainText('0 / 2 Tasks done')
-    await trace.getByRole('link', { name: 'E2E Trace Objective', exact: true }).click()
+    // Narrow the list to the trace Objective so its roll-up and child are the only ones on the page.
+    await page.getByRole('searchbox', { name: 'Search by name' }).fill('E2E Trace Objective')
+    const objectives = page.getByRole('region', { name: 'Objectives', exact: true })
+    const traceLink = objectives.getByRole('link', { name: 'E2E Trace Objective', exact: true })
+    await expect(traceLink).toBeVisible({ timeout: 10_000 })
+    // The row names its direct Projects & Processes and counts Tasks done; no count string stands
+    // in for the child's name.
+    await expect(objectives.getByRole('link', { name: 'E2E Trace Work Line', exact: true })).toBeVisible()
+    await expect(objectives).not.toContainText(/Projects & Processes: \d/)
+    await expect(objectives.getByText('0 / 2 tasks done', { exact: true })).toBeVisible()
+    await traceLink.click()
     const objective = page.getByRole('region', { name: 'E2E Trace Objective', exact: true })
     await expect(objective).toBeVisible()
     await expect(objective).toHaveAttribute('data-record-mode', 'page')
     await objective.getByRole('link', { name: 'E2E Trace Work Line', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'E2E Trace Work Line', exact: true })).toBeVisible()
     await expect(page).toHaveURL(new RegExp(`/work/projects/${TRACE_WL}$`))
-    const backToProjects = page.locator('.record-page-back')
-    await expect(backToProjects).toHaveCount(1)
+    const backToProjects = page.getByRole('link', { name: /^Back to Projects/ })
     await expect(backToProjects).toHaveAttribute('href', /\/work\/projects$/)
     await backToProjects.click()
     await expect(page).toHaveURL(/\/work\/projects$/)
@@ -183,13 +177,12 @@ for (const width of [1440]) {
       await page.getByRole('button',{name:'Open full page',exact:true}).click()
       await expect(page).toHaveURL(url => url.pathname.endsWith(`/work/projects/${TRACE_PROCESS}`))
     }
-    const backToProjects = page.locator('.record-page-back')
-    await expect(backToProjects).toHaveCount(1)
+    const backToProjects = page.getByRole('link', { name: /^Back to Projects/ })
     await expect(backToProjects).toHaveAttribute('href', /\/work\/projects$/)
     await page.reload()
     await expect(page.getByRole('heading',{name:'E2E Trace Process',exact:true})).toBeVisible()
     await expect(page.getByRole('region', { name: 'E2E Trace Process', exact: true })).toHaveAttribute('data-record-mode', 'page')
-    await page.locator('.record-page-back').click()
+    await page.getByRole('link', { name: /^Back to Projects/ }).click()
     await expect(page).toHaveURL(/\/work\/projects$/)
     await expect(page.getByRole('heading',{name:'Projects & Processes',exact:true})).toBeVisible()
   })

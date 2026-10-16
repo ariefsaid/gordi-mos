@@ -10,9 +10,9 @@ import './IconButton.css'
  * @accent  default | danger (default default; primary+danger = solid red)
  * @size    medium (32px) | small (24px)
  */
-export type IconButtonVariant = 'secondary' | 'tertiary' | 'primary'
-export type IconButtonAccent = 'default' | 'danger'
-export type IconButtonSize = 'medium' | 'small'
+type IconButtonVariant = 'secondary' | 'tertiary' | 'primary'
+type IconButtonAccent = 'default' | 'danger'
+type IconButtonSize = 'medium' | 'small'
 
 export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   /** Accessible name — REQUIRED (no visible label). */

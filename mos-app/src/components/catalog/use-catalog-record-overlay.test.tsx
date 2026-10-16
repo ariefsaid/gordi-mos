@@ -87,7 +87,7 @@ function Collection() {
   return (
     <>
       <a
-        className="catalog-collection__row-link"
+        className="direction-register__identity"
         href={appUrl('/work/objectives/o1')}
         onClick={(event) => {
           event.preventDefault()

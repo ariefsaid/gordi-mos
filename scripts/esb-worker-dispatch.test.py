@@ -1338,6 +1338,32 @@ check("FR-1028 the lookup asks ESB by the MOS key", lookup_q.get("keyword") == [
 n, out, f, rows = gr_tick(FakeGr(lookups=[found_draft]), meta=sent)
 check("AC-1026 found but not authorized: authorized once, no create",
       [c[0] for c in esb_calls(f)] == ["GET", "PUT"] and not f.to(CREATE_PATH) and n == 0, repr(esb_calls(f)))
+# A person has verified this number in ESB. The worker must fan it out without repeating
+# the inconclusive lookup, authorization or create, and it no longer needs the item map.
+manual_rows = gr_rows()
+for member in manual_rows:
+    member["payload"] = {**member["payload"], "item_unit_id": "no-longer-mapped"}
+def recorded_group_rows(fake, method, url, body):
+    query = urllib.parse.unquote(url)
+    if method == "GET" and "push_group_id" in query:
+        return manual_rows
+    if method == "GET" and "status=eq.pending" in query:
+        return manual_rows[:1]
+    return None
+f = Fake(**FakeGr().routes(esb_push=recorded_group_rows,
+                           esb_push_groups=lambda *a: [{"id": GR_GROUP, "status": "pending",
+                               "esb_doc_num": "GR-FOUND-BY-HAND", "posting_stage": "operator_confirmed"}]))
+manual_ob = W.Outbox(gr_cfg())
+ready = run(lambda: manual_ob.pending(), f)
+n, out = tick(gr_cfg(), ready, f, outbox=manual_ob)
+check("AC-1533 a requeued group is selected once and expanded to its complete membership",
+      len(ready) == 2 and [r["id"] for r in ready].count(M1) == 1
+      and [r["id"] for r in ready].count(M2) == 1, repr(ready))
+check("AC-1533 a hand-confirmed number is adopted without lookup, authorization or create",
+      n == 0 and esb_calls(f) == []
+      and all(v["status"] == "posted" and v["esb_doc_num"] == "GR-FOUND-BY-HAND"
+              for v in member_closes(f).values())
+      and len(member_closes(f)) == 2, repr(f.calls) + out)
 absent = {"status": "ok", "result": {"total": 0, "data": []}}
 n, out, f, rows = gr_tick(FakeGr(lookups=[absent]), meta=sent)
 check("AC-1026 provably absent: re-read, then created once",

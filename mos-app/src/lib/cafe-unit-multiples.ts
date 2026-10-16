@@ -69,6 +69,12 @@ export function fromDefaultUnitQuantity(quantity: number, factor: number): numbe
   return roundedQuotient(quantity, factor, 2)
 }
 
+/** Format a captured amount beside its unit, using the capture surface's number rules. */
+export function formatQuantityWithUnit(quantity: number, unitName: string, locale?: string): string {
+  const formattedQuantity = new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 2 }).format(quantity)
+  return `${formattedQuantity} ${unitName}`
+}
+
 /** A locale-aware, stable label for a manager-defined multiple of a default ERP unit. */
 export function formatUnitMultiple(factor: number, unitName: string, locale?: string): string {
   const formattedFactor = new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 6 }).format(factor)
