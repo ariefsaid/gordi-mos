@@ -11,6 +11,7 @@ import { useAuth } from '@/auth/use-auth'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canCreateForScope, useWorkWriteAuthority } from '@/components/catalog/use-work-write-authority'
 import { isShipGated } from '@/lib/ship-gate'
+import { useModuleAvailability } from '@/lib/module-availability'
 import { goToEntries } from '@/shell/module-registry'
 import { messages } from '@/i18n/messages'
 import { CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
@@ -114,6 +115,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
   const { scopes } = useWorkWriteAuthority(open)
   const t = useT()
   const { openPanel } = useAgentRuntime()
+  const { isOn } = useModuleAvailability()
   // AC-032 uses the shell width seam: narrow palettes stay search-only, with an empty-state prompt
   // at rest and record results after typing beside the phone's existing navigation and launcher.
   const isNarrow = useIsNarrow()
@@ -163,12 +165,12 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
           ? [{ id: 'a-work-line', label: t('catalog.projects.add'), Icon: WorkLineIcon, kind: 'action' as const, to: '/work/projects?create=1' }]
           : []),
       ]
-      if (SHOW_ASSISTANT) items.unshift({
+      if (SHOW_ASSISTANT && isOn('assistant')) items.unshift({
         id: 'a-deputy', label: t('commandMenu.action.askDeputy'), Icon: DeputyIcon, kind: 'action', run: () => openPanel(),
       })
       return items
     },
-    [canShareSignal, openPanel, onShareSignal, scopes, t],
+    [canShareSignal, isOn, openPanel, onShareSignal, scopes, t],
   )
 
   // On a catalog collection route (not its record pages) the page's own create action leads the
@@ -196,7 +198,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
   // a Receive search finds Penerimaan and the reverse. VISIBILITY comes from the registry; the query filter drops
   // non-matching rows without reordering, and `withResolvedRungs` clears a rung whose root row was filtered away.
   const navigateItems = useMemo<CommandItem[]>(
-    () => goToEntries(accessRoles).map<CommandItem>((entry) => ({
+    () => goToEntries(accessRoles, isOn).map<CommandItem>((entry) => ({
       id: entry.id,
       label: t(entry.labelKey),
       Icon: entry.Icon,
@@ -207,7 +209,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
       child: entry.parentId !== undefined,
       parentId: entry.parentId,
     })),
-    [accessRoles, t],
+    [accessRoles, isOn, t],
   )
 
   // CMDK-1: the palette is kept mounted across close→reopen (its host toggles `open`, it does

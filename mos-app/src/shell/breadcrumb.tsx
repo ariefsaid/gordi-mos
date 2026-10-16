@@ -6,6 +6,7 @@ import { useBreadcrumbTitle, useCollectionLeaf, useBoundaryLabel } from './bread
 import { useIsNarrow } from './use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import type { ModuleId } from '@/lib/db/module-settings'
 
 // Shell breadcrumb — Redesign Step 2 (§9). `·` separator, last segment bold, no brand
 // prefix (brand lives in TopBar — OD-P4-11 dedup). Resolves the new destinations +
@@ -47,8 +48,8 @@ export function Breadcrumb() {
     // door, not a location — it no longer claims aria-current (that was the Rule-5 defect this
     // rebuild fixes). Every other live destination (Signals, Money, Admin, Profile, a
     // non-promoted module) has no tab, so the breadcrumb leaf owns it.
-    const promoted = viewer ? phoneModuleForViewer(viewer.affiliated, viewer.accessRoles, pathname) : null
-    const tabIds = new Set(['home', 'work', ...(promoted ? [promoted.id] : [])])
+    const promoted = viewer ? phoneModuleForViewer(viewer.affiliated, viewer.accessRoles, pathname, layout.isOn) : null
+    const tabIds = new Set(['home', ...(layout.isOn('work') ? ['work'] : []), ...(promoted ? [promoted.id] : [])])
     leafCarriesCurrent = !tabIds.has(destination.id)
   } else {
     // Desktop: the nav marks the current PAGE with aria-current="page" wherever it lists that page. The breadcrumb
@@ -57,12 +58,14 @@ export function Breadcrumb() {
     // that has pages.
     const roles = viewer?.accessRoles ?? []
     const landing = destination.primaryPath ?? destination.links[0].path
-    const hasPages = pageCount(pageGroupsFor(destination, roles)) >= 2 || destination.id === 'work'
+    const hasPages = pageCount(pageGroupsFor(destination, roles, layout.isOn)) >= 2 || destination.id === 'work'
     // The area's own row is the page when its landing is open; any deeper route has no row of its own to hold "page".
     leafCarriesCurrent =
       destination.id === 'inbox' ||
       (destination.id === 'profile' && pathname !== landing) ||
-      (destination.zone === 'modules' && viewer != null && !admittedModules(roles).some((m) => m.id === destination.id)) ||
+      (destination.id === 'work' && !layout.isOn('work')) ||
+      (destination.zone === 'modules' && !layout.isOn(destination.id as ModuleId)) ||
+      (destination.zone === 'modules' && viewer != null && !admittedModules(roles, layout.isOn).some((m) => m.id === destination.id)) ||
       (layout.compact && hasPages && pathname !== landing)
   }
 

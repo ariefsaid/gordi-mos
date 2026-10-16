@@ -37,7 +37,7 @@ function count(over: Partial<CafeRecordCount> = {}): CafeRecordCount {
   return {
     id: `cnt${String(n).padStart(3, '0')}`, branch_id: B1, activity: 'kitchen', count_date: '2026-10-14', wip_item_id: 'i1', item_name: 'Pickled onion',
     item_category: null, item_kind: 'WIP', item_unit_id: 'u1', unit_name: 'Batch', counted_quantity: 4, status: 'Confirmed', posting_status: 'not_needed',
-    submitted_at: `2026-10-14T05:00:0${n % 10}+00:00`, reviewed_at: null, row_version: 1, ...over,
+    submitted_by: 'p-count', submitted_at: `2026-10-14T05:00:0${n % 10}+00:00`, reviewed_at: null, row_version: 1, ...over,
   }
 }
 function receipt(over: Partial<CafeReceipt> = {}, lines: CafeReceipt['lines'] = []): CafeReceipt {
@@ -149,18 +149,25 @@ describe('Counts', () => {
     expect(row.latestDate).toBe('2026-10-14')
   })
 
-  it('has no submitter: Who stays unavailable', () => {
-    expect(entriesOf({ counts: [count()] })[0].personId).toBeNull()
+  it('uses the stored submitter and leaves a missing submitter unavailable', () => {
+    expect(entriesOf({ counts: [count()] })[0].personId).toBe('p-count')
+    expect(entriesOf({ counts: [count({ submitted_by: null })] })[0].personId).toBeNull()
   })
 })
 
-describe('requests keep names, receipts resolve only through exact unit ids', () => {
-  it('a request line with the same name as an item is NOT joined to the item', () => {
-    const entries = entriesOf({ logs: [log({ wip_item_id: 'i3' })], requests: [request({}, [{ id: 'rl1', item_name: 'Milk', item_category: null, unit_name: 'Batch', quantity: '2' }])] })
-    const req = entries.find(e => e.source === 'request')!
-    expect(req.itemKey).toBe('request-name:Milk')
-    expect(req.itemKey).not.toBe('i3')
-    expect(filterEntries(entries, { question: 'everything', q: '', item: 'i3', destination: '' })).toHaveLength(1)
+describe('requests use stored item and unit ids, receipts resolve only through exact unit ids', () => {
+  it('links a request through its stored item id, but never infers a link from its name', () => {
+    const matchingLog = log({ wip_item_id: 'i3', item_name: 'Milk' })
+    const entries = entriesOf({ logs: [matchingLog], requests: [request({}, [
+      { id: 'rl1', wip_item_id: 'i3', item_unit_id: 'u2', item_name: 'Milk', item_category: null, unit_name: 'GR', quantity: '2' },
+      { id: 'rl2', item_name: 'Milk', item_category: null, unit_name: 'Batch', quantity: '3' },
+    ])] })
+    const linked = entries.find(e => e.key === 'request:rl1')!
+    const nameOnly = entries.find(e => e.key === 'request:rl2')!
+    expect(linked.itemKey).toBe('i3')
+    expect(linked.unit).toMatchObject({ key: 'u2', name: 'GR' })
+    expect(nameOnly.itemKey).toBe('request-name:Milk')
+    expect(filterEntries(entries, { question: 'everything', q: '', item: 'i3', destination: '' }).map(entry => entry.key)).toEqual([`log:${matchingLog.id}`, 'request:rl1'])
   })
 
   it('a receipt line maps to an item only where the item settings expose that exact unit id', () => {

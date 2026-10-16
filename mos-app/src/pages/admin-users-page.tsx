@@ -45,7 +45,7 @@ export function AdminUsersPage() {
   // Preview: "People with personal overrides" on the Modules page leads here (?overrides=<module>). Who holds a
   // personal Allow/Block is not connected yet, so the list cannot be narrowed; it says so instead of faking a result.
   const overridesParam = searchParams.get('overrides')
-  const overridesModule = isShipGated('/admin/modules') ? undefined : moduleFacts().find((fact) => fact.id === overridesParam)
+  const overridesModule = isShipGated('/admin/people/modules') ? undefined : moduleFacts().find((fact) => fact.id === overridesParam)
 
   const data = useAdminPeople()
   const actions = useAccountActions(data.refresh)

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
 vi.mock('./use-auth')
+vi.mock('@/lib/db/module-settings', () => ({ getViewerModuleAvailability: vi.fn().mockResolvedValue([]) }))
 
 import { useAuth } from './use-auth'
 

@@ -2,6 +2,7 @@ import { GordiLogoMark } from './logo-mark'
 import { Breadcrumb } from './breadcrumb'
 import { useNavLayout } from './use-nav'
 import { SHOW_ASSISTANT } from '@/config/features'
+import { useModuleAvailability } from '@/lib/module-availability'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
 import { Link, useNavigate } from 'react-router-dom'
@@ -192,6 +193,7 @@ export function TopBar({ onOpenSearch, searchTriggerRef }: TopBarProps) {
   // The brand cell is as wide as the nav's first column: the whole 240px sidebar, or the 64px rail (mark only),
   // so the header divider lands on the nav boundary.
   const { isNarrow, brandWide } = useNavLayout()
+  const { isOn } = useModuleAvailability()
 
   return (
     <header
@@ -266,7 +268,7 @@ export function TopBar({ onOpenSearch, searchTriggerRef }: TopBarProps) {
 
         {/* Deputy launcher (T28) — neutral header icon on every viewport (No-FAB Rule).
             Absent when SHOW_ASSISTANT=false. */}
-        {SHOW_ASSISTANT && <AssistantTopBarButton />}
+        {SHOW_ASSISTANT && isOn('assistant') && <AssistantTopBarButton />}
 
         {/* No top-bar Create button (OD-REDESIGN-91 #16 / F1) — desktop creation is ⌘K +
             page CTAs; the phone launcher lives in the bottom tab bar. */}

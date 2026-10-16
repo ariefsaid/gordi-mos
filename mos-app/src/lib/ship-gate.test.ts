@@ -38,25 +38,34 @@ describe('preview is allowed only on a flagged dev server at localhost:4400', ()
 })
 
 describe('ship states', () => {
-  it('registers the three preview roots and their descendants as preview', () => {
-    for (const path of ['/cafe/transfer-routes', '/cafe/transfer-routes/anything', '/cafe/locations', '/cafe/stock-comparison', '/cafe/stock-comparison?stream=x', '/admin/modules?q=cafe', '/admin/modules#x', '/admin/access/modules?view=people']) {
+  it('keeps person-module overrides preview-only while org module settings are released', () => {
+    for (const path of ['/admin/people/modules', '/admin/people/modules/person-1']) {
       expect(shipStateInProfile(path, 'full')).toBe('preview')
+    }
+    for (const path of ['/admin/modules', '/admin/modules?q=cafe', '/admin/modules#x', '/admin/access/modules', '/admin/access/modules?view=people']) {
+      expect(shipStateInProfile(path, 'full')).toBe('released')
     }
   })
 
-  it('gates Hide in MOS on Recipes by its own path and never the Recipes page itself', () => {
-    expect(shipStateInProfile('/cafe/recipes/visibility', 'full')).toBe('preview')
-    expect(isShipGated('/cafe/recipes/visibility')).toBe(true)
-    for (const path of ['/cafe/recipes', '/cafe/recipes?status=All', '/cafe/recipes/visibility-old']) {
+  it('releases Stock comparison and its stream query', () => {
+    for (const path of ['/cafe/stock-comparison', '/cafe/stock-comparison?stream=x']) {
       expect(shipStateInProfile(path, 'full')).toBe('released')
       expect(isShipGated(path)).toBe(false)
     }
   })
 
-  it('never gates the existing sibling routes by prefix', () => {
-    for (const path of ['/cafe/transfer', '/cafe/transfer-routes-old', '/cafe/location', '/admin/access', '/admin/access/', '/admin/accessible', '/cafe/records']) {
+  it('releases recipe visibility without gating the Recipes page or similarly named paths', () => {
+    for (const path of ['/cafe/recipes', '/cafe/recipes?status=All', '/cafe/recipes/visibility', '/cafe/recipes/visibility-old']) {
+      expect(shipStateInProfile(path, 'full')).toBe('released')
+      expect(isShipGated(path)).toBe(false)
+    }
+  })
+
+  it('releases transfer routes without changing neighboring route states', () => {
+    for (const path of ['/cafe/transfer-routes', '/cafe/transfer-routes/anything', '/cafe/transfer', '/cafe/transfer-routes-old', '/cafe/location', '/admin/access', '/admin/access/', '/admin/accessible', '/cafe/records']) {
       expect(shipStateInProfile(path, 'full')).toBe('released')
     }
+    expect(isShipGated('/cafe/transfer-routes')).toBe(false)
   })
 
   it('keeps the static hidden paths hidden and profile exclusions hidden', () => {
@@ -67,11 +76,12 @@ describe('ship states', () => {
   })
 
   it('treats a preview path as gated everywhere while preview is not allowed', () => {
-    expect(isShipGated('/cafe/transfer-routes')).toBe(true)
-    expect(isShipGated('/cafe/transfer-routes?origin=all')).toBe(true)
-    expect(isShipGated('/admin/modules')).toBe(true)
-    expect(isShipGated('/admin/access/modules')).toBe(true)
-    expect(isShipGatedInProfile('/cafe/locations', 'full')).toBe(true)
+    expect(isShipGated('/admin/people/modules')).toBe(true)
+    expect(isShipGated('/admin/modules')).toBe(false)
+    expect(isShipGated('/admin/access/modules')).toBe(false)
+    expect(shipStateInProfile('/cafe/locations', 'full')).toBe('released')
+    expect(isShipGatedInProfile('/cafe/locations', 'full')).toBe(false)
+    expect(isShipGated('/cafe/locations')).toBe(false)
     expect(isShipGated('/cafe/transfer')).toBe(false)
     expect(isShipGated('/admin/access')).toBe(false)
   })

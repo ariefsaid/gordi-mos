@@ -8,7 +8,7 @@ import { DataTable, type DataTableColumn } from '@/components/dashboard/data-tab
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { EsbStatusBadge } from '@/components/kitchen/esb-status-badge'
 import { useRecipeTypeLabel } from '@/components/kitchen/use-recipe-type-label'
-import { RecipeVisibilityPreview } from '@/components/kitchen/recipe-visibility-preview'
+import { RecipeVisibilityControl } from '@/components/kitchen/recipe-visibility'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Pill } from '@/components/ui/pill'
 import { Select } from '@/components/ui/select'
@@ -19,9 +19,10 @@ import {
   ESB_STATUS_FILTERS, RECIPE_TYPE_FILTERS, esbStatus, filterRecipes, latestRecipes, recipeKey, recipeName, recipeType, searchRecipes,
   type EsbStatusFilter, type RecipeTypeFilter, type RecipeVersion, type RecipeWipBomIds,
 } from '@/lib/cafe-recipes'
+import { listRecipeVisibility, type RecipeVisibility } from '@/lib/db/cafe-recipe-visibility'
 import { listRecipeVersions, listRecipeWipBomIds } from '@/lib/db/cafe-recipes'
 import { kitchenDataTableGroups, toKitchenListRows, useKitchenItemTable } from '@/lib/kitchen-item-list'
-import { useCanHideRecipes, useRecipeVisibilityPreview } from '@/lib/recipe-visibility-preview'
+import { useCanManageRecipeVisibility } from '@/lib/recipe-visibility'
 import { formatDayMonthYear, formatWibShortDateTime } from '@/lib/format/date'
 import { useIsWide } from '@/shell/use-is-wide'
 import '@/components/record-collection/record-collection.css'
@@ -30,7 +31,6 @@ import '@/components/kitchen/cafe-setup-workspace.css'
 
 const PAGE_SIZE = 50
 const NO_BOMS: RecipeWipBomIds = new Set()
-const NO_HIDDEN: ReadonlySet<string> = new Set()
 /** URL values (`?type=`); the filter values are the capitalised words. Active status = no `?status=` key, All types = no `?type=` key. */
 const TYPE_PARAM: Record<Exclude<RecipeTypeFilter, 'All'>, string> = { Menu: 'menu', Wip: 'wip' }
 const STATUS_LABEL = { Active: 'cafe.items.active', Inactive: 'cafe.items.inactive', Removed: 'cafe.recipes.status.removed', All: 'kitchen.filter.active.all' } as const
@@ -53,14 +53,11 @@ function RecipesForViewer() {
   const statusFilter: EsbStatusFilter = ESB_STATUS_FILTERS.includes(statusParam as EsbStatusFilter) ? statusParam as EsbStatusFilter : 'Active'
   const typeParam = params.get('type')
   const typeFilter: RecipeTypeFilter = RECIPE_TYPE_FILTERS.find(value => value !== 'All' && TYPE_PARAM[value] === typeParam) ?? 'All'
-  const previewOn = useRecipeVisibilityPreview()
-  const canHide = useCanHideRecipes(previewOn)
-  const hideInMos = previewOn && canHide
-  // Preview only: the choice lives in this page's memory (nothing is stored), so a reload brings every recipe back.
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(NO_HIDDEN)
-  const showHidden = hideInMos && params.get('hidden') === '1'
+  const canManageVisibility = useCanManageRecipeVisibility()
+  const showHidden = params.get('hidden') === '1'
   const typeLabel = useRecipeTypeLabel()
   const [versions, setVersions] = useState<RecipeVersion[]>()
+  const [visibilityRows, setVisibilityRows] = useState<RecipeVisibility[]>()
   const [wipBomIds, setWipBomIds] = useState<RecipeWipBomIds>(NO_BOMS)
   const [error, setError] = useState(false)
   const [retry, setRetry] = useState(0)
@@ -71,11 +68,11 @@ function RecipesForViewer() {
   useEffect(() => {
     let active = true
     void (async () => {
-      const rows = await listRecipeVersions()
+      const [rows, visibility] = await Promise.all([listRecipeVersions(), listRecipeVisibility()])
       // MOS items built from a BOM only matter for recipes whose ESB copy sends no type. A failed read leaves their type Unknown.
       const needBoms = latestRecipes(rows).some(row => row.bom_id != null && !row.recipe.bom_type?.trim())
       const boms = needBoms ? await listRecipeWipBomIds().catch(() => NO_BOMS) : NO_BOMS
-      if (active) { setWipBomIds(boms); setVersions(rows); setError(false) }
+      if (active) { setWipBomIds(boms); setVersions(rows); setVisibilityRows(visibility); setError(false) }
     })().catch(() => { if (active) setError(true) })
     return () => { active = false }
   }, [retry])
@@ -89,6 +86,8 @@ function RecipesForViewer() {
     }
   }, [selected, versions])
   const latest = useMemo(() => latestRecipes(versions ?? []), [versions])
+  const hidden = useMemo(() => new Set((visibilityRows ?? []).filter(row => row.hidden).map(row => row.recipe_key)), [visibilityRows])
+  const visibilityByRecipe = useMemo(() => new Map((visibilityRows ?? []).map(row => [row.recipe_key, row])), [visibilityRows])
   // Freshness of the nightly ESB copy: the newest observation time MOS holds, or an honest dash.
   const lastCopy = useMemo(() => (versions ?? []).reduce<string | null>((newest, row) => {
     const at = row.source_observed_at
@@ -98,11 +97,11 @@ function RecipesForViewer() {
   const statusOf = useMemo(() => new Map(latest.map(row => [recipeKey(row), esbStatus(row)])), [latest])
   const typeOf = useMemo(() => new Map(latest.map(row => [recipeKey(row), recipeType(row, wipBomIds)])), [latest, wipBomIds])
   const rows = useMemo(() => toKitchenListRows(searchRecipes(filterRecipes(latest, {
-    status: statusFilter, type: typeFilter, wipBomIds, ...(hideInMos ? { hidden, showHidden } : {}),
+    status: statusFilter, type: typeFilter, wipBomIds, hidden, showHidden,
   }), query), {
     kind: 'Unclassified', getId: recipeKey, getName: recipeName,
     getCategory: () => null, getGroupKey: () => 'all',
-  }), [latest, wipBomIds, query, statusFilter, typeFilter, hideInMos, hidden, showHidden])
+  }), [latest, wipBomIds, query, statusFilter, typeFilter, hidden, showHidden])
   const sorting = useMemo(() => [{ id: 'itemName', desc: false }], [])
   const table = useKitchenItemTable({ data: rows, search: '', kind: 'All', category: 'All', sorting })
   // TanStack queues its auto-reset on the first read of the grouped model; reading it before the page has
@@ -130,7 +129,7 @@ function RecipesForViewer() {
     >{recipeName(row) || t('cafe.recipes.unnamed')}</Link> },
     { key: 'status', header: t('cafe.recipes.esbStatus'), render: row => <EsbStatusBadge status={statusOf.get(recipeKey(row)) ?? 'unknown'} /> },
     { key: 'type', header: t('cafe.recipes.type'), render: row => typeLabel(typeOf.get(recipeKey(row)) ?? 'unknown') },
-    ...(hideInMos ? [{ key: 'inMos', header: t('cafe.recipes.inMos'), render: (row: RecipeVersion) => hidden.has(recipeKey(row)) ? <Pill tone="neutral" dot={false}>{t('cafe.recipes.inMos.hidden')}</Pill> : t('cafe.recipes.inMos.shown') }] : []),
+    { key: 'inMos', header: t('cafe.recipes.inMos'), render: (row: RecipeVersion) => hidden.has(recipeKey(row)) ? <Pill tone="neutral" dot={false}>{t('cafe.recipes.inMos.hidden')}</Pill> : t('cafe.recipes.inMos.shown') },
     // With a recipe open beside the list the list keeps only what identifies and sorts a recipe; the rest is in the record.
     ...(!selected && latest.some(row => row.recipe.branch_codes?.length) ? [{ key: 'scope', header: t('cafe.recipes.scope'), render: (row: RecipeVersion) => row.recipe.branch_codes?.join(', ') || t('cafe.recipes.scopeNotRecorded') }] : []),
     ...(selected ? [] : [
@@ -139,9 +138,9 @@ function RecipesForViewer() {
     ]),
   ]
   return <CafePageFrame page="recipes"
-    state={error ? 'error' : !versions ? 'loading' : 'default'}>
-    {error ? <ErrorState message={t('cafe.recipes.loadError')} onRetry={() => { setError(false); setVersions(undefined); setRetry(retry + 1) }} />
-      : !versions ? <LoadingShell count={4} label={t('cafe.recipes.loading')} />
+    state={error ? 'error' : !versions || !visibilityRows ? 'loading' : 'default'}>
+    {error ? <ErrorState message={t('cafe.recipes.loadError')} onRetry={() => { setError(false); setVersions(undefined); setVisibilityRows(undefined); setRetry(retry + 1) }} />
+      : !versions || !visibilityRows ? <LoadingShell count={4} label={t('cafe.recipes.loading')} />
       : latest.length === 0 && !selected ? <CafeQueueEmpty title={t('cafe.recipes.empty')}>{t('cafe.recipes.emptyBody')} {freshness}</CafeQueueEmpty>
       : <div className={`cafe-recipes__workspace cafe-setup-workspace${selected ? ' cafe-recipes__workspace--selected cafe-setup-workspace--selected' : ''}`}>
         <section ref={listRef} tabIndex={-1} className="cafe-recipes" aria-label={t('cafe.recipes.list')}>
@@ -168,10 +167,10 @@ function RecipesForViewer() {
                   {ESB_STATUS_FILTERS.map(value => <option key={value} value={value}>{t(STATUS_LABEL[value])}</option>)}
                 </Select>
               </div>
-              {hideInMos && <label className="cafe-recipes__show-hidden">
+              <label className="cafe-recipes__show-hidden">
                 <Checkbox checked={showHidden} onChange={checked => setList({ hidden: checked ? '1' : null })} />
                 <span>{t('cafe.recipes.showHidden')}</span>
-              </label>}
+              </label>
             </>}
             extraChips={[
               ...(statusFilter === 'Active' ? [] : [{ key: 'status', label: t(STATUS_LABEL[statusFilter]), clear: () => setList({ status: null }) }]),
@@ -200,11 +199,13 @@ function RecipesForViewer() {
         {selected && <section ref={detailRef} tabIndex={-1} className="cafe-recipes__reference" aria-label={t('cafe.recipes.reference')}>
           <Link className="btn btn-ghost cafe-recipes__back" to={href({ recipe: null })}>{t('cafe.recipes.back')}</Link>
           <CafeRecipeDetail versions={versions.filter(row => recipeKey(row) === selected)} status={statusOf.get(selected)} type={typeOf.get(selected)}
-            visibility={hideInMos ? <RecipeVisibilityPreview hidden={hidden.has(selected)} onChange={hide => setHidden(current => {
-              const next = new Set(current)
-              if (hide) next.add(selected); else next.delete(selected)
-              return next
-            })} /> : undefined} />
+            visibility={<RecipeVisibilityControl
+              recipeKey={selected}
+              visibility={visibilityByRecipe.get(selected)}
+              canManage={canManageVisibility}
+              onSaved={row => setVisibilityRows(current => [...(current ?? []).filter(existing => existing.recipe_key !== row.recipe_key), row])}
+              onReload={async () => setVisibilityRows(await listRecipeVisibility())}
+            />} />
         </section>}
       </div>}
   </CafePageFrame>

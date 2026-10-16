@@ -5,6 +5,8 @@ import { primaryModuleForViewer } from './module-registry'
 import { useBoundaryLabel } from './breadcrumb-title'
 import { useAuth } from '@/auth/use-auth'
 import { useT, type Translate } from '@/i18n/use-t'
+import type { ModuleId } from '@/lib/db/module-settings'
+import { useModuleAvailability } from '@/lib/module-availability'
 
 /**
  * R-OWNER-1 (provisional): a route is "migrated" when it renders on a PageFamilyFrame whose
@@ -18,7 +20,13 @@ function pageOwnsJobSentence(pathname: string): boolean {
   return PAGE_FAMILY_FRAME_ROUTES.some(({ path }) => matchPath(path, pathname) !== null)
 }
 
-function resolveViewerScope(roleNames: string[], accessRoles: string[], affiliated: string[], t: Translate): string {
+function resolveViewerScope(
+  roleNames: string[],
+  accessRoles: string[],
+  affiliated: string[],
+  t: Translate,
+  isOn: (moduleId: ModuleId) => boolean,
+): string {
   // Resolve scope from the affiliation payload (#744), not a role-name string match: the ONE
   // "works a café line" fact the viewer resolver carried at sign-in is the same map the phone's
   // promoted tab reads (destinations.tsx `primaryModuleForViewer`). It never gates VISIBILITY —
@@ -26,7 +34,7 @@ function resolveViewerScope(roleNames: string[], accessRoles: string[], affiliat
   // viewer's scope is exactly that. The prior hand-rolled substring list
   // ('barista'/'cafe'/'roast'/…) drifted from the rail's authority and had no branch for
   // 'kitchen'; the payload retires the whole approach.
-  const module = primaryModuleForViewer(affiliated, accessRoles)
+  const module = primaryModuleForViewer(affiliated, accessRoles, isOn)
   if (module) return t(module.labelKey)
   // No module affiliation (org-wide roles: Managing Director, admin, Sales Lead) — fall back to
   // the viewer's own role name so the scope signal is always real, never a generic placeholder
@@ -46,12 +54,13 @@ export function ContextRow({ routeIsNotFound = false }: { routeIsNotFound?: bool
   const { pathname } = useLocation()
   const auth = useAuth()
   const t = useT()
+  const { isOn } = useModuleAvailability()
   const boundaryLabel = useBoundaryLabel()
 
   const jobKey = routeIsNotFound ? 'job.notFound' : jobKeyForPath(pathname)
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const roleNames = viewer?.roles.map((r) => r.name) ?? []
-  const scope = resolveViewerScope(roleNames, viewer?.accessRoles ?? [], viewer?.affiliated ?? [], t)
+  const scope = resolveViewerScope(roleNames, viewer?.accessRoles ?? [], viewer?.affiliated ?? [], t, isOn)
 
   // owner-eyes item 8: on a route whose region-3 page head already carries the job sentence
   // (a PageFamilyFrame family route — the same suppression registry that already silences the

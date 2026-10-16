@@ -41,11 +41,15 @@ import { KitchenPlanPage } from './pages/kitchen-plan-page'
 import { KitchenStockPage } from './pages/kitchen-stock-page'
 import { CafeItemSettingsPage } from './pages/cafe-item-settings-page'
 import { CafeRecipesPage } from './pages/cafe-recipes-page'
+import { CafeTransferRoutesPage } from './pages/cafe-transfer-routes-page'
 import { CafeWastePage } from './pages/cafe-waste-page'
 import { CafeCountPage } from './pages/cafe-count-page'
+import { CafeStockComparisonPage } from './pages/cafe-stock-comparison-page'
 import { CafeRecordsPage } from './pages/cafe-records-page'
 import { CafeReceivePage } from './pages/cafe-receive-page'
 import { CafeReceiptIssuesPage } from './pages/cafe-receipt-issues-page'
+import { CafeLocationsPage } from './pages/cafe-locations-page'
+import { CafeMoveStockPage } from './pages/cafe-move-stock-page'
 import { CafeRequestPage } from './pages/cafe-request-page'
 import { CafeReviewPage } from './pages/cafe-review-page'
 import { KitchenPushesPage } from './pages/kitchen-pushes-page'
@@ -56,6 +60,7 @@ import { PendingBillsPage } from './pages/pending-bills-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
 import { AdminUsersPage } from './pages/admin-users-page'
+import { AdminModulesPage } from './pages/admin-modules-page'
 import { AdminPersonPage } from './pages/admin-person-page'
 import { AdminAccessPage } from './pages/admin-access-page'
 import { AdminAgentConnectionsPage } from './pages/admin-agent-connections-page'
@@ -175,13 +180,17 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/cafe/waste', CafeWastePage, '1241'],
   ['/cafe/records', CafeRecordsPage, 'redesign'],
   ['/cafe/count', CafeCountPage, '1366'],
+  ['/cafe/stock-comparison', CafeStockComparisonPage, 'stock-comparison'],
   ['/cafe/receive', CafeReceivePage, '1422'],
   ['/cafe/receive/issues', CafeReceiptIssuesPage, '1422'],
+  ['/cafe/locations', CafeLocationsPage, 'locations'],
+  ['/cafe/locations/change-location', CafeMoveStockPage, 'locations'],
   ['/cafe/request', CafeRequestPage, '1428'],
   ['/cafe/plan', KitchenPlanPage, 'dev'],
   ['/cafe/stock', KitchenStockPage, 'dev'],
   ['/cafe/items', CafeItemSettingsPage, '1242'],
   ['/cafe/recipes', CafeRecipesPage, '1642'],
+  ['/cafe/transfer-routes', CafeTransferRoutesPage, 'transfer-routes'],
   // One Review page with queues; /cafe/receive/review and /cafe/request/review redirect into it.
   ['/cafe/review', CafeReviewPage, 'dev'],
   ['/cafe/pushes', KitchenPushesPage, 'dev'],
@@ -194,6 +203,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/oauth/consent', OAuthConsentPage, 'redesign'],
   ['/profile/connected-agents', ProfileConnectedAgentsPage, 'review-stamp'],
   ['/admin/people', AdminUsersPage, 'dev'],
+  ['/admin/modules', AdminModulesPage, 'dev'],
   ['/admin/people/:personId', AdminPersonPage, 'redesign'],
   ['/admin/teams', AdminTeamsPage, 'redesign'],
   ['/admin/access', AdminAccessPage, 'redesign'],

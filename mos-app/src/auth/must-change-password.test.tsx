@@ -12,6 +12,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
 vi.mock('./use-auth')
+vi.mock('@/lib/db/module-settings', () => ({ getViewerModuleAvailability: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/supabase', () => ({
   supabase: { auth: { updateUser: vi.fn() } },
 }))

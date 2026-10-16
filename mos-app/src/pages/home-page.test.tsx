@@ -18,6 +18,8 @@ import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
 import { setHomeLayout } from '@/lib/home-layout'
 
 vi.mock('../auth/use-auth')
+const moduleAvailability = vi.hoisted(() => ({ isOn: vi.fn((moduleId: string) => moduleId.length > 0) }))
+vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ status: 'ready', isOn: moduleAvailability.isOn, retry: vi.fn() }) }))
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
 
@@ -246,6 +248,7 @@ function overdueTaskRow(viewerId: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  moduleAvailability.isOn.mockImplementation(() => true)
   publishReadScope(null)
   sharedCount.value = null
   window.localStorage.clear()
@@ -979,6 +982,14 @@ describe('AC-204 (4): the shipped Home carries the gated Objectives door', () =>
     const link = await screen.findByRole('link', { name: /^See all →$/ })
     expect(link).toHaveAttribute('href', '/work/objectives')
     expect(objectivesDoor()).toContainElement(link)
+  })
+
+  it('does not load or link Objectives when Work is switched off', async () => {
+    moduleAvailability.isOn.mockImplementation((moduleId) => moduleId !== 'work')
+    await renderHome(ownerDirectorViewer)
+    await screen.findByTestId('home-daily-brief')
+    expect(screen.queryByRole('region', { name: 'Objectives' })).toBeNull()
+    expect(mockLoadHomeObjectiveProgress).not.toHaveBeenCalled()
   })
 
   it('does not hand a company-wide door to a member who steers no scope', async () => {

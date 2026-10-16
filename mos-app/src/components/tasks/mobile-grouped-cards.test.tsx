@@ -12,6 +12,8 @@ import type { MobileGroupedCardsProps } from './mobile-grouped-cards'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { isShipGated } from '@/lib/ship-gate'
 
+vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ isOn: () => true }) }))
+
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   return {
     id: 'task-1', org_id: 'org', title: 'Test task',

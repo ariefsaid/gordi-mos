@@ -7,6 +7,7 @@ import { useAuth } from '@/auth/use-auth'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { LocationLineOverride, LocationPanelFields } from '@/components/preview/location-preview-fields'
+import { availableCafeLocationDefault, useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { DateField } from '@/components/ui/date-field'
 import { CaptureQuantityControl, CaptureRow, CaptureTable } from '@/components/kitchen/capture-row'
@@ -80,7 +81,7 @@ import { Notice } from '@/components/ui/notice'
 import '@/components/ui/Disclosure.css'
 import './cafe-receive-page.css'
 
-type Entry = { quantity: string; unitId: string; changingUnit: boolean; damagedWrong: boolean }
+type Entry = { quantity: string; unitId: string; changingUnit: boolean; damagedWrong: boolean; storageLocationOverride?: string | null }
 type LoadState = 'loading' | 'ready' | 'error'
 /** `forbidden`: the identity read refuses a member receiving outside their own branch, so a retry cannot help. */
 type OpenPoState = { branchId: string | null; status: LoadState | 'forbidden'; cache: CafeOpenPoIdentityCache | null }
@@ -118,7 +119,8 @@ function blankEntries(items: readonly CafeReceivableItem[]): Record<string, Entr
 }
 
 function hasEntryContent(item: CafeReceivableItem, entry: Entry | undefined): boolean {
-  return Boolean(entry && (entry.quantity.trim() || entry.damagedWrong || entry.unitId !== item.defaultUnitId))
+  return Boolean(entry && (entry.quantity.trim() || entry.damagedWrong || entry.unitId !== item.defaultUnitId
+    || entry.storageLocationOverride !== undefined))
 }
 
 function hasDraftContent(items: readonly CafeReceivableItem[], entries: Record<string, Entry>): boolean {
@@ -129,7 +131,10 @@ function hasDraftContent(items: readonly CafeReceivableItem[], entries: Record<s
 function storedEntries(items: readonly CafeReceivableItem[], entries: Record<string, Entry>): Record<string, CafeReceiveDraftEntry> {
   return Object.fromEntries(items.filter(item => hasEntryContent(item, entries[item.id])).map(item => {
     const entry = entries[item.id]
-    return [item.id, { name: item.name, quantity: entry.quantity, unitId: entry.unitId, damagedWrong: entry.damagedWrong }]
+    return [item.id, {
+      name: item.name, quantity: entry.quantity, unitId: entry.unitId, damagedWrong: entry.damagedWrong,
+      ...(entry.storageLocationOverride === undefined ? {} : { storageLocationOverride: entry.storageLocationOverride }),
+    }]
   }))
 }
 
@@ -147,7 +152,10 @@ function restoreEntries(items: readonly CafeReceivableItem[], stored: Record<str
       notRestored.push(item?.name ?? entry.name)
       continue
     }
-    entries[item.id] = { quantity: entry.quantity, unitId: entry.unitId, changingUnit: false, damagedWrong: entry.damagedWrong }
+    entries[item.id] = {
+      quantity: entry.quantity, unitId: entry.unitId, changingUnit: false, damagedWrong: entry.damagedWrong,
+      ...(entry.storageLocationOverride === undefined ? {} : { storageLocationOverride: entry.storageLocationOverride }),
+    }
   }
   return { entries, notRestored }
 }
@@ -197,6 +205,15 @@ export function CafeReceivePage() {
     affiliated: auth.viewer.affiliated,
     accessRoles,
   })
+  const locationChoices = useCafeLocationChoices(canCapture ? stream : null)
+  const storageLocations = locationChoices.locations.filter(location => location.use === 'storage' || location.use === 'both')
+  const defaultStorageLocationId = locationChoices.status === 'ready'
+    ? availableCafeLocationDefault(locationChoices.locations, locationChoices.defaults?.storage_location_id, 'storage')
+    : null
+  const locationScope = `${stream?.branch.id ?? ''}:${stream?.activity ?? ''}`
+  const [receiveLocationChoice, setReceiveLocationChoice] = useState<{ scope: string; id: string | null } | null>(null)
+  const receiveStorageLocationId = receiveLocationChoice?.scope === locationScope
+    ? receiveLocationChoice.id : defaultStorageLocationId
   const canBackdate = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
   const canReview = canReviewCafe(accessRoles)
   const isDesktop = useIsDesktop()
@@ -317,9 +334,12 @@ export function CafeReceivePage() {
     setEntries(restored.entries)
     setNotRestored(restored.notRestored)
     setClientKey(draft?.clientKey ?? newCafeReceiptClientKey())
+    setReceiveLocationChoice(draft && 'storageLocationId' in draft
+      ? { scope: locationScope, id: draft.storageLocationId ?? null }
+      : null)
     setHydratedDraftScope(draftScopeKey)
     setDraftSaved(Boolean(draft))
-  }, [draftScope, draftScopeKey, itemScopeKey, items, itemsStreamScope, loadState])
+  }, [draftScope, draftScopeKey, itemScopeKey, items, itemsStreamScope, loadState, locationScope])
 
   // FR-1010: every change to the counts is kept on this device until it is locked or discarded.
   useEffect(() => {
@@ -327,7 +347,7 @@ export function CafeReceivePage() {
     persistCurrentDraft()
     // persistCurrentDraft reads exactly these values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientKey, draftScope, draftScopeKey, entries, hydratedDraftScope, itemScopeKey, items, itemsStreamScope])
+  }, [clientKey, draftScope, draftScopeKey, entries, hydratedDraftScope, itemScopeKey, items, itemsStreamScope, receiveStorageLocationId])
 
   // Drafts left behind for a week, on this device, are dropped.
   useEffect(() => {
@@ -470,7 +490,9 @@ export function CafeReceivePage() {
       setDraftSaved(false)
       return true
     }
-    const saved = saveCafeReceiveDraft(draftScope, { clientKey, entries: storedEntries(items, entries) })
+    const saved = saveCafeReceiveDraft(draftScope, {
+      clientKey, entries: storedEntries(items, entries), storageLocationId: receiveStorageLocationId,
+    })
     setDraftSaved(saved)
     if (!saved) setError('cafe.receive.draft.saveFailed')
     return saved
@@ -535,6 +557,9 @@ export function CafeReceivePage() {
         item_unit_id: entry.unitId,
         quantity,
         damaged_wrong: entry.damagedWrong,
+        ...((entry.storageLocationOverride === undefined ? receiveStorageLocationId : entry.storageLocationOverride)
+          ? { to_storage_location_id: entry.storageLocationOverride === undefined ? receiveStorageLocationId : entry.storageLocationOverride }
+          : {}),
       })))
       if (draftScope) clearCafeReceiveDraft(draftScope)
       setDraftSaved(false)
@@ -1035,12 +1060,31 @@ export function CafeReceivePage() {
                         <span>{cafeItemLabel(item)}</span>
                         <span className="tabular">{quantity} {item.units.find(unit => unit.id === entry.unitId)?.name}</span>
                         {entry.damagedWrong && <span>{t('cafe.receive.damageFlag')}</span>}
-                        <LocationLineOverride />
+                        <LocationLineOverride
+                          locations={storageLocations}
+                          value={entry.storageLocationOverride}
+                          onChange={value => patchEntry(item.id, { storageLocationOverride: value })}
+                          loadState={locationChoices.status === 'idle' ? 'loading' : locationChoices.status}
+                          onRetry={locationChoices.retry}
+                          disabled={busy}
+                        />
                       </li>
                     ))}
                   </ul>
-                  {/* Where the delivery goes is decided here, beside Lock quantities (preview only; nothing when the preview is off). */}
-                  <LocationPanelFields kind="receive" />
+                  {/* Delivery storage is optional and captured with the receipt. */}
+                  <LocationPanelFields
+                    kind="receive"
+                    locations={{ production: [], from: [], to: storageLocations, storage: storageLocations }}
+                    values={{
+                      production_location_id: null,
+                      from_storage_location_id: null,
+                      to_storage_location_id: receiveStorageLocationId,
+                    }}
+                    onChange={(_field, value) => setReceiveLocationChoice({ scope: locationScope, id: value ?? null })}
+                    loadState={locationChoices.status === 'idle' ? 'loading' : locationChoices.status}
+                    onRetry={locationChoices.retry}
+                    disabled={busy}
+                  />
                 </Panel>
                 </div>
               </>

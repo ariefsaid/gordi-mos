@@ -1,11 +1,10 @@
-// Locations (preview) — the pure view model. No IO. Locations are not connected, so the only rows are
-// the clearly labelled isolated SAMPLE set below, kept in memory; they never join real balances or records.
-// A location is a physical place, never a branch (whose books), a Site (org structure) or a stream.
+// Locations catalog view model. No IO. A location is a physical place, never a branch (whose books),
+// a Site (org structure) or a stream.
 import type { LocationUse } from '@/lib/db/cafe-locations'
 
 export type { LocationUse }
 
-export interface LocationRow {
+export type LocationRow = {
   id: string
   name: string
   use: LocationUse
@@ -13,23 +12,10 @@ export interface LocationRow {
   /** Branches this place is available to (physical availability only). */
   branchIds: string[]
   archived: boolean
-  /** Every row here is a sample while Locations are not connected. */
-  sample: true
+  rowVersion: number
 }
 
 export const NEW_LOCATION = 'new'
-
-/** The isolated sample catalogue. Branch ids come from the real branch list so availability can wrap; none are inferred from a Site or Team. */
-export function sampleLocations(branchIds: readonly string[]): LocationRow[] {
-  const some = (from: number, to: number) => branchIds.slice(from, to)
-  return [
-    { id: 'sample-kitchen', name: 'Example kitchen', use: 'production', parentId: null, branchIds: some(0, 3), archived: false, sample: true },
-    { id: 'sample-chiller', name: 'Example chiller', use: 'storage', parentId: 'sample-kitchen', branchIds: some(0, 2), archived: false, sample: true },
-    { id: 'sample-store-room', name: 'Example store room', use: 'storage', parentId: 'sample-kitchen', branchIds: some(0, 1), archived: false, sample: true },
-    { id: 'sample-bar-fridge', name: 'Example bar fridge', use: 'both', parentId: null, branchIds: some(1, 2), archived: false, sample: true },
-    { id: 'sample-dry-store', name: 'Example dry store', use: 'storage', parentId: null, branchIds: [], archived: true, sample: true },
-  ]
-}
 
 export interface LocationFilters {
   /** `all` or a branch id */
@@ -59,7 +45,7 @@ export function parseLocationFilters(params: URLSearchParams): LocationFilters {
 const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true })
 const USE_ORDER: Record<LocationUse, number> = { production: 0, storage: 1, both: 2 }
 
-/** Filter, then sort (default name A–Z). `text` is the searchable text of a row (name, use, parent, branches in the viewer's language). */
+/** Filter, then sort (default name A–Z). `text` is the searchable text of a row in the viewer's language. */
 export function applyLocationFilters(rows: readonly LocationRow[], f: LocationFilters, text: (row: LocationRow) => string): LocationRow[] {
   const needle = f.q.trim().toLowerCase()
   const filtered = rows.filter((row) =>
@@ -102,7 +88,7 @@ export function parentChoices(selfId: string | null, rows: readonly LocationRow[
   return rows.filter((row) => !blocked.has(row.id) && !row.archived)
 }
 
-/** The same checks the connected form will make server-side, run on the in-memory draft. */
+/** The same checks the connected form makes server-side, run locally for immediate feedback. */
 export function validateDraft(draft: LocationDraft, rows: readonly LocationRow[], selfId: string | null): LocationProblem[] {
   const problems: LocationProblem[] = []
   if (!draft.name.trim()) problems.push('nameBlank')
