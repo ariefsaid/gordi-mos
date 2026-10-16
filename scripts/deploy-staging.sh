@@ -140,8 +140,11 @@ POOLER_URL_FILE="${STAGING_POOLER_URL_FILE:-$ROOT/supabase/.temp/pooler-url}"
 if [ -s "$POOLER_URL_FILE" ]; then
   pooler="$(tr -d '[:space:]' < "$POOLER_URL_FILE")"
   case "${pooler#*://}" in *:*@*) die "pooler URL file must not carry a password" ;; esac
+  case "$(printf '%s' "$pooler" | tr '[:upper:]' '[:lower:]')" in *[?\&]password=*) die "pooler URL file must not carry a password" ;; esac
   [ -n "$PGPASSWORD" ] || die "pooler connection needs the password from the secret store"
-  CONN="$pooler"; SECRETS+=("$pooler" "${pooler#*@}")
+  pooler_host="${pooler#*@}"; pooler_host="${pooler_host%%[:/?]*}"
+  pooler_user="${pooler#*://}"; pooler_user="${pooler_user%%@*}"
+  CONN="$pooler"; SECRETS+=("$pooler" "${pooler#*@}" "$pooler_host" "$pooler_user")
   say "Database host: session pooler (IPv4) from $(basename "$POOLER_URL_FILE")"
 fi
 
