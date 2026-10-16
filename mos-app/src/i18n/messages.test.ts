@@ -46,6 +46,41 @@ describe('i18n messages catalog', () => {
     expect(messages.id['catalog.record.unsaved.copy']).toBe('Perubahan Anda belum disimpan. Buang dan tinggalkan catatan ini?')
   })
 
+  it('transfer-route admin copy explains disablement and recovery in both locales', () => {
+    expect(messages.en['cafe.routes.remove']).toBe('Disable route')
+    expect(messages.en['cafe.routes.removeNote']).toBe(
+      'Disabling a route stops new transfers. Submitted transfers stay unchanged and can still be reviewed.',
+    )
+    expect(messages.en['cafe.routes.error.conflict']).toBe(
+      'This route changed or was disabled elsewhere. Reload it before retrying.',
+    )
+    expect(messages.en['cafe.routes.error.failed']).toBe(
+      'The route could not be saved. Your changes are still here; retry or reload.',
+    )
+    expect(messages.en['cafe.routes.error.forbidden']).toBe(
+      'Your admin access changed. Refresh before editing routes.',
+    )
+    expect(messages.en['cafe.routes.problem.destinationNotEligible']).toBe(
+      'The destination branch no longer has an eligible stream.',
+    )
+    expect(messages.id['cafe.routes.remove']).toBe('Nonaktifkan rute')
+    expect(messages.id['cafe.routes.removeNote']).toBe(
+      'Menonaktifkan rute menghentikan transfer baru. Transfer yang sudah dikirim tetap utuh dan dapat ditinjau.',
+    )
+    expect(messages.id['cafe.routes.error.conflict']).toBe(
+      'Rute ini berubah atau dinonaktifkan di tempat lain. Muat ulang sebelum mencoba lagi.',
+    )
+    expect(messages.id['cafe.routes.error.failed']).toBe(
+      'Rute tidak dapat disimpan. Perubahan Anda masih ada; coba lagi atau muat ulang.',
+    )
+    expect(messages.id['cafe.routes.error.forbidden']).toBe(
+      'Akses admin Anda berubah. Muat ulang sebelum mengedit rute.',
+    )
+    expect(messages.id['cafe.routes.problem.destinationNotEligible']).toBe(
+      'Cabang tujuan tidak lagi memiliki alur yang memenuhi syarat.',
+    )
+  })
+
   it('task list counts name visible tasks and open work in both locales', () => {
     expect(interpolate(messages.en['tasks.meta.taskCount.one'], { count: 1 })).toBe('1 task')
     expect(interpolate(messages.en['tasks.meta.taskCount.other'], { count: 13 })).toBe('13 tasks')

@@ -38,8 +38,8 @@ describe('preview is allowed only on a flagged dev server at localhost:4400', ()
 })
 
 describe('ship states', () => {
-  it('registers the three preview roots and their descendants as preview', () => {
-    for (const path of ['/cafe/transfer-routes', '/cafe/transfer-routes/anything', '/cafe/locations', '/cafe/stock-comparison', '/cafe/stock-comparison?stream=x', '/admin/modules?q=cafe', '/admin/modules#x', '/admin/access/modules?view=people']) {
+  it('registers the remaining preview roots and their descendants as preview', () => {
+    for (const path of ['/cafe/locations', '/cafe/stock-comparison', '/cafe/stock-comparison?stream=x', '/admin/modules?q=cafe', '/admin/modules#x', '/admin/access/modules?view=people']) {
       expect(shipStateInProfile(path, 'full')).toBe('preview')
     }
   })
@@ -53,10 +53,11 @@ describe('ship states', () => {
     }
   })
 
-  it('never gates the existing sibling routes by prefix', () => {
-    for (const path of ['/cafe/transfer', '/cafe/transfer-routes-old', '/cafe/location', '/admin/access', '/admin/access/', '/admin/accessible', '/cafe/records']) {
+  it('releases transfer routes without changing neighboring route states', () => {
+    for (const path of ['/cafe/transfer-routes', '/cafe/transfer-routes/anything', '/cafe/transfer', '/cafe/transfer-routes-old', '/cafe/location', '/admin/access', '/admin/access/', '/admin/accessible', '/cafe/records']) {
       expect(shipStateInProfile(path, 'full')).toBe('released')
     }
+    expect(isShipGated('/cafe/transfer-routes')).toBe(false)
   })
 
   it('keeps the static hidden paths hidden and profile exclusions hidden', () => {
@@ -66,9 +67,7 @@ describe('ship states', () => {
     expect(shipStateInProfile('/work/tasks', 'full')).toBe('released')
   })
 
-  it('treats a preview path as gated everywhere while preview is not allowed', () => {
-    expect(isShipGated('/cafe/transfer-routes')).toBe(true)
-    expect(isShipGated('/cafe/transfer-routes?origin=all')).toBe(true)
+  it('treats remaining preview paths as gated everywhere while preview is not allowed', () => {
     expect(isShipGated('/admin/modules')).toBe(true)
     expect(isShipGated('/admin/access/modules')).toBe(true)
     expect(isShipGatedInProfile('/cafe/locations', 'full')).toBe(true)

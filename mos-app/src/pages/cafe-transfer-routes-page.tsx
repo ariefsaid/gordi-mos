@@ -1,14 +1,9 @@
-// Café › Setup › Transfer routes (PREVIEW — ship state `preview`, dev launch only; see lib/ship-gate.ts).
-// Real reads: the stored cross-branch routes (ops.cafe_destinations), the stream Teams and the branch
-// catalog. Editing is designed but NOT connected: an admin can open a Preview route form that lives in
-// memory; Save/Add/Remove stay disabled with the reason, nothing is written, no stub is called.
-// Backend contract: R/handover/transfer-routes.md. Spec: work/design/future-transfer-routes-spec.md.
+// Café › Setup › Transfer routes uses the versioned route RPCs; submitted transfers keep their snapshots.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
-import { PreviewBadge } from '@/components/preview/preview-badge'
 import { ActionBar } from '@/components/ui/action-bar'
 import { Button } from '@/components/ui/button'
 import { FilterChip } from '@/components/ui/filter-chip'
@@ -21,8 +16,13 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import { listActiveBranches, listBranchesByIds } from '@/lib/db/branches'
-import { listCafeDestinations, listStreamPairs } from '@/lib/db/kitchen-logs'
-import type { BranchOption, CafeDestination, ProductionActivity, StreamPair } from '@/lib/db/kitchen-logs.types'
+import {
+  createCafeTransferRoute, listCafeTransferRoutes, removeCafeTransferRoute, updateCafeTransferRoute,
+  type TransferRoute, type TransferRouteInput,
+} from '@/lib/db/cafe-transfer-routes'
+import { ContractError, type WriteContext } from '@/lib/db/contract'
+import { listStreamPairs } from '@/lib/db/kitchen-logs'
+import type { BranchOption, ProductionActivity, StreamPair } from '@/lib/db/kitchen-logs.types'
 import { formatWibShortDateTime } from '@/lib/format/date'
 import { activityLabel } from '@/lib/kitchen-action-label'
 import {
@@ -37,7 +37,7 @@ import '@/components/kitchen/cafe-setup-workspace.css'
 import './cafe-transfer-routes-page.css'
 
 interface Loaded {
-  destinations: CafeDestination[]
+  destinations: TransferRoute[]
   pairs: StreamPair[]
   branches: BranchOption[]
   extra: Pick<BranchOption, 'id' | 'name'>[]
@@ -50,8 +50,18 @@ const PROBLEM_KEY: Record<RouteProblem, MessageKey> = {
   originUnknown: 'cafe.routes.problem.originUnknown',
   originNotProducing: 'cafe.routes.problem.originNotProducing',
   destinationUnknown: 'cafe.routes.problem.destinationUnknown',
+  destinationNotEligible: 'cafe.routes.problem.destinationNotEligible',
   sameBranch: 'cafe.routes.problem.sameBranch',
   noDestinationBar: 'cafe.routes.problem.noDestinationBar',
+}
+
+const REASON_KEY: Record<string, MessageKey> = {
+  origin_unknown: 'cafe.routes.problem.originUnknown',
+  origin_not_producing: 'cafe.routes.problem.originNotProducing',
+  destination_unknown: 'cafe.routes.problem.destinationUnknown',
+  destination_not_eligible: 'cafe.routes.problem.destinationNotEligible',
+  same_branch: 'cafe.routes.problem.sameBranch',
+  no_destination_bar: 'cafe.routes.problem.noDestinationBar',
 }
 
 const ONE_STREAM = (branchId: string, activity: ProductionActivity) => `${branchId}:${activity}`
@@ -74,14 +84,16 @@ function TransferRoutes() {
   const [error, setError] = useState(false)
   const [retry, setRetry] = useState(0)
   const [dirty, setDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [mutationError, setMutationError] = useState<MessageKey | null>(null)
   const listRef = useRef<HTMLElement>(null)
   const lastOpened = useRef<string | null>(null)
 
   useEffect(() => {
     let active = true
     void (async () => {
-      let destinations: CafeDestination[]
-      try { destinations = await listCafeDestinations() } catch { if (active) setError(true); return }
+      let destinations: TransferRoute[]
+      try { destinations = await listCafeTransferRoutes() } catch { if (active) setError(true); return }
       let partial = false
       const [pairs, branches] = await Promise.all([
         listStreamPairs().catch(() => { partial = true; return [] as StreamPair[] }),
@@ -146,7 +158,57 @@ function TransferRoutes() {
   const clearAll = () => update({ origin: null, destination: null, q: null })
 
   const sortState = (key: 'origin' | 'destination') => filters.sort === key ? filters.dir : undefined
-  const open = (key: string) => { lastOpened.current = key; update({ route: key }, false) }
+  const open = (key: string) => { lastOpened.current = key; setMutationError(null); update({ route: key }, false) }
+  const saveRoute = useCallback(async (row: RouteRow | null, input: TransferRouteInput) => {
+    if (offline) { setMutationError('cafe.routes.error.unavailable'); return }
+    setSaving(true)
+    setMutationError(null)
+    try {
+      const context: WriteContext = { client_request_id: globalThis.crypto.randomUUID() }
+      const saved = row
+        ? await updateCafeTransferRoute({
+          origin_branch_id: row.originBranchId,
+          origin_activity: row.originActivity,
+          destination_branch_id: row.destinationBranchId,
+        }, row.rowVersion ?? 0, input, context)
+        : await createCafeTransferRoute(input, context)
+      setData((current) => current ? {
+        ...current,
+        destinations: [...current.destinations.filter((route) => routeKey(route) !== row?.key && routeKey(route) !== routeKey(saved)), saved],
+      } : current)
+      setDirty(false)
+      update({ route: null }, false)
+    } catch (error) {
+      setMutationError(routeMutationErrorKey(error))
+    } finally {
+      setSaving(false)
+    }
+  }, [offline, update])
+  const disableRoute = useCallback(async (row: RouteRow) => {
+    if (offline || row.rowVersion === null) {
+      setMutationError(offline ? 'cafe.routes.error.unavailable' : 'cafe.routes.error.failed')
+      return
+    }
+    setSaving(true)
+    setMutationError(null)
+    try {
+      await removeCafeTransferRoute({
+        origin_branch_id: row.originBranchId,
+        origin_activity: row.originActivity,
+        destination_branch_id: row.destinationBranchId,
+      }, row.rowVersion, { client_request_id: globalThis.crypto.randomUUID() })
+      setData((current) => current ? {
+        ...current,
+        destinations: current.destinations.filter((route) => routeKey(route) !== row.key),
+      } : current)
+      setDirty(false)
+      update({ route: null }, false)
+    } catch (error) {
+      setMutationError(routeMutationErrorKey(error))
+    } finally {
+      setSaving(false)
+    }
+  }, [offline, update])
   const hrefFor = (key: string) => { const next = new URLSearchParams(params); next.set('route', key); return { pathname: '/cafe/transfer-routes', search: next.toString() } }
   const columns: DataTableColumn<RouteRow & { id: string }>[] = [
     { key: 'origin', header: t('cafe.routes.col.origin'), sortable: true, render: (row) => originText(row) },
@@ -157,9 +219,7 @@ function TransferRoutes() {
   ]
   const tableRows = visible.map((row) => ({ ...row, id: row.key }))
 
-  const addAction = isAdmin && !selected ? <Button variant="primary" disabled aria-describedby="cafe-routes-reason">{t('cafe.routes.add')}</Button> : undefined
-  const reasonId = 'cafe-routes-reason'
-  const reasonNode = isAdmin ? <span id={reasonId}>{t('cafe.routes.notConnected')}</span> : undefined
+  const addAction = isAdmin && !selected ? <Button variant="primary" onClick={() => open('new')}>{t('cafe.routes.add')}</Button> : undefined
 
   const selectedRow = selected && selected !== 'new' ? rows.find((row) => row.key === selected) ?? null : null
   const panelOpen = Boolean(selected) && Boolean(data)
@@ -185,7 +245,7 @@ function TransferRoutes() {
               <option value="all">{t('cafe.routes.allDestinations')}</option>
               {destinationOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
             </Select>
-            {isAdmin && <Button variant="outline" className="cafe-routes__preview" onClick={() => open('new')}>{t('cafe.routes.previewForm')}</Button>}
+            {isAdmin && <Button variant="outline" className="cafe-routes__add" onClick={() => open('new')}>{t('cafe.routes.add')}</Button>}
             <span className="cafe-routes__count tabular" role="status">{t(visible.length === 1 ? 'cafe.routes.count.one' : 'cafe.routes.count.other', { count: visible.length })}</span>
           </div>
           {chips.length > 0 && <div className="cafe-routes__chips">
@@ -195,7 +255,7 @@ function TransferRoutes() {
         {rows.length === 0 ? (
           <EmptyState variant="blank" title={t('cafe.routes.empty')} copy={isAdmin ? t('cafe.routes.emptyAdmin') : t('cafe.routes.emptyOthers')}>
             {isAdmin
-              ? <><Button variant="primary" disabled aria-describedby={reasonId}>{t('cafe.routes.add')}</Button><span className="cafe-routes__reason">{t('cafe.routes.notConnected')}</span></>
+              ? <Button variant="primary" onClick={() => open('new')}>{t('cafe.routes.add')}</Button>
               : <span className="cafe-routes__reason">{t('cafe.routes.askAdmin')}</span>}
           </EmptyState>
         ) : visible.length === 0 ? (
@@ -214,7 +274,7 @@ function TransferRoutes() {
               onSortChange={(next) => update({ sort: next.key === 'origin' ? null : next.key, dir: next.dir === 'asc' ? null : next.dir })}
               rowClassName={(row) => (row.key === selected ? 'is-selected' : undefined)}
               renderCard={(row) => (
-                <Link className="cafe-routes__card" data-route-open={row.key} to={hrefFor(row.key)} onClick={() => { lastOpened.current = row.key }}>
+                <Link className="cafe-routes__card" data-route-open={row.key} to={hrefFor(row.key)} aria-label={`${t('cafe.routes.view')}: ${originText(row)} → ${destinationText(row)}`} onClick={() => { lastOpened.current = row.key }}>
                   <span className="cafe-routes__card-main">
                     <span className="cafe-routes__card-title">{originText(row)}</span>
                     <span className="cafe-routes__card-meta">{t('cafe.routes.col.destination')}: {destinationText(row)}</span>
@@ -249,9 +309,14 @@ function TransferRoutes() {
           row={selectedRow}
           isNew={selected === 'new'}
           isAdmin={isAdmin}
+          offline={offline}
+          saving={saving}
+          mutationError={mutationError}
           invalid={Boolean(selected) && selected !== 'new' && !selectedRow}
           originText={originText}
           destinationText={destinationText}
+          onSave={saveRoute}
+          onRemove={disableRoute}
           onClose={() => update({ route: null }, false)}
           onDirty={setDirty}
         />
@@ -261,7 +326,7 @@ function TransferRoutes() {
 
   return (
     <CafePageFrame page="transferRoutes" state={error ? 'error' : !data ? 'loading' : 'default'}
-      primaryAction={data && !error ? addAction : undefined} primaryActionReason={data && !error && addAction ? reasonNode : undefined}>
+      primaryAction={data && !error ? addAction : undefined}>
       <RouteLeaveGuard when={dirty} message={t('cafe.routes.leaveMessage')} includeSearch />
       {body}
     </CafePageFrame>
@@ -270,11 +335,12 @@ function TransferRoutes() {
 
 function RouteStatus({ row, withReason = false }: { row: RouteRow; withReason?: boolean }) {
   const t = useT()
-  if (!row.problem) return <Pill tone="success">{t('cafe.routes.configured')}</Pill>
+  if (row.eligibility === 'eligible') return <Pill tone="success">{t('cafe.routes.configured')}</Pill>
+  const reasonKey = (row.reason && REASON_KEY[row.reason]) || (row.problem && PROBLEM_KEY[row.problem]) || 'cafe.routes.problem.destinationNotEligible'
   return (
     <span className="cafe-routes__status">
       <Pill tone="warning">{t('cafe.routes.needsAttention')}</Pill>
-      {withReason && <span className="cafe-routes__reason">{t(PROBLEM_KEY[row.problem])}</span>}
+      {withReason && <span className="cafe-routes__reason">{t(reasonKey)}</span>}
     </span>
   )
 }
@@ -284,15 +350,23 @@ interface PanelProps {
   row: RouteRow | null
   isNew: boolean
   isAdmin: boolean
+  offline: boolean
+  saving: boolean
+  mutationError: MessageKey | null
   invalid: boolean
   originText: (row: RouteRow) => string
   destinationText: (row: RouteRow) => string
+  onSave: (row: RouteRow | null, input: TransferRouteInput) => Promise<void>
+  onRemove: (row: RouteRow) => Promise<void>
   onClose: () => void
   onDirty: (dirty: boolean) => void
 }
 
-/** The route record. Read-only for everyone; an admin also gets the in-memory Preview form with writes disabled. */
-function RoutePanel({ data, row, isNew, isAdmin, invalid, originText, destinationText, onClose, onDirty }: PanelProps) {
+/** The route record is read-only for members; admins configure it through versioned writes. */
+function RoutePanel({
+  data, row, isNew, isAdmin, offline, saving, mutationError, invalid,
+  originText, destinationText, onSave, onRemove, onClose, onDirty,
+}: PanelProps) {
   const t = useT()
   const heading = useRef<HTMLHeadingElement>(null)
   useEffect(() => { heading.current?.focus() }, [])
@@ -304,9 +378,13 @@ function RoutePanel({ data, row, isNew, isAdmin, invalid, originText, destinatio
 
   const [originBranchId, originActivity] = origin.split(':') as [string, ProductionActivity | undefined]
   const originBranch = data.branches.find((branch) => branch.id === originBranchId) ?? null
+  const originPair = data.pairs.find((pair) => pair.branch_id === originBranchId && pair.activity === originActivity)
+  const originProblem: RouteProblem | null = !originBranch || !originPair
+    ? 'originUnknown' : originPair.produces === true ? null : 'originNotProducing'
   const eligible = useMemo(
-    () => (originBranch && originActivity ? eligibleDestinations({ branch: originBranch, activity: originActivity }, data.branches, data.pairs) : []),
-    [originBranch, originActivity, data.branches, data.pairs],
+    () => (originBranch && originActivity && !originProblem
+      ? eligibleDestinations({ branch: originBranch, activity: originActivity }, data.branches, data.pairs) : []),
+    [originBranch, originActivity, originProblem, data.branches, data.pairs],
   )
   const originStreams = useMemo(() => data.pairs
     .filter((pair) => pair.produces === true && data.branches.some((branch) => branch.id === pair.branch_id))
@@ -314,24 +392,30 @@ function RoutePanel({ data, row, isNew, isAdmin, invalid, originText, destinatio
     .sort((a, b) => a.label.localeCompare(b.label)), [data, t])
   const candidate = origin && destination && originActivity ? { origin_branch_id: originBranchId, origin_activity: originActivity, destination_branch_id: destination } : null
   const duplicate = candidate !== null && data.destinations.some((r) => routeKey(r) === routeKey(candidate)) && (!row || routeKey(candidate) !== row.key)
-  const formDisabled = data.partial
-  const reason = t('cafe.routes.notConnected')
+  const destinationEligible = candidate !== null && eligible.some((branch) => branch.id === candidate.destination_branch_id)
+  const formDisabled = data.partial || offline || saving
+  const saveDisabled = formDisabled || !candidate || !destinationEligible || duplicate || !dirty || originProblem !== null || (row !== null && row.rowVersion === null)
+  const reason = offline ? t('cafe.routes.error.offline')
+    : data.partial ? t('cafe.routes.partial')
+      : !candidate ? t('cafe.routes.chooseDestination')
+        : originProblem ? t(PROBLEM_KEY[originProblem])
+          : duplicate ? t('cafe.routes.duplicate')
+            : !destinationEligible ? t('cafe.routes.chooseDestination')
+              : !dirty ? t('cafe.routes.noChanges') : undefined
   const backLabel = t('record.backToCollection', { collection: t('cafe.pageTitle.transferRoutes') })
+  const title = invalid ? t('cafe.routes.notFound') : isNew ? t('cafe.routes.add') : `${originText(row!)} → ${destinationText(row!)}`
+  const rowReason = row?.reason ? REASON_KEY[row.reason] : row?.problem ? PROBLEM_KEY[row.problem] : null
 
-  const title = invalid ? t('cafe.routes.notFound') : isNew ? t('cafe.routes.previewRoute') : `${originText(row!)} → ${destinationText(row!)}`
   return (
     <section className="cafe-routes__panel" aria-label={t('cafe.routes.panel')}
       onKeyDown={(event) => { if (event.key === 'Escape' && !event.defaultPrevented) onClose() }}>
       <Button variant="ghost" className="cafe-routes__back" onClick={onClose}>{backLabel}</Button>
       <h2 ref={heading} tabIndex={-1} className="cafe-routes__panel-title">{title}</h2>
       {invalid ? <p className="cafe-routes__note">{t('cafe.routes.notFoundBody')}</p> : <>
-        <p className="cafe-routes__panel-badges">
-          {row && <RouteStatus row={row} />}
-          {isAdmin && <PreviewBadge />}
-        </p>
-        {row?.problem && <Notice tone="attention">{t(PROBLEM_KEY[row.problem])}</Notice>}
+        <p className="cafe-routes__panel-badges">{row && <RouteStatus row={row} />}</p>
+        {row?.eligibility === 'needs_attention' && rowReason && <Notice tone="attention">{t(rowReason)}</Notice>}
         {isAdmin ? (
-          <div className="cafe-routes__form" role="group" aria-label={t('cafe.routes.previewRoute')}>
+          <div className="cafe-routes__form" role="group" aria-label={t('cafe.routes.add')}>
             <Select label={t('cafe.routes.origin')} value={origin} disabled={formDisabled} fullWidth
               onChange={(e) => { setOrigin(e.target.value); setDestination('') }}>
               <option value="" disabled>{t('cafe.routes.choose')}</option>
@@ -358,13 +442,27 @@ function RoutePanel({ data, row, isNew, isAdmin, invalid, originText, destinatio
         {isAdmin && (
           <ActionBar
             className="cafe-routes__actions"
-            reason={reason}
-            secondary={row ? <Button variant="destructive" disabled>{t('cafe.routes.remove')}</Button> : undefined}
-            primary={<Button variant="primary" disabled>{t('cafe.routes.save')}</Button>}
+            alert={mutationError ? t(mutationError) : undefined}
+            reason={saveDisabled ? reason : undefined}
+            reasonId="cafe-routes-save-reason"
+            secondary={row ? <Button variant="destructive" disabled={saving || offline || dirty} onClick={() => void onRemove(row)}>{t('cafe.routes.remove')}</Button> : undefined}
+            primary={<Button variant="primary" disabled={saveDisabled} aria-describedby={saveDisabled ? 'cafe-routes-save-reason' : undefined}
+              onClick={() => { if (candidate) void onSave(row, candidate) }}>{t('cafe.routes.save')}</Button>}
             aria-label={t('cafe.routes.save')}
           />
         )}
       </>}
     </section>
   )
+}
+
+function routeMutationErrorKey(error: unknown): MessageKey {
+  if (error instanceof ContractError) {
+    if (error.code === 'FORBIDDEN') return 'cafe.routes.error.forbidden'
+    if (error.code === 'NOT_FOUND') return 'cafe.routes.error.notFound'
+    if (error.code === 'CONFLICT') return 'cafe.routes.error.conflict'
+    if (error.code === 'INVALID') return 'cafe.routes.error.invalid'
+    if (error.code === 'UNAVAILABLE') return 'cafe.routes.error.unavailable'
+  }
+  return 'cafe.routes.error.failed'
 }

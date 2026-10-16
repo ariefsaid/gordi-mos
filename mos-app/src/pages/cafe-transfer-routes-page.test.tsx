@@ -8,21 +8,39 @@ const HQ = { id: 'hq', code: 'gordi_hq', name: 'Gordi HQ' }
 const RRS = { id: 'rrs', code: 'rumah_rames', name: 'Rumah Rames' }
 const CIKAL = { id: 'cikal', code: 'cikal', name: 'Cikal' }
 const auth = vi.hoisted(() => ({ roles: ['admin'] as string[] }))
-const reads = vi.hoisted(() => ({ destinations: vi.fn(), pairs: vi.fn(), branches: vi.fn(), byIds: vi.fn() }))
-const stubs = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() }))
+const reads = vi.hoisted(() => ({ routes: vi.fn(), pairs: vi.fn(), branches: vi.fn(), byIds: vi.fn() }))
+const writes = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), remove: vi.fn() }))
 
 vi.mock('@/auth/use-auth', () => ({
   useAuth: () => ({ status: 'authenticated', viewer: { person: { id: 'p1' }, accessRoles: auth.roles, roles: [], isManager: false, affiliated: [] }, signOut: vi.fn() }),
 }))
 vi.mock('@/shell/use-is-offline', () => ({ useIsOffline: () => false }))
-vi.mock('@/lib/db/kitchen-logs', () => ({ listCafeDestinations: reads.destinations, listStreamPairs: reads.pairs }))
+vi.mock('@/lib/db/kitchen-logs', () => ({ listStreamPairs: reads.pairs }))
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: reads.branches, listBranchesByIds: reads.byIds }))
-// The disconnected stubs must never be reached from the screen.
 vi.mock('@/lib/db/cafe-transfer-routes', () => ({
-  listCafeTransferRoutes: stubs.list, createCafeTransferRoute: stubs.create, updateCafeTransferRoute: stubs.update, removeCafeTransferRoute: stubs.remove,
+  listCafeTransferRoutes: reads.routes,
+  createCafeTransferRoute: writes.create,
+  updateCafeTransferRoute: writes.update,
+  removeCafeTransferRoute: writes.remove,
 }))
 
-const route = (o: string, a: 'kitchen' | 'bar', d: string) => ({ origin_branch_id: o, origin_activity: a, destination_branch_id: d })
+const route = (
+  origin: string,
+  activity: 'kitchen' | 'bar',
+  destination: string,
+  rowVersion = 1,
+  eligibility: 'eligible' | 'needs_attention' = 'eligible',
+  reason: string | null = null,
+) => ({
+  origin_branch_id: origin,
+  origin_activity: activity,
+  destination_branch_id: destination,
+  row_version: rowVersion,
+  updated_at: '2026-10-10T00:00:00Z',
+  updated_by: 'admin-person',
+  eligibility,
+  reason,
+})
 const PAIRS = [
   { branch_id: 'hq', activity: 'kitchen', produces: true }, { branch_id: 'hq', activity: 'bar', produces: true },
   { branch_id: 'rrs', activity: 'kitchen', produces: true }, { branch_id: 'rrs', activity: 'bar', produces: true },
@@ -35,84 +53,122 @@ function renderPage(search = '') {
 
 beforeEach(() => {
   auth.roles = ['admin']
-  reads.destinations.mockResolvedValue([route('hq', 'kitchen', 'cikal'), route('hq', 'kitchen', 'rrs')])
+  reads.routes.mockResolvedValue([route('hq', 'kitchen', 'cikal')])
   reads.pairs.mockResolvedValue(PAIRS)
   reads.branches.mockResolvedValue([CIKAL, HQ, RRS])
   reads.byIds.mockResolvedValue([])
+  writes.create.mockResolvedValue(route('rrs', 'kitchen', 'hq', 1))
+  writes.update.mockImplementation(async (_key, _version, input) => ({ ...input, row_version: 2, updated_at: '2026-10-10T00:01:00Z', updated_by: 'admin-person', eligibility: 'eligible', reason: null }))
+  writes.remove.mockResolvedValue(undefined)
 })
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
-describe('Transfer routes (preview)', () => {
-  it('lists the real stored routes with the floor alias and the built-in movements apart', async () => {
+describe('Transfer routes', () => {
+  it('lists the org allowlist with the floor alias and built-in movements separately', async () => {
+    reads.routes.mockResolvedValue([route('hq', 'kitchen', 'rrs')])
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: 'Transfer routes' })).toBeInTheDocument()
     expect(screen.getAllByText('Gordi HQ · Kitchen').length).toBeGreaterThan(0)
     expect(screen.getAllByText(/Bungur/).length).toBeGreaterThan(0)
     expect(screen.getByRole('heading', { name: 'Built-in movements' })).toBeInTheDocument()
     expect(screen.getByText(/Gordi HQ · Bar → Kitchen/)).toBeInTheDocument()
-    expect(reads.destinations).toHaveBeenCalledTimes(1)
+    expect(reads.routes).toHaveBeenCalledTimes(1)
   })
 
-  it('gives an admin Add route disabled with the reason, and never writes', async () => {
+  it('lets an admin add an eligible route and then sees it in the allowlist', async () => {
     const user = userEvent.setup()
     renderPage()
-    const add = await screen.findByRole('button', { name: 'Add route' })
-    expect(add).toBeDisabled()
-    expect(screen.getAllByText('Route editing is not connected yet.').length).toBeGreaterThan(0)
-    await user.click(screen.getByRole('button', { name: 'Preview route form' }))
-    expect(await screen.findByRole('heading', { level: 2, name: 'Preview route' })).toBeInTheDocument()
-    expect(screen.getAllByText('Preview · not saved').length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: 'Save route' })).toBeDisabled()
-    for (const fn of Object.values(stubs)) expect(fn).not.toHaveBeenCalled()
+    await screen.findByRole('heading', { level: 1, name: 'Transfer routes' })
+    await user.click((await screen.findAllByRole('button', { name: 'Add route' }))[0])
+    const form = await screen.findByRole('group', { name: 'Add route' })
+    await user.click(within(form).getByRole('combobox', { name: 'Origin stream' }))
+    await user.click(await screen.findByRole('option', { name: 'Rumah Rames · Kitchen' }))
+    await user.click(within(form).getByRole('combobox', { name: 'Destination branch' }))
+    await user.click(await screen.findByRole('option', { name: 'Gordi HQ' }))
+    await user.click(screen.getByRole('button', { name: 'Save route' }))
+
+    expect(writes.create).toHaveBeenCalledWith({
+      origin_branch_id: 'rrs', origin_activity: 'kitchen', destination_branch_id: 'hq',
+    }, expect.objectContaining({ client_request_id: expect.any(String) }))
+    expect(await screen.findByRole('link', { name: 'View: Rumah Rames · Kitchen → Gordi HQ' })).toBeInTheDocument()
   })
 
-  it('offers only eligible destinations for the chosen origin and flags a duplicate', async () => {
+  it('offers only eligible destinations and blocks a duplicate route', async () => {
     const user = userEvent.setup()
+    reads.routes.mockResolvedValue([route('hq', 'kitchen', 'cikal'), route('hq', 'kitchen', 'rrs')])
     renderPage('?route=new')
-    await screen.findByRole('heading', { level: 2, name: 'Preview route' })
-    const dialogRoot = screen.getByRole('group', { name: 'Preview route' })
-    expect(within(dialogRoot).getByRole('combobox', { name: 'Destination branch' })).toBeDisabled()
-    await user.click(within(dialogRoot).getByRole('combobox', { name: 'Origin stream' }))
+    const form = await screen.findByRole('group', { name: 'Add route' })
+    await user.click(within(form).getByRole('combobox', { name: 'Origin stream' }))
     await user.click(await screen.findByRole('option', { name: 'Gordi HQ · Kitchen' }))
-    await user.click(within(dialogRoot).getByRole('combobox', { name: 'Destination branch' }))
-    const options = (await screen.findAllByRole('option')).map((o) => o.textContent)
-    expect(options).toEqual(['Cikal', 'Rumah Rames'])
+    await user.click(within(form).getByRole('combobox', { name: 'Destination branch' }))
+    expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual(['Cikal', 'Rumah Rames'])
     await user.click(screen.getByRole('option', { name: 'Cikal' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('This route already exists.')
+    expect(screen.getByRole('alert')).toHaveTextContent('This route already exists.')
+    expect(screen.getByRole('button', { name: 'Save route' })).toBeDisabled()
+    expect(writes.create).not.toHaveBeenCalled()
   })
 
-  it('shows a non-admin the routes read-only, with no edit entry points', async () => {
+  it('lets an admin update an eligible route with its current version', async () => {
+    const user = userEvent.setup()
+    reads.routes.mockResolvedValue([route('hq', 'kitchen', 'cikal', 7)])
+    renderPage()
+    await user.click(await screen.findByRole('link', { name: 'View: Gordi HQ · Kitchen → Cikal' }))
+    const form = await screen.findByRole('group', { name: 'Add route' })
+    await user.click(within(form).getByRole('combobox', { name: 'Destination branch' }))
+    await user.click(await screen.findByRole('option', { name: 'Rumah Rames' }))
+    await user.click(screen.getByRole('button', { name: 'Save route' }))
+
+    expect(writes.update).toHaveBeenCalledWith({
+      origin_branch_id: 'hq', origin_activity: 'kitchen', destination_branch_id: 'cikal',
+    }, 7, { origin_branch_id: 'hq', origin_activity: 'kitchen', destination_branch_id: 'rrs' },
+    expect.objectContaining({ client_request_id: expect.any(String) }))
+    expect(await screen.findByRole('link', { name: 'View: Gordi HQ · Kitchen → Bungur' })).toBeInTheDocument()
+  })
+
+  it('disables a route while preserving existing records in the view', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('link', { name: 'View: Gordi HQ · Kitchen → Cikal' }))
+    await user.click(screen.getByRole('button', { name: 'Disable route' }))
+
+    expect(writes.remove).toHaveBeenCalledWith({
+      origin_branch_id: 'hq', origin_activity: 'kitchen', destination_branch_id: 'cikal',
+    }, 1, expect.objectContaining({ client_request_id: expect.any(String) }))
+    expect(await screen.findByText('No cross-branch routes configured')).toBeInTheDocument()
+  })
+
+  it('shows members the route list without edit controls', async () => {
     auth.roles = ['member']
     renderPage()
     await screen.findByRole('heading', { level: 1, name: 'Transfer routes' })
     expect(screen.queryByRole('button', { name: 'Add route' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Preview route form' })).not.toBeInTheDocument()
-    cleanup()
-    renderPage('?route=hq:kitchen:cikal')
-    expect(await screen.findByRole('heading', { level: 2, name: /Gordi HQ · Kitchen → Cikal/ })).toBeInTheDocument()
+    await userEvent.setup().click(await screen.findByRole('link', { name: 'View: Gordi HQ · Kitchen → Cikal' }))
     expect(within(screen.getByRole('region', { name: 'Route' })).queryAllByRole('combobox')).toHaveLength(0)
     expect(screen.queryByRole('button', { name: 'Save route' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Disable route' })).not.toBeInTheDocument()
   })
 
-  it('keeps an archived or unknown branch as Needs attention instead of dropping the route', async () => {
-    reads.destinations.mockResolvedValue([route('hq', 'kitchen', 'old')])
+  it('keeps an archived branch visible as Needs attention', async () => {
+    reads.routes.mockResolvedValue([route('hq', 'kitchen', 'old', 1, 'needs_attention', 'destination_unknown')])
     reads.byIds.mockResolvedValue([{ id: 'old', name: 'Old Branch' }])
     renderPage()
     expect(await screen.findByText('Needs attention')).toBeInTheDocument()
     expect(screen.getByText('Old Branch')).toBeInTheDocument()
   })
 
-  it('says so, never an empty list, when the read fails', async () => {
-    reads.destinations.mockRejectedValue(new Error('down'))
+  it('shows an error rather than an empty list when routes cannot be read', async () => {
+    reads.routes.mockRejectedValue(new Error('down'))
     renderPage()
     expect(await screen.findByText('Transfer routes could not be loaded.')).toBeInTheDocument()
     expect(screen.queryByText('No cross-branch routes configured')).not.toBeInTheDocument()
   })
 
-  it('distinguishes a complete empty list (with a disabled Add for an admin)', async () => {
-    reads.destinations.mockResolvedValue([])
+  it('offers Add route from the complete empty state', async () => {
+    const user = userEvent.setup()
+    reads.routes.mockResolvedValue([])
     renderPage()
     expect(await screen.findByText('No cross-branch routes configured')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Add route' }).every((b) => (b as HTMLButtonElement).disabled)).toBe(true)
+    await user.click(screen.getAllByRole('button', { name: 'Add route' })[0])
+    expect(await screen.findByRole('heading', { level: 2, name: 'Add route' })).toBeInTheDocument()
   })
 })
