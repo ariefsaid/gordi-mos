@@ -87,25 +87,7 @@ create policy cafe_destinations_select_org on ops.cafe_destinations
     and (select shared.is_org_member())
   );
 
--- Backfill the existing allowlist as known legacy configuration, without manufacturing routes.
-insert into ops.cafe_transfer_route_audit
-  (org_id, before_route, after_route, operation, actor_person_id, occurred_at, request_id,
-   request_payload, resulting_version)
-select d.org_id,
-       null,
-       jsonb_build_object(
-         'org_id', d.org_id,
-         'origin_branch_id', d.origin_branch_id,
-         'origin_activity', d.origin_activity,
-         'destination_branch_id', d.destination_branch_id,
-         'row_version', d.row_version,
-         'updated_at', d.updated_at,
-         'updated_by', null,
-         'eligibility', 'eligible',
-         'reason', null
-       ),
-       'create', null, '2026-10-10 00:00:00+00'::timestamptz, null, null, d.row_version
-from ops.cafe_destinations d;
+-- Routes present before route administration shipped carry no audit event: the audit records admin actions only.
 
 create function ops._parse_cafe_transfer_route(p_route jsonb)
 returns table(origin_branch_id uuid, origin_activity text, destination_branch_id uuid)
