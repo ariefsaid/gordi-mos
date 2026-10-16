@@ -68,6 +68,12 @@ env MOS_TEST_LOCK="$SEM" MOS_DB_LOCK="$tmp/nested-db.lock" scripts/with-test-loc
 [ -e "$tmp/nested-db.lock" ] && [ ! -e "$tmp/nested-db.lock.1" ] \
   && ok "db: nested inside a test slot it stays a single lock" || bad "db: nested lock grew extra slots"
 
+# a garbage slot count is misuse (exit 2); an absurd one is capped at 16 files
+env MOS_TEST_LOCK="$tmp/bad.lock" MOS_TEST_LOCK_SLOTS=three scripts/with-test-lock.sh true >/dev/null 2>&1
+[ $? -eq 2 ] && ok "test: a non-numeric slot count exits 2" || bad "test: non-numeric slot count did not exit 2"
+env MOS_TEST_LOCK="$tmp/big.lock" MOS_TEST_LOCK_SLOTS=1000000 scripts/with-test-lock.sh true >/dev/null 2>&1
+[ "$(ls "$tmp" | grep -c '^big\.lock')" = 16 ] && ok "test: the slot count is capped at 16" || bad "test: expected 16 slot files, got $(ls "$tmp" | grep -c '^big\.lock')"
+
 # default path: with no override the test lock is the one shared with the sibling repo, under $HOME
 mkdir -p "$tmp/home"
 env -u MOS_TEST_LOCK -u MOS_TEST_LOCK_HELD HOME="$tmp/home" scripts/with-test-lock.sh true >/dev/null 2>&1

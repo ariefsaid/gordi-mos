@@ -64,7 +64,11 @@ joined       = " ".join(cmd)
 # slots 1..N-1 are lock_path.1 .. lock_path.<N-1>. A wrapper with N=1 (or an older copy of this
 # script) still contends only for slot 0, so mixed versions stay compatible.
 # ponytail: polls free slots every second; a FIFO queue only if starvation shows up.
-slots = max(1, int(os.environ.pop("FLOCK_SLOTS", "1") or "1"))  # pop: a nested lock (e.g. the db lock) must not inherit our slot count
+try:
+    slots = int(os.environ.pop("FLOCK_SLOTS", "1") or "1")  # pop: a nested lock (e.g. the db lock) must not inherit our slot count
+except ValueError:
+    sys.stderr.write("[%s] FLOCK_SLOTS must be a whole number\n" % label); sys.exit(2)
+slots = max(1, min(16, slots))  # 16 caps the slot files a typo can create under $HOME
 paths = [lock_path] + ["%s.%d" % (lock_path, i) for i in range(1, slots)]
 t0 = time.time()
 if slots > 1:
