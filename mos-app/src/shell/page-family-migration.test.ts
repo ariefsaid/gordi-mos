@@ -26,8 +26,6 @@ const FRAME_PAGES_WITHOUT_A_ROUTE = new Set<string>([
   'pages/kitchen-log-page.tsx',
   // Routed by the `*` catch-all; it names itself as the access boundary does, which silences the ContextRow.
   'pages/not-found-page.tsx',
-  // The Work directory at `/work`: carries its own job sentence in its page head (see DEFERRED_PAGE_ROUTES).
-  'pages/work-home-page.tsx',
 ])
 
 /** The page whose divergence from the Tasks door the marker below watches. */
@@ -179,7 +177,6 @@ const DEFERRED_PAGE_ROUTES = new Map<string, string>([
   // registry rows with `matchPath`, and `:taskId` matches `new`. A dedicated row would be a
   // second way to say the same thing.
   ['/work/tasks/new', 'silenced by the /work/tasks/:taskId pattern'],
-  ['/work', 'the Work directory page head carries its own job sentence'],
   ['/dev/views', 'in the router but marked as DEV-only infrastructure'],
   ['/dev/views/:viewId', 'in the router but marked as DEV-only infrastructure'],
 ])

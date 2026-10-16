@@ -12,6 +12,8 @@ import type { MobileGroupedCardsProps } from './mobile-grouped-cards'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { isShipGated } from '@/lib/ship-gate'
 
+vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ isOn: () => true }) }))
+
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   return {
     id: 'task-1', org_id: 'org', title: 'Test task',
@@ -238,6 +240,7 @@ describe('MobileGroupedCards', () => {
       const zeroGroup = { ...OCC_GROUP, occurrenceRollup: { ...OCC_GROUP.occurrenceRollup, pendingUnresolved: 0 } }
       renderCards({ groups: [zeroGroup], onAssignPending: vi.fn() })
       expect(screen.queryByRole('button', { name: /^\d+ to assign$/ })).not.toBeInTheDocument()
+      expect(screen.queryByText(/to assign/i)).not.toBeInTheDocument()
     })
 
     it('a non-occurrence group is unaffected (plain count grammar, no assign affordance)', () => {

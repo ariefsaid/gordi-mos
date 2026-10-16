@@ -171,8 +171,7 @@ export function EntryPanel({ text, entry, reviewer, canCapture, onClose, onOpenH
           <Field label={t('records.col.amount')}><Quantity t={t} qty={entry.qty} unit={entry.unit} /></Field>
           {enteredText && <Field label={t('records.field.enteredAs')}>{enteredText}</Field>}
           <LocationRecordFields keys={RECORD_LOCATION_KEYS[entry.movement]} />
-          {/* HANDOVER: R/handover/records-gaps.md §5. Count submitter identity — shown as not available until a stored submitter exists. */}
-          <Field label={t('records.col.by')}>{raw.source === 'count' ? t('records.who.notAvailable') : text.person(entry)}</Field>
+          <Field label={t('records.col.by')}>{text.person(entry)}</Field>
           {raw.source === 'log' && <>
             <Field label={t('records.field.recorded')}>{when(raw.log.created_at)}</Field>
             {raw.log.notes && <Field label={t('records.field.notes')}>{raw.log.notes}</Field>}

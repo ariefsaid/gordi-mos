@@ -1,24 +1,55 @@
-// Hide in MOS — typed client stubs for the proposed per-recipe "shown / hidden in MOS" setting.
-// DISCONNECTED: no table or RPC exists yet. Every function here throws a typed UNAVAILABLE error and must NOT be called
-// while the backend is absent; the preview Recipes page keeps the choice in memory and never calls these.
-// Contract: R/handover/recipe-visibility.md. No schema, permission or write is added by this file.
+import { supabase } from '@/lib/supabase'
+import { ContractError, type ContractErrorCode, type UUID, type WriteContext } from './contract'
 
-/* eslint-disable @typescript-eslint/no-unused-vars -- stub parameters mirror the handover signatures; nothing is called until the backend is connected */
-import { unavailable, type UUID, type WriteContext } from './contract'
-
-// HANDOVER: R/handover/recipe-visibility.md §TypeScript contracts — proposed src/lib/db/cafe-recipe-visibility.ts
-/** One stored choice. A recipe with no row is shown; only hidden recipes need a row. `recipe_key` is `${esb_code}:${menu_id}`. */
 export type RecipeVisibility = {
-  recipe_key: string; hidden: boolean; row_version: number
-  updated_at: string; updated_by: UUID | null
+  recipe_key: string
+  hidden: boolean
+  row_version: number
+  updated_at: string
+  updated_by: UUID | null
 }
 
-// HANDOVER: R/handover/recipe-visibility.md §Read/write and RLS — ops.list_recipe_visibility(); every hidden recipe of the org, any member may read
+const PAGE_SIZE = 500
+const CONTRACT_CODES: Record<string, ContractErrorCode> = {
+  '22023': 'INVALID',
+  '42501': 'FORBIDDEN',
+  P0019: 'CONFLICT',
+}
+
+function requestError(operation: string, error: { code: string; message: string }): Error {
+  const code = CONTRACT_CODES[error.code]
+  return code
+    ? new ContractError(code, `${operation} failed: ${error.message}`)
+    : new Error(`${operation} failed: ${error.message}`)
+}
+
 export async function listRecipeVisibility(): Promise<RecipeVisibility[]> {
-  return unavailable('listRecipeVisibility')
+  const rows: RecipeVisibility[] = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase.schema('ops').rpc('list_recipe_visibility')
+      .order('recipe_key', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1)
+    if (error) throw requestError('listRecipeVisibility', error)
+    const page = (data ?? []) as RecipeVisibility[]
+    rows.push(...page)
+    if (page.length < PAGE_SIZE) return rows
+  }
 }
 
-// HANDOVER: R/handover/recipe-visibility.md §Read/write and RLS — ops.set_recipe_visibility(p_recipe_key, p_hidden, p_expected_version, p_client_request_id); only who can manage Café item settings
-export async function setRecipeVisibility(_recipeKey: string, _hidden: boolean, _expectedVersion: number | null, _ctx: WriteContext): Promise<RecipeVisibility> {
-  return unavailable('setRecipeVisibility')
+export async function setRecipeVisibility(
+  recipeKey: string,
+  hidden: boolean,
+  expectedVersion: number | null,
+  ctx: WriteContext,
+): Promise<RecipeVisibility> {
+  const { data, error } = await supabase.schema('ops').rpc('set_recipe_visibility', {
+    p_recipe_key: recipeKey,
+    p_hidden: hidden,
+    p_expected_version: expectedVersion,
+    p_client_request_id: ctx.client_request_id,
+  })
+  if (error) throw requestError('setRecipeVisibility', error)
+  const row = ((data ?? []) as RecipeVisibility[])[0]
+  if (!row) throw new Error('setRecipeVisibility failed: no visibility row was returned')
+  return row
 }

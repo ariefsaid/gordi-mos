@@ -406,6 +406,30 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
     expect(payload).not.toHaveProperty('date')
   })
 
+  it('sends only the location fields allowed by the captured action', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema(
+      { insert_cafe_capture_logs: [{ data: [{ id: 'log-loc', client_request_id: REQUEST_ID }], error: null }] },
+      rec,
+    ) as never)
+    await insertKitchenLog({
+      client_request_id: REQUEST_ID, business_unit_id: BU_ID, log_date: '2026-06-20', branch_id: BRANCH_ID,
+      activity: 'kitchen', action: 'produce', destination_branch_id: null, wip_item_id: WIP_ID, qty_porsi: 2,
+      production_location_id: 'kitchen-location', to_storage_location_id: 'chiller-location',
+    })
+    const payload = (rec.rpcCalls[0]![1] as { p_rows: Record<string, unknown>[] }).p_rows[0]!
+    expect(payload).toMatchObject({ production_location_id: 'kitchen-location', to_storage_location_id: 'chiller-location' })
+    expect(payload).not.toHaveProperty('from_storage_location_id')
+  })
+
+  it('rejects location facts that do not match the captured action', async () => {
+    await expect(insertKitchenLog({
+      client_request_id: REQUEST_ID, business_unit_id: BU_ID, log_date: '2026-06-20', branch_id: BRANCH_ID,
+      activity: 'kitchen', action: 'produce', destination_branch_id: null, wip_item_id: WIP_ID, qty_porsi: 2,
+      from_storage_location_id: 'source-location',
+    })).rejects.toThrow('from_storage_location_id is not valid for produce')
+  })
+
   it('includes typed quantity and selected factor while retaining the ERP default unit id', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema(

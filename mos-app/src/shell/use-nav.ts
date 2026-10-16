@@ -10,6 +10,8 @@ import {
 } from './module-registry'
 import { useIsNarrow } from './use-is-narrow'
 import { useRailCollapsePref } from './use-rail-collapse-pref'
+import { useModuleAvailability } from '@/lib/module-availability'
+import type { ModuleId } from '@/lib/db/module-settings'
 
 /** The full labelled nav needs 240px (or 64 + 240) beside a usable page; below this it is the 64px rail with flyouts. */
 const FULL_NAV_QUERY = '(min-width: 1280px)'
@@ -29,6 +31,7 @@ export interface NavLayout {
   /** Below 768px there is no desktop nav at all: tabs and the More drawer are the nav. */
   isNarrow: boolean
   roles: string[]
+  isOn: (moduleId: ModuleId) => boolean
   /** One module → the single labelled sidebar; two or more → the module rail with a pages panel. */
   mode: NavMode
   /** The 64px rail with flyouts: either the viewport is under 1280px or the viewer folded the nav away. */
@@ -56,17 +59,18 @@ export function useNavLayout(): NavLayout {
   const isNarrow = useIsNarrow()
   const fullWidth = useIsFullNavWidth()
   const { collapsed } = useRailCollapsePref()
+  const { isOn } = useModuleAvailability()
   const roles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const mode = navModeFor(roles)
+  const mode = navModeFor(roles, isOn)
   const compact = !isNarrow && (!fullWidth || collapsed)
   const area = destinationForPath(pathname)
   const panelCandidate = area && (area.id === 'work' || area.zone === 'modules' || area.id === 'admin') ? area : null
-  const panelArea = !compact && mode === 'panel' && panelCandidate && pageCount(pageGroupsFor(panelCandidate, roles)) >= 2 ? panelCandidate : null
+  const panelArea = !compact && mode === 'panel' && panelCandidate && pageCount(pageGroupsFor(panelCandidate, roles, isOn)) >= 2 ? panelCandidate : null
   const columnWidth = compact ? 'var(--mos-rail-collapsed)'
     : mode === 'sidebar' ? 'var(--mos-rail-width)'
       : panelArea ? 'calc(var(--mos-rail-collapsed) + var(--mos-rail-width))' : 'var(--mos-rail-collapsed)'
   return {
-    isNarrow, roles, mode, compact, collapsible: !isNarrow && fullWidth, panelArea, area, columnWidth,
+    isNarrow, roles, isOn, mode, compact, collapsible: !isNarrow && fullWidth, panelArea, area, columnWidth,
     brandWide: !compact && mode === 'sidebar',
   }
 }
@@ -102,7 +106,8 @@ export function useRememberModule(): void {
   const auth = useAuth()
   const { pathname } = useLocation()
   const roles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const { isOn } = useModuleAvailability()
   const owner = destinationForPath(pathname)
-  const admitted = owner?.zone === 'modules' && admittedModules(roles).some((m) => m.id === owner.id)
+  const admitted = owner?.zone === 'modules' && admittedModules(roles, isOn).some((m) => m.id === owner.id)
   useEffect(() => { if (owner && admitted) rememberModule(owner.id) }, [admitted, owner])
 }

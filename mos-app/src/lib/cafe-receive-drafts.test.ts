@@ -32,6 +32,18 @@ describe('Café receive offline drafts', () => {
     expect(draftKeys()).toEqual(['mos.cafe.receiveDrafts.v2.person-1.branch-1.kitchen.2026-10-06'])
   })
 
+  it('retains the delivery location and explicit per-line override across a reload', () => {
+    const located = {
+      ...DRAFT,
+      storageLocationId: 'delivery-chiller',
+      entries: {
+        bean: { ...DRAFT.entries.bean, storageLocationOverride: null },
+      },
+    }
+    expect(saveCafeReceiveDraft(SCOPE, located)).toBe(true)
+    expect(loadCafeReceiveDraft(SCOPE)).toEqual(located)
+  })
+
   it('AC-1006 clearing one scope leaves other people and dates intact', () => {
     saveCafeReceiveDraft(SCOPE, DRAFT)
     const otherDate = { ...SCOPE, arrivalDate: '2026-10-05' }

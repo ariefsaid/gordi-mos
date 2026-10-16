@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { formatDec, parseDecimal } from '@/lib/cafe-records/decimal'
 import {
-  buildRows, compareAbsRatio, compareRow, countAgeHours, filterRows, formatPercent, formatSigned, latestCounts, pickLatestCount, sectionsOf, sortRows,
+  buildRows, compareAbsRatio, compareRow, comparisonRowFromStock, countAgeHours, filterRows, formatPercent, formatSigned, latestCounts, pickLatestCount, sectionsOf, sortRows,
   type CountLine, type CountObservation, type ExpectedSide, type ItemIdentity,
 } from './cafe-stock-comparison'
+import type { ComparisonRow as StockComparisonRow } from '@/lib/db/cafe-stock-comparison'
 
 const NOW = new Date('2026-10-15T08:00:00+07:00')
 const dec = (value: string) => parseDecimal(value)!
@@ -16,6 +17,34 @@ const esb = (quantity: string, overrides: Partial<Extract<ExpectedSide, { kind: 
   kind: 'value', value: { quantity: dec(quantity), unitId: 'u-kg', unitName: 'KG', asOf: '2026-10-14T23:59:00+07:00', businessDate: '2026-10-14', basis: 'end_of_day', complete: true, ...overrides },
 })
 const row = (n: number, count: CountObservation | null, expected: ExpectedSide, identity = id(n)) => compareRow({ identity, count, expected, now: NOW })
+const stockRow = (overrides: Partial<StockComparisonRow> = {}): StockComparisonRow => ({
+  key: 'item-01:u-kg', item_id: 'item-01', item_name: 'Item 1', kind: 'RAW', category: 'Dry goods', unit_id: 'u-kg', unit_name: 'KG',
+  expected: { quantity: '120', unit_code: 'KG', as_of: '2026-10-14T16:59:59Z', business_date: '2026-10-14', basis: 'end_of_day', provenance: 'source_row', snapshot_id: 'snapshot-1', row_complete: true },
+  count: { id: 'count-1', quantity: '112', unit_id: 'u-kg', unit_name: 'KG', count_date: '2026-10-14', submitted_at: '2026-10-14T14:00:00Z', status: 'Submitted' },
+  difference: '-8', difference_pct: '-6.666666667', missing: null, flags: ['shortage', 'pending_confirmation'], indicative: false,
+  ...overrides,
+})
+
+describe('server comparison rows', () => {
+  it('keeps server exact decimals, source coordinates and flags without recalculating', () => {
+    const converted = comparisonRowFromStock(stockRow())
+    expect(converted).toMatchObject({ itemId: 'item-01', expected: { quantity: dec('120'), unitName: 'KG' }, count: { quantity: dec('112'), status: 'Submitted' }, difference: dec('-8'), percent: dec('-6.666666667'), bucket: 'gap', flags: ['shortage', 'pending_confirmation'] })
+  })
+
+  it('keeps mismatched source units visible but marks them incomparable', () => {
+    const converted = comparisonRowFromStock(stockRow({
+      missing: 'unit_mismatch', flags: ['unit_mismatch'], difference: null, difference_pct: null,
+    }))
+    expect(converted.expected?.quantity).toBe(dec('120'))
+    expect(converted.expected?.unitId).not.toBe(converted.unitId)
+    expect(converted.difference).toBeNull()
+    expect(converted.bucket).toBe('unknown')
+  })
+
+  it('rejects malformed decimals instead of silently changing the reported gap', () => {
+    expect(() => comparisonRowFromStock(stockRow({ difference: 'not-a-decimal' }))).toThrow('invalid decimal')
+  })
+})
 
 describe('difference and percent', () => {
   it('is Count minus expected, exact, with percent of the absolute expected', () => {

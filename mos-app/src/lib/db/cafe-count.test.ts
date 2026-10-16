@@ -68,6 +68,21 @@ describe('Cafe Count domain adapter', () => {
     })
   })
 
+  it('sends the optional storage location with each count line', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [{
+      client_key: 'key-1', outcome: 'submitted', line_id: 'line-1',
+    }], error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+
+    await submitCafeCounts(STREAM, [{
+      client_key: 'key-1', item_id: 'item-1', quantity: '2.5', storage_location_id: 'location-1',
+    }])
+    expect(rpc).toHaveBeenCalledWith('submit_cafe_counts', {
+      p_branch_id: 'branch-1', p_activity: 'kitchen',
+      p_lines: [{ client_key: 'key-1', item_id: 'item-1', quantity: '2.5', storage_location_id: 'location-1' }],
+    })
+  })
+
   it('sends only the client key, item and typed quantity and returns line outcomes', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [{
       client_key: 'key-1', outcome: 'submitted', line_id: 'line-1',

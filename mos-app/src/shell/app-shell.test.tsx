@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
+import type { ReactNode } from 'react'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, Link, useLocation } from 'react-router-dom'
@@ -35,7 +36,11 @@ vi.mock('@/lib/db/signals', () => ({
 }))
 
 vi.mock('../auth/use-auth')
+const moduleAvailability = vi.hoisted(() => ({ isOn: vi.fn((moduleId: string) => moduleId.length > 0) }))
+vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ status: 'ready', isOn: moduleAvailability.isOn, retry: vi.fn() }) }))
+vi.mock('@/components/assistant/AssistantPanel', () => ({ AssistantPanel: () => <div>assistant panel mounted</div> }))
 import { useAuth } from '@/auth/use-auth'
+import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 
 const mockUseAuth = vi.mocked(useAuth)
 
@@ -63,8 +68,9 @@ function setNarrow(matches: boolean) {
 
 afterEach(() => {
   setNarrow(false)
+  moduleAvailability.isOn.mockImplementation(() => true)
 })
-function renderShell(path = '/', locale: Locale = 'en') {
+function renderShell(path = '/', locale: Locale = 'en', content: ReactNode = <div role="main">page</div>) {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -92,13 +98,28 @@ function renderShell(path = '/', locale: Locale = 'en') {
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route element={<AppShell />}>
-            <Route index element={<div role="main">page</div>} />
+            <Route index element={content} />
           </Route>
         </Routes>
       </MemoryRouter>
     </I18nProvider>,
   )
 }
+
+function AgentRuntimeProbe() {
+  const { runtime } = useAgentRuntime()
+  return <output aria-label="Agent runtime">{runtime ? 'mounted' : 'absent'}</output>
+}
+
+describe('assistant org switch', () => {
+  it('does not mount assistant UI or runtime when Assistant is off', () => {
+    moduleAvailability.isOn.mockImplementation((moduleId) => moduleId !== 'assistant')
+    renderShell('/', 'en', <AgentRuntimeProbe />)
+    expect(screen.getByLabelText('Agent runtime')).toHaveTextContent('absent')
+    expect(screen.queryByRole('button', { name: /Open deputy/i })).toBeNull()
+    expect(screen.queryByText('assistant panel mounted')).toBeNull()
+  })
+})
 
 // RI-shell-1 / AC-S02: AppShell grid structure — topbar spans full width, rail+main are siblings
 describe('RI-shell-1 (AC-S02): AppShell grid structure', () => {

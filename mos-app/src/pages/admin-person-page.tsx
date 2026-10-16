@@ -119,7 +119,7 @@ export function AdminPersonPage() {
           <AccessCard person={person} people={data.people} refresh={data.refresh} />
           {person.access_roles.includes('supervisor') && <ScopeCard person={person} options={data.scopeOptions} refresh={data.refresh} />}
           {/* Preview ship state: a person's Modules exist only where the Modules page does. */}
-          {!isShipGated('/admin/modules') && <PersonModulesCard person={person} />}
+          {!isShipGated('/admin/people/modules') && <PersonModulesCard person={person} />}
           <ReceiptIssuesCard person={person} />
         </div>
         <div className="person-page__column">

@@ -20,6 +20,7 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
   { path: '/', family: 'workspace', sourceFile: 'pages/home-page.tsx', symbol: 'HomePage' },
 
   // ── Work ──────────────────────────────────────────────────────────────────────────────────
+  { path: '/work', family: 'workspace', sourceFile: 'pages/work-home-page.tsx', symbol: 'WorkHomePage' },
   { path: '/work/objectives/:objectiveId', family: 'focused-record', sourceFile: 'pages/objective-record-page.tsx', symbol: 'ObjectiveRecordPage' },
   { path: '/work/projects/:workLineId', family: 'focused-record', sourceFile: 'pages/work-line-record-page.tsx', symbol: 'WorkLineRecordPage' },
   { path: '/work/tasks', family: 'workspace', sourceFile: 'pages/tasks-layout.tsx', symbol: 'TasksLayout' },

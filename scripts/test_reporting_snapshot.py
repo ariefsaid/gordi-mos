@@ -1,5 +1,6 @@
 from contextlib import contextmanager, redirect_stdout
 from datetime import date, datetime, timezone
+from decimal import Decimal
 import io
 import json
 import sys
@@ -39,6 +40,9 @@ from reporting_snapshot import (
 )
 from reporting_snapshot import (
     build_recipe_history_source_query, plan_recipe_versions, run_recipe_history_snapshot,
+)
+from reporting_snapshot import (
+    build_stock_on_hand_source_query, plan_stock_on_hand_snapshots, run_stock_on_hand_snapshot,
 )
 
 
@@ -417,6 +421,8 @@ class _RecordingCursor:
 
     def fetchall(self):
         sql = self._connection.calls[-1][1] if self._connection.calls else ""
+        if "from public.stock_snapshot" in sql:
+            return list(self._connection.stock_rows)
         if "from public.recipe_observations" in sql:
             return list(self._connection.recipe_rows)
         if "from public.sync_state" in sql:
@@ -436,6 +442,7 @@ class _RecordingConnection:
         self.recipe_rows = ()
         self.state_rows = ()
         self.finding_rows = ()
+        self.stock_rows = ()
         self.calls = []
 
     def __enter__(self):
@@ -453,7 +460,7 @@ class _RecordingConnection:
 
 @contextmanager
 def _observed_run(source_rows, reporting_rows=(), missing_target_table=None, recipe_rows=(),
-                  state_rows=(), finding_rows=()):
+                  state_rows=(), finding_rows=(), stock_rows=()):
     """Stand in for psycopg for the duration of a run, and hand back the connections it opened.
 
     reporting_snapshot imports psycopg inside its run functions, so substituting the module in
@@ -473,6 +480,7 @@ def _observed_run(source_rows, reporting_rows=(), missing_target_table=None, rec
         connection.recipe_rows = recipe_rows
         connection.state_rows = state_rows
         connection.finding_rows = finding_rows
+        connection.stock_rows = stock_rows
         connections.append(connection)
         return connection
 
@@ -897,8 +905,9 @@ class PendingBillRunTests(unittest.TestCase):
             out = io.StringIO()
             with redirect_stdout(out):
                 main()
-        self.assertEqual(len(connections), 10, "revenue, margin, usage, recipe history and findings")
+        self.assertEqual(len(connections), 12, "revenue, margin, usage, recipe history, findings and stock on-hand")
         self.assertIn("usage=0 pending_bills=off pending_bills_skipped=off", out.getvalue())
+        self.assertIn("stock_on_hand=0", out.getvalue())
 
     def test_step_runs_after_margin_when_enabled(self):
         env = {
@@ -910,7 +919,7 @@ class PendingBillRunTests(unittest.TestCase):
         config = SnapshotConfig.from_env(env)
         with _observed_run([]) as connections:
             counts = run_all_snapshots(config)
-        self.assertEqual(len(connections), 12, "revenue, margin, usage, pending bills, recipe history and findings")
+        self.assertEqual(len(connections), 14, "revenue, margin, usage, pending bills, recipe history, findings and stock on-hand")
         self.assertIn("reporting.pending_bill_snapshots", repr(connections[7].calls))
         self.assertEqual(counts["pending_bills"], 0)
 
@@ -1208,6 +1217,101 @@ class RecipeHistorySnapshotTests(unittest.TestCase):
         ]
         self.assertEqual(len(writes), 1)
         self.assertEqual(json.loads(writes[0][0]["recipe"]), source_row["recipe"])
+
+
+STOCK_SOURCE_ROWS = [
+    {
+        "esb_code": "GKID", "branch_code": "RRS", "snapshot_date": date(2026, 10, 15),
+        "location": "Main", "product_detail_id": "PD-001", "product_code": None,
+        "product_name": "Test item", "uom": "KG", "qty_balance": Decimal("-2.5000"),
+    },
+    {
+        "esb_code": "GKID", "branch_code": "RRS", "snapshot_date": date(2026, 10, 14),
+        "location": "Main", "product_detail_id": "PD-001", "product_code": "P-001",
+        "product_name": "Test item", "uom": "KG", "qty_balance": Decimal("0"),
+    },
+    {
+        "esb_code": "GKID", "branch_code": "GHQ", "snapshot_date": date(2026, 10, 15),
+        "location": "Cold", "product_detail_id": "PD-002", "product_code": "P-002",
+        "product_name": "Second item", "uom": "L", "qty_balance": Decimal("4.125"),
+    },
+]
+
+
+class StockOnHandSnapshotTests(unittest.TestCase):
+    SNAPSHOT = datetime(2026, 10, 16, 2, tzinfo=timezone.utc)
+    CONFIG = SnapshotConfig(WAREHOUSE_DSN, REPORTING_DSN, ORG_A)
+
+    def test_source_query_selects_each_companys_latest_and_previous_day(self):
+        sql = " ".join(build_stock_on_hand_source_query().split())
+        self.assertIn("from public.stock_snapshot", sql)
+        self.assertIn("max(snapshot_date)", sql)
+        self.assertIn("latest_date - 1", sql)
+        self.assertIn("qty_balance", sql)
+        self.assertIn("product_detail_id", sql)
+
+    def test_nightly_run_copies_headers_coverage_and_exact_source_rows(self):
+        with _observed_run([], stock_rows=STOCK_SOURCE_ROWS) as connections:
+            count = run_stock_on_hand_snapshot(self.CONFIG, self.SNAPSHOT)
+
+        self.assertEqual(count, 3)
+        warehouse = next(connection for connection in connections if connection.dsn == WAREHOUSE_DSN)
+        reporting = next(connection for connection in connections if connection.dsn == REPORTING_DSN)
+        self.assertIn("from public.stock_snapshot", warehouse.calls[0][1])
+        self.assertEqual(reporting.calls[0][2], (ORG_A,))
+        self.assertIn("set_config('app.reporting_org'", reporting.calls[0][1])
+        header_rows = next(params for kind, sql, params in reporting.calls if kind == "executemany" and "esb_stock_snapshots" in sql)
+        coverage_rows = [row for kind, sql, params in reporting.calls if kind == "executemany" and "esb_stock_coverage" in sql for row in params]
+        on_hand_rows = [row for kind, sql, params in reporting.calls if kind == "executemany" and "esb_stock_on_hand" in sql for row in params]
+        newest = next(row for row in header_rows if row["snapshot_date"] == date(2026, 10, 15))
+        self.assertTrue(newest["source_complete"])
+        self.assertEqual(newest["basis"], "end_of_day")
+        self.assertEqual(newest["business_date"], date(2026, 10, 15))
+        self.assertEqual(newest["as_of"], datetime(2026, 10, 15, 16, 59, 59, 999999, tzinfo=timezone.utc))
+        self.assertEqual({row["branch_code"] for row in coverage_rows if row["snapshot_id"] == newest["id"]}, {"RRS", "GHQ"})
+        self.assertEqual({row["received_rows"] for row in coverage_rows if row["snapshot_id"] == newest["id"]}, {1})
+        self.assertEqual({row["location"] for row in on_hand_rows}, {"Main", "Cold"})
+        current_rows = [row for row in on_hand_rows if row["snapshot_id"] == newest["id"]]
+        self.assertEqual(next(row for row in current_rows if row["product_detail_code"] == "PD-001")["quantity"], Decimal("-2.5000"))
+        self.assertIsNone(next(row for row in current_rows if row["product_detail_code"] == "PD-001")["product_code"])
+
+    def test_repeated_copy_keeps_generation_and_row_ids_for_unchanged_source(self):
+        def writes():
+            with _observed_run([], stock_rows=STOCK_SOURCE_ROWS) as connections:
+                run_stock_on_hand_snapshot(self.CONFIG, self.SNAPSHOT)
+            reporting = next(connection for connection in connections if connection.dsn == REPORTING_DSN)
+            return [
+                (sql, params)
+                for kind, sql, params in reporting.calls
+                if kind == "executemany" and any(name in sql for name in ("esb_stock_snapshots", "esb_stock_coverage", "esb_stock_on_hand"))
+            ]
+
+        self.assertEqual(writes(), writes())
+        plans = plan_stock_on_hand_snapshots(STOCK_SOURCE_ROWS, org_id=ORG_A, snapshot_as_of=self.SNAPSHOT)
+        self.assertEqual(plans, plan_stock_on_hand_snapshots(STOCK_SOURCE_ROWS, org_id=ORG_A, snapshot_as_of=self.SNAPSHOT))
+
+    def test_missing_stock_tables_skip_before_warehouse_read(self):
+        output = io.StringIO()
+        with _observed_run([], missing_target_table="reporting.esb_stock_snapshots") as connections, redirect_stdout(output):
+            result = run_stock_on_hand_snapshot(self.CONFIG, self.SNAPSHOT)
+        self.assertIsNone(result)
+        self.assertEqual(output.getvalue().splitlines(), ["skipped reporting.esb_stock_snapshots: not on target"])
+        self.assertEqual([connection.dsn for connection in connections], [REPORTING_DSN])
+        self.assertEqual(connections[0].calls, [])
+
+    def test_stock_rows_reject_non_finite_quantities_and_incomplete_coordinates(self):
+        with self.assertRaisesRegex(ValueError, "finite"):
+            plan_stock_on_hand_snapshots(
+                [dict(STOCK_SOURCE_ROWS[0], qty_balance=Decimal("NaN"))],
+                org_id=ORG_A,
+                snapshot_as_of=self.SNAPSHOT,
+            )
+        with self.assertRaisesRegex(ValueError, "product_detail_id"):
+            plan_stock_on_hand_snapshots(
+                [dict(STOCK_SOURCE_ROWS[0], product_detail_id=None)],
+                org_id=ORG_A,
+                snapshot_as_of=self.SNAPSHOT,
+            )
 
 
 class LocalSnapshotEnvTests(unittest.TestCase):

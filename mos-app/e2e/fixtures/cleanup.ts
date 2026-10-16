@@ -252,6 +252,7 @@ export function assertFixtureSqlSafe(query: string): void {
     new RegExp(`^delete from shared\\.person_preferences where person_id in \\(${uuidList}\\)$`),
     new RegExp(`^delete from shared\\.orgs where id = ${uuid}$`),
     new RegExp(`^delete from shared\\.role_authority where org_id = ${uuid} and action = 'workline\\.manage' and role = 'team_lead'$`),
+    new RegExp(`^delete from mos\\.org_module_settings where org_id = ${uuid} and module_id = '(?:work|money|cafe|roastery|ecommerce|assistant)'$`),
   ]
   if (/\b(truncate|drop|execute|prepare|call)\b/i.test(executableSql) || /(?:^|;)\s*do\b/i.test(executableSql)) {
     throw new Error('E2E SQL cannot use destructive or procedural execution')

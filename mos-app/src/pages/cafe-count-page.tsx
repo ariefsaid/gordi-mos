@@ -31,6 +31,7 @@ import { wibToday } from '@/lib/db/cafe-opening'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { useStockComparisonLink } from '@/lib/cafe-stock-comparison-access'
+import { useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
 import { recordsHref } from '@/lib/cafe-records/url-state'
 import { useIsOffline } from '@/shell/use-is-offline'
 
@@ -39,6 +40,7 @@ type CountEntry = {
   clientKey: string
   outcome?: 'submitted' | 'existing'
   refusal?: string
+  storage_location_id?: string | null
 }
 type LoadState = 'loading' | 'ready' | 'error'
 
@@ -70,6 +72,12 @@ export function CafeCountPage() {
     accessRoles: auth.viewer.accessRoles,
   })
   const comparisonHref = useStockComparisonLink(stream, myStreamKeys)
+  const locationChoices = useCafeLocationChoices(stream)
+  const storageLocations = locationChoices.locations.filter(location => location.use === 'storage' || location.use === 'both')
+  const defaultStorageLocationId = locationChoices.status === 'ready'
+    && storageLocations.some(location => location.id === locationChoices.defaults?.storage_location_id)
+    ? locationChoices.defaults?.storage_location_id ?? null
+    : null
   const logDate = useMemo(() => wibToday(), [])
   const [catalogReady, setCatalogReady] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState<ReadonlySet<string>>(new Set())
@@ -194,6 +202,9 @@ export function CafeCountPage() {
         client_key: entry.clientKey,
         item_id: item.id,
         quantity,
+        ...((entry.storage_location_id === undefined ? defaultStorageLocationId : entry.storage_location_id)
+          ? { storage_location_id: entry.storage_location_id === undefined ? defaultStorageLocationId : entry.storage_location_id }
+          : {}),
       })))
       const outcomeByKey = new Map(outcomes.map(outcome => [outcome.client_key, outcome]))
       setEntries(current => {
@@ -307,7 +318,18 @@ export function CafeCountPage() {
                         /> }]}
                         detail={<>
                           {/* Which storage was counted is decided on its own line, once the line has an amount (preview only). */}
-                          {Boolean(entry?.quantity?.trim()) && <LocationLineField kind="count" />}
+                          {Boolean(entry?.quantity?.trim()) && <LocationLineField
+                            kind="count"
+                            locations={storageLocations}
+                            value={entry?.storage_location_id === undefined ? defaultStorageLocationId : entry.storage_location_id}
+                            onChange={value => setEntries(current => {
+                              const currentEntry = current[item.id]
+                              return currentEntry ? { ...current, [item.id]: { ...currentEntry, storage_location_id: value } } : current
+                            })}
+                            loadState={locationChoices.status === 'idle' ? 'loading' : locationChoices.status}
+                            onRetry={locationChoices.retry}
+                            disabled={submitting || Boolean(entry?.outcome)}
+                          />}
                           {invalid && <QuantityFieldError id={errorId} reason={parsed.reason} rawValue={entry?.quantity ?? ''} maxFractionDigits={2} className="cafe-count__field-error" />}
                           {entry?.outcome && <p className="cafe-count__line-success" role="status">{t('cafe.count.lineSubmitted')}</p>}
                           {entry?.refusal && <p className="cafe-count__field-error" role="alert">{refusalText(entry.refusal, t)}</p>}

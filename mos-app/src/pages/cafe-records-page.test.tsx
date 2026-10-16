@@ -6,7 +6,8 @@ import { CafeRecordsPage } from './cafe-records-page'
 import { requiredSources } from '@/lib/cafe-records/sources'
 import { clearRecordsCache } from '@/lib/cafe-records/use-records-sources'
 import { clearRecordsLookupCache } from '@/lib/cafe-records/use-records-lookups'
-import type { CafeRecordLog } from '@/lib/db/cafe-records'
+import type { CafeRecordCount, CafeRecordLog } from '@/lib/db/cafe-records'
+import type { CafePurchaseRequest } from '@/lib/db/cafe-purchase-requests'
 import { formatDayMonthYear, wibToday } from '@/lib/format/date'
 
 const B1 = '2d63ab19-142c-5ecb-9f88-6b512eebe581'
@@ -45,6 +46,16 @@ const log = (over: Partial<CafeRecordLog> = {}): CafeRecordLog => ({
   wip_item_id: 'i1', item_unit_id: 'u1', qty_porsi: 12, entry_quantity: null, entry_unit_factor: null, entry_unit_name: null, notes: null, status: 'Approved',
   submitted_by: 'p9', created_at: '2026-10-14T03:00:00+00:00', updated_at: 'x', reviewed_by: null, reviewed_at: null, review_note: null, posted_to_esb: false,
   posted_at: null, esb_doc_num: null, superseded_by: null, item_name: 'Pickled onion', ...over,
+})
+const count = (): CafeRecordCount => ({
+  id: 'c1', branch_id: B1, activity: 'bar', count_date: '2026-10-14', wip_item_id: 'i1', item_name: 'Pickled onion', item_category: null,
+  item_kind: 'WIP', item_unit_id: 'u1', unit_name: 'Batch', counted_quantity: 4, status: 'Confirmed', posting_status: 'not_needed', submitted_by: 'p-count',
+  submitted_at: '2026-10-14T05:00:00Z', reviewed_at: null, row_version: 1,
+})
+const request = (): CafePurchaseRequest => ({
+  id: 'r1', branch_id: B1, activity: 'bar', required_by: '2026-10-20', note: null, status: 'Submitted', requested_by: 'p1',
+  requested_at: '2026-10-14T01:00:00Z', reviewed_by: null, reviewed_at: null, review_note: null, row_version: 1,
+  lines: [{ id: 'rl1', wip_item_id: 'i1', item_unit_id: 'u1', item_name: 'Pickled onion', item_category: null, unit_name: 'Batch', quantity: '2' }],
 })
 const page = (rows: unknown[]) => async (read: { after?: readonly string[] | null }) => (read.after ? { rows: [], next: null } : { rows, next: rows.length ? ['2026-10-14', 't', 'l'] : null })
 
@@ -86,6 +97,27 @@ describe('Café Records page', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Records' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Day summary', selected: true })).toBeInTheDocument()
     expect(screen.getByText(formatDayMonthYear(wibToday()))).toBeInTheDocument()
+  })
+
+  it('shows the stored Count submitter in Entries and the entry detail', async () => {
+    reads.counts.mockImplementation(page([count()]))
+    renderPage('?question=counted&reading=entries')
+    expect(await screen.findByText(/Bayu Barista/)).toBeInTheDocument()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /Opens the entry/ }))
+    expect(await screen.findByRole('heading', { level: 2, name: 'Pickled onion' })).toBeInTheDocument()
+    expect(screen.getByText('Bayu Barista')).toBeInTheDocument()
+    expect(reads.counts).toHaveBeenCalled()
+  })
+
+  it('opens item history for a request line through its stored item identity', async () => {
+    reads.requests.mockImplementation(page([request()]))
+    renderPage('?question=requested&reading=entries')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Open history of Pickled onion' }))
+    expect(await screen.findByRole('heading', { level: 2, name: 'Pickled onion' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Requested/ })).toBeInTheDocument()
+    expect(screen.queryByText(/no stored item link/i)).toBeNull()
   })
 
   it('shows the item and its day row once the sources settle', async () => {

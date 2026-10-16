@@ -1,8 +1,11 @@
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { GroupHeaderRow } from './group-header-row'
 import { isShipGated } from '@/lib/ship-gate'
+
+const moduleAvailability = vi.hoisted(() => ({ isOn: vi.fn((moduleId: string) => moduleId.length > 0) }))
+vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ status: 'ready', isOn: moduleAvailability.isOn, retry: vi.fn() }) }))
 
 function renderRow(props: Partial<React.ComponentProps<typeof GroupHeaderRow>> = {}) {
   const base: React.ComponentProps<typeof GroupHeaderRow> = {
@@ -18,6 +21,7 @@ function renderRow(props: Partial<React.ComponentProps<typeof GroupHeaderRow>> =
 }
 
 describe('GroupHeaderRow', () => {
+  beforeEach(() => moduleAvailability.isOn.mockImplementation(() => true))
   it('AC-123: shows label, count, and an overdue subtotal when >0', () => {
     renderRow({ label: 'Blocked', count: 3, overdue: 2 })
     expect(screen.getByText('Blocked')).toBeInTheDocument()
@@ -36,6 +40,13 @@ describe('GroupHeaderRow', () => {
     } else {
       expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives/objective-1')
     }
+  })
+
+  it('keeps the Objective name as text when Work is switched off', () => {
+    moduleAvailability.isOn.mockImplementation((moduleId) => moduleId !== 'work')
+    renderRow({ label: 'Launch', objectiveHint: { id: 'objective-1', name: 'Grow revenue' } })
+    expect(screen.getByText('Grow revenue')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Grow revenue' })).toBeNull()
   })
 
   it('a hint with no id is plain text either way — the pre-existing degraded shape', () => {
@@ -159,6 +170,7 @@ describe('GroupHeaderRow', () => {
         onAssignPending: vi.fn(),
       })
       expect(screen.queryByRole('button', { name: /^\d+ to assign$/ })).not.toBeInTheDocument()
+      expect(screen.queryByText(/to assign/i)).not.toBeInTheDocument()
     })
 
     it('does not render the affordance when no onAssignPending handler is given (nothing to open)', () => {
