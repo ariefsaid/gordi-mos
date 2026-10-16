@@ -20,11 +20,13 @@ import { createRecordCollectionController } from '@/lib/record-collection/engine
 import type { CollectionData } from '@/lib/record-collection/types'
 import {
   signalCollectionDescriptor,
-  signalCollectionSavedViews,
-  SIGNAL_COLLECTION_NEUTRAL_QUERY,
+  signalCollectionQuery,
   type SignalCollectionContext,
   type SignalCollectionQuery,
 } from './signal-collection-adapter'
+
+const SIGNAL_COLLECTION_NEUTRAL_QUERY = signalCollectionQuery.neutral
+const signalCollectionSavedViews = signalCollectionDescriptor.savedViews
 
 const mockListReadableSignals = vi.mocked(listReadableSignals)
 const mockListAllTeams = vi.mocked(listAllTeams)

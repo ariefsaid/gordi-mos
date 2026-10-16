@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import { Chevron } from '@/shell/icons'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { DateField } from '@/components/ui/date-field'
@@ -114,7 +115,10 @@ export function KeyResultForm({ row, people, onSubmit, onCancel, onRemove }: Key
       <div className="form-grid__field">
         <span className="objective-key-results__label">{t('objective.keyResults.responsible')}</span>
         <div className="objective-key-results__owner">
-          <Button type="button" variant="outline" disabled={saving} onClick={() => setPickingOwner(true)}>{ownerName}</Button>
+          <Button type="button" variant="outline" className="objective-key-results__owner-trigger" aria-haspopup="listbox" disabled={saving} onClick={() => setPickingOwner(true)}>
+            <span>{ownerName}</span>
+            <Chevron />
+          </Button>
           {values.owner ? (
             <Button type="button" variant="ghost" disabled={saving} onClick={() => set({ owner: null })}>{t('objective.keyResults.clearResponsible')}</Button>
           ) : null}

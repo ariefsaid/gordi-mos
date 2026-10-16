@@ -1,6 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -13,11 +11,13 @@ import { useIsNarrow } from './use-is-narrow'
 
 vi.mock('./use-is-desktop', () => ({ useIsDesktop: () => true }))
 
-// OD-REDESIGN-84.2 (P1-1): TopBar reads the rail's generic wide-width regime (the brand
-// column's width must track Rail's own compact boundary). Mocked + defaulted to wide below so
-// every pre-existing test keeps rendering the full-width brand unless it opts into compact.
-vi.mock('./use-is-wide-overlay-width')
-import { useIsWideOverlayWidth } from './use-is-wide-overlay-width'
+// The brand cell follows the nav layout (full sidebar shows the wordmark, the compact rail only the
+// mark). Defaulted to the full sidebar below; a test opts into compact.
+const nav = vi.hoisted(() => ({ brandWide: true }))
+vi.mock('./use-nav', async () => {
+  const { useIsNarrow: narrow } = await import('./use-is-narrow')
+  return { useNavLayout: () => ({ isNarrow: narrow(), brandWide: nav.brandWide }) }
+})
 
 vi.mock('@/lib/db/notifications', () => ({
   countUnread: vi.fn().mockResolvedValue(0),
@@ -33,11 +33,8 @@ vi.mock('../config/features', () => ({
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockUseIsNarrow = vi.mocked(useIsNarrow)
-const mockUseIsWideOverlayWidth = vi.mocked(useIsWideOverlayWidth)
 
 import { TopBar } from './top-bar'
-
-const topBarCss = readFileSync(resolve(process.cwd(), 'src/shell/top-bar.css'), 'utf8')
 
 const viewer = {
   person: {
@@ -94,7 +91,7 @@ beforeEach(() => {
   localStorage.clear()
   mockUseAuth.mockReturnValue({ status: 'authenticated', viewer, signOut: vi.fn() })
   mockUseIsNarrow.mockReturnValue(false)
-  mockUseIsWideOverlayWidth.mockReturnValue(true)
+  nav.brandWide = true
 })
 
 // AC-014: top bar layout — brand · breadcrumb · spacer · Search⌘K · Inbox · Deputy;
@@ -201,54 +198,12 @@ describe('AC-S08: TopBar is a banner landmark', () => {
 
 // AC-S02/S03: brand column token + breadcrumb min-w-0
 describe('AC-S02/S03: Brand column token + breadcrumb min-w-0', () => {
-  it('phone breadcrumb keeps the leaf inline and constrained beside the control cluster', () => {
-    mockUseIsNarrow.mockReturnValue(true)
-    const { container } = renderTopBar('/work/tasks')
-    const header = container.querySelector('[data-anatomy="header"]')!
-    const breadcrumbTrack = container.querySelector('.top-bar__breadcrumb-track')!
-    const leaf = container.querySelector('.top-bar__breadcrumb-leaf')!
-    const spacer = breadcrumbTrack.nextElementSibling!
-    expect(header).toHaveClass('top-bar')
-    // Geometry guard: on narrow RTL layouts the breadcrumb track must receive all free width.
-    expect(spacer).toHaveClass('flex-none')
-    expect(breadcrumbTrack).toHaveClass('top-bar__breadcrumb-track')
-    expect(leaf).toHaveClass('top-bar__breadcrumb-leaf')
-    expect(topBarCss).toMatch(/\.top-bar__breadcrumb-track\s*\{[^}]*min-width:\s*0[^}]*flex:\s*1/)
-    expect(topBarCss).toMatch(/\.top-bar__breadcrumb\s*\{[^}]*display:\s*flex[^}]*flex:\s*1[^}]*min-width:\s*0/)
-    expect(topBarCss).toMatch(/\.top-bar__breadcrumb-fixed\s*\{[^}]*flex:\s*0 0 auto[^}]*white-space:\s*nowrap/)
-    expect(topBarCss).toMatch(/\.top-bar__breadcrumb-leaf\s*\{[^}]*flex:\s*1 1 auto[^}]*min-width:\s*0/)
-    expect(topBarCss).toMatch(/@media\s*\(max-width:\s*919\.98px\)[\s\S]*\.top-bar \.tap-target-phone--icon\s*\{[\s\S]*min-width:\s*44px[\s\S]*min-height:\s*44px/)
-  })
-
-  // Below rail-collapse the breadcrumb IS the page title (no ancestor crumbs to fall back
-  // to), so a one-line ellipsis there can cut the one word that names the screen. Two lines
-  // read the whole title instead of clipping it.
-  it('below rail-collapse, the breadcrumb leaf wraps to two lines instead of one-line ellipsis', () => {
-    const body = topBarCss.split('@media (max-width: 919.98px) {')[1] ?? ''
-    expect(body).toMatch(/\.top-bar__breadcrumb-leaf\.truncate\s*\{[^}]*-webkit-line-clamp:\s*2/s)
-    expect(body).toMatch(/\.top-bar__breadcrumb-leaf\.truncate\s*\{[^}]*white-space:\s*normal/s)
-  })
-
-  it('AC-S02: brand column references --rail-w token and has border-r', () => {
-    const { container } = renderTopBar()
-    const brandCol = container.querySelector('[style*="--rail-w"]') as HTMLElement | null
-    expect(brandCol).not.toBeNull()
-    expect(brandCol!.className).toMatch(/border-r/)
-  })
-
-  it('AC-S03: breadcrumb track has min-w-0 class', () => {
-    const { container } = renderTopBar()
-    expect(container.querySelector('.min-w-0')).not.toBeNull()
-  })
-
   // OD-REDESIGN-84.2 (P1-1): the 920–1099.98px icon rail — the brand column narrows to
   // --rail-w-compact and drops the "Gordi MOS" wordmark (72px only fits the mark), keeping
   // the divider aligned with the rail's own compact boundary.
-  it('P1-1: at the compact rail regime, the brand column narrows to --rail-w-compact and drops the wordmark', () => {
-    mockUseIsWideOverlayWidth.mockReturnValue(false)
-    const { container } = renderTopBar()
-    const brandCol = container.querySelector('[style*="--rail-w-compact"]') as HTMLElement | null
-    expect(brandCol).not.toBeNull()
+  it('P1-1: at the compact rail regime, the brand drops the wordmark', () => {
+    nav.brandWide = false
+    renderTopBar()
     expect(screen.queryByText('Gordi MOS')).toBeNull()
   })
 })

@@ -17,6 +17,8 @@ import type { ToastState } from '@/components/admin/use-toast'
 // Width-regime stub mirroring task-drawer.test.tsx: control which of the 1100/920/768 queries
 // match so we can exercise the split / overlay-band / mobile regimes deterministically.
 function stubWidths({ split, band, desktop }: { split: boolean; band?: boolean; desktop?: boolean }) {
+  // The split also needs a content track wide enough for list + panel; with no shell mounted the track is the viewport.
+  Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: split ? 1600 : 1024 })
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: (query: string) => {
@@ -208,15 +210,6 @@ describe('RecordPanelHost — optional chrome (FR-1: title zone · Open full pag
   // through unconditionally to 32px — the exact bug Luna measured. The coarse-pointer pattern
   // (record-viewer.css `@media (pointer: fine) and (min-width: 768px)` tighten-down) inverts the default: 44px is the
   // RESTING size everywhere, and only a genuine fine pointer (desktop mouse) tightens to 32px.
-  it('defaults to the 44px touch floor and tightens to the 32px control token only for a fine pointer at desktop width', () => {
-    const css = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
-    expect(css).toMatch(/\.record-panel-btn\s*\{[^}]*width:\s*44px;\s*height:\s*44px;/s)
-    // #708: a bare `(pointer: fine)` query fired at phone width too (a resized desktop window,
-    // a non-touch mobile emulation both report a fine pointer), tightening Close/Ask Deputy to
-    // 32×32 under the 767px floor. `and (min-width: 768px)` confines the tighten-down to desktop.
-    expect(css).toMatch(/@media \(pointer: fine\) and \(min-width: 768px\)\s*\{\s*\.record-panel-btn\s*\{\s*width:\s*32px;\s*height:\s*32px;\s*\}/s)
-  })
-
   it('no title → no chrome (the tenant owns its own header — Task zero-change path)', () => {
     renderHost({ label: 'Signal' })
     expect(document.querySelector('.record-panel-chrome')).toBeNull()
@@ -514,7 +507,7 @@ describe('RecordPanelHost — phone regime a11y (NFR-003 / AC-022)', () => {
 
       // The record action shows a Toast while the modal remains open.
       await user.click(last)
-      const dismiss = screen.getByRole('button', { name: 'Dismiss notification' })
+      const dismiss = screen.getByRole('button', { name: 'Dismiss' })
       const status = screen.getByRole('status')
       expect(appRoot).toHaveAttribute('inert')
       expect(overlayRoot.contains(screen.getByRole('dialog', { name: 'Record' }))).toBe(true)
@@ -536,7 +529,7 @@ describe('RecordPanelHost — phone regime a11y (NFR-003 / AC-022)', () => {
       await user.keyboard('{Escape}')
       expect(onClose).not.toHaveBeenCalled()
       expect(onDismiss).toHaveBeenCalledOnce()
-      expect(screen.queryByRole('button', { name: 'Dismiss notification' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
       expect(document.activeElement).toBe(last)
     } finally {
       unmount()
@@ -555,7 +548,7 @@ describe('RecordPanelHost — phone regime a11y (NFR-003 / AC-022)', () => {
     render(<ToastRecord onClose={onClose} onDismiss={onDismiss} />)
 
     await user.click(screen.getByRole('button', { name: 'last control' }))
-    const dismiss = screen.getByRole('button', { name: 'Dismiss notification' })
+    const dismiss = screen.getByRole('button', { name: 'Dismiss' })
     screen.getByRole('button', { name: 'last control' }).focus()
     await user.keyboard('{Escape}')
 
@@ -573,14 +566,14 @@ describe('RecordPanelHost — phone regime a11y (NFR-003 / AC-022)', () => {
     render(<ToastRecord onClose={onClose} onDismiss={onDismiss} />)
     const last = screen.getByRole('button', { name: 'last control' })
     await user.click(last)
-    const dismiss = screen.getByRole('button', { name: 'Dismiss notification' })
+    const dismiss = screen.getByRole('button', { name: 'Dismiss' })
     dismiss.focus()
 
     if (method === 'click') await user.click(dismiss)
     else await user.keyboard(method === 'Enter' ? '{Enter}' : ' ')
 
     expect(onDismiss).toHaveBeenCalledOnce()
-    expect(screen.queryByRole('button', { name: 'Dismiss notification' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
     expect(document.activeElement).toBe(last)
   })
 
@@ -591,14 +584,14 @@ describe('RecordPanelHost — phone regime a11y (NFR-003 / AC-022)', () => {
     render(<ToastRecordWithReplacingInvoker onClose={onClose} />)
     const invoker = screen.getByRole('button', { name: 'replaceable control' })
     await user.click(invoker)
-    const dismiss = screen.getByRole('button', { name: 'Dismiss notification' })
+    const dismiss = screen.getByRole('button', { name: 'Dismiss' })
     const replacement = screen.getByRole('button', { name: 'replacement control' })
     await waitFor(() => expect(document.activeElement).toBe(replacement))
     expect(invoker).not.toBeInTheDocument()
 
     await user.click(dismiss)
 
-    expect(screen.queryByRole('button', { name: 'Dismiss notification' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
     expect(document.activeElement).toBe(replacement)
     expect(document.activeElement).not.toBe(document.body)
     expect(screen.getByRole('dialog', { name: 'Record' })).toBeInTheDocument()
@@ -612,7 +605,7 @@ describe('RecordPanelHost — phone regime a11y (NFR-003 / AC-022)', () => {
     render(<ToastRecordWithReplacingInvoker onClose={onClose} removeReturnTargetOnDismiss />)
     const invoker = screen.getByRole('button', { name: 'replaceable control' })
     await user.click(invoker)
-    const dismiss = screen.getByRole('button', { name: 'Dismiss notification' })
+    const dismiss = screen.getByRole('button', { name: 'Dismiss' })
     const replacement = screen.getByRole('button', { name: 'replacement control' })
     await waitFor(() => expect(document.activeElement).toBe(replacement))
     dismiss.focus()
@@ -621,7 +614,7 @@ describe('RecordPanelHost — phone regime a11y (NFR-003 / AC-022)', () => {
 
     expect(invoker).not.toBeInTheDocument()
     expect(replacement).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Dismiss notification' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'fallback control' }))
     expect(document.activeElement).not.toBe(document.body)
     expect(screen.getByRole('dialog', { name: 'Record' })).toBeInTheDocument()

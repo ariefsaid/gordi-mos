@@ -39,26 +39,32 @@ beforeEach(() => {
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
 })
 
+/** Choose a request in the list; its decision workbench opens beside it. */
+async function openRequest(person: string) {
+  fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^Requested by ${person}`) }))
+  return screen.findByRole('article')
+}
+
 describe('CafeRequestReviewQueue', () => {
   it('FR-1053 lists each request with requester, needed-by date, note and lines, and approves with its version', async () => {
     vi.mocked(listCafePurchaseRequests).mockResolvedValue([request('q-1', 'requester')])
     vi.mocked(reviewCafePurchaseRequest).mockResolvedValue({ status: 'Approved', row_version: 2 })
     renderQueue()
-    const row = (await screen.findByText('Requested by Shift member')).closest('li')!
+    const row = await openRequest('Shift member')
     expect(listCafePurchaseRequests).toHaveBeenCalledWith(['Submitted'])
     expect(within(row).getByText('Note: For the weekend menu')).toBeInTheDocument()
     expect(within(row).getByText('2.5 × kg')).toBeInTheDocument()
     fireEvent.click(within(row).getByRole('button', { name: 'Approve' }))
     await waitFor(() => expect(reviewCafePurchaseRequest).toHaveBeenCalledWith('q-1', 'approve', 1, ''))
-    expect(await within(row).findByText('Approved · not posted to ESB')).toBeInTheDocument()
+    expect(await within(row).findByRole('status')).toHaveTextContent('Approved · not posted to ESB')
   })
 
   it('FR-1053 the requester’s own request cannot be approved from the queue, and says who approves it', async () => {
     vi.mocked(listCafePurchaseRequests).mockResolvedValue([request('q-2', 'me')])
     renderQueue()
-    const row = (await screen.findByText('Requested by Supervisor')).closest('li')!
+    const row = await openRequest('Supervisor')
     expect(within(row).getByRole('button', { name: 'Approve' })).toBeDisabled()
-    expect(within(row).getByText('You raised this; another reviewer approves it.')).toBeInTheDocument()
+    expect(within(row).getAllByText(/You raised this; another reviewer approves it\./).length).toBeGreaterThan(0)
     fireEvent.click(within(row).getByRole('button', { name: 'Withdraw' }))
     expect(within(row).getByLabelText('Why are you withdrawing this request?')).toHaveFocus()
     expect(within(row).getByRole('button', { name: 'Withdraw request' })).toBeDisabled()
@@ -70,8 +76,8 @@ describe('CafeRequestReviewQueue', () => {
       request('q-soon', 'me', { required_by: '2026-10-07', requested_at: '2026-10-06T00:00:00Z' }),
     ])
     renderQueue()
-    await screen.findByText('Requested by Shift member')
-    const names = screen.getAllByText(/^Requested by /).map(node => node.textContent)
+    await screen.findByRole('button', { name: /^Requested by Shift member/ })
+    const names = screen.getAllByRole('button', { name: /^Requested by / }).map(node => /^Requested by (Supervisor|Shift member)/.exec(node.textContent ?? '')?.[0])
     expect(names).toEqual(['Requested by Supervisor', 'Requested by Shift member'])
   })
 
@@ -79,7 +85,7 @@ describe('CafeRequestReviewQueue', () => {
     vi.mocked(listCafePurchaseRequests).mockResolvedValue([request('q-3', 'requester')])
     vi.mocked(reviewCafePurchaseRequest).mockResolvedValue({ status: 'Rejected', row_version: 2 })
     renderQueue()
-    const row = (await screen.findByText('Requested by Shift member')).closest('li')!
+    const row = await openRequest('Shift member')
     fireEvent.click(within(row).getByRole('button', { name: 'Reject' }))
     expect(within(row).getByLabelText('Why is this request rejected?')).toHaveFocus()
     const confirm = within(row).getByRole('button', { name: 'Reject request' })
@@ -87,7 +93,7 @@ describe('CafeRequestReviewQueue', () => {
     fireEvent.change(within(row).getByLabelText('Why is this request rejected?'), { target: { value: 'Raised twice' } })
     fireEvent.click(confirm)
     await waitFor(() => expect(reviewCafePurchaseRequest).toHaveBeenCalledWith('q-3', 'reject', 1, 'Raised twice'))
-    expect(await within(row).findByText('Rejected')).toBeInTheDocument()
+    expect(await within(row).findByRole('status')).toHaveTextContent('Rejected')
   })
 
   it('filters to the chosen stream and shows the empty state when nothing waits there', async () => {
@@ -100,7 +106,7 @@ describe('CafeRequestReviewQueue', () => {
     vi.mocked(listCafePurchaseRequests).mockResolvedValue([request('q-5', 'requester')])
     vi.mocked(reviewCafePurchaseRequest).mockRejectedValue(new Error('CAFE_PURCHASE_REQUEST_VERSION_STALE'))
     renderQueue()
-    const row = (await screen.findByText('Requested by Shift member')).closest('li')!
+    const row = await openRequest('Shift member')
     fireEvent.click(within(row).getByRole('button', { name: 'Approve' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not record this decision.')
   })

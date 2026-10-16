@@ -17,7 +17,9 @@ vi.mock('@/lib/db/work-authority', () => ({
 
 import { useAuth } from '@/auth/use-auth'
 import { emptyWorkWriteScopes, getWorkWriteScopes, type WorkWriteScopes } from '@/lib/db/work-authority'
-import { canEditObjectiveContentForScope, useWorkWriteAuthority, WORK_AUTHORITY_TIMEOUT_MS } from './use-work-write-authority'
+import { canEditObjectiveContentForScope, useWorkWriteAuthority } from './use-work-write-authority'
+
+const WORK_AUTHORITY_TIMEOUT_MS = 10_000
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockGetWorkWriteScopes = vi.mocked(getWorkWriteScopes)

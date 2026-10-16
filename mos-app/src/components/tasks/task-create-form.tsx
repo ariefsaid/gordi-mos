@@ -2,10 +2,13 @@
 // Team/PIC/Supervisor → Due/Project-Process → derived Business unit → footer actions), rendered IDENTICALLY by the
 // desktop table (inside a full-width colSpan row, task-row.tsx) and the phone card
 // (mobile-grouped-cards.tsx). One component, one validation contract, one a11y contract.
+import { ActionBar } from '@/components/ui/action-bar'
+import { useIsOffline } from '@/shell/use-is-offline'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Picker } from '@/components/ui/picker'
 import { DateField } from '@/components/ui/date-field'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
+import { Chevron } from '@/shell/icons'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -28,7 +31,7 @@ export type TaskCreateFormProps = {
   onEditSupervisor: (taskId: string, personId: string) => Promise<void>
   /** Persist the draft with this title. Reject to keep the form open with every value preserved
    * and Retry offered (existing behaviour — preserved, not reinvented). */
-  onCreate: (title: string) => Promise<void>
+  onCreate: (title: string, description: string) => Promise<void>
   /** Escape / Cancel — discards the whole draft. */
   onCancel: () => void
   /** A distinct after-create failure (e.g. linking the new Task to a Signal) — the task row/card
@@ -47,6 +50,7 @@ export function TaskCreateForm({
 }: TaskCreateFormProps) {
   const t = useT()
   const { locale } = useI18n()
+  const offline = useIsOffline()
   const formId = useId()
   const titleId = `${formId}-title`
   const titleErrorId = `${formId}-title-error`
@@ -57,9 +61,12 @@ export function TaskCreateForm({
   const supervisorErrorId = `${formId}-supervisor-error`
   const dueFieldId = `${formId}-due`
   const workLineFieldId = `${formId}-workline`
-  const { workLineOptions, onEditDue, onEditWorkLine, onTitleChange, formState, onFormStateChange, supervisorHint } = useTaskCreateContext()
+  const { workLineOptions, onEditDue, onEditWorkLine, onTitleChange, onDescriptionChange, formState, onFormStateChange, supervisorHint } = useTaskCreateContext()
 
   const [localTitle, setLocalTitle] = useState(task.title)
+  const [localDescription, setLocalDescription] = useState('')
+  const description = formState?.description ?? localDescription
+  const setDescription = (next: string) => { setLocalDescription(next); onDescriptionChange?.(next) }
   const title = onTitleChange ? task.title : localTitle
   const setTitle = (next: string) => { setLocalTitle(next); onTitleChange?.(next) }
   const [titleTouched, setTitleTouched] = useState(false)
@@ -131,14 +138,16 @@ export function TaskCreateForm({
     if (pending) return
     setSaveError(false)
     setPending(true)
-    void onCreate(trimmed).then(
+    void onCreate(trimmed, description).then(
       () => setPending(false),
       () => { setPending(false); setSaveError(true) },
     )
   }
 
   return (
+    <>
     <form
+      id={formId}
       ref={formRef}
       className="tcf"
       aria-label={t('tasks.create.form')}
@@ -162,9 +171,10 @@ export function TaskCreateForm({
           onBlur={() => setTitleTouched(true)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
+              // Enter moves to the next entry (EN7); it never submits. Create is the button.
               event.preventDefault()
               event.stopPropagation()
-              trySubmit()
+              document.getElementById(teamFieldId)?.focus()
             } else if (event.key === 'Escape') {
               event.preventDefault()
               event.stopPropagation()
@@ -178,6 +188,7 @@ export function TaskCreateForm({
         </div>
       </div>
 
+      <p className="tcf-hint tcf-hint--lead">{t('tasks.create.picSupervisorHint')}</p>
       <div className="tcf-row">
         <div className="tcf-field">
           <label htmlFor={teamFieldId} className="tcf-label">
@@ -236,38 +247,50 @@ export function TaskCreateForm({
           {supervisorHint === 'error' && <p role="status" className="tcf-hint">{t('tasks.create.managerLookupFailed')}</p>}
         </div>
       </div>
-      <p className="tcf-hint">{t('tasks.create.picSupervisorHint')}</p>
 
-      <div className="tcf-row tcf-row--pair">
-        <div className="tcf-field">
-          <label htmlFor={dueFieldId} className="tcf-label">{t('tasks.create.dueDate')}</label>
-          <DateField
-            draftText={formState?.dueText}
-            onDraftTextChange={(dueText) => onFormStateChange?.({ dueText })}
-            id={dueFieldId}
-            fullWidth
-            value={task.due_date ?? ''}
-            disabled={fieldsLocked}
-            reveal={attempted}
-            onChange={(value) => { void onEditDue(task.id, value || null) }}
-            onValidityChange={setDueInvalid}
-          />
-        </div>
-        {workLineOptions.length > 0 && (
+      <details className="tcf-optional-context">
+        <summary><Chevron className="tcf-disclosure-chevron" /><span>{t('tasks.create.optionalDetails')}</span></summary>
+        <div className="tcf-row tcf-row--pair">
           <div className="tcf-field">
-            <label htmlFor={workLineFieldId} className="tcf-label">{t('tasks.filter.projectProcess')}</label>
-            <Picker
-              id={workLineFieldId}
-              label={t('tasks.filter.projectProcess')}
-              hideLabel
-              value={task.work_line_id ?? ''}
-              options={workLinePickerOptions}
+            <label htmlFor={dueFieldId} className="tcf-label">{t('tasks.create.dueDate')}</label>
+            <DateField
+              draftText={formState?.dueText}
+              onDraftTextChange={(dueText) => onFormStateChange?.({ dueText })}
+              id={dueFieldId}
+              value={task.due_date ?? ''}
               disabled={fieldsLocked}
-              onChange={(value) => { void onEditWorkLine(task.id, value || null) }}
+              reveal={attempted}
+              onChange={(value) => { void onEditDue(task.id, value || null) }}
+              onValidityChange={setDueInvalid}
             />
           </div>
-        )}
-      </div>
+          {workLineOptions.length > 0 && (
+            <div className="tcf-field">
+              <label htmlFor={workLineFieldId} className="tcf-label">{t('tasks.filter.projectProcess')}</label>
+              <Picker
+                id={workLineFieldId}
+                label={t('tasks.filter.projectProcess')}
+                hideLabel
+                value={task.work_line_id ?? ''}
+                options={workLinePickerOptions}
+                disabled={fieldsLocked}
+                onChange={(value) => { void onEditWorkLine(task.id, value || null) }}
+              />
+            </div>
+          )}
+        </div>
+        <div className="tcf-field tcf-field--description">
+          <label htmlFor={`${formId}-description`} className="tcf-label">{t('tasks.create.description')}</label>
+          <textarea
+            id={`${formId}-description`}
+            className="tcf-description"
+            value={description}
+            placeholder={t('tasks.create.descriptionPlaceholder')}
+            disabled={fieldsLocked}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </div>
+      </details>
 
       {linkError && (
         <p role="alert" className="tcf-error tcf-save-error">
@@ -281,13 +304,14 @@ export function TaskCreateForm({
           <button type="button" className="task-row-retry" onClick={trySubmit}>{t('record.field.retry')}</button>
         </p>
       )}
-
-      <div className="tcf-foot">
-        <button type="submit" className="btn btn-primary" disabled={pending} aria-busy={pending || undefined}>
-          {pending ? t('tasks.create.submitting') : t('tasks.create.submit')}
-        </button>
-        <button type="button" className="btn btn-ghost" disabled={pending} onClick={onCancel}>{t('common.cancel')}</button>
-      </div>
     </form>
+    <ActionBar
+      reason={offline ? t('tasks.create.offline') : undefined}
+      secondary={<button type="button" className="btn btn-outline" disabled={pending} onClick={onCancel}>{t('common.cancel')}</button>}
+      primary={<button type="submit" form={formId} className="btn btn-primary" disabled={pending || offline} aria-busy={pending || undefined}>
+        {pending ? t('tasks.create.submitting') : t('tasks.create.submit')}
+      </button>}
+    />
+    </>
   )
 }

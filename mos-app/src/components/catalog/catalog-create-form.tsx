@@ -8,11 +8,14 @@ import { Picker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
 import { Button } from '@/components/ui/button'
 import { useT } from '@/i18n/use-t'
+import { useIsOffline } from '@/shell/use-is-offline'
+import { OfflineNotice } from '@/components/ui/offline-notice'
 import type { CatalogCreateDraft } from './catalog-collection-actions'
 import './catalog-create-form.css'
 
 export function CatalogCreateForm({ draft }: { draft: CatalogCreateDraft }) {
   const t = useT()
+  const offline = useIsOffline()
   const formId = useId()
   const nameId = `${formId}-name`
   const nameErrorId = `${formId}-name-error`
@@ -129,8 +132,9 @@ export function CatalogCreateForm({ draft }: { draft: CatalogCreateDraft }) {
         </div>
       ) : null}
 
+      {offline ? <div className="form-grid__field form-grid__field--full"><OfflineNotice /></div> : null}
       <div className="ccf-foot form-grid__field form-grid__field--full">
-        <Button type="submit" variant="primary" disabled={draft.adding} aria-busy={draft.adding}>
+        <Button type="submit" variant="primary" disabled={draft.adding || offline} aria-busy={draft.adding}>
           {draft.adding ? submittingLabel : submitLabel}
         </Button>
         <Button type="button" variant="ghost" disabled={draft.adding} onClick={draft.onCancel}>

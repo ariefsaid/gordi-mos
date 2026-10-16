@@ -4,7 +4,7 @@
 .money-chart {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
   min-width: 0;
   margin: 0;
 }
@@ -14,7 +14,8 @@
   min-height: 1.5em;
   margin: 0;
   color: var(--foreground);
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
+  max-width: 75ch;
   font-weight: 500;
 }
 
@@ -25,14 +26,28 @@
   cursor: crosshair;
 }
 
-/* Axis ticks in the label size; Recharts writes font-size as an attribute, so CSS sets it. */
-.money-chart__plot .recharts-cartesian-axis-tick text {
-  font-size: var(--font-size-label);
+/* Axis ticks in the meta size (12px); Recharts leaves them at the 16px default, so CSS sets it. */
+.money-chart__plot :is(.recharts-cartesian-axis-tick, .recharts-cartesian-axis-tick-label) text {
+  font-size: var(--mos-size-1);
 }
 
 /* Recharts' own wrappers and layers never show a focus ring: the plot group holds focus. */
 .money-chart__plot :is(.recharts-wrapper, .recharts-surface, [tabindex]):focus {
   outline: none;
+}
+
+.money-chart__sr-only {
+  position: static;
+  display: inline-block;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .money-chart__legend {
@@ -41,7 +56,7 @@
   align-items: center;
   gap: 4px 16px;
   color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
 }
 
 .money-chart__key {
@@ -53,23 +68,19 @@
 .money-chart__entry {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--mos-inline-gap);
   white-space: nowrap;
 }
 
-.money-chart__key--bar {
-  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
-  background: var(--primary);
-}
 
-.money-chart__key--line {
-  height: 0;
-  border-top: 2px solid var(--text-light);
-}
+.money-chart__key--line { height: 0; border-top: 2px solid var(--text-light); }
+.money-chart__key--solid { border-top-color: var(--foreground); }
+.money-chart__key--dashed { border-top-style: dashed; }
 
 .money-chart__key--missing {
   height: 6px;
-  background: repeating-linear-gradient(45deg, var(--muted-foreground) 0 1.5px, transparent 1.5px 4px);
+  border: 1px dashed var(--muted-foreground);
+  background: transparent;
 }
 
 @media (max-width: 767.98px) {

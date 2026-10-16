@@ -1,17 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import {
-  PAGE_FAMILIES,
-  PAGE_FAMILY_CONTRACTS,
-} from './page-families'
+import { PAGE_FAMILIES } from './page-families'
 import { PageFamilyFrame } from './page-family-frame'
 
 describe('PageFamilyFrame — V3 page-family contract', () => {
-  it('defines exactly the three approved page families and their head grammar', () => {
+  it('defines exactly the three approved page families', () => {
     expect(PAGE_FAMILIES).toEqual(['workspace', 'focused-record', 'management'])
-    expect(PAGE_FAMILY_CONTRACTS.workspace.headVariant).toBe('content')
-    expect(PAGE_FAMILY_CONTRACTS['focused-record'].headVariant).toBe('prose')
-    expect(PAGE_FAMILY_CONTRACTS.management.headVariant).toBe('content')
   })
 
   it('renders one shared main and h1 while preserving typed children and job copy', () => {

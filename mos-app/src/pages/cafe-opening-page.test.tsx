@@ -1,10 +1,8 @@
-import type React from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
-import { cafeDraftCount, clearCafeDraftCount, setCafeDraftCount } from '@/lib/cafe-capture-draft'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { DueProcessRun } from '@/lib/db/processes.types'
@@ -27,18 +25,6 @@ vi.mock('@/lib/db/processes', () => ({
   resolvePendingTask: vi.fn(),
 }))
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
-// DD-MVP-17: the capture surface is the root's body. This suite owns the location/door
-// behavior, so the log surface itself is stubbed — its own data and behavior have their
-// own suite (kitchen-log-page.test.tsx).
-vi.mock('./kitchen-log-page', () => ({
-  KitchenLogPage: ({ leading }: { leading?: React.ReactNode }) => (
-    <div data-testid="cafe-capture-root">
-      {leading}
-      <div data-testid="cafe-capture-surface" />
-    </div>
-  ),
-}))
-
 import {
   getCafeOpeningProcessId,
   getTodayOpeningForTeam,
@@ -161,7 +147,7 @@ beforeEach(() => {
 
 
 describe('Café root while Opening is hidden', () => {
-  it('shows the capture surface with no Opening door row', async () => {
+  it('shows Today with no Opening door row', async () => {
     render(
       <AuthContext.Provider value={authState()}>
         <I18nProvider initialLocale="en">
@@ -171,7 +157,7 @@ describe('Café root while Opening is hidden', () => {
         </I18nProvider>
       </AuthContext.Provider>,
     )
-    expect(await screen.findByTestId('cafe-capture-surface')).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Next up' })).toBeInTheDocument()
     expect(screen.queryByText(/start today's opening/i)).toBeNull()
     expect(screen.queryByTestId('cafe-opening-location')).toBeNull()
     expect(mockGetCafeOpeningProcessId).not.toHaveBeenCalled()
@@ -342,144 +328,5 @@ describe('Café Opening context', () => {
 
     expect(await screen.findByText("You're not on a café branch Team yet — ask your admin to add you.")).toBeInTheDocument()
     expect(screen.queryByText("Couldn't load today's café opening. Try again.")).not.toBeInTheDocument()
-  })
-
-  it('DD-MVP-17: the capture surface mounts with the Opening door row — no navigation menu', async () => {
-    mapResolver()
-    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
-
-    renderPage()
-
-    await screen.findByTestId('cafe-capture-root')
-    expect(screen.getByTestId('cafe-opening-location')).toHaveTextContent('Radiant')
-    expect(screen.getByTestId('cafe-capture-surface')).toBeInTheDocument()
-    // The large Log/Plan/Stock landing menu is retired: destinations live in the shell.
-    expect(screen.queryByRole('link', { name: /plan/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /stock/i })).not.toBeInTheDocument()
-  })
-
-  it('DD-MVP-17: the capture surface brings the page frame — the root adds no second head', async () => {
-    mapResolver()
-    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
-
-    const { container } = renderPage()
-
-    await screen.findByTestId('cafe-capture-root')
-    // The capture surface owns the Workspace frame once the location resolves. Mounting the
-    // root's own frame around it nested two frames and put two h1s on one page; with the log
-    // surface stubbed, the root must contribute no page head of its own.
-    expect(container.querySelectorAll('h1')).toHaveLength(0)
-    expect(container.querySelectorAll('[data-page-family]')).toHaveLength(0)
-  })
-
-  it('DD-MVP-17: no lead-only doors remain to gate a member — the root is role-neutral for capture', async () => {
-    mapResolver()
-    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
-
-    renderPage(['member'])
-
-    await screen.findByTestId('cafe-capture-root')
-    expect(screen.getByTestId('cafe-capture-surface')).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /review/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /pushes/i })).not.toBeInTheDocument()
-  })
-})
-
-// ── Dirty-draft protection on a location switch ──────────────────────────────────────────────
-// Switching location discards whatever the capture form is holding — a typed number belongs to
-// the stream it was typed against. That is right, and it was silent: a person mid-count lost the
-// work to a button that said nothing.
-describe('changing location with a capture draft in progress', () => {
-  beforeEach(() => { clearCafeDraftCount() })
-  afterEach(() => { clearCafeDraftCount() })
-
-  function twoLocations() {
-    mapResolver()
-    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
-    mockListStartableCafeTeams.mockResolvedValue([dueTeam(TEAM_RAD), dueTeam(TEAM_RR)])
-  }
-
-  it('switches straight through when nothing is staged', async () => {
-    twoLocations()
-    setCafeDraftCount(0)
-    const user = userEvent.setup()
-    renderPage()
-
-    await screen.findByTestId('cafe-opening-location')
-    await user.click(screen.getByRole('button', { name: 'Change location' }))
-    await user.click(screen.getByRole('button', { name: /Open location Rumah Rames/ }))
-
-    // No confirm for a switch that costs nothing.
-    expect(screen.queryByRole('heading', { name: /discard what you have typed/i })).toBeNull()
-    expect(await screen.findByTestId('cafe-opening-location')).toHaveTextContent('Rumah Rames')
-  })
-
-  it('explains what would be lost, naming both locations', async () => {
-    twoLocations()
-    setCafeDraftCount(3)
-    const user = userEvent.setup()
-    renderPage()
-
-    await screen.findByTestId('cafe-opening-location')
-    await user.click(screen.getByRole('button', { name: 'Change location' }))
-    await user.click(screen.getByRole('button', { name: /Open location Rumah Rames/ }))
-
-    const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByText(/discard what you have typed/i)).toBeInTheDocument()
-    expect(dialog).toHaveTextContent('3')
-    expect(dialog).toHaveTextContent('Radiant')      // where the quantities were counted
-    expect(dialog).toHaveTextContent('Rumah Rames')  // where the switch would go
-  })
-
-  it('cancel keeps the current location and never reaches the switch', async () => {
-    twoLocations()
-    setCafeDraftCount(3)
-    const user = userEvent.setup()
-    renderPage()
-
-    await screen.findByTestId('cafe-opening-location')
-    await user.click(screen.getByRole('button', { name: 'Change location' }))
-    await user.click(screen.getByRole('button', { name: /Open location Rumah Rames/ }))
-    await user.click(await screen.findByRole('button', { name: /^cancel$/i }))
-
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(screen.getByTestId('cafe-opening-location')).toHaveTextContent('Radiant')
-    // The remembered location is untouched, so a reload returns to where the draft belongs.
-    expect(sessionStorage.getItem(`mos.cafe.opening.location.${VIEWER_ID}`)).not.toBe('opening-rr')
-    // Focus lands on the stable door back to the same choice, not on <body>.
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Change location' }))
-  })
-
-  it('Escape cancels the same way as the Cancel button', async () => {
-    twoLocations()
-    setCafeDraftCount(2)
-    const user = userEvent.setup()
-    renderPage()
-
-    await screen.findByTestId('cafe-opening-location')
-    await user.click(screen.getByRole('button', { name: 'Change location' }))
-    await user.click(screen.getByRole('button', { name: /Open location Rumah Rames/ }))
-    await screen.findByRole('dialog')
-    await user.keyboard('{Escape}')
-
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(screen.getByTestId('cafe-opening-location')).toHaveTextContent('Radiant')
-  })
-
-  it('confirm switches location and releases the draft', async () => {
-    twoLocations()
-    setCafeDraftCount(3)
-    const user = userEvent.setup()
-    renderPage()
-
-    await screen.findByTestId('cafe-opening-location')
-    await user.click(screen.getByRole('button', { name: 'Change location' }))
-    await user.click(screen.getByRole('button', { name: /Open location Rumah Rames/ }))
-    await user.click(await screen.findByRole('button', { name: /discard and switch/i }))
-
-    expect(await screen.findByTestId('cafe-opening-location')).toHaveTextContent('Rumah Rames')
-    // The dialog closes: ConfirmDialog hands closing back to its caller after a confirm.
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-    expect(cafeDraftCount()).toBe(0)
   })
 })

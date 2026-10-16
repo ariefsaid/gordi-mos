@@ -69,10 +69,6 @@ function renderPage(entry = "/", locale: 'en' | 'id' = 'en') {
   )
 }
 
-function openViewOptions() {
-  fireEvent.click(screen.getByRole('button', { name: 'View & filters' }))
-}
-
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(useAuth).mockReturnValue(viewerWithRoles(['ops_lead']))
@@ -98,24 +94,23 @@ beforeEach(() => {
 })
 
 describe('Objectives collection-first contract', () => {
-  it('renders real Objective links with child count, progress, and activity facts', async () => {
+  it('renders real Objective links with their work lines and task progress', async () => {
     vi.mocked(listTasks).mockResolvedValue([
       task('t1', 'obj-1', 'wl-1', 'Done'),
       task('t2', 'obj-1', 'wl-2'),
     ])
-    const { container } = renderPage()
-    await screen.findByText('Grow revenue')
-    expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives/obj-1')
-    expect(screen.getByText('Through Tasks: Daily prep, Menu launch')).toBeInTheDocument()
-    expect(screen.getByText('1 / 2 Tasks done')).toBeInTheDocument()
-    expect(screen.getByText('07 Jul 2026, 07:00 WIB')).toBeInTheDocument()
-    expect(container.querySelector('.catalog-collection__disclosure')).toBeNull()
-  })
-
-  it('uses the head Create door and renders a form ABOVE the table, never inside it', async () => {
     renderPage()
     await screen.findByText('Grow revenue')
-    expect(screen.getByTestId('page-head').querySelector('.ch-action')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives/obj-1')
+    expect(screen.getByRole('link', { name: /Daily prep/ })).toHaveAttribute('href', '/work/projects/wl-2')
+    expect(screen.getByRole('link', { name: /Menu launch/ })).toHaveAttribute('href', '/work/projects/wl-1')
+    expect(screen.getByText('1 / 2 tasks done')).toBeInTheDocument()
+    expect(screen.getByText('No tasks yet')).toBeInTheDocument()
+  })
+
+  it('uses the Create door and renders a form outside the table', async () => {
+    renderPage()
+    await screen.findByText('Grow revenue')
     fireEvent.click(screen.getByRole('button', { name: 'Create objective' }))
     const form = await screen.findByRole('form', { name: 'Create objective' })
     expect(form.closest('[role="table"]')).toBeNull()
@@ -163,14 +158,15 @@ describe('Objectives collection-first contract', () => {
     expect(screen.getByRole('button', { name: 'Create objective' })).toHaveFocus()
   })
 
-  it('puts All / With tasks / No tasks behind the phone view disclosure', async () => {
+  it('offers All / With tasks / No tasks as the task-coverage choice', async () => {
+    vi.mocked(listTasks).mockResolvedValue([task('t1', 'obj-1', 'wl-1')])
     renderPage()
     await screen.findByText('Grow revenue')
-    expect(screen.queryByRole('button', { name: 'With tasks' })).toBeNull()
-    openViewOptions()
-    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'With tasks' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'No tasks' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('combobox', { name: 'Task coverage' }))
+    expect(screen.getAllByRole('option').map((option) => option.textContent?.trim())).toEqual(['All', 'With tasks', 'No tasks'])
+    fireEvent.click(screen.getByRole('option', { name: 'No tasks' }))
+    expect(await screen.findByRole('link', { name: 'Lonely objective' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Grow revenue' })).toBeNull()
   })
 
   it('keeps the collection readable without offering objective writes', async () => {
@@ -210,7 +206,8 @@ describe('R5 collection state boundaries', () => {
   it('keeps filtered empty clearable with the shared item-specific message', async () => {
     renderPage('/?q=no-such-record')
     expect(await screen.findByRole('heading', { name: 'No objectives match these filters' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    // The search box has its own clear control; the empty state's is the last one.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Clear search' }).at(-1)!)
     expect(await screen.findByRole('link', { name: 'Grow revenue' })).toBeInTheDocument()
   })
 
@@ -218,9 +215,6 @@ describe('R5 collection state boundaries', () => {
     if (empty) vi.mocked(listObjectivesAll).mockResolvedValue([])
     renderPage('/?view=archived')
     expect(await screen.findByRole('heading', { name: 'Nothing archived yet' })).toBeInTheDocument()
-    const disclosure = screen.queryByRole('button', { name: /View & filters/ })
-    if (disclosure) fireEvent.click(disclosure)
-    expect(screen.getByRole('button', { name: 'Current status' })).toHaveTextContent('Archived')
     expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
     expect(screen.queryByText('No objectives yet')).toBeNull()
   })
@@ -262,13 +256,13 @@ describe('one create entry per width', () => {
     expect(await screen.findByRole('button', { name: 'Create objective' })).toBeInTheDocument()
   })
 
-  it('hides the header create button while the rail is collapsed, and opens the form from the global create intent', async () => {
+  it('keeps exactly one create entry while the rail is collapsed, and opens the form from the global create intent', async () => {
     railCollapsed(true)
     renderPage('/?create=1')
     const form = await screen.findByRole('form', { name: 'Create objective' })
-    // The form's own submit may share the label; no button of that name sits outside the form.
+    // The form's own submit may share the label; one button of that name sits outside the form.
     const outside = screen.queryAllByRole('button', { name: 'Create objective' }).filter((button) => !form.contains(button))
-    expect(outside).toHaveLength(0)
+    expect(outside).toHaveLength(1)
   })
 })
 

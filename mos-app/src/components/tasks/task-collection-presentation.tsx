@@ -47,6 +47,7 @@ import {
 } from './task-columns'
 import { STATUS_ORDER } from './task-formatters'
 import { isOverdue } from '@/lib/due-status'
+import { useIsOffline } from '@/shell/use-is-offline'
 import type {
   TaskCollectionContext,
   TaskCollectionRecord,
@@ -339,6 +340,9 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   const providedRuntime = useTaskCollectionRuntime()
   const runtime = providedRuntime ?? DEFAULT_TASK_RUNTIME
   const t = useT()
+  // Saved-row edits write to the network: offline the cells read as plain text and the page says why
+  // once (OfflineNotice in the Tasks workspace). The draft row is local until Create, so it stays editable.
+  const offline = useIsOffline()
   const { query, projection, context, selectedIds, onToggleSelected, onToggleGroup, cardLayout = false } = props
   // Team work is a saved scope, not a user-added filter. Its true-empty copy distinguishes
   // membership from an empty queue; real filters still use the shared filtered-empty state.
@@ -361,17 +365,9 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   // Task selection capability is disabled (OD-REDESIGN-83.2) — ignore selectedIds/onToggleSelected
   void selectedIds
   void onToggleSelected
-  const groups = useMemo<RenderGroup[]>(() => {
-    const next = buildRenderGroups(projection, context, query, runtime.statusOverrides, t)
-    const draft = runtime.draftTask
-    if (!draft) return next
-    if (next.length === 0) {
-      return [{ key: '__flat__', label: '', rows: [draft], overdue: 0, prefillParam: '' }]
-    }
-    return next.map((group, index) => index === 0
-      ? { ...group, rows: [draft, ...group.rows] }
-      : group)
-  }, [context, projection, query, runtime.draftTask, runtime.statusOverrides, t])
+  const groups = useMemo<RenderGroup[]>(() =>
+    buildRenderGroups(projection, context, query, runtime.statusOverrides, t),
+  [context, projection, query, runtime.statusOverrides, t])
   // Group headers are parent rows of the table's row tree and the persisted collapsed ids drive
   // its `expanded` state; the visible rows are `table.getRowModel().rows`.
   const groupKeys = useMemo(() => groups.map((group) => group.key), [groups])
@@ -545,13 +541,12 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     // archived rows read-only. Everyone else gets honest plain-text cells.
     const isNew = task.id === runtime.draftTask?.id
     const editable = isNew
-      || (canEdit(task, context.viewerId ?? '', context.downlinePersonIds ?? []) && task.archived_at == null)
+      || (canEdit(task, context.viewerId ?? '', context.downlinePersonIds ?? []) && task.archived_at == null && !offline)
     return (
       <TaskRow
         key={task.id}
         task={task}
         now={context.now}
-        condensed={runtime.drawerOpen && runtime.splitLayout}
         isSelected={runtime.selectedId === task.id}
         justCreated={task.id === justCreatedId}
         isCursor={keyboard.cursor === leafIndex}
@@ -650,8 +645,8 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         createHref={runtime.createHref}
         onAssignPending={(runId) => canResolvePendingForRun(runId) ? occurrence.open(runId) : undefined}
         provenanceByTaskDefId={new Map(context.provenanceByTaskDefId)}
-        onEditTitle={runtime.onEditTitle}
-        onEditPic={runtime.onEditPic}
+        onEditTitle={offline ? undefined : runtime.onEditTitle}
+        onEditPic={offline ? undefined : runtime.onEditPic}
         onEditTeam={runtime.onEditTeam}
         onEditSupervisor={runtime.onEditSupervisor}
         personOptions={picOptions(context.viewerId ?? '', context.people, context.downlinePersonIds ?? [], runtime.viewerOrgWide)}

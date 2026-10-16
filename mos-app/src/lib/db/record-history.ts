@@ -4,7 +4,7 @@ import { keysetBeforeFilter } from './keyset-filter'
 // Reads shared.record_history directly; RLS gates it through the source table's own read rule.
 const shared = () => supabase.schema('shared')
 
-export type HistoryChannel = 'app' | 'api' | 'agent'
+type HistoryChannel = 'app' | 'api' | 'agent'
 
 export type RecordHistoryEntry = {
   id: string

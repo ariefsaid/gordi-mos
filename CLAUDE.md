@@ -15,8 +15,8 @@ Load only what the task needs. `docs/` is local-only (gitignored); in a managed 
 
 ## UI and design
 
-- The redesign runs in `~/Coding/mos-ui-fresh` and lands here one area at a time per its `PORT-BACK.md`. The look authority is the owner's approval of rendered screens there. No document in this repo governs how the app looks.
-- On `dev`, do not change how existing pages look. A new page a feature needs is built from existing components and re-skinned at its area's port.
+- Look and composition are designed in `~/Coding/mos-ui-fresh` and port back here per its `PORT-BACK.md`. The look authority is the owner's approval of rendered screens there. No document in this repo governs how the app looks.
+- On `dev`, add fields and actions with existing components; never recompose a page. A feature that needs a new layout is designed in the fresh folder first.
 - A test asserts what a user can do, never how it looks. Delete look-asserting tests when you touch the page they pin; never add new ones. Keep behaviour, accessibility (WCAG AA, 44px phone targets, no horizontal scroll at 390px), both languages, and data tests.
 - Before handing back UI work: run the impeccable and taste skills on the rendered screens, fix what they find, attach 390px and 1440px screenshots. Hard cap: two rounds.
 

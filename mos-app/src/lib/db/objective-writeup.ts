@@ -108,7 +108,7 @@ export function sanitizeWriteUp(blocks: unknown): WriteUpBlocks {
   return Array.isArray(blocks) ? sanitizeBlocks(blocks, 0) : []
 }
 
-export function writeUpByteLength(blocks: WriteUpBlocks): number {
+function writeUpByteLength(blocks: WriteUpBlocks): number {
   return new TextEncoder().encode(JSON.stringify(blocks)).length
 }
 

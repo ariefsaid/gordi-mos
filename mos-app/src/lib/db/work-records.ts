@@ -6,7 +6,7 @@ import { wibToday } from './cafe-opening'
 // worker owns start/finish/cancel mutations separately.
 const mos = () => supabase.schema('mos')
 
-export interface ProcessCadenceRecord {
+interface ProcessCadenceRecord {
   id: string
   work_line_id: string
   cadence_kind: 'manual' | 'daily' | 'weekly' | 'monthly'
@@ -15,7 +15,7 @@ export interface ProcessCadenceRecord {
   anchor_date: string | null
 }
 
-export interface ProcessStepRecord {
+interface ProcessStepRecord {
   id: string
   work_line_id: string
   title: string
@@ -30,7 +30,7 @@ export interface ProcessStepRecord {
   archived_at: string | null
 }
 
-export interface ProcessOccurrenceRecord {
+interface ProcessOccurrenceRecord {
   id: string
   work_line_id: string
   owning_team_id: string
@@ -50,7 +50,7 @@ export interface ProcessRecordData {
   occurrences: ProcessOccurrenceRecord[]
 }
 
-export interface ProcessCollectionOccurrenceFact {
+interface ProcessCollectionOccurrenceFact {
   run_ids: readonly string[]
   scheduled_date: string | null
   status: ProcessOccurrenceRecord['status'] | 'mixed'

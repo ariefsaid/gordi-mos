@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { daysAgoIsoDate, latestBy, readAllPages, REPORTING_WINDOW_DAYS } from '@/lib/db/reporting-shared'
+import { daysAgoIsoDate,  readAllPages, REPORTING_WINDOW_DAYS } from '@/lib/db/reporting-shared'
 
 // Data layer for reporting.sales_margin_daily (Home v1 margin KPI — ADR-0018 D6 prereq /
 // ADR-0010 D5 / ADR-0019 D3). Reads via supabase.schema('reporting') on the existing
@@ -66,10 +66,4 @@ export async function listSalesMarginDaily(
       .order('branch_code', { ascending: true })
       .range(from, to)
   })
-}
-
-/** Reporting-day window: the latest `margin_date` across the given rows, or null if empty.
- * Current-period metrics must key off this, not the browser's local calendar date. */
-export function latestMarginReportingDate(rows: SalesMarginDailyRow[]): string | null {
-  return latestBy(rows, r => r.margin_date)
 }

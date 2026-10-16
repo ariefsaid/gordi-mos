@@ -1,8 +1,9 @@
-import { useRef } from 'react'
-import { Button } from '@/components/ui/button'
-import { Picker } from '@/components/ui/picker'
+import { useRef, type ReactNode } from 'react'
+import { CloseIcon } from '@/shell/icons'
+import '@/components/ui/FilterChip.css'
 import {
   CollectionToolbar,
+  type CollectionToolbarChip,
   type CollectionToolbarFilter,
   type CollectionToolbarSavedViews,
 } from '@/components/record-collection/collection-toolbar'
@@ -24,7 +25,7 @@ type SortDir = TaskCollectionQuery['direction']
 type TasksSavedViewSaveResult = PersistedCollectionView | null | void
 type SavedViewRetryAction = { kind: 'load' } | { kind: 'apply'; id: string } | { kind: 'save'; name: string }
 
-export type TasksToolbarSavedViews = {
+type TasksToolbarSavedViews = {
   label: string
   selectedId: string | null
   operation: CollectionViewOperationStatus
@@ -45,7 +46,6 @@ export type TasksToolbarProps = {
   onOverdueFilter: () => void
   onClearOverdue: () => void
   onClearFilters: () => void
-  activeQuery: { summary: string; hasActiveFilters: boolean }
   buOptions: readonly BusinessUnitOption[]
   personOptions: readonly PersonOption[]
   savedViews?: TasksToolbarSavedViews
@@ -54,6 +54,7 @@ export type TasksToolbarProps = {
   onAttentionBlocked?: () => void
   /** OD-TASK-3: org-wide viewers (admin) keep the full "All" list; everyone else's is "Relevant". */
   viewerOrgWide: boolean
+  resultSummary?: ReactNode
 }
 
 const STATUS_VALUES: { value: TaskStatus | ''; key: 'any' | 'open' | 'inProgress' | 'blocked' | 'done' }[] = [
@@ -93,6 +94,16 @@ const FIELD_OPTIONS: { value: string; key: string; required?: boolean }[] = [
   { value: 'activity', key: 'tasks.fields.activity' },
 ]
 
+/** A quick filter on the attention counts: the shared chip look in its own tone; pressed = on, and shows the chip's remove mark. */
+function AttentionChip({ tone, pressed, onClick, children }: { tone: 'overdue' | 'blocked'; pressed: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" className={`filter-chip filter-chip--${tone}`} aria-pressed={pressed} onClick={onClick}>
+      <span>{children}</span>
+      {pressed ? <CloseIcon size={16} /> : null}
+    </button>
+  )
+}
+
 export function TasksToolbar({
   query,
   onQueryChange,
@@ -103,7 +114,6 @@ export function TasksToolbar({
   onOverdueFilter,
   onClearOverdue,
   onClearFilters,
-  activeQuery,
   buOptions,
   personOptions,
   savedViews,
@@ -111,6 +121,7 @@ export function TasksToolbar({
   onAttentionOverdue,
   onAttentionBlocked,
   viewerOrgWide,
+  resultSummary,
 }: TasksToolbarProps) {
   const t = useT()
   const isDesktop = useIsDesktop()
@@ -129,68 +140,22 @@ export function TasksToolbar({
     return t('tasks.filter.occurrence')
   }
 
-  // On a phone every control already sits under its own visible label; on desktop the door has none,
-  // so the trigger text carries it.
+  // Every control carries its own visible label above it. Group and Sort sit in the bar; the
+  // narrowing filters live behind "Filters & options" and show as removable chips when set.
   const filters: CollectionToolbarFilter[] = [
     {
       id: 'group',
       label: t('tasks.filter.group'),
-      triggerPrefix: t('tasks.filter.group'),
       value: query.groupBy,
       options: GROUP_VALUES.map(({ value, key }) => ({ value, label: groupLabel(key) })),
-      tinted: query.groupBy !== 'none',
       onChange: (value) => {
         onQueryChange({ groupBy: value as TaskCollectionGroup })
         try { localStorage.setItem('mos.tasks.groupBy', value === 'pic' ? 'owner' : value) } catch { /* storage disabled */ }
       },
     },
     {
-      id: 'business-unit',
-      label: t('tasks.filter.businessUnit'),
-      triggerPrefix: isDesktop ? t('tasks.filter.businessUnit') : undefined,
-      value: query.businessUnitId ?? '',
-      options: [
-        { value: '', label: t('tasks.filter.anyBusinessUnit') },
-        ...buOptions.map((unit) => ({ value: unit.id, label: unit.name })),
-      ],
-      onChange: (value) => onQueryChange({ businessUnitId: value || null }),
-    },
-    {
-      id: 'status',
-      label: t('tasks.filter.status'),
-      display: query.status ? statusLabel(STATUS_VALUES.find((item) => item.value === query.status)?.key ?? 'any') : statusLabel('any'),
-      popover: {
-        choices: [
-          ...STATUS_VALUES.map(({ value, key }) => ({
-            key: `status-${key}`,
-            label: statusLabel(key),
-            checked: (query.status ?? '') === value,
-            onChange: () => onQueryChange({ status: (value || null) as TaskStatus | null }),
-          })),
-          {
-            key: 'include-archived',
-            label: t('tasks.filter.includeArchived'),
-            checked: query.includeArchived,
-            onChange: (checked: boolean) => onQueryChange({ includeArchived: checked }),
-          },
-        ],
-      },
-    },
-    {
-      id: 'person',
-      label: t('tasks.filter.person'),
-      triggerPrefix: isDesktop ? t('tasks.filter.person') : undefined,
-      value: query.personId ?? '',
-      options: [
-        { value: '', label: t('tasks.filter.anyone') },
-        ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
-      ],
-      onChange: (value) => onQueryChange({ personId: value || null }),
-    },
-    {
       id: 'sort',
       label: t('tasks.filter.sort'),
-      triggerPrefix: isDesktop ? t('tasks.filter.sort') : undefined,
       value: `${query.sort}:${query.direction}`,
       options: [
         { value: 'due:ascending', label: t('tasks.filter.sortDueSoonest') },
@@ -206,7 +171,43 @@ export function TasksToolbar({
         onQueryChange({ sort: sort as TaskCollectionSort, direction: direction as SortDir })
       },
     },
+    {
+      id: 'business-unit',
+      label: t('tasks.filter.businessUnit'),
+      value: query.businessUnitId ?? '',
+      options: [
+        { value: '', label: t('tasks.filter.anyBusinessUnit') },
+        ...buOptions.map((unit) => ({ value: unit.id, label: unit.name })),
+      ],
+      onChange: (value) => onQueryChange({ businessUnitId: value || null }),
+    },
+    {
+      id: 'status',
+      label: t('tasks.filter.status'),
+      value: query.status ?? '',
+      options: STATUS_VALUES.map(({ value, key }) => ({ value, label: statusLabel(key) })),
+      onChange: (value) => onQueryChange({ status: (value || null) as TaskStatus | null }),
+    },
+    {
+      id: 'person',
+      label: t('tasks.filter.person'),
+      value: query.personId ?? '',
+      options: [
+        { value: '', label: t('tasks.filter.anyone') },
+        ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
+      ],
+      onChange: (value) => onQueryChange({ personId: value || null }),
+    },
   ]
+
+  const chips: CollectionToolbarChip[] = []
+  const buName = buOptions.find((unit) => unit.id === query.businessUnitId)?.name
+  if (query.businessUnitId) chips.push({ key: 'bu', label: `${t('tasks.filter.businessUnit')}: ${buName ?? ''}`, onRemove: () => onQueryChange({ businessUnitId: null }) })
+  if (query.status) chips.push({ key: 'status', label: `${t('tasks.filter.status')}: ${statusLabel(STATUS_VALUES.find((item) => item.value === query.status)?.key ?? 'any')}`, onRemove: () => onQueryChange({ status: null }) })
+  const personName = personOptions.find((person) => person.id === query.personId)?.full_name
+  if (query.personId) chips.push({ key: 'person', label: `${t('tasks.filter.person')}: ${personName ?? ''}`, onRemove: () => onQueryChange({ personId: null }) })
+  if (query.overdueOnly) chips.push({ key: 'overdue', label: t('tasks.saved.overdue'), onRemove: onClearOverdue })
+  if (query.includeArchived) chips.push({ key: 'archived', label: t('tasks.filter.includeArchived'), onRemove: () => onQueryChange({ includeArchived: false }) })
 
   let collectionSavedViews: CollectionToolbarSavedViews | undefined
   if (savedViews) {
@@ -241,17 +242,18 @@ export function TasksToolbar({
 
   return (
     <CollectionToolbar
-      className="tasks-collection-toolbar"
-      // Tasks' saved views ARE its common journeys — All, My work, Team work, Overdue answer the
-      // questions people actually arrive with. They stay exposed; the configuration long tail
-      // (group, unit, status, assignee, sort, fields, save) moves behind the door that already
-      // carries this surface's filter state on a phone. Two bands become one.
-      collapseOptionsOnDesktop
-      optionsActive={activeQuery.hasActiveFilters}
-      optionsSummary={activeQuery.summary}
+      className="tasks-decision-toolbar"
+      exposedFilterIds={isDesktop ? ['sort', 'group'] : ['sort']}
+      resultSummary={resultSummary}
+      chips={chips}
+      onClearAll={onClearFilters}
+      scopeActions={attentionTotal > 0 ? <div className="tasks-attention-actions" role="group" aria-label={t('tasks.filter.attentionAria', { count: attentionTotal })}>
+        {attention.overdue > 0 ? <AttentionChip tone="overdue" pressed={query.overdueOnly || query.view === 'overdue'} onClick={() => (onAttentionOverdue ?? (query.overdueOnly ? onClearOverdue : onOverdueFilter))()}>{t('tasks.filter.overdueCount', { count: attention.overdue })}</AttentionChip> : null}
+        {attention.blocked > 0 ? <AttentionChip tone="blocked" pressed={query.status === 'Blocked'} onClick={() => (onAttentionBlocked ?? (() => onQueryChange({ overdueOnly: false, status: 'Blocked' })))()}>{t('tasks.filter.blockedCount', { count: attention.blocked })}</AttentionChip> : null}
+      </div> : undefined}
       presentation={{
-        // Card is the phone rendering of Table, so Tasks has one live desktop presentation and no
-        // dead Table/Card segment in the exposed row.
+        // Card is the phone rendering of Table, so Tasks has one live presentation and no
+        // dead Table/Card choice.
         label: 'Presentation',
         value: query.layout,
         options: [{ value: query.layout, label: query.layout === 'card' ? 'Card' : 'Table' }],
@@ -281,6 +283,12 @@ export function TasksToolbar({
         onChange: (value) => onQueryChange({ q: value }),
       }}
       filters={filters}
+      checks={[{
+        key: 'include-archived',
+        label: t('tasks.filter.includeArchived'),
+        checked: query.includeArchived,
+        onChange: (checked) => onQueryChange({ includeArchived: checked }),
+      }]}
       fields={isDesktop ? {
         label: t('tasks.fields'),
         options: FIELD_OPTIONS.map((field) => ({ value: field.value, label: t(field.key as Parameters<typeof t>[0]), required: field.required })),
@@ -288,41 +296,6 @@ export function TasksToolbar({
         onToggle: onFieldToggle,
       } : undefined}
       savedViews={collectionSavedViews}
-      toggles={
-        <>
-          {attentionTotal > 0 ? (
-            <Picker
-              id="tasks-filter-attention"
-              label={t('tasks.filter.attentionAria', { count: attentionTotal })}
-              hideLabel
-              value=""
-              placeholder={t('tasks.filter.attentionCount', { count: attentionTotal })}
-              options={[
-                { value: 'overdue', label: t('tasks.filter.overdueCount', { count: attention.overdue }) },
-                { value: 'blocked', label: t('tasks.filter.blockedCount', { count: attention.blocked }) },
-              ]}
-              onChange={(value) => {
-                if (value === 'overdue') (onAttentionOverdue ?? (query.overdueOnly ? onClearOverdue : onOverdueFilter))()
-                else (onAttentionBlocked ?? (() => onQueryChange({ overdueOnly: false, status: 'Blocked' })))()
-              }}
-              className="tasks-attention-picker"
-              triggerClassName={`overdue-filter-btn${query.overdueOnly ? ' overdue-filter-btn--active' : ''}`}
-            />
-          ) : null}
-          {activeQuery.hasActiveFilters ? (
-            <Button
-              variant="ghost"
-              className="tasks-toolbar__clear"
-              onClick={onClearFilters}
-              aria-label={t('tasks.toolbar.clearFilters')}
-              title={t('tasks.toolbar.clearFilters')}
-            >
-              <span className="tasks-toolbar__clear-label">{t('tasks.toolbar.clearFilters')}</span>
-              <span className="tasks-toolbar__clear-compact-label">{t('tasks.toolbar.clearFiltersCompact')}</span>
-            </Button>
-          ) : null}
-        </>
-      }
     />
   )
 }

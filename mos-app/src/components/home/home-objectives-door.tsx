@@ -1,7 +1,7 @@
-import { useId } from 'react'
 import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { GroupHeader } from '@/components/ui/group-header'
 import type { HomeObjectiveProgress } from '@/lib/db/home-objectives'
 // The band grammar this door is built from (`.stream-band` / `-head` / `-label` / `-link`) lives
 // in home-stream.css — the same shared texture Home's List bands and the Signals feed head render
@@ -30,19 +30,15 @@ export interface HomeObjectivesDoorProps {
 
 export function HomeObjectivesDoor({ state = 'ready', rows = [], onRetry }: HomeObjectivesDoorProps) {
   const t = useT()
-  const titleId = useId()
   return (
-    <section className="stream-band home-objectives-door" aria-labelledby={titleId}>
-      <div className="stream-band-head">
-        {/* h2, matching its peer sections in this column: PageFamilyFrame owns Home's only h1 and
-            there is no intermediate level, so an h3 would skip one (detector: skipped-heading). */}
-        <h2 id={titleId} className="stream-band-label">{t('home.objectives.title')}</h2>
-        {/* The band's own drill door, in the shared `.stream-band-link` treatment. Its label does
-            not repeat the heading above it (DESIGN.md Don't — "don't repeat a value under a
-            control that the row or card already renders"); the section's accessible name carries
-            the subject. */}
-        <Link to="/work/objectives" className="stream-band-link tap-floor">{t('home.objectives.drill')}</Link>
-      </div>
+    <section className="stream-band home-objectives-door" aria-label={t('home.objectives.title')}>
+      {/* The shared GroupHeader: name, muted "(n)", and the band's own drill door at the right. Its
+          label does not repeat the heading (DESIGN.md Don't); the section name carries the subject. */}
+      <GroupHeader
+        label={t('home.objectives.title')}
+        count={state === 'ready' ? rows.length : undefined}
+        trailing={<Link to="/work/objectives" className="stream-band-link tap-floor">{t('home.objectives.drill')}</Link>}
+      />
       {state === 'loading' ? (
         <LoadingShell count={2} label={t('home.objectives.loading')} />
       ) : state === 'error' ? (

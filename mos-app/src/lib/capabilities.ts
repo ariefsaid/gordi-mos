@@ -19,7 +19,7 @@
 //
 // TODO(admin-editable-roles, ADR-0020 D2): replace this static map with an RPC
 // (shared.my_capabilities()) once grants become admin-editable. Until then the seed is static.
-export const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
+const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
   admin: [
     'objective.manage', 'objective.edit_content', 'workline.manage', 'followup.confirm',
     'signal.mention_bu', 'signal.retract',

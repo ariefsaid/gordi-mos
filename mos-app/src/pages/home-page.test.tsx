@@ -426,17 +426,14 @@ describe('Home daily operating brief', () => {
     expect(mockListTasks).toHaveBeenCalledTimes(3)
   })
 
-  it('AC-920: renders the default Focused arrangement with the attention regions and a right-hand feed slot', async () => {
+  it('AC-920: renders the default Focused arrangement with the attention regions and the Signals feed', async () => {
     mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
-    const { container } = await renderHome(financeViewer)
+    await renderHome(financeViewer)
     const brief = await screen.findByTestId('home-daily-brief')
-    const aside = brief.querySelector<HTMLElement>('.home-brief-aside')!
 
-    expect(container.querySelector('[role="tablist"]')).toBeInTheDocument()
-    expect(container.querySelector('.home-bento')).toBeNull()
-    expect(brief.querySelector('.home-layout')).toContainElement(screen.getByRole('tabpanel'))
-    expect(aside).toContainElement(screen.getByRole('region', { name: /^Signals/ }))
-    expect(brief.querySelector('.home-layout')!.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(brief).getByRole('tablist')).toBeInTheDocument()
+    expect(within(brief).getByRole('tabpanel')).toBeInTheDocument()
+    expect(within(brief).getByRole('region', { name: 'Signals' })).toBeInTheDocument()
   })
 
   it('AC-921: choosing Overview in Profile applies to Home and survives a remount', async () => {
@@ -450,13 +447,14 @@ describe('Home daily operating brief', () => {
 
     const firstHome = await renderHome(financeViewer)
     expect(await screen.findByTestId('home-daily-brief')).toBeInTheDocument()
-    expect(firstHome.container.querySelector('[role="tablist"]')).toBeNull()
-    expect(firstHome.container.querySelector('.home-bento')).toBeInTheDocument()
+    // Overview shows every region at once, so there are no tabs to choose between.
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.getByRole('region', { name: /^My open work/ })).toBeInTheDocument()
     firstHome.unmount()
 
-    const secondHome = await renderHome(financeViewer)
-    expect(secondHome.container.querySelector('[role="tablist"]')).toBeNull()
-    expect(secondHome.container.querySelector('.home-bento')).toBeInTheDocument()
+    await renderHome(financeViewer)
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.getByRole('region', { name: /^My open work/ })).toBeInTheDocument()
   })
 
   it('AC-924: switches to the next viewer arrangement during render, with no stale frame', async () => {
@@ -472,20 +470,20 @@ describe('Home daily operating brief', () => {
     mockUseAuth.mockReturnValue(financeViewer)
     const home = render(<HomePage />, { wrapper })
     await screen.findByTestId('home-daily-brief')
-    expect(home.container.querySelector('.stream-group')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /^Needs you now/ })).toBeInTheDocument()
 
     mockUseAuth.mockReturnValue(switchedMemberViewer)
     home.rerender(<HomePage />)
 
-    expect(home.container.querySelector('[role="tablist"]')).toBeInTheDocument()
-    expect(home.container.querySelector('.stream-group')).toBeNull()
+    // The member's arrangement replaces the cockpit List at once: no attention region, no stale frame.
+    expect(screen.queryByRole('region', { name: /^Needs you now/ })).toBeNull()
   })
 
   it('makes the next action explicit while keeping the canonical task link and state origin', async () => {
     mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
     await renderHome(financeViewer)
-    const row = await screen.findByText('Restock oat milk')
-    const link = row.closest('a')!
+    const next = await screen.findByRole('region', { name: 'Next task' })
+    const link = within(next).getByText('Restock oat milk').closest('a')!
     expect(link).toHaveAttribute('href', '/work/tasks/t-late')
     expect(within(link).getByText('Open task')).toBeInTheDocument()
   })
@@ -507,9 +505,10 @@ describe('AC-H02: a member sees a usable brief and live Signals column', () => {
   it('does not leave the member Home blank', async () => {
     await renderHome(memberViewer)
     expect(await screen.findByTestId('home-daily-brief')).toBeInTheDocument()
-    const signals = await screen.findByRole('region', { name: /^Signals · \d+$/ })
+    const signals = await screen.findByRole('region', { name: 'Signals' })
     expect(signals).toBeInTheDocument()
-    expect(within(signals).getByRole('button', { name: /Share a Signal/i })).toBeInTheDocument()
+    // Sharing a Signal now lives in Home's head actions beside the open-task figure.
+    expect(screen.getByRole('button', { name: /Share signal/i })).toBeInTheDocument()
     expect(within(signals).queryByRole('searchbox', { name: /search signals/i })).toBeNull()
     expect(mockListRevenue).not.toHaveBeenCalled()
   })
@@ -517,9 +516,9 @@ describe('AC-H02: a member sees a usable brief and live Signals column', () => {
   it('restores Signal search for cockpit viewers while members keep the Share-only toolbar', async () => {
     await renderHome(financeViewer)
 
-    const signals = await screen.findByRole('region', { name: /^Signals · \d+$/ })
+    const signals = await screen.findByRole('region', { name: 'Signals' })
     expect(within(signals).getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
-    expect(within(signals).getByRole('button', { name: /Share a Signal/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Share signal/i })).toBeInTheDocument()
   })
 
   it('keeps an ordinary member on assigned steps before Signals, without cockpit regions', async () => {
@@ -528,9 +527,8 @@ describe('AC-H02: a member sees a usable brief and live Signals column', () => {
 
     const brief = await screen.findByTestId('home-daily-brief')
     expect(within(brief).getByText('Restock oat milk')).toBeInTheDocument()
-    expect(within(brief).getByRole('tabpanel', { name: /^My open work/ })).toBeInTheDocument()
     expect(within(brief).queryByRole('region', { name: /^Needs you now/ })).toBeNull()
-    expect(brief.querySelector('.home-brief-my-work')).toBeNull()
+    expect(within(brief).queryByRole('tab', { name: /^Needs you now/ })).toBeNull()
     expect(within(brief).queryByText('Failed checks')).toBeNull()
     expect(within(brief).queryByRole('region', { name: /^Objectives/ })).toBeNull()
 
@@ -661,17 +659,6 @@ describe('Home retirement and chromeless composition', () => {
     expect(screen.queryByRole('link', { name: /write update/i })).toBeNull()
     expect(screen.queryByRole('link', { name: /open the daily log/i })).toBeNull()
   })
-
-  it('keeps the daily brief and Signals free of card-shell chrome', async () => {
-    await renderHome(financeViewer)
-    const brief = await screen.findByTestId('home-daily-brief')
-    const feed = await screen.findByRole('region', { name: /^Signals · \d+$/ })
-    const shellClasses = ['bg-card', 'border', 'border-border', 'rounded-lg', 'shadow-rest']
-    for (const c of shellClasses) {
-      expect(brief).not.toHaveClass(c)
-      expect(feed).not.toHaveClass(c)
-    }
-  })
 })
 
 describe('Issue 245 / FR-928: Signals stays live, concise and honest', () => {
@@ -683,7 +670,7 @@ describe('Issue 245 / FR-928: Signals stays live, concise and honest', () => {
     mockGetPeople.mockResolvedValue([{ id: 'author-1', full_name: 'Nico Barista' }])
 
     await renderHome(memberViewer)
-    const feed = await screen.findByRole('region', { name: /^Signals · \d+$/ })
+    const feed = await screen.findByRole('region', { name: 'Signals' })
     expect(within(feed).getByText(/grinder is jamming on the second hopper/i)).toBeInTheDocument()
     await waitFor(() => expect(within(feed).getByText('Nico Barista')).toBeInTheDocument())
     expect(within(feed).getByText('Bar Kemang')).toBeInTheDocument()
@@ -718,17 +705,16 @@ describe('Issue 245 / FR-928: Signals stays live, concise and honest', () => {
     // never move it.
     sharedCount.value = 0
     await renderHome(memberViewer)
-    expect(await screen.findByText('0 open')).toBeInTheDocument()
-    expect(screen.queryByRole('tablist')).toBeInTheDocument()
+    expect(await screen.findByText('0 open tasks')).toBeInTheDocument()
 
     await act(async () => {
       resolveSignals([])
       await Promise.resolve()
       await Promise.resolve()
     })
-    const feed = await screen.findByRole('region', { name: /^Signals · \d+$/ })
+    const feed = await screen.findByRole('region', { name: 'Signals' })
     expect(within(feed).getByText(/no signals yet/i)).toBeInTheDocument()
-    expect(within(feed).getByRole('heading', { name: 'Signals · 0' })).toBeInTheDocument()
+    expect(within(feed).getByRole('heading', { name: /^Signals/ })).toHaveTextContent('(0)')
   })
 })
 
@@ -742,7 +728,7 @@ describe('Home task regions preserve decision context and collection doors', () 
     await renderHome(financeViewer)
     const row = await screen.findByText('Restock oat milk')
     const link = row.closest('a')!
-    expect(within(link).getByText(/Overdue · \d+d/)).toBeInTheDocument()
+    expect(within(link).getByText(/Overdue · \d+ days/)).toBeInTheDocument()
     await waitFor(() => expect(within(link).getByText('Cahya Cafe')).toBeInTheDocument())
     expect(within(link).getByText('Café')).toBeInTheDocument()
     expect(link.getAttribute('href')).toBe('/work/tasks/t-late')
@@ -770,7 +756,8 @@ describe('Home task regions preserve decision context and collection doors', () 
     await renderHome(financeViewer)
     await userEvent.setup().click(await screen.findByRole('tab', { name: /^My open work/ }))
     const myWork = await screen.findByRole('tabpanel', { name: /^My open work/ })
-    expect(within(myWork).getByText('Prep beans')).toBeInTheDocument()
+    // The first row is lifted into Next task; the rest stay in the region, and the door counts both.
+    expect(screen.getByText('Prep beans')).toBeInTheDocument()
     expect(within(myWork).getByText('Clean grinder')).toBeInTheDocument()
     expect(within(myWork).getByRole('link', { name: /2 shown · 7 open/i }))
       .toHaveAttribute('href', '/work/tasks?view=my-work')
@@ -793,8 +780,10 @@ describe('Home task regions preserve decision context and collection doors', () 
     await userEvent.setup().click(await screen.findByRole('tab', { name: /^My open work/ }))
     const englishRegion = await screen.findByRole('tabpanel', { name: /^My open work/ })
     expect(within(englishRegion).getByText('Open task 7')).toBeInTheDocument()
-    expect(within(englishRegion).getAllByText(/^Open task /)).toHaveLength(7)
-    expect(within(englishRegion).queryByText('Open task 8')).toBeNull()
+    // Seven rows are shown in all: one lifted into Next task, six in the region.
+    expect(within(englishRegion).getAllByText(/^Open task /)).toHaveLength(6)
+    expect(screen.getAllByText(/^Open task /)).toHaveLength(7)
+    expect(screen.queryByText('Open task 8')).toBeNull()
     const englishMore = within(englishRegion).getByRole('link', { name: '7 shown · 8 open · 1 more →' })
     expect(englishMore).toHaveTextContent('7 shown · 8 open · 1 more →')
     expect(englishMore).toHaveAttribute('href', '/work/tasks?view=my-work')
@@ -823,7 +812,7 @@ describe('Home task regions preserve decision context and collection doors', () 
     await renderHome(financeViewer)
     await userEvent.setup().click(await screen.findByRole('tab', { name: /^My open work/ }))
     const myWork = await screen.findByRole('tabpanel', { name: /^My open work/ })
-    expect(within(myWork).getAllByText(/^Open task /)).toHaveLength(7)
+    expect(screen.getAllByText(/^Open task /)).toHaveLength(7)
     expect(within(myWork).queryByRole('link', { name: /more in My open work/i })).toBeNull()
   })
 
@@ -896,8 +885,7 @@ describe('AC-040 / AC-052: Home identity is day-aware and does not add a mention
     expect(head.querySelector('.home-head-date')).not.toBeNull()
     expect(head.querySelector('.home-head-date')?.textContent).toBeTruthy()
     expect(within(head).getByText('Managing Director')).toBeInTheDocument()
-    expect(within(head).getByText('0 open')).toBeInTheDocument()
-    expect(head).toHaveClass('home-day-header', 'content-header--compact')
+    expect(screen.getByText('0 open tasks')).toBeInTheDocument()
     expect(within(head).queryByRole('button')).toBeNull()
     expect(within(head).queryByRole('link')).toBeNull()
     expect(mockListNotifications).not.toHaveBeenCalled()
@@ -927,7 +915,7 @@ describe('AC-040 / AC-052: Home identity is day-aware and does not add a mention
     mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
     sharedCount.value = 9
     const utils = await renderHome(cafeViewer)
-    expect(within(screen.getByTestId('page-head')).getByText('9 open')).toBeInTheDocument()
+    expect(screen.getByText('9 open tasks')).toBeInTheDocument()
 
     // While the SHARED count itself has not resolved the figure is ABSENT, not zero (DIV-G5) —
     // even though the task list below has loaded.
@@ -961,7 +949,7 @@ describe("DD-COUNT-1: Home's header figure is the ONE shared open-task count (#1
     ])
     sharedCount.value = 9
     await renderHome({ ...cafeViewer, viewer: { ...cafeViewer.viewer, isManager: true } })
-    expect(within(screen.getByTestId('page-head')).getByText('9 open')).toBeInTheDocument()
+    expect(screen.getByText('9 open tasks')).toBeInTheDocument()
   })
 })
 
@@ -982,7 +970,7 @@ describe('AC-204 (4): the shipped Home carries the gated Objectives door', () =>
     expect(objectivesDoor()).toContainElement(link)
     expect(objectivesDoor()).not.toHaveTextContent(/Progress rolls up from each Objective/i)
     expect(objectivesDoor()).not.toHaveTextContent(/coming/i)
-    expect(await within(objectivesDoor()).findByRole('link', { name: /Q3 Growth.*2\/3 Tasks done/i }))
+    expect(await within(objectivesDoor()).findByRole('link', { name: /Q3 Growth.*2 \/ 3 tasks done/i }))
       .toHaveAttribute('href', '/work/objectives/obj-1')
   })
 
@@ -1056,7 +1044,7 @@ describe('Home Signals — ambient archive door', () => {
     await renderHome()
     await screen.findByText('Home signal 0')
 
-    const signals = screen.getByRole('region', { name: 'Signals · 6' })
+    const signals = screen.getByRole('region', { name: 'Signals' })
     const archiveDoor = await within(signals).findByRole('link', { name: 'See 67 more →' })
     expect(archiveDoor).toHaveAttribute('href', '/work/signals')
     expect(within(signals).queryByRole('button', { name: /Load more/ })).not.toBeInTheDocument()

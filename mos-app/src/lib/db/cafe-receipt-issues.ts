@@ -4,7 +4,7 @@ import { listCafeReceipts, type CafeReceipt, type CafeReceiptLine } from './cafe
 import { readAllPages } from './reporting-shared'
 
 export type CafeReceiptIssueKind = 'no_po' | 'over' | 'wrong_unit' | 'short' | 'damaged_wrong'
-export type CafeReceiptIssueStatus = 'open' | 'linked' | 'closed'
+type CafeReceiptIssueStatus = 'open' | 'linked' | 'closed'
 
 /** No PO, over and wrong unit keep their part unposted; short and damaged/wrong are information (FR-1034). */
 export const BLOCKING_ISSUE_KINDS: ReadonlySet<CafeReceiptIssueKind> = new Set<CafeReceiptIssueKind>(['no_po', 'over', 'wrong_unit'])
@@ -39,7 +39,7 @@ export type CafeReceiptIssue = {
 }
 
 /** A matched part a release could not post: no open PO has room for it (DD-2026-10-06-1429). */
-export type CafeReceiptHeldPortion = {
+type CafeReceiptHeldPortion = {
   id: string
   quantity: string
   created_at: string
@@ -47,7 +47,7 @@ export type CafeReceiptHeldPortion = {
   line: CafeReceiptLine
 }
 
-export type CafeReceiptHaltedGroup = {
+type CafeReceiptHaltedGroup = {
   group_id: string
   po_number: string
   mos_key: string
@@ -55,7 +55,7 @@ export type CafeReceiptHaltedGroup = {
 }
 
 /** A queued portion ESB permanently refused, with the outbox message and identifying MOS key. */
-export type CafeReceiptEsbRefusedPortion = CafeReceiptHeldPortion & {
+type CafeReceiptEsbRefusedPortion = CafeReceiptHeldPortion & {
   po_number: string
   mos_key: string | null
   esb_message: string | null
@@ -71,7 +71,7 @@ export type CafeReceiptIssueList = {
   resolvedTotal: number
 }
 
-export type CafeReceiptIssueOpenPo = {
+type CafeReceiptIssueOpenPo = {
   po_number: string
   supplier_name: string | null
   po_date: string
@@ -104,7 +104,7 @@ const PART_FIELDS = 'issue_id,po_number,quantity,state,po_created_after_delivery
 const KINDS: readonly CafeReceiptIssueKind[] = ['no_po', 'over', 'wrong_unit', 'short', 'damaged_wrong']
 const STATUSES: readonly CafeReceiptIssueStatus[] = ['open', 'linked', 'closed']
 /** Resolved issues shown at once, newest first; open ones are always read in full. */
-export const RESOLVED_READ_LIMIT = 100
+const RESOLVED_READ_LIMIT = 100
 
 const ops = () => supabase.schema('ops')
 const shared = () => supabase.schema('shared')

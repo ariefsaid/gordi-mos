@@ -3,6 +3,7 @@ import type { Locator, Page } from '@playwright/test'
 import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
 import { chooseSelectOption } from './helpers/select'
+import { taskViewsPicker } from './helpers/tasks'
 import { localSql } from './helpers/local-sql'
 import { taskCleanupSql } from './fixtures/cleanup'
 import { VIEWER } from './fixtures/users'
@@ -18,16 +19,16 @@ const ORG = '10000000-0000-0000-0000-000000000001'
 
 // VIEWER (Cahya) holds two roles/Teams (Cafe Ops Lead + Sales Lead) — beginNewTask's
 // single-Team auto-resolution never fires for her, so every create leaves Team on its
-// "Select team…" placeholder until chosen (createTaskViaUI, e2e/helpers/tasks.ts, carries the
+// "Choose a team…" placeholder until chosen (createTaskViaUI, e2e/helpers/tasks.ts, carries the
 // same conditional pick for the same reason).
 async function pickTeamIfUnset(page: Page, form: Locator) {
   const team = form.getByRole('combobox', { name: 'Team', exact: true })
   await expect(team).toBeVisible()
-  if (!(await team.innerText()).includes('Select team')) return
+  if (!(await team.innerText()).includes('Choose a team')) return
   await team.click()
   await page.getByRole('listbox', { name: 'Team', exact: true })
-    .getByRole('option').filter({ hasNotText: 'Select team' }).first().click()
-  await expect(team).not.toContainText('Select team')
+    .getByRole('option').filter({ hasNotText: 'Choose a team' }).first().click()
+  await expect(team).not.toContainText('Choose a team')
 }
 
 // #671/#893: task-create-form.tsx is the ONE Task-creation form now (Title/Team/PIC/Supervisor,
@@ -60,6 +61,9 @@ test.afterEach(async () => {
   await localSql(taskCleanupSql(seededTaskIds.splice(0, seededTaskIds.length), ORG))
 })
 
+// The record opens beside the list only on a wide content track.
+test.use({ viewport: { width: 1920, height: 1080 } })
+
 test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, cancel, and create', async ({ page, context }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
 
@@ -67,44 +71,36 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   const futureTitle = `URL future ${Date.now()}`
   const mineTitle = `URL mine ${Date.now()}`
 
-  // The legacy `/work/tasks/new` door redirects into the collection (router.tsx) carrying
-  // `?create=1`, which the workspace resolves into an inline draft — no `/new` pathname ever
-  // reaches the address bar. `r` (a PIC prefill hint) and `view` both survive: neither is a
-  // create-only key the workspace's cleanup effect strips (tasks-workspace.tsx).
+  // The legacy `/work/tasks/new` door redirects to the Create task page (`?create=1`), which stays
+  // in the address while the draft is open. `r` (a PIC prefill hint) and `view` both survive.
+  const keeps = (create: boolean) => new RegExp(`/work/tasks\\?(?=[^#]*r=${VIEWER.personId})(?=[^#]*view=my-work)${create ? '(?=[^#]*create=1)' : '(?![^#]*create=1)'}`)
   await page.goto(`work/tasks/new?view=my-work&r=${VIEWER.personId}`)
-  await expect(page).toHaveURL(new RegExp(`/work/tasks\\?r=${VIEWER.personId}&view=my-work$`))
+  await expect(page).toHaveURL(keeps(true))
   const createForm = page.getByRole('form', { name: /create task form/i })
   await expect(createForm.getByRole('combobox', { name: /^pic$/i })).toContainText('Cahya Cafe')
-  // Cancel discards the client-only draft; it never touched the URL (the workspace only ever
-  // updates it on a committed create), so both prefill params are still exactly where they were.
-  await createForm.getByRole('button', { name: /cancel/i }).click()
-  await expect(page).toHaveURL(new RegExp(`/work/tasks\\?r=${VIEWER.personId}&view=my-work$`))
-  await expect(page.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
+  // Cancel discards the client-only draft; the prefill params stay, only the create marker goes.
+  await page.getByRole('button', { name: /^cancel$/i }).click()
+  await expect(page).toHaveURL(keeps(false))
+  await expect(taskViewsPicker(page)).toContainText('My work')
 
-  // #870: the page-head "+ Create task" is a BUTTON now (tasks-workspace.tsx `action`) — the
-  // "+ Create task" LINK only exists in the table's own true-empty state, which "My work" isn't.
   await page.goto('work/tasks?view=my-work')
   await page.getByRole('button', { name: /create task/i }).click()
-  // No route change on open either — the draft mounts inline at the same collection URL.
-  await expect(page).toHaveURL(/\/work\/tasks\?view=my-work$/)
+  await expect(page).toHaveURL(/\/work\/tasks\?(?=[^#]*view=my-work)(?=[^#]*create=1)/)
   const mineForm = page.getByRole('form', { name: /create task form/i })
   await mineForm.getByRole('textbox', { name: 'Title', exact: true }).fill(mineTitle)
   await pickTeamIfUnset(page, mineForm)
   await chooseSelectOption(page, mineForm.getByRole('combobox', { name: 'Supervisor', exact: true }), 'Dewi Director')
-  await mineForm.getByRole('button', { name: 'Create task', exact: true }).click()
-  // TaskCreateForm's onCreate (tasks-workspace.tsx onEditTitle, the inline-draft commit path)
-  // clears the draft and retries the query in place — no ?highlight= and no route change at
-  // all, unlike task-surface.tsx's separate full-record submit path. The view survives because
-  // nothing ever touched the URL to begin with.
+  await page.getByRole('button', { name: 'Create task', exact: true }).click()
+  // The create marker clears once the task is saved; the view survives.
   await expect(page).toHaveURL(/\/work\/tasks\?view=my-work$/)
-  await expect(page.locator('tr.task-row', { hasText: mineTitle }).first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('link', { name: mineTitle }).first()).toBeVisible({ timeout: 10_000 })
 
   await seedTaskDueInDays(overdueTitle, -5)
   await seedTaskDueInDays(futureTitle, 365)
 
   await page.goto('work/tasks?view=overdue')
   await expect(page).toHaveURL(/\/work\/tasks\?view=overdue$/)
-  await expect(page.getByRole('button', { name: 'Overdue', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(taskViewsPicker(page)).toContainText('Overdue')
   await expect(page.getByText(overdueTitle)).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText(futureTitle)).not.toBeVisible()
 
@@ -126,9 +122,9 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   // Return to the list — the saved view is still active: Overdue chip pressed,
   // overdue row present, future row absent.
   await page.goto('work/tasks?view=overdue')
-  await expect(page.getByRole('button', { name: 'Overdue', exact: true })).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator('tr.task-row', { hasText: overdueTitle }).first()).toBeVisible()
-  await expect(page.locator('tr.task-row', { hasText: futureTitle })).toHaveCount(0)
+  await expect(taskViewsPicker(page)).toContainText('Overdue')
+  await expect(page.getByRole('link', { name: overdueTitle })).toBeVisible()
+  await expect(page.getByRole('link', { name: futureTitle })).toHaveCount(0)
 
   // New tab / direct URL of the record → the same full page, ?view= preserved.
   const secondPage = await context.newPage()

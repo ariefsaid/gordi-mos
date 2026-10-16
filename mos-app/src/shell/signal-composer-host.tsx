@@ -34,6 +34,9 @@ export interface SignalComposerContextValue {
   /** Increments on each successful Share — feed/archive surfaces watch it to reload so a freshly
    * posted Signal appears without a manual refresh (AC-430). */
   postCount: number
+  /** A page that hosts its own composer (the Signals page) takes over `open()` while mounted, so
+   * every entry point there writes in the page instead of in a blocking dialog. Pass null to release. */
+  registerInline: (handler: ((prefill?: SignalComposerPrefill) => void) | null) => void
 }
 
 const SignalComposerContext = createContext<SignalComposerContextValue | null>(null)
@@ -42,6 +45,11 @@ export function useSignalComposer(): SignalComposerContextValue {
   const ctx = useContext(SignalComposerContext)
   if (!ctx) throw new Error('useSignalComposer must be used within a SignalComposerHost')
   return ctx
+}
+
+/** The composer when a host is mounted, else null — for surfaces that offer "Share signal" but also render without the shell. */
+export function useOptionalSignalComposer(): SignalComposerContextValue | null {
+  return useContext(SignalComposerContext)
 }
 
 const EMPTY_ROSTERS: MentionRosters = { teamMembers: {}, buMembers: {} }
@@ -58,6 +66,8 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   const [authority, setAuthority] = useState({ can_post: false, can_tag: false })
   const dirtyRef = useRef(false)
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const inlineHandlerRef = useRef<((prefill?: SignalComposerPrefill) => void) | null>(null)
+  const registerInline = useCallback((handler: ((prefill?: SignalComposerPrefill) => void) | null) => { inlineHandlerRef.current = handler }, [])
 
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const viewerId = viewer?.person.id
@@ -88,6 +98,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   }, [])
   const open = useCallback((nextPrefill?: SignalComposerPrefill) => {
     if (!canPost) return
+    if (inlineHandlerRef.current) { inlineHandlerRef.current(nextPrefill); return }
     setPrefill(nextPrefill)
     setIsOpen(true)
   }, [canPost])
@@ -122,7 +133,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   }, [isOpen])
 
   return (
-    <SignalComposerContext.Provider value={{ open, postCount, canPost, canTag }}>
+    <SignalComposerContext.Provider value={{ open, postCount, canPost, canTag, registerInline }}>
       {children}
       {isOpen && viewer && canPost && (
         <ModalShell

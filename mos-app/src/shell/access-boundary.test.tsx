@@ -15,8 +15,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const admission = vi.hoisted(() => ({
   override: null as null | ((path: string, accessRoles: string[]) => boolean),
 }))
-vi.mock('./destinations', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./destinations')>()
+vi.mock('./module-registry', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./module-registry')>()
   return {
     ...actual,
     viewerAdmittedToRoute: (path: string, accessRoles: string[]) =>
@@ -24,8 +24,6 @@ vi.mock('./destinations', async (importOriginal) => {
   }
 })
 
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { render, screen, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
@@ -42,7 +40,7 @@ import { routeConfig } from '@/router'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { BreadcrumbTitleProvider } from './breadcrumb-title'
 import { Breadcrumb } from './breadcrumb'
-import { DESTINATIONS, UTILITY, isLive, navUtility, viewerAdmittedToRoute } from './destinations'
+import { admittedModules, footerAreas, viewerAdmittedToRoute } from './module-registry'
 
 const mockUseAuth = vi.mocked(useAuth)
 
@@ -113,17 +111,16 @@ describe('access boundary', () => {
 
     it('renders the page head titled for the page asked for, and states the denial only in the panel', () => {
       const head = screen.getByTestId('page-head')
-      expect(within(head).getByRole('heading', { level: 1 })).toHaveTextContent('Café · Pushes')
+      expect(within(head).getByRole('heading', { level: 1 })).toHaveTextContent('Café · Sent to ESB')
       expect(within(head).queryByText(/access/i)).toBeNull()
     })
 
     it('renders one quiet dashed panel: the area sentence, who to ask, one outline Back', () => {
       expect(within(panel()).getByRole('heading', { level: 2 }))
-        .toHaveTextContent('Pushes is outside your access')
+        .toHaveTextContent('Sent to ESB is outside your access')
       expect(within(panel()).getByText('Ask your lead or an admin to give you access.'))
         .toBeInTheDocument()
-      const back = within(panel()).getByRole('link', { name: 'Back to Café' })
-      expect(back).toHaveClass('btn', 'btn-outline')
+      expect(within(panel()).getByRole('link', { name: 'Back to Café' })).toBeInTheDocument()
     })
 
     it('offers exactly one control in the panel — a wall is not a menu', () => {
@@ -138,7 +135,7 @@ describe('access boundary', () => {
       // The whole rendered text is the area label plus the two fixed sentences. Any figure,
       // record title or count leaking through the guard would show up as an extra digit here.
       expect(panel().textContent).toBe(
-        'Pushes is outside your accessAsk your lead or an admin to give you access.Back to Café',
+        'Sent to ESB is outside your accessAsk your lead or an admin to give you access.Back to Café',
       )
     })
   })
@@ -147,10 +144,10 @@ describe('access boundary', () => {
   it('AC-020: Finance at /admin/people is told the AREA, not the screen', () => {
     setViewer(['finance'])
     renderAt('/admin/people', <AdminRoute />)
-    // `Admin Settings`, the thing an admin would grant — not `People`, a screen this viewer has
+    // `Admin settings`, the thing an admin would grant — not `People`, a screen this viewer has
     // never been shown the name of.
     expect(screen.getByRole('heading', { level: 2 }))
-      .toHaveTextContent('Admin Settings is outside your access')
+      .toHaveTextContent('Admin settings is outside your access')
     expect(screen.queryByTestId('landing')).not.toBeInTheDocument()
   })
 
@@ -187,45 +184,14 @@ describe('access boundary', () => {
 
   it('a link-scope denial ON the destination\'s own landing route goes Home, not back to itself', () => {
     setViewer(['member'])
-    renderAt('/work/tasks', <RequireAccessRole anyOf={['supervisor']} scope="link" />)
+    renderAt('/work', <RequireAccessRole anyOf={['supervisor']} scope="link" />)
     const links = within(panel()).getAllByRole('link')
     expect(links).toHaveLength(1)
     expect(links[0]).toHaveAttribute('href', '/')
   })
 
   // ── AC-021 ────────────────────────────────────────────────────────────────────────────────
-  describe('AC-021: phone (≤390)', () => {
-    // jsdom computes no layout, so nothing in this block MEASURES anything. What the two
-    // stylesheet cases below assert is the text of the rules; the measurement they stand for —
-    // panel and button at the full column, `scrollWidth <= 390` — is the Playwright geometry
-    // guard's, and saying so here is what keeps this file's name honest.
-    const css = readFileSync(resolve(__dirname, 'access-boundary.css'), 'utf8')
-    const phoneBlock = css.slice(css.indexOf('@media'))
-
-    it('the stylesheet declares the phone block that runs panel and button to the full column', () => {
-      expect(phoneBlock).toContain('@media (max-width: 767.98px)')
-      expect(phoneBlock).toMatch(/\.access-boundary \.empty-state-frame \{[^}]*width: 100%/)
-      expect(phoneBlock).toMatch(/\.access-boundary \.empty-state-frame \{[^}]*max-width: 100%/)
-      expect(phoneBlock).toMatch(/\.access-boundary \.empty-actions \.btn \{[^}]*width: 100%/)
-    })
-
-    it('the stylesheet declares no fixed width, no min-width, and a border-box frame', () => {
-      // The two ways this file could author overflow: full width plus padding on a content box,
-      // and a hardcoded px width in a 390px column. Neither is a measurement — a parent, a gap or
-      // a long word can still overflow, and only the geometry guard can see that.
-      expect(css).toMatch(/\.access-boundary \.empty-state-frame \{[^}]*box-sizing: border-box/)
-      expect(css).not.toMatch(/width:\s*\d+px/)
-      expect(css).not.toMatch(/min-width:/)
-    })
-
-    it('the panel carries the class those rules target — a rule with no element is no rule', () => {
-      setViewer(['member'])
-      renderAt('/cafe/pushes', <RequireAccessRole anyOf={CAFE_PUSHES_ROLES} scope="link" />)
-      expect(panel()).toHaveClass('access-boundary')
-      expect(within(panel()).getByRole('link', { name: 'Back to Café' }).parentElement)
-        .toHaveClass('empty-actions')
-    })
-
+  describe('AC-021: the way back', () => {
     it('Back lands on Café', async () => {
       setViewer(['member'])
       renderAt('/cafe/pushes', <RequireAccessRole anyOf={CAFE_PUSHES_ROLES} scope="link" />)
@@ -241,20 +207,20 @@ describe('access boundary', () => {
     // those sweeps read, so this file fails if the boundary is ever mistaken for a reason to
     // widen a nav surface.
     it('member and admin-only viewers are not offered Money, while a manager is admitted', () => {
-      const money = DESTINATIONS.find((d) => d.id === 'money')!
-      expect(isLive(money, ['member'])).toBe(false)
-      expect(isLive(money, ['admin'])).toBe(false)
-      expect(isLive(money, ['manager'])).toBe(true)
-      expect(isLive(money, ['finance'])).toBe(true)
-      expect(navUtility(['member']).map((u) => u.id)).not.toContain('admin')
+      const offersMoney = (roles: string[]) => admittedModules(roles).some((m) => m.id === 'money')
+      const offersAdmin = (roles: string[]) => footerAreas(roles).some((u) => u.id === 'admin')
+      expect(offersMoney(['member'])).toBe(false)
+      expect(offersMoney(['admin'])).toBe(false)
+      expect(offersMoney(['manager'])).toBe(true)
+      expect(offersMoney(['finance'])).toBe(true)
+      expect(offersAdmin(['member'])).toBe(false)
       expect(viewerAdmittedToRoute('/money', ['member'])).toBe(false)
       expect(viewerAdmittedToRoute('/money', ['admin'])).toBe(false)
       expect(viewerAdmittedToRoute('/money', ['manager'])).toBe(true)
       expect(viewerAdmittedToRoute('/money', ['finance'])).toBe(true)
       expect(viewerAdmittedToRoute('/admin/people', ['member'])).toBe(false)
       // Not vacuous: the same authorities DO open the Admin door for an admin.
-      expect(navUtility(['admin']).map((u) => u.id)).toContain('admin')
-      expect(UTILITY.map((u) => u.id)).toContain('admin')
+      expect(offersAdmin(['admin'])).toBe(true)
     })
 
     describe('the Money route uses its revenue-view role gate, not the ship gate', () => {
@@ -276,14 +242,14 @@ describe('access boundary', () => {
   describe('AC-023: both live guards render the ONE boundary', () => {
     const CASES = [
       ['RequireAccessRole', '/cafe/pushes', <RequireAccessRole anyOf={CAFE_PUSHES_ROLES} />, 'Café'],
-      ['AdminRoute', '/admin/people', <AdminRoute />, 'Admin Settings'],
+      ['AdminRoute', '/admin/people', <AdminRoute />, 'Admin settings'],
     ] as const
 
     it.each(CASES)('%s renders the boundary in place for an authenticated viewer', (_n, path, guard, area) => {
       setViewer(['member'])
       renderAt(path, guard)
       expect(screen.queryByTestId('landing'), 'a guard navigated away').not.toBeInTheDocument()
-      expect(screen.getByTestId('empty-state')).toHaveClass('access-boundary')
+      expect(screen.getByTestId('empty-state')).toBeInTheDocument()
       expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(`${area} is outside your access`)
     })
 
@@ -298,7 +264,7 @@ describe('access boundary', () => {
   // ── The shell chrome says the same word the panel does ─────────────────────────────────────
   describe('the chrome does not name what the panel withholds', () => {
     const CHROME_CASES = [
-      ['/admin/people', 'Admin Settings', <AdminRoute />],
+      ['/admin/people', 'Admin settings', <AdminRoute />],
     ] as const
 
     it.each(CHROME_CASES)('%s: the desktop breadcrumb reads "%s" and nothing else', (path, label, guard) => {

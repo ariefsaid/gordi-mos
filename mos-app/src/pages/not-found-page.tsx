@@ -10,32 +10,29 @@
 // title, where a short label is what a tab strip needs.
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { useSetBoundaryLabel } from '@/shell/breadcrumb-title'
+import './not-found-page.css'
 
 export function NotFoundPage() {
   const t = useT()
   const navigate = useNavigate()
   const { pathname } = useLocation()
   useDocumentTitle(t('common.docTitle', { page: t('doc.notFound') }))
+  // The top bar names this page too: an unknown path (or an unknown child of Work) has no destination of its own.
+  useSetBoundaryLabel(t('notFound.title'))
 
   return (
-    <PageFrame>
-      {/* DESIGN.md § Accessibility, "Heading levels (v4)": the page frame owns the page's only
-          <h1>, and on this surface that h1 IS the message. */}
-      <PageHead title={t('notFound.title')} subtitle={t('notFound.copy')} />
-      <p className="text-muted-foreground" style={{ marginBottom: 16 }}>
-        {pathname}
-      </p>
-      <div className="flex items-center gap-3 flex-wrap">
-        <button type="button" className="btn btn-primary" onClick={() => navigate(-1)}>
-          {t('notFound.back')}
-        </button>
-        <Link to="/" className="btn btn-outline">
-          {t('notFound.home')}
-        </Link>
+    <PageFamilyFrame family="workspace" title={t('notFound.title')}>
+      <div className="not-found-workbench">
+        <p className="not-found-copy">{t('notFound.copy')}</p>
+        <p className="not-found-path"><span>{t('notFound.requested')}</span><code>{pathname}</code></p>
+        <div className="not-found-actions">
+          <Link to="/" className="btn btn-primary">{t('notFound.home')}</Link>
+          <button type="button" className="btn btn-outline" onClick={() => navigate(-1)}>{t('notFound.back')}</button>
+        </div>
       </div>
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

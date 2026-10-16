@@ -25,12 +25,12 @@ function planQtyFor(streamPlans: Map<string, PlanMap>, log: ReviewLogRow): numbe
   ] ?? 0
 }
 
-export interface ReviewSummaryDelta {
+interface ReviewSummaryDelta {
   key: MessageKey
   tone: 'destructive' | 'success'
 }
 
-export interface ReviewSummaryMetric {
+interface ReviewSummaryMetric {
   key: string
   label: MessageKey
   value: string

@@ -21,6 +21,14 @@ vi.mock('@/lib/db/signals', async (importOriginal) => ({
   getSignalPostAuthority: vi.fn().mockResolvedValue({ can_post: false, can_tag: false }),
 }))
 
+// The nav badge reads the Café review queues for admitted roles; this suite is about route context, not those reads.
+vi.mock('@/lib/use-cafe-waiting', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/use-cafe-waiting')>()),
+  useCafeWaitingSource: () => ({
+    admitted: false, viewerId: null, keys: [], queues: {}, load: () => {}, reload: () => {},
+  }),
+}))
+
 const mockUseAuth = vi.mocked(useAuth)
 
 function setViewer(accessRoles: string[] = ['member']) {
@@ -84,9 +92,9 @@ describe('AC-002/004/005 (#1299): matched route context in the production shell'
     try {
       expect(matches.at(-1)?.route.handle).toEqual({ kind: 'infrastructure', reason: 'not-found' })
 
-      const context = await screen.findByRole('region', { name: 'Context' })
-      expect(context).toHaveTextContent('This page doesn’t exist — head back to a destination you know.')
-      expect(context).not.toHaveTextContent('Café')
+      // The not-found surface names the problem itself; the shell context carries no viewer scope.
+      expect(await screen.findByRole('heading', { name: 'That page isn’t here' })).toBeInTheDocument()
+      expect(screen.getByRole('region', { name: 'Context' })).not.toHaveTextContent('Café')
     } finally {
       router.dispose()
     }
@@ -110,22 +118,21 @@ describe('AC-002/004/005 (#1299): matched route context in the production shell'
   })
 
   it.each([
-    ['/unknown', 'en', 'This page doesn’t exist — head back to a destination you know.'],
-    ['/work/follow-ups', 'en', 'This page doesn’t exist — head back to a destination you know.'],
-    ['/work/follow-ups', 'id', 'Halaman ini tidak ada — kembali ke tujuan yang Anda kenal.'],
-    ['/work/tasks/task-1/extra', 'en', 'This page doesn’t exist — head back to a destination you know.'],
-    ['/inbox/unknown', 'id', 'Halaman ini tidak ada — kembali ke tujuan yang Anda kenal.'],
-    ['/admin/unknown', 'en', 'This page doesn’t exist — head back to a destination you know.'],
-    ['/profile/unknown', 'id', 'Halaman ini tidak ada — kembali ke tujuan yang Anda kenal.'],
+    ['/unknown', 'en', 'That page isn’t here'],
+    ['/work/follow-ups', 'en', 'That page isn’t here'],
+    ['/work/follow-ups', 'id', 'Halaman ini tidak ada'],
+    ['/work/tasks/task-1/extra', 'en', 'That page isn’t here'],
+    ['/inbox/unknown', 'id', 'Halaman ini tidak ada'],
+    ['/admin/unknown', 'en', 'That page isn’t here'],
+    ['/profile/unknown', 'id', 'Halaman ini tidak ada'],
   ] as const)(
     'AC-002/005: %s uses matched not-found context in %s',
     async (path, locale, expectedJob) => {
       const { router, matches } = renderMatchedRoute(path, locale)
       try {
         expect(matches.at(-1)?.route.handle).toEqual({ kind: 'infrastructure', reason: 'not-found' })
-        const context = await screen.findByRole('region', { name: 'Context' })
-        expect(context).toHaveTextContent(expectedJob)
-        expect(context).not.toHaveTextContent('Café')
+        expect(await screen.findByRole('heading', { name: expectedJob })).toBeInTheDocument()
+        expect(screen.getByRole('region', { name: 'Context' })).not.toHaveTextContent('Café')
       } finally {
         router.dispose()
       }

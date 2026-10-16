@@ -29,9 +29,9 @@ describe('ROLE_META', () => {
   })
 
   it('maps each role to its specified label + description', () => {
-    expect(ROLE_META.member).toEqual({ label: 'Member', description: 'Submits logs and updates' })
-    expect(ROLE_META.ops_lead).toEqual({ label: 'Ops Lead', description: 'Plans and approves' })
-    expect(ROLE_META.admin).toEqual({ label: 'Admin', description: 'Manages users and settings' })
+    expect(ROLE_META.member).toEqual({ label: 'Member', description: 'Logs their own work and files updates' })
+    expect(ROLE_META.ops_lead).toEqual({ label: 'Ops Lead', description: 'Plans and approves Café work' })
+    expect(ROLE_META.admin).toEqual({ label: 'Admin', description: "Adds people and changes anyone's access" })
     expect(ROLE_META.finance).toEqual({ label: 'Finance', description: 'Sees financial reports' })
   })
 

@@ -1,57 +1,25 @@
-/* ════════════════════════════════════════════════════════════════════════════
-   IconButton — square icon-only button (mos-design-kit inputs/IconButton.jsx).
-   Reuses the .btn base sheet, adds .mk-iconbtn (square). Same variant/accent
-   system as Button. Variant × accent matrix; default secondary/default.
-   ════════════════════════════════════════════════════════════════════════════ */
+/* IconButton: square at the control height; 20px icon centred. */
 .mk-iconbtn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px; padding: 0;
-  border-radius: var(--radius-sm); /* 8px control */
-  border: 0; cursor: pointer; background: transparent; color: var(--foreground);
-  transition: background-color var(--dur-fast) ease, transform var(--dur-fast) ease;
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: var(--mos-control-height); height: var(--mos-control-height); padding: 0;
+  border-radius: var(--radius-sm); border: 0; cursor: pointer;
+  background: transparent; color: var(--mos-ink);
+  transition: background-color var(--mos-duration-fast) ease;
 }
-.mk-iconbtn--small { width: 24px; height: 24px; }
-.mk-iconbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.mk-iconbtn:active:not(:disabled):not([aria-disabled="true"]) { transform: translateY(1px); }
-.mk-iconbtn:disabled,
-.mk-iconbtn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.mk-iconbtn > svg { flex: none; }
+.mk-iconbtn--small { width: var(--mos-icon-md); height: var(--mos-icon-md); }
+.mk-iconbtn:active:not(:disabled):not([aria-disabled='true']) { transform: translateY(1px); }
+.mk-iconbtn:disabled, .mk-iconbtn[aria-disabled='true'] { cursor: not-allowed; color: var(--mos-muted); }
 
-/* variant: secondary (default) — surface fill + border */
-.mk-iconbtn--secondary {
-  background: var(--background); border: 1px solid var(--control-border);
-}
-.mk-iconbtn--secondary:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--surface-tertiary); }
+.mk-iconbtn--secondary { background: var(--mos-surface); box-shadow: inset 0 0 0 1px var(--mos-control); }
+.mk-iconbtn--secondary:hover:not(:disabled):not([aria-disabled='true']) { background: var(--mos-hover); }
+.mk-iconbtn--tertiary { background: transparent; color: var(--mos-muted); }
+.mk-iconbtn--tertiary:hover:not(:disabled):not([aria-disabled='true']) { background: var(--mos-hover); color: var(--mos-ink); }
+.mk-iconbtn--primary { background: var(--mos-accent); color: var(--mos-primary-ink); }
+.mk-iconbtn--primary:hover:not(:disabled):not([aria-disabled='true']) { background: var(--mos-accent-hover); }
+.mk-iconbtn.mk-accent--danger { color: var(--mos-error-text); }
+.mk-iconbtn--primary.mk-accent--danger { background: var(--mos-danger-fill); color: var(--mos-primary-ink); }
 
-/* variant: tertiary — transparent; faint wash on hover */
-.mk-iconbtn--tertiary { background: transparent; border: 0; color: var(--muted-foreground); }
-.mk-iconbtn--tertiary:hover:not(:disabled):not([aria-disabled="true"]) {
-  background: var(--surface-tertiary);
-  color: var(--foreground);
-}
-
-/* variant: primary — the One Blue (use sparingly) */
-.mk-iconbtn--primary {
-  background: var(--primary); color: var(--primary-foreground);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent);
-}
-.mk-iconbtn--primary:hover:not(:disabled):not([aria-disabled="true"]) {
-  background: color-mix(in srgb, var(--primary) 90%, var(--brand-navy) 10%);
-}
-
-/* accent overrides (orthogonal to variant) — danger red */
-.mk-iconbtn.mk-accent--danger { color: var(--destructive); }
-.mk-iconbtn--primary.mk-accent--danger {
-  background: var(--destructive-action); color: var(--destructive-foreground);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--destructive-action) 25%, transparent);
-}
-.mk-iconbtn--primary.mk-accent--danger:hover:not(:disabled):not([aria-disabled="true"]) {
-  background: color-mix(in srgb, var(--destructive-action) 90%, var(--shadow-cast) 10%);
-}
-
-/* SYS-2 phone tap-target floor at the PRIMITIVE seam (same strategy as DO-15(a) for the field
-   primitives): every icon-only button — the Signal-composer close, record chrome, toolbar icons —
-   inherits the 44px touch minimum on phone. min-width/min-height raise the floor without changing
-   the 32px desktop icon rhythm. The --small variant is opt-out (dense inline affordances). */
 @media (max-width: 767.98px) {
-  .mk-iconbtn:not(.mk-iconbtn--small) { min-width: 44px; min-height: 44px; }
+  .mk-iconbtn:not(.mk-iconbtn--small) { min-width: 44px; min-height: var(--mos-control-height); }
 }

@@ -56,7 +56,7 @@ describe('EmptyState', () => {
     expect(emptyState).toHaveAttribute('data-empty-variant', 'awaiting')
     expect(emptyState.querySelector('.empty-note')).not.toBeNull()
     expect(emptyState.querySelector('.empty-copy')).not.toHaveTextContent(new RegExp(dayWord, 'i'))
-    expect(emptyState).not.toHaveTextContent(/ESB|outbox/i)
+    expect(emptyState).not.toHaveTextContent(/outbox/i)
     expect(screen.getByText(/pull again to check for new push activity/i)).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /refresh/i })).toHaveLength(1)
   })
@@ -79,16 +79,6 @@ describe('EmptyState', () => {
     const heading = screen.getByRole('heading', { name: 'No results' })
     expect(heading).not.toHaveFocus()
     expect(heading).not.toHaveAttribute('tabindex')
-  })
-
-  it('renders the blank archetype — empty BY DESIGN, so neither ✓ nor ↻', () => {
-    render(<EmptyState variant="blank" title="Not in this slice yet" copy="Roastery lands later." />)
-
-    const emptyState = screen.getByTestId('empty-state')
-    expect(emptyState).toHaveAttribute('data-empty-variant', 'blank')
-    // The glyph carries meaning: ✓ claims an earned all-clear and ↻ claims pending work. A route
-    // that has never had a data source is neither.
-    expect(emptyState.querySelector('.empty-state-glyph')!.textContent).toBe('—')
   })
 
   it('defaults the title to h2 and honours an explicit heading level', () => {

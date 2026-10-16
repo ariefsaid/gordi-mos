@@ -1,429 +1,134 @@
-// AdminUsersPage — admin-only people list + actions, and the person panel.
-// Route: /admin/people (behind AdminRoute, AC-070). Renamed from /admin/users (glossary: Person).
-// Design-plan §1, §2, §4. Covers AC-060, FR-010/011/020/021/022/030/040/050/060.
-// Never fetches before AdminRoute resolves (AC-070).
+// AdminUsersPage — the admin-only People list: /admin/people (behind AdminRoute; never fetches first).
 //
-// A row opens the person panel (PersonPanel). On a wide desktop the panel sits beside the list in
-// the shared record split; narrower, the panel host covers the page.
-//
-// Rework items addressed:
-//   item 2: reset/disable/archive gated behind ConfirmDialog (design-plan §4.7)
-//   item 6: success toasts after every action (Toast + useToast)
-//   item 7: alertdialog reveal has aria-describedby on the alertdialog element itself
-//   item 9: route renamed /admin/users → /admin/people
-
-import { useState, useEffect, useCallback, useId, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+// A row, Enter on a name, or the row menu's "Manage person" opens that person's own page,
+// /admin/people/:personId, carrying the list's filters so its Back link returns here unchanged.
+// The row menu's account actions (reset, login, archive/restore) run here through the same
+// confirms and show-once password as on the person page. Add person is a workspace in the URL (?add=1).
+import { useCallback, useEffect } from 'react'
+import './admin-people-page.css'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { Button } from '@/components/ui/button'
+import { Notice } from '@/components/ui/notice'
+import { isShipGated } from '@/lib/ship-gate'
+import { moduleFacts } from '@/lib/module-switches-preview'
 import { ErrorState } from '@/components/ui/state-kit'
-import { UserTable } from '@/components/admin/user-table'
-import { filterPeople } from '@/components/admin/people-filter'
-import type { PersonAction } from '@/components/admin/user-table'
+import { OfflineNotice } from '@/components/ui/offline-notice'
+import { UserTable, type PersonAction } from '@/components/admin/user-table'
 import { usePeopleListPresentsCards } from '@/components/admin/use-people-list-presents-cards'
 import { CreatePersonDialog } from '@/components/admin/create-person-dialog'
-import { PasswordReveal } from '@/components/admin/password-reveal'
-import { PersonPanel, type PersonAuthoritySource } from '@/components/admin/person-panel'
-import { useIsWideOverlayWidth } from '@/shell/use-is-wide-overlay-width'
-import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { ModalShell } from '@/components/ui/modal-shell'
-import { Toast } from '@/components/admin/toast'
-import { useToast } from '@/components/admin/use-toast'
 import { AdminSettingsNav } from '@/components/admin/admin-settings-nav'
-import {
-  listAdminPeople,
-  listRoles,
-  listTeams,
-  listRevenueScopeOptions,
-  setLoginEnabled,
-  resetPassword,
-  archivePerson,
-  restorePerson,
-  createLogin,
-} from '@/lib/db/admin-users'
-import { listRoleAuthority, listTeamLeadAssignments } from '@/lib/db/admin-access'
-import { getBusinessUnits, getRoles } from '@/lib/db/directory'
-import { normalizeAuthorityRows, type RoleAuthorityRow, type TeamLeadAssignment } from '@/lib/db/admin-access.types'
-import type { AdminPersonRow, RoleOption, RevenueScopeOption, TeamOption } from '@/lib/db/admin-users.types'
-
-type LoadState = 'loading' | 'loaded' | 'error'
-
-// Start a load inside a promise, resolving the loader lazily: one that throws before returning (or
-// is missing) must not leave the loads already started with nobody subscribed to their rejection.
-const start = <T,>(load: () => Promise<T>) => Promise.resolve().then(load)
-
-type RevealContext = {
-  password: string
-  personName: string
-  email: string | null
-  context: 'create' | 'reset'
-}
-
-// Confirm state: which person + which action is pending confirmation
-type PendingConfirm =
-  | { type: 'reset-password'; person: AdminPersonRow }
-  | { type: 'disable-login'; person: AdminPersonRow }
-  | { type: 'archive'; person: AdminPersonRow }
+import { useAdminPeople } from '@/components/admin/use-admin-people'
+import { useAccountActions } from '@/components/admin/account-actions'
+import type { AdminPersonRow } from '@/lib/db/admin-users.types'
+import { LIST_PARAMS } from '@/components/admin/people-filter'
 
 export function AdminUsersPage() {
   const auth = useAuth()
   const t = useT()
+  const navigate = useNavigate()
   useDocumentTitle(t('common.docTitle', { page: t('admin.people.title') }))
   const viewerPersonId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
-  // DO-22(b): same presentation decision the UserTable itself makes — chrome and list
-  // presentation can never disagree.
   const presentsCards = usePeopleListPresentsCards()
-  const isSplit = useIsWideOverlayWidth()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const addOpen = searchParams.get('add') === '1'
+  const setAddOpen = useCallback((open: boolean) => setSearchParams((prev) => {
+    const next = new URLSearchParams(prev)
+    if (open) next.set('add', '1'); else next.delete('add')
+    return next
+  }), [setSearchParams])
 
-  const [loadState, setLoadState] = useState<LoadState>('loading')
-  const [people, setPeople] = useState<AdminPersonRow[]>([])
-  const [roles, setRoles] = useState<RoleOption[]>([])
-  const [scopeOptions, setScopeOptions] = useState<RevenueScopeOption[]>([])
-  const [teams, setTeams] = useState<TeamOption[]>([])
-  const [addOpen, setAddOpen] = useState(false)
-  const [reveal, setReveal] = useState<RevealContext | null>(null)
-  // Hold only the id; derive the live row from `people` so a post-write refresh reaches the open
-  // panel (else its checkboxes render a stale snapshot — CQ Issue 1).
-  const [openPersonId, setOpenPersonId] = useState<string | null>(null)
-  // What the panel's summary explains: the role authority table and who leads which Team. Loaded
-  // beside the list, never in front of it — a failure here costs the summary, not the roster.
-  const [authorityState, setAuthorityState] = useState<PersonAuthoritySource['state']>('loading')
-  const [authorityRows, setAuthorityRows] = useState<RoleAuthorityRow[]>([])
-  const [teamLeads, setTeamLeads] = useState<TeamLeadAssignment[]>([])
-  const [roleTree, setRoleTree] = useState<PersonAuthoritySource['roleTree']>([])
-  const [businessUnits, setBusinessUnits] = useState<PersonAuthoritySource['businessUnits']>([])
-  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null)
-  const [actionError, setActionError] = useState('')
+  // Preview: "People with personal overrides" on the Modules page leads here (?overrides=<module>). Who holds a
+  // personal Allow/Block is not connected yet, so the list cannot be narrowed; it says so instead of faking a result.
+  const overridesParam = searchParams.get('overrides')
+  const overridesModule = isShipGated('/admin/modules') ? undefined : moduleFacts().find((fact) => fact.id === overridesParam)
 
-  const { toast, showToast, clearToast } = useToast()
+  const data = useAdminPeople()
+  const actions = useAccountActions(data.refresh)
 
-  // GAP-7: ONE success channel per locus. An IN-PLACE edit (enable/disable login, which updates
-  // the person's row where the user is already looking) confirms with an inline "Saved" at the row
-  // locus (the record grammar), never a floating toast. The toast is reserved for changes that land
-  // ELSEWHERE (archive/restore move the row out of the current segment view).
-  const [justSavedId, setJustSavedId] = useState<string | null>(null)
-  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const flashSaved = useCallback((personId: string) => {
-    setJustSavedId(personId)
-    if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
-    savedTimerRef.current = setTimeout(() => setJustSavedId(null), 1600)
-  }, [])
-  useEffect(() => () => { if (savedTimerRef.current) clearTimeout(savedTimerRef.current) }, [])
-
-  // IDs for alertdialog aria-labelledby/describedby (item 7)
-  const revealHeadingId = useId()
-  const revealWarningId = useId()
-
-  const load = useCallback(async () => {
-    setLoadState('loading')
-    try {
-      const rows = await listAdminPeople()
-      setPeople(rows)
-      setRoles(await listRoles())
-      setScopeOptions(await listRevenueScopeOptions())
-      setTeams(await listTeams())
-      setLoadState('loaded')
-    } catch {
-      setLoadState('error')
+  const openPerson = useCallback((id: string, replace = false) => {
+    const query = new URLSearchParams()
+    for (const key of LIST_PARAMS) {
+      const value = searchParams.get(key)
+      if (value) query.set(key, value)
     }
-  }, [])
+    navigate(`/admin/people/${id}${query.size ? `?${query}` : ''}`, { replace })
+  }, [navigate, searchParams])
 
-  // A post-write reload keeps the list on screen: no skeleton flash behind an open panel.
-  const refresh = useCallback(async () => {
-    try {
-      setPeople(await listAdminPeople())
-    } catch {
-      // The list keeps its last good rows; the row that triggered this reports its own write.
-    }
-  }, [])
+  // Links from before the person page (?person=<id>) land on it.
+  const legacyPerson = searchParams.get('person')
+  useEffect(() => { if (legacyPerson) openPerson(legacyPerson, true) }, [legacyPerson, openPerson])
 
-  const loadAuthority = useCallback(async () => {
-    setAuthorityState('loading')
-    try {
-      const [rows, leads, tree, units] = await Promise.all([
-        start(() => listRoleAuthority()), start(() => listTeamLeadAssignments()), start(() => getRoles()), start(() => getBusinessUnits()),
-      ])
-      setAuthorityRows(normalizeAuthorityRows(rows))
-      setTeamLeads(leads)
-      setRoleTree(tree)
-      setBusinessUnits(units)
-      setAuthorityState('loaded')
-    } catch {
-      setAuthorityState('error')
-    }
-  }, [])
-
-  useEffect(() => {
-    void load()
-    void loadAuthority()
-  }, [load, loadAuthority])
-
-  // Collect taken emails for create-dialog uniqueness
-  const takenEmails = new Set(people.map((p) => p.email).filter(Boolean) as string[])
-
-  // Live panel row (re-derived each render from fresh `people`); closes if the person is gone.
-  const openPerson = openPersonId ? people.find((p) => p.id === openPersonId) ?? null : null
-  const { rows: shownPeople, filtered } = filterPeople(people, searchParams.get('status') ?? 'all', searchParams.get('q') ?? '')
-
-  // Actions that need NO confirm: enable-login, restore, create-login, manage-person
-  // Actions that DO need confirm: reset-password, disable-login, archive
-  async function handleAction(action: PersonAction, person: AdminPersonRow) {
-    setActionError('')
-    try {
-      switch (action) {
-        case 'reset-password':
-          // Gate behind confirm (item 2)
-          setPendingConfirm({ type: 'reset-password', person })
-          break
-
-        case 'disable-login':
-          // Gate behind confirm (item 2)
-          setPendingConfirm({ type: 'disable-login', person })
-          break
-
-        case 'archive':
-          // Gate behind confirm (item 2)
-          setPendingConfirm({ type: 'archive', person })
-          break
-
-        case 'enable-login':
-          // No confirm — low-stakes reversible action. GAP-7: in-place edit → inline Saved at the row.
-          await setLoginEnabled(person.id, true)
-          await load()
-          flashSaved(person.id)
-          break
-
-        case 'create-login': {
-          const pw = await createLogin(person.id)
-          setReveal({ password: pw, personName: person.full_name, email: person.email, context: 'create' })
-          await load()
-          break
-        }
-
-        case 'restore':
-          // No confirm — low-stakes reversible action
-          await restorePerson(person.id)
-          await load()
-          showToast(t('admin.people.toast.restored', { name: person.full_name }))
-          break
-
-        case 'manage-person':
-          // Opens the person panel; its rows own every write.
-          setOpenPersonId(person.id)
-          break
-      }
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : t('admin.people.actionFailed'))
-    }
+  function handleAction(action: PersonAction, person: AdminPersonRow) {
+    if (action === 'manage-person') openPerson(person.id)
+    else void actions.run(action, person)
   }
 
-  // ── Confirm dialog handlers ──────────────────────────────────────────────
-  async function handleConfirmResetPassword(person: AdminPersonRow) {
-    const pw = await resetPassword(person.id)
-    setReveal({ password: pw, personName: person.full_name, email: person.email, context: 'reset' })
-    setPendingConfirm(null)
-    // No toast here — the reveal panel itself is the feedback
-    await load()
-  }
-
-  async function handleConfirmDisable(person: AdminPersonRow) {
-    // GAP-7: disabling login is an in-place edit (the row's login pill flips) → inline Saved at the row.
-    await setLoginEnabled(person.id, false)
-    setPendingConfirm(null)
-    await load()
-    flashSaved(person.id)
-  }
-
-  async function handleConfirmArchive(person: AdminPersonRow) {
-    await archivePerson(person.id)
-    setPendingConfirm(null)
-    await load()
-    showToast(t('admin.people.toast.archived', { name: person.full_name }))
-  }
-
-  function handleRevealDone() {
-    setReveal(null)
-  }
-
-  function handlePersonCreated() {
-    void load()
-  }
-
-  // Shell state seam (V3 Management family): the People load state maps to the
-  // shared PageFamilyState. The UserTable body keeps its own empty/segment states.
-  const frameState = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error' : 'default'
+  const takenEmails = new Set(data.people.map((p) => p.email).filter(Boolean) as string[])
+  const frameState = data.state === 'loading' ? 'loading' : data.state === 'error' ? 'error' : 'default'
+  useSetBreadcrumbTitle(addOpen ? t('admin.create.title') : '')
 
   return (
-    // Census R2 DO-7 sibling sweep (GUARD-R2 class): People has no in-body result-header, so its
-    // count moves into the head as ONE labeled meta sentence ("9 people" — the Tasks grammar),
-    // never the bare ".ch-count" digit pill; "—" while counts are unknown.
     <PageFamilyFrame
       family="management"
-      title={t('admin.people.title')}
-      jobSentence={t('admin.people.job')}
-      meta={
-        <span data-testid="people-count-line" className="ch-meta-line tabular-nums">
-          {loadState !== 'loaded'
-            ? '—'
-            : filtered
-              ? t('admin.people.count.filtered', { shown: shownPeople.length, count: people.length })
-              : t(people.length === 1 ? 'admin.people.count.one' : 'admin.people.count.other', { count: people.length })}
-        </span>
-      }
-      action={<Button variant="primary" onClick={() => setAddOpen(true)}>{t('admin.people.addPerson')}</Button>}
+      title={addOpen ? t('admin.create.title') : t('admin.people.title')}
+      jobSentence={addOpen ? undefined : t('admin.people.job')}
+      back={addOpen ? { onClick: () => setAddOpen(false), label: t('record.backToCollection', { collection: t('admin.people.title') }) } : undefined}
+      action={addOpen ? undefined : <Button variant="primary" onClick={() => setAddOpen(true)}>{t('admin.people.addPerson')}</Button>}
       state={frameState}
     >
-      <AdminSettingsNav />
+      {/* The section switcher is for browsing; a form has the back link above its title. */}
+      <div hidden={addOpen}><AdminSettingsNav /></div>
+      <OfflineNotice />
+      {overridesModule && !addOpen && (
+        <Notice tone="info" role="none" action={<Link to="/admin/modules">{t('record.backToCollection', { collection: t('admin.modules.title') })}</Link>}>
+          {t('admin.people.overridesNotice', { module: t(overridesModule.labelKey) })}
+        </Notice>
+      )}
 
-      {/* Action error (inline, non-fatal) */}
-      {actionError && (
-        <div className="pb-2">
-          <ErrorState
-            message={actionError}
-            onRetry={() => setActionError('')}
-            retryLabel={t('admin.people.dismiss')}
-          />
+      {actions.error && (
+        <div className="admin-people-error">
+          <ErrorState message={actions.error} onRetry={actions.clearError} retryLabel={t('admin.people.dismiss')} />
         </div>
       )}
 
-      {/* DO-22(b) (census admin-people P2-B): when the list presents as CARDS (phone /
-          coarse pointer) the person cards carry their own card chrome — the outer
-          container drops its border/shadow/bg so cards never nest inside a card. The
-          container card exists for the table presentation only. */}
-      {/* #957: `admin-people-collection` is a stable marker (always rendered, panel open or not —
-          same reasoning as the Work collections' `.work-collection`: capping width only while a
-          panel is open is a dead-gutter defect too, just a briefer one) that opts this list+panel
-          surface into DESIGN.md's wide operating measure. `record-split`/`admin-people-split`
-          still only apply while the panel is actually open beside the list. */}
-      <div className={`admin-people-collection${openPerson && isSplit ? ' record-split admin-people-split' : ''}`}>
+      {!addOpen && (
         <div
           data-testid="people-list-container"
-          className="mb-6 rounded-lg overflow-hidden"
-          style={presentsCards ? undefined : {
-            border: '1px solid var(--border)',
-            boxShadow: 'var(--shadow-rest)',
-            background: 'var(--card)',
-          }}
+          className={`admin-people-list-shell${presentsCards ? ' admin-people-list-shell--phone' : ''}`}
         >
-          {loadState === 'error' && (
-            <div className="py-12 px-4">
-              <ErrorState
-                message={t('admin.people.loadError')}
-                onRetry={load}
-              />
+          {data.state === 'error' ? (
+            <div className="admin-people-load-error">
+              <ErrorState message={t('admin.people.loadError')} onRetry={data.load} />
             </div>
-          )}
-
-          {loadState !== 'error' && (
+          ) : (
             <UserTable
-              people={people}
+              people={data.people}
               viewerPersonId={viewerPersonId}
               onAction={handleAction}
               onAddPerson={() => setAddOpen(true)}
-              teams={teams}
-              loading={loadState === 'loading'}
-              justSavedId={justSavedId}
-              selectedId={openPerson?.id ?? null}
+              teams={data.teams}
+              loading={data.state === 'loading'}
+              justSavedId={actions.justSavedId}
             />
           )}
         </div>
+      )}
 
-        {openPerson && (
-          <PersonPanel
-            key={openPerson.id}
-            person={openPerson}
-            people={people}
-            roles={roles}
-            teams={teams}
-            scopeOptions={scopeOptions}
-            authority={{ state: authorityState, rows: authorityRows, leads: teamLeads, roleTree, businessUnits, retry: () => void loadAuthority() }}
-            refresh={refresh}
-            onClose={() => setOpenPersonId(null)}
-          />
-        )}
-      </div>
-
-      {/* Create person dialog */}
       <CreatePersonDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onCreated={handlePersonCreated}
+        onCreated={() => void data.refresh()}
         takenEmails={takenEmails}
-        onShowToast={showToast}
+        onShowToast={actions.showToast}
+        presentation="workspace"
       />
 
-      {/* Confirm dialogs (item 2) — reset password, disable login, archive */}
-      {pendingConfirm?.type === 'reset-password' && (
-        <ConfirmDialog
-          open
-          title={t('admin.people.confirm.reset.title', { name: pendingConfirm.person.full_name })}
-          body={t('admin.people.confirm.reset.body')}
-          confirmLabel={t('admin.people.confirm.reset.confirm')}
-          tone="primary"
-          onConfirm={() => handleConfirmResetPassword(pendingConfirm.person)}
-          onCancel={() => setPendingConfirm(null)}
-        />
-      )}
-
-      {pendingConfirm?.type === 'disable-login' && (
-        <ConfirmDialog
-          open
-          title={t('admin.people.confirm.disable.title', { name: pendingConfirm.person.full_name })}
-          body={t('admin.people.confirm.disable.body')}
-          confirmLabel={t('admin.people.confirm.disable.confirm')}
-          tone="primary"
-          onConfirm={() => handleConfirmDisable(pendingConfirm.person)}
-          onCancel={() => setPendingConfirm(null)}
-        />
-      )}
-
-      {pendingConfirm?.type === 'archive' && (
-        <ConfirmDialog
-          open
-          title={t('admin.people.confirm.archive.title', { name: pendingConfirm.person.full_name })}
-          body={t('admin.people.confirm.archive.body')}
-          confirmLabel={t('admin.people.confirm.archive.confirm')}
-          tone="destructive"
-          onConfirm={() => handleConfirmArchive(pendingConfirm.person)}
-          onCancel={() => setPendingConfirm(null)}
-        />
-      )}
-
-      {/* Password reveal — for reset-password + create-login actions.
-          The alertdialog element owns aria-labelledby/describedby (item 7 fix):
-          previously these were only on the inner wrapper div, not the alertdialog element.
-          Neither Esc nor the backdrop dismisses it — the password is shown exactly once,
-          so Done is the only exit (design-plan §4.4). */}
-      {reveal && (
-        <ModalShell
-          open
-          onClose={handleRevealDone}
-          role="alertdialog"
-          ariaLabelledBy={revealHeadingId}
-          ariaDescribedBy={revealWarningId}
-          closeOnBackdrop={false}
-          closeOnEscape={false}
-        >
-          <div className="p-6">
-            <PasswordReveal
-              personName={reveal.personName}
-              password={reveal.password}
-              email={reveal.email}
-              context={reveal.context}
-              onDone={handleRevealDone}
-              headingId={revealHeadingId}
-              warningId={revealWarningId}
-            />
-          </div>
-        </ModalShell>
-      )}
-
-      {/* Success toast (item 6) */}
-      <Toast toast={toast} onDismiss={clearToast} />
+      {actions.dialogs}
     </PageFamilyFrame>
   )
 }

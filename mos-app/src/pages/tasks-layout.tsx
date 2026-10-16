@@ -216,14 +216,13 @@ function TaskRecordPage({ taskId, liveQueryRef }: { taskId: string; liveQueryRef
         trailing={isSplit ? (
           <button
             type="button"
-            className="record-page-collapse"
-            aria-label={t('tasks.backToSplit')}
-            title={t('tasks.backToSplit')}
+            className="record-panel-btn record-panel-btn--labelled"
             onClick={collapseToSplit}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
             </svg>
+            <span className="record-panel-btn__label">{t('tasks.backToSplit')}</span>
           </button>
         ) : null}
       />

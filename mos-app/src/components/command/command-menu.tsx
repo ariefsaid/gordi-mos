@@ -11,10 +11,11 @@ import { useAuth } from '@/auth/use-auth'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canCreateForScope, useWorkWriteAuthority } from '@/components/catalog/use-work-write-authority'
 import { isShipGated } from '@/lib/ship-gate'
-import { goToDestinations } from '@/shell/destinations'
+import { goToEntries } from '@/shell/module-registry'
+import { messages } from '@/i18n/messages'
 import { CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
 import {
-  SignalsIcon, TasksIcon, MoneyIcon, CafeIcon, ProfileIcon, ObjectiveIcon, WorkLineIcon,
+  SignalsIcon, TasksIcon, MoneyIcon, CafeIcon, ProfileIcon, ObjectiveIcon, WorkLineIcon, CloseIcon,
 } from '@/shell/icons'
 import { DeputyIcon } from '@/shell/top-bar'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
@@ -189,27 +190,23 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     [actionItems, cafeCaptureAdmitted, pageCreateId, t],
   )
 
-  // Go to is the catalog, read through the same two questions the rail asks (`goToDestinations`):
-  // every destination the viewer can open, each directly followed by the children the rail draws
-  // under it, so a run of children always reaches back to its parent (issue 479). Per-row
-  // VISIBILITY comes from the catalog; the query filter drops non-matching rows without
-  // reordering, and `withResolvedRungs` clears a rung whose parent row was filtered away.
+  // Go to is the module registry (`goToEntries`): every root, page and Review queue the viewer can open, each page
+  // directly after its root so a run of pages always reaches back to it (issue 479). Pages and queues carry the
+  // trail that names where they live ("Café › Stock"), and match on both languages' names as well as the trail, so
+  // a Receive search finds Penerimaan and the reverse. VISIBILITY comes from the registry; the query filter drops
+  // non-matching rows without reordering, and `withResolvedRungs` clears a rung whose root row was filtered away.
   const navigateItems = useMemo<CommandItem[]>(
-    () => goToDestinations(accessRoles).flatMap(({ destination, path, children }) => {
-      const parentId = `n-${destination.id}`
-      return [
-        { id: parentId, label: t(destination.labelKey), Icon: destination.Icon, kind: 'navigate' as const, to: path },
-        ...children.map<CommandItem>((c) => ({
-          id: `n-child${c.path.replace(/\//g, '-')}`,
-          label: c.labelKey ? t(c.labelKey) : c.label,
-          Icon: c.Icon,
-          kind: 'navigate',
-          to: c.path,
-          child: true,
-          parentId,
-        })),
-      ]
-    }),
+    () => goToEntries(accessRoles).map<CommandItem>((entry) => ({
+      id: entry.id,
+      label: t(entry.labelKey),
+      Icon: entry.Icon,
+      kind: 'navigate',
+      to: entry.path,
+      meta: entry.trail.length ? entry.trail.map((key) => t(key)).join(' › ') : undefined,
+      keywords: [entry.labelKey, ...entry.trail].flatMap((key) => [messages.en[key as keyof typeof messages.en], messages.id[key as keyof typeof messages.id]]).filter(Boolean).join(' '),
+      child: entry.parentId !== undefined,
+      parentId: entry.parentId,
+    })),
     [accessRoles, t],
   )
 
@@ -294,9 +291,9 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
         to: `/work/tasks/${r.id}`, record: { id: r.id, title: r.title },
       }))
       if (recent.length) out.push({ key: 'recent', label: t('commandMenu.group.recent'), items: recent })
-      // e7's palette leads with destinations (GO TO) before actions (ACT).
-      out.push({ key: 'navigate', label: t('commandMenu.group.goTo'), items: navigateItems })
+      // Likely next steps first: recent work, then actions, then the long destination directory.
       out.push({ key: 'actions', label: t('commandMenu.group.act'), items: actionItems })
+      out.push({ key: 'navigate', label: t('commandMenu.group.goTo'), items: navigateItems })
       return out
     }
     const actions = launcherActions.filter((i) => matches(i.label, trimmed))
@@ -359,7 +356,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     // AC-032: typed searches stay results-only below 920px; at desktop width, matching
     // destinations and actions join the record results.
     if (isNarrow) return out
-    const nav = navigateItems.filter((i) => matches(i.label, trimmed))
+    const nav = navigateItems.filter((i) => matches(`${i.label} ${i.meta ?? ''} ${i.keywords ?? ''}`, trimmed))
     if (nav.length) out.push({ key: 'navigate', label: t('commandMenu.group.goTo'), items: nav })
     if (actions.length) out.push({ key: 'actions', label: t('commandMenu.group.act'), items: actions })
     return out
@@ -448,7 +445,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     >
       <div className="cm-panel">
         <div className="cm-input">
-          <span className="cm-input-icon" aria-hidden="true">⌕</span>
+          <span className="cm-input-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg></span>
           <input
             type="text"
             role="combobox"
@@ -463,10 +460,13 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
             onKeyDown={onInputKeyDown}
           />
           {/* #41 (G5): the esc key chip hides on a coarse pointer (no keyboard to press it). */}
-          {!isCoarse && <kbd className="cm-foot-key">esc</kbd>}
+          {isNarrow
+            ? <button type="button" className="mk-iconbtn mk-iconbtn--tertiary" aria-label={t('record.close')} onClick={onClose}><CloseIcon /></button>
+            : !isCoarse && <kbd className="cm-foot-key">esc</kbd>}
         </div>
 
-        <div className="cm-body">
+        {/* Scrolls once the list outgrows the panel; a scroll region must be reachable by keyboard (axe scrollable-region-focusable). */}
+        <div className="cm-body" tabIndex={0}>
           {!visibleGroups.length && !isSearching && (
             <div className="cm-empty" role="status">{t('commandMenu.empty.prompt')}</div>
           )}
@@ -547,7 +547,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
         </div>
 
         {/* #41 (G5): the whole keyboard-hint footer hides on a coarse pointer — un-pressable keys. */}
-        {!isCoarse && (
+        {!isCoarse && !isNarrow && (
           <div className="cm-foot" aria-hidden="true">
             <span><span className="cm-foot-key">↑↓</span> {t('commandMenu.footer.navigate')}</span>
             <span><span className="cm-foot-key">↵</span> {t('commandMenu.footer.open')}</span>

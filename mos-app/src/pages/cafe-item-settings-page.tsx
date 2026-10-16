@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { ActionBar } from '@/components/ui/action-bar'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParamState } from '@/lib/use-search-param-state'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
@@ -11,7 +14,6 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
-import { RecordAbout } from '@/components/record/record-page-layout'
 import { Select } from '@/components/ui/select'
 import { MultiPicker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
@@ -46,8 +48,10 @@ import {
 import { useCafeStream, type CafeStreamCatalog } from '@/lib/use-cafe-stream'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { useIsWide } from '@/shell/use-is-wide'
+import { Notice } from '@/components/ui/notice'
 import '@/components/record-collection/record-collection.css'
 import './cafe-item-settings-page.css'
+import '@/components/kitchen/cafe-setup-workspace.css'
 
 type ItemDraft = {
   mosName: string
@@ -165,12 +169,24 @@ function CafeItemSettingsPageForViewer() {
   // remembered stream stay as they were.
   const [searchParams, setSearchParams] = useSearchParams()
   const linked = useRef({ q: searchParams.get('q'), stream: searchParams.get('stream') })
-  const [search, setSearch] = useState(linked.current.q ?? '')
-  const [kindFilter, setKindFilter] = useState<KitchenItemKindFilter>('All')
-  const [activeFilter, setActiveFilter] = useState<KitchenItemActiveFilter>('All')
-  const [needsUnitFilter, setNeedsUnitFilter] = useState<KitchenItemNeedsUnitFilter>('All')
+  // Search, filters and the open item live in the URL, so a reload or Back keeps the same view (UX-STANDARD NV4).
+  const [search, setSearch] = useSearchParamState('q', '')
+  const [kindParam, setKindParam] = useSearchParamState('kind', 'All')
+  const [activeParam, setActiveParam] = useSearchParamState('status', 'All')
+  const [unitParam, setUnitParam] = useSearchParamState('unit', 'All')
+  const kindFilter = kindParam as KitchenItemKindFilter
+  const activeFilter = activeParam as KitchenItemActiveFilter
+  const needsUnitFilter = unitParam as KitchenItemNeedsUnitFilter
+  const setKindFilter = (next: KitchenItemKindFilter) => setKindParam(next)
+  const setActiveFilter = (next: KitchenItemActiveFilter) => setActiveParam(next)
+  const setNeedsUnitFilter = (next: KitchenItemNeedsUnitFilter) => setUnitParam(next)
   const [groupByActive, setGroupByActive] = useState(readGroupByActive)
-  const [listSort, setListSort] = useState<DataTableSort>()
+  const [listSort, setListSort] = useState<DataTableSort | undefined>({ key: 'itemName', dir: 'asc' })
+  // Inactive items start folded under their header; any search or filter opens them so results are never hidden.
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(() => new Set(['inactive']))
+  const [selectedParam, setSelectedParam] = useSearchParamState('item', '')
+  const selectedItemId = selectedParam || null
+  const setSelectedItemId = useCallback((next: string | null) => setSelectedParam(next ?? ''), [setSelectedParam])
   // The editor table needs the wide operating layout, as on the other Café pages; narrower widths
   // get one card per item.
   const isWide = useIsWide()
@@ -182,12 +198,16 @@ function CafeItemSettingsPageForViewer() {
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({})
   const [savingIds, setSavingIds] = useState<Set<string>>(() => new Set())
   const [reports, setReports] = useState<CafeMissingItemReport[]>([])
+  const reportCount = reports.length
   const [reportsError, setReportsError] = useState(false)
   const [resolvingReportIds, setResolvingReportIds] = useState<Set<string>>(() => new Set())
   const [retryKey, setRetryKey] = useState(0)
   const requestGeneration = useRef(0)
 
   useEffect(() => { itemsRef.current = items }, [items])
+  useEffect(() => {
+    if (search.trim() || kindFilter !== 'All' || activeFilter !== 'All' || needsUnitFilter !== 'All') setCollapsedGroups(new Set())
+  }, [activeFilter, kindFilter, needsUnitFilter, search])
   useEffect(() => { draftsRef.current = drafts }, [drafts])
   useEffect(() => {
     try {
@@ -216,9 +236,8 @@ function CafeItemSettingsPageForViewer() {
   }, [adoptStream, resolveStream, retryKey])
 
   useEffect(() => {
-    if (!searchParams.has('q') && !searchParams.has('stream')) return
+    if (!searchParams.has('stream')) return
     const next = new URLSearchParams(searchParams)
-    next.delete('q')
     next.delete('stream')
     setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams])
@@ -475,62 +494,30 @@ function CafeItemSettingsPageForViewer() {
     onDraftChange: update => setDraft(item.id, update),
     onSave: () => void saveItem(item),
   })
+  // One category for the whole stream is stated by the stream itself; the row names it only when categories differ.
+  const mixedCategories = new Set(items.map(item => item.category).filter(Boolean)).size > 1
+  const editProgress = (item: CafeItemListRow) => changed.has(item.id) ? t('cafe.items.unsaved') : savingIds.has(item.id) ? t('cafe.items.saving') : saveStates[item.id]?.kind === 'saved' ? t('cafe.items.saved') : undefined
   const columns: DataTableColumn<CafeItemListRow>[] = [
-    {
-      key: 'itemName',
-      header: t('cafe.items.erpName'),
-      sortable: true,
-      render: item => <ItemIdentity item={item} />,
-    },
-    {
-      key: 'mosName',
-      header: t('cafe.items.mosName'),
-      render: item => <ItemNameEditor {...editorFor(item)} view="table" />,
-    },
-    {
-      key: 'kind',
-      header: t('cafe.items.kind'),
-      sortable: true,
-      render: item => <ItemKindEditor {...editorFor(item)} />,
-    },
-    {
-      key: 'isActive',
-      header: t('cafe.items.activeQuestion'),
-      render: item => <ItemActiveEditor {...editorFor(item)} />,
-    },
-    {
-      key: 'defaultUnit',
-      header: t('cafe.items.defaultUnit'),
-      render: item => <ItemDefaultUnitEditor {...editorFor(item)} />,
-    },
-    ...(canEdit ? [{
-      key: 'actions',
-      header: t('cafe.items.actions'),
-      render: (item: CafeItemListRow) => {
-        const editor = editorFor(item)
-        return (
-          <SaveControl
-            item={item}
-            changed={editor.changed}
-            validName={editor.draft.mosName.trim().length > 0}
-            saving={editor.saving}
-            state={editor.saveState}
-            onSave={editor.onSave}
-          />
-        )
-      },
-    }] : []),
+    { key: 'itemName', header: t('cafe.items.erpName'), sortable: true, render: item => <button type="button" className="cafe-items__master-link" aria-pressed={item.id === selectedItemId} onClick={() => setSelectedItemId(item.id)}><ItemIdentity item={item} showCategory={mixedCategories} progress={groupByActive ? editProgress(item) : undefined} /></button> },
+    { key: 'mosName', header: t('cafe.items.mosName'), render: item => drafts[item.id]?.mosName ?? item.mosName },
+    // Grouped by Active/Inactive, the group header already says it; a Status column would repeat it on every row.
+    ...(groupByActive ? [] : [{ key: 'status', header: t('kitchen.log.col.status'), render: (item: CafeItemListRow) => <MasterStatus item={item} changed={changed.has(item.id)} saving={savingIds.has(item.id)} saveState={saveStates[item.id] ?? null} /> }]),
+    { key: 'kind', className: 'cafe-items__col-nowrap', header: t('cafe.items.kind'), sortable:true, render: item => item.kind ? itemKindLabel(item.kind, t) : '—' },
+    { key: 'unit', header: t('cafe.items.defaultUnit'), render: item => item.units.some(candidate => candidate.id === item.defaultUnitId) ? defaultUnitLabel(item, t) : '—' },
   ]
-
-  const pageMeta = readState === 'ready' && stream
-    ? items.length === 1 ? t('cafe.items.countOne') : t('cafe.items.count', { count: items.length })
-    : undefined
+  const selectedItem = items.find(item => item.id === selectedItemId)
+  const selectedRow = selectedItem ? listRows.find(row => row.id === selectedItem.id) : undefined
+  const selectedEditor = selectedRow ? editorFor(selectedRow) : undefined
+  useEffect(() => {
+    // An item opens only when chosen (or linked): nothing opens unasked, at any width.
+    if (readState !== 'ready') return
+    if (selectedItemId && !items.some(item => item.id === selectedItemId)) setSelectedItemId(null)
+  }, [items, readState, selectedItemId, setSelectedItemId])
 
   return (
     <CafePageFrame
       page="items"
       streamBar={streamBar}
-      meta={pageMeta}
       state={readState === 'loading' ? 'loading' : readState === 'error' ? 'error' : 'default'}
     >
       <RouteLeaveGuard when={changed.size > 0} message={t('cafe.items.unsaved.leave')} />
@@ -563,18 +550,18 @@ function CafeItemSettingsPageForViewer() {
         <ErrorState message={t('cafe.items.loadError')} onRetry={() => setRetryKey(key => key + 1)} />
       )}
       {readState === 'ready' && stream && permissionError && (
-        <p className="cafe-items__permission-error" role="alert">
+        <Notice tone="urgent" action={<button type="button" className="btn btn-ghost" onClick={() => setRetryKey(key => key + 1)}>{t('common.retry')}</button>}>
           {t('cafe.items.permissionError')}
-          <button type="button" className="btn btn-ghost" onClick={() => setRetryKey(key => key + 1)}>
-            {t('common.retry')}
-          </button>
-        </p>
+        </Notice>
       )}
       {readState === 'ready' && stream && permission === 'read-only' && (
-        <p className="cafe-items__read-only" role="note">{t('cafe.items.readOnly')}</p>
+        <Notice tone="info">{t('cafe.items.readOnly')}</Notice>
       )}
       {readState === 'ready' && stream && permission === 'allowed' && (reports.length > 0 || reportsError) && (
-        <section className="cafe-item-reports" aria-label={t('cafe.items.reports.aria')}>
+        <details className="cafe-item-reports">
+          <summary aria-label={t('cafe.items.reports.aria')}>
+            {t('cafe.items.reports.title')} · {reportsError ? t('cafe.today.statusUnavailable') : reportCount}
+          </summary>
           <div className="cafe-item-reports__heading">
             <div>
               <h2>{t('cafe.items.reports.title')}</h2>
@@ -587,7 +574,7 @@ function CafeItemSettingsPageForViewer() {
             )}
           </div>
           {reportsError ? (
-            <p role="alert">{t('cafe.items.reports.error')}</p>
+            <Notice tone="urgent">{t('cafe.items.reports.error')}</Notice>
           ) : (
             <ul className="cafe-item-reports__list">
               {reports.map(report => (
@@ -606,69 +593,115 @@ function CafeItemSettingsPageForViewer() {
               ))}
             </ul>
           )}
-        </section>
-      )}
-      {readState === 'ready' && stream && items.length > 0 && (
-        <p className="cafe-items__read-only cafe-items__inherited-name-note">{t('cafe.items.inheritedName')}</p>
+        </details>
       )}
       {readState === 'ready' && stream && needsUnitCount > 0 && (
-        <p className="cafe-items__needs-unit-summary" role="status">
-          {t(
+        <button type="button" className="cafe-items__needs-unit-summary" onClick={() => setNeedsUnitFilter('Needs unit')}>
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
+            <path d="M10 2.5 18.5 17h-17z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+            <path d="M10 8v4m0 2.2h.01" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+          </svg>
+          <span>{t(
             needsUnitCount === 1 ? 'cafe.items.needsSetupCount.one' : 'cafe.items.needsSetupCount.other',
             { count: needsUnitCount },
-          )}
-        </p>
+          )}</span>
+        </button>
       )}
       {readState === 'ready' && stream && items.length === 0 && (
         <CafeItemsEmptyState stream={stream} esbItemCount={0} canManage={canEdit} />
       )}
       {readState === 'ready' && stream && items.length > 0 && (
         <section className="cafe-items" aria-label={t('cafe.items.listLabel')}>
-          <KitchenToolbar
-            search={search}
-            onSearchChange={setSearch}
-            searchPlaceholder={t('kitchen.log.searchPlaceholder')}
-            searchAriaLabel={t('cafe.items.searchPlaceholder')}
-            ariaLabel={t('cafe.items.filtersAria')}
-            kinds={[...KITCHEN_KIND_FILTER_OPTIONS, 'Unclassified']}
-            kind={kindFilter}
-            onKindChange={setKindFilter}
-            kindId="cafe-items-kind-filter"
-            activeStates={KITCHEN_ACTIVE_FILTER_OPTIONS}
-            active={activeFilter}
-            onActiveChange={setActiveFilter}
-            activeId="cafe-items-active-filter"
-            needsUnitStates={KITCHEN_NEEDS_UNIT_FILTER_OPTIONS}
-            needsUnit={needsUnitFilter}
-            onNeedsUnitChange={setNeedsUnitFilter}
-            needsUnitId="cafe-items-unit-filter"
-            trailing={(
-              <label className="cafe-items__group-toggle">
-                <Checkbox
-                  id="cafe-items-group-by-active"
-                  checked={groupByActive}
-                  onChange={setGroupByActive}
+          <div className={`cafe-items__workspace cafe-setup-workspace${selectedItemId ? ' cafe-items__workspace--selected cafe-setup-workspace--selected' : ''}`}>
+            <section className="cafe-items__master" aria-label={t('cafe.items.listLabel')}>
+              <KitchenToolbar
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder={t('kitchen.log.searchPlaceholder')}
+                searchAriaLabel={t('cafe.items.searchPlaceholder')}
+                ariaLabel={t('cafe.items.filtersAria')}
+                filtersPanel={{
+                  label: t('cafe.items.filtersPanel'),
+                  summary: [
+                    kindFilter === 'All' ? '' : kindFilter === 'RAW' ? t('cafe.items.kindRaw') : kindFilter === 'WIP' ? t('cafe.items.kindWip') : t('kitchen.filter.kind.notSet'),
+                    activeFilter === 'All' ? '' : t(activeFilter === 'Active' ? 'kitchen.filter.active.active' : 'kitchen.filter.active.inactive'),
+                    needsUnitFilter === 'All' ? '' : t('kitchen.filter.needsUnit.needs'),
+                  ].filter(Boolean).join(', ') || t('cafe.items.filtersNone'),
+                }}
+                resultCount={{ shown: visibleItems.length, total: items.length }}
+                sortLabel={listSort ? t(listSort.dir === 'asc' ? 'cafe.items.sorted.asc' : 'cafe.items.sorted.desc', { column: listSort.key === 'kind' ? t('cafe.items.kind') : t('cafe.items.erpName') }) : undefined}
+                kinds={[...KITCHEN_KIND_FILTER_OPTIONS, 'Unclassified']}
+                kind={kindFilter}
+                onKindChange={setKindFilter}
+                kindId="cafe-items-kind-filter"
+                activeStates={KITCHEN_ACTIVE_FILTER_OPTIONS}
+                active={activeFilter}
+                onActiveChange={setActiveFilter}
+                activeId="cafe-items-active-filter"
+                needsUnitStates={KITCHEN_NEEDS_UNIT_FILTER_OPTIONS}
+                needsUnit={needsUnitFilter}
+                onNeedsUnitChange={setNeedsUnitFilter}
+                needsUnitId="cafe-items-unit-filter"
+                trailing={(
+                  <label className="cafe-items__group-toggle">
+                    <Checkbox
+                      id="cafe-items-group-by-active"
+                      checked={groupByActive}
+                      onChange={setGroupByActive}
+                    />
+                    <span>{t('cafe.items.groupByActive')}</span>
+                  </label>
+                )}
+              />
+              <div className="record-collection-view cafe-items__collection">
+                <DataTable
+                  columns={columns}
+                  rows={visibleItems}
+                  groups={listGroups}
+                  collapsedGroupKeys={collapsedGroups}
+                  onToggleGroup={key => setCollapsedGroups(current => {
+                    const next = new Set(current)
+                    if (!next.delete(key)) next.add(key)
+                    return next
+                  })}
+                  tableClassName={`record-collection-table collection-grammar-table cafe-items__table${groupByActive ? ' cafe-items__table--grouped' : ''}`}
+                  rowClassName={item => `${item.needsUnit ? 'cafe-items__row--needs-unit' : ''}${item.id === selectedItemId ? ' cafe-items__row--selected' : ''}`}
+                  sort={listSort}
+                  onSortChange={next => setListSort(next)}
+                  isDesktop={isWide}
+                  state={visibleItems.length === 0 ? 'empty' : 'ready'}
+                  emptyLabel={t('cafe.items.noMatches')}
+                  caption={t('cafe.items.tableCaption')}
+                  renderCard={item => <ItemMasterCard groupedByStatus={groupByActive} item={item} showCategory={mixedCategories} draftName={drafts[item.id]?.mosName ?? item.mosName} selected={item.id === selectedItemId} changed={changed.has(item.id)} saving={savingIds.has(item.id)} saveState={saveStates[item.id] ?? null} onSelect={() => setSelectedItemId(item.id)} />}
+                  renderRowDetail={undefined}
                 />
-                <span>{t('cafe.items.groupByActive')}</span>
-              </label>
-            )}
-          />
-          <div className="record-collection-view cafe-items__collection">
-            <DataTable
-              columns={columns}
-              rows={visibleItems}
-              groups={listGroups}
-              tableClassName={`record-collection-table collection-grammar-table cafe-items__table${canEdit ? ' cafe-items__table--editable' : ''}`}
-              rowClassName={item => item.needsUnit ? 'cafe-items__row--needs-unit' : undefined}
-              sort={listSort}
-              onSortChange={next => setListSort(next)}
-              isDesktop={isWide}
-              state={visibleItems.length === 0 ? 'empty' : 'ready'}
-              emptyLabel={t('cafe.items.noMatches')}
-              caption={t('cafe.items.tableCaption')}
-              renderCard={item => <ItemCard {...editorFor(item)} />}
-              renderRowDetail={item => <CafeItemRecipeSection itemId={item.id} erpName={item.erpName} />}
-            />
+              </div>
+            </section>
+            {selectedRow && selectedEditor && <section className="cafe-item-editor" aria-label={selectedRow.erpName}>
+              {!isWide && <button type="button" className="btn btn-ghost cafe-item-editor__back" onClick={() => setSelectedItemId(null)}>{t('cafe.items.backToItems')}</button>}
+              <header className="cafe-item-editor__identity">
+                <ItemIdentity item={selectedRow} />
+                {isWide && canEdit && <div className="cafe-item-editor__head-action"><MasterStatus item={selectedRow} changed={selectedEditor.changed} saving={selectedEditor.saving} saveState={selectedEditor.saveState} /><SaveControl changed={selectedEditor.changed} validName={selectedEditor.draft.mosName.trim().length > 0} saving={selectedEditor.saving} state={selectedEditor.saveState} onSave={selectedEditor.onSave} /></div>}
+              </header>
+              <div className="cafe-item-editor__fields">
+                <ItemNameEditor {...selectedEditor} view="card" />
+                <ItemKindEditor {...selectedEditor} />
+                <ItemActiveEditor {...selectedEditor} />
+                <ItemDefaultUnitEditor {...selectedEditor} />
+              </div>
+              <details className="cafe-item-editor__extras" open={selectedEditor.changed && selectedEditor.draft.unitMultiples.length > 0}>
+                <summary>{t('cafe.items.unitMultiples')}</summary>
+                <ItemMultiplesEditor {...selectedEditor} />
+              </details>
+              <CafeItemRecipeSection itemId={selectedRow.id} erpName={selectedRow.erpName} />
+              <details className="cafe-item-editor__policy"><summary>{t('cafe.items.catalogPolicy')}</summary><p>{t('cafe.items.inheritedName')}</p></details>
+              {!isWide && canEdit && <ActionBar
+                alert={selectedEditor.saveState?.kind === 'error' ? <span className="cafe-items__save-error" role="alert">{t('cafe.items.saveError')} <button type="button" className="btn btn-ghost" onClick={selectedEditor.onSave}>{t('common.retry')}</button></span> : undefined}
+                summary={<MasterStatus item={selectedRow} changed={selectedEditor.changed} saving={selectedEditor.saving} saveState={selectedEditor.saveState} />}
+                reason={saveReason(selectedEditor.changed, selectedEditor.draft.mosName.trim().length > 0, selectedEditor.saving, t) ?? undefined}
+                primary={<Button variant="primary" disabled={!selectedEditor.changed || selectedEditor.saving || selectedEditor.draft.mosName.trim().length === 0} onClick={selectedEditor.onSave}>{selectedEditor.saving ? t('cafe.items.saving') : t('cafe.items.save')}</Button>}
+              />}
+            </section>}
           </div>
         </section>
       )}
@@ -694,19 +727,14 @@ function defaultUnitLabel(item: CafeItemSetting, t: ReturnType<typeof useT>): st
 }
 
 /** The fields the ESB catalog refresh writes, shown as values: MOS cannot change them. */
-function esbFields(item: CafeItemListRow, t: ReturnType<typeof useT>, name?: ReactNode) {
-  return [
-    ...(name === undefined ? [] : [{ key: 'erpName', label: t('cafe.items.erpName'), value: name }]),
-    ...(item.category ? [{ key: 'erpCategory', label: t('cafe.items.erpCategory'), value: item.category }] : []),
-  ]
-}
 
-function ItemIdentity({ item }: { item: CafeItemListRow }) {
+function ItemIdentity({ item, showCategory = true, progress }: { item: CafeItemListRow; showCategory?: boolean; progress?: string }) {
   return (
     <div className="cafe-items__erp-cell">
       <span className="cafe-items__item-name">{item.erpName}</span>
-      {item.category && <span className="cafe-items__muted">{item.category}</span>}
+      {showCategory && item.category && <span className="cafe-items__muted">{item.category}</span>}
       {item.needsUnit && <NeedsUnitStatus />}
+      {progress && !item.needsUnit && <span className="cafe-items__muted" role="status">{progress}</span>}
     </div>
   )
 }
@@ -764,7 +792,7 @@ function ItemKindEditor({ item, draft, canEdit, saving, onDraftChange }: ItemFie
 function ItemActiveEditor({ item, draft, canEdit, saving, onDraftChange }: ItemFieldProps) {
   const t = useT()
   return (
-    <div className="cafe-items__active-control">
+    <label className="cafe-items__active-control">
       {canEdit && (
         <Checkbox
           checked={draft.isActive}
@@ -773,8 +801,8 @@ function ItemActiveEditor({ item, draft, canEdit, saving, onDraftChange }: ItemF
           onChange={isActive => onDraftChange(current => ({ ...current, isActive }))}
         />
       )}
-      <span>{t((canEdit ? draft.isActive : item.isActive) ? 'cafe.items.active' : 'cafe.items.inactive')}</span>
-    </div>
+      <span>{t(canEdit || item.isActive ? 'cafe.items.active' : 'cafe.items.inactive')}</span>
+    </label>
   )
 }
 
@@ -786,6 +814,7 @@ function ItemDefaultUnitEditor({ item, draft, canEdit, saving, onDraftChange }: 
   const selectedUnitId = item.units.some(unit => unit.id === draft.defaultUnitId) ? draft.defaultUnitId : ''
   return (
     <Select
+      className="cafe-items__unit-select"
       label={t('cafe.items.defaultUnit')}
       value={selectedUnitId}
       disabled={saving || item.units.length === 0}
@@ -829,48 +858,20 @@ function ItemMultiplesEditor({ item, draft, canEdit, saving, onDraftChange }: It
   )
 }
 
-function ItemCard({ item, draft, canEdit, saving, changed, saveState, onDraftChange, onSave }: ItemEditorProps) {
+function MasterStatus({ item, changed, saving, saveState, hideActive = false }: { item: CafeItemListRow; changed: boolean; saving: boolean; saveState: SaveState; hideActive?: boolean }) {
   const t = useT()
-  const invalidName = draft.mosName.trim().length === 0
-  return (
-    <article className="cafe-items__card-body" aria-labelledby={`cafe-item-${item.id}`}>
-      <header className="cafe-items__card-header">
-        <RecordAbout items={esbFields(item, t, (
-          <h2 id={`cafe-item-${item.id}`} className="cafe-items__item-name">
-            {item.erpName}{item.needsUnit && <NeedsUnitStatus />}
-          </h2>
-        ))} />
-      </header>
-      <div className="cafe-items__card-field">
-        {!canEdit && <span className="cafe-items__field-label">{t('cafe.items.mosName')}</span>}
-        <ItemNameEditor item={item} draft={draft} canEdit={canEdit} saving={saving} onDraftChange={onDraftChange} view="card" />
-      </div>
-      <div className="cafe-items__card-fields--split">
-        <div className="cafe-items__card-field">
-          {!canEdit && <span className="cafe-items__field-label">{t('cafe.items.kind')}</span>}
-          <ItemKindEditor item={item} draft={draft} canEdit={canEdit} saving={saving} onDraftChange={onDraftChange} />
-        </div>
-        <div className="cafe-items__card-field">
-          <span className="cafe-items__field-label">{t('cafe.items.activeQuestion')}</span>
-          <ItemActiveEditor item={item} draft={draft} canEdit={canEdit} saving={saving} onDraftChange={onDraftChange} />
-        </div>
-      </div>
-      <div className="cafe-items__card-field">
-        {!canEdit && <span className="cafe-items__field-label">{t('cafe.items.defaultUnit')}</span>}
-        <ItemDefaultUnitEditor item={item} draft={draft} canEdit={canEdit} saving={saving} onDraftChange={onDraftChange} />
-      </div>
-      <div className="cafe-items__card-field">
-        <span className="cafe-items__field-label">{t('cafe.items.unitMultiples')}</span>
-        <ItemMultiplesEditor item={item} draft={draft} canEdit={canEdit} saving={saving} onDraftChange={onDraftChange} />
-      </div>
-      <CafeItemRecipeSection itemId={item.id} erpName={item.erpName} />
-      {canEdit && (
-        <div className="cafe-items__card-action">
-          <SaveControl item={item} changed={changed} validName={!invalidName} saving={saving} state={saveState} onSave={onSave} />
-        </div>
-      )}
-    </article>
-  )
+  return <span className="cafe-items__master-status">
+    {needsUnit(item) ? <NeedsUnitStatus /> : changed ? t('cafe.items.unsaved') : saving ? t('cafe.items.saving') : saveState?.kind === 'saved' ? t('cafe.items.saved') : hideActive ? null : <StatusBadge status={item.isActive ? 'active' : 'disabled'} label={t(item.isActive ? 'cafe.items.active' : 'cafe.items.inactive')} />}
+  </span>
+}
+
+function ItemMasterCard({ item, showCategory, draftName, selected, changed, saving, saveState, onSelect, groupedByStatus }: { groupedByStatus: boolean; item: CafeItemListRow; showCategory: boolean; draftName: string; selected: boolean; changed: boolean; saving: boolean; saveState: SaveState; onSelect: () => void }) {
+  const t = useT()
+  return <button type="button" className="cafe-items__master-card" aria-pressed={selected} onClick={onSelect}>
+    <span className="cafe-items__master-card-main"><ItemIdentity item={item} showCategory={showCategory} />{draftName !== item.erpName && <small>{draftName}</small>}</span>
+    <span>{itemKindLabel(item.kind, t)} · {defaultUnitLabel(item, t)}</span>
+    <MasterStatus item={item} changed={changed} saving={saving} saveState={saveState} hideActive={groupedByStatus} />
+  </button>
 }
 
 function MultiplesPickerEditor({
@@ -953,15 +954,21 @@ function MultiplesPickerEditor({
   )
 }
 
+/** Why Save is unavailable, said next to the button (never in a tooltip). */
+function saveReason(changed: boolean, validName: boolean, saving: boolean, t: ReturnType<typeof useT>): string | null {
+  if (saving) return null
+  if (!changed) return t('cafe.items.noChangesToSave')
+  if (!validName) return t('cafe.items.nameRequired')
+  return null
+}
+
 function SaveControl({
-  item,
   changed,
   validName,
   saving,
   state,
   onSave,
 }: {
-  item: CafeItemSetting
   changed: boolean
   validName: boolean
   saving: boolean
@@ -969,12 +976,13 @@ function SaveControl({
   onSave: () => void
 }) {
   const t = useT()
+  const reason = saveReason(changed, validName, saving, t)
   return (
     <div className="cafe-items__save-control">
+      {reason && <span className="cafe-items__save-reason">{reason}</span>}
       <Button
         variant="primary"
         disabled={!changed || saving || !validName}
-        aria-label={t('cafe.items.saveAction', { item: item.mosName })}
         onClick={onSave}
       >
         {saving ? t('cafe.items.saving') : t('cafe.items.save')}

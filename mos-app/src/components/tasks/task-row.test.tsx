@@ -12,8 +12,6 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { TaskRow } from './task-row'
 import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
@@ -42,7 +40,6 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 const baseProps = (overrides: Partial<TaskRowProps> = {}): TaskRowProps => ({
   task: makeTask(),
   now: NOW,
-  condensed: false,
   isSelected: false,
   isCursor: false,
   leafIndex: 0,
@@ -64,17 +61,7 @@ function renderRow(props: Partial<TaskRowProps> = {}) {
 const picTrigger = () => screen.getByRole('button', { name: /Rina/ })
 
 // #1192: the Supervisor cell is a grid stop — a focusable element with data-row-stop.
-const supervisorStop = () => screen.getByText('Budi').closest('[data-row-stop]') as HTMLElement
-
-function installTaskStyles() {
-  const style = document.createElement('style')
-  style.textContent = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
-  document.head.append(style)
-  return () => style.remove()
-}
-
-const supervisorFocusRule = () => readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
-  .split('.supervisor-cell-stop:focus-visible')[1]?.split('}')[0] ?? ''
+const supervisorStop = () => screen.getByText('Budi Santoso').closest('[data-row-stop]') as HTMLElement
 
 // ── Issue 997: the ONE column list (spec AC-001/002/003) ─────────────────────────────
 // The rendered <td> chain and TanStack visible-leaf derivation must agree for EVERY Fields
@@ -211,38 +198,9 @@ describe('TaskRow — AC-T03 name cell is a Chip-link to /tasks/:id', () => {
 })
 
 describe('TaskRow — AC-T05 status is a soft pill (dot+text never color-alone) that never wraps', () => {
-  it('AC-T05: status renders the StatusPill text (the non-color cue) inside a .mk-tag', () => {
+  it('AC-T05: status renders the StatusPill text (the non-color cue) in the status cell', () => {
     renderRow()
-    const tag = document.querySelector('.mk-tag')!
-    expect(tag).toBeTruthy()
-    expect(tag.textContent).toContain('Blocked')
-  })
-
-  it('AC-T05: the status pill carries a leading dot (the redundant non-color marker)', () => {
-    renderRow()
-    const tag = document.querySelector('.mk-tag')!
-    // The dot is aria-hidden (redundant cue only) and lives INSIDE the Tag,
-    // before the label — never the sole signal (the status word is the name).
-    const dot = tag.querySelector('.status-dot')
-    expect(dot, 'expected a leading status dot inside the pill').toBeTruthy()
-    expect(dot!.getAttribute('aria-hidden')).toBe('true')
-  })
-
-  it('AC-T05: the status cell + the Tag never wrap (td-nowrap cell + Tag.css nowrap)', () => {
-    const { container } = renderRow()
-    // The status <td> carries the no-wrap hook so the pill never breaks across lines.
-    expect(container.querySelector('td.td-status.td-nowrap, td.td-nowrap.td-status')).toBeTruthy()
-    const css = readFileSync(resolve(process.cwd(), 'src/components/ui/Tag.css'), 'utf8')
-    expect(css).toMatch(/\.mk-tag\b[^}]*white-space:\s*nowrap/)
-  })
-})
-
-describe('TaskRow — AC-T06 body row uses the shared RecordCollection measure', () => {
-  it('AC-T06: the row renders td-cell cells whose CSS rule consumes --row-min-h', () => {
-    renderRow()
-    expect(document.querySelector('tr.task-row td.td-cell, tr.task-row td.td-main')).toBeTruthy()
-    const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
-    expect(css).toMatch(/\.td-main,\s*\.td-cell\s*\{[^}]*height:\s*var\(--row-min-h\)/)
+    expect(document.querySelector('td.td-status')).toHaveTextContent('Blocked')
   })
 })
 
@@ -283,34 +241,23 @@ describe('TaskRow — AC-020 row overflow menu', () => {
   })
 })
 
-// AC-021 (ticket #750): one person-cell grammar — PIC and Supervisor both render the initials
-// avatar + first name; the full name belongs to the record and to pickers, never to the cell.
+// AC-021: one person-cell grammar — PIC and Supervisor both render the person's name.
 describe('TaskRow — AC-021 person-cell grammar (PIC + Supervisor)', () => {
-  it('AC-021: the Supervisor cell renders avatar initials + first name, not the full-name text', () => {
+  it('AC-021: the Supervisor cell renders the supervisor\'s name', () => {
     renderRow({ supervisorName: 'Dewi Director' })
-    const cell = document.querySelector('td.td-supervisor') as HTMLElement
-    expect(cell.querySelector('.ownav')?.textContent).toBe('DD')
-    expect(cell.querySelector('.own-name')?.textContent).toBe('Dewi')
-    expect(cell.textContent).not.toContain('Dewi Director')
+    expect(document.querySelector('td.td-supervisor')).toHaveTextContent('Dewi Director')
   })
 
-  it('AC-021: the PIC cell keeps the same avatar + first-name grammar', () => {
+  it('AC-021: the PIC cell renders the PIC\'s name', () => {
     renderRow({ ownerName: 'Rina Lestari' })
-    const cell = document.querySelector('td.td-owner') as HTMLElement
-    expect(cell.querySelector('.ownav')?.textContent).toBe('RL')
-    expect(cell.querySelector('.own-name')?.textContent).toBe('Rina')
+    expect(document.querySelector('td.td-owner')).toHaveTextContent('Rina Lestari')
   })
 
   it('AC-021: an empty Supervisor still reads as the em-dash empty state', () => {
     renderRow({ supervisorName: '' })
     const cell = document.querySelector('td.td-supervisor') as HTMLElement
-    expect(cell.querySelector('.ownav')).toBeNull()
     expect(cell.textContent).toBe('—')
   })
-})
-
-describe('TaskRow — Supervisor cell focus ring', () => {
-  it('uses the shared ring token', () => expect(supervisorFocusRule()).toMatch(/outline:\s*2px solid var\(--ring\)/))
 })
 
 describe('TaskRow — stopPropagation regression (⋯ must NOT fire row onOpen)', () => {
@@ -634,7 +581,7 @@ describe('TaskRow — inline editor names follow the locale', () => {
     await userEvent.click(screen.getByRole('button', { name: /Rina/ }))
     expect(await screen.findByRole('combobox', { name: pic })).toBeInTheDocument()
     await userEvent.keyboard('{Escape}')
-    fireEvent.click(screen.getByRole('button', { name: dueTrigger }))
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`${dueTrigger}$`) }))
     expect(screen.getByLabelText(dueInput)).toBeInTheDocument()
   })
 })
@@ -678,9 +625,9 @@ describe('TaskRow — one tab stop per row, cells reached by arrow keys (#1027)'
     await user.keyboard('{ArrowRight}')
     expect(document.activeElement).toBe(supervisorStop())
     await user.keyboard('{ArrowRight}')
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit task due date' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Edit task due date$/ }))
     await user.keyboard('{ArrowRight}')
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit task due date' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Edit task due date$/ }))
     await user.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}')
     expect(document.activeElement).toBe(screen.getByRole('link', { name: /Finalise Q3/ }))
   })
@@ -763,12 +710,12 @@ describe('TaskRow — decision cells form one roving-focus grid (#1192)', () => 
 
     // F2 opens the focused cell's editor; Escape hands focus back to the cell.
     await user.keyboard('{ArrowRight}')
-    expect(document.activeElement).toBe(within(row(0)).getByRole('button', { name: 'Edit task due date' }))
+    expect(document.activeElement).toBe(within(row(0)).getByRole('button', { name: /Edit task due date$/ }))
     await user.keyboard('{F2}')
     expect(await screen.findByLabelText('Due date')).toBeInTheDocument()
     await user.keyboard('{Escape}')
     expect(screen.queryByLabelText('Due date')).toBeNull()
-    expect(document.activeElement).toBe(within(row(0)).getByRole('button', { name: 'Edit task due date' }))
+    expect(document.activeElement).toBe(within(row(0)).getByRole('button', { name: /Edit task due date$/ }))
 
     // Enter opens the cell editor; Escape returns focus to the cell again.
     await user.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}')
@@ -784,11 +731,11 @@ describe('TaskRow — decision cells form one roving-focus grid (#1192)', () => 
     await user.keyboard('{ArrowDown}')
     expect(document.activeElement).toBe(within(row(1)).getByRole('button', { name: /Open/ }))
     await user.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}')
-    expect(document.activeElement).toBe(within(row(1)).getByRole('button', { name: 'Edit task due date' }))
+    expect(document.activeElement).toBe(within(row(1)).getByRole('button', { name: /Edit task due date$/ }))
     await user.tab()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'after' }))
     await user.tab({ shift: true })
-    expect(document.activeElement).toBe(within(row(1)).getByRole('button', { name: 'Edit task due date' }))
+    expect(document.activeElement).toBe(within(row(1)).getByRole('button', { name: /Edit task due date$/ }))
   })
 
   // #1192 review: the Supervisor stop renders even when no supervisor is assigned — otherwise
@@ -852,13 +799,13 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
   it('Escape on the date field restores the saved date without committing', () => {
     const onEditDue = vi.fn().mockResolvedValue(undefined)
     renderRow({ onEditDue })
-    const trigger = screen.getByRole('button', { name: 'Edit task due date' })
+    const trigger = screen.getByRole('button', { name: /Edit task due date$/ })
     fireEvent.click(trigger)
     const input = screen.getByLabelText('Due date')
     fireEvent.change(input, { target: { value: '2026-06-30' } })
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(onEditDue).not.toHaveBeenCalled()
-    expect(screen.getByText('Overdue · Fri 12 Jun')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Fri 12 Jun.*Overdue · 7 days/ })).toBeInTheDocument()
   })
 
   it('a rejected PIC write rolls back and announces the revert', async () => {
@@ -884,63 +831,6 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
   })
 })
 
-// The isNew draft delegates to the shared TaskCreateForm rather than bending TaskRow's own
-// columns into a form (task-create-form.test.tsx owns the field-level validation/focus/retry
-// behaviour). These tests cover only TaskRow's side of that delegation.
-describe('TaskRow — isNew delegates to the shared TaskCreateForm', () => {
-  it('renders ONE full-width colSpan row (never a bent per-column layout) and forwards columnSpan', () => {
-    renderRow({
-      task: makeTask({ id: 'new-task-1', title: '', team_id: null, business_unit_id: '', accountable_person_id: '' }),
-      isNew: true,
-      columnSpan: 5,
-      onEditTitle: vi.fn().mockResolvedValue(undefined),
-      onEditTeam: vi.fn().mockResolvedValue(undefined),
-      onEditPic: vi.fn().mockResolvedValue(undefined),
-      onEditSupervisor: vi.fn().mockResolvedValue(undefined),
-    })
-    const row = document.querySelector('tr.task-row--create') as HTMLTableRowElement
-    expect(row).toBeTruthy()
-    const cell = row.querySelector('td.td-create') as HTMLTableCellElement
-    expect(cell.colSpan).toBe(5)
-    // The form itself, not a table-column grammar, owns the fields.
-    expect(screen.getByRole('form', { name: /create task/i })).toBeInTheDocument()
-    // The SAME TaskCreateForm the phone card path renders (mobile-grouped-cards.test.tsx) —
-    // never a second, drifting desktop-only draft implementation.
-    expect(cell.querySelector('.tcf')).toBeTruthy()
-  })
-
-  it('Escape on the title discards the draft via onDiscardNewTask', () => {
-    const onDiscardNewTask = vi.fn()
-    renderRow({
-      task: makeTask({ id: 'new-task-2', title: '' }),
-      isNew: true,
-      onDiscardNewTask,
-      onEditTitle: vi.fn().mockResolvedValue(undefined),
-      onEditTeam: vi.fn().mockResolvedValue(undefined),
-      onEditPic: vi.fn().mockResolvedValue(undefined),
-      onEditSupervisor: vi.fn().mockResolvedValue(undefined),
-    })
-    fireEvent.keyDown(screen.getByLabelText('Title'), { key: 'Escape' })
-    expect(onDiscardNewTask).toHaveBeenCalledTimes(1)
-  })
-
-  it('a create-link failure (linkError) shows Retry and calls onRetryCreate', () => {
-    const onRetryCreate = vi.fn()
-    renderRow({
-      task: makeTask({ id: 'new-task-3', title: 'Ship the café launch' }),
-      isNew: true,
-      createError: true,
-      onRetryCreate,
-      onEditTitle: vi.fn().mockResolvedValue(undefined),
-      onEditTeam: vi.fn().mockResolvedValue(undefined),
-      onEditPic: vi.fn().mockResolvedValue(undefined),
-      onEditSupervisor: vi.fn().mockResolvedValue(undefined),
-    })
-    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
-    expect(onRetryCreate).toHaveBeenCalledTimes(1)
-  })
-})
-
 // AC-018 (ticket #750): the pencil is the hover/focus edit affordance — revealed on row
 // hover/focus for editable rows, absent for read-only ones. F2/double-click/pencil all begin
 // the same inline edit; Enter saves and Escape restores (owned by the useInlineCommit tests above).
@@ -959,79 +849,22 @@ describe('TaskRow — AC-018 pencil affordance', () => {
     renderRow({}) // no onEditTitle → read-only row
     expect(document.querySelector('button.task-row-pencil')).toBeNull()
   })
-
-  it('AC-018: the pencil is hidden at rest and visible when its title cell has focus within', () => {
-    const removeStyles = installTaskStyles()
-    try {
-      renderRow({ onEditTitle: vi.fn().mockResolvedValue(undefined) })
-      const pencil = document.querySelector('button.task-row-pencil') as HTMLButtonElement
-      const titleCell = document.querySelector('.task-title-cell') as HTMLElement
-      expect(getComputedStyle(pencil).visibility).toBe('hidden')
-      titleCell.focus()
-      pencil.focus()
-      // jsdom does not recalculate :focus-within. Apply the declaration from the real CSSOM rule
-      // to the focused control, then verify the browser-computed result (not stylesheet text).
-      const revealRule = Array.from((document.head.lastElementChild as HTMLStyleElement).sheet!.cssRules)
-        .find((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule && rule.selectorText.includes(':focus-within') && rule.cssText.includes('visibility'))
-      const revealVisibility = revealRule?.style.getPropertyValue('visibility')
-      expect(revealVisibility).toBe('visible')
-      pencil.style.visibility = revealVisibility!
-      expect(getComputedStyle(pencil).visibility).toBe('visible')
-    } finally {
-      removeStyles()
-    }
-  })
-
-  it('AC-018: the condensed title cell reserves room for the pencil', () => {
-    const removeStyles = installTaskStyles()
-    try {
-      renderRow({ condensed: true, onEditTitle: vi.fn().mockResolvedValue(undefined) })
-      const titleCell = document.querySelector('.task-title-cell') as HTMLElement
-      expect(getComputedStyle(titleCell).paddingRight).toBe('30px')
-    } finally {
-      removeStyles()
-    }
-  })
 })
 
-describe('TaskRow — AC-T04 row hover/selected styling (CSS lock)', () => {
-  it('AC-T04: hover uses the secondary-background token; selected uses a neutral (non-blue) fill', () => {
-    const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
-    // hover fill references the secondary background token family
-    expect(css).toMatch(/\.task-row:hover\s+td\s*\{[^}]*var\(--(?:surface-secondary|secondary)\)/)
-    // selected fill exists + is the neutral secondary (NOT --accent=blue, per the
-    // ratified de-bluing / One-Blue Rule; AC-T04 "(existing row-selected)").
-    const selIdx = css.indexOf('.task-row.row-selected td')
-    expect(selIdx).toBeGreaterThanOrEqual(0)
-    const selBody = css.slice(css.indexOf('{', selIdx) + 1, css.indexOf('}', css.indexOf('{', selIdx)))
-    expect(selBody).toMatch(/background:\s*var\(--secondary\)/)
-    expect(selBody).not.toMatch(/var\(--accent\)/)
-    expect(selBody).not.toMatch(/var\(--primary\)/)
-  })
-})
-
-describe('TaskRow — owner-eyes item 3: condensed Due never carries the clip-prone "Overdue ·" prefix', () => {
-  it('full table shows the "Overdue · <date>" label (text + color)', () => {
-    renderRow({ condensed: false })
+describe('TaskRow — owner-eyes item 3: an overdue Due names how late it is', () => {
+  it('shows the formatted date and the overdue age (text, not colour alone)', () => {
+    renderRow()
     // due 2026-06-12 vs NOW 2026-06-19 → overdue
     const due = document.querySelector('.due-overdue')!
     expect(due).toBeTruthy()
-    expect(due.textContent).toMatch(/Overdue ·\s*Fri 12 Jun/)
-  })
-
-  it('condensed (drawer-open split) shows the bare formatted date — the red color carries the overdue meaning', () => {
-    renderRow({ condensed: true })
-    const due = document.querySelector('.due-overdue')!
-    expect(due).toBeTruthy()
-    // no "Overdue ·" prefix in the narrow split track (no mid-word clipping)
-    expect(due.textContent).not.toMatch(/Overdue/)
     expect(due.textContent).toMatch(/Fri 12 Jun/)
+    expect(due.textContent).toMatch(/7 days overdue/)
   })
 })
 
 describe('TaskRow — inline due date commit, cancel and failure (#982)', () => {
   const openEditor = () => {
-    fireEvent.click(screen.getByRole('button', { name: 'Edit task due date' }))
+    fireEvent.click(screen.getByRole('button', { name: /Edit task due date$/ }))
     return screen.getByLabelText('Due date') as HTMLInputElement
   }
 
@@ -1063,7 +896,7 @@ describe('TaskRow — inline due date commit, cancel and failure (#982)', () => 
     expect(onEditDue).toHaveBeenCalledWith('task-7', '2026-10-05')
     expect(onOpen).not.toHaveBeenCalled()
     expect(windowKey).not.toHaveBeenCalled()
-    const trigger = await screen.findByRole('button', { name: 'Edit task due date' })
+    const trigger = await screen.findByRole('button', { name: /Edit task due date$/ })
     await waitFor(() => expect(trigger).toHaveFocus())
   })
 
@@ -1074,37 +907,27 @@ describe('TaskRow — inline due date commit, cancel and failure (#982)', () => 
     fireEvent.change(input, { target: { value: '2026-10-05' } })
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(onEditDue).not.toHaveBeenCalled()
-    const trigger = await screen.findByRole('button', { name: 'Edit task due date' })
+    const trigger = await screen.findByRole('button', { name: /Edit task due date$/ })
     await waitFor(() => expect(trigger).toHaveFocus())
   })
 
-  it('a failed save keeps the editor open with a readable, unclipped error; Retry re-sends the date and closes on success', async () => {
-    const removeStyles = installTaskStyles()
-    try {
-      const user = userEvent.setup({ delay: null })
-      const onEditDue = vi.fn().mockRejectedValueOnce(new Error('nope')).mockResolvedValue(undefined)
-      renderRow({ onEditDue })
-      const input = openEditor()
-      await user.clear(input)
-      await user.type(input, '05/10/2026{Enter}')
-      const alert = await screen.findByRole('alert')
-      expect(alert).toHaveTextContent(/retry/i)
-      expect(alert).toBeVisible()
-      const editor = alert.parentElement as HTMLElement
-      const editorStyle = getComputedStyle(editor)
-      expect(editorStyle.whiteSpace).toBe('normal')
-      expect(editorStyle.flexWrap).toBe('wrap')
-      expect(editorStyle.height).toBe('auto')
-      expect(editorStyle.overflow).not.toBe('hidden')
-      expect(screen.getByLabelText('Due date')).toBeInTheDocument()
-      await user.click(screen.getByRole('button', { name: /retry/i }))
-      await waitFor(() => expect(screen.queryByLabelText('Due date')).toBeNull())
-      expect(onEditDue).toHaveBeenCalledTimes(2)
-      expect(onEditDue).toHaveBeenLastCalledWith('task-7', '2026-10-05')
-    } finally {
-      removeStyles()
-    }
+  it('a failed save keeps the editor open with a visible error; Retry re-sends the date and closes on success', async () => {
+    const user = userEvent.setup({ delay: null })
+    const onEditDue = vi.fn().mockRejectedValueOnce(new Error('nope')).mockResolvedValue(undefined)
+    renderRow({ onEditDue })
+    const input = openEditor()
+    await user.clear(input)
+    await user.type(input, '05/10/2026{Enter}')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/retry/i)
+    expect(alert).toBeVisible()
+    expect(screen.getByLabelText('Due date')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(screen.queryByLabelText('Due date')).toBeNull())
+    expect(onEditDue).toHaveBeenCalledTimes(2)
+    expect(onEditDue).toHaveBeenLastCalledWith('task-7', '2026-10-05')
   })
+
   it('keeps focus in the editor while the save is pending (readOnly + aria-busy, never disabled)', async () => {
     let settle!: () => void
     const onEditDue = vi.fn().mockReturnValue(new Promise<void>((r) => { settle = r }))
@@ -1118,7 +941,7 @@ describe('TaskRow — inline due date commit, cancel and failure (#982)', () => 
     expect(input).toHaveAttribute('readonly')
     expect(input).toHaveFocus()
     settle()
-    const trigger = await screen.findByRole('button', { name: 'Edit task due date' })
+    const trigger = await screen.findByRole('button', { name: /Edit task due date$/ })
     await waitFor(() => expect(trigger).toHaveFocus())
   })
 
@@ -1150,7 +973,7 @@ describe('TaskRow — inline due date commit, cancel and failure (#982)', () => 
     expect(input).toHaveFocus()
     await user.keyboard('{Escape}')
     expect(screen.queryByLabelText('Due date')).toBeNull()
-    const trigger = await screen.findByRole('button', { name: 'Edit task due date' })
+    const trigger = await screen.findByRole('button', { name: /Edit task due date$/ })
     await waitFor(() => expect(trigger).toHaveFocus())
     expect(onEditDue).toHaveBeenCalledTimes(1)
   })

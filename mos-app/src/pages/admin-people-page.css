@@ -1,0 +1,73 @@
+/* People: toolbar, then a table with the shared header band, or cards on a phone. No bordered card around the list. */
+.admin-people-list-shell { min-width: 0; margin-bottom: var(--mos-section-gap); }
+.admin-people-error { padding-bottom: var(--mos-space-2); }
+.admin-people-load-error { padding: var(--mos-space-12) var(--mos-space-4); }
+
+.people-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.people-table :is(th, td) { padding-inline: var(--mos-row-pad-x); text-align: start; }
+.people-table tbody td { padding-block: var(--mos-row-pad-y); vertical-align: middle; font: var(--mos-type-body); color: var(--mos-ink); }
+.people-row { border-bottom: 1px solid var(--mos-line); cursor: pointer; }
+.people-row:hover { background: var(--mos-hover); }
+.people-actions-col { width: calc(var(--mos-control-height) + var(--mos-space-4)); }
+.people-actions-cell { text-align: end; }
+.people-identity { display: flex; align-items: center; gap: var(--mos-inline-gap); min-width: 0; }
+.people-identity__text { flex: 1; min-width: 0; }
+.people-email { overflow: hidden; color: var(--mos-muted); font: var(--mos-type-meta); text-overflow: ellipsis; white-space: nowrap; }
+.people-email--mono, .people-card__email.people-email--mono { font-family: var(--font-mono); }
+.people-login { display: flex; align-items: center; gap: var(--mos-inline-gap); }
+.people-roles { display: flex; flex-wrap: wrap; gap: var(--mos-label-gap); }
+.people-none { color: var(--mos-muted); }
+.people-position { overflow-wrap: anywhere; }
+.people-row-saved { display: inline-flex; align-items: center; gap: var(--mos-label-gap); color: var(--mos-success-text); font: var(--mos-type-label); }
+
+/* The name is the row's keyboard door; on cards the button also carries the email so the whole identity is one 44px target. */
+.people-row-open {
+  display: block; max-width: 100%; padding: 0; border: 0; background: transparent; text-align: start; cursor: pointer;
+  color: var(--mos-ink); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.people-row-open:hover .people-row-open__name { text-decoration: underline; }
+.people-row-open--archived .people-row-open__name { color: var(--mos-muted); text-decoration: line-through; }
+.people-row-open__name { display: block; overflow: hidden; text-overflow: ellipsis; }
+
+/* The ⋯ door: a square icon button at the shared control height. */
+.people-actions-trigger {
+  display: inline-flex; flex: none; align-items: center; justify-content: center;
+  width: var(--mos-control-height); height: var(--mos-control-height); padding: 0; border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--mos-muted); cursor: pointer;
+}
+.people-actions-trigger:hover, .people-actions-trigger[aria-expanded='true'] { background: var(--mos-band); color: var(--mos-ink); }
+
+/* The opened menu (also the phone sheet): popover surface, control-height rows. */
+.person-menu-host { display: flex; flex-direction: column; gap: var(--mos-label-gap); }
+.person-menu, .person-sheet-header { background: var(--mos-surface); border: 1px solid var(--mos-line); border-radius: var(--radius-sm); box-shadow: var(--shadow-popover); }
+.person-menu { padding: var(--mos-menu-pad) 0; }
+.person-menu-rule { height: 1px; margin: var(--mos-menu-pad) 0; background: var(--mos-line); }
+.person-menu-item {
+  display: block; width: 100%; min-height: var(--mos-control-height); padding: 0 var(--mos-row-pad-x); border: 0; background: transparent;
+  color: var(--mos-ink); font: var(--mos-type-control); text-align: start; cursor: pointer;
+}
+.person-menu-item:hover, .person-menu-item:focus-visible { background: var(--mos-hover); }
+.person-menu-item:focus-visible { outline-offset: calc(-1 * var(--mos-focus-width)); }
+.person-menu-item--danger { color: var(--mos-error-text); }
+.person-menu-item--blocked { color: var(--mos-muted); cursor: not-allowed; }
+.person-menu-note { max-width: 240px; margin: var(--mos-label-gap) 0 0; padding: var(--mos-inline-gap) var(--mos-row-pad-x); border-top: 1px solid var(--mos-line); color: var(--mos-muted); font: var(--mos-type-meta); }
+.person-sheet-header { padding: var(--mos-inline-gap) var(--mos-row-pad-x); }
+.person-sheet-header__name { color: var(--mos-ink); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); }
+.person-sheet-header__email { color: var(--mos-muted); font: var(--mos-type-meta); }
+
+/* Cards (phone / coarse pointer): identity, then team and position, then login and access. */
+.people-card-list { display: flex; flex-direction: column; }
+.people-card { padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--mos-line); cursor: pointer; }
+.people-card:last-child { border-bottom: 0; }
+.people-card__identity { display: flex; align-items: flex-start; gap: var(--mos-row-gap); }
+/* The ⋯ button centres on the name line (first line), not on the name + email block. */
+.people-card__identity .people-row-open { flex: 1; min-height: 44px; padding-block: calc((var(--mos-control-height) - 1lh) / 2) 0; }
+.people-card__email { display: block; overflow: hidden; color: var(--mos-muted); font: var(--mos-type-meta); font-weight: 400; text-overflow: ellipsis; }
+.people-card__facts { display: grid; gap: var(--mos-stack-gap); padding: var(--mos-label-gap) 0 var(--mos-inline-gap); }
+.people-card__context, .people-card__access-line { display: flex; align-items: center; flex-wrap: wrap; gap: var(--mos-inline-gap); min-width: 0; margin: 0; }
+.people-card__context { color: var(--mos-muted); font: var(--mos-type-meta); }
+.people-card__access-line { color: var(--mos-ink); font: var(--mos-type-meta); }
+@media (max-width: 767.98px) {
+  .admin-people-list-shell { margin-bottom: var(--mos-field-gap); }
+}

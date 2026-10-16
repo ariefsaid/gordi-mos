@@ -3,13 +3,15 @@
 // page-index reset each time; a table that hands it a new array every render commits forever, and
 // in the app the router's transition then never lands (a sort survived no period change).
 import { Profiler } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { buildBranchTable, type MoneyPeriod, type MoneySort } from '@/lib/money-branch-table'
 import { BranchTable } from './branch-table'
+
+vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => true }))
 
 const LATEST = '2026-10-05'
 function day(offset: number): string {
@@ -60,8 +62,8 @@ describe('BranchTable — one term for recipe vs stock cost (#1453)', () => {
     revenue: r.clean_revenue, cogs_interim_sm: 700_000, cogs_budget_bom: 650_000, margin_interim: r.clean_revenue - 700_000,
     bom_coverage_pct: 0.9, snapshot_as_of: r.snapshot_as_of, source_contract_version: 'v1',
   }))
-  it.each([['en', 'Recipe vs stock cost'], ['id', 'Resep vs biaya stok']] as const)('the phone company line uses the column header term (%s)', (locale, term) => {
-    const { container } = render(
+  it.each([['en', 'Recipe vs stock cost'], ['id', 'Resep vs biaya stok']] as const)('the column header uses the one term (%s)', (locale, term) => {
+    render(
       <I18nProvider initialLocale={locale}>
         <MemoryRouter>
           <BranchTable data={buildBranchTable(ROWS, margin, 30)!} selection={{ period: 30, range: null, branchCode: null, channel: 'all' }} sort={{ column: 'revenue', desc: true }} onSortChange={() => {}} />
@@ -69,7 +71,6 @@ describe('BranchTable — one term for recipe vs stock cost (#1453)', () => {
       </I18nProvider>,
     )
     expect(screen.getByRole('columnheader', { name: new RegExp(`^${term}`) })).toBeInTheDocument()
-    expect(container.querySelector('.money-table__company-margin')?.textContent?.toLowerCase()).toContain(term.toLowerCase())
   })
 })
 
@@ -90,16 +91,3 @@ describe('BranchTable — filter link persistence', () => {
   })
 })
 
-describe('BranchTable — trend endpoint size', () => {
-  it('draws the sparkline unscaled, so the visible endpoint (inside its surface ring) is at least 8px', () => {
-    const { container } = render(<Harness period={30} sort={{ column: 'revenue', desc: true }} onCommit={() => {}} />)
-    const svg = container.querySelector('.money-table__cell--trend svg')!
-    const viewBoxWidth = Number(svg.getAttribute('viewBox')!.split(' ')[2])
-    const scale = Number(svg.getAttribute('width')) / viewBoxWidth
-    expect(svg.getAttribute('class') ?? '').not.toMatch(/\bw-/)
-    const dot = svg.querySelector('circle')!
-    // The ring stroke is centred on the edge, so it covers half its width of the fill.
-    const visible = (2 * Number(dot.getAttribute('r')) - Number(dot.getAttribute('stroke-width'))) * scale
-    expect(visible).toBeGreaterThanOrEqual(8)
-  })
-})

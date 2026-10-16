@@ -1,22 +1,15 @@
-/* Home day header — ONE line at every width: greeting + day/role identity left, `N left` right;
-   at ≤390 the identity can wrap to a second line.
-   The head itself carries `home-day-header content-header--compact` (see home-page.tsx): the
-   compact mode owns the stepped-down greeting rung and keeps the shared phone stack from wrapping
-   the meta onto its own row between 391–767px. This file owns only the day header's own bits.
-   guard-home-day-header.css.test.ts pins the wrap. */
-
-/* The role chip — mockup `.hdr-role`: the overline rung, subordinate to the greeting it qualifies.
-   The shared `.ch-meta-line` nowrap is relaxed so a long role name wraps instead of overflowing. */
+/* Home day header — greeting/context and its share door stay on one purposeful line where space
+   allows, then wrap naturally before either control is compressed. */
 .content-header .ch-meta .home-head-role {
   white-space: normal;
-  font-size: var(--font-size-overline);
+  font-size: var(--mos-size-1);
 }
 
 .content-header .ch-meta .home-head-meta {
   display: inline-flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--mos-inline-gap);
   min-width: 0;
 }
 
@@ -26,36 +19,32 @@
   font-weight: 600;
 }
 
-/* Home's page identity is the greeting plus the day, so it must hold the first visual rung of
-   the brief. This is scoped to Home's frame and overrides the shared compact head only here. */
-.content-header.home-day-header .ch-title {
-  font-size: var(--font-size-page-title);
-  line-height: 1.15;
-}
-
-/* `N left` — mockup `.hdr-counts`: caption rung, muted, tabular so it doesn't jitter as the day
-   moves, and nowrap so the figure never splits across the wrap the chip owns. */
 .home-head-counts {
-  font-size: var(--font-size-overline);
+  font-size: var(--mos-size-1);
   color: var(--muted-foreground);
   white-space: nowrap;
 }
 
-@media (max-width: 767.98px) {
-  .content-header.home-day-header .ch-title {
-    font-size: var(--font-size-page-title);
-  }
+.home-head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--mos-inline-gap) var(--mos-row-gap);
 }
-/* ≤390: the chip drops to line 2 (`.ch-meta` takes a full row), and the tally moves up beside the
-   greeting — order 0 puts `.ch-action` on the title's line, its own `margin-left: auto` pins it
-   to the right edge. Both override the compact phone rules by specificity (3 classes vs 2). */
-@media (max-width: 390px) {
-  .content-header.home-day-header .ch-action {
-    order: 0;
-  }
 
-  .content-header.home-day-header .ch-meta {
-    order: 1;
-    flex-basis: 100%;
-  }
+.home-head-share {
+  min-height: var(--mos-control-height);
+  white-space: nowrap;
+}
+
+@media (max-width: 767.98px) {
+  .home-head-actions { gap: var(--mos-inline-gap); }
+}
+
+/* Phone: title, then the day/role scope line, then the count and Share door (page anatomy order). */
+@media (max-width: 390px) {
+  .content-header.home-day-header .ch-meta { order: 1; flex-basis: 100%; }
+  .content-header.home-day-header .ch-action { order: 2; margin-left: 0; }
+  .home-head-actions { justify-content: flex-start; }
 }

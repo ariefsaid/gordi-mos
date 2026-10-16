@@ -33,6 +33,7 @@ import { RecordPageSkeleton } from '@/components/record/record-page-layout'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { formatDate, formatAge, TASK_TITLE_MAX_LENGTH } from './task-formatters'
+import { formatWibDateTime } from '@/lib/format/date'
 import { CloseIcon, BackIcon } from '@/shell/icons'
 import { Picker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
@@ -40,6 +41,7 @@ import { DateField } from '@/components/ui/date-field'
 import { Button } from '@/components/ui/button'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { LoadingShell, EmptyState, ErrorState } from '@/components/ui/state-kit'
+import { Notice } from '@/components/ui/notice'
 
 type DirectoryTeamOption = {
   id: string
@@ -483,7 +485,7 @@ function ViewSurface({
       // item 2: the record's Due uses the SAME formatter family as the table row ("Wed 8 Jul"),
       // never the raw ISO. The field's `value` stays ISO for the edit control.
       formatDate: (iso) => formatDate(iso, locale),
-      formatCreatedAt: (iso) => formatDate(iso.slice(0, 10), locale),
+      formatCreatedAt: (iso) => formatWibDateTime(iso, locale),
       formatAge: (iso) => formatAge(iso, now, locale),
       now,
       labels: {
@@ -649,12 +651,9 @@ function ViewSurface({
   }
 
   const archiveFeedback = archiveFailure && (
-    <div className="task-lifecycle-error" role="alert">
-      <span>{t('record.field.saveError')}</span>
-      <button type="button" className="btn btn-ghost" onClick={() => void (archiveFailure === 'archive' ? handleArchive() : handleUnarchive())}>
-        {t('record.field.retry')}
-      </button>
-    </div>
+    <Notice tone="urgent" action={<button type="button" className="btn btn-ghost" onClick={() => void (archiveFailure === 'archive' ? handleArchive() : handleUnarchive())}>{t('record.field.retry')}</button>}>
+      {t('record.field.saveError')}
+    </Notice>
   )
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -710,15 +709,16 @@ function ViewSurface({
   }
 
   const lifecycleStatusFeedback = lifecycleStatusError ? (
-    <div className="record-field__error task-lifecycle-error" role="alert" data-testid="task-lifecycle-error">
-      <span>{t('tasks.feedback.rollback')}</span>
-      <Button variant="outline" className="record-field__retry" onClick={retryLifecycleStatus}>
-        {t('record.field.retry')}
-      </Button>
-      <Button variant="ghost" className="record-field__retry" onClick={() => setLifecycleStatusError(null)}>
-        {t('record.close')}
-      </Button>
-    </div>
+    <Notice
+      tone="urgent"
+      data-testid="task-lifecycle-error"
+      action={<>
+        <Button variant="outline" className="record-field__retry" onClick={retryLifecycleStatus}>{t('record.field.retry')}</Button>
+        <Button variant="ghost" className="record-field__retry" onClick={() => setLifecycleStatusError(null)}>{t('record.close')}</Button>
+      </>}
+    >
+      {t('tasks.feedback.rollback')}
+    </Notice>
   ) : null
 
   const loadMoreTaskEvents = async () => {
@@ -1202,11 +1202,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
         className={inDrawer ? 'tc-create-form' : undefined}
       >
         <div className={inDrawer ? 'dw-tabpane tc-create-body' : undefined}>
-        {submitError && (
-          <div role="alert" className="tc-submit-error">
-            {submitError}
-          </div>
-        )}
+        {submitError && <Notice tone="urgent">{submitError}</Notice>}
 
         {/* Title */}
         <div className="tc-field">

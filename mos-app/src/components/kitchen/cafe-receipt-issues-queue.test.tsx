@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { CafeReceipt } from '@/lib/db/cafe-receipts'
 import {
@@ -10,11 +11,13 @@ import {
   listCafeReceiptIssueOpenPos,
   listCafeReceiptIssues,
   resolveCafeReceiptHaltedGroup,
-  type CafeReceiptHaltedGroup,
-  type CafeReceiptHeldPortion,
   type CafeReceiptIssue,
+  type CafeReceiptIssueList,
 } from '@/lib/db/cafe-receipt-issues'
 import { CafeReceiptIssuesQueue } from './cafe-receipt-issues-queue'
+
+type CafeReceiptHaltedGroup = CafeReceiptIssueList['haltedGroups'][number]
+type CafeReceiptHeldPortion = CafeReceiptIssueList['held'][number]
 
 vi.mock('@/shell/use-is-offline', () => ({ useIsOffline: vi.fn(() => false) }))
 vi.mock('@/lib/db/directory', () => ({
@@ -81,7 +84,7 @@ let serverRefused: typeof REFUSED[]
 let resolvedTotal: number
 
 function renderQueue() {
-  return render(<I18nProvider><CafeReceiptIssuesQueue /></I18nProvider>)
+  return render(<MemoryRouter><I18nProvider><CafeReceiptIssuesQueue /></I18nProvider></MemoryRouter>)
 }
 
 beforeEach(() => {
@@ -107,13 +110,17 @@ beforeEach(() => {
   })
 })
 
+/** The selected issue's resolution area; the list beside it repeats a one-line summary of each issue. */
+const findBench = () => screen.findByRole('region', { name: 'Issue resolution' })
+
 describe('Receipt issues', () => {
   it('FR-1534 permanently ESB-refused portions share the blocked list with no-room portions and retain their message and MOS key', async () => {
     serverHeld = [HELD]
     serverRefused = [REFUSED]
     renderQueue()
 
-    const row = (await screen.findByText('Held: ESB refused')).closest('li')!
+    const bench = within(await findBench())
+    const row = bench.getByText('Held: ESB refused').closest('li')!
     expect(within(row).getByText('Organic coconut milk, unsweetened')).toBeInTheDocument()
     expect(within(row).getByText('3 × carton')).toBeInTheDocument()
     expect(within(row).getByText(/ESB message/)).toBeInTheDocument()
@@ -123,14 +130,14 @@ describe('Receipt issues', () => {
     expect(row).toHaveTextContent('PO-SYNTH-8')
     expect(within(row).getByText('Held after ESB refusal')).toBeInTheDocument()
     expect(within(row).queryByRole('button')).not.toBeInTheDocument()
-    expect(screen.getByText('Held: no room on its PO')).toBeInTheDocument()
+    expect(bench.getByText('Held: no room on its PO')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /Blocked/ })).toHaveTextContent('3')
     expect(screen.queryByRole('button', { name: 'Release to ESB' })).not.toBeInTheDocument()
   })
 
   it('AC-1031 each issue shows kind, item, quantity, reason, photo, receiver, arrival and age; the Blocked badge counts its rows; state is text', async () => {
     renderQueue()
-    const row = (await screen.findByText('Over-delivery')).closest('li')!
+    const row = within(await findBench()).getByText('Over-delivery').closest('li')!
     expect(within(row).getByText(LINE.item_name)).toBeInTheDocument()
     expect(within(row).getByText('2 × karton')).toBeInTheDocument()
     expect(within(row).getByText(/More arrived than the open POs still had \(6 × karton received\)/)).toBeInTheDocument()
@@ -145,7 +152,8 @@ describe('Receipt issues', () => {
     expect(screen.queryByText(/The receiver marked it damaged or wrong/)).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('tab', { name: /Follow-up/ }))
-    const damaged = (await screen.findByText(/The receiver marked it damaged or wrong. Posting is not blocked/)).closest('li')!
+    await screen.findAllByText(/The receiver marked it damaged or wrong/)
+    const damaged = within(await findBench()).getByText(/The receiver marked it damaged or wrong. Posting is not blocked/).closest('li')!
     expect(within(damaged).getByText('6 × karton')).toBeInTheDocument()
     expect(within(damaged).queryByRole('button', { name: 'Link a PO' })).not.toBeInTheDocument()
   })
@@ -154,18 +162,20 @@ describe('Receipt issues', () => {
     serverHalted = [HALTED]
     renderQueue()
 
-    expect(await screen.findByText('Posting halted: check ESB')).toBeInTheDocument()
+    const bench = within(await findBench())
+    expect(bench.getByText('Posting halted: check ESB')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /Blocked/ })).toHaveTextContent('2')
-    expect(screen.getByText('PO-2610-0042')).toBeInTheDocument()
-    expect(screen.getByText(/MOS key MOS-RECEIPT-0001-GROUP-0001/)).toBeInTheDocument()
+    expect(bench.getByText('PO-2610-0042')).toBeInTheDocument()
+    expect(bench.getByText(/MOS key MOS-RECEIPT-0001-GROUP-0001/)).toBeInTheDocument()
     const record = screen.getByRole('button', { name: 'Record number' })
     expect(record).toBeDisabled()
     await userEvent.type(screen.getByLabelText('ESB goods-receipt number'), 'GR-FOUND-42')
     await userEvent.click(record)
 
     expect(mockResolveHalted).toHaveBeenCalledWith('group-halted', 'record_number', 'GR-FOUND-42')
-    expect(await screen.findByText('Recorded GR-FOUND-42; the worker will adopt it without creating another receipt.')).toHaveFocus()
-    await waitFor(() => expect(screen.queryByText('Posting halted: check ESB')).not.toBeInTheDocument())
+    const recorded = await screen.findByText('Recorded GR-FOUND-42; the worker will adopt it without creating another receipt.')
+    expect(recorded.closest('[role="status"]')).toHaveFocus()
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Issue resolution' })).queryByText('Posting halted: check ESB')).not.toBeInTheDocument())
   })
 
   it('AC-1533 requeue requires an explicit confirmation that ESB has no receipt', async () => {
@@ -191,7 +201,7 @@ describe('Receipt issues', () => {
     renderQueue()
     await userEvent.click(await screen.findByRole('button', { name: 'Link a PO' }))
 
-    expect(await screen.findByText('PO-2610-0051')).toBeInTheDocument()
+    expect(await within(await findBench()).findByText('PO-2610-0051')).toBeInTheDocument()
     expect(screen.getByText(/ESB refuses a receipt dated before its PO/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Link to PO-2610-0051' })).not.toBeInTheDocument()
     expect(screen.getByText('4 × karton left on this PO')).toBeInTheDocument()
@@ -202,10 +212,10 @@ describe('Receipt issues', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Link to PO-2610-0042' }))
     expect(mockLink).toHaveBeenCalledWith('issue-over', 'PO-2610-0042')
     const notice = await screen.findByText('Linked to PO-2610-0042. It is held until the branch posts receipts.')
-    expect(notice).toHaveFocus()
+    expect(notice.closest('[role="status"]')).toHaveFocus()
 
     await userEvent.click(screen.getByRole('tab', { name: /Resolved/ }))
-    const resolved = (await screen.findByText('Over-delivery')).closest('li')!
+    const resolved = within(await findBench()).getByText('Over-delivery').closest('li')!
     expect(within(resolved).getByText('Linked to PO-2610-0042')).toBeInTheDocument()
     expect(within(resolved).getByText('PO created after delivery')).toBeInTheDocument()
     expect(within(resolved).getByText(/Dimas Prasetyo/)).toBeInTheDocument()
@@ -238,7 +248,7 @@ describe('Receipt issues', () => {
   it('FR-1040 a receiver reads their issues with state text and no action', async () => {
     mockCanManage.mockResolvedValue(false)
     renderQueue()
-    const row = (await screen.findByText('Over-delivery')).closest('li')!
+    const row = within(await findBench()).getByText('Over-delivery').closest('li')!
     expect(within(row).getByText('Waiting for procurement')).toBeInTheDocument()
     expect(within(row).queryByRole('button', { name: /Link|Close/ })).not.toBeInTheDocument()
     expect(screen.getByText(/Procurement resolves open issues/)).toBeInTheDocument()
@@ -281,8 +291,10 @@ describe('Receipt issues', () => {
       { ...DAMAGED, status: 'closed', closed_note: 'Supplier credit note', resolved_by: 'buyer-1', resolved_at: '2026-10-06T05:00:00Z' }]
     renderQueue()
     await userEvent.click(await screen.findByRole('tab', { name: /Resolved/ }))
-    expect(await screen.findByText('2 × karton posts on PO-2610-0042.')).toBeInTheDocument()
-    expect(screen.getByText('Closed with a note; this part is not posted.')).toBeInTheDocument()
+    expect(await within(await findBench()).findByText('2 × karton posts on PO-2610-0042.')).toBeInTheDocument()
+    expect(screen.queryByText(/Not posted until it is linked/)).not.toBeInTheDocument()
+    await userEvent.click(within(screen.getByRole('navigation')).getAllByRole('button')[1])
+    expect(await within(await findBench()).findByText('Closed with a note; this part is not posted.')).toBeInTheDocument()
     expect(screen.queryByText(/Not posted until it is linked/)).not.toBeInTheDocument()
   })
 
@@ -291,7 +303,7 @@ describe('Receipt issues', () => {
       parts: [{ po_number: 'PO-2610-0057', quantity: '2', state: 'held', po_created_after_delivery: false }] }]
     renderQueue()
     await userEvent.click(await screen.findByRole('tab', { name: /Resolved/ }))
-    expect(await screen.findByText('2 × karton on PO-2610-0057 is held until the branch releases its receipts.')).toBeInTheDocument()
+    expect(await within(await findBench()).findByText('2 × karton on PO-2610-0057 is held until the branch releases its receipts.')).toBeInTheDocument()
     expect(screen.queryByText(/posts on PO-2610-0057/)).not.toBeInTheDocument()
   })
 
@@ -300,14 +312,14 @@ describe('Receipt issues', () => {
     serverIssues = [{ ...OVER, status: 'linked', linked_po_number: 'PO-2610-0057', resolved_by: 'buyer-1', resolved_at: '2026-10-06T04:00:00Z' }]
     renderQueue()
     await userEvent.click(await screen.findByRole('tab', { name: /Resolved/ }))
-    expect(await screen.findByText('Procurement linked it to PO-2610-0057.')).toBeInTheDocument()
+    expect(await within(await findBench()).findByText('Procurement linked it to PO-2610-0057.')).toBeInTheDocument()
     expect(screen.queryByText(/posts on/)).not.toBeInTheDocument()
   })
 
   it('S9 an open issue with a linked part names that PO and its late flag', async () => {
     serverIssues = [{ ...OVER, quantity: '1', parts: [{ po_number: 'PO-2610-0057', quantity: '1', state: 'queued', po_created_after_delivery: true }] }]
     renderQueue()
-    const part = (await screen.findByText('1 × karton posts on PO-2610-0057.')).closest('li')!
+    const part = (await within(await findBench()).findByText('1 × karton posts on PO-2610-0057.')).closest('li')!
     expect(within(part).getByText('PO created after delivery')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Link a PO' })).toBeInTheDocument()
   })
@@ -322,15 +334,17 @@ describe('Receipt issues', () => {
       ] }]
     renderQueue()
     await userEvent.click(await screen.findByRole('tab', { name: /Resolved/ }))
-    const late = (await screen.findByText('1 × karton posts on PO-2610-0057.')).closest('li')!
-    const older = screen.getByText('1 × karton posts on PO-PROBE-OLDER.').closest('li')!
+    const benchEl = await findBench()
+    const bench = within(benchEl)
+    const late = (await bench.findByText('1 × karton posts on PO-2610-0057.')).closest('li')!
+    const older = bench.getByText('1 × karton posts on PO-PROBE-OLDER.').closest('li')!
     expect(within(late).getByText('PO created after delivery')).toBeInTheDocument()
     expect(within(older).queryByText('PO created after delivery')).not.toBeInTheDocument()
     // The line's own flag would repeat the part's, beside the other PO.
     expect(screen.getAllByText('PO created after delivery')).toHaveLength(1)
     // The row's quantity is everything linked, not only the last part.
-    expect(late.closest('.cafe-count-review__row')).toHaveTextContent('2 × karton')
-    expect(screen.getByText('Linked to 2 POs')).toBeInTheDocument()
+    expect(benchEl).toHaveTextContent('2 × karton')
+    expect(bench.getByText('Linked to 2 POs')).toBeInTheDocument()
   })
 
   it('S8 an issue a release re-opened says its PO had no room, and can be linked again', async () => {
@@ -366,7 +380,7 @@ describe('Receipt issues', () => {
   it('DD-2026-10-06-1429 a held portion no PO has room for is listed as blocked, read-only, with branch, item, quantity and age', async () => {
     serverHeld = [HELD]
     renderQueue()
-    const row = (await screen.findByText('Held: no room on its PO')).closest('li')!
+    const row = within(await findBench()).getByText('Held: no room on its PO').closest('li')!
     expect(within(row).getByText('Gula Aren Cair Organik 750 ml')).toBeInTheDocument()
     expect(within(row).getByText('4 × botol')).toBeInTheDocument()
     expect(within(row).getByText('Gordi HQ Kemang')).toBeInTheDocument()

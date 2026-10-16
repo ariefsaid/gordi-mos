@@ -16,7 +16,6 @@ import type {
 
 export type TaskCollectionPresentation = 'table' | 'card'
 export type TaskCollectionGroup = 'none' | 'status' | 'pic' | 'bu' | 'workline' | 'objective' | 'occurrence'
-export type TaskCollectionUnsupportedGroup = 'supervisor'
 export type TaskCollectionSort = 'task' | 'status' | 'pic' | 'supervisor' | 'due' | 'activity'
 export type TaskCollectionAction = never
 

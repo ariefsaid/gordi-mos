@@ -1,15 +1,14 @@
 import type React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { destinationForPath, phoneModuleForViewer } from './destinations'
+import { destinationForPath, phoneModuleForViewer } from './module-registry'
 import { isShipGated } from '@/lib/ship-gate'
-import { HomeIcon, WorkIcon, InboxIcon, MoreIcon } from './icons'
+import { HomeIcon, WorkIcon, MoreIcon } from './icons'
 import { useIsNarrow } from './use-is-narrow'
-import { RailCountBadge } from './rail-nav'
 import { useAuth } from '@/auth/use-auth'
-import { useUnreadCount } from '@/hooks/useUnreadCount'
 import type { MessageKey } from '@/i18n/messages'
 import { useT } from '@/i18n/use-t'
 import './bottom-tab-bar.css'
+import { ActionFab } from './action-fab'
 
 type PrimaryTab = {
   id: string
@@ -27,9 +26,8 @@ type PrimaryTab = {
 // filtered before render; the 3rd slot is the role-scoped module resolved per viewer below.
 const HOME: PrimaryTab = { id: 'home', labelKey: 'dest.home', href: '/', Icon: HomeIcon }
 const WORK: PrimaryTab = { id: 'work', labelKey: 'dest.work', href: '/work/tasks', sectionPrefix: '/work', Icon: WorkIcon }
-const INBOX: PrimaryTab = { id: 'inbox', labelKey: 'dest.inbox', href: '/inbox', Icon: InboxIcon }
 
-// v4 shell rebuild (Task 6): the + Action Launcher yields the thumb zone on capture surfaces —
+// One rule for the quick-create button: it is on every phone page, except where it yields the thumb zone on capture surfaces —
 // the Café root and its dedicated production/transfer/waste/Count/Receive/Request/plan/stock/review screens — where
 // the surface's own control is the primary action. Match route roots exactly: a `/cafe` prefix
 // also swallowed item settings and push history, which are support surfaces where quick capture
@@ -39,15 +37,15 @@ const CAPTURE_SURFACE_PATHS = [
   '/cafe/plan', '/cafe/stock', '/cafe/review',
 ]
 
-// The collections whose page head carries its own create button (Tasks, Signals): one create door
-// on phone, so the + launcher yields there. Exact paths only — a record page has no head create.
-const IN_PAGE_CREATE_PATHS = ['/work/tasks', '/work/signals']
-
 // A decision the person must make in one place: no tabs to wander off to, no "+" beside Allow.
 const FOCUSED_DECISION_PATHS = ['/oauth/consent']
 
 function isCaptureSurface(pathname: string): boolean {
   return CAPTURE_SURFACE_PATHS.includes(pathname.replace(/\/+$/, '') || '/')
+}
+
+function shouldShowActionDock(pathname: string): boolean {
+  return !isCaptureSurface(pathname)
 }
 
 type BottomTabBarProps = {
@@ -62,8 +60,8 @@ type BottomTabBarProps = {
 }
 
 /**
- * BottomTabBar — v4 shell rebuild. Phone bottom-nav = Home · Work · [viewer's module] · Inbox ·
- * More (destinations only, Task 5). The first up-to-four are primary destinations; More opens
+ * BottomTabBar — v4 shell rebuild. Phone bottom-nav = Home · Work · [viewer's module] ·
+ * More (destinations only, Task 5). The first up-to-three are primary destinations; More opens
  * the two-zone nav drawer of every OTHER destination. Exactly-one aria-current="page": the
  * active primary tab carries it; when a non-primary destination is active, the breadcrumb LEAF
  * carries it instead (I7 — "rail owns it; breadcrumb leaf when the viewer has no rail entry" —
@@ -77,36 +75,28 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
   const { pathname } = useLocation()
   const auth = useAuth()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
-  // H1/H8 fix (design audit, 2026-07-27): the phone Inbox tab's unread badge — the same cheap
-  // dedicated read the header bell and desktop rail already use (useUnreadCount), so the count
-  // reads identically everywhere it's shown. Fetched once per shell mount; no polling.
-  const { unreadCount } = useUnreadCount()
 
-  // The third slot leads with the viewer's own work: a barista's phone opens on Café, a roaster's
-  // on Roastery, and a viewer whose job role matches no module gets no promoted slot. This is
-  // EMPHASIS only (OD-WAY-51) — every module the viewer's routes admit is listed in the More
-  // drawer regardless, so nothing is hidden by not being promoted.
-  //
-  // The line here used to say "module routes stay reachable via ⌘K / direct URL". That was false:
-  // the palette held seven hardcoded entries, none of them Café. It is deleted rather than
-  // replaced — under OD-WAY-51 no justification is needed, because nothing is being hidden.
+  // The third slot names the module in play: the module whose page is open wins; elsewhere the last module the
+  // viewer opened, then their affiliation default; with none of the three the slot is omitted rather than made up.
+  // This is EMPHASIS only (OD-WAY-51) — every module the viewer's routes admit is listed in the More drawer
+  // regardless, so nothing is hidden by not being promoted.
   const moduleDest = viewer ? phoneModuleForViewer(viewer.affiliated, viewer.accessRoles, pathname) : null
   const moduleTab: PrimaryTab | null = moduleDest
     ? {
         id: moduleDest.id,
         labelKey: moduleDest.labelKey,
         href: moduleDest.primaryPath ?? moduleDest.links[0].path,
-        sectionPrefix: moduleDest.primaryPath,
+        sectionPrefix: `/${(moduleDest.primaryPath ?? moduleDest.links[0].path).split('/')[1]}`,
         Icon: moduleDest.Icon,
       }
     : null
 
-  const primaryTabs: PrimaryTab[] = [HOME, WORK, ...(moduleTab ? [moduleTab] : []), INBOX]
+  const primaryTabs: PrimaryTab[] = [HOME, WORK, ...(moduleTab ? [moduleTab] : [])]
     .filter((tab) => !isShipGated(tab.href))
 
   if (!isNarrow || FOCUSED_DECISION_PATHS.includes(pathname)) return null
 
-  const showLauncher = !isCaptureSurface(pathname) && !IN_PAGE_CREATE_PATHS.includes(pathname.replace(/\/+$/, ''))
+  const showLauncher = shouldShowActionDock(pathname)
   // More is a door, but on a page no tab covers it is also where the viewer stands: mark it (the
   // breadcrumb leaf still owns aria-current).
   const onPrimaryTab = primaryTabs.some((tab) => {
@@ -116,17 +106,14 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
   const moreIsHere = !onPrimaryTab && destinationForPath(pathname) !== null
 
   return (
-    // FINDING 1 fix: the nav landmark now holds ONLY navigation (the tab list) — the +
-    // Action Launcher is a sibling of <nav>, not a child, since it opens a create/action
-    // sheet rather than a destination (a non-navigational action inside a nav landmark was
-    // mis-announced as navigation). It keeps its fixed bottom-right position (position:fixed,
-    // unaffected by DOM parent) and its existing capture-surface hide/gutter-reclaim behaviour.
-    <>
+    // Four destinations (Home · Work · the viewer's module · More). Inbox lives on the top-bar bell
+    // and in More. Quick create is the floating button, not a tab.
+    <div className="bottom-tab-shell" style={{ gridArea: 'tabbar' }}>
       <nav
-        aria-label="Primary"
+        aria-label={t('nav.primary')}
         data-overlay-edge="bottom"
-        className={`bottom-tab-bar${showLauncher ? ' bottom-tab-bar--with-launcher' : ''}`}
-        style={{ gridArea: 'tabbar' }}
+        className="bottom-tab-bar"
+
       >
         <ul className="bottom-tab-list">
             {primaryTabs.map((tab) => {
@@ -136,26 +123,17 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
               const section = tab.sectionPrefix ?? tab.href
               const active =
                 tab.href === '/' ? pathname === '/' : pathname === section || pathname.startsWith(section + '/')
-              // H1/H8 fix (design audit, 2026-07-27): Inbox is the only primary tab with a count
-              // badge. Same DO-18(d) pattern as the rail — the accessible NAME is built on the
-              // <Link> itself by joining the already-localized label + badge sentence, so AT
-              // never concatenates the two with no separator ("Tugas12").
-              const badgeLabel =
-                tab.id === 'inbox' && unreadCount > 0 ? t('rail.badge.unreadInbox', { count: unreadCount }) : undefined
               const label = t(tab.labelKey)
               return (
                 <li key={tab.id}>
                   <Link
                     to={tab.href}
-                    aria-label={badgeLabel ? `${label}, ${badgeLabel}` : label}
+                    aria-label={label}
                     aria-current={active ? 'page' : undefined}
                     className={`bottom-tab${active ? ' bottom-tab--active' : ''}`}
                   >
                     <span className="bottom-tab-icon" style={{ position: 'relative' }}>
                       <tab.Icon />
-                      {tab.id === 'inbox' ? (
-                        <RailCountBadge count={unreadCount} label={badgeLabel} compact />
-                      ) : null}
                     </span>
                     <span className="bottom-tab-label">{label}</span>
                   </Link>
@@ -184,22 +162,7 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
             </li>
         </ul>
       </nav>
-      {/* FINDING 1: the launcher lives OUTSIDE <nav aria-label="Primary"> — it opens the shared
-          Action Launcher sheet, not a destination, so it must not be announced as navigation.
-          position:fixed keeps its exact bottom-right placement regardless of DOM parent.
-          OD-61 / OD-REDESIGN-46: the plus only opens the shared command registry; it never
-          guesses a default action. Task 6: yields on Café's capture surfaces. */}
-      {showLauncher && (
-        <button
-          type="button"
-          className="mobile-action-launcher"
-          aria-label={t('actionLauncher.open')}
-          aria-haspopup="dialog"
-          onClick={onOpenActionLauncher}
-        >
-          <span aria-hidden="true">+</span>
-        </button>
-      )}
-    </>
+      {showLauncher && <ActionFab onOpen={onOpenActionLauncher} />}
+    </div>
   )
 }

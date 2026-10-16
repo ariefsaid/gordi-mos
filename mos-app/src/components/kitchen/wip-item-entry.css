@@ -1,0 +1,67 @@
+/* WipItemEntry / WipItemDetail: unit change affordance, recorded meta, transfer cap cue and variance note.
+   The quantity box and unit tracks are the shared capture row's (capture-row.css). Token-only (DESIGN.md). */
+
+/* Unit label beside the typed quantity. Quiet — it names the unit, it is not data. */
+.kls-unit { display: block; min-width: 0; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+
+/* The deliberate "change unit" affordance (#234, FR-021/AC-005): a button wearing the quiet unit label plus a small
+   chevron. Renders ONLY when the item has more than one offered unit. */
+.kls-unit-change {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--mos-stack-gap);
+  width: 100%;
+  min-height: var(--mos-control-height);
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0 var(--mos-inline-gap);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--mos-muted);
+  font: var(--mos-type-body);
+  cursor: pointer;
+  text-align: left;
+}
+.kls-unit-change > span { min-width: 0; overflow-wrap: anywhere; }
+.kls-unit-change:disabled { cursor: default; }
+.kls-unit-change svg { flex: 0 0 auto; margin-inline-start: auto; }
+
+/* The opened picker (one per row at most, closed again on selection/blur). */
+.kls-unit-select { width: 100%; max-width: 100%; }
+.kls-unit-select .mk-select__box,
+.kls-unit-select .mk-select__field { width: 100%; max-width: 100%; }
+
+/* Recorded actuals line. */
+.kls-meta { display: flex; flex-wrap: wrap; gap: var(--mos-inline-gap); color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.kls-meta strong { color: var(--foreground); font-weight: 600; }
+.kls-logged-units { display: inline-flex; flex-wrap: wrap; gap: 0 var(--mos-inline-gap); }
+.kls-logged-unit { overflow-wrap: anywhere; }
+
+/* Transfer-availability cap cue (FR-023 / AC-022). */
+.kls-cap { color: var(--status-lost-text); }
+.kls-availability-note { margin: 0; color: var(--muted-foreground); line-height: 1.4; }
+
+/* Variance-note gate (FR-022 / AC-020/021). */
+.kls-note-wrap { display: flex; flex-direction: column; gap: var(--mos-stack-gap); }
+.kls-note-label { color: var(--muted-foreground); font-weight: 500; }
+.kls-note-cue { color: var(--muted-foreground); }
+.kls-note-cue--error { color: var(--status-lost-text); }
+.kls-note {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: var(--mos-inline-gap) var(--mos-row-pad-x);
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--mos-size-3);
+  resize: vertical;
+}
+/* Once the note carries text the gate is satisfied; the field stops shouting error. */
+.kls-note[aria-invalid='false'] { border-color: var(--border); }
+/* An empty required note, focused: the ring switches to the destructive colour instead of stacking two rings. */
+.kls-note[aria-invalid='true']:focus-visible { outline-color: var(--destructive); }

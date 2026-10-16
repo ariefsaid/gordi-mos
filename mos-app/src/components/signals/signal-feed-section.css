@@ -15,12 +15,12 @@
 .signal-feed-section {
   display: flex;
   flex-direction: column;
-  gap: var(--ds-spacing-3, 12px);
+  gap: var(--mos-toolbar-gap);
   min-width: 0;
   /* DO-16(d) (census home F6): the ambient tail keeps the SAME 24px seam Home puts between
      its own region groups (home-stream.css `.stream-group` gap) — the my-work→ambient seam
      was the one rhythm break in the scroll. */
-  margin-top: var(--ds-spacing-6, 24px);
+  margin-top: var(--mos-section-gap);
 }
 
 /* Section-label head — matches the stream's band grammar (home-stream.css
@@ -30,8 +30,8 @@
 .signal-feed-head {
   display: flex;
   align-items: baseline;
-  gap: 12px;
-  margin-bottom: 6px;
+  gap: var(--mos-row-gap);
+  margin-bottom: var(--mos-group-below);
 }
 
 /* Group-header label — matches the stream's List band header (home-stream.css
@@ -45,14 +45,14 @@
   min-width: 0;
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--font-size-body-lg);
+  font-size: var(--mos-size-3);
   font-weight: 600;
   color: var(--foreground);
 }
 
 .signal-feed-link {
   flex: none;
-  font-size: var(--font-size-mono);
+  font-size: var(--mos-size-2);
   font-weight: 600;
   color: var(--text-on-accent-tint);
   text-decoration: none;
@@ -66,9 +66,9 @@
    consumer is SignalFeedSection, which is what loads this file. */
 .signal-feed-link--more {
   display: block;
-  margin-top: 8px;
+  margin-top: var(--mos-inline-gap);
   padding: 4px;
   white-space: normal;
 }
 .signal-feed-link:hover { text-decoration: underline; }
-.signal-feed-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
+.signal-feed-link:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-radius: var(--radius-xs); }

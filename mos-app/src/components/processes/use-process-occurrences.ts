@@ -8,7 +8,7 @@ import { canCloseProcessRun, canStartProcessForTeam, listProcessOccurrenceSummar
 import type { DueProcessRun, ProcessOccurrenceSummary } from '@/lib/db/processes.types'
 import { dueKey, narrowToViewerTeams } from './use-due-runs'
 
-export type ProcessOccurrencesFetchState = 'loading' | 'ready' | 'error'
+type ProcessOccurrencesFetchState = 'loading' | 'ready' | 'error'
 
 export type ProcessOccurrencesData = {
   state: ProcessOccurrencesFetchState

@@ -103,7 +103,13 @@ function renderPage(accessRoles = ['finance'], initialLocale: 'en' | 'id' = 'en'
   return render(strictMode ? <StrictMode>{page}</StrictMode> : page)
 }
 
+const realInnerWidth = window.innerWidth
+function setInnerWidth(width: number) {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: width })
+}
+
 function setViewport(desktop: boolean, wide = false) {
+  setInnerWidth(wide ? 1600 : desktop ? 1000 : 390)
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
     matches: query === '(min-width: 1100px)' ? wide : query === '(min-width: 768px)' ? desktop : false,
     media: query, onchange: null,
@@ -112,6 +118,7 @@ function setViewport(desktop: boolean, wide = false) {
 }
 
 function setViewportWidth(width: number) {
+  setInnerWidth(width)
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
     matches: query === '(min-width: 768px)' ? width >= 768
       : query === '(min-width: 1100px)' ? width >= 1100
@@ -123,6 +130,16 @@ function setViewportWidth(width: number) {
 }
 
 const realMatchMedia = window.matchMedia
+
+// The bill list is a table on desktop and a list of cards on phone; both name themselves alike.
+const LIST_NAME = 'Pending bills, oldest first'
+const billList = (): HTMLElement => screen.queryByRole('table', { name: LIST_NAME }) ?? screen.getByRole('list', { name: LIST_NAME })
+const billRows = (list: HTMLElement): HTMLElement[] =>
+  list.tagName === 'TABLE' ? within(list).getAllByRole('row').slice(1) : within(list).queryAllByRole('listitem')
+const openBillName = (billNo: string) => new RegExp(`Open bill ${billNo}$`)
+// A summary figure by its caption, e.g. figure('Paid in period') -> the label and its value.
+const figure = (caption: string) => screen.getByText(caption, { selector: 'dt' }).parentElement as HTMLElement
+const proofFile = () => new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -147,6 +164,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
   window.matchMedia = realMatchMedia
+  setInnerWidth(realInnerWidth)
 })
 
 describe('AC-1113: only Finance reaches the list', () => {
@@ -162,26 +180,26 @@ describe('AC-1113: only Finance reaches the list', () => {
 describe('the ready list', () => {
   it('keeps the currency and figure together in the page summary', async () => {
     renderPage()
-    const summary = await screen.findByText(/3 open bills/)
+    await screen.findByRole('table')
 
-    expect(summary.textContent).toContain('Rp\u00a02.761.000 remaining')
-    expect(summary.textContent).toContain('oldest 420 days')
-    expect(summary.textContent).toContain('paid this month Rp\u00a00')
+    expect(figure('Open balance')).toHaveTextContent('Rp 2.761.000')
+    expect(figure('Open bills')).toHaveTextContent('3')
+    expect(figure('Oldest open bill')).toHaveTextContent('420 days')
+    expect(figure('Paid in period')).toHaveTextContent('Rp 0')
   })
 
   it('shows every bill oldest first with who owes, amount, balance, age and state', async () => {
     renderPage()
     fireEvent.click(await screen.findByRole('tab', { name: 'All' }))
     const table = await screen.findByRole('table', { name: /Pending bills/ })
-    const rows = within(table).getAllByRole('row').slice(1)
+    const rows = billRows(table)
     expect(rows.map((r) => within(r).getByText(/^PB-/).textContent)).toEqual(['PB-1', 'PB-4', 'PB-3', 'PB-2'])
     const oldest = within(rows[0])
-    expect(oldest.getByText('pop_up_east')).toBeInTheDocument()
+    expect(rows[0]).toHaveTextContent('pop_up_east')
     expect(oldest.getAllByText('Rp 2.480.000')).toHaveLength(2)
     expect(oldest.getByText('420 days')).toBeInTheDocument()
     expect(oldest.getByText('Open')).toBeInTheDocument()
-    const missingState = within(rows[1]).getByText('No longer in ESB')
-    expect(missingState.closest('.pending-bills__state-pill')).toBeInTheDocument()
+    expect(within(rows[1]).getByText('No longer in ESB')).toBeInTheDocument()
     expect(within(rows[2]).getByText('Voided in ESB')).toBeInTheDocument()
     expect(within(rows[3]).getByText('Not written on the bill')).toBeInTheDocument()
     expect(within(rows[3]).getByText('Today')).toBeInTheDocument()
@@ -189,66 +207,44 @@ describe('the ready list', () => {
 })
 
 describe('the table columns', () => {
-  it('orders Age near Date and State after Who owes, before the bill and money columns', async () => {
-    renderPage()
-    const table = await screen.findByRole('table')
-    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(
-      ['Select', 'Date', 'Age', 'Branch', 'Who owes', 'State', 'Bill no.', 'Amount', 'Balance'],
-    )
-  })
-
-  it('renders the list inside the shared Money table shell', async () => {
-    renderPage()
-    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
-    expect(table).toHaveClass('money-table')
-    expect(table.closest('.money-table-scroll')).toBeInTheDocument()
-  })
-
   it('says a branch MOS does not know is unknown, beside the code the till sent', async () => {
     renderPage()
     const table = await screen.findByRole('table')
     const row = within(table).getByText('PB-1').closest('tr')!
-    expect(within(row).getByText('pop_up_east')).toBeInTheDocument()
-    expect(within(row).getByText('· unknown branch')).toBeInTheDocument()
+    expect(row).toHaveTextContent('pop_up_east · unknown branch')
     const linked = within(table).getByText('PB-2').closest('tr')!
-    expect(within(linked).queryByText('· unknown branch')).toBeNull()
+    expect(linked).not.toHaveTextContent('unknown branch')
   })
 })
 
 describe('the phone list', () => {
-  it('shows each bill in the shared row markup with who owes, amount, age, state and balance', async () => {
+  it('shows each bill as a card with who owes, amount, age, state and balance', async () => {
     setViewport(false)
     renderPage()
     await screen.findByText('Copied from ESB Tue 6 Oct, 02:05 WIB')
     fireEvent.click(screen.getByRole('tab', { name: 'All' }))
-    const table = screen.getByRole('table', { name: 'Pending bills, oldest first' })
-    const rows = within(table).getAllByRole('row').slice(1)
+    const list = screen.getByRole('list', { name: LIST_NAME })
+    const rows = billRows(list)
     expect(rows).toHaveLength(4)
     const oldest = within(rows[0])
     expect(oldest.getByText('Meja 4')).toBeInTheDocument()
-    expect(oldest.getAllByText('Rp 2.480.000')).toHaveLength(2)
-    expect(oldest.getByText('pop_up_east')).toBeInTheDocument()
-    expect(oldest.getByText('PB-1')).toBeInTheDocument()
+    expect(oldest.getByText('Rp 2.480.000')).toBeInTheDocument()
+    expect(rows[0]).toHaveTextContent('PB-1')
+    expect(rows[0]).toHaveTextContent('pop_up_east')
     expect(oldest.getByText('420 days')).toBeInTheDocument()
     expect(oldest.getByText('Open')).toBeInTheDocument()
-    expect(oldest.getByText('Meja 4').closest('.money-table__cell--owes')).toBeInTheDocument()
   })
 
-  it('keeps the Finance label name accessible without spending list width on the phone card', async () => {
+  it('shows the Finance label on the phone card', async () => {
     setViewport(false)
     const label = 'Owner who runs the weekend market and always settles after closing'
     mockFinanceLabels.mockResolvedValue([{
       esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'PB-2', finance_label: label,
     }])
     renderPage()
-    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
-    const row = within(table).getByText('PB-2').closest('tr')!
-    const financeLabel = within(row).getByText(label)
-    const financeLabelName = within(row).getByText('Finance label:', { exact: true })
-    expect(financeLabel).toHaveAttribute('title', label)
-    expect(financeLabel).toHaveClass('pending-bills__finance-label')
-    expect(financeLabelName).toHaveClass('sr-only')
-    expect(financeLabel.closest('.pending-bills__finance-label-line')?.previousElementSibling).toHaveClass('pending-bills__owes-source')
+    const list = await screen.findByRole('list', { name: LIST_NAME })
+    const card = within(list).getByRole('button', { name: openBillName('PB-2') }).closest('li')!
+    expect(card).toHaveTextContent(`Finance label: ${label}`)
   })
 
   it('keeps a long counterparty note readable on the phone card and recoverable in the record panel', async () => {
@@ -258,74 +254,48 @@ describe('the phone list', () => {
     renderPage()
     const text = await screen.findByText(note)
     expect(text).toHaveAttribute('title', note)
-    expect(text.closest('.money-table__cell--owes')).toBeInTheDocument()
 
-    const row = text.closest('tr')!
-    fireEvent.click(within(row).getByRole('button', { name: 'Open bill PB-LONG' }))
+    fireEvent.click(within(text.closest('li')!).getByRole('button', { name: openBillName('PB-LONG') }))
     const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-LONG' })
     expect(within(panel).getByText(note)).toBeInTheDocument()
   })
 
-  it('keeps the full branch name in the record panel when the tablet row is clamped', async () => {
+  it('keeps the full branch name in the record panel', async () => {
     setViewport(true)
     const branchName = 'North Jakarta Central Distribution and Finance Office'
     mockList.mockResolvedValue([bill({ bill_no: 'PB-BRANCH', branch_name: branchName })])
     renderPage()
-    const branchCell = (await screen.findByRole('row', { name: /PB-BRANCH/ })).querySelector('.pending-bills__branch')
-    expect(branchCell).toHaveAttribute('title', branchName)
+    expect(await screen.findByRole('row', { name: /PB-BRANCH/ })).toHaveTextContent(branchName)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open bill PB-BRANCH' }))
+    fireEvent.click(screen.getByRole('button', { name: openBillName('PB-BRANCH') }))
     const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-BRANCH' })
     expect(within(panel).getByText(branchName)).toBeInTheDocument()
-  })
-
-  it('keeps the unnamed counterparty placeholder muted', async () => {
-    setViewport(false)
-    renderPage()
-    const placeholder = await screen.findByText('Not written on the bill')
-    expect(placeholder).toHaveClass('pending-bills__muted')
-    expect(placeholder.closest('.money-table__cell--owes')).toBeInTheDocument()
-  })
-})
-
-describe('tablet urgency cues', () => {
-  it('keeps a 90+ marker in the bill cell while the age column is hidden', async () => {
-    setViewport(true)
-    renderPage()
-    const row = await screen.findByRole('row', { name: /PB-1/ })
-    const billCell = row.querySelector('.money-table__cell--bill') as HTMLElement
-    const recentRow = screen.getByRole('row', { name: /PB-2/ })
-
-    expect(within(row).getByText('420 days')).toBeInTheDocument()
-    expect(within(billCell).getByText('90+ days')).toHaveClass('pending-bills__age-old', 'pending-bills__tablet-age-cue')
-    expect(recentRow.querySelector('.pending-bills__tablet-age-cue')).toBeNull()
   })
 })
 
 describe('AC-1121: pending-bill view controls', () => {
   it('resets the phone page scroll after changing the tab, branch, age or search', async () => {
     setViewport(false)
+    const user = userEvent.setup()
     renderPage()
-    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
-    const scroller = table.closest('.money-table-scroll') as HTMLDivElement
-    const pageScroller = table.closest('.page-frame--v3') as HTMLDivElement
+    const list = await screen.findByRole('list', { name: LIST_NAME })
+    const pageScroller = list.closest('.page-frame--v3') as HTMLDivElement
     const assertScrollReset = async (change: () => void | Promise<void>) => {
-      scroller.scrollTop = 136
       pageScroller.scrollTop = 136
       await change()
-      await waitFor(() => {
-        expect(scroller.scrollTop).toBe(0)
-        expect(pageScroller.scrollTop).toBe(0)
-      })
+      await waitFor(() => expect(pageScroller.scrollTop).toBe(0))
     }
 
     await assertScrollReset(() => { fireEvent.click(screen.getByRole('tab', { name: 'Paid' })) })
     await assertScrollReset(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
-      fireEvent.click(screen.getByRole('combobox', { name: 'Branch' }))
-      fireEvent.click(await screen.findByRole('option', { name: 'pop_up_east' }))
+      await user.click(screen.getByRole('button', { name: /^Filters/ }))
+      await user.click(screen.getByRole('combobox', { name: 'Branch' }))
+      await user.click(await screen.findByRole('option', { name: 'pop_up_east' }))
     })
-    await assertScrollReset(() => { fireEvent.click(screen.getByRole('button', { name: '90+ days' })) })
+    await assertScrollReset(async () => {
+      await user.click(screen.getByRole('combobox', { name: 'Bill age' }))
+      await user.click(await screen.findByRole('option', { name: '90+ days' }))
+    })
     await assertScrollReset(() => { fireEvent.change(screen.getByRole('searchbox', { name: 'Search bills' }), { target: { value: 'PB-1' } }) })
   })
 
@@ -343,16 +313,16 @@ describe('AC-1121: pending-bill view controls', () => {
     renderPage()
     const openTab = await screen.findByRole('tab', { name: 'Open' })
     expect(openTab).toHaveAttribute('aria-selected', 'true')
-    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    const table = await screen.findByRole('table', { name: LIST_NAME })
     expect(within(table).getAllByRole('row')).toHaveLength(4)
     fireEvent.click(within(table).getByRole('checkbox', { name: 'Select bill PB-1' }))
-    expect(screen.getByRole('region', { name: '1 selected · Rp 2.480.000 total' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '1 selected · Rp 2.480.000 total' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Paid' }))
     expect(await within(table).findByText('PB-SETTLED')).toBeInTheDocument()
-    expect(await screen.findByText(/3 open bills/)).toHaveTextContent('paid this month Rp 500')
-    expect(within(table).getByRole('checkbox', { name: 'Select bill PB-SETTLED' })).toBeDisabled()
-    expect(screen.queryByRole('region', { name: /selected ·/ })).toBeNull()
+    expect(figure('Paid in period')).toHaveTextContent('Rp 500')
+    expect(within(table).getByRole('checkbox', { name: /^Select bill PB-SETTLED/ })).toBeDisabled()
+    expect(screen.queryByRole('group', { name: /selected ·/ })).toBeNull()
 
     fireEvent.click(screen.getByRole('tab', { name: 'All' }))
     expect(await within(table).findByText('PB-3')).toBeInTheDocument()
@@ -362,34 +332,36 @@ describe('AC-1121: pending-bill view controls', () => {
 
   it('keeps branch and age filters behind a phone disclosure and preserves their result when collapsed', async () => {
     setViewport(false)
+    const user = userEvent.setup()
     renderPage()
-    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    const list = await screen.findByRole('list', { name: LIST_NAME })
     const trigger = screen.getByRole('button', { name: 'Filters' })
 
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(trigger).toHaveAttribute('aria-controls', 'pending-bills-filter-options')
     expect(screen.queryByRole('combobox', { name: 'Branch' })).toBeNull()
     expect(screen.getByRole('searchbox', { name: 'Search bills' })).toBeInTheDocument()
-    expect(await screen.findByText(/3 bills · oldest 420 days/)).toHaveTextContent('Rp 2.761.000 open')
+    expect(screen.getByText('3 bills')).toBeInTheDocument()
 
-    fireEvent.click(trigger)
+    await user.click(trigger)
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    fireEvent.click(screen.getByRole('combobox', { name: 'Branch' }))
-    fireEvent.click(await screen.findByRole('option', { name: 'pop_up_east' }))
-    expect(screen.getByRole('button', { name: 'Filters, 1 active filter' })).toHaveTextContent('1')
-    fireEvent.click(screen.getByRole('button', { name: '90+ days' }))
+    await user.click(screen.getByRole('combobox', { name: 'Branch' }))
+    await user.click(await screen.findByRole('option', { name: 'pop_up_east' }))
+    expect(screen.getByRole('button', { name: 'Filters (1)' })).toBeInTheDocument()
+    await user.click(screen.getByRole('combobox', { name: 'Bill age' }))
+    await user.click(await screen.findByRole('option', { name: '90+ days' }))
 
-    expect(screen.getByRole('button', { name: 'Filters, 2 active filters' })).toHaveTextContent('2')
-    expect(within(table).getAllByRole('row').slice(1)).toHaveLength(1)
-    expect(within(table).getByText('PB-1')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filters (2)' })).toBeInTheDocument()
+    expect(billRows(list)).toHaveLength(1)
+    expect(within(list).getByText('PB-1')).toBeInTheDocument()
 
-    fireEvent.click(trigger)
+    await user.click(trigger)
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('combobox', { name: 'Branch' })).toBeNull()
-    expect(within(table).getAllByRole('row').slice(1)).toHaveLength(1)
-    expect(within(table).getByText('PB-1')).toBeInTheDocument()
+    expect(billRows(list)).toHaveLength(1)
+    expect(within(list).getByText('PB-1')).toBeInTheDocument()
 
-    fireEvent.click(trigger)
+    await user.click(trigger)
     trigger.focus()
     fireEvent.keyDown(trigger, { key: 'Escape' })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
@@ -398,39 +370,44 @@ describe('AC-1121: pending-bill view controls', () => {
 
   it('localizes the phone disclosure and its active count in Indonesian', async () => {
     setViewport(false)
+    const user = userEvent.setup()
     renderPage(['finance'], 'id')
-    await screen.findByRole('table')
+    await screen.findByRole('list')
     const trigger = screen.getByRole('button', { name: 'Filter' })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
 
-    fireEvent.click(trigger)
-    fireEvent.click(screen.getByRole('button', { name: '90+ hari' }))
-    expect(screen.getByRole('button', { name: 'Filter, 1 filter aktif' })).toHaveTextContent('1')
+    await user.click(trigger)
+    await user.click(screen.getByRole('combobox', { name: 'Umur tagihan' }))
+    await user.click(await screen.findByRole('option', { name: '90+ hari' }))
+    expect(screen.getByRole('button', { name: 'Filter (1)' })).toBeInTheDocument()
   })
 
-  it('combines branch, age and bill-number search and marks 90+ rows', async () => {
+  it('combines branch, age and bill-number search', async () => {
     setViewport(false)
+    const user = userEvent.setup()
     renderPage()
-    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
-    fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
-    fireEvent.click(screen.getByRole('combobox', { name: 'Branch' }))
-    fireEvent.click(await screen.findByRole('option', { name: 'pop_up_east' }))
-    fireEvent.click(screen.getByRole('button', { name: '90+ days' }))
+    const list = await screen.findByRole('list', { name: LIST_NAME })
+    await user.click(screen.getByRole('button', { name: 'Filters' }))
+    await user.click(screen.getByRole('combobox', { name: 'Branch' }))
+    await user.click(await screen.findByRole('option', { name: 'pop_up_east' }))
+    await user.click(screen.getByRole('combobox', { name: 'Bill age' }))
+    await user.click(await screen.findByRole('option', { name: '90+ days' }))
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search bills' }), { target: { value: 'pb - 1' } })
 
-    const rows = within(table).getAllByRole('row').slice(1)
+    const rows = billRows(list)
     expect(rows).toHaveLength(1)
     expect(within(rows[0]).getByText('PB-1')).toBeInTheDocument()
-    expect(within(rows[0]).getByText('420 days')).toHaveClass('pending-bills__age-old')
-    expect(await screen.findByText(/1 bill · oldest 420 days/)).toHaveTextContent('Rp 2.480.000 open')
+    expect(within(rows[0]).getByText('420 days')).toBeInTheDocument()
+    expect(screen.getByText('1 bill')).toBeInTheDocument()
+    expect(figure('Open balance')).toHaveTextContent('Rp 2.480.000')
   })
 })
 
 describe('Finance label editing in the bill record', () => {
   it('sets and clears a label, confirms each save, and restores focus after keyboard commit', async () => {
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
-    const edit = await screen.findByRole('button', { name: 'Edit Finance label' })
+    fireEvent.click(await screen.findByRole('button', { name: openBillName('PB-2') }))
+    const edit = await screen.findByRole('button', { name: /Edit Finance label$/ })
     fireEvent.click(edit)
     const input = screen.getByRole('textbox', { name: 'Finance label' })
     fireEvent.change(input, { target: { value: 'Owner Sari' } })
@@ -440,10 +417,11 @@ describe('Finance label editing in the bill record', () => {
       esbCode: 'GKI', branchCode: 'rumah_rames', billNo: 'PB-2', financeLabel: 'Owner Sari',
     }))
     expect(await screen.findByText('Finance label saved.')).toBeInTheDocument()
-    expect(await screen.findAllByText('Owner Sari')).toHaveLength(2)
-    expect(document.activeElement).toHaveAttribute('aria-label', 'Edit Finance label')
+    expect(await screen.findByText('Owner Sari')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: openBillName('PB-2') }).closest('tr')).toHaveTextContent('Finance label: Owner Sari')
+    expect(document.activeElement).toHaveAttribute('aria-label', expect.stringMatching(/Edit Finance label$/))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Finance label' }))
+    fireEvent.click(screen.getByRole('button', { name: /Edit Finance label$/ }))
     const clearInput = screen.getByRole('textbox', { name: 'Finance label' })
     fireEvent.change(clearInput, { target: { value: '' } })
     fireEvent.keyDown(clearInput, { key: 'Enter' })
@@ -456,8 +434,8 @@ describe('Finance label editing in the bill record', () => {
   it('keeps a failed label draft in edit mode and guards discard like the payment form', async () => {
     mockSetFinanceLabel.mockRejectedValue(new Error('unavailable'))
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit Finance label' }))
+    fireEvent.click(await screen.findByRole('button', { name: openBillName('PB-2') }))
+    fireEvent.click(await screen.findByRole('button', { name: /Edit Finance label$/ }))
     const input = screen.getByRole('textbox', { name: 'Finance label' })
     fireEvent.change(input, { target: { value: 'Draft label' } })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -477,8 +455,8 @@ describe('Finance label editing in the bill record', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
-    await user.click(await screen.findByRole('button', { name: 'Edit Finance label' }))
+    await user.click(await screen.findByRole('button', { name: openBillName('PB-2') }))
+    await user.click(await screen.findByRole('button', { name: /Edit Finance label$/ }))
     const input = screen.getByRole('textbox', { name: 'Finance label' })
     await user.type(input, 'Draft label')
     await user.keyboard('{Enter}')
@@ -497,23 +475,17 @@ describe('Finance label editing in the bill record', () => {
 })
 
 describe('multi-bill payment selection', () => {
-  it('places tablet selection actions before the bill list in reading and focus order', async () => {
-    setViewport(true)
+  it('offers Record payment and Clear selection once a bill is picked, and Clear empties the selection', async () => {
     renderPage()
-    const table = await screen.findByRole('table')
-    fireEvent.click(within(table).getByRole('checkbox', { name: 'Select bill PB-1' }))
+    const table = await screen.findByRole('table', { name: LIST_NAME })
+    const pick = within(table).getByRole('checkbox', { name: 'Select bill PB-1' })
+    fireEvent.click(pick)
 
-    const selection = screen.getByRole('region', { name: '1 selected · Rp 2.480.000 total' })
-    expect(selection.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
-  it('makes Record payment primary and Clear selection secondary', async () => {
-    renderPage()
-    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
-    fireEvent.click(within(table).getByRole('checkbox', { name: 'Select bill PB-1' }))
-
-    expect(screen.getByRole('button', { name: 'Record payment' })).toHaveClass('btn-primary')
-    expect(screen.getByRole('button', { name: 'Clear selection' })).toHaveClass('btn-outline')
+    const selection = screen.getByRole('group', { name: '1 selected · Rp 2.480.000 total' })
+    expect(within(selection).getByRole('button', { name: 'Record payment' })).toBeEnabled()
+    fireEvent.click(within(selection).getByRole('button', { name: 'Clear selection' }))
+    expect(pick).not.toBeChecked()
+    expect(screen.queryByRole('group', { name: /selected ·/ })).toBeNull()
   })
 
   it('selects only payable rows and reports the selected count and balance', async () => {
@@ -529,13 +501,13 @@ describe('multi-bill payment selection', () => {
     }])
     renderPage()
     fireEvent.click(await screen.findByRole('tab', { name: 'All' }))
-    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    const table = await screen.findByRole('table', { name: LIST_NAME })
     const selectAll = within(table).getByRole('checkbox', { name: 'Select all payable bills' })
     const open = within(table).getByRole('checkbox', { name: 'Select bill PB-2' })
     const partial = within(table).getByRole('checkbox', { name: 'Select bill PB-1' })
-    const settled = within(table).getByRole('checkbox', { name: 'Select bill PB-SETTLED' })
-    const voided = within(table).getByRole('checkbox', { name: 'Select bill PB-3' })
-    const missing = within(table).getByRole('checkbox', { name: 'Select bill PB-4' })
+    const settled = within(table).getByRole('checkbox', { name: /^Select bill PB-SETTLED/ })
+    const voided = within(table).getByRole('checkbox', { name: /^Select bill PB-3/ })
+    const missing = within(table).getByRole('checkbox', { name: /^Select bill PB-4/ })
 
     expect(settled).toBeDisabled()
     expect(voided).toBeDisabled()
@@ -544,59 +516,57 @@ describe('multi-bill payment selection', () => {
 
     expect(open).toBeChecked()
     expect(partial).toBeChecked()
-    expect(screen.getByRole('region', { name: '2 selected · Rp 2.576.000 total' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '2 selected · Rp 2.576.000 total' })).toBeInTheDocument()
   })
 
   it('keeps per-card selection operable on phone', async () => {
     setViewport(false)
     renderPage()
-    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
-    const checkbox = within(table).getByRole('checkbox', { name: 'Select bill PB-2' })
+    const list = await screen.findByRole('list', { name: LIST_NAME })
+    const checkbox = within(list).getByRole('checkbox', { name: 'Select bill PB-2' })
     expect(checkbox).toBeEnabled()
     fireEvent.click(checkbox)
     expect(checkbox).toBeChecked()
-    expect(screen.getByRole('region', { name: '1 selected · Rp 96.000 total' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '1 selected · Rp 96.000 total' })).toBeInTheDocument()
   })
 
   it('offers select-all in the phone header and selects every payable bill', async () => {
     setViewport(false)
     renderPage()
     fireEvent.click(await screen.findByRole('tab', { name: 'All' }))
-    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
-    const viewToolbar = document.querySelector('.pending-bills-view-toolbar')
-    expect(viewToolbar).not.toBeNull()
-    const selectAll = within(viewToolbar as HTMLElement).getByRole('checkbox', { name: 'Select all payable bills' })
+    const list = await screen.findByRole('list', { name: LIST_NAME })
+    const selectAll = screen.getByRole('checkbox', { name: 'Select all payable bills' })
 
     expect(selectAll).toBeEnabled()
     fireEvent.click(selectAll)
 
     expect(selectAll).toBeChecked()
-    expect(within(table).getByRole('checkbox', { name: 'Select bill PB-1' })).toBeChecked()
-    expect(within(table).getByRole('checkbox', { name: 'Select bill PB-2' })).toBeChecked()
-    expect(within(table).getByRole('checkbox', { name: 'Select bill PB-3' })).toBeDisabled()
-    expect(within(table).getByRole('checkbox', { name: 'Select bill PB-4' })).toBeDisabled()
-    expect(screen.getByRole('region', { name: '2 selected · Rp 2.576.000 total' })).toBeInTheDocument()
+    expect(within(list).getByRole('checkbox', { name: 'Select bill PB-1' })).toBeChecked()
+    expect(within(list).getByRole('checkbox', { name: 'Select bill PB-2' })).toBeChecked()
+    expect(within(list).getByRole('checkbox', { name: /^Select bill PB-3/ })).toBeDisabled()
+    expect(within(list).getByRole('checkbox', { name: /^Select bill PB-4/ })).toBeDisabled()
+    expect(screen.getByRole('group', { name: '2 selected · Rp 2.576.000 total' })).toBeInTheDocument()
   })
 
   it('keeps the selected bills and names the server failure for retry', async () => {
     mockPaySeveral.mockRejectedValue(new Error('Pending bill PB-2 is already settled.'))
     renderPage()
-    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    const table = await screen.findByRole('table', { name: LIST_NAME })
     fireEvent.click(within(table).getByRole('checkbox', { name: 'Select bill PB-1' }))
     fireEvent.click(within(table).getByRole('checkbox', { name: 'Select bill PB-2' }))
     fireEvent.click(screen.getByRole('button', { name: 'Record payment' }))
 
     const form = await screen.findByRole('form', { name: 'Record payment' })
-    fireEvent.change(within(form).getByLabelText('Cash-in date'), { target: { value: '06/10/2026' } })
+    fireEvent.change(within(form).getByLabelText(/^Cash-in date/), { target: { value: '06/10/2026' } })
     fireEvent.change(within(form).getByLabelText(/^Proof/), {
-      target: { files: [new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })] },
+      target: { files: [proofFile()] },
     })
     fireEvent.click(within(form).getByRole('button', { name: 'Record payment' }))
 
     expect(await within(form).findByRole('alert')).toHaveTextContent('Pending bill PB-2 is already settled.')
     expect(within(table).getByRole('checkbox', { name: 'Select bill PB-1' })).toBeChecked()
     expect(within(table).getByRole('checkbox', { name: 'Select bill PB-2' })).toBeChecked()
-    expect(screen.getByRole('region', { name: '2 selected · Rp 2.576.000 total' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '2 selected · Rp 2.576.000 total' })).toBeInTheDocument()
   })
 
   it('refreshes changed balances without losing the selection or payment draft', async () => {
@@ -609,23 +579,23 @@ describe('multi-bill payment selection', () => {
     ])
     mockPaySeveral.mockRejectedValue(new PendingBillBalanceChangedError())
     renderPage()
-    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    const table = await screen.findByRole('table', { name: LIST_NAME })
     fireEvent.click(within(table).getByRole('checkbox', { name: 'Select bill PB-1' }))
     fireEvent.click(within(table).getByRole('checkbox', { name: 'Select bill PB-2' }))
     fireEvent.click(screen.getByRole('button', { name: 'Record payment' }))
 
     const form = await screen.findByRole('form', { name: 'Record payment' })
-    const date = within(form).getByLabelText('Cash-in date')
+    const date = within(form).getByLabelText(/^Cash-in date/)
     fireEvent.change(date, { target: { value: '06/10/2026' } })
     fireEvent.change(within(form).getByLabelText(/^Proof/), {
-      target: { files: [new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })] },
+      target: { files: [proofFile()] },
     })
     fireEvent.click(within(form).getByRole('button', { name: 'Record payment' }))
 
     expect(await within(form).findByRole('alert')).toHaveTextContent('Balances changed. Review the selected bills and try again.')
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2))
     expect(within(form).getByText('Rp 97.000')).toBeInTheDocument()
-    expect(within(form).getByLabelText('Cash-in date')).toHaveValue('6 Oct 2026')
+    expect(within(form).getByLabelText(/^Cash-in date/)).toHaveValue('6 Oct 2026')
     expect(within(form).getByText('receipt.pdf')).toBeInTheDocument()
     expect(within(table).getByRole('checkbox', { name: 'Select bill PB-1' })).toBeChecked()
     expect(within(table).getByRole('checkbox', { name: 'Select bill PB-2' })).toBeChecked()
@@ -642,20 +612,20 @@ describe('multi-bill payment selection', () => {
     ]
     mockPaySeveral.mockResolvedValue(batchResults)
     renderPage()
-    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    const table = await screen.findByRole('table', { name: LIST_NAME })
     fireEvent.click(within(table).getByRole('checkbox', { name: 'Select all payable bills' }))
     fireEvent.click(screen.getByRole('button', { name: 'Record payment' }))
 
     const form = await screen.findByRole('form', { name: 'Record payment' })
     expect(within(form).queryByRole('spinbutton', { name: 'Amount' })).toBeNull()
     expect(within(form).getByText('Rp 2.576.000,50')).toBeInTheDocument()
-    fireEvent.change(within(form).getByLabelText('Cash-in date'), { target: { value: '06/10/2026' } })
+    fireEvent.change(within(form).getByLabelText(/^Cash-in date/), { target: { value: '06/10/2026' } })
     fireEvent.change(within(form).getByLabelText(/^Proof/), {
-      target: { files: [new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })] },
+      target: { files: [proofFile()] },
     })
     fireEvent.click(within(form).getByRole('button', { name: 'Record payment' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('2 bills settled · Rp 2.576.000,50 total.')
+    expect(await screen.findByText('2 bills settled · Rp 2.576.000,50 total.')).toBeInTheDocument()
     expect(mockPaySeveral).toHaveBeenCalledWith(expect.objectContaining({
       billIds: ['["GKI","pop_up_east","PB-1"]', '["GKI","rumah_rames","PB-2"]'],
       expectedAmountsCents: [248000000, 9600050],
@@ -663,10 +633,11 @@ describe('multi-bill payment selection', () => {
       proofPath: 'org-1/proof.pdf',
     }))
     expect(screen.getByRole('tab', { name: 'Open' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByText(/0 open bills/)).toHaveTextContent('paid this month Rp 2.576.000')
+    expect(figure('Open bills')).toHaveTextContent('0')
+    expect(figure('Paid in period')).toHaveTextContent('Rp 2.576.000')
     expect(within(table).getAllByRole('row').slice(1)).toHaveLength(0)
     expect(screen.getByText('No bills match these filters.')).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: /selected ·/ })).toBeNull()
+    expect(screen.queryByRole('group', { name: /selected ·/ })).toBeNull()
     await waitFor(() => expect(screen.getByRole('tab', { name: 'Open' })).toHaveFocus())
   })
 })
@@ -678,22 +649,23 @@ describe('AC-1135: recording updates the selected row and confirms count plus to
 
     const openTab = await screen.findByRole('tab', { name: 'Open' })
     expect(openTab).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-LAST' }))
+    fireEvent.click(await screen.findByRole('button', { name: openBillName('PB-LAST') }))
     const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-LAST' })
     fireEvent.click(within(panel).getByRole('button', { name: 'Record payment' }))
     const form = within(panel).getByRole('form', { name: 'Record payment' })
-    fireEvent.change(within(form).getByLabelText('Amount'), { target: { value: '96000' } })
-    fireEvent.change(within(form).getByLabelText('Cash-in date'), { target: { value: '06/10/2026' } })
+    fireEvent.change(within(form).getByLabelText(/^Amount/), { target: { value: '96000' } })
+    fireEvent.change(within(form).getByLabelText(/^Cash-in date/), { target: { value: '06/10/2026' } })
     fireEvent.change(within(form).getByLabelText(/^Proof/), {
-      target: { files: [new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })] },
+      target: { files: [proofFile()] },
     })
     fireEvent.click(within(form).getByRole('button', { name: 'Record payment' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('1 payment recorded · Rp 96.000 total.')
+    expect(await screen.findByText('1 payment recorded · Rp 96.000 total.')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Open' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('No bills match these filters.')).toBeInTheDocument()
-    expect(within(screen.getByRole('table', { name: 'Pending bills, oldest first' })).getAllByRole('row').slice(1)).toHaveLength(0)
-    expect(screen.getByText(/0 open bills/)).toHaveTextContent('paid this month Rp 96.000')
+    expect(within(billList()).getAllByRole('row').slice(1)).toHaveLength(0)
+    expect(figure('Open bills')).toHaveTextContent('0')
+    expect(figure('Paid in period')).toHaveTextContent('Rp 96.000')
   })
 
   it('keeps the All tab selected and shows the settled bill in place', async () => {
@@ -711,7 +683,7 @@ describe('AC-1135: recording updates the selected row and confirms count plus to
     renderPage()
     fireEvent.click(await screen.findByRole('tab', { name: 'All' }))
 
-    const openRow = await screen.findByRole('button', { name: 'Open bill PB-2' })
+    const openRow = await screen.findByRole('button', { name: openBillName('PB-2') })
     fireEvent.click(openRow)
     const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
     await screen.findByText('No payments recorded for this bill.')
@@ -721,24 +693,24 @@ describe('AC-1135: recording updates the selected row and confirms count plus to
     const form = within(panel).getByRole('form', { name: 'Record payment' })
     expect(within(panel).getAllByText('PB-2')).toHaveLength(1)
 
-    fireEvent.change(within(form).getByLabelText('Amount'), { target: { value: '96000' } })
-    fireEvent.change(within(form).getByLabelText('Cash-in date'), { target: { value: '06/10/2026' } })
+    fireEvent.change(within(form).getByLabelText(/^Amount/), { target: { value: '96000' } })
+    fireEvent.change(within(form).getByLabelText(/^Cash-in date/), { target: { value: '06/10/2026' } })
     fireEvent.change(within(form).getByLabelText(/^Proof/), {
-      target: { files: [new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })] },
+      target: { files: [proofFile()] },
     })
     const submit = within(form).getByRole('button', { name: 'Record payment' })
     await waitFor(() => expect(submit).toBeEnabled())
     fireEvent.click(submit)
 
-    expect(await screen.findByRole('status')).toHaveTextContent('1 payment recorded · Rp 96.000 total.')
+    expect(await screen.findByText('1 payment recorded · Rp 96.000 total.')).toBeInTheDocument()
     await waitFor(() => expect(mockRecordPayment).toHaveBeenCalledWith(expect.objectContaining({
       esbCode: 'GKI', branchCode: 'rumah_rames', billNo: 'PB-2', amount: 96000,
       cashInDate: '2026-10-06', proofPath: 'org-1/proof.pdf',
     })))
     expect(await within(panel).findByRole('link', { name: 'Open private proof' })).toHaveAttribute('href', 'https://proof.example.test/signed')
-    const table = screen.getByRole('table', { name: 'Pending bills, oldest first' })
+    const table = billList()
     expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
-    const updatedRow = within(table).getByRole('button', { name: 'Open bill PB-2' }).closest('tr')
+    const updatedRow = within(table).getByRole('button', { name: openBillName('PB-2') }).closest('tr')
     expect(updatedRow).toBeInTheDocument()
     expect(updatedRow).toHaveTextContent('Settled')
     expect(updatedRow).toHaveTextContent('Rp 0')
@@ -750,7 +722,7 @@ describe('pending-bill record history states', () => {
   it('shows the shared record loading state while payment history is loading', async () => {
     mockPaymentHistory.mockReturnValueOnce(new Promise<PendingBillPaymentHistoryEntry[]>(() => {}))
     renderPage()
-    const openBill = await screen.findByRole('button', { name: 'Open bill PB-2' })
+    const openBill = await screen.findByRole('button', { name: openBillName('PB-2') })
     fireEvent.click(openBill)
     const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
     expect(within(panel).getByRole('button', { name: 'Record payment' })).toBeInTheDocument()
@@ -760,7 +732,7 @@ describe('pending-bill record history states', () => {
   it('uses the shared record error state and retries history', async () => {
     mockPaymentHistory.mockRejectedValueOnce(new Error('offline'))
     renderPage()
-    const openBill = await screen.findByRole('button', { name: 'Open bill PB-2' })
+    const openBill = await screen.findByRole('button', { name: openBillName('PB-2') })
     fireEvent.click(openBill)
     const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
     expect(within(panel).getByRole('button', { name: 'Record payment' })).toBeInTheDocument()
@@ -779,34 +751,34 @@ describe('the pending bill record panel at every width', () => {
   ] as const)('titles a phone multi-bill panel with the localized selected count (%s)', async (locale, title) => {
     setViewport(false)
     renderPage(['finance'], locale)
-    const table = await screen.findByRole('table')
-    fireEvent.click(within(table).getByRole('checkbox', { name: locale === 'en' ? 'Select bill PB-1' : 'Pilih tagihan PB-1' }))
-    fireEvent.click(within(table).getByRole('checkbox', { name: locale === 'en' ? 'Select bill PB-2' : 'Pilih tagihan PB-2' }))
+    const list = await screen.findByRole('list')
+    fireEvent.click(within(list).getByRole('checkbox', { name: locale === 'en' ? 'Select bill PB-1' : 'Pilih tagihan PB-1' }))
+    fireEvent.click(within(list).getByRole('checkbox', { name: locale === 'en' ? 'Select bill PB-2' : 'Pilih tagihan PB-2' }))
     fireEvent.click(screen.getByRole('button', { name: locale === 'en' ? 'Record payment' : 'Catat pembayaran' }))
 
     const panel = await screen.findByRole('dialog')
-    expect(within(panel).getByText(title, { selector: '.record-panel-title' })).toBeInTheDocument()
+    expect(within(panel).getByText(title)).toBeInTheDocument()
   })
 
   it('names the bill in the full-screen phone panel title', async () => {
     setViewport(false)
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    fireEvent.click(await screen.findByRole('button', { name: openBillName('PB-2') }))
     const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
-    expect(within(panel).getByText('Pending bill PB-2', { selector: '.record-panel-title' })).toBeInTheDocument()
+    expect(within(panel).getByRole('heading', { name: 'PB-2' })).toBeInTheDocument()
   })
 
   it('keeps the multi-payment date pristine through the real RecordViewer panel open', async () => {
     setViewport(false)
     renderPage(['finance'], 'en', true)
-    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
-    fireEvent.click(within(table).getByRole('checkbox', { name: 'Select bill PB-1' }))
-    fireEvent.click(within(table).getByRole('checkbox', { name: 'Select bill PB-2' }))
+    const list = await screen.findByRole('list', { name: LIST_NAME })
+    fireEvent.click(within(list).getByRole('checkbox', { name: 'Select bill PB-1' }))
+    fireEvent.click(within(list).getByRole('checkbox', { name: 'Select bill PB-2' }))
     fireEvent.click(screen.getByRole('button', { name: 'Record payment' }))
 
     const panel = await screen.findByRole('dialog')
     const form = within(panel).getByRole('form', { name: 'Record payment' })
-    const date = within(form).getByLabelText('Cash-in date')
+    const date = within(form).getByLabelText(/^Cash-in date/)
     expect(form).toHaveFocus()
     expect(date).not.toHaveAttribute('aria-invalid', 'true')
     expect(within(form).queryByRole('alert')).toBeNull()
@@ -821,7 +793,7 @@ describe('the pending bill record panel at every width', () => {
   it('moves focus into the form when it opens and back to the panel action when it closes', async () => {
     setViewport(false)
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    fireEvent.click(await screen.findByRole('button', { name: openBillName('PB-2') }))
     const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
     fireEvent.click(within(panel).getByRole('button', { name: 'Record payment' }))
     const form = within(panel).getByRole('form', { name: 'Record payment' })
@@ -834,11 +806,11 @@ describe('the pending bill record panel at every width', () => {
   it('guards Escape on the wide desktop panel until the draft is discarded', async () => {
     setViewport(true, true)
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    fireEvent.click(await screen.findByRole('button', { name: openBillName('PB-2') }))
     const panel = await screen.findByLabelText('Pending bill PB-2')
     fireEvent.click(within(panel).getByRole('button', { name: 'Record payment' }))
     const form = within(panel).getByRole('form', { name: 'Record payment' })
-    const amount = within(form).getByLabelText('Amount')
+    const amount = within(form).getByLabelText(/^Amount/)
     fireEvent.change(amount, { target: { value: '10' } })
     fireEvent.keyDown(amount, { key: 'Escape' })
 
@@ -857,14 +829,14 @@ describe('the pending bill record panel at every width', () => {
   it('stays inline on phone and guards Escape until the draft is discarded', async () => {
     setViewport(false)
     renderPage()
-    const openBill = await screen.findByRole('button', { name: 'Open bill PB-2' })
+    const openBill = await screen.findByRole('button', { name: openBillName('PB-2') })
     fireEvent.click(openBill)
     const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
     fireEvent.click(within(panel).getByRole('button', { name: 'Record payment' }))
     const form = within(panel).getByRole('form', { name: 'Record payment' })
     expect(document.querySelector('.modal-shell__surface[data-surface="sheet"]')).toBeNull()
 
-    const amount = within(form).getByLabelText('Amount')
+    const amount = within(form).getByLabelText(/^Amount/)
     fireEvent.change(amount, { target: { value: '10' } })
     fireEvent.keyDown(amount, { key: 'Escape' })
     const discard = await screen.findByRole('dialog', { name: 'Discard unsaved changes?' })
@@ -882,14 +854,14 @@ describe('the pending bill record panel at every width', () => {
   it('returns focus to the panel action after a part payment is saved', async () => {
     mockList.mockResolvedValue([bill({ bill_no: 'PB-2', amount: 96_000 })])
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    fireEvent.click(await screen.findByRole('button', { name: openBillName('PB-2') }))
     const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
     fireEvent.click(within(panel).getByRole('button', { name: 'Record payment' }))
     const form = within(panel).getByRole('form', { name: 'Record payment' })
-    fireEvent.change(within(form).getByLabelText('Amount'), { target: { value: '1000' } })
-    fireEvent.change(within(form).getByLabelText('Cash-in date'), { target: { value: '06/10/2026' } })
+    fireEvent.change(within(form).getByLabelText(/^Amount/), { target: { value: '1000' } })
+    fireEvent.change(within(form).getByLabelText(/^Cash-in date/), { target: { value: '06/10/2026' } })
     fireEvent.change(within(form).getByLabelText(/^Proof/), {
-      target: { files: [new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })] },
+      target: { files: [proofFile()] },
     })
     fireEvent.click(within(form).getByRole('button', { name: 'Record payment' }))
     await waitFor(() => expect(mockRecordPayment).toHaveBeenCalled())
@@ -910,7 +882,7 @@ describe('the pending bill record panel at every width', () => {
     mockPaymentHistory.mockResolvedValue(history)
     renderPage()
     fireEvent.click(await screen.findByRole('tab', { name: 'Paid' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    fireEvent.click(await screen.findByRole('button', { name: openBillName('PB-2') }))
     const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
     fireEvent.click(await within(panel).findByRole('button', { name: 'Reverse payment' }))
     const form = within(panel).getByRole('form', { name: 'Reverse payment' })
@@ -920,24 +892,25 @@ describe('the pending bill record panel at every width', () => {
     await waitFor(() => expect(within(panel).queryByRole('form', { name: 'Reverse payment' })).toBeNull())
     expect(screen.getByRole('tab', { name: 'Paid' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('No bills match these filters.')).toBeInTheDocument()
-    expect(screen.getByText(/1 open bill/)).toHaveTextContent('paid this month Rp 0')
-    expect(within(screen.getByRole('table', { name: 'Pending bills, oldest first' })).getAllByRole('row').slice(1)).toHaveLength(0)
+    expect(figure('Open bills')).toHaveTextContent('1')
+    expect(figure('Paid in period')).toHaveTextContent('Rp 0')
+    expect(within(billList()).getAllByRole('row').slice(1)).toHaveLength(0)
     await waitFor(() => expect(within(panel).getByRole('button', { name: 'Record payment' })).toHaveFocus())
   })
 
   it('accepts decimal-comma entry for the exact remaining balance', async () => {
     mockList.mockResolvedValue([bill({ bill_no: 'PB-2', amount: 96_000.5 })])
     renderPage()
-    const openBill = await screen.findByRole('button', { name: 'Open bill PB-2' })
+    const openBill = await screen.findByRole('button', { name: openBillName('PB-2') })
     fireEvent.click(openBill)
     const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
     fireEvent.click(within(panel).getByRole('button', { name: 'Record payment' }))
     const form = within(panel).getByRole('form', { name: 'Record payment' })
-    fireEvent.change(within(form).getByLabelText('Amount'), { target: { value: '96000,5' } })
+    fireEvent.change(within(form).getByLabelText(/^Amount/), { target: { value: '96000,5' } })
     const today = '06/10/2026'
-    fireEvent.change(within(form).getByLabelText('Cash-in date'), { target: { value: today } })
+    fireEvent.change(within(form).getByLabelText(/^Cash-in date/), { target: { value: today } })
     fireEvent.change(within(form).getByLabelText(/^Proof/), {
-      target: { files: [new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })] },
+      target: { files: [proofFile()] },
     })
     fireEvent.click(within(form).getByRole('button', { name: 'Record payment' }))
     await waitFor(() => expect(mockRecordPayment).toHaveBeenCalledWith(expect.objectContaining({ amount: 96000.5 })))

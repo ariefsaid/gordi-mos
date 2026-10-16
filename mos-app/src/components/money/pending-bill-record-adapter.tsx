@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createElement, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
@@ -7,10 +8,11 @@ import type { PendingBillPaymentHistoryEntry } from '@/lib/db/pending-bill-payme
 import { PENDING_BILL_FINANCE_LABEL_MAX_LENGTH, type PendingBillState, type PendingBillView } from '@/lib/pending-bills'
 import { formatDayMonthYear, formatWibWeekdayTime } from '@/lib/format/date'
 import { formatIDRExact } from '@/lib/format/money'
+import type { StatusKey } from '@/components/ui/status-badge'
 import type { Locale, MessageKey } from '@/i18n/messages'
 import type { Translate } from '@/i18n/use-t'
 
-export const PENDING_BILL_STATE_LABEL: Record<PendingBillState, MessageKey> = {
+const PENDING_BILL_STATE_LABEL: Record<PendingBillState, MessageKey> = {
   open: 'pendingBills.state.open',
   partial: 'pendingBills.state.partial',
   settled: 'pendingBills.state.settled',
@@ -18,6 +20,11 @@ export const PENDING_BILL_STATE_LABEL: Record<PendingBillState, MessageKey> = {
   void: 'pendingBills.state.void',
   missing: 'pendingBills.state.missing',
 }
+
+/** The shared status-map key for a bill's state (components/ui/status-badge.tsx). */
+export const PENDING_BILL_STATUS_KEY = {
+  open: 'billOpen', partial: 'billPartial', settled: 'billSettled', overpaid: 'billOverpaid', void: 'billVoid', missing: 'billMissing',
+} as const satisfies Record<PendingBillState, StatusKey>
 
 export function pendingBillAgeLabel(days: number, t: Translate): string {
   if (days <= 0) return t('pendingBills.age.today')
@@ -30,7 +37,6 @@ export interface PendingBillRecordAdapterInput {
   historyStatus: 'loading' | 'ready' | 'error'
   locale: Locale
   t: Translate
-  canPay: boolean
   formMode: boolean
   form: ReactNode
   onStartPayment: () => void
@@ -90,8 +96,13 @@ function historySlot(input: PendingBillRecordAdapterInput): RecordContentSlot {
 
 export function createPendingBillRecordAdapter(input: PendingBillRecordAdapterInput): RecordViewerAdapter {
   const { bill, t } = input
+  const balanceSummary = fieldSlot('payment-balance', t('pendingBills.col.balance'), [
+    readField({ key: 'amount', label: t('pendingBills.col.amount'), control: 'text', value: bill.amount, displayValue: formatIDRExact(bill.amount) }),
+    readField({ key: 'recordedPaid', label: t('pendingBills.record.recorded'), control: 'text', value: bill.recordedPaid, displayValue: formatIDRExact(bill.recordedPaid) }),
+    readField({ key: 'balance', label: t('pendingBills.col.balance'), control: 'text', value: bill.balance, displayValue: formatIDRExact(bill.balance) }),
+  ])
   const outstanding = fieldSlot('outstanding', t('pendingBills.record.summary'), [
-    readField({ key: 'date', label: t('pendingBills.col.date'), control: 'date', value: bill.billDate, displayValue: formatDayMonthYear(bill.billDate, input.locale) }),
+    readField({ key: 'date', label: t('pendingBills.col.date'), control: 'text', value: bill.billDate, displayValue: formatDayMonthYear(bill.billDate, input.locale) }),
     readField({ key: 'branch', label: t('pendingBills.col.branch'), control: 'text', value: bill.branchCode, displayValue: branchText(bill, t) }),
     readField({ key: 'counterparty', label: t('pendingBills.col.owes'), control: 'text', value: bill.counterpartyNote, displayValue: bill.counterpartyNote ?? t('pendingBills.owes.none') }),
     {
@@ -106,11 +117,8 @@ export function createPendingBillRecordAdapter(input: PendingBillRecordAdapterIn
       editable: true,
       maxLength: PENDING_BILL_FINANCE_LABEL_MAX_LENGTH,
     },
-    readField({ key: 'amount', label: t('pendingBills.col.amount'), control: 'text', value: bill.amount, displayValue: formatIDRExact(bill.amount) }),
-    readField({ key: 'recordedPaid', label: t('pendingBills.record.recorded'), control: 'text', value: bill.recordedPaid, displayValue: formatIDRExact(bill.recordedPaid) }),
-    readField({ key: 'balance', label: t('pendingBills.col.balance'), control: 'text', value: bill.balance, displayValue: formatIDRExact(bill.balance) }),
     readField({ key: 'age', label: t('pendingBills.col.age'), control: 'text', value: bill.ageDays, displayValue: pendingBillAgeLabel(bill.ageDays, t) }),
-    readField({ key: 'state', label: t('pendingBills.col.state'), control: 'status', value: bill.state, displayValue: t(PENDING_BILL_STATE_LABEL[bill.state]) }),
+    readField({ key: 'state', label: t('pendingBills.col.state'), control: 'status', value: PENDING_BILL_STATUS_KEY[bill.state], displayValue: t(PENDING_BILL_STATE_LABEL[bill.state]) }),
   ])
   const outstandingSlot: RecordContentSlot = {
     ...outstanding,
@@ -122,15 +130,9 @@ export function createPendingBillRecordAdapter(input: PendingBillRecordAdapterIn
       </>
     ),
   }
-  const actions = input.canPay && !input.formMode ? [{
-    id: 'record-payment',
-    label: t('pendingBills.record.recordPayment'),
-    intent: 'primary' as const,
-    run: input.onStartPayment,
-  }] : []
-  const contentSlots: RecordContentSlot[] = [outstandingSlot]
+  const contentSlots: RecordContentSlot[] = [balanceSummary]
   if (input.form) contentSlots.push({ id: 'payment-form', label: t('pendingBills.form.title'), render: () => input.form })
-  contentSlots.push(historySlot(input))
+  contentSlots.push(outstandingSlot, historySlot(input))
 
   return {
     kind: 'pending-bill',
@@ -141,8 +143,8 @@ export function createPendingBillRecordAdapter(input: PendingBillRecordAdapterIn
     relations: [],
     contentSlots,
     activity: [],
-    actions,
-    permission: { readOnly: true, allowedActionIds: actions.map((action) => action.id) },
+    actions: [],
+    permission: { readOnly: true, allowedActionIds: [] },
     state: 'ready',
   }
 }

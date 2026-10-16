@@ -2,6 +2,7 @@
 // Objectives remain readable to every authenticated organisation member. The existing objective
 // manage capability only controls the head Create door and record overflow mutations; the
 // collection itself is never replaced by a permission redirect.
+import { useWorkHomeBack } from '@/shell/work-collection-switcher'
 import { useCallback, useRef, useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -10,16 +11,12 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { HelpTip } from '@/components/ui/help-tip'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useSearchParams } from 'react-router-dom'
-import { useIsDesktop } from '@/shell/use-is-desktop'
-import { useIsNarrow } from '@/shell/use-is-narrow'
-import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { Button } from '@/components/ui/button'
 import { getBusinessUnits, type BusinessUnitOption } from '@/lib/db/directory'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
 import {
   CollectionToolbar,
-  CollectionToolbarSearchField,
   type CollectionToolbarSearch,
 } from '@/components/record-collection/collection-toolbar'
 import {
@@ -41,8 +38,6 @@ import '@/components/catalog/catalog-collection.css'
 
 export function ObjectivesPage() {
   const t = useT()
-  const isDesktop = useIsDesktop()
-  const isNarrow = useIsNarrow()
   const [searchParams, setSearchParams] = useSearchParams()
   useDocumentTitle(t('common.docTitle', { page: t('nav.work.objectives') }))
   const controller = useRecordCollection({
@@ -58,7 +53,6 @@ export function ObjectivesPage() {
   const canManage = auth.status === 'authenticated' && canCreateForScope('objective', scopes)
   const objectiveBuIds = allowedBusinessUnitIds('objective', scopes)
   const businessUnitRequired = objectiveBuIds !== null
-  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [live, setLive] = useState('')
   const announce = useCallback((message: string) => setLive(message), [])
   const createButtonRef = useRef<HTMLButtonElement>(null)
@@ -181,6 +175,7 @@ export function ObjectivesPage() {
 
   const actions: CatalogCollectionActions = {
     canManage,
+    onSort: (sort, direction) => setQuery({ sort, direction }),
     rename: async (id, name) => {
       await objectivesCatalogActions.rename(id, name)
       announce(t('catalog.announce.renamed', { name }))
@@ -211,16 +206,6 @@ export function ObjectivesPage() {
     ...(canManage ? { createDraft: draft } : {}),
   }
 
-  const viewLabel = query.coverage === 'has-tasks'
-    ? t('catalog.coverage.withTasks')
-    : query.coverage === 'no-tasks'
-      ? t('catalog.coverage.noTasks')
-      : t('catalog.coverage.all')
-  const statusLabel = query.view === 'all'
-    ? t('catalog.view.activeAndArchived')
-    : query.view === 'archived'
-      ? t('catalog.view.archivedOnly')
-      : t('catalog.view.activeOnly')
   const search: CollectionToolbarSearch = {
     label: t('catalog.searchLabel'),
     placeholder: t('catalog.searchPlaceholder'),
@@ -236,7 +221,7 @@ export function ObjectivesPage() {
         onChange: (next) => { controller.switchPresentation(next) },
       }}
       views={{
-        label: t('catalog.viewsLabel'),
+        label: t('catalog.coverageLabel'),
         value: query.coverage,
         options: [
           { value: 'all', label: t('catalog.coverage.all') },
@@ -245,60 +230,33 @@ export function ObjectivesPage() {
         ],
         onChange: (coverage) => setQuery({ coverage }),
       }}
-      hideViewsLabel
       search={search}
-      hideSearchRow={!isDesktop}
-      filters={[{
-        id: 'status',
-        label: t('catalog.filter.status'),
-        display: statusLabel,
-        popover: {
-          choices: [{
-            key: 'include-archived',
-            label: t('catalog.includeArchived'),
-            checked: query.view === 'all',
-            onChange: (checked) => setQuery({ view: checked ? 'all' : 'active' }),
-          }],
-        },
+      resultSummary={projection ? t(projection.visibleRecords.length === 1 ? 'catalog.objectives.count.one' : 'catalog.objectives.count.other', { count: projection.visibleRecords.length }) : '—'}
+      checks={[{
+        key: 'include-archived',
+        label: t('catalog.includeArchived'),
+        checked: query.view === 'all',
+        onChange: (checked) => setQuery({ view: checked ? 'all' : 'active' }),
       }]}
+      chips={query.view === 'all' ? [{ key: 'archived', label: t('catalog.includeArchived'), onRemove: () => setQuery({ view: 'active' }) }] : []}
     />
-  )
-  const mobileSummary = `${viewLabel}${query.view !== 'active' ? ` · ${statusLabel}` : ''}`
-  const controls = isDesktop ? toolbar : (
-    <>
-      <CollectionToolbarSearchField search={search} />
-      <ViewOptionsDisclosure
-        open={mobileOptionsOpen}
-        onToggle={() => setMobileOptionsOpen((open) => !open)}
-        onClose={() => setMobileOptionsOpen(false)}
-        label={t('catalog.viewAndFilters')}
-        summary={mobileSummary}
-        hasActiveFilters={query.coverage !== 'all' || query.view !== 'active' || query.q.trim() !== ''}
-        panelId="mobile-objective-options-panel"
-        className="collection-mobile-options"
-        triggerClassName="collection-mobile-options-trigger"
-        summaryClassName="collection-mobile-options-summary"
-        chevronClassName="collection-mobile-options-chevron"
-        panelClassName="collection-mobile-options-panel"
-      >
-        {toolbar}
-      </ViewOptionsDisclosure>
-    </>
   )
   const overlay = useCatalogRecordOverlay({
     collectionKind: 'objective',
     onCollectionChanged: controller.retry,
   })
 
+  const workBack = useWorkHomeBack()
   return (
     <PageFamilyFrame
       family="management"
+      back={workBack}
+      phoneActionBar
       title={t('nav.work.objectives')}
-      jobSentence={t('job.objectives')}
       // #958: repeats the sentence above (desktop-only, page-head.css hides it under 768px)
       // ahead of the glossary, so phone gets purpose + terms from one glyph.
       titleHelp={<HelpTip label={`${t('job.objectives')} ${t('job.objectivesHelp')}`} />}
-      action={canManage && !isNarrow ? <Button ref={createButtonRef} variant={overlay.panelOpen || draftOpen ? 'outline' : 'primary'} onClick={openDraft}>{t('catalog.objectives.add')}</Button> : undefined}
+      action={canManage ? <Button ref={createButtonRef} variant={overlay.panelOpen || draftOpen ? 'outline' : 'primary'} onClick={openDraft}>{t('catalog.objectives.add')}</Button> : undefined}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
       <CatalogCollectionActionsProvider actions={actions}>
@@ -314,12 +272,7 @@ export function ObjectivesPage() {
           <div className="record-collection-view record-collection-view--list">
             <RecordCollectionSurface
               controller={controller}
-              resultHeader={{
-                collectionLabel: t('nav.work.objectives'),
-                viewLabel,
-                count: projection ? projection.visibleRecords.length : null,
-              }}
-              controls={controls}
+              controls={toolbar}
               onOpenRecord={overlay.onOpenRecord}
               keepBodyWhenEmpty={draftOpen}
               empty={{ title: t('catalog.objectives.empty.title'), copy: t('catalog.objectives.empty.copy') }}
@@ -328,6 +281,7 @@ export function ObjectivesPage() {
               filteredEmpty={{
                 items: t('collection.items.objectives'),
                 clear: () => setQuery({ view: 'active', q: '', coverage: 'all' }),
+                clearLabel: query.q.trim() && query.view === 'active' && query.coverage === 'all' ? t('common.clearSearch') : undefined,
               }}
               error={{ message: t('catalog.objectives.error'), retry: () => controller.retry() }}
               loadingLabel={t('catalog.objectives.loading')}

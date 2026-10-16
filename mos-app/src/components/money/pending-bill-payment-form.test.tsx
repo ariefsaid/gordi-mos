@@ -65,7 +65,7 @@ describe('AC-1134: multi-bill amounts are locked to the selected balances', () =
 
     render(<I18nProvider initialLocale="en"><PanelWithInitialFocus /></I18nProvider>)
     const form = screen.getByRole('form', { name: 'Record payment' })
-    const date = screen.getByLabelText('Cash-in date')
+    const date = screen.getByLabelText(/^Cash-in date/)
     const submit = screen.getByRole('button', { name: 'Record payment' })
 
     expect(screen.queryByRole('alert')).toBeNull()
@@ -95,7 +95,7 @@ describe('AC-1134: the payment form names invalid fields and keeps submit off', 
     expect(submit).toBeDisabled()
 
     fireEvent.change(amount, { target: { value: '2500' } })
-    const date = screen.getByLabelText('Cash-in date')
+    const date = screen.getByLabelText(/^Cash-in date/)
     const today = wibToday()
     fireEvent.change(date, { target: { value: today.split('-').reverse().join('/') } })
     fireEvent.change(screen.getByLabelText(/^Proof/), {
@@ -138,7 +138,7 @@ describe('AC-1134: the payment form names invalid fields and keeps submit off', 
         <PendingBillPaymentForm bill={bill} orgId="org-1" onCancel={vi.fn()} onSaved={vi.fn()} onDirtyChange={onDirtyChange} />
       </I18nProvider>,
     )
-    const date = screen.getByLabelText('Cash-in date')
+    const date = screen.getByLabelText(/^Cash-in date/)
     fireEvent.change(date, { target: { value: wibToday().split('-').reverse().join('/') } })
     expect(onDirtyChange).toHaveBeenLastCalledWith(true)
     fireEvent.change(date, { target: { value: '' } })
@@ -147,7 +147,7 @@ describe('AC-1134: the payment form names invalid fields and keeps submit off', 
 
   it('a typed future date shows one alert, from the date field', async () => {
     renderForm()
-    const date = screen.getByLabelText('Cash-in date')
+    const date = screen.getByLabelText(/^Cash-in date/)
     const next = new Date(Date.parse(`${wibToday()}T00:00:00Z`) + 2 * 86_400_000).toISOString().slice(0, 10)
     fireEvent.change(date, { target: { value: next.split('-').reverse().join('/') } })
     fireEvent.blur(date)

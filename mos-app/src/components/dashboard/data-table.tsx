@@ -8,19 +8,24 @@
 // navy label + muted tabular count) per non-null group, with internal collapse state.
 // Flat `rows` mode is 100% unchanged when `groups` is absent; if both are given,
 // `groups` wins. Callers pass exactly one of `rows` (flat) / `groups` (grouped).
+import { SortIndicator } from '@/components/ui/sort-indicator'
+import { GroupHeader } from '@/components/ui/group-header'
 import { Fragment, useState, type ReactNode } from 'react'
-import { Chevron } from '@/shell/icons'
 import { useT } from '@/i18n/use-t'
 import './data-table.css'
 
 export interface DataTableColumn<Row> {
   key: string
-  /** Overline uppercase thead label */
-  header: string
+  /** Sentence-case thead label (may include concise supporting header context). */
+  header: ReactNode
+  /** Extra class on this column's <th> and <td>, for per-column widths. */
+  className?: string
   align?: 'left' | 'right'
   /** applies .tabular + right align + negative -> --status-lost-text */
   numeric?: boolean
   sortable?: boolean
+  /** Fixed, non-interactive sort the list already follows; shows the direction arrow on the header. */
+  sortState?: 'asc' | 'desc'
   render?: (row: Row) => ReactNode
   /** <dl> label used in the phone card ('' -> title line, omitted -> header used) */
   cardLabel?: string
@@ -46,9 +51,13 @@ export interface DataTableGroup<Row> {
    *  carry no header to anchor them. Additive + opt-in: callers passing none are
    *  unaffected. */
   headerActions?: ReactNode
+  /** optional anchor id on the group header, so another control can scroll to it */
+  anchorId?: string
 }
 
 export interface DataTableProps<Row> {
+  /** Phone cards: state the item and quantity column labels once above the list, not on every card. */
+  cardsHead?: boolean
   columns: DataTableColumn<Row>[]
   rows: Row[]
   /** grouped mode (OD-P3-6 group-header row). When provided, `groups` wins over `rows`. */
@@ -71,6 +80,8 @@ export interface DataTableProps<Row> {
    */
   defaultCollapsedGroupKeys?: ReadonlySet<string>
   rowClassName?: (row: Row, index: number) => string | undefined
+  /** Pointer shortcut for a row that has a real keyboard-accessible control inside it (a link or button in a cell). */
+  onRowClick?: (row: Row) => void
   sort?: DataTableSort
   onSortChange?: (sort: DataTableSort) => void
   /** totals row */
@@ -79,7 +90,7 @@ export interface DataTableProps<Row> {
   isDesktop: boolean
   state?: 'ready' | 'loading' | 'empty' | 'error'
   /** empty-state label; defaults to the localized common.noRows */
-  emptyLabel?: string
+  emptyLabel?: ReactNode
   onRetry?: () => void
   /** <caption> / aria — a11y table name */
   caption: string
@@ -118,12 +129,14 @@ export function DataTable<Row extends object>({
   onToggleGroup: onToggleGroupProp,
   defaultCollapsedGroupKeys,
   rowClassName,
+  onRowClick,
   renderCard,
   renderRowDetail,
   sort,
   onSortChange,
   footer,
   isDesktop,
+  cardsHead,
   state = 'ready',
   emptyLabel,
   onRetry,
@@ -178,6 +191,7 @@ export function DataTable<Row extends object>({
           groups={groups}
           tableClassName={tableClassName}
           rowClassName={rowClassName}
+          onRowClick={onRowClick}
           renderRowDetail={renderRowDetail}
           sort={sort}
           onSortChange={onSortChange}
@@ -191,6 +205,7 @@ export function DataTable<Row extends object>({
       )
     : (
         <PhoneCards
+          cardsHead={cardsHead}
           renderCard={renderCard}
           columns={columns}
           rows={rows}
@@ -211,12 +226,13 @@ interface DesktopTableProps<Row> {
   groups?: DataTableGroup<Row>[]
   tableClassName?: string
   rowClassName?: (row: Row, index: number) => string | undefined
+  onRowClick?: (row: Row) => void
   renderRowDetail?: (row: Row, index: number) => ReactNode
   sort?: DataTableSort
   onSortChange?: (sort: DataTableSort) => void
   footer?: ReactNode
   state: 'ready' | 'loading' | 'empty'
-  emptyLabel: string
+  emptyLabel: ReactNode
   caption: string
   collapsed: ReadonlySet<string>
   onToggleGroup: (key: string) => void
@@ -228,18 +244,20 @@ function DesktopRow<Row>({
   rowIndex,
   columns,
   rowClassName,
+  onRowClick,
   renderRowDetail,
 }: {
   row: Row
   rowIndex: number
   columns: DataTableColumn<Row>[]
   rowClassName?: (row: Row, index: number) => string | undefined
+  onRowClick?: (row: Row) => void
   renderRowDetail?: (row: Row, index: number) => ReactNode
 }) {
   const detail = renderRowDetail?.(row, rowIndex)
   return (
     <Fragment>
-      <tr className={rowClassName?.(row, rowIndex)}>
+      <tr className={rowClassName?.(row, rowIndex)} onClick={onRowClick ? (event) => { if (!(event.target as HTMLElement).closest('button, a')) onRowClick(row) } : undefined}>
         {columns.map(column => {
           const value = cellValue(row, column)
           const isNumeric = column.numeric || column.align === 'right'
@@ -247,7 +265,7 @@ function DesktopRow<Row>({
           return (
             <td
               key={column.key}
-              className={isNumeric ? `dt-num tabular${negative ? ' dt-neg' : ''}` : undefined}
+              className={[isNumeric ? `dt-num tabular${negative ? ' dt-neg' : ''}` : '', column.className ?? ''].filter(Boolean).join(' ') || undefined}
             >
               {value as ReactNode}
             </td>
@@ -275,29 +293,18 @@ function GroupHeaderRow<Row>({
   collapsed: boolean
   onToggle: () => void
 }) {
-  const t = useT()
   return (
     <tr className="dt-group-row">
       <th scope="colgroup" colSpan={columnCount} className="dt-group-cell">
-        <div className="dt-group-bar">
-          <button
-            type="button"
-            className="dt-group-toggle tap-floor"
-            aria-expanded={!collapsed}
-            aria-label={collapsed
-              ? t('table.group.expand', { group: group.label ?? '' })
-              : t('table.group.collapse', { group: group.label ?? '' })}
-            onClick={onToggle}
-          >
-            <Chevron className={`dt-group-chev${collapsed ? ' dt-group-chev-collapsed' : ''}`} />
-          </button>
-          <span className="dt-group-label">{group.label}</span>
-          <span className="dt-group-count">{group.count ?? group.rows.length}</span>
-          {group.hint && <span className="dt-group-hint">{group.hint}</span>}
-          {group.headerActions && (
-            <span className="dt-group-actions">{group.headerActions}</span>
-          )}
-        </div>
+        <GroupHeader
+          id={group.anchorId}
+          className="dt-group-bar"
+          label={group.label}
+          count={group.count ?? group.rows.length}
+          open={!collapsed}
+          onToggle={onToggle}
+          trailing={<>{group.hint ? <span className="dt-group-hint">{group.hint}</span> : null}{group.headerActions ? <span className="dt-group-actions">{group.headerActions}</span> : null}</>}
+        />
       </th>
     </tr>
   )
@@ -309,6 +316,7 @@ function DesktopTable<Row>({
   groups,
   tableClassName,
   rowClassName,
+  onRowClick,
   renderRowDetail,
   sort,
   onSortChange,
@@ -327,17 +335,20 @@ function DesktopTable<Row>({
           {columns.map(column => {
             const isNumeric = column.numeric || column.align === 'right'
             const isSorted = sort?.key === column.key
+            const shownDir = column.sortable ? undefined : column.sortState
             const ariaSort = column.sortable
               ? isSorted
                 ? sort!.dir === 'asc' ? 'ascending' : 'descending'
                 : 'none'
-              : undefined
+              : column.sortState
+                ? column.sortState === 'asc' ? 'ascending' : 'descending'
+                : undefined
 
             return (
               <th
                 key={column.key}
                 scope="col"
-                className={isNumeric ? 'dt-th-num' : undefined}
+                className={[isNumeric ? 'dt-th-num' : '', column.className ?? ''].filter(Boolean).join(' ') || undefined}
                 aria-sort={ariaSort}
               >
                 {column.sortable
@@ -351,10 +362,14 @@ function DesktopTable<Row>({
                         }}
                       >
                         {column.header}
+                        <SortIndicator dir={isSorted ? sort!.dir : null} />
                       </button>
                     )
                   : (
-                      column.header
+                      <>
+                        {column.header}
+                        <SortIndicator dir={shownDir} />
+                      </>
                     )}
               </th>
             )
@@ -379,6 +394,7 @@ function DesktopTable<Row>({
             rowIndex={rowIndex}
             columns={columns}
             rowClassName={rowClassName}
+            onRowClick={onRowClick}
             renderRowDetail={renderRowDetail}
           />
         ))}
@@ -399,6 +415,7 @@ function DesktopTable<Row>({
                 rowIndex={rowIndex}
                 columns={columns}
                 rowClassName={rowClassName}
+                onRowClick={onRowClick}
                 renderRowDetail={renderRowDetail}
               />
             ))}
@@ -425,6 +442,7 @@ function SkeletonRows({ columnCount }: { columnCount: number }) {
 }
 
 interface PhoneCardsProps<Row> {
+  cardsHead?: boolean
   columns: DataTableColumn<Row>[]
   rows: Row[]
   groups?: DataTableGroup<Row>[]
@@ -432,7 +450,7 @@ interface PhoneCardsProps<Row> {
   /** Custom compact card body, e.g. Café · Log's phone capture row. */
   renderCard?: (row: Row, index: number) => ReactNode
   state: 'ready' | 'loading' | 'empty'
-  emptyLabel: string
+  emptyLabel: ReactNode
   caption: string
   collapsed: ReadonlySet<string>
   onToggleGroup: (key: string) => void
@@ -489,6 +507,7 @@ function PhoneCard<Row>({
 }
 
 function PhoneCards<Row>({
+  cardsHead,
   columns,
   rows,
   groups,
@@ -500,7 +519,6 @@ function PhoneCards<Row>({
   collapsed,
   onToggleGroup,
 }: PhoneCardsProps<Row>) {
-  const t = useT()
   if (state === 'loading') {
     return (
       <div className="dt-cards" aria-label={caption}>
@@ -520,9 +538,16 @@ function PhoneCards<Row>({
   }
 
   const [titleColumn, ...detailColumns] = columns
+  const lastColumn = columns.length > 1 ? columns[columns.length - 1] : null
 
   return (
     <div className="dt-cards" aria-label={caption}>
+      {cardsHead && titleColumn && lastColumn && (
+        <div className="dt-cards-head" aria-hidden="true">
+          <span>{titleColumn.header}</span>
+          <span>{lastColumn.header}</span>
+        </div>
+      )}
       {!groups && rows.map((row, rowIndex) => (
         <PhoneCard
           key={rowKey(row, rowIndex)}
@@ -537,22 +562,15 @@ function PhoneCards<Row>({
       {groups && groups.map(group => (
         <Fragment key={group.key}>
           {group.label !== null && (
-            <div className="dt-cards-group">
-              <button
-                type="button"
-                className="dt-cards-group-toggle tap-floor"
-                aria-expanded={!collapsed.has(group.key)}
-                aria-label={collapsed.has(group.key)
-                  ? t('table.group.expand', { group: group.label ?? '' })
-                  : t('table.group.collapse', { group: group.label ?? '' })}
-                onClick={() => onToggleGroup(group.key)}
-              >
-                <Chevron className={`dt-cards-group-chev${collapsed.has(group.key) ? ' dt-cards-group-chev-collapsed' : ''}`} />
-              </button>
-              <span className="dt-cards-group-label">{group.label}</span>
-              <span className="dt-cards-group-count">{group.count ?? group.rows.length}</span>
-              {group.hint && <span className="dt-cards-group-hint">{group.hint}</span>}
-            </div>
+            <GroupHeader
+              id={group.anchorId}
+              className="dt-cards-group"
+              label={group.label}
+              count={group.count ?? group.rows.length}
+              open={!collapsed.has(group.key)}
+              onToggle={() => onToggleGroup(group.key)}
+              trailing={group.hint ? <span className="dt-cards-group-hint">{group.hint}</span> : undefined}
+            />
           )}
           {group.label !== null && group.headerActions && (
             <div className="dt-cards-group-actions">{group.headerActions}</div>

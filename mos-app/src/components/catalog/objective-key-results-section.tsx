@@ -151,7 +151,6 @@ export function ObjectiveKeyResultsSection({
       count={actionStatus === 'ready' && rows.length > 0 ? rows.length : undefined}
       action={canManage && actionStatus === 'ready' && !adding && editingId === null ? {
         label: t('objective.keyResults.add'),
-        variant: rows.length === 0 ? 'primary' : 'ghost',
         onClick: () => { setEditingId(null); setAdding(true) },
       } : undefined}
     >

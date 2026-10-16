@@ -14,7 +14,7 @@ export type CafeReceivableItem = {
   defaultUnitId: string
 }
 
-export type CafeOpenPoIdentityItem = {
+type CafeOpenPoIdentityItem = {
   itemUnitId: string | null
   itemName: string
   unitName: string | null
@@ -34,7 +34,7 @@ export type CafeOpenPoIdentityCache = {
 }
 
 export type CafeReceiptStatus = 'Counted' | 'Submitted' | 'Approved' | 'Rejected'
-export type CafeReceiptPostingStatus = 'not_posted' | 'held'
+type CafeReceiptPostingStatus = 'not_posted' | 'held'
 
 export type CafeReceiptCondition = 'damaged_wrong'
 
@@ -107,7 +107,7 @@ type ReceivableRow = {
   is_default_unit: boolean
 }
 
-const RECEIPT_FIELDS = [
+export const RECEIPT_FIELDS = [
   'id', 'branch_id', 'activity', 'arrival_date', 'delivery_note_number', 'status', 'posting_status',
   'posting_hold_reason', 'received_by', 'received_at', 'submitted_at', 'reviewed_by', 'reviewed_at',
   'review_note', 'row_version',
@@ -243,19 +243,7 @@ async function readCafeReceipts(
     .order('received_at', { ascending: oldestFirst })
     .limit(limit)
   if (error) throw new Error(`listCafeReceipts failed: ${error.message}`)
-  const receipts = ((data ?? []) as unknown as Array<Record<string, unknown>>).map(row => {
-    const posting = parsePosting(row.posting)
-    if ((row.activity !== 'kitchen' && row.activity !== 'bar') || !STATUSES.includes(row.status as CafeReceiptStatus)
-      || (row.posting_status !== 'not_posted' && row.posting_status !== 'held') || !Array.isArray(row.lines)
-      || posting === undefined) {
-      throw new Error('listCafeReceipts failed: invalid receipt row')
-    }
-    return {
-      ...row,
-      posting,
-      lines: (row.lines as Array<Record<string, unknown>>).map(parseCafeReceiptLine),
-    } as unknown as CafeReceipt
-  })
+  const receipts = ((data ?? []) as unknown as Array<Record<string, unknown>>).map(parseCafeReceiptRow)
   const photosByLine = new Map<string, CafeReceiptPhoto[]>()
   const unavailable = new Set<string>()
   const withPhotos = receipts.filter(receipt => photosFor.includes(receipt.status))
@@ -289,7 +277,22 @@ async function readCafeReceipts(
   }
 }
 
-function parseCafeReceiptLine(line: Record<string, unknown>): CafeReceiptLine {
+/** One `RECEIPT_FIELDS` row, validated; photos are not read here (`photos` is empty on every line). */
+export function parseCafeReceiptRow(row: Record<string, unknown>): CafeReceipt {
+  const posting = parsePosting(row.posting)
+  if ((row.activity !== 'kitchen' && row.activity !== 'bar') || !STATUSES.includes(row.status as CafeReceiptStatus)
+    || (row.posting_status !== 'not_posted' && row.posting_status !== 'held') || !Array.isArray(row.lines)
+    || posting === undefined) {
+    throw new Error('listCafeReceipts failed: invalid receipt row')
+  }
+  return {
+    ...row,
+    posting,
+    lines: (row.lines as Array<Record<string, unknown>>).map(parseCafeReceiptLine),
+  } as unknown as CafeReceipt
+}
+
+export function parseCafeReceiptLine(line: Record<string, unknown>): CafeReceiptLine {
   if (typeof line.id !== 'string' || typeof line.item_name !== 'string' || typeof line.unit_name !== 'string'
     || !Array.isArray(line.conditions) || line.conditions.some(condition => condition !== 'damaged_wrong')
     || (line.condition_reason !== null && typeof line.condition_reason !== 'string')) {

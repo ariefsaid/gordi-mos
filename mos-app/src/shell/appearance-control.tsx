@@ -119,11 +119,7 @@ export function AppearanceControl() {
   return (
     <div className="appearance-control" data-appearance-control>
       {/* Group label — visible, muted, overline size */}
-      <div
-        className="px-3 text-muted-foreground select-none"
-        style={{ fontSize: 'var(--font-size-overline)', fontWeight: 600, letterSpacing: '0.06em', paddingBottom: 4, paddingTop: 2 }}
-        aria-hidden="true"
-      >
+      <div className="user-chip-menu__heading" aria-hidden="true">
         {t('account.appearance')}
       </div>
 
@@ -137,19 +133,18 @@ export function AppearanceControl() {
               role="menuitemradio"
               type="button"
               aria-checked={isActive}
-              className="appearance-control-option w-full flex items-center gap-2 px-3 rounded-sm cursor-pointer"
-              style={{ height: 32, fontSize: 'var(--font-size-body-lg)' }}
+              className="appearance-control-option iconrow iconrow--center"
               onClick={() => setTheme(value)}
             >
               {/* Icon */}
-              <span className={isActive ? 'text-primary' : 'text-muted-foreground'}>
+              <span className={isActive ? 'appearance-control-icon appearance-control-icon--on' : 'appearance-control-icon'}>
                 {icon}
               </span>
               {/* Label */}
-              <span className="flex-1 text-left">{t(labelKey)}</span>
+              <span className="appearance-control-label">{t(labelKey)}</span>
               {/* Active check */}
               {isActive && (
-                <span className="text-primary">
+                <span className="appearance-control-icon appearance-control-icon--on">
                   <CheckIcon />
                 </span>
               )}

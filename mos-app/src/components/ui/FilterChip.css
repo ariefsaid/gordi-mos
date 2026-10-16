@@ -1,0 +1,18 @@
+/* Removable active filter: label role, accent tint, 16px close icon, 8px gap and padding. */
+.filter-chip {
+  display: inline-flex; align-items: center; gap: var(--mos-space-2);
+  min-height: var(--mos-control-height); padding: var(--mos-control-pad-y) var(--mos-space-2);
+  border: 0; border-radius: var(--radius-sm);
+  background: var(--mos-accent-tint); color: var(--mos-accent);
+  font: var(--mos-type-label); cursor: pointer;
+}
+.filter-chip > svg { flex: none; width: var(--mos-icon-sm); height: var(--mos-icon-sm); }
+.filter-chip:hover { background: var(--mos-hover); box-shadow: inset 0 0 0 1px var(--mos-accent); }
+/* Quick filters on attention counts (Tasks: overdue, blocked): the same chip in the status tone; pressed adds the remove mark and the outline. */
+.filter-chip--overdue { background: var(--mos-danger-tint); color: var(--mos-error-text); }
+.filter-chip--blocked { background: var(--mos-warning-tint); color: var(--mos-warning-text); }
+.filter-chip--overdue:hover { background: var(--mos-danger-tint); box-shadow: inset 0 0 0 1px var(--mos-error-text); }
+.filter-chip--blocked:hover { background: var(--mos-warning-tint); box-shadow: inset 0 0 0 1px var(--mos-warning-text); }
+.filter-chip--overdue[aria-pressed='true'] { box-shadow: inset 0 0 0 1px var(--mos-error-text); }
+.filter-chip--blocked[aria-pressed='true'] { box-shadow: inset 0 0 0 1px var(--mos-warning-text); }
+.filter-chip:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }

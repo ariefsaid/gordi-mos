@@ -149,7 +149,7 @@ export const DateField = forwardRef<HTMLInputElement, DateFieldProps>(function D
 
   return (
     <div className={cls}>
-      {label && <label className="mk-date__label" htmlFor={inputId}>{label}</label>}
+      {label && <label className="mk-date__label" htmlFor={inputId}>{label}{required ? <> <span aria-hidden="true">*</span></> : null}</label>}
       <div className="mk-date__box">
         <input
           {...rest}

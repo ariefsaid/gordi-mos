@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/lib/db/reporting', async () => {
@@ -18,6 +18,8 @@ vi.mock('@/lib/db/reporting-margin', async () => {
 vi.mock('@/lib/db/money-branch', () => ({ listUncoveredCafeItems: vi.fn(), askBranchLead: vi.fn() }))
 vi.mock('@/lib/db/recipe-findings', () => ({ listRecipeFindings: vi.fn() }))
 vi.mock('@/auth/use-auth')
+// Desktop presentation: the days table and the full filter row render (the phone gets cards).
+vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => true }))
 import { latestSalesReportingDate, listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { askBranchLead, listUncoveredCafeItems } from '@/lib/db/money-branch'
@@ -76,17 +78,22 @@ function Where() {
   const location = useLocation()
   return <output data-testid="where">{location.pathname + location.search}</output>
 }
-function renderBranch(accessRoles: string[], path = '/money/branch/GHQ?period=7', locale: 'en' | 'id' = 'en') {
+// `browserHistory`: the recipe register reads the live window URL for its filters, so that journey runs on real history.
+function renderBranch(accessRoles: string[], path = '/money/branch/GHQ?period=7', locale: 'en' | 'id' = 'en', browserHistory = false) {
   mockUseAuth.mockReturnValue(authViewer(accessRoles))
+  const routes = (
+    <>
+      <Routes>
+        <Route path="/money/branch/:code" element={<MoneyBranchPage />} />
+        <Route path="*" element={<p>elsewhere</p>} />
+      </Routes>
+      <Where />
+    </>
+  )
+  if (browserHistory) window.history.replaceState(null, '', path)
   return render(
     <I18nProvider initialLocale={locale}>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path="/money/branch/:code" element={<MoneyBranchPage />} />
-          <Route path="*" element={<p>elsewhere</p>} />
-        </Routes>
-        <Where />
-      </MemoryRouter>
+      {browserHistory ? <BrowserRouter>{routes}</BrowserRouter> : <MemoryRouter initialEntries={[path]}>{routes}</MemoryRouter>}
     </I18nProvider>,
   )
 }
@@ -95,6 +102,7 @@ const readout = () => screen.getByText(/· Rp|· not received/, { selector: '.mo
 
 beforeEach(() => {
   vi.clearAllMocks()
+  window.history.replaceState(null, '', '/')
   mockLatest.mockResolvedValue(LATEST)
   mockRev.mockResolvedValue(REVENUE)
   mockMarg.mockResolvedValue(MARGIN)
@@ -107,19 +115,26 @@ it('recipe/stock journey: prioritize a lead, filter, inspect evidence and blocke
   const base = { day: LATEST, esb_code: 'TEST', branch_code: 'GHQ', menu_name: 'Long synthetic lunch menu', actual_name: 'Stock ingredient', expected_name: 'Recipe ingredient', classification: 'team_input', rule: 'missing_recipe_mapping', confidence: 'candidate_current_recipe_not_historical_proof', needs_human: true, impact_basis: 'unassigned_actual', recommended_check: 'Check the menu mapping and recorded unit', expected_qty_day_comparable: 12, actual_qty_day_comparable: 18, comparison_unit: 'PCS', conversion_evidence: {}, recipe_versions: { version: 2, first_seen: day(1) }, recipe_version_hash: 'test-hash', recipe_edited_at: SYNCED, recipe_observed_at: SYNCED, prior_recipe_observed_at: null, first_sale_at: null, source_checked_at: SYNCED, snapshot_as_of: SYNCED, replica_stale: false }
   vi.mocked(listRecipeFindings).mockResolvedValue({ rows: [{ ...base, finding_id: 'small', impact_idr: 100 }, { ...base, finding_id: 'large', impact_idr: 900 }, { ...base, finding_id: 'blocked', rule: 'unit_comparison_unverified', classification: 'warehouse_artefact', impact_idr: null, expected_qty_day_comparable: null, conversion_evidence: { recipe_units: [{ status: 'conflicting_recorded_conversions' }] } }, { ...base, finding_id: 'policy', impact_idr: 1000, needs_human: false }] as RecipeFinding[], receipts: [{ esb_code: 'TEST', complete: true, snapshot_as_of: SYNCED, source_completed_at: SYNCED, window_start: day(6), window_end: LATEST }] })
   const user = userEvent.setup()
-  const first = renderBranch(['finance'])
+  const first = renderBranch(['finance'], '/money/branch/GHQ?period=7', 'en', true)
   await user.click(await screen.findByRole('link', { name: 'View discrepancies' }))
   const section = await screen.findByRole('region', { name: 'Recipe vs stock — what to check' })
-  const rows = within(section).getAllByRole('row').slice(1)
-  expect(rows[0]).toHaveAttribute('data-finding', 'large')
+  const list = within(section).getByLabelText('Recipe findings')
+  const rows = within(list).getAllByRole('button')
   expect(rows).toHaveLength(3)
-  expect(rows[0]).toHaveTextContent('Expected 12 PCS · actual 18 PCS')
-  await user.click(within(rows[0]).getByText('Evidence'))
-  expect(within(rows[0]).getByText(/Version 2/)).toBeVisible()
-  fireEvent.change(section.querySelector('select[name="rf_class"]')!, { target: { value: 'warehouse_artefact' } })
+  // The largest quantified impact leads.
+  expect(rows[0]).toHaveTextContent('Rp 900')
+  await user.click(rows[0])
+  await waitFor(() => expect(where()).toContain('rf=TEST%3Alarge'))
+  const detail = await screen.findByRole('article', { name: 'Selected finding evidence' })
+  expect(detail).toHaveTextContent('Expected 12 PCS · actual 18 PCS')
+  await user.click(within(detail).getByText('Evidence'))
+  expect(within(detail).getByText(/Version 2/)).toBeVisible()
+  await user.click(within(section).getByRole('combobox', { name: 'Class' }))
+  await user.click(await screen.findByRole('option', { name: /warehouse/i }))
   await waitFor(() => expect(where()).toContain('rf_class=warehouse_artefact'))
+  expect(within(section).queryByRole('article', { name: 'Selected finding evidence' })).toBeNull()
+  await user.click(within(within(section).getByLabelText('Recipe findings')).getByRole('button'))
   expect(within(section).getByText("Units can't be compared: conflicting recorded conversions")).toBeVisible()
-  expect(within(section).queryByText('Expected 12 PCS · actual 18 PCS')).toBeNull()
   first.unmount()
 })
 
@@ -203,7 +218,7 @@ describe('MoneyBranchPage — the day chart', () => {
     expect(within(table).getByRole('columnheader', { name: 'Interim margin' })).toBeInTheDocument()
     expect(within(table).getByRole('columnheader', { name: 'Budget' })).toBeInTheDocument()
     const firstRow = within(table).getAllByRole('row')[1]
-    expect(firstRow).toHaveTextContent('Mon 5 MarRp 14.200.000−24,9%Rp 18.900.00058,8%66%')
+    expect(firstRow).toHaveTextContent('Mon 5 MarRp 14.200.000 −24,9%Rp 18.900.00058,8%66,0%')
   })
 })
 
@@ -219,24 +234,20 @@ describe('MoneyBranchPage — what each tier receives', () => {
 
   it('finance reads margin and COGS against budget for the period in the URL', async () => {
     renderBranch(['finance'])
-    expect(await screen.findByRole('heading', { name: 'Margin, last 7 days' })).toBeInTheDocument()
-    expect(screen.getByText('COGS 41,2% of revenue against a 34,0% budget: 7,2 points over.')).toBeInTheDocument()
-    expect(screen.getByText('58,8%', { selector: '.kpi-tile-value' })).toBeInTheDocument()
-    expect(screen.getByText('Recipe vs stock cost', { selector: '.kpi-tile-label' })).toBeInTheDocument()
-  })
-
-  it('uses proportional figures for branch Money KPIs', async () => {
-    renderBranch(['finance'])
-    await screen.findByRole('heading', { name: 'Margin, last 7 days' })
-    const values = Array.from(document.querySelectorAll('.money-branch__kpis .kpi-tile-value'))
-    expect(values).toHaveLength(4)
-    expect(values.every((value) => !value.classList.contains('tabular'))).toBe(true)
+    const heading = await screen.findByRole('heading', { name: 'Gross margin · interim' })
+    const basis = heading.closest('div')!.parentElement as HTMLElement
+    const fact = (term: string) => within(basis).getByText(term).closest('div')!
+    expect(fact('Stock-movement share')).toHaveTextContent('41,2%')
+    expect(fact('Recipe-budget share')).toHaveTextContent('34,0%')
+    expect(fact('Difference')).toHaveTextContent(/7,2.*over recipe budget/)
+    expect(fact('Recipe vs stock cost')).toHaveTextContent('80,0%')
   })
 
   it('COGS on its budget reads as on budget, not "0,0 points under"', async () => {
     mockMarg.mockResolvedValue(MARGIN.map((m) => ({ ...m, cogs_budget_bom: m.cogs_interim_sm })))
     renderBranch(['finance'])
-    expect(await screen.findByText('COGS 41,2% of revenue, on its 41,2% budget.')).toBeInTheDocument()
+    expect(await screen.findByText('on recipe budget')).toBeInTheDocument()
+    expect(screen.queryByText(/under recipe budget|over recipe budget/)).toBeNull()
   })
 
   it('each Café item without a recipe opens Café items on that item and stream', async () => {
@@ -303,7 +314,8 @@ describe('MoneyBranchPage — Ask branch lead', () => {
   it('the 90-day preset explains why Ask is unavailable', async () => {
     renderBranch(['finance'], '/money/branch/GHQ?period=90')
     await screen.findByRole('heading', { level: 1, name: 'Gordi HQ' })
-    expect(screen.queryByRole('button', { name: /^Ask/ })).toBeNull()
+    // Ask stays on the page but cannot run, and the reason sits beside it.
+    expect(screen.getByRole('button', { name: /^Ask/ })).toBeDisabled()
     expect(screen.getByText('Ask the branch lead is available on 7-, 30-, or 60-day presets only.')).toBeInTheDocument()
     expect(mockAsk).not.toHaveBeenCalled()
   })
@@ -319,7 +331,7 @@ describe('MoneyBranchPage — states', () => {
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent('Margin figures could not be loaded')
     await user.click(within(alert).getByRole('button', { name: 'Try again' }))
-    expect(await screen.findByRole('heading', { name: 'Margin, last 7 days' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Gross margin · interim' })).toBeInTheDocument()
   })
 
   it('too many rows names the next step and offers no Try again', async () => {
@@ -347,22 +359,23 @@ describe('MoneyBranchPage — states', () => {
     renderBranch(['finance'], '/money/branch/GHQ?period=custom&from=2040-03-01&to=2040-03-05&branch=GHQ&channel=POS&sort=branch.asc')
     await screen.findByRole('heading', { level: 1, name: 'Gordi HQ' })
     expect(screen.getByRole('link', { name: /Money/ })).toHaveAttribute('href', '/money?period=custom&from=2040-03-01&to=2040-03-05&branch=GHQ&channel=POS&sort=branch.asc')
-    expect(screen.queryByRole('button', { name: /Ask Gordi HQ lead/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /Ask Gordi HQ lead/ })).toBeDisabled()
     expect(screen.getByText('Ask the branch lead is available on 7-, 30-, or 60-day presets only.')).toBeInTheDocument()
   })
 
   it('the period control changes the period in the URL and keeps the chosen day', async () => {
     const user = userEvent.setup()
     renderBranch(['finance'], `/money/branch/GHQ?period=7&d=${day(1)}`)
-    const thirtyDays = await screen.findByRole('button', { name: '30 days' })
-    await waitFor(() => expect(thirtyDays).toBeEnabled())
-    await user.click(thirtyDays)
+    const period = await screen.findByRole('combobox', { name: 'Period' })
+    await waitFor(() => expect(period).toBeEnabled())
+    await user.click(period)
+    await user.click(await screen.findByRole('option', { name: '30 days' }))
     await waitFor(() => expect(where()).toBe(`/money/branch/GHQ?period=30&d=${day(1)}&sort=revenue.desc`))
   })
 
   it('Indonesian', async () => {
     renderBranch(['finance'], '/money/branch/GHQ?period=7', 'id')
     expect(await screen.findByRole('button', { name: /^Tanya kepala Gordi HQ soal / })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Margin, 7 hari terakhir' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Margin kotor · sementara' })).toBeInTheDocument()
   })
 })

@@ -40,7 +40,7 @@ export interface CollectionQuerySchema<TQuery extends object> {
   normalize(query: TQuery): TQuery
 }
 
-export interface CollectionCapabilities<TQuery extends object, TAction extends string> {
+interface CollectionCapabilities<TQuery extends object, TAction extends string> {
   search: boolean
   filterKeys: readonly QueryKey<TQuery>[]
   sortKeys: readonly QueryKey<TQuery>[]
@@ -51,7 +51,7 @@ export interface CollectionCapabilities<TQuery extends object, TAction extends s
   bulkActions: readonly TAction[]
 }
 
-export type SavedViewOperation = 'save' | 'apply' | 'rename' | 'archive'
+type SavedViewOperation = 'save' | 'apply' | 'rename' | 'archive'
 
 export interface CollectionViewStore {
   list(collectionId: CollectionViewSpec['collectionId']): Promise<readonly PersistedCollectionView[]>

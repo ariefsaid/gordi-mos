@@ -10,9 +10,7 @@ import {
   Area,
   Bar,
   CartesianGrid,
-  Cell,
   ComposedChart,
-  LabelList,
   Line,
   ReferenceLine,
   ResponsiveContainer,
@@ -104,6 +102,12 @@ export function DayRevenueChart({ days, selected, onSelect, label, mode = 'reven
     const rect = event.currentTarget.getBoundingClientRect()
     return dayAt(event.clientX - rect.left, rect.width, days.length)
   }
+  // Only the chosen day carries a dot: the selection is the one place the accent colour appears.
+  const markSelected = (props: { cx?: number; cy?: number; index?: number; value?: unknown }) => (
+    props.index === index && props.cx !== undefined && props.cy !== undefined && props.value != null
+      ? <circle key={`sel-${props.index}`} cx={props.cx} cy={props.cy} r={5} fill="var(--primary)" stroke="var(--surface-primary)" strokeWidth={2} />
+      : <g key={`sel-${props.index}`} />
+  )
   const anyMissing = isMargin ? days.some((d) => d.marginPct == null) : days.some((d) => d.value === null)
 
   return (
@@ -151,6 +155,7 @@ export function DayRevenueChart({ days, selected, onSelect, label, mode = 'reven
               axisLine={{ stroke: 'var(--border)' }}
               interval="preserveStartEnd"
               minTickGap={16}
+              tickMargin={8}
               tick={{ fill: 'var(--muted-foreground)' }}
               tickFormatter={(date: string) => formatWeekdayDayMonth(date, locale).replace(/^\S+,?\s/, '')}
             />
@@ -161,50 +166,42 @@ export function DayRevenueChart({ days, selected, onSelect, label, mode = 'reven
               tickLine={false}
               axisLine={false}
               tick={{ fill: 'var(--muted-foreground)' }}
-              tickFormatter={(v: number) => isMargin ? formatPercent(v, 0) : formatIDRCompact(v)}
+              tickFormatter={(v: number) => isMargin ? formatPercent(v, 1) : formatIDRCompact(v)}
             />
-            <Bar dataKey="value" stackId="day" maxBarSize={24} radius={[4, 4, 0, 0]} isAnimationActive={false} hide={isMargin}>
-              {data.map((d, i) => (
-                <Cell
-                  key={d.date}
-                  fill="var(--primary)"
-                  fillOpacity={i === index ? 1 : 0.35}
-                />
-              ))}
-              {!isMargin && <LabelList dataKey="latestLabel" content={(p) => p.value != null ? <text x={Number(p.x) + Number(p.width ?? 0)} y={Number(p.y) - 4} fill="var(--foreground)" textAnchor="end" fontSize="12">{p.value}</text> : null} />}
-            </Bar>
             <Bar dataKey="stub" stackId="day" maxBarSize={24} fill={`url(#${patternId})`} isAnimationActive={false} hide={isMargin} />
             <Line
               dataKey="compare"
               type="linear"
               stroke="var(--text-light)"
               strokeWidth={2}
+              strokeDasharray="5 4"
               dot={false}
               activeDot={false}
               connectNulls={false}
               isAnimationActive={false}
               hide={isMargin}
             />
-            <Area dataKey="value" type="linear" fill="var(--primary)" fillOpacity={0.1} stroke="none" connectNulls={false} isAnimationActive={false} hide={!isMargin} />
-            <Line dataKey="value" type="linear" stroke="var(--primary)" strokeWidth={2} dot={false} activeDot={false} connectNulls={false} isAnimationActive={false} hide={!isMargin} />
-            {isMargin && budget !== null && <ReferenceLine y={budget} stroke="var(--text-light)" strokeWidth={1} label={{ value: `${t('money.chart.legend.budget')} ${formatPercent(budget, 0)}`, position: 'insideTopRight', fill: 'var(--muted-foreground)', fontSize: 'var(--font-size-label)' }} />}
+            <Area dataKey="value" type="linear" fill="var(--foreground)" fillOpacity={0.06} stroke="none" connectNulls={false} isAnimationActive={false} hide={!isMargin} />
+            <Line dataKey="value" type="linear" stroke="var(--foreground)" strokeWidth={2} dot={markSelected} activeDot={false} connectNulls={false} isAnimationActive={false} />
+            {days[index] && <ReferenceLine x={days[index].date} stroke="var(--primary)" strokeWidth={1.5} strokeOpacity={0.55} />}
+            {isMargin && budget !== null && <ReferenceLine y={budget} stroke="var(--text-light)" strokeWidth={1} label={{ value: `${t('money.chart.legend.budget')} ${formatPercent(budget, 1)}`, position: 'insideTopRight', fill: 'var(--muted-foreground)', fontSize: 'var(--mos-size-1)' }} />}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
       <figcaption className="money-chart__legend">
         {isMargin ? <>
           <span className="money-chart__entry">
-            <span className="money-chart__key money-chart__key--line" aria-hidden="true" style={{ borderTopColor: 'var(--primary)' }} />
+            <span className="money-chart__key money-chart__key--line money-chart__key--solid" aria-hidden="true" />
             {t('money.chart.legend.margin')}
           </span>
           {budget !== null && <span className="money-chart__entry"><span className="money-chart__key money-chart__key--line" aria-hidden="true" style={{ borderTopWidth: 1 }} />{t('money.chart.legend.budget')}</span>}
         </> : <>
           <span className="money-chart__entry">
-            <span className="money-chart__key money-chart__key--bar" aria-hidden="true" />
+            <span className="money-chart__key money-chart__key--line money-chart__key--solid" aria-hidden="true" />
             {t('money.chart.legend.revenue')}
           </span>
           <span className="money-chart__entry">
-            <span className="money-chart__key money-chart__key--line" aria-hidden="true" />
+            <span className="money-chart__key money-chart__key--line money-chart__key--dashed" aria-hidden="true" />
             {t('money.chart.legend.compare')}
           </span>
         </>}
@@ -214,7 +211,7 @@ export function DayRevenueChart({ days, selected, onSelect, label, mode = 'reven
             {t('money.chart.legend.missing')}
           </span>
         )}
-        <span id={hintId} className="sr-only">{t('money.chart.keys')}</span>
+        <span id={hintId} className="money-chart__sr-only">{t('money.chart.keys')}</span>
       </figcaption>
     </figure>
   )

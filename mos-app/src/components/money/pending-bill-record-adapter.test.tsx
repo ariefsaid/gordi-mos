@@ -21,7 +21,7 @@ const entry: PendingBillPaymentHistoryEntry = {
 
 function makeAdapter(overrides: Partial<Parameters<typeof createPendingBillRecordAdapter>[0]> = {}) {
   return createPendingBillRecordAdapter({
-    bill, entries: [entry], historyStatus: 'ready', locale: 'en', t: translateFor('en'), canPay: true, formMode: false,
+    bill, entries: [entry], historyStatus: 'ready', locale: 'en', t: translateFor('en'), formMode: false,
     form: null, onStartPayment: vi.fn(), onReverse: vi.fn(), onRetryHistory: vi.fn(), ...overrides,
   })
 }
@@ -35,22 +35,15 @@ describe('pending-bill record adapter', () => {
     const adapter = makeAdapter()
     expect(adapter.kind).toBe('pending-bill')
     expect(adapter.title).toBe('PB-1')
-    expect(fields(adapter).map((field) => field.key)).toEqual([
-      'date', 'branch', 'counterparty', 'financeLabel', 'amount', 'recordedPaid', 'balance', 'age', 'state',
-    ])
+    expect(fields(adapter).map((field) => field.key).sort()).toEqual(
+      ['age', 'amount', 'balance', 'branch', 'counterparty', 'date', 'financeLabel', 'recordedPaid', 'state'],
+    )
     expect(fields(adapter).find((field) => field.key === 'financeLabel')).toMatchObject({
       value: 'Owner Sari', displayValue: 'Owner Sari', editable: true, maxLength: 60,
     })
     expect(fields(adapter).find((field) => field.key === 'amount')?.displayValue).toBe('Rp 2.500')
     expect(fields(adapter).find((field) => field.key === 'balance')?.displayValue).toBe('Rp 2.375')
     expect(fields(adapter).find((field) => field.key === 'age')?.displayValue).toBe('5 days')
-    expect(adapter.actions).toMatchObject([{ id: 'record-payment', intent: 'primary', label: 'Record payment' }])
-    expect(adapter.permission.allowedActionIds).toEqual(['record-payment'])
-  })
-
-  it('omits payment actions when the balance cannot be paid or a form is open', () => {
-    expect(makeAdapter({ canPay: false }).actions).toEqual([])
-    expect(makeAdapter({ formMode: true }).actions).toEqual([])
   })
 
   it('projects history loading through the shared state-kit control', () => {

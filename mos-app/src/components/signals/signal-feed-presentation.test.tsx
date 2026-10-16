@@ -1,13 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { SignalRow } from '@/lib/db/signals.types'
 import type { CollectionPresentationProps, CollectionProjection } from '@/lib/record-collection/types'
 import { SignalFeedPresentation } from './signal-feed-presentation'
 import { SignalCollectionActionsProvider, type SignalCollectionActions } from './signal-collection-actions'
 import type { SignalCollectionContext, SignalCollectionQuery, SignalRenderGroup } from './signal-collection-adapter'
-import { SIGNAL_COLLECTION_NEUTRAL_QUERY } from './signal-collection-adapter'
+import { signalCollectionQuery } from './signal-collection-adapter'
+
+const SIGNAL_COLLECTION_NEUTRAL_QUERY = signalCollectionQuery.neutral
 
 function row(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
@@ -56,9 +59,11 @@ function renderFeed(
   }
   return render(
     <I18nProvider>
-      <SignalCollectionActionsProvider actions={actions}>
-        <SignalFeedPresentation {...props} />
-      </SignalCollectionActionsProvider>
+      <MemoryRouter initialEntries={['/work/signals']}>
+        <SignalCollectionActionsProvider actions={actions}>
+          <SignalFeedPresentation {...props} />
+        </SignalCollectionActionsProvider>
+      </MemoryRouter>
     </I18nProvider>,
   )
 }
@@ -69,28 +74,6 @@ describe('SignalFeedPresentation — Feed renderer reads the collection ACTIONS 
     expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument()
     expect(screen.getByText('Author One')).toBeInTheDocument()
     expect(screen.getByText('HQ Operations')).toBeInTheDocument()
-  })
-
-  it('F3 (OD-91 #18): the amber row-fill is Urgent-only; Needs attention + FYI rows stay calm (P1-1)', () => {
-    renderFeed(
-      [
-        row({ id: 'sig-urgent', body: 'Freezer alarm went off', attention: 'Urgent' }),
-        row({ id: 'sig-attn', body: 'Grinder is down', attention: 'Needs attention' }),
-        row({ id: 'sig-fyi', body: 'Restocked cups', attention: 'FYI' }),
-      ],
-      {},
-    )
-    // The archive Feed opts into the attention treatment via the shared component's variant.
-    expect(document.querySelector('.home-signal-feed--archive')).toBeInTheDocument()
-    // Only the Urgent row carries the fill modifier the CSS lights up (warning fill + 2px left rule).
-    // Needs attention keeps its amber pill on a calm row; FYI is neutral. Home's ambient variant
-    // never sets `--archive`, so Home is untouched.
-    const urgentRow = document.querySelector('[data-signal-id="sig-urgent"]')
-    const attnRow = document.querySelector('[data-signal-id="sig-attn"]')
-    const fyiRow = document.querySelector('[data-signal-id="sig-fyi"]')
-    expect(urgentRow?.classList.contains('home-signal-row--urgent')).toBe(true)
-    expect(attnRow?.classList.contains('home-signal-row--urgent')).toBe(false)
-    expect(fyiRow?.classList.contains('home-signal-row--urgent')).toBe(false)
   })
 
   it('D-D2: the archive Feed no longer renders the in-feed Share row (it is ambient-only; the toolbar hosts the one door)', () => {
@@ -107,8 +90,8 @@ describe('SignalFeedPresentation — Feed renderer reads the collection ACTIONS 
     const actions: SignalCollectionActions = { onShareClick: vi.fn() }
     renderFeed([row({ id: 'signal-9' })], actions, onOpenRecord)
 
-    // The record-open affordance is now accessibly named ("Open signal: <body>") — Luna (c).
-    await userEvent.click(screen.getByRole('button', { name: /open signal: the freezer alarm went off/i }))
+    // The whole row is the record-open button, named by its content.
+    await userEvent.click(screen.getByRole('button', { name: /the freezer alarm went off/i }))
     expect(onOpenRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 'signal-9' }))
     expect(screen.queryByRole('button', { name: /create task/i })).not.toBeInTheDocument()
   })
@@ -117,13 +100,11 @@ describe('SignalFeedPresentation — Feed renderer reads the collection ACTIONS 
     const onOpenRecord = vi.fn()
     renderFeed([row({ id: 'signal-9', category: 'Equipment/facility' })], {}, onOpenRecord)
 
-    const rowButton = screen.getByRole('button', { name: /open signal: the freezer alarm went off/i })
+    const rowButton = screen.getByRole('button', { name: /the freezer alarm went off/i })
     expect(rowButton).toHaveAttribute('data-signal-id', 'signal-9')
     expect(within(rowButton).queryAllByRole('button')).toHaveLength(0)
     expect(within(rowButton).queryByRole('link')).toBeNull()
     expect(screen.queryByText(/visible to/i)).toBeNull()
-    expect(rowButton.querySelector('.home-signal-location-chip')).toBeNull()
-    expect(rowButton.querySelector('.home-signal-time-chip')).toBeNull()
     await userEvent.click(rowButton)
     expect(onOpenRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 'signal-9' }))
   })

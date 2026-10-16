@@ -1,21 +1,18 @@
-/* Mobile nav drawer — the phone "More" / hamburger menu.
-   OD-REDESIGN-91 #37: it opens from the LEFT to match the ☰ hamburger position
-   (top-left) and the rail side. The owner judged the prior right-slide "not
-   natural / intuitive". The slide direction flips with the anchor: the panel is
-   pinned to the left edge (left-0 in the component) and enters from off-screen-left.
-   Gated behind no-preference, matching styles/drawer.css's sheet-in convention. */
+/* More drawer: a sheet, not a destination. Same nav grammar as the sidebar (nav.css); rows >=48px. A fixed title,
+   an independently scrolling navigation, and a foot of account utilities that stays reachable. */
+.mobile-drawer-panel {
+  --mos-nav-row: 48px;
+  width: min(560px, 100%); max-height: min(88dvh, 760px); margin-inline: auto;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0; background: var(--mos-surface);
+  box-shadow: inset 0 1px 0 var(--mos-line), var(--shadow-drawer);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.mobile-drawer-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: var(--mos-inline-gap) var(--mos-row-pad-x); }
+.mobile-drawer-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding-inline: var(--mos-space-4); height: var(--mos-topbar-height); border-bottom: 1px solid var(--mos-line); }
+.mobile-drawer-head__title { font: var(--mos-type-group); color: var(--mos-ink); }
+.mobile-drawer-foot { flex: none; padding: var(--mos-inline-gap) var(--mos-row-pad-x); border-top: 1px solid var(--mos-line); background: var(--mos-band); }
+.mobile-drawer-panel .nav-list { gap: 0; }
 @media (prefers-reduced-motion: no-preference) {
-  .mobile-drawer-panel {
-    animation: mobile-drawer-in var(--dur-slow) ease;
-  }
-  @keyframes mobile-drawer-in {
-    from {
-      transform: translateX(-100%);
-      opacity: 0.6;
-    }
-    to {
-      transform: none;
-      opacity: 1;
-    }
-  }
+  .mobile-drawer-panel { animation: more-sheet-in var(--mos-duration-slow) cubic-bezier(.16, 1, .3, 1); }
+  @keyframes more-sheet-in { from { transform: translateY(16px); opacity: .7; } to { transform: translateY(0); opacity: 1; } }
 }

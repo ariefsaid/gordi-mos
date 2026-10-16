@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isValidElement } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ThemeProvider } from '@/theme/theme-provider'
-import { RailNav } from './rail-nav'
+import { SideNav } from './side-nav'
 import { MobileDrawer } from './mobile-drawer'
 import { BottomTabBar } from './bottom-tab-bar'
 import { APP_RELEASE_PROFILE } from '@/config/app-build-settings'
@@ -13,11 +13,16 @@ import { isProfilePathAvailable } from '@/config/build-settings'
 import { isShipGatedInProfile } from '@/lib/ship-gate'
 import { useAuth } from '@/auth/use-auth'
 import { CafeOccurrenceTaskRoute, CafeProfileFallbackRoute } from './cafe-profile-route-guards'
-import { DESTINATIONS, MODULES, UTILITY, goToDestinations } from './destinations'
+import { goToEntries } from './module-registry'
 import { flattenRoutes, isRedirect, redirectProps, leafInThisTable } from '@/test/route-table'
 import { messages } from '@/i18n/messages'
 
 vi.mock('@/auth/use-auth')
+vi.mock('./use-is-narrow')
+vi.mock('./use-nav', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./use-nav')>()),
+  useNavBadges: () => ({ forPath: () => undefined, forDestination: () => undefined }),
+}))
 vi.mock('@/components/catalog/use-work-write-authority', () => ({
   canCreateForScope: () => false,
   useWorkWriteAuthority: () => ({
@@ -38,6 +43,7 @@ vi.mock('@/lib/db/notifications', () => ({
   listNotifications: vi.fn().mockResolvedValue({ rows: [], hasMore: false, nextCursor: null }),
 }))
 
+import { useIsNarrow } from './use-is-narrow'
 import { searchTasksByTitle } from '@/lib/db/tasks'
 import { searchSignalsByBody } from '@/lib/db/signals'
 import { searchPeopleByName } from '@/lib/db/directory'
@@ -46,8 +52,17 @@ import { searchWorkLinesByName } from '@/lib/db/work-lines'
 import { CommandMenu } from '@/components/command/command-menu'
 
 const mockUseAuth = vi.mocked(useAuth)
+const mockUseIsNarrow = vi.mocked(useIsNarrow)
 
-function setOmniscientViewer() {
+// The viewer variants the Café release serves, each with the roles route admission reads.
+const ALL_ROLES = ['admin', 'finance', 'manager', 'supervisor', 'ops_lead', 'member']
+const VIEWERS = {
+  member: ['member'],
+  supervisor: ['supervisor', 'member'],
+  director: ALL_ROLES,
+} as const
+
+function setViewer(accessRoles: readonly string[]) {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -57,21 +72,12 @@ function setOmniscientViewer() {
         created_at: '', updated_at: '',
       },
       roles: [],
-      isManager: true,
-      accessRoles: ['admin', 'finance', 'manager', 'supervisor', 'ops_lead', 'member'],
+      isManager: accessRoles.includes('manager'),
+      accessRoles: [...accessRoles],
       affiliated: ['cafe'],
     },
     signOut: vi.fn(),
   } as unknown as ReturnType<typeof useAuth>)
-}
-
-function declaredNavigationPaths(): string[] {
-  return [...DESTINATIONS, ...MODULES.flatMap((group) => group.items), ...UTILITY]
-    .flatMap((destination) => [
-      ...(destination.primaryPath ? [destination.primaryPath] : []),
-      ...destination.links.map((link) => link.path),
-      ...(destination.children ?? []).map((link) => link.path),
-    ])
 }
 
 function hrefsIn(root: HTMLElement): string[] {
@@ -88,33 +94,20 @@ function wrapNavigation(node: React.ReactNode) {
   )
 }
 
-function atPhoneWidth<T>(fn: () => T): T {
-  const real = window.matchMedia
-  Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    configurable: true,
-    value: (query: string) => ({
-      matches: /max-width/.test(query),
-      media: query,
-      onchange: null,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      addListener: () => {},
-      removeListener: () => {},
-      dispatchEvent: () => false,
-    }),
-  })
-  try {
-    return fn()
-  } finally {
-    Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: real })
-  }
-}
+const outsideProfile = (paths: string[]) => paths.filter((path) => !isProfilePathAvailable(path, 'cafe'))
 
 describe.runIf(APP_RELEASE_PROFILE === 'cafe')('Cafe profile reachability', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    setOmniscientViewer()
+    localStorage.clear()
+    mockUseIsNarrow.mockReturnValue(false)
+    // Desktop at full navigation width: the sidebar renders its rows as links. (The collapsed rail renders
+    // buttons that open flyouts; jsdom's default matchMedia says every query is false, which would pick the rail.)
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true, writable: true,
+      value: (query: string) => ({ matches: true, media: query, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false }),
+    })
+    setViewer(VIEWERS.director)
   })
 
   it('is the selected build profile with Work collections and Deputy switched off', () => {
@@ -145,7 +138,7 @@ describe.runIf(APP_RELEASE_PROFILE === 'cafe')('Cafe profile reachability', () =
     )
     expect(unavailable.length, 'the route sweep must include the blocked Work collections and record routes').toBeGreaterThan(10)
 
-    const home = flattenRoutes().find(({ route }) => route.index)
+    const home = routes.find(({ route }) => route.index)
     expect(home, 'the bare address must remain declared').toBeDefined()
     expect(isRedirect(home?.route.element), 'the bare address must no longer mount Home').toBe(true)
     expect(redirectProps(home?.route.element).to).toBe('/cafe')
@@ -155,7 +148,7 @@ describe.runIf(APP_RELEASE_PROFILE === 'cafe')('Cafe profile reachability', () =
       expect(redirectProps(route.element).to).toBe('/cafe')
     }
 
-    const blockedRedirects = flattenRoutes()
+    const blockedRedirects = routes
       .filter(({ route }) => isRedirect(route.element))
       .map(({ path, route }) => [path, redirectProps(route.element).to] as const)
       .filter(([, target]) => !isProfilePathAvailable(target, 'cafe'))
@@ -208,51 +201,78 @@ describe.runIf(APP_RELEASE_PROFILE === 'cafe')('Cafe profile reachability', () =
     for (const path of ['/cafe', '/cafe/plan', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/receive/review', '/cafe/receive/issues', '/cafe/request', '/cafe/request/review', '/inbox', '/profile', '/admin/people', '/admin/teams', '/admin/access']) {
       const leaf = leafInThisTable(path)
       expect(leaf, `${path} is missing from the production route table`).toBeDefined()
-      expect(isRedirect(leaf?.route.element), `${path} is redirected by the Cafe profile`).toBe(false)
+      // A redirect is fine only when it lands on another Café-available path (the Review queues).
+      if (isRedirect(leaf?.route.element)) expect(isProfilePathAvailable(redirectProps(leaf?.route.element).to, 'cafe'), `${path} is redirected out of the Cafe profile`).toBe(true)
       expect(isShipGatedInProfile(path, 'cafe')).toBe(false)
     }
   })
 
-  it('enumerates declared navigation but exposes no Work or Home entry to any role', () => {
-    const declared = declaredNavigationPaths()
-    expect(declared.some((path) => !isProfilePathAvailable(path, 'cafe'))).toBe(true)
-
-    const visible = goToDestinations(['admin', 'finance', 'manager', 'supervisor', 'ops_lead', 'member'])
-      .flatMap(({ path, children }) => [path, ...children.map((child) => child.path)])
-    expect(visible.length).toBeGreaterThan(5)
-    expect(visible.filter((path) => !isProfilePathAvailable(path, 'cafe'))).toEqual([])
-    expect(visible).toContain('/cafe')
-    expect(visible).toContain('/inbox')
-    expect(visible).toContain('/admin/people')
-    expect(visible).not.toContain('/')
-    expect(visible.some((path) => path === '/work' || path.startsWith('/work/'))).toBe(false)
+  it('offers no Work or Home entry to any role, and every offered path resolves in the route table', () => {
+    for (const [name, roles] of Object.entries(VIEWERS)) {
+      const visible = goToEntries([...roles]).map((entry) => entry.path)
+      expect(visible.length, name).toBeGreaterThan(1)
+      expect(outsideProfile(visible), `${name} is offered a path outside the profile`).toEqual([])
+      expect(visible, name).not.toContain('/')
+      expect(visible.some((path) => path === '/work' || path.startsWith('/work/')), name).toBe(false)
+      for (const path of visible) {
+        const leaf = leafInThisTable(path.split('?')[0])
+        expect(leaf, `${name}: ${path} has no route`).toBeDefined()
+        if (isRedirect(leaf?.route.element)) expect(isProfilePathAvailable(redirectProps(leaf?.route.element).to, 'cafe'), `${name}: ${path} is redirected out of the profile`).toBe(true)
+      }
+    }
+    const director = goToEntries([...VIEWERS.director]).map((entry) => entry.path)
+    expect(director).toEqual(expect.arrayContaining(['/cafe', '/inbox', '/admin/people']))
   })
 
-  it('renders no Work/Home door on desktop or phone navigation', () => {
-    const desktop = render(wrapNavigation(<RailNav compact={false} />))
-    const desktopLinks = hrefsIn(screen.getByRole('navigation', { name: 'Primary' }))
-    expect(desktopLinks.length).toBeGreaterThan(5)
-    expect(desktopLinks.filter((path) => !isProfilePathAvailable(path, 'cafe'))).toEqual([])
-    expect(desktopLinks).toContain('/cafe')
-    expect(desktopLinks).toContain('/inbox')
-    expect(desktopLinks).toContain('/admin/people')
-    desktop.unmount()
+  it('shows each viewer only the destinations their roles are admitted to', () => {
+    const paths = (roles: readonly string[]) => goToEntries([...roles]).map((entry) => entry.path)
+    expect(paths(VIEWERS.member)).not.toContain('/admin/people')
+    expect(paths(VIEWERS.supervisor)).not.toContain('/admin/people')
+    expect(paths(VIEWERS.director)).toContain('/admin/people')
+    // The wider the roles, the wider the offer: no narrower viewer sees a path the director does not.
+    const wide = new Set(paths(VIEWERS.director))
+    expect(paths(VIEWERS.member).filter((path) => !wide.has(path))).toEqual([])
+    expect(paths(VIEWERS.supervisor).filter((path) => !wide.has(path))).toEqual([])
+  })
 
-    const phone = atPhoneWidth(() => render(wrapNavigation(
-      <>
-        <BottomTabBar />
-        <MobileDrawer open onClose={() => {}} />
-      </>,
-    )))
-    expect(screen.getByRole('dialog', { name: 'More' })).toBeInTheDocument()
-    const phoneLinks = hrefsIn(document.body)
-    expect(phoneLinks.length).toBeGreaterThan(5)
-    expect(phoneLinks.filter((path) => !isProfilePathAvailable(path, 'cafe'))).toEqual([])
-    expect(phoneLinks).toContain('/cafe')
-    expect(phoneLinks).toContain('/inbox')
-    expect(phoneLinks).toContain('/admin/people')
-    expect(phoneLinks).not.toContain('/')
-    phone.unmount()
+  it('renders no Work/Home door on the desktop navigation for any role', () => {
+    mockUseIsNarrow.mockReturnValue(false)
+    for (const [name, roles] of Object.entries(VIEWERS)) {
+      setViewer(roles)
+      const desktop = render(wrapNavigation(<SideNav />))
+      const desktopLinks = hrefsIn(desktop.container)
+      expect(desktopLinks.length, `${name} desktop nav`).toBeGreaterThan(0) // a Café member sees Café alone: Inbox is the bell, Admin is not theirs
+      expect(outsideProfile(desktopLinks), `${name} desktop nav`).toEqual([])
+      expect(desktopLinks, name).toContain('/cafe')
+      // Inbox has no sidebar row in the redesign: it is the top-bar bell (and a drawer row on the phone).
+      desktop.unmount()
+    }
+  })
+
+  it('renders no Work/Home door on the phone tab bar or More drawer for any role', () => {
+    mockUseIsNarrow.mockReturnValue(true)
+    for (const [name, roles] of Object.entries(VIEWERS)) {
+      setViewer(roles)
+      const phone = render(wrapNavigation(
+        <>
+          <BottomTabBar onOpenMore={() => {}} onOpenActionLauncher={() => {}} />
+          <MobileDrawer open onClose={() => {}} />
+        </>,
+      ))
+      expect(screen.getByRole('dialog', { name: 'More' })).toBeInTheDocument()
+      const tabs = within(screen.getByRole('navigation', { name: 'Primary' })).getAllByRole('link')
+      expect(outsideProfile(tabs.map((link) => link.getAttribute('href')!)), `${name} tab bar`).toEqual([])
+      const phoneLinks = hrefsIn(document.body)
+      expect(phoneLinks.length, `${name} phone nav`).toBeGreaterThan(2)
+      expect(outsideProfile(phoneLinks), `${name} phone nav`).toEqual([])
+      expect(phoneLinks, name).toContain('/cafe')
+      expect(phoneLinks, name).not.toContain('/')
+      phone.unmount()
+    }
+    setViewer(VIEWERS.director)
+    const admin = render(wrapNavigation(<MobileDrawer open onClose={() => {}} />))
+    expect(hrefsIn(document.body)).toContain('/admin/people')
+    admin.unmount()
   })
 
   it('removes Work and Deputy from the command menu and does not search Work records', async () => {
@@ -269,7 +289,8 @@ describe.runIf(APP_RELEASE_PROFILE === 'cafe')('Cafe profile reachability', () =
     const targets = Array.from(dialog.querySelectorAll<HTMLElement>('[data-to]'))
       .map((item) => item.getAttribute('data-to'))
       .filter((path): path is string => !!path)
-    expect(targets.filter((path) => !isProfilePathAvailable(path, 'cafe'))).toEqual([])
+    expect(targets.length).toBeGreaterThan(2)
+    expect(outsideProfile(targets)).toEqual([])
 
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'coffee' } })
     await waitFor(() => expect(searchPeopleByName).toHaveBeenCalledWith('coffee'))

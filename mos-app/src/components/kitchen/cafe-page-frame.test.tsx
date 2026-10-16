@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { Locale } from '@/i18n/messages'
 import { CafePageFrame } from './cafe-page-frame'
@@ -14,7 +15,7 @@ const bar: ProductionStream = { ...kitchen, activity: 'bar' }
 
 function renderFrame(locale: Locale, stream: ProductionStream | null = kitchen) {
   return render(
-    <I18nProvider initialLocale={locale}>
+    <MemoryRouter><I18nProvider initialLocale={locale}>
       <CafePageFrame
         page="production"
         date="2026-09-28"
@@ -26,13 +27,13 @@ function renderFrame(locale: Locale, stream: ProductionStream | null = kitchen) 
       >
         <p>Page body</p>
       </CafePageFrame>
-    </I18nProvider>,
+    </I18nProvider></MemoryRouter>,
   )
 }
 
 describe('CafePageFrame', () => {
   it('omits stream controls and placeholders for the org-wide recipe catalog', () => {
-    render(<I18nProvider initialLocale="en"><CafePageFrame page="recipes"><p>Recipes body</p></CafePageFrame></I18nProvider>)
+    render(<MemoryRouter><I18nProvider initialLocale="en"><CafePageFrame page="recipes"><p>Recipes body</p></CafePageFrame></I18nProvider></MemoryRouter>)
     const head = screen.getByTestId('page-head')
     expect(within(head).getByRole('heading', { level: 1 })).toHaveTextContent('Recipes')
     expect(head.querySelector('.ch-status-row')).toBeNull()

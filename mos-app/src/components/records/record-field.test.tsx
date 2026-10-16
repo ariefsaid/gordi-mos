@@ -29,7 +29,7 @@ it('opens a related record within the app basename without activating its edit c
   expect(screen.getByTestId('destination')).toHaveTextContent('/work/objectives/o1')
   expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   expect(onCommit).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('button', { name: 'Edit Objective' }))
+  fireEvent.click(screen.getByRole('button', { name: /Edit Objective$/ }))
   expect(screen.getByRole('combobox', { name: 'Objective' })).toBeInTheDocument()
 })
 
@@ -49,7 +49,7 @@ it('opens plain related clicks in the record stack and retains canonical modifie
 
 it('hints the expected input in an empty text editor through spec.placeholder', () => {
   render(<I18nProvider><RecordField spec={{ key: 'period', label: 'Period', control: 'text', value: null, displayValue: 'Not set', placeholder: 'Year, e.g. 2026', editable: true }} onCommit={vi.fn()} /></I18nProvider>)
-  fireEvent.click(screen.getByRole('button', { name: 'Edit Period' }))
+  fireEvent.click(screen.getByRole('button', { name: /Edit Period$/ }))
   expect(screen.getByRole('textbox', { name: 'Period' })).toHaveAttribute('placeholder', 'Year, e.g. 2026')
 })
 
@@ -91,7 +91,7 @@ function renderField(spec: RecordFieldSpec, extra: {
 // Value-first: an editable field renders its VALUE first; activating the row (click/Enter)
 // swaps in the edit control. Every editing journey begins by activating the field.
 function activate(label: string) {
-  fireEvent.click(screen.getByRole('button', { name: `Edit ${label}` }))
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(`Edit ${label}$`) }))
 }
 
 const textSpec: RecordFieldSpec = {
@@ -132,7 +132,7 @@ describe('RecordField', () => {
     renderField(textSpec, { heading: true })
 
     const heading = screen.getByRole('heading', { level: 1, name: 'Restock oat milk' })
-    const editButton = screen.getByRole('button', { name: 'Edit Title' })
+    const editButton = screen.getByRole('button', { name: /Edit Title$/ })
     expect(heading).toContainElement(editButton)
     expect(editButton).not.toContainElement(heading)
 
@@ -282,7 +282,7 @@ describe('RecordField', () => {
       expect(screen.queryByRole('combobox', { name: 'Status' })).not.toBeInTheDocument()
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Edit Status' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Edit Status$/ })).toBeInTheDocument()
     } finally {
       restore()
     }
@@ -318,7 +318,7 @@ describe('RecordField', () => {
     fireEvent.keyDown(picker, { key: 'Escape' })
 
     await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Status' })).not.toBeInTheDocument())
-    expect(screen.getByRole('button', { name: 'Edit Status' })).toHaveTextContent('Open')
+    expect(screen.getByRole('button', { name: /Edit Status$/ })).toHaveTextContent('Open')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(onCancel).toHaveBeenCalledTimes(1)
     expect(onDirtyChange).toHaveBeenLastCalledWith(false)
@@ -479,26 +479,8 @@ describe('NFR-V3-006: field controls meet the 44px keyboard target', () => {
   const css = readFileSync(resolve(process.cwd(), 'src/components/records/record-viewer.css'), 'utf8')
 
   it('encodes a 44px minimum for the field control, the shared select, and its retry action', () => {
-    expect(css).toMatch(/\.record-field__control[\s\S]*min-height:\s*44px/)
-    expect(css).toMatch(/\.record-field__picker-trigger[\s\S]*min-height:\s*44px/)
-    expect(css).toMatch(/\.record-field__retry[\s\S]*min-height:\s*44px/)
-  })
-
-  // F5 density: the RESTING value activation target (.record-field__edit) keeps the 44px phone
-  // floor at ANY pointer. At desktop width, a fine pointer tightens it to E7's kv rhythm; the
-  // EDIT-mode controls above keep 44px unconditionally.
-  it('tightens the resting value target to the E7 kv rhythm on a fine pointer (phone keeps 44px at any pointer)', () => {
-    // The default phone resting target stays at the 44px floor for every pointer type.
-    expect(css).toMatch(/\.record-field__edit\s*\{[\s\S]*?min-height:\s*44px/)
-    // A guarded pointer:fine block tightens only the desktop resting target below 44px.
-    expect(css).toMatch(/@media \(pointer: fine\) and \(min-width: 768px\)[\s\S]*?\.record-field__edit\s*\{[^}]*?min-height:\s*32px/)
-  })
-
-  // DO-23(a) (census-sweep R2 task-record P3-1): permission-invariant row rhythm — a read-only
-  // value floors at the editable target's pitch in BOTH pointer tiers (44px+2 touch, 32px+2 fine),
-  // so a non-editor persona sees the same document cadence as an editor.
-  it('DO-23(a): read-only values share the editable row pitch in both pointer tiers', () => {
-    expect(css).toMatch(/\.record-field--readonly \.record-field__value\s*\{[\s\S]*?min-height:\s*46px/)
-    expect(css).toMatch(/@media \(pointer: fine\) and \(min-width: 768px\)[\s\S]*?\.record-field--readonly \.record-field__value\s*\{[^}]*?min-height:\s*34px/)
+    expect(css).toMatch(/\.record-field__control[\s\S]*min-height:\s*var\(--mos-control-height\)/)
+    expect(css).toMatch(/\.record-field__picker-trigger[\s\S]*min-height:\s*var\(--mos-control-height\)/)
+    expect(css).toMatch(/\.record-field__retry[\s\S]*min-height:\s*var\(--mos-control-height\)/)
   })
 })

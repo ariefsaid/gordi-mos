@@ -101,11 +101,12 @@ export function useBreadcrumbTitle(): string | null {
  * Sets the title on mount / when `title` changes, clears it on unmount
  * so navigating away from a record reverts the crumb back to the section label.
  */
-export function useSetBreadcrumbTitle(title: string): void {
+export function useSetBreadcrumbTitle(title: string | null): void {
   const ctx = useContext(BreadcrumbTitleContext)
   const setTitle = ctx?.setTitle
 
   useEffect(() => {
+    if (title == null) return
     setTitle?.(title)
     return () => {
       setTitle?.(null)

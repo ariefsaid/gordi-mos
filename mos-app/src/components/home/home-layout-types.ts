@@ -4,7 +4,11 @@ import type { HomeRegion } from './home-regions'
 /** Shared contract for the three v4 arrangements. The data model stays identical; only shape changes. */
 export interface HomeLayoutProps {
   regions: HomeRegion[]
-  feed: ReactNode
+  nextAction: ReactNode
+  objectives?: ReactNode
+  /** The bounded Signals preview; shares the aside column with Objectives. */
+  feed?: ReactNode
+  liftedRegionId?: HomeRegion['id']
   /** Persona-specific opening content, such as the member Café door. */
   leading?: ReactNode
 }

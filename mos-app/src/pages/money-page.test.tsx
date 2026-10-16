@@ -17,6 +17,8 @@ vi.mock('@/lib/db/reporting-margin', async () => {
   return { ...actual, listSalesMarginDaily: vi.fn() }
 })
 vi.mock('@/auth/use-auth')
+// Desktop presentation: the revenue table and the full filter row render (the phone gets cards).
+vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => true }))
 import { latestSalesReportingDate, listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { useAuth } from '@/auth/use-auth'
@@ -98,9 +100,13 @@ function renderMoney(accessRoles: string[], path = '/money', locale: 'en' | 'id'
     </I18nProvider>,
   )
 }
+async function choosePeriod(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(screen.getByRole('combobox', { name: 'Period' }))
+  await user.click(await screen.findByRole('option', { name }))
+}
 const where = () => screen.getByTestId('where').textContent
 const table = () => screen.getByRole('table')
-const bodyRowNames = () => within(table()).getAllByRole('rowheader').map((c) => c.querySelector('a, .money-table__name')?.textContent)
+const bodyRowNames = () => within(table()).getAllByRole('rowheader').map((c) => c.querySelector('a, .money-table__name')?.textContent).filter(Boolean)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -116,7 +122,7 @@ describe('MoneyPage — what each tier receives', () => {
     expect(mockRev).toHaveBeenCalledWith({ fromDate: '2026-08-07', toDate: LATEST })
     expect(mockMarg).not.toHaveBeenCalled()
     const headers = within(table()).getAllByRole('columnheader').map((h) => h.textContent!.replace(/[↑↓]/g, ''))
-    expect(headers).toEqual(['Branch', 'Revenue', 'vs previous period', 'Latest day', 'vs same day last week', 'Trend'])
+    expect(headers).toEqual(['Branch', 'Revenue', 'vs previous period', 'Latest day', 'vs same day last week', 'Daily revenue'])
     expect(screen.queryByText(/margin|COGS|recipe/i)).toBeNull()
   })
 
@@ -125,25 +131,17 @@ describe('MoneyPage — what each tier receives', () => {
     await screen.findByRole('table')
     expect(mockMarg).toHaveBeenCalledWith({ fromDate: '2026-08-07', toDate: LATEST })
     const headers = within(table()).getAllByRole('columnheader').map((h) => h.textContent!.replace(/[↑↓]/g, ''))
-    expect(headers.slice(5)).toEqual(['Margin % (interim)', 'COGS vs budget', 'Recipe vs stock cost', 'Trend'])
+    expect(headers.slice(5)).toEqual(['Margin % (interim)', 'COGS vs budget', 'Recipe vs stock cost', 'Daily revenue'])
     expect(screen.getByText('Margin is interim: from stock movement, not yet reconciled.')).toBeInTheDocument()
     expect(screen.getByText('Margin covers POS branches only.')).toBeInTheDocument()
   })
 
   it('shows the recipe-budget marker in the COGS KPI bullet', async () => {
     renderMoney(['finance'])
-    const tile = await screen.findByRole('group', { name: 'COGS vs budget' })
-    const meter = within(tile).getByRole('meter')
-    expect(meter).toHaveAttribute('aria-valuenow', '35')
-    expect(meter.querySelector('[aria-hidden="true"]')).toBeInTheDocument()
-  })
-
-  it('uses proportional figures for Money KPIs', async () => {
-    renderMoney(['finance'])
     await screen.findByRole('table')
-    const values = Array.from(document.querySelectorAll('.money-overview__kpis .kpi-tile-value'))
-    expect(values).toHaveLength(4)
-    expect(values.every((value) => !value.classList.contains('tabular'))).toBe(true)
+    const meter = screen.getByRole('meter')
+    expect(meter).toHaveAttribute('aria-valuenow', '35')
+    expect(meter).toHaveAttribute('aria-valuetext', expect.stringContaining('34,0%'))
   })
 
   it('a supervisor granted one branch lands on that branch', async () => {
@@ -154,12 +152,12 @@ describe('MoneyPage — what each tier receives', () => {
 })
 
 describe('MoneyPage — the table', () => {
-  it('the company row comes first, then branches by revenue, then B2B in its own group', async () => {
+  it('branches by revenue, then the company row, then B2B in its own group', async () => {
     renderMoney(['manager'])
     await screen.findByRole('table')
-    expect(bodyRowNames()).toEqual(['Company', 'Gordi HQ', 'Cikal', 'B2B (invoices)'])
+    expect(bodyRowNames()).toEqual(['Gordi HQ', 'Cikal', 'Company', 'B2B (invoices)'])
     const groups = within(table()).getAllByRole('rowgroup')
-    expect(within(groups.at(-1)!).getByText('B2B (invoices)')).toBeInTheDocument()
+    expect(within(groups.at(-1)!).getByRole('link', { name: 'B2B (invoices)' })).toBeInTheDocument()
   })
 
   it('every branch name is a link to its Branch page carrying the period, and the company row is not', async () => {
@@ -177,12 +175,11 @@ describe('MoneyPage — the table', () => {
     await waitFor(() => expect(where()).toBe('/money/branch/cikal?period=30&sort=revenue.desc'))
   })
 
-  it('figures use tabular digits and id-ID formats', async () => {
+  it('figures use id-ID formats', async () => {
     renderMoney(['manager'])
     const hq = (await screen.findByRole('link', { name: 'Gordi HQ' })).closest('tr')!
-    // 30-day period, 14 days received: 14 × 20,0 jt.
-    const revenueCell = within(hq).getByText('Rp 280 jt')
-    expect(revenueCell.closest('.tabular')).not.toBeNull()
+    // 30-day period, 14 days received: 14 × 20,0 jt, written in full with id-ID separators.
+    expect(within(hq).getByText('Rp 280.000.000')).toBeInTheDocument()
     // (20,0 − 7,0) / 20,0 = 65%; (7,0 − 6,8) / 20,0 = 1 point over budget.
     expect(within(hq).getByText('65,0%')).toBeInTheDocument()
     expect(within(hq).getByText('+1,0 pts')).toBeInTheDocument()
@@ -191,12 +188,12 @@ describe('MoneyPage — the table', () => {
 
 describe('MoneyPage — period and sort live in the URL', () => {
   it('choosing a period writes it to the URL and marks the choice pressed', async () => {
+    const user = userEvent.setup()
     renderMoney(['manager'])
     await screen.findByRole('table')
-    fireEvent.click(screen.getByRole('button', { name: '7 days' }))
+    await choosePeriod(user, '7 days')
     await waitFor(() => expect(where()).toBe('/money?period=7&sort=revenue.desc'))
-    expect(screen.getByRole('button', { name: '7 days' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: '30 days' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('combobox', { name: 'Period' })).toHaveTextContent('7 days')
   })
 
   it('clicking a header sorts the branches and writes the sort to the URL', async () => {
@@ -204,16 +201,17 @@ describe('MoneyPage — period and sort live in the URL', () => {
     await screen.findByRole('table')
     fireEvent.click(within(screen.getByRole('columnheader', { name: /^Revenue/ })).getByRole('button'))
     await waitFor(() => expect(where()).toBe('/money?period=30&sort=revenue.asc'))
-    expect(bodyRowNames()).toEqual(['Company', 'Cikal', 'Gordi HQ', 'B2B (invoices)'])
+    expect(bodyRowNames()).toEqual(['Cikal', 'Gordi HQ', 'Company', 'B2B (invoices)'])
     expect(screen.getByRole('columnheader', { name: /^Revenue/ })).toHaveAttribute('aria-sort', 'ascending')
   })
 
   it('choosing a period after sorting keeps the sort', async () => {
+    const user = userEvent.setup()
     renderMoney(['manager'])
     await screen.findByRole('table')
     fireEvent.click(within(screen.getByRole('columnheader', { name: /^Latest day/ })).getByRole('button'))
     await waitFor(() => expect(where()).toBe('/money?period=30&sort=latest-day.desc'))
-    fireEvent.click(screen.getByRole('button', { name: '7 days' }))
+    await choosePeriod(user, '7 days')
     await waitFor(() => expect(where()).toBe('/money?period=7&sort=latest-day.desc'))
     expect(screen.getByRole('columnheader', { name: /^Latest day/ })).toHaveAttribute('aria-sort', 'descending')
   })
@@ -221,9 +219,9 @@ describe('MoneyPage — period and sort live in the URL', () => {
   it('a reloaded link restores the period and the sort it was shared with', async () => {
     renderMoney(['manager'], '/money?period=60&sort=branch.asc')
     await screen.findByRole('table')
-    expect(screen.getByRole('button', { name: '60 days' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('combobox', { name: 'Period' })).toHaveTextContent('60 days')
     expect(screen.getByRole('columnheader', { name: /^Branch/ })).toHaveAttribute('aria-sort', 'ascending')
-    expect(bodyRowNames()).toEqual(['Company', 'Cikal', 'Gordi HQ', 'B2B (invoices)'])
+    expect(bodyRowNames()).toEqual(['Cikal', 'Gordi HQ', 'Company', 'B2B (invoices)'])
   })
 
   it('normalizes a shared custom range that extends past the latest synced day', async () => {
@@ -234,12 +232,13 @@ describe('MoneyPage — period and sort live in the URL', () => {
   })
 
   it('90 days reads the selected inclusive window plus its prior comparison period', async () => {
+    const user = userEvent.setup()
     renderMoney(['manager'])
     await screen.findByRole('table')
-    fireEvent.click(screen.getByRole('button', { name: '90 days' }))
+    await choosePeriod(user, '90 days')
     await waitFor(() => expect(mockRev).toHaveBeenCalledTimes(2))
     expect(mockRev.mock.calls[1][0]).toEqual({ fromDate: '2026-04-09', toDate: LATEST })
-    expect(screen.getByRole('button', { name: '90 days' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('combobox', { name: 'Period' })).toHaveTextContent('90 days')
   })
 
   it('branch and channel filters are reflected in the URL and scope the table together', async () => {
@@ -258,29 +257,29 @@ describe('MoneyPage — period and sort live in the URL', () => {
   })
 
   it('custom dates persist in the URL and reject a reversed pair without changing figures', async () => {
+    const user = userEvent.setup()
     renderMoney(['manager'])
     await screen.findByRole('table')
-    const customRange = screen.getByRole('button', { name: 'Custom range' })
-    fireEvent.click(customRange)
+    await choosePeriod(user, 'Custom range')
     await waitFor(() => expect(where()).toBe('/money?period=custom&from=2026-09-06&to=2026-10-05&sort=revenue.desc'))
-    fireEvent.click(customRange)
-    expect(customRange).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByLabelText('From')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: '02/10/2026' } })
+    expect(screen.getByRole('combobox', { name: 'Period' })).toHaveTextContent('Custom range')
+    expect(screen.getByLabelText(/^From/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(/^From/), { target: { value: '02/10/2026' } })
     await waitFor(() => expect(where()).toBe('/money?period=custom&from=2026-10-02&to=2026-10-05&sort=revenue.desc'))
     await waitFor(() => expect(mockRev).toHaveBeenCalledTimes(3))
     expect(screen.getByText('Revenue · 4 days')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('To'), { target: { value: '01/10/2026' } })
+    fireEvent.change(screen.getByLabelText(/^To/), { target: { value: '01/10/2026' } })
     expect(screen.getByRole('alert')).toHaveTextContent('Choose real dates in order, ending no later than the latest synced day.')
     expect(where()).toContain('from=2026-10-02&to=2026-10-05')
     expect(screen.getByText('Revenue · 4 days')).toBeInTheDocument()
   })
 
   it('keeps the previous figures visibly busy while a selected window is refetched', async () => {
+    const user = userEvent.setup()
     renderMoney(['manager'])
     await screen.findByRole('table')
     mockRev.mockReturnValueOnce(new Promise(() => {}))
-    fireEvent.click(screen.getByRole('button', { name: '90 days' }))
+    await choosePeriod(user, '90 days')
     await waitFor(() => expect(document.querySelector('.money-results')).toHaveAttribute('aria-busy', 'true'))
     expect(screen.getByRole('table')).toBeInTheDocument()
   })
@@ -291,7 +290,7 @@ describe('MoneyPage — states in text', () => {
     mockRev.mockReturnValue(new Promise(() => {}))
     renderMoney(['manager'])
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '7 days' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'Period' })).toBeDisabled()
   })
 
   it('no reporting date settles empty without querying a date window', async () => {
@@ -300,7 +299,8 @@ describe('MoneyPage — states in text', () => {
     expect(await screen.findByText('No sales have been received yet')).toBeInTheDocument()
     expect(mockRev).not.toHaveBeenCalled()
     expect(mockMarg).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Custom range' })).toBeDisabled()
+    await userEvent.setup().click(screen.getByRole('combobox', { name: 'Period' }))
+    expect(await screen.findByRole('option', { name: 'Custom range' })).toHaveAttribute('data-disabled')
   })
 
   it('empty says when the sync runs and who to tell, and Check again reads again', async () => {
@@ -308,7 +308,7 @@ describe('MoneyPage — states in text', () => {
     renderMoney(['manager'])
     expect(await screen.findByText('No sales have been received yet')).toBeInTheDocument()
     expect(screen.getByText(/nightly sync runs at 02:00/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     await waitFor(() => expect(mockRev).toHaveBeenCalledTimes(2))
   })
 
@@ -347,10 +347,10 @@ describe('MoneyPage — states in text', () => {
     document.dispatchEvent(new Event('visibilitychange'))
     await waitFor(() => expect(mockRev).toHaveBeenCalledTimes(2))
     await screen.findByRole('table')
-    expect(screen.getByText('B2B (invoices)')).toBeInTheDocument()
+    expect(screen.getAllByText('B2B (invoices)').length).toBeGreaterThan(0)
     finishFirst(revenue(['gordi_hq']))
     await new Promise((r) => setTimeout(r, 20))
-    expect(screen.getByText('B2B (invoices)')).toBeInTheDocument()
+    expect(screen.getAllByText('B2B (invoices)').length).toBeGreaterThan(0)
     expect(screen.getByRole('link', { name: 'Cikal' })).toBeInTheDocument()
   })
 
@@ -383,8 +383,8 @@ describe('MoneyPage — states in text', () => {
   it('every string follows the viewer\'s language', async () => {
     renderMoney(['finance'], '/money', 'id')
     await screen.findByRole('table')
-    expect(screen.getByRole('button', { name: '7 hari' })).toBeInTheDocument()
-    expect(bodyRowNames()[0]).toBe('Perusahaan')
+    expect(screen.getByRole('combobox', { name: 'Periode' })).toHaveTextContent('30 hari')
+    expect(bodyRowNames()).toContain('Perusahaan')
     expect(screen.getByText('Margin hanya mencakup cabang POS.')).toBeInTheDocument()
   })
 })

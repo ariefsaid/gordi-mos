@@ -7,11 +7,11 @@ import { CafeRecipesPage } from './cafe-recipes-page'
 import { listRecipeVersions } from '@/lib/db/cafe-recipes'
 import type { RecipeVersion } from '@/lib/cafe-recipes'
 vi.mock('@/auth/use-auth', () => ({ useAuth: () => ({ status: 'loading' }) }))
-vi.mock('@/lib/db/cafe-recipes', () => ({ listRecipeVersions: vi.fn(), listItemRecipeVersions: vi.fn() }))
+vi.mock('@/lib/db/cafe-recipes', () => ({ listRecipeVersions: vi.fn(), listItemRecipeVersions: vi.fn(), listRecipeWipBomIds: vi.fn(async () => new Set<string>()) }))
 const row: RecipeVersion = { esb_code: 'TEST', menu_id: 1, bom_id: 10, version: 1, first_seen: '2026-10-01', source_observed_at: '2026-10-01T01:00:00Z',
-  recipe: { menu_name: 'Long ERP kitchen preparation with preserved batch units', output_unit: 'Batch @10 porsi', output_yield: 1000, lines: [{ line_id: 1, detail_id: 1, name: 'Flour', qty: 250.1234567, unit: 'GR' }] } }
+  recipe: { active: true, menu_name: 'Long ERP kitchen preparation with preserved batch units', output_unit: 'Batch @10 porsi', output_yield: 1000, lines: [{ line_id: 1, detail_id: 1, name: 'Flour', qty: 250.1234567, unit: 'GR' }] } }
 const second: RecipeVersion = { ...row, version: 2, first_seen: '2026-10-02', recipe: { ...row.recipe, lines: [{ line_id: 1, detail_id: 1, name: 'Flour', qty: 0.3, unit: 'KG' }] } }
-const coffee = { ...row, menu_id: 2, recipe: { menu_name: 'Coffee', lines: [] } }
+const coffee = { ...row, menu_id: 2, recipe: { active: true, menu_name: 'Coffee', lines: [] } }
 function mount(path = '/cafe/recipes', locale: 'en' | 'id' = 'en') {
   const router = createMemoryRouter([{ path: '/cafe/recipes', element: <CafeRecipesPage /> }], { initialEntries: [path] })
   render(<I18nProvider initialLocale={locale}><RouterProvider router={router} /></I18nProvider>)
@@ -21,7 +21,7 @@ beforeEach(() => { vi.mocked(listRecipeVersions).mockReset().mockResolvedValue([
 
 it('searches, opens the shared recipe, reads changes, and returns with URL search and focus intact', async () => {
   const user = userEvent.setup()
-  vi.mocked(listRecipeVersions).mockResolvedValue([row, second, coffee, ...Array.from({ length: 1536 }, (_, index) => ({ ...coffee, menu_id: index + 3, recipe: { menu_name: `Synthetic recipe ${index}`, lines: [] } }))])
+  vi.mocked(listRecipeVersions).mockResolvedValue([row, second, coffee, ...Array.from({ length: 1536 }, (_, index) => ({ ...coffee, menu_id: index + 3, recipe: { active: true, menu_name: `Synthetic recipe ${index}`, lines: [] } }))])
   const router = mount()
   await screen.findByRole('link', { name: 'Coffee' })
   await user.type(screen.getByRole('searchbox', { name: 'Search recipes' }), 'kitchen')

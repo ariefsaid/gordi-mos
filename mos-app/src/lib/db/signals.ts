@@ -90,7 +90,7 @@ export async function searchSignalsByBody(q: string, limit = 20): Promise<Signal
   return (data ?? []) as unknown as SignalTitleRef[]
 }
 
-export interface SignalMentionRow {
+interface SignalMentionRow {
   id: string
   signal_id: string
   mention_kind: MentionKind
@@ -99,7 +99,7 @@ export interface SignalMentionRow {
   target_bu_id: string | null
   revoked_at: string | null
 }
-export interface SignalAckRow { id: string; signal_id: string; person_id: string; created_at: string }
+interface SignalAckRow { id: string; signal_id: string; person_id: string; created_at: string }
 export interface SignalTaskLinkRow { id: string; signal_id: string; task_id: string; created_by: string }
 
 export interface SignalDetail {

@@ -1,16 +1,22 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { StatusBadge, ATTENTION_STATUS_KEY } from '@/components/ui/status-badge'
+import { ArrowRightIcon } from '@/shell/icons'
+import { useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Link as RouterLink } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
+import { RecordMenu, type RecordMenuItem } from '@/components/record/record-menu'
+import { usePhoneActionBar } from '@/shell/page-action-bar'
 import { CommentThread, type TaskComment } from '@/components/tasks/CommentThread'
 import type { PersonOption } from '@/lib/db/directory'
-import { attentionSlug, type Attention, type MentionKind, type SignalCategory } from '@/lib/db/signals.types'
-import { attentionLabel } from './signal-attention-label'
+import { type Attention, type MentionKind, type SignalCategory } from '@/lib/db/signals.types'
 import { SignalCategoryPicker } from './signal-category-picker'
 import { SignalAttentionPicker } from './signal-attention-picker'
 import { SignalRecordPhotos } from './signal-photos'
 import './signal-card.css'
 import './signal-record.css'
+import { useIsOffline } from '@/shell/use-is-offline'
+import { OfflineNotice } from '@/components/ui/offline-notice'
 
 // Signal record — JTBD anatomy (docs/specs/record-page-anatomy.spec.md §2.1, OD-REDESIGN-90;
 // Each region is a small presentational component fed by props; the host (signal-record-host.tsx)
@@ -50,27 +56,20 @@ export interface LinkedTaskView {
   onOpen?: () => void
 }
 
-// ── Region 1 · Message — read what happened ────────────────────────────────────
-// The Signal body IS the record: the adapter gives this region the body text not already owned by
-// the identity heading (full, unclipped continuation for a live Signal; the original line is kept
-// in the tombstone for a retracted Signal). The attention level + occurred time ride WITH it
-// (LAW-2), never hoisted to a downstream facts block.
+// ── Message — read what happened ───────────────────────────────────────────────────────────────
+// The Signal body continues here after the record heading (which owns the first line); a retracted
+// Signal keeps its original line in the tombstone. The attention level and occurred time sit in
+// the record header, not here.
 export function SignalMessage({
-  signalId, body, attention, occurredLabel, retracted, retractReason, retractedBy, retractedAtLabel,
-  canEditAttention, onAttentionChange, onRepost, actionControls,
+  signalId, body, retracted, retractReason, retractedBy, retractedAtLabel, onRepost,
 }: {
   signalId?: string
   body: string
-  attention: Attention
-  occurredLabel: string
   onRepost?: () => void
   retracted?: boolean
   retractReason?: string | null
   retractedBy?: string | null
   retractedAtLabel?: string | null
-  canEditAttention?: boolean
-  onAttentionChange?: (attention: Attention) => void
-  actionControls?: ReactNode
 }) {
   const t = useT()
   const lines = body.trim().split(/\r?\n/)
@@ -92,173 +91,56 @@ export function SignalMessage({
   }
   return (
     <div className="signal-message">
-      <div className="signal-record-control-row">
-        {canEditAttention && onAttentionChange ? (
-          <SignalAttentionEditor value={attention} onChange={onAttentionChange} />
-        ) : (
-          <span className={`signal-attention signal-attention--${attentionSlug(attention)}`}>{attentionLabel(t, attention)}</span>
-        )}
-        {actionControls}
-        <span className="signal-message-occurred">{t('signals.record.occurredAt', { when: occurredLabel })}</span>
-      </div>
       {displayBody ? <p className="signal-message-body">{displayBody}</p> : null}
       {signalId ? <SignalRecordPhotos signalId={signalId} /> : null}
     </div>
   )
 }
 
+/** The record header: the whole first line as the heading, the attention level and when it happened
+ *  as facts, one primary action top-right (on a phone it rides the sticky bar), and the ⋯ menu. */
+export function SignalRecordHeader({
+  title, headingLevel, attention, onAttentionChange, occurredLabel, primary, menu, menuLabel, factsLabel,
+}: {
+  title: string
+  headingLevel: 1 | 2
+  attention: Attention | null
+  onAttentionChange?: (attention: Attention) => void
+  occurredLabel: string
+  primary?: { label: string; onClick: () => void; disabled?: boolean }
+  menu: readonly RecordMenuItem[]
+  menuLabel: string
+  factsLabel: string
+}) {
+  const t = useT()
+  const barSlot = usePhoneActionBar()
+  const Heading = headingLevel === 1 ? 'h1' : 'h2'
+  const primaryButton = primary ? (
+    <Button variant="primary" onClick={primary.onClick} disabled={primary.disabled}>{primary.label}</Button>
+  ) : null
+  return (
+    <header className="rp-head" data-record-header="true">
+      <div className="rp-title"><Heading className="signal-record-title">{title}</Heading></div>
+      {primary && !barSlot ? <div className="rp-head__primary">{primaryButton}</div> : null}
+      {primary && barSlot ? createPortal(primaryButton, barSlot) : null}
+      <div className="rp-head__more"><RecordMenu items={menu} label={menuLabel} minItems={1} /></div>
+      <ul className="rp-facts" aria-label={factsLabel}>
+        {attention ? (
+          <li className="rp-fact">
+            {onAttentionChange
+              ? <SignalAttentionEditor value={attention} onChange={onAttentionChange} />
+              : <StatusBadge status={ATTENTION_STATUS_KEY[attention]} />}
+          </li>
+        ) : null}
+        <li className="rp-fact"><span className="signal-message-occurred">{t('signals.record.occurredAt', { when: occurredLabel })}</span></li>
+      </ul>
+    </header>
+  )
+}
+
 function SignalAttentionEditor({ value, onChange }: { value: Attention; onChange: (value: Attention) => void }) {
   const t = useT()
   return <SignalAttentionPicker id="signals-record-attention" value={value} label={t('signals.record.editAttention')} onChange={onChange} />
-}
-
-export function SignalOverflowMenu({
-  onLinkExistingTask, onRetract, onCopyLink, onOpenFullPage,
-}: {
-  onLinkExistingTask?: () => void
-  onRetract?: () => void
-  onCopyLink?: () => void
-  onOpenFullPage?: () => void
-}) {
-  const t = useT()
-  const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const triggerPointerDownRef = useRef(false)
-  const pendingEntryFocusRef = useRef<'first' | 'last' | null>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const root = rootRef.current
-    if (!root) return
-    const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
-    }
-    // The shared RecordPanelHost listens for Escape on the panel itself. A document-level
-    // bubble listener is too late: the panel closes before this menu gets a chance to consume
-    // the key. Capture at the menu root so nested menu dismissal always wins over the host's
-    // record-level close, including when focus is still on the trigger after opening.
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        event.stopPropagation()
-        event.stopImmediatePropagation()
-        setOpen(false)
-        triggerRef.current?.focus()
-      }
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    root.addEventListener('keydown', onKeyDown, true)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-      root.removeEventListener('keydown', onKeyDown, true)
-    }
-  }, [open])
-
-  const choose = (action?: () => void) => {
-    setOpen(false)
-    action?.()
-  }
-
-  const menuItems = () => Array.from(rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])
-
-  useLayoutEffect(() => {
-    if (!open || !pendingEntryFocusRef.current) return
-    const edge = pendingEntryFocusRef.current
-    pendingEntryFocusRef.current = null
-    const items = Array.from(rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])
-    items[edge === 'last' ? items.length - 1 : 0]?.focus()
-  }, [open])
-
-  const onTriggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (!open) {
-      if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
-        pendingEntryFocusRef.current = 'first'
-        if (event.key === 'Enter' || event.key === ' ') return
-        event.preventDefault()
-        setOpen(true)
-        return
-      }
-      if (event.key === 'ArrowUp') {
-        event.preventDefault()
-        pendingEntryFocusRef.current = 'last'
-        setOpen(true)
-      }
-      return
-    }
-    if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return
-    event.preventDefault()
-    const items = menuItems()
-    items[event.key === 'ArrowUp' ? items.length - 1 : 0]?.focus()
-  }
-
-  const onMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const items = menuItems()
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      event.stopPropagation()
-      setOpen(false)
-      triggerRef.current?.focus()
-      return
-    }
-    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) || items.length === 0) return
-    event.preventDefault()
-    const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement)
-    const nextIndex = event.key === 'Home'
-      ? 0
-      : event.key === 'End'
-        ? items.length - 1
-        : currentIndex < 0
-          ? event.key === 'ArrowUp' ? items.length - 1 : 0
-          : (currentIndex + (event.key === 'ArrowUp' ? -1 : 1) + items.length) % items.length
-    items[nextIndex]?.focus()
-  }
-
-  return (
-    <div
-      className="signal-overflow"
-      ref={rootRef}
-      onBlurCapture={(event) => {
-        if (!open) return
-        const next = event.relatedTarget
-        if (next === triggerRef.current && triggerPointerDownRef.current) return
-        if (next instanceof Element && event.currentTarget.contains(next) && next.matches('[role="menuitem"]')) return
-        setOpen(false)
-      }}
-    >
-      <button
-        type="button"
-        className="signal-overflow-trigger"
-        ref={triggerRef}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={t('signals.record.moreActions')}
-        onClick={() => {
-          triggerPointerDownRef.current = false
-          setOpen((wasOpen) => !wasOpen)
-        }}
-        onPointerDown={() => { triggerPointerDownRef.current = true }}
-        onPointerUp={() => { triggerPointerDownRef.current = false }}
-        onPointerCancel={() => { triggerPointerDownRef.current = false }}
-        onKeyDown={onTriggerKeyDown}
-      >
-        <span aria-hidden="true">⋯</span>
-      </button>
-      {open && (
-        <div
-          className="signal-overflow-menu"
-          role="menu"
-          aria-label={t('signals.record.moreActions')}
-          onKeyDown={onMenuKeyDown}
-        >
-          {onLinkExistingTask ? <button type="button" role="menuitem" tabIndex={-1} onClick={() => choose(onLinkExistingTask)}>{t('signals.record.linkExistingTask')}</button> : null}
-          {onRetract ? <button type="button" role="menuitem" tabIndex={-1} onClick={() => choose(onRetract)}>{t('signals.record.retract')}</button> : null}
-          {onCopyLink ? <button type="button" role="menuitem" tabIndex={-1} onClick={() => choose(onCopyLink)}>{t('signals.record.copyLink')}</button> : null}
-          {onOpenFullPage ? <button type="button" role="menuitem" tabIndex={-1} onClick={() => choose(onOpenFullPage)}>{t('record.openFullPage')}</button> : null}
-        </div>
-      )}
-    </div>
-  )
 }
 
 // Mentions + visibility line, the ONE action register (LAW-3): Acknowledge + linked-work verbs —
@@ -288,9 +170,11 @@ export function SignalReach({
   actionForms?: ReactNode
 }) {
   const t = useT()
+  // Acknowledge and Retract write to the network: offline they are disabled and the section says why once.
+  const offline = useIsOffline()
   const hasLinked = linkedTasksSummary && linkedTasksSummary.total > 0
   return (
-    <section className="signal-region signal-reach" data-signal-region="reach">
+    <section className="signal-region signal-reach rp-section" data-signal-region="reach">
       <h2 className="signal-region-title">{t('signals.record.region.reach')}</h2>
 
       {(mentions.length > 0 || shieldLine) && (
@@ -307,6 +191,7 @@ export function SignalReach({
       )}
 
       {/* The one action register — Acknowledge (factual response) + linked-work verbs. */}
+      {offline && (canAcknowledge || onRetract) ? <OfflineNotice /> : null}
       <div className="signal-reach-actions" data-signal-actions="true">
         {onCreateFollowUpTask && (
           <Button variant="primary" onClick={onCreateFollowUpTask}>{t('signals.record.createFollowUpTask')}</Button>
@@ -319,13 +204,13 @@ export function SignalReach({
             variant="outline"
             aria-pressed={hasAcknowledged}
             aria-label={t('signals.record.seen')}
-            disabled={hasAcknowledged}
+            disabled={hasAcknowledged || offline}
             onClick={() => onAcknowledge?.()}
           >
             {t('signals.record.seen')}
           </Button>
         )}
-        {onRetract && <Button variant="outline" onClick={onRetract}>{t('signals.record.retract')}</Button>}
+        {onRetract && <Button variant="outline" disabled={offline} onClick={onRetract}>{t('signals.record.retract')}</Button>}
       </div>
 
       {actionForms}
@@ -362,13 +247,13 @@ export function SignalReach({
                   >
                     <span className="signal-linked-work-name">{task.title}</span>
                     <span className="signal-linked-work-status">{task.status}</span>
-                    <span aria-hidden="true">→</span>
+                    <ArrowRightIcon />
                   </RouterLink>
                 ) : (
                   <button type="button" className="signal-linked-work-row" onClick={task.onOpen}>
                     <span className="signal-linked-work-name">{task.title}</span>
                     <span className="signal-linked-work-status">{task.status}</span>
-                    <span aria-hidden="true">→</span>
+                    <ArrowRightIcon />
                   </button>
                 )}
               </li>
@@ -405,7 +290,7 @@ export function SignalDiscussion({
 }) {
   const t = useT()
   return (
-    <section className="signal-region signal-discussion" data-signal-region="discussion">
+    <section className="signal-region signal-discussion rp-section" data-signal-region="discussion">
       <h2 className="signal-region-title">{t('signals.record.region.discussion')}</h2>
       <CommentThread comments={comments} people={people} canPost={canComment} onPost={onPostComment} heading="srOnly" />
     </section>
@@ -434,7 +319,6 @@ export function SignalFacts({
   ]
   return (
     <section className="signal-region" data-signal-region="facts">
-      <h2 className="signal-region-title">{t('signals.record.region.facts')}</h2>
       <dl className="signal-facts">
         {rows.map((r) => (
           <div key={r.label} className="signal-facts-row">
@@ -469,7 +353,7 @@ export function SignalHistory({
   const [open, setOpen] = useState(false)
   if (!edited || revisions.length === 0) return null
   return (
-    <section className="signal-region signal-history" data-signal-region="history">
+    <section className="signal-region signal-history rp-section" data-signal-region="history">
       <h2 className="signal-region-title">{t('signals.record.region.history')}</h2>
       <button
         type="button"

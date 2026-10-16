@@ -9,7 +9,7 @@
 
 .assistant-panel__title {
   color: var(--foreground);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   font-weight: 600;
 }
 
@@ -26,16 +26,16 @@
   border-radius: var(--radius-md);
   background: var(--accent);
   color: var(--text-inverted);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .assistant-speaker {
-  font-size: var(--font-size-overline);
-  letter-spacing: 0.07em;
+  font-size: var(--mos-size-1);
+  letter-spacing: normal;
   font-weight: 700;
-  text-transform: uppercase;
+  text-transform: none;
   color: var(--muted-foreground);
   margin-bottom: 2px;
 }
@@ -43,7 +43,7 @@
 .assistant-prose {
   max-width: 65ch;
   color: var(--text-primary);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
 }
 
 /* OD-REDESIGN-91 #10 — quiet "Shift+Enter to send" hint under the composer, hidden on touch. */
@@ -51,7 +51,7 @@
 .assistant-composer-hint {
   margin-top: 4px;
   text-align: right;
-  font-size: var(--font-size-overline);
+  font-size: var(--mos-size-1);
   color: var(--muted-foreground);
 }
 @media (pointer: coarse) {
@@ -61,55 +61,55 @@
 /* ── Tokenized sub-component type (dev chrome reconciliation) ─────────────────────────────
    v4's file still carried inline fontSize literals (12/13/14) on the chips, banners, and the
    composer. On this line every type size resolves through the DESIGN.md ramp:
-     14 → var(--font-size-body)     (base body)
-     13 → var(--font-size-control)  ("controls run 13.5px" — banner strings + their buttons)
-     12 → var(--font-size-label)    (dense metadata / pill labels)                          */
+     14 → var(--mos-size-3)     (base body)
+     13 → var(--mos-size-3)  ("controls run 13.5px" — banner strings + their buttons)
+     12 → var(--mos-size-1)    (dense metadata / pill labels)                          */
 
 /* Approval + question chip cards (accent-bordered callouts in the transcript). */
 .assistant-chip-card { border-color: var(--border-accent); padding: 0.625rem 0.75rem; }
 .assistant-chip-card__header {
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  text-transform: none;
+  letter-spacing: normal;
 }
-.assistant-chip-card__text { font-size: var(--font-size-body); }
-.assistant-chip-card__meta { font-size: var(--font-size-label); }
-.assistant-chip-btn { padding: 0.4rem 0.625rem; font-size: var(--font-size-body); }
+.assistant-chip-card__text { font-size: var(--mos-size-3); }
+.assistant-chip-card__meta { font-size: var(--mos-size-1); }
+.assistant-chip-btn { padding: 0.4rem 0.625rem; font-size: var(--mos-size-3); }
 .assistant-chip-btn--approve { background: var(--accent); color: var(--text-inverted); padding: 0.4rem 0.5rem; }
 .assistant-chip-btn--deny { padding: 0.4rem 0.5rem; }
-.assistant-chip-input { padding: 0.4rem 0.625rem; font-size: var(--font-size-body); }
+.assistant-chip-input { padding: 0.4rem 0.625rem; font-size: var(--mos-size-3); }
 .assistant-chip-btn--submit { background: var(--accent); color: var(--text-inverted); }
-.assistant-chip-btn--submit:disabled { opacity: 0.5; }
+.assistant-chip-btn--submit:disabled { background: var(--mos-band); color: var(--mos-muted); }
 
 /* Rating control (👍/👎 + downvote reason picker under a Deputy turn). */
-.assistant-rating-meta { font-size: var(--font-size-label); margin-top: 0.25rem; }
+.assistant-rating-meta { font-size: var(--mos-size-1); margin-top: 0.25rem; }
 .assistant-rating-row { margin-top: 0.25rem; }
 .assistant-rating-picker { padding: 0.5rem 0.625rem; max-width: 85%; }
-.assistant-rating-reason-btn { padding: 0.3rem 0.5rem; font-size: var(--font-size-label); }
+.assistant-rating-reason-btn { padding: 0.3rem 0.5rem; font-size: var(--mos-size-1); }
 
 /* Error / stuck-run banners + the streaming indicator. */
 .assistant-banner { padding: 0.5rem 0.75rem; border-bottom-width: 1px; border-bottom-style: solid; }
 .assistant-banner--error { padding: 0.625rem 0.75rem; }
-.assistant-banner__text { font-size: var(--font-size-control); }
-.assistant-banner__btn { padding: 0.25rem 0.5rem; font-size: var(--font-size-control); }
+.assistant-banner__text { font-size: var(--mos-size-3); }
+.assistant-banner__btn { padding: 0.25rem 0.5rem; font-size: var(--mos-size-3); }
 
 /* Composer row. */
 .assistant-composer-form { padding: 0.625rem 0.75rem; border-top-width: 1px; border-top-style: solid; }
 .assistant-composer-input {
   padding: 0.5rem 0.625rem;
-  font-size: var(--font-size-body);
-  min-height: 40px;
+  font-size: var(--mos-size-3);
+  min-height: var(--mos-control-height);
   max-height: 140px;
 }
 .assistant-send-btn {
-  height: 40px;
+  height: var(--mos-control-height);
   padding: 0 0.875rem;
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   background: var(--accent);
   color: var(--text-inverted);
 }
-.assistant-send-btn:disabled { opacity: 0.5; }
+.assistant-send-btn:disabled { background: var(--mos-band); color: var(--mos-muted); }
 
 /* The transcript scroll body. */
 .assistant-body { padding: 0.75rem; }

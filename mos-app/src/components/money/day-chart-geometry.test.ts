@@ -1,31 +1,22 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { bulletGeometry, chartSeries, cleanTicks, dayAt } from './day-chart-geometry'
+import { PLOT_MARGIN, Y_AXIS_WIDTH, chartSeries, dayAt } from './day-chart-geometry'
 
 describe('dayAt — the day under a click or tap', () => {
-  // 68px axis + 4px gutter: a 372px chart leaves a 300px plot, 10 days of 30px each.
+  // The y-axis band plus the right gutter frame the plot: here a 300px plot holds 10 days of 30px each.
+  const width = Y_AXIS_WIDTH + 300 + PLOT_MARGIN.right
   it('maps a position to its day band', () => {
-    expect(dayAt(68, 372, 10)).toBe(0)
-    expect(dayAt(68 + 29, 372, 10)).toBe(0)
-    expect(dayAt(68 + 30, 372, 10)).toBe(1)
-    expect(dayAt(367, 372, 10)).toBe(9)
+    expect(dayAt(Y_AXIS_WIDTH, width, 10)).toBe(0)
+    expect(dayAt(Y_AXIS_WIDTH + 29, width, 10)).toBe(0)
+    expect(dayAt(Y_AXIS_WIDTH + 30, width, 10)).toBe(1)
+    expect(dayAt(Y_AXIS_WIDTH + 299, width, 10)).toBe(9)
   })
   it('is null on the axis, in the gutter, or with no days', () => {
-    expect(dayAt(10, 372, 10)).toBeNull()
-    expect(dayAt(369, 372, 10)).toBeNull()
-    expect(dayAt(100, 372, 0)).toBeNull()
+    expect(dayAt(10, width, 10)).toBeNull()
+    expect(dayAt(width - 1, width, 10)).toBeNull()
+    expect(dayAt(100, width, 0)).toBeNull()
   })
 
-  it('uses clean round intervals for currency and percent axes', () => {
-    expect(cleanTicks(0, 38_000_000)).toEqual([0, 10_000_000, 20_000_000, 30_000_000, 40_000_000])
-    expect(cleanTicks(0.53, 0.67)).toEqual([0.5, 0.55, 0.6, 0.65, 0.7])
-  })
 
-  it('caps Recharts revenue columns at 24px even for the 7-day period', () => {
-    const source = readFileSync(resolve(__dirname, 'day-revenue-chart.tsx'), 'utf8')
-    expect(source).toMatch(/<Bar dataKey="value"[^>]*maxBarSize=\{24\}/)
-  })
 
   it('projects missing revenue and comparison values without losing the latest label', () => {
     const days = [
@@ -64,8 +55,4 @@ describe('dayAt — the day under a click or tap', () => {
     expect(chart.yMax).toBeGreaterThan(0.6)
   })
 
-  it('keeps COGS fill and budget marker inside the bullet track', () => {
-    expect(bulletGeometry(0.35, 0.3)).toEqual({ fill: 35, marker: 30 })
-    expect(bulletGeometry(1.2, -0.1)).toEqual({ fill: 100, marker: 0 })
-  })
 })

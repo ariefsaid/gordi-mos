@@ -137,7 +137,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockUseAuth.mockReturnValue(authedViewer())
   mockCanRetractSignal.mockResolvedValue(false)
-  mockUseSignalComposer.mockReturnValue({ open: mockOpenComposer, postCount: 0 })
+  mockUseSignalComposer.mockReturnValue({ open: mockOpenComposer, postCount: 0, registerInline: vi.fn() })
   mockGetSignal.mockResolvedValue({
     signal: baseSignal,
     mentions: [{ id: 'm1', signal_id: SIGNAL_ID, mention_kind: 'person', target_person_id: 'person-peer', target_team_id: null, target_bu_id: null, revoked_at: null }],
@@ -240,7 +240,7 @@ describe('SignalRecordHost — resolves names + mentions from the DAL', () => {
   it('renders author/Team/BU/Site names resolved client-side', async () => {
     renderHost()
     await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
-    const facts = document.querySelector('[data-content-slot="facts"]') as HTMLElement
+    const facts = document.querySelector('[data-signal-region="facts"]') as HTMLElement
     expect(within(facts).getByText('Dewi Director')).toBeInTheDocument()
     expect(within(facts).getByText('HQ Operations')).toBeInTheDocument()
     expect(within(facts).getByText('Retail Ops')).toBeInTheDocument()

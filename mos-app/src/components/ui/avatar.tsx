@@ -2,36 +2,14 @@ import { useState, type CSSProperties, type ReactNode } from 'react'
 import './Avatar.css'
 
 /**
- * Avatar — image | seeded-pastel initials | icon (mos-design-kit display/Avatar.jsx).
- *
- * Seeded-pastel: when no avatarUrl is given, the placeholder string is hashed
- * deterministically to pick a color family from a 24-color pastel palette, then
- * rendered as `{fam}3` background + `{fam}12` text (both theme-aware via the
- * ported --ds-* tokens). Same input always yields the same color.
- *
- * Explicit `color`/`backgroundColor` (CSS colors) override the seed.
+ * Avatar — image | initials | icon. Initials sit in ink on the band fill in both themes
+ * (never white-on-white); a photo keeps the initials as its fallback.
+ * Explicit `color`/`backgroundColor` (CSS colors) override the defaults.
  */
-export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
-export type AvatarType = 'squared' | 'rounded'
+type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+type AvatarType = 'squared' | 'rounded'
 
 const SIZE_PX: Record<AvatarSize, number> = { xs: 16, sm: 20, md: 24, lg: 32, xl: 48 }
-
-// 24-color pastel palette (matches the kit's Avatar seed families).
-const PALETTE = [
-  'blue', 'iris', 'violet', 'purple', 'plum', 'pink',
-  'red', 'tomato', 'orange', 'amber', 'grass', 'green',
-  'jade', 'turquoise', 'cyan', 'sky', 'bronze', 'gold',
-  'mauve', 'slate', 'sage', 'olive', 'sand', 'gray',
-] as const
-
-/** Deterministic hash → palette index. Stable for the same input string. */
-function seedFamily(input: string): string {
-  let h = 0
-  for (let i = 0; i < input.length; i++) {
-    h = (h * 31 + input.charCodeAt(i)) >>> 0
-  }
-  return PALETTE[h % PALETTE.length]
-}
 
 export interface AvatarProps {
   avatarUrl?: string
@@ -69,16 +47,13 @@ export function Avatar({
   // image pinned the initial forever on a reconciled instance. Track WHICH url failed instead.
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
   const px = SIZE_PX[size]
-  const fam = seedFamily(placeholder ?? '')
-  const seedBg = `var(--ds-color-${fam}3)`
-  const seedText = `var(--ds-color-${fam}12)`
   const showImg = Boolean(avatarUrl) && failedUrl !== avatarUrl
   const inline: CSSProperties = {
     width: px,
     height: px,
-    fontSize: Math.max(8, Math.round(px * 0.42)),
-    background: backgroundColor ?? (showImg ? undefined : seedBg),
-    color: color ?? (showImg ? undefined : seedText),
+    fontSize: px >= 48 ? 'var(--mos-size-3)' : 'var(--mos-size-1)',
+    background: backgroundColor,
+    color,
     ...style,
   }
   const cls = ['mk-avatar', `mk-avatar--${type}`, className].filter(Boolean).join(' ')

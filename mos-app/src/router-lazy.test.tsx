@@ -23,6 +23,7 @@ import { isShipGated } from './lib/ship-gate'
 import { HomePage } from './pages/home-page'
 import { LoginPage } from './pages/login-page'
 import { TasksLayout } from './pages/tasks-layout'
+import { WorkHomePage } from './pages/work-home-page'
 import { TaskDrawer } from './components/tasks/task-drawer'
 import { SignalsArchivePage, SignalRecordPage } from './pages/signals-archive-page'
 import { ProfilePage } from './pages/profile-page'
@@ -42,12 +43,11 @@ import { CafeItemSettingsPage } from './pages/cafe-item-settings-page'
 import { CafeRecipesPage } from './pages/cafe-recipes-page'
 import { CafeWastePage } from './pages/cafe-waste-page'
 import { CafeCountPage } from './pages/cafe-count-page'
+import { CafeRecordsPage } from './pages/cafe-records-page'
 import { CafeReceivePage } from './pages/cafe-receive-page'
-import { CafeReceiptReviewPage } from './pages/cafe-receipt-review-page'
 import { CafeReceiptIssuesPage } from './pages/cafe-receipt-issues-page'
 import { CafeRequestPage } from './pages/cafe-request-page'
-import { CafeRequestReviewPage } from './pages/cafe-request-review-page'
-import { KitchenReviewPage } from './pages/kitchen-review-page'
+import { CafeReviewPage } from './pages/cafe-review-page'
 import { KitchenPushesPage } from './pages/kitchen-pushes-page'
 import { CafeRootPage } from './pages/cafe-opening-page'
 import { MoneyPage } from './pages/money-page'
@@ -56,6 +56,7 @@ import { PendingBillsPage } from './pages/pending-bills-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
 import { AdminUsersPage } from './pages/admin-users-page'
+import { AdminPersonPage } from './pages/admin-person-page'
 import { AdminAccessPage } from './pages/admin-access-page'
 import { AdminAgentConnectionsPage } from './pages/admin-agent-connections-page'
 import { AdminTeamsPage } from './pages/admin-teams-page'
@@ -145,6 +146,7 @@ describe('AC-019: every route but login loads on demand, behind one loading shel
 // It is also the ledger every later surface ticket edits: porting a surface flips exactly one row.
 const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenance: string]> = [
   ['/', HomePage, 'dev'],
+  ['/work', WorkHomePage, 'work-lane-a'],
   ['/work/tasks', TasksLayout, 'dev'],
   ['/work/tasks/:taskId', TaskDrawer, 'dev'],
   // Signals supersedes Weekly Updates (v4 redirects /updates here, and routes neither path at an
@@ -171,17 +173,17 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/cafe/production', KitchenLogPage, 'dev'],
   ['/cafe/transfer', KitchenLogPage, 'dev'],
   ['/cafe/waste', CafeWastePage, '1241'],
+  ['/cafe/records', CafeRecordsPage, 'redesign'],
   ['/cafe/count', CafeCountPage, '1366'],
   ['/cafe/receive', CafeReceivePage, '1422'],
-  ['/cafe/receive/review', CafeReceiptReviewPage, '1422'],
   ['/cafe/receive/issues', CafeReceiptIssuesPage, '1422'],
   ['/cafe/request', CafeRequestPage, '1428'],
-  ['/cafe/request/review', CafeRequestReviewPage, '1428'],
   ['/cafe/plan', KitchenPlanPage, 'dev'],
   ['/cafe/stock', KitchenStockPage, 'dev'],
   ['/cafe/items', CafeItemSettingsPage, '1242'],
   ['/cafe/recipes', CafeRecipesPage, '1642'],
-  ['/cafe/review', KitchenReviewPage, 'dev'],
+  // One Review page with queues; /cafe/receive/review and /cafe/request/review redirect into it.
+  ['/cafe/review', CafeReviewPage, 'dev'],
   ['/cafe/pushes', KitchenPushesPage, 'dev'],
   ['/ecommerce', SliceStubPage, 'stub'],
   ['/roastery', SliceStubPage, 'stub'],
@@ -192,6 +194,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/oauth/consent', OAuthConsentPage, 'redesign'],
   ['/profile/connected-agents', ProfileConnectedAgentsPage, 'review-stamp'],
   ['/admin/people', AdminUsersPage, 'dev'],
+  ['/admin/people/:personId', AdminPersonPage, 'redesign'],
   ['/admin/teams', AdminTeamsPage, 'redesign'],
   ['/admin/access', AdminAccessPage, 'redesign'],
   ['/admin/agents', AdminAgentConnectionsPage, 'review-stamp'],

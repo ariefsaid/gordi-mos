@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { NUDGE_AFTER_DAYS, triageAgeDays, nudgeAgeDays, compareTriage } from './nudge-semantics'
+import { nudgeAgeDays, compareTriage } from './nudge-semantics'
 import type { TriageNotificationRow } from './read-handled-semantics'
 
 // NOW: today 00:30 VIEWER-LOCAL — chosen so the age-2 case (created 23:30 two days ago) is a
@@ -31,27 +31,25 @@ function trow(id: string, created: string, over: Partial<TriageNotificationRow> 
   }
 }
 
-describe('triageAgeDays (viewer-local calendar-day buckets)', () => {
+describe('local calendar-day age buckets (seen through the nudge)', () => {
+  const nudgeOf = (created: Date, now: Date = NOW) => nudgeAgeDays(trow('a', created.toISOString()), now)
+
   it('counts whole LOCAL calendar days; never goes negative; the gate is 2', () => {
-    expect(NUDGE_AFTER_DAYS).toBe(2)
-    // Same local day → 0 (even hours before "now").
-    expect(triageAgeDays(dayAt(0, 5, 0).toISOString(), NOW)).toBe(0)
-    // Yesterday (1 calendar day) → 1 — just under the 2-day gate.
-    expect(triageAgeDays(dayAt(-1, 12, 0).toISOString(), NOW)).toBe(1)
+    // Same local day and yesterday sit under the 2-day gate.
+    expect(nudgeOf(dayAt(0, 5, 0))).toBeNull()
+    expect(nudgeOf(dayAt(-1, 12, 0))).toBeNull()
     // 23:30 two days ago vs now 00:30: the LOCAL-day age is 2 (the elapsed-ms age would be 1 —
-    // 25h of elapsed time — so this case FAILS the pre-fix rolling-window implementation).
-    expect(triageAgeDays(dayAt(-2, 23, 30).toISOString(), NOW)).toBe(2)
-    // Three calendar days ago → 3.
-    expect(triageAgeDays(dayAt(-3, 12, 0).toISOString(), NOW)).toBe(3)
-    // Never negative: a row created on a later local day clamps to 0.
-    expect(triageAgeDays(dayAt(1, 0, 0).toISOString(), NOW)).toBe(0)
+    // 25h of elapsed time — so this case FAILS a rolling-window implementation).
+    expect(nudgeOf(dayAt(-2, 23, 30))).toBe(2)
+    expect(nudgeOf(dayAt(-3, 12, 0))).toBe(3)
+    // Never negative: a row created on a later local day is not nudged.
+    expect(nudgeOf(dayAt(1, 0, 0))).toBeNull()
   })
 
   it('is stable across the whole local day: late-evening and early-morning re-checks agree', () => {
-    const created = dayAt(-2, 23, 30).toISOString() // 23:30 two days ago
-    // Any time TODAY falls in the same local-day bucket as NOW → still age 2.
-    expect(triageAgeDays(created, dayAt(0, 9, 0))).toBe(2)
-    expect(triageAgeDays(created, dayAt(0, 23, 0))).toBe(2)
+    const created = dayAt(-2, 23, 30)
+    expect(nudgeOf(created, dayAt(0, 9, 0))).toBe(2)
+    expect(nudgeOf(created, dayAt(0, 23, 0))).toBe(2)
   })
 })
 

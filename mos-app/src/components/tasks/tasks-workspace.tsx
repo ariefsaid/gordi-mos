@@ -1,3 +1,4 @@
+import { useWorkHomeBack } from '@/shell/work-collection-switcher'
 import './TasksWorkspace.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -14,9 +15,11 @@ import { ListPaging } from '@/components/ui/list-paging'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import type { PageFamilyState } from '@/shell/page-families'
 import { HelpTip } from '@/components/ui/help-tip'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { OfflineNotice } from '@/components/ui/offline-notice'
+import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { createRecordRouteAdapter } from '@/shell/overlay-navigation'
-import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { useT } from '@/i18n/use-t'
 import { TasksToolbar } from './tasks-toolbar'
 import { taskCollectionDescriptor } from './task-collection-adapter'
@@ -38,6 +41,8 @@ import { canStartProcessForTeam } from '@/lib/db/processes'
 import { linkSignalTask } from '@/lib/db/signals'
 import { TaskOverlayContent } from './task-drawer'
 import { TaskCreateContext, type TaskCreateContextValue, type TaskCreateFormState } from './task-create-context'
+import { TaskCreateForm } from './task-create-form'
+import { picOptions } from './task-permissions'
 import { usePicSupervisorDefault } from './default-supervisor'
 import { useCatalogRecordEntryFactory } from '@/components/catalog/use-catalog-record-overlay'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
@@ -78,7 +83,7 @@ type LegacySavedView = {
   search: string
 }
 
-export type TasksTableStats = { total: number; open: number; blocked: number; overdue: number; attentionTotal: number } | null
+type TasksTableStats = { total: number; open: number; blocked: number; overdue: number; attentionTotal: number } | null
 
 export type TasksTableProps = {
   /** Legacy test/embedding bridge. Production TasksLayout now derives this from the typed URL query. */
@@ -211,7 +216,6 @@ export function TasksWorkspace({
   const { hint: supervisorHint, reset: resetSupervisorDefault, choose: chooseSupervisor } = usePicSupervisorDefault(draftTask, setDraftTask)
   const [processStartTeamIds, setProcessStartTeamIds] = useState<Set<string>>(new Set())
   const [announcement, setAnnouncement] = useState('')
-  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const draftSourceSignalRef = useCreateDraftRef<string | null>('task.sourceSignal', new URLSearchParams(location.search).get('sourceSignal'))
   const createdDraftTaskRef = useCreateDraftRef<string | null>('task.createdId', null)
   const draftTitleRef = useCreateDraftRef('task.submittedTitle', '')
@@ -390,8 +394,14 @@ export function TasksWorkspace({
   // The retired /work/tasks/new door redirects into this mounted workspace. Capture the intent
   // during render so the collection query's URL normalization cannot race the redirect and erase
   // `create=1` before the inline draft effect sees it.
-  if (params.get('create') === '1') createIntentRef.current = true
-  if (params.get('create') === '1' && !createParamSnapshotRef.current) {
+  // `?create=1` stays in the address while the draft is open, so a reload reopens the form. Once the draft
+  // is closed (discarded or created) the leftover `?create=1` is removed, and until it is gone it must not
+  // reopen a draft. The flag is set by the close event and cleared in an effect, never during render
+  // (a render can be abandoned and replayed with the previous location).
+  const urlCreateClosedRef = useRef(false)
+  const urlCreate = params.get('create') === '1'
+  if (urlCreate && !urlCreateClosedRef.current && !draftTask) createIntentRef.current = true
+  if (urlCreate && !createParamSnapshotRef.current) {
     createParamSnapshotRef.current = new URLSearchParams(params)
   }
   const recordId = taskRouteAdapter.readPanelId(location)
@@ -580,7 +590,7 @@ export function TasksWorkspace({
       ? { ...current, accountable_person_id: personId }
       : current)
   }, [chooseSupervisor, draftTask?.id, setDraftTask])
-  const onEditTitle = useCallback(async (taskId: string, title: string) => {
+  const onEditTitle = useCallback(async (taskId: string, title: string, description?: string) => {
     if (draftTask?.id === taskId) {
       if (!viewerId) throw new Error('inline task creation requires an authenticated viewer')
       draftTitleRef.current = title
@@ -590,6 +600,7 @@ export function TasksWorkspace({
       const existingTaskId = createdDraftTaskRef.current
       const createdTaskId = existingTaskId ?? await createTask({
         title,
+        description: description ?? draftTask.description ?? '',
         businessUnitId: draftTask.business_unit_id,
         teamId: draftTask.team_id,
         responsiblePersonId: draftTask.responsible_person_id,
@@ -618,6 +629,7 @@ export function TasksWorkspace({
         }
       }
       createdDraftTaskRef.current = null
+      urlCreateClosedRef.current = true
       setDraftTask(null)
       setCompletedTaskId(createdTaskId)
       return
@@ -638,6 +650,7 @@ export function TasksWorkspace({
     draftSourceSignalRef.current = null
     createdDraftTaskRef.current = null
     draftTitleRef.current = ''
+    urlCreateClosedRef.current = true
     setDraftLinkError(false)
     setDraftTask(null)
     setDraftFormState({ pending: false, saveError: false })
@@ -674,6 +687,7 @@ export function TasksWorkspace({
       pendingCreatePrefillRef.current = prefillParam
       return
     }
+    urlCreateClosedRef.current = false
     setDraftLinkError(false)
     setDraftFormState({ pending: false, saveError: false })
     setAnnouncement('')
@@ -753,24 +767,61 @@ export function TasksWorkspace({
   }, [beginNewTask, host])
   const onAddTask = useCallback((prefillParam: string) => onNewTask(prefillParam), [onNewTask])
   useEffect(() => {
-    if ((!createIntentRef.current && params.get('create') !== '1') || !dataContext) return
+    if (!dataContext) return
+    const wantsUrlCreate = params.get('create') === '1'
+    if (!wantsUrlCreate) urlCreateClosedRef.current = false
     if (!draftTask) {
-      onNewTask(pendingCreatePrefillRef.current)
+      if (createIntentRef.current) {
+        onNewTask(pendingCreatePrefillRef.current)
+        return
+      }
+      // The draft is gone (discarded or created): drop the leftover `?create=1` so a reload does not reopen it.
+      if (wantsUrlCreate && urlCreateClosedRef.current) {
+        const next = new URLSearchParams(params)
+        next.delete('create')
+        setParams(writeCollectionQuery(taskCollectionDescriptor.query, query, next), { replace: true })
+      }
       return
     }
-    document.querySelector<HTMLTextAreaElement>('.tcf-title')?.focus()
-    createIntentRef.current = false
-    pendingCreatePrefillRef.current = ''
-    createParamSnapshotRef.current = null
+    if (createIntentRef.current) {
+      document.querySelector<HTMLTextAreaElement>('.tcf-title')?.focus()
+      createIntentRef.current = false
+      pendingCreatePrefillRef.current = ''
+      createParamSnapshotRef.current = null
+    }
+    if (urlCreateClosedRef.current) return
     const next = new URLSearchParams(params)
     for (const key of [
-      'create', 'createTitle', 'createBu', 'createPic', 'createTeam', 'createSupervisor', 'sourceSignal',
+      'createTitle', 'createBu', 'createPic', 'createTeam', 'createSupervisor', 'sourceSignal',
       'work_line', 'work_line_id', 'workLineId', 'objective', 'objective_id', 'objectiveId',
     ]) next.delete(key)
+    next.set('create', '1')
+    if (next.toString() === params.toString()) return
     // Written in the engine's canonical form: the engine's own URL sync races this write, and each
     // lands from its own render's snapshot, so the two must agree or the last one wins.
     setParams(writeCollectionQuery(taskCollectionDescriptor.query, query, next), { replace: true })
   }, [dataContext, draftTask, onNewTask, params, query, setParams, viewerTeams])
+  // Cancel, Escape, the back link and leaving the page with text typed into the draft ask first.
+  const draftHasText = Boolean(draftTask && (draftTask.title.trim() !== '' || (draftTask.description ?? '').trim() !== ''))
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
+  const requestDiscardNewTask = useCallback(() => {
+    if (draftFormState.pending) return
+    if (draftHasText) { setConfirmDiscardOpen(true); return }
+    onDiscardNewTask()
+  }, [draftFormState.pending, draftHasText, onDiscardNewTask])
+  // Leaving the page (after the guard's "Discard and leave") discards the draft; a save in flight is left alone.
+  const leaveRef = useRef({ open: false, busy: false })
+  leaveRef.current = { open: draftTask !== null, busy: draftFormState.pending || createdDraftTaskRef.current !== null }
+  useEffect(() => () => {
+    if (leaveRef.current.open && !leaveRef.current.busy) {
+      draftSourceSignalRef.current = null
+      draftTitleRef.current = ''
+      setDraftLinkError(false)
+      setDraftTask(null)
+      setDraftFormState({ pending: false, saveError: false })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // The query schema owns URL cleanup, including constraints reset to neutral. "Clear filters"
   // means clear — including the base view scope (My work / Team work / Overdue) — never a
   // standing constraint next to copy that promises "see all tasks" (calibration finding: an
@@ -828,7 +879,7 @@ export function TasksWorkspace({
   // — one blue per screen") — it restyles to outline rather than disappearing, so the record's
   // own action keeps the one filled primary without hiding a common door.
   const recordOpen = drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks'
-  const showNewTask = state.status === 'ready'
+  const showNewTask = state.status === 'ready' || state.status === 'empty' || state.status === 'filtered-empty'
   const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
   // A saved-view scope (My work etc.) is not a filter: only a set field filter earns the
   // "match these filters" wording. DD-NAME-1: the Mine copy ("No tasks assigned to you")
@@ -861,6 +912,33 @@ export function TasksWorkspace({
         ? t('tasks.empty.mineCopy')
         : t('tasks.empty.noTasksCopy')
 
+  // "Show older done tasks" continues the same list: below the rows, or inside the empty state when
+  // nothing in the loaded window matched (one place for the next step, not a stranded button).
+  const visibleTaskCount = projection?.visibleRecords.length ?? 0
+  const olderDoneAvailable = dataContext?.olderDoneHasMore === true && state.status !== 'loading' && state.status !== 'error' && state.status !== 'permission'
+    && (query.status === null || query.status === 'Done')
+    && !query.overdueOnly && query.view !== 'overdue'
+  const olderDoneInEmpty = olderDoneAvailable && visibleTaskCount === 0 && (state.status === 'filtered-empty' || state.status === 'empty')
+  const olderDonePaging = olderDoneAvailable && dataContext ? (
+    <ListPaging
+      count={visibleTaskCount}
+      hasMore
+      loading={state.loadingMore}
+      error={Boolean(state.moreError)}
+      moreLabel={t('tasks.showOlderDone')}
+      emptyItems={isFilteredEmpty ? t('collection.items.tasks') : undefined}
+      bare={olderDoneInEmpty}
+      onLoadMore={async () => {
+        await controller.loadMore()
+        if ((controller.state.projection?.visibleRecords.length ?? 0) >= 50) setHasPagedOlderDone(true)
+      }}
+    />
+  ) : null
+  // Only the search box narrows the list: Clear then names what it clears.
+  const onlySearchNarrows = query.q.trim() !== '' && query.view === 'all' && !query.businessUnitId && !query.status
+    && !query.picId && !query.supervisorId && !query.personId && !query.overdueOnly && !query.includeArchived
+    && !query.occurrenceId && !query.savedViewId
+
   const personOptions = dataContext?.people ?? []
   const buOptions = dataContext?.businessUnits ?? []
   const tasksToolbar = (
@@ -881,9 +959,8 @@ export function TasksWorkspace({
       onAttentionOverdue={() => setQuery({ overdueOnly: true, status: null })}
       onAttentionBlocked={() => setQuery({ overdueOnly: false, status: 'Blocked' })}
       viewerOrgWide={viewerOrgWide}
+      resultSummary={<span className="tasks-count-line" data-testid="tasks-count-line">{stats === null ? '—' : `${t((projection?.visibleRecords.length ?? 0) === 1 ? 'tasks.meta.taskCount.one' : 'tasks.meta.taskCount.other', { count: projection?.visibleRecords.length ?? 0 })} · ${t('tasks.meta.openCount', { count: stats.open })}`}</span>}
       onClearFilters={onClearFilters}
-      activeQuery={state.status === 'empty' && query.includeArchived
-        ? { ...taskDisclosure, hasActiveFilters: false } : taskDisclosure}
       buOptions={buOptions}
       personOptions={personOptions}
       onPresentationChange={(next) => { controller.switchPresentation(next) }}
@@ -920,7 +997,7 @@ export function TasksWorkspace({
     teamOptions: viewerTeams ?? [],
     viewerOrgWide,
     draftTask,
-    onDiscardNewTask,
+    onDiscardNewTask: requestDiscardNewTask,
     draftLinkError,
     onRetryDraftLink,
     onCloseDrawer,
@@ -944,7 +1021,7 @@ export function TasksWorkspace({
   }), [
     recordOpen, draftTask, host.session, isDesktop, onAddTask,
     liveParams,
-    onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onNewTask, onOpenTask, onClearFilters, onSortChange,
+    onCloseDrawer, requestDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onNewTask, onOpenTask, onClearFilters, onSortChange,
     processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink, viewerTeams, viewerOrgWide, hasPagedOlderDone,
   ])
   // Projects & Processes the viewer can read (RLS scopes the catalog), for the create form.
@@ -956,38 +1033,24 @@ export function TasksWorkspace({
     onEditDue,
     onEditWorkLine,
     onTitleChange: (title) => setDraftTask((current) => current ? { ...current, title } : current),
+    onDescriptionChange: (description) => setDraftTask((current) => current ? { ...current, description } : current),
     formState: draftFormState,
     onFormStateChange: (patch) => setDraftFormState((current) => ({ ...current, ...patch })),
   }), [dataContext, draftFormState, draftTask, onEditDue, onEditWorkLine, setDraftTask, setDraftFormState, supervisorHint])
 
-  const controls = !isDesktop ? (
-    <ViewOptionsDisclosure
-      open={mobileOptionsOpen}
-      onToggle={() => setMobileOptionsOpen((open) => !open)}
-      onClose={() => setMobileOptionsOpen(false)}
-      label={t('common.viewAndFilters')}
-      summary={taskDisclosure.summary}
-      hasActiveFilters={taskDisclosure.hasActiveFilters}
-      panelId="mobile-task-options-panel"
-      className="mobile-task-options"
-      triggerClassName="mobile-task-options-trigger"
-      summaryClassName="mobile-task-options-summary"
-      chevronClassName="mobile-task-options-chevron"
-      panelClassName="mobile-task-options-panel"
-    >
-      {tasksToolbar}
-    </ViewOptionsDisclosure>
-  ) : tasksToolbar
 
+  const workBack = useWorkHomeBack()
   return (
     <PageFamilyFrame
       family="workspace"
-      title={t('tasks.title')}
-      jobSentence={t('job.tasks')}
+      back={draftTask ? { onClick: requestDiscardNewTask, label: t('record.backToCollection', { collection: t('tasks.title') }) } : workBack}
+      title={t(draftTask ? 'tasks.capture.title' : 'tasks.title')}
       // #958: the sentence above is desktop-only (page-head.css hides it under 768px), so the
       // HelpTip repeats it ahead of the glossary — phone gets purpose + terms from one glyph.
       titleHelp={<HelpTip label={`${t('job.tasks')} ${t('job.tasksHelp')}`} />}
       headClassName="tasks-page-head"
+      subtitle={draftTask ? undefined : t('tasks.meta.windowScope')}
+      phoneActionBar
       state={frameState}
       action={showNewTask && !draftTask ? (
         <button
@@ -999,69 +1062,83 @@ export function TasksWorkspace({
           {t('tasks.new')}
         </button>
       ) : undefined}
-      meta={
-        // Name the visible task count and its open subset in one muted meta sentence.
-        // Counts stay live; "—" is shown while loading or on error.
-        <span data-testid="tasks-count-line" className="ch-meta-line tabular-nums">
-          {stats === null
-            ? '—'
-            : [
-                t('tasks.meta.openCount', { count: stats.open }),
-                t('tasks.meta.windowScope'),
-              ].join(' · ')}
-        </span>
-      }
     >
       {announcement && <span role="status" aria-live="polite" className="sr-only">{announcement}</span>}
+      {!draftTask && <OfflineNotice />}
+      <RouteLeaveGuard when={draftHasText} message={t('tasks.create.discardBody')} />
+      <ConfirmDialog
+        open={confirmDiscardOpen}
+        title={t('leaveGuard.title')}
+        body={t('tasks.create.discardBody')}
+        confirmLabel={t('leaveGuard.discard')}
+        cancelLabel={t('leaveGuard.stay')}
+        tone="destructive"
+        onConfirm={async () => { setConfirmDiscardOpen(false); onDiscardNewTask() }}
+        onCancel={() => setConfirmDiscardOpen(false)}
+      />
       <div className={`split${recordOpen ? '' : ' nodrawer'}`}>
-        <section className={`assembly record-collection-view tasks-collection-surface record-collection-view--${controller.state.presentation}${drawerOpen && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
-          <TaskCollectionRuntimeProvider value={runtime}>
-            <TaskCreateContext.Provider value={createContext}>
-            <RecordCollectionSurface
-              controller={controller}
-              keepBodyWhenEmpty={draftTask != null}
-              controls={controls}
-              empty={{
-                title: emptyTitle,
-                copy: emptyCopy,
-                variant: 'next-step',
-                create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
-              }}
-              filteredEmpty={{
-                items: t('collection.items.tasks'),
-                clear: onClearFilters,
-                title: isFilteredEmpty
-                  ? emptyLoadedTasks
-                  : mineViewUnfiltered ? emptyTitle : undefined,
-                copy: isFilteredEmpty
-                  ? undefined
-                  : mineViewUnfiltered ? emptyCopy : undefined,
-                create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
-              }}
-              error={{ message: t('tasks.error.load'), retry }}
-              loadingLabel={t('tasks.loading')}
-            />
-            {dataContext?.olderDoneHasMore === true && state.status !== 'loading' && state.status !== 'error' && state.status !== 'permission'
-              && (query.status === null || query.status === 'Done')
-              && !query.overdueOnly && query.view !== 'overdue'
-              ? <ListPaging
-                  count={projection?.visibleRecords.length ?? 0}
-                  hasMore={dataContext.olderDoneHasMore}
-                  loading={state.loadingMore}
-                  error={Boolean(state.moreError)}
-                  moreLabel={t('tasks.showOlderDone')}
-                  emptyItems={isFilteredEmpty
-                    ? t('collection.items.tasks')
-                    : undefined}
-                  onLoadMore={async () => {
-                    await controller.loadMore()
-                    if ((controller.state.projection?.visibleRecords.length ?? 0) >= 50) setHasPagedOlderDone(true)
-                  }}
+        <TaskCollectionRuntimeProvider value={runtime}>
+          <TaskCreateContext.Provider value={createContext}>
+          <div className="tasks-workspace-column">
+            {draftTask && (
+              <section className="task-capture-region" aria-labelledby="task-capture-title">
+                <span id="task-capture-title" className="sr-only">{t('tasks.capture.title')}</span>
+                {draftSourceSignalRef.current && <div className="task-capture-heading"><p>{t('tasks.create.sourceSignal')}</p></div>}
+                <TaskCreateForm
+                  task={draftTask}
+                  businessUnitName={buOptions.find((unit) => unit.id === draftTask.business_unit_id)?.name ?? ''}
+                  teamOptions={viewerTeams ?? []}
+                  personOptions={picOptions(viewerId ?? '', personOptions, dataContext?.downlinePersonIds ?? [], viewerOrgWide)}
+                  supervisorOptions={personOptions}
+                  ownerName={personOptions.find((person) => person.id === draftTask.responsible_person_id)?.full_name ?? ''}
+                  supervisorName={personOptions.find((person) => person.id === draftTask.accountable_person_id)?.full_name ?? ''}
+                  onEditTeam={onEditTeam}
+                  onEditPic={onEditPic}
+                  onEditSupervisor={onEditSupervisor}
+                  onCreate={(title, description) => onEditTitle(draftTask.id, title, description)}
+                  onCancel={requestDiscardNewTask}
+                  linkError={draftLinkError}
+                  onRetryLink={onRetryDraftLink}
+                  viewerHasNoDownline={!viewerOrgWide && (dataContext?.downlinePersonIds?.length ?? 0) === 0}
                 />
-              : null}
-            </TaskCreateContext.Provider>
-          </TaskCollectionRuntimeProvider>
-        </section>
+              </section>
+            )}
+            {/* Capture page: while a draft is open the list is not rendered under the form (PA2). */}
+            {!draftTask && (
+            <>
+              <section className={`assembly record-collection-view tasks-collection-surface record-collection-view--${controller.state.presentation}${drawerOpen && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
+              <RecordCollectionSurface
+                controller={controller}
+                keepBodyWhenEmpty={draftTask != null}
+                controls={tasksToolbar}
+                empty={{
+                  title: emptyTitle,
+                  copy: emptyCopy,
+                  variant: 'next-step',
+                  create: <><Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-outline">{t('tasks.new')}</Link>{olderDoneInEmpty ? olderDonePaging : null}</>,
+                }}
+                filteredEmpty={{
+                  items: t('collection.items.tasks'),
+                  clear: onClearFilters,
+                  clearLabel: onlySearchNarrows ? t('common.clearSearch') : undefined,
+                  create: olderDoneInEmpty ? olderDonePaging : undefined,
+                  title: isFilteredEmpty
+                    ? emptyLoadedTasks
+                    : mineViewUnfiltered ? emptyTitle : undefined,
+                  copy: isFilteredEmpty
+                    ? undefined
+                    : mineViewUnfiltered ? emptyCopy : undefined,
+                }}
+                error={{ message: t('tasks.error.load'), retry }}
+                loadingLabel={t('tasks.loading')}
+              />
+              {olderDonePaging && !olderDoneInEmpty ? olderDonePaging : null}
+              </section>
+            </>
+            )}
+          </div>
+          </TaskCreateContext.Provider>
+        </TaskCollectionRuntimeProvider>
         {drawerOpen && drawerSlot}
         {/* One physical host grammar for Task records. The collection owns ?record= query state;
             OverlayHostSlot owns panel geometry, focus, Back, Escape, and canonical promotion. The

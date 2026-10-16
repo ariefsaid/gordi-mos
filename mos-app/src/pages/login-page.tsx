@@ -1,27 +1,25 @@
 import { useState, useId, useRef, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { getGoogleProviderEnabled, supabase } from '@/lib/supabase'
-import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
+import { AuthShell, AuthCard, AuthBackLink, PasswordToggle, Spinner } from '@/auth/auth-shell'
 import { safeReturnTarget } from '@/auth/return-target'
 import { appUrl } from '@/config/app-build-settings'
 import { isValidEmail } from '@/auth/is-valid-email'
 import { useT } from '@/i18n/use-t'
 import { DemoLogin } from './demo-login'
 import { demoLoginMode, isSampleSession } from './demo-personas'
+import { Notice } from '@/components/ui/notice'
+import { Button } from '@/components/ui/button'
+import { TextInput } from '@/components/ui/text-input'
+import './login-page.css'
 
-// Error-handling table strings (verbatim from spec)
-const ERR_CREDENTIAL = 'Invalid email or password.'
-const ERR_RATE_LIMIT = 'Too many attempts — try again in a minute.'
-const ERR_NETWORK = "Couldn't reach the server — try again."
-const ERR_EXPIRED_LINK = 'That link has expired — request a new one.'
-const ERR_EMAIL_INVALID = 'Enter a valid email address.'
 
 type Mode = 'credentials' | 'magic-confirm' | 'reset-confirm'
 
-function mapAuthError(error: unknown): string {
+function mapAuthError(error: unknown, t: ReturnType<typeof useT>): string {
   if (error && typeof error === 'object' && 'status' in error) {
     const status = (error as { status: number }).status
-    if (status === 429) return ERR_RATE_LIMIT
+    if (status === 429) return t('auth.login.rateError')
   }
   // Treat all credential failures as identical (AC-005 quiet error)
   const msg = error && typeof error === 'object' && 'message' in error
@@ -34,17 +32,19 @@ function mapAuthError(error: unknown): string {
     msg.includes('email not confirmed') ||
     msg.includes('invalid email or password')
   ) {
-    return ERR_CREDENTIAL
+    return t('auth.login.credentialError')
   }
-  return ERR_CREDENTIAL
+  return t('auth.login.credentialError')
 }
 
 // The server refuses (403) a sample account outside Gordi Sample before any session exists.
-const NOT_IN_SAMPLE_ORG = 'That account is not in Gordi Sample. Try another sample login.'
+const NOT_IN_SAMPLE_ORG = 'auth.login.sampleError'
 
 export function LoginPage() {
   const location = useLocation()
   const t = useT()
+  const networkError = t('auth.login.networkError')
+  const ERR_NETWORK = networkError
   // ProtectedRoute parks the requested page in router state (see safeReturnTarget). Password and
   // magic-link sign-in keep that state in place; Google carries the same safe target through its
   // full-page OAuth round trip for RedirectIfAuthed to restore after sign-in.
@@ -56,6 +56,7 @@ export function LoginPage() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [mode, setMode] = useState<Mode>('credentials')
   const [error, setError] = useState('')
   const [emailError, setEmailError] = useState('')
@@ -117,13 +118,13 @@ export function LoginPage() {
         password: demoMode.password,
       })
       if (authError) {
-        setError(demoMode.kind === 'sample' && authError.status === 403 ? NOT_IN_SAMPLE_ORG : mapAuthError(authError))
+        setError(demoMode.kind === 'sample' && authError.status === 403 ? t(NOT_IN_SAMPLE_ORG) : mapAuthError(authError, t))
       } else if (demoMode.kind === 'sample' && (
         data.user?.email !== personaEmail ||
         !isSampleSession(data.session?.access_token)
       )) {
         await supabase.auth.signOut()
-        setError(NOT_IN_SAMPLE_ORG)
+        setError(t(NOT_IN_SAMPLE_ORG))
       }
     } catch {
       setError(ERR_NETWORK)
@@ -153,7 +154,7 @@ export function LoginPage() {
   }
 
   // fix-2: validate email client-side before any auth call
-  function validateEmail(message = ERR_EMAIL_INVALID): boolean {
+  function validateEmail(message = t('auth.login.emailInvalid')): boolean {
     if (!email.trim() || !isValidEmail(email)) {
       setEmailError(message)
       return false
@@ -170,7 +171,7 @@ export function LoginPage() {
     try {
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
       if (authError) {
-        setError(mapAuthError(authError))
+        setError(mapAuthError(authError, t))
       }
     } catch {
       setError(ERR_NETWORK)
@@ -234,54 +235,29 @@ export function LoginPage() {
     const confirmText = isReset
       // Worded to be true in every case, which is what makes the neutral outcome honest rather
       // than a lie: it never asserts that mail was sent to THIS address (#137 review).
-      ? 'If an account exists for that address, a reset link is on its way.'
-      : 'If an account exists for that address, a sign-in link is on its way.'
+      ? t('auth.login.resetSent')
+      : t('auth.login.magicSent')
 
     return (
       <AuthShell>
         <AuthCard>
-          {/* Success dot tile — success/14% tint + status-won-text */}
-          <div className="flex items-start gap-3 mb-5">
-            <div
-              className="flex items-center justify-center rounded-full flex-shrink-0"
-              style={{
-                width: 28,
-                height: 28,
-                backgroundColor: 'color-mix(in srgb, var(--success) 14%, transparent)',
-                color: 'var(--status-won-text)',
-                fontSize: 16,
-              }}
-              aria-hidden="true"
-            >
-              ✓
-            </div>
-            <div>
-              <h1 className="text-foreground font-semibold" style={{ fontSize: 16 }}>
-                {confirmText}
-              </h1>
-              {email && (
-                /* Echoes the address the person typed so they can spot a typo — it must NOT say
-                   "Sent to", which asserts a delivery that may not have happened and would put
-                   the same lie one line below the hedged headline (#137 security re-check). */
-                <p className="text-muted-foreground mt-1" style={{ fontSize: 'var(--font-size-body-lg)' }}>
-                  For {email}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Back to sign in — primary-text link (design-plan §3) */}
-          <button
-            type="button"
-            className="text-primary font-medium hover:underline focus-visible:underline"
-            style={{ fontSize: 16 }}
+          <AuthBackLink
             onClick={() => {
               setMode('credentials')
               setError('')
             }}
-          >
-            Back to sign in
-          </button>
+            label={t('auth.login.confirmBack')}
+          />
+          <h1 className="page-title">{isReset ? t('auth.recovery.title') : t('auth.login.title')}</h1>
+          <Notice tone="success" role="status" aria-live="polite">
+            <p><strong>{confirmText}</strong></p>
+            {email && (
+              /* Echoes the address the person typed so they can spot a typo — it must NOT say
+                 "Sent to", which asserts a delivery that may not have happened and would put
+                 the same lie one line below the hedged headline (#137 security re-check). */
+              <p>{t('auth.login.forAddress', { email })}</p>
+            )}
+          </Notice>
         </AuthCard>
       </AuthShell>
     )
@@ -291,261 +267,154 @@ export function LoginPage() {
   return (
     <AuthShell>
       <AuthCard>
-        {/* Expired-link warning notice (design-plan §3 — warning/18% tint) */}
-        {expiredLink && (
-          <div
-            className="mb-4 rounded-md px-3 py-2 flex items-start gap-2"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
-              color: 'var(--warning-foreground)',
-              fontSize: 'var(--font-size-body-lg)',
-            }}
-            role="alert"
-          >
-            <span aria-hidden="true" style={{ marginTop: 1 }}>⚠</span>
-            <span>{ERR_EXPIRED_LINK}</span>
-          </div>
-        )}
+        <div className="login-workbench">
+          <header className="login-heading">
+            <h1 className="page-title">{t('auth.login.title')}</h1>
+            <p className="auth-lede">{t('auth.login.subtitle')}</p>
+            {expiredLink && <Notice tone="attention" role="alert">{t('auth.login.expired')}</Notice>}
+          </header>
+          <div className="login-capture">
+            <form className="auth-form" onSubmit={handleSignIn} noValidate>
+              <div className="auth-field">
+                <TextInput
+                  id={emailId}
+                  label={t('auth.login.email')}
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@gordi.id"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    if (emailError) setEmailError('')
+                  }}
+                  disabled={isDisabled}
+                  aria-required="true"
+                  error={Boolean(emailError)}
+                  aria-describedby={emailError ? emailErrorId : (error ? errorId : undefined)}
+                  fullWidth
+                />
+                {emailError && <p id={emailErrorId} className="auth-field-error">{emailError}</p>}
+              </div>
 
-        {/* Card title — subheading (18px/600) per design-plan §1 */}
-        <h1
-          className="text-foreground font-semibold"
-          style={{ fontSize: 'var(--font-size-heading)', lineHeight: 1.3, marginBottom: 4 }}
-        >
-          Sign in
-        </h1>
-        <p
-          className="text-muted-foreground mb-5"
-          style={{ fontSize: 16 }}
-        >
-          Use your Gordi MOS account.
-        </p>
+              <div className="auth-field">
+                <TextInput
+                  id={passwordId}
+                  label={t('auth.login.password')}
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isDisabled}
+                  aria-required="true"
+                  aria-describedby={error ? errorId : undefined}
+                  fullWidth
+                  trailing={(
+                    <PasswordToggle
+                      shown={showPassword}
+                      onToggle={() => setShowPassword((value) => !value)}
+                      showLabel={t('auth.password.showNew')}
+                      hideLabel={t('auth.password.hideNew')}
+                      controls={passwordId}
+                      disabled={isDisabled}
+                    />
+                  )}
+                />
+                {/* DOM order = tab order: the recovery link follows the field it belongs to. */}
+                <div className="auth-field-aside">
+                  <button type="button" className="auth-link" disabled={isDisabled} onClick={handleForgotPassword}>
+                    {loading === 'reset' ? (
+                      <span className="iconrow iconrow--center">
+                        <Spinner />
+                        {t('auth.login.sending')}
+                      </span>
+                    ) : (
+                      t('auth.login.forgot')
+                    )}
+                  </button>
+                </div>
+              </div>
 
-        {/* Form-level error — role=alert, destructive text, tinted row */}
-        {error && !expiredLink && (
-          <div
-            ref={errorRef}
-            id={errorId}
-            role="alert"
-            tabIndex={-1}
-            className="mb-4 rounded-md px-3 py-2"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--destructive) 8%, transparent)',
-              color: 'var(--status-lost-text)',
-              fontSize: 'var(--font-size-body-lg)',
-            }}
-          >
-            {error}
-          </div>
-        )}
+              {/* Form-level error — sits between the fields and the submit it belongs to */}
+              {error && !expiredLink && (
+                <Notice tone="urgent" ref={errorRef} id={errorId} tabIndex={-1}>{error}</Notice>
+              )}
 
-        <form onSubmit={handleSignIn} noValidate>
-          {/* Email field */}
-          <div className="mb-4">
-            <label
-              htmlFor={emailId}
-              className="block text-foreground font-semibold mb-1"
-              style={{ fontSize: 'var(--font-size-label)' }}
-            >
-              Email
-            </label>
-            <input
-              id={emailId}
-              type="email"
-              autoComplete="email"
-              placeholder="you@gordi.id"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value)
-                if (emailError) setEmailError('')
-              }}
-              disabled={isDisabled}
-              aria-required="true"
-              aria-invalid={emailError ? 'true' : undefined}
-              aria-describedby={emailError ? emailErrorId : (error ? errorId : undefined)}
-              className="w-full bg-background text-foreground rounded-sm px-2.5 border"
-              style={{
-                height: 32,
-                fontSize: 'var(--font-size-touch-input)',
-                borderColor: emailError ? 'var(--destructive)' : 'var(--input)',
-                opacity: isDisabled ? 0.5 : 1,
-                cursor: isDisabled ? 'not-allowed' : undefined,
-              }}
-            />
-            {/* fix-2: inline field error below email input */}
-            {emailError && (
-              <p
-                id={emailErrorId}
-                className="mt-1"
-                style={{ fontSize: 'var(--font-size-label)', color: 'var(--status-lost-text)' }}
-              >
-                {emailError}
-              </p>
-            )}
-          </div>
-
-          {/* Password field — design-plan §1 layout: label on its own row, field below */}
-          {/* fix-4: "Forgot password?" moved OUT of the label row, placed AFTER the password field */}
-          <div className="mb-5">
-            <label
-              htmlFor={passwordId}
-              className="block text-foreground font-semibold mb-1"
-              style={{ fontSize: 'var(--font-size-label)' }}
-            >
-              Password
-            </label>
-            <input
-              id={passwordId}
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isDisabled}
-              className="w-full bg-background text-foreground border border-input rounded-sm px-2.5"
-              style={{
-                height: 32,
-                fontSize: 'var(--font-size-touch-input)',
-                opacity: isDisabled ? 0.5 : 1,
-                cursor: isDisabled ? 'not-allowed' : undefined,
-              }}
-              aria-required="true"
-              aria-describedby={error ? errorId : undefined}
-            />
-            {/* fix-4: Forgot password link AFTER the password field (DOM order = tab order) */}
-            {/* #403: the 44px floor now comes from the shared auth.css seam (phone only), so no
-                inline min-height here. mt-2 (not mt-1) because the floor's other half is
-                SEPARATION — DESIGN.md pairs "44px" with "8px between adjacent targets", and a
-                mistap here costs the person everything they just typed into the password field. */}
-            <div className="flex justify-end mt-2">
-              <button
-                type="button"
-                className="text-primary font-medium hover:underline focus-visible:underline"
-                style={{
-                  fontSize: 'var(--font-size-label)',
-                }}
-                disabled={isDisabled}
-                onClick={handleForgotPassword}
-              >
-                {loading === 'reset' ? (
-                  <span className="flex items-center gap-1">
+              {/* The ONE filled primary button */}
+              <Button type="submit" variant="primary" className="btn-touch" disabled={isDisabled} aria-busy={loading === 'sign-in'}>
+                {loading === 'sign-in' ? (
+                  <>
+                    {/* role=status carries the loading announcement */}
+                    <span role="status" className="sr-only">{t('auth.login.signingIn')}</span>
                     <Spinner />
-                    Sending…
-                  </span>
+                    {t('auth.login.signingIn')}
+                  </>
                 ) : (
-                  'Forgot password?'
+                  t('auth.login.signIn')
                 )}
-              </button>
+              </Button>
+            </form>
+
+            <div className="login-alternatives">
+              {/* Google OAuth uses the database-provisioned account; auth-layer guards validate the match. */}
+              <div data-testid="google-sign-in-slot" aria-hidden={!googleEnabled} hidden={!googleEnabled}>
+                <div className="login-or" aria-hidden="true">
+                  <span>{t('auth.login.or')}</span>
+                </div>
+                <Button
+                  variant="outline"
+                  className="btn-touch"
+                  disabled={!googleEnabled || isDisabled}
+                  aria-busy={loading === 'google'}
+                  onClick={handleGoogleSignIn}
+                >
+                  {loading === 'google' ? (
+                    <>
+                      <span role="status" className="sr-only">{t('auth.google.loading')}</span>
+                      <Spinner />
+                      {t('auth.google.loading')}
+                    </>
+                  ) : (
+                    <>
+                      <svg aria-hidden="true" focusable="false" viewBox="0 0 48 48" width="16" height="16">
+                        <path fill="currentColor" d="M43.6 24.5c0-1.4-.1-2.8-.4-4.1H24v7.8h11a9.4 9.4 0 0 1-4.1 6.2v5.1h6.6c3.9-3.6 6.1-8.8 6.1-15Z" />
+                        <path fill="currentColor" d="M24 44c5.5 0 10.1-1.8 13.5-4.9l-6.6-5.1c-1.8 1.2-4.1 2-6.9 2-5.3 0-9.8-3.6-11.4-8.4H5.8v5.2A20 20 0 0 0 24 44Z" />
+                        <path fill="currentColor" d="M12.6 27.6a12 12 0 0 1 0-7.2v-5.2H5.8a20 20 0 0 0 0 17.6l6.8-5.2Z" />
+                        <path fill="currentColor" d="M24 12c3 0 5.7 1 7.8 3.1l5.8-5.8C34.1 6.1 29.5 4 24 4A20 20 0 0 0 5.8 15.2l6.8 5.2C14.2 15.6 18.7 12 24 12Z" />
+                      </svg>
+                      {t('auth.google.button')}
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Magic link — secondary path, outline (not a second filled button) */}
+              <Button variant="outline" className="btn-touch" disabled={isDisabled} onClick={handleMagicLink}>
+                {loading === 'magic' ? (
+                  <>
+                    <span role="status" className="sr-only">{t('auth.login.sending')}</span>
+                    <Spinner />
+                    {t('auth.login.sending')}
+                  </>
+                ) : (
+                  t('auth.login.magic')
+                )}
+              </Button>
             </div>
           </div>
 
-          {/* Primary submit — the ONE filled primary button (One Blue Rule) */}
-          <button
-            type="submit"
-            disabled={isDisabled}
-            aria-busy={loading === 'sign-in'}
-            className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-sm font-medium"
-            style={{
-              height: 32,
-              fontSize: 16,
-              boxShadow: '0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent)',
-              opacity: (isDisabled && loading !== 'sign-in') ? 0.5 : 1,
-              cursor: isDisabled ? 'not-allowed' : undefined,
-            }}
-          >
-            {loading === 'sign-in' ? (
-              <>
-                {/* role=status carries the loading announcement */}
-                <span role="status" className="sr-only">Loading…</span>
-                <Spinner className="text-primary-foreground" />
-                Signing in…
-              </>
-            ) : (
-              'Sign in'
-            )}
-          </button>
-        </form>
-
-        <div
-          data-testid="google-sign-in-slot"
-          aria-hidden={!googleEnabled}
-          style={{ height: 96, display: 'flow-root', visibility: googleEnabled ? 'visible' : 'hidden' }}
-        >
-          {/* "or" divider — single 1px border hairline (Single-Border Rule) */}
-          <div className="my-5 flex items-center gap-3">
-            <div className="flex-1 h-px bg-border" aria-hidden="true" />
-            <span className="text-muted-foreground" style={{ fontSize: 'var(--font-size-body-lg)' }}>or</span>
-            <div className="flex-1 h-px bg-border" aria-hidden="true" />
-          </div>
-
-          {/* Google OAuth uses the database-provisioned account; auth-layer guards validate the match. */}
-          <button
-            type="button"
-            disabled={!googleEnabled || isDisabled}
-            aria-busy={loading === 'google'}
-            className="w-full flex items-center justify-center gap-2 text-primary font-medium hover:underline focus-visible:underline"
-            style={{
-              height: 32,
-              fontSize: 16,
-              opacity: (isDisabled && loading !== 'google') ? 0.5 : 1,
-              cursor: isDisabled ? 'not-allowed' : undefined,
-            }}
-            onClick={handleGoogleSignIn}
-          >
-            {loading === 'google' ? (
-              <>
-                <span role="status" className="sr-only">{t('auth.google.loading')}</span>
-                <Spinner />
-                {t('auth.google.loading')}
-              </>
-            ) : (
-              <>
-                <svg aria-hidden="true" focusable="false" viewBox="0 0 48 48" width="18" height="18" className="text-primary">
-                  <path fill="currentColor" d="M43.6 24.5c0-1.4-.1-2.8-.4-4.1H24v7.8h11a9.4 9.4 0 0 1-4.1 6.2v5.1h6.6c3.9-3.6 6.1-8.8 6.1-15Z" />
-                  <path fill="currentColor" d="M24 44c5.5 0 10.1-1.8 13.5-4.9l-6.6-5.1c-1.8 1.2-4.1 2-6.9 2-5.3 0-9.8-3.6-11.4-8.4H5.8v5.2A20 20 0 0 0 24 44Z" />
-                  <path fill="currentColor" d="M12.6 27.6a12 12 0 0 1 0-7.2v-5.2H5.8a20 20 0 0 0 0 17.6l6.8-5.2Z" />
-                  <path fill="currentColor" d="M24 12c3 0 5.7 1 7.8 3.1l5.8-5.8C34.1 6.1 29.5 4 24 4A20 20 0 0 0 5.8 15.2l6.8 5.2C14.2 15.6 18.7 12 24 12Z" />
-                </svg>
-                {t('auth.google.button')}
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Magic-link — secondary path, primary-text link (NOT a filled button) */}
-        <button
-          type="button"
-          disabled={isDisabled}
-          className="w-full mt-2 flex items-center justify-center gap-2 text-primary font-medium hover:underline focus-visible:underline"
-          style={{
-            fontSize: 16,
-            // #403: the ≥44px touch floor is the shared auth.css seam's job, phone-only.
-            opacity: (isDisabled && loading !== 'magic') ? 0.5 : 1,
-            cursor: isDisabled ? 'not-allowed' : undefined,
-          }}
-          onClick={handleMagicLink}
-        >
-          {loading === 'magic' ? (
-            <>
-              <span role="status" className="sr-only">Loading…</span>
-              <Spinner className="text-primary" />
-              Sending…
-            </>
-          ) : (
-            'Email me a sign-in link instead'
+          {/* Local dev personas, or the separate staging sample org when its build flag is enabled. */}
+          {demoMode && (
+            <DemoLogin
+              onPick={handleDemoSignIn}
+              busyEmail={demoBusy}
+              disabled={isDisabled}
+              personas={demoMode.personas}
+              showPassword={demoMode.kind === 'dev'}
+              title={demoMode.kind === 'sample' ? t('auth.login.sampleDisclosure') : t('auth.login.demoDisclosure')}
+              hideTitle={demoMode.kind === 'sample' ? t('auth.login.sampleHide') : t('auth.login.demoHide')}
+            />
           )}
-        </button>
-
-        {/* Local dev personas, or the separate staging sample org when its build flag is enabled. */}
-        {demoMode && (
-          <DemoLogin
-            onPick={handleDemoSignIn}
-            busyEmail={demoBusy}
-            disabled={isDisabled}
-            personas={demoMode.personas}
-            showPassword={demoMode.kind === 'dev'}
-            title={demoMode.kind === 'sample' ? 'Gordi Sample' : 'Demo login'}
-          />
-        )}
+        </div>
       </AuthCard>
     </AuthShell>
   )

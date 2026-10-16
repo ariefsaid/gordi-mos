@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Toggle } from '@/components/ui/toggle'
 import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/pill'
+import { ArrowRightIcon, Chevron, CloseIcon } from '@/shell/icons'
 
 /**
  * Dev-only primitives gallery (AC-147). Rendered at /dev/ui in DEV only
@@ -25,8 +26,8 @@ export function UiGallery() {
   return (
     <div className={dark ? 'dark' : ''} style={{ minHeight: '100vh', background: 'var(--surface-primary)', color: 'var(--text-primary)', padding: 32, fontFamily: 'var(--font-sans)' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, margin: 0 }}>MOS Primitives Gallery</h1>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 'var(--font-size-body-lg)' }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--mos-size-5)', fontWeight: 600, margin: 0 }}>MOS Primitives Gallery</h1>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 'var(--mos-size-3)' }}>
           <Toggle value={dark} onChange={setDark} aria-label="Dark mode" /> Dark
         </label>
       </header>
@@ -39,11 +40,11 @@ export function UiGallery() {
       </Section>
 
       <Section title="IconButton (new)">
-        <IconButton ariaLabel="More" variant="secondary">⋯</IconButton>{' '}
-        <IconButton ariaLabel="Add" variant="primary">+</IconButton>{' '}
-        <IconButton ariaLabel="Close" variant="tertiary">×</IconButton>{' '}
-        <IconButton ariaLabel="Delete" variant="secondary" accent="danger">🗑</IconButton>{' '}
-        <IconButton ariaLabel="Small" size="small" variant="secondary">?</IconButton>
+        <IconButton ariaLabel="More" variant="secondary"><Chevron /></IconButton>{' '}
+        <IconButton ariaLabel="Add" variant="primary"><ArrowRightIcon /></IconButton>{' '}
+        <IconButton ariaLabel="Close" variant="tertiary"><CloseIcon /></IconButton>{' '}
+        <IconButton ariaLabel="Delete" variant="secondary" accent="danger"><CloseIcon /></IconButton>{' '}
+        <IconButton ariaLabel="Small" size="small" variant="secondary"><Chevron /></IconButton>
       </Section>
 
       <Section title="Pill (existing — re-skinned) vs Tag (new)">
@@ -76,8 +77,8 @@ export function UiGallery() {
       </Section>
 
       <Section title="Chip (new)">
-        <Chip label="Alice Tan" avatarColor="var(--ds-color-blue3)" />{' '}
-        <Chip label="Bob Lee" avatarColor="var(--ds-color-green3)" clickable />{' '}
+        <Chip label="Alice Tan" avatarColor="var(--mos-accent-tint)" />{' '}
+        <Chip label="Bob Lee" avatarColor="var(--mos-success-tint)" clickable />{' '}
         <Chip label="Unassigned" Icon={<span>?</span>} />
       </Section>
 
@@ -108,7 +109,7 @@ export function UiGallery() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section style={{ marginBottom: 28 }}>
-      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</h2>
+      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--mos-size-3)', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</h2>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>{children}</div>
     </section>
   )

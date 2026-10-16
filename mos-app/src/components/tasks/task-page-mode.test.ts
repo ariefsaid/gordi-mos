@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { isTaskPageMode, readBootRecordId } from './task-page-mode'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { isTaskPageMode } from './task-page-mode'
 
 describe('isTaskPageMode — OD-63 panel vs page detection', () => {
   it('in-list click (no state, not a boot direct load) → panel mode (false)', () => {
@@ -57,26 +57,40 @@ describe('isTaskPageMode — OD-63 panel vs page detection', () => {
   })
 })
 
-describe('readBootRecordId — deterministic navigation timing seam', () => {
-  it.each([
-    ['navigate', '/work/tasks/t1', 't1'],
-    ['reload', '/work/tasks/t2', 't2'],
-    ['back_forward', '/work/tasks/t3', 't3'],
-  ] as const)('accepts a hard navigation type (%s)', (type, pathname, id) => {
-    expect(readBootRecordId({ type }, pathname)).toBe(id)
+// The hard-load capture happens once at module load, so each case boots a fresh copy of the
+// module against a stubbed navigation-timing entry and URL.
+async function bootedPageMode(navType: string | null, pathname: string, taskId: string): Promise<boolean> {
+  vi.resetModules()
+  vi.spyOn(performance, 'getEntriesByType').mockReturnValue(navType ? ([{ type: navType }] as never) : [])
+  window.history.replaceState({}, '', pathname)
+  const mod = await import('./task-page-mode')
+  return mod.isTaskPageMode({ taskId, isNew: false, state: undefined, navigationType: 'POP' })
+}
+
+describe('hard-load detection (module boot)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.history.replaceState({}, '', '/')
   })
 
-  it('rejects unsupported navigation timing types', () => {
-    expect(readBootRecordId({ type: 'prerender' }, '/work/tasks/t1')).toBeNull()
+  it.each(['navigate', 'reload', 'back_forward'])('a hard %s onto the record opens it as a page', async (type) => {
+    expect(await bootedPageMode(type, '/work/tasks/t1', 't1')).toBe(true)
   })
 
-  it('rejects the create route and collection route', () => {
-    expect(readBootRecordId({ type: 'navigate' }, '/work/tasks/new')).toBeNull()
-    expect(readBootRecordId({ type: 'navigate' }, '/work/tasks')).toBeNull()
+  it('a hard load onto a different record leaves this one in the panel', async () => {
+    expect(await bootedPageMode('navigate', '/work/tasks/t1', 't2')).toBe(false)
   })
 
-  it('rejects missing navigation timing and missing pathname', () => {
-    expect(readBootRecordId(undefined, '/work/tasks/t1')).toBeNull()
-    expect(readBootRecordId({ type: 'navigate' }, null)).toBeNull()
+  it('rejects unsupported navigation timing types', async () => {
+    expect(await bootedPageMode('prerender', '/work/tasks/t1', 't1')).toBe(false)
+  })
+
+  it('rejects the create route and collection route', async () => {
+    expect(await bootedPageMode('navigate', '/work/tasks/new', 'new')).toBe(false)
+    expect(await bootedPageMode('navigate', '/work/tasks', 't1')).toBe(false)
+  })
+
+  it('rejects a missing navigation timing entry', async () => {
+    expect(await bootedPageMode(null, '/work/tasks/t1', 't1')).toBe(false)
   })
 })

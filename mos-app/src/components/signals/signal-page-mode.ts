@@ -33,7 +33,7 @@ const BOOT_NAV =
  * archive route), or null. Arguments are injectable so the detection is deterministic
  * in unit tests; the default capture below is the only module-level browser observation.
  */
-export function readBootSignalRecordId(
+function readBootSignalRecordId(
   navigation: BootNavigation | undefined = BOOT_NAV,
   pathname: string | null = typeof window !== 'undefined' ? window.location.pathname : null,
   search: string | null = typeof window !== 'undefined' ? window.location.search : null,

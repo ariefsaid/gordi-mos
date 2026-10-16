@@ -8,35 +8,31 @@
 .ccf-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--mos-label-gap);
   min-width: 0;
 }
-.ccf-label {
-  font-size: var(--font-size-label);
-  font-weight: 500;
-  color: var(--muted-foreground);
-}
+.ccf-label { font: var(--mos-type-label); color: var(--mos-ink);  }
 .ccf-required {
   color: var(--status-lost-text);
 }
 .ccf-error {
   margin: 0;
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   color: var(--field-error-text);
 }
 .ccf-foot {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  gap: var(--mos-inline-gap);
+  padding-top: var(--mos-inline-gap);
+  border-top: 1px solid var(--mos-line);
 }
 
 @media (max-width: 767.98px) {
   .ccf .picker__trigger,
   .ccf .mk-textinput__field {
-    min-height: 44px;
-    font-size: var(--font-size-touch-input);
+    min-height: var(--mos-control-height);
+    font-size: var(--mos-size-3);
   }
-  .ccf-foot .btn { min-height: 44px; }
+  .ccf-foot .btn { min-height: var(--mos-control-height); }
 }

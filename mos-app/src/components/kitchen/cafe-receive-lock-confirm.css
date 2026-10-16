@@ -27,7 +27,7 @@
   margin: 0 0 2px;
   color: var(--foreground);
   font-family: var(--font-display);
-  font-size: var(--font-size-heading);
+  font-size: var(--mos-size-4);
   font-weight: 600;
   line-height: 1.25;
 }
@@ -35,7 +35,7 @@
 .cafe-lock-confirm__context,
 .cafe-lock-confirm__warning {
   margin: 0;
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   line-height: 1.45;
 }
 
@@ -51,12 +51,12 @@
   overscroll-behavior: contain;
 }
 
-.cafe-lock-confirm__lines li { padding: 10px 0; }
+.cafe-lock-confirm__lines li { padding: var(--mos-row-pad-y) 0; }
 .cafe-lock-confirm__lines li:last-child { border-bottom: 0; }
 
 .cafe-lock-confirm__lines:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: calc(-1 * var(--mos-focus-width));
 }
 
 .cafe-lock-confirm__foot {
@@ -73,12 +73,12 @@
   gap: 8px;
 }
 
-.cafe-lock-confirm__action { min-width: 132px; min-height: 44px; }
+.cafe-lock-confirm__action { min-width: 132px; min-height: var(--mos-control-height); }
 
 @media (max-width: 640px) {
   .cafe-lock-confirm__head { padding: max(16px, env(safe-area-inset-top)) 16px 12px; }
   .cafe-lock-confirm__lines.cafe-receipt-lines { padding-inline: 16px; }
   .cafe-lock-confirm__foot { padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); }
   .cafe-lock-confirm__actions { flex-direction: column; gap: 8px; }
-  .cafe-lock-confirm__action { width: 100%; min-height: 48px; }
+  .cafe-lock-confirm__action { width: 100%; min-height: var(--mos-control-height); }
 }

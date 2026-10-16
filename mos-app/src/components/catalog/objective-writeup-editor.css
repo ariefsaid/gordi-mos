@@ -18,8 +18,8 @@
 }
 
 .objective-writeup .objective-writeup__editor:focus-within {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: var(--mos-focus-offset);
 }
 
 /* The editor's stylesheet sets its own font, gutter, panel and heading scale; these restate them
@@ -29,13 +29,13 @@
   --bn-colors-editor-background: transparent;
   --bn-colors-editor-text: var(--foreground);
   font-family: var(--font-sans);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   color: var(--foreground);
 }
 
 .objective-writeup .objective-writeup__editor .bn-default-styles {
   font-family: var(--font-sans);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
 }
 
 .objective-writeup .objective-writeup__editor .bn-editor {
@@ -49,18 +49,18 @@
 }
 
 .objective-writeup .objective-writeup__editor [data-content-type='heading'] {
-  --level: var(--font-size-heading);
-  --prev-level: var(--font-size-heading);
+  --level: var(--mos-size-4);
+  --prev-level: var(--mos-size-4);
 }
 
 .objective-writeup .objective-writeup__editor [data-content-type='heading'][data-level='2'] {
-  --level: var(--font-size-subheading);
-  --prev-level: var(--font-size-subheading);
+  --level: var(--mos-size-3);
+  --prev-level: var(--mos-size-3);
 }
 
 .objective-writeup .objective-writeup__editor :is([data-level='3'], [data-level='4'], [data-level='5'], [data-level='6'])[data-content-type='heading'] {
-  --level: var(--font-size-body-lg);
-  --prev-level: var(--font-size-body-lg);
+  --level: var(--mos-size-3);
+  --prev-level: var(--mos-size-3);
 }
 
 .objective-writeup .objective-writeup__editor .bn-block-outer .bn-block .bn-block-content[data-content-type='heading'] {
@@ -89,13 +89,13 @@
   flex: 1 1 12rem;
   margin: 0;
   color: var(--muted-foreground);
-  font-size: var(--font-size-overline);
+  font-size: var(--mos-size-1);
 }
 
 .objective-writeup__hint {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: var(--font-size-overline);
+  font-size: var(--mos-size-1);
 }
 
 /* Keyboard shortcuts do not apply on touch or phone widths. */
@@ -119,7 +119,7 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-overlay);
   font-family: var(--font-sans);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
 }
 
 .objective-writeup__editor .bn-ak-toolbar {
@@ -139,14 +139,14 @@
 
 .objective-writeup__editor .bn-ak-button {
   min-width: 32px;
-  min-height: 32px;
+  min-height: var(--mos-control-height);
   height: auto;
   border-radius: var(--radius-sm);
   background: transparent;
   box-shadow: none;
   color: var(--foreground);
   font-family: var(--font-sans);
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
 }
 
 .objective-writeup__editor .bn-ak-button:not(:active):hover {
@@ -168,8 +168,8 @@
 
 .objective-writeup__editor .bn-ak-button:is(:focus-visible, [data-focus-visible]),
 .objective-writeup__editor :is(.bn-ak-input):is(:focus-visible, [data-focus-visible]) {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: var(--mos-focus-offset);
 }
 
 .objective-writeup__editor .bn-ak-primary,
@@ -179,14 +179,14 @@
 }
 
 .objective-writeup__editor .bn-ak-input {
-  min-height: 32px;
+  min-height: var(--mos-control-height);
   border: 1px solid var(--input);
   border-radius: var(--radius-sm);
   background: var(--background);
   box-shadow: none;
   color: var(--foreground);
   font-family: var(--font-sans);
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
 }
 
 .objective-writeup__editor .bn-ak-input::placeholder {
@@ -199,7 +199,7 @@
   background: var(--popover);
   box-shadow: var(--shadow-popover);
   color: var(--foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
 }
 
 .objective-writeup__editor :is(.bn-ak-link, .bn-ak-anchor) {
@@ -229,19 +229,19 @@
 .objective-writeup__editor .bn-ak-group-label {
   padding: 8px 12px 4px;
   color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
   font-weight: 600;
   opacity: 1;
 }
 
 .objective-writeup__editor .bn-ak-suggestion-menu-item-title {
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   font-weight: 500;
 }
 
 .objective-writeup__editor .bn-ak-suggestion-menu-item-subtitle {
   color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
 }
 
 .objective-writeup__editor .bn-ak-suggestion-menu-item-section[data-position='right'] {
@@ -249,7 +249,7 @@
   border-radius: var(--radius-xs);
   box-shadow: none;
   color: var(--muted-foreground);
-  font-size: var(--font-size-overline);
+  font-size: var(--mos-size-1);
 }
 
 .objective-writeup__editor .bn-ariakit .bn-side-menu,
@@ -275,10 +275,10 @@
 @media (hover: none), (max-width: 767.98px) {
   .objective-writeup__editor .bn-ak-suggestion-menu-item-section[data-position='right'] { display: none; }
   .objective-writeup__editor .bn-ak-button,
-  .objective-writeup__editor .bn-side-menu .bn-ak-button { min-width: 44px; min-height: 44px; }
+  .objective-writeup__editor .bn-side-menu .bn-ak-button { min-width: 44px; min-height: var(--mos-control-height); }
   .objective-writeup__editor .bn-side-menu .bn-ak-button:first-child:not(:last-child) { display: none; }
   .objective-writeup .objective-writeup__editor--menus { padding-inline-start: 52px; }
-  .objective-writeup__editor .bn-ak-input { min-height: 44px; font-size: var(--font-size-touch-input); }
+  .objective-writeup__editor .bn-ak-input { min-height: var(--mos-control-height); font-size: var(--mos-size-3); }
 }
 
 /* On a phone the toolbar, floating or docked above the keyboard, keeps a gutter instead of running to the

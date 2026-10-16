@@ -48,8 +48,8 @@ export function ThreadList({ emptyText, onOpen }: ThreadListProps) {
           key={thread.id}
           type="button"
           onClick={() => onOpen(thread.id)}
-          className="text-left rounded-md border border-border bg-secondary text-foreground hover:border-muted-foreground/50 truncate"
-          style={{ padding: '0.625rem 0.75rem', fontSize: 'var(--font-size-body)' }}
+          className="text-left rounded-md border border-border bg-secondary text-foreground truncate"
+          style={{ padding: '0.625rem 0.75rem', fontSize: 'var(--mos-size-3)' }}
         >
           {thread.title || '(untitled conversation)'}
         </button>

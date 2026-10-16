@@ -155,7 +155,7 @@ describe('CreatePersonDialog (AC-011)', () => {
     expect(screen.getByText('Admin')).toBeInTheDocument()
     expect(screen.getByText('Finance')).toBeInTheDocument()
     // Description line under each role
-    expect(screen.getByText('Plans and approves')).toBeInTheDocument()
+    expect(screen.getByText('Plans and approves Café work')).toBeInTheDocument()
     // Raw slug must not leak into the UI
     expect(screen.queryByText('ops_lead')).not.toBeInTheDocument()
     // Checkbox accessible name is the human label
@@ -210,7 +210,7 @@ describe('CreatePersonDialog (AC-011)', () => {
     expect(screen.getByText(/copy this now/i)).toBeInTheDocument()
 
     // "Done" button is present (no Esc dismiss — intentional)
-    expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /hide password and close/i })).toBeInTheDocument()
     const dialog = screen.getByRole('alertdialog')
     expect(dialog).toHaveClass('create-person-dialog')
     expect(dialog.querySelector('.create-person-dialog__form')).not.toBeInTheDocument()
@@ -233,7 +233,7 @@ describe('CreatePersonDialog (AC-011)', () => {
     await screen.findByText('TempPw9999')
 
     // Click Done
-    await user.click(screen.getByRole('button', { name: /done/i }))
+    await user.click(screen.getByRole('button', { name: /hide password and close/i }))
 
     // onClose called, password gone from DOM
     expect(onClose).toHaveBeenCalled()

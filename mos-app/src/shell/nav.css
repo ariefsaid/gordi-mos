@@ -1,0 +1,127 @@
+/* Navigation: the single sidebar (one module), the labelled module rail + pages panel (two or more), the folded
+   rail with flyouts, and the phone More drawer share ONE grammar.
+   area      icon 20px + 16px/600 ink; the place a person scans for
+   group     14px/600 ink heading, 20px above / 6px below (never a muted label)
+   page      14px/400 muted, one indent from the row's own padding
+   active    accent tint + accent/600 (+ aria-current); hover uses the hover fill; no side stripe
+   Rows are --mos-nav-row (36px) for a mouse, 44px for a coarse pointer; the drawer raises them to 48px. */
+
+.shell-nav-host { grid-area: rail; display: flex; min-width: 0; min-height: 0; }
+.shell-nav { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--mos-band); border-right: 1px solid var(--mos-line); }
+.shell-nav--sidebar { width: var(--mos-rail-width); overflow: hidden; }
+.shell-nav--rail { width: var(--mos-rail-collapsed); flex: none; overflow: visible; }
+
+/* The primary nav fills the column: fixed top, independently scrolling middle, pinned foot links. */
+.nav-primary { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; min-height: 0; padding-inline: var(--mos-row-pad-x); }
+.nav-fixed { flex: none; padding-top: var(--mos-row-pad-y); }
+.nav-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.nav-foot-links { position: sticky; bottom: 0; flex: none; background: var(--mos-band); padding-block: var(--mos-space-2); border-top: 1px solid var(--mos-line); }
+.nav-admin-pages { margin-top: var(--mos-space-2); }
+.rail-foot { position: sticky; bottom: 0; flex: none; background: var(--mos-band); padding: var(--mos-row-pad-y); border-top: 1px solid var(--mos-line); }
+.nav-list { display: flex; flex-direction: column; gap: 0; }
+.nav-children[hidden] { display: none; }
+
+/* Row: one surface for hover/active, holding the link and (optionally) its separate disclosure. */
+.nav-row { position: relative; display: flex; align-items: stretch; border-radius: var(--radius-sm); }
+.nav-row:hover { background: var(--mos-hover); }
+.nav-row--active, .nav-row--active:hover { background: var(--mos-accent-tint); }
+
+.nav-item {
+  flex: 1; min-width: 0;
+  box-sizing: border-box; min-height: var(--mos-nav-row);
+  padding-inline: var(--mos-inline-gap);
+  padding-block: calc((var(--mos-nav-row) - 1lh) / 2);
+  color: var(--mos-ink); text-decoration: none; border-radius: var(--radius-sm);
+}
+.nav-item--section { font: var(--mos-type-nav); font-weight: var(--mos-weight-semibold); }
+.nav-item--child { display: flex; align-items: flex-start; gap: var(--mos-inline-gap); font: var(--mos-type-subnav); color: var(--mos-muted); padding-inline-start: calc(var(--mos-space-2) + var(--mos-space-4)); }
+.nav-item--child:hover { color: var(--mos-ink); }
+.nav-item--active, .nav-item--child.nav-item--active { color: var(--mos-accent); font-weight: var(--mos-weight-semibold); }
+.nav-item--parent { color: var(--mos-accent); }
+.nav-item__label { min-width: 0; overflow-wrap: anywhere; }
+.nav-item:focus-visible, .nav-toggle:focus-visible, .rail-item:focus-visible, .nav-collapse-toggle:focus-visible { outline-offset: calc(-1 * var(--mos-focus-width)); }
+
+/* Group heading: 14/600 ink, 20 above, 6 below; aligned with the page text. */
+.nav-group-heading {
+  font: var(--mos-type-navgroup); color: var(--mos-ink);
+  padding: var(--mos-group-above) var(--mos-inline-gap) var(--mos-group-below) calc(var(--mos-inline-gap) + var(--mos-field-gap));
+}
+.nav-group-heading--top { padding-inline-start: var(--mos-space-2); }
+
+/* Disclosure: its own button, fixed 16px chevron column 12px from the right inset. */
+.nav-toggle {
+  display: flex; align-items: flex-start; justify-content: flex-end; flex: none;
+  box-sizing: border-box; width: calc(var(--mos-icon-sm) + var(--mos-space-3));
+  padding: calc((var(--mos-nav-row) - var(--mos-icon-sm)) / 2) var(--mos-space-3) 0 0;
+  border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--mos-muted); cursor: pointer;
+}
+.nav-toggle:hover { color: var(--mos-ink); }
+.nav-toggle__chevron { flex: none; width: var(--mos-icon-sm); height: var(--mos-icon-sm); transform: rotate(-90deg); transition: transform var(--mos-duration-fast) ease; }
+.nav-toggle__chevron--open { transform: rotate(0deg); }
+
+/* Count: quiet neutral chip at the trailing edge. */
+.nav-count {
+  align-self: center; margin-inline-start: auto; flex: none;
+  min-width: var(--mos-icon-md); padding: 0 var(--mos-space-2); box-sizing: border-box;
+  border-radius: var(--radius-xs); background: var(--mos-surface); color: var(--mos-ink);
+  box-shadow: inset 0 0 0 1px var(--mos-line);
+  font: var(--mos-type-meta); font-weight: var(--mos-weight-semibold); text-align: center;
+}
+.nav-item--active .nav-count { color: var(--mos-accent); box-shadow: inset 0 0 0 1px var(--mos-accent); }
+/* On the rail: a small marker at the icon's corner; the number lives in the accessible name. */
+.nav-count--compact { position: absolute; top: calc(-1 * var(--mos-space-1)); right: calc(-1 * var(--mos-space-2)); min-width: 0; width: var(--mos-space-2); height: var(--mos-space-2); padding: 0; background: var(--mos-accent); box-shadow: 0 0 0 2px var(--mos-band); }
+
+/* ── Fold-away control ── */
+.nav-collapse-row { display: flex; justify-content: flex-end; padding: var(--mos-space-2) var(--mos-space-3) 0; flex: none; }
+.nav-collapse-row--compact { justify-content: center; padding-inline: 0; }
+.nav-collapse-toggle {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: var(--mos-nav-row); height: var(--mos-nav-row);
+  border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--mos-muted); cursor: pointer;
+  transition: background-color var(--mos-duration-fast) ease;
+}
+.nav-collapse-toggle:hover { background: var(--mos-hover); color: var(--mos-ink); }
+.nav-collapse-toggle__chevron { width: var(--mos-icon-sm); height: var(--mos-icon-sm); transform: rotate(90deg); transition: transform var(--mos-duration-fast) ease; }
+.nav-collapse-toggle[data-rail-collapsed='true'] .nav-collapse-toggle__chevron { transform: rotate(-90deg); }
+
+/* ── Module rail: 64px, labelled icons ── */
+.rail-nav { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; padding: var(--mos-space-2) var(--mos-space-1) 0; }
+.rail-scroll { display: flex; flex-direction: column; gap: var(--mos-space-1); padding-bottom: var(--mos-space-2); scrollbar-gutter: auto; }
+.rail-foot-links { position: sticky; bottom: 0; background: var(--mos-band); display: flex; flex: none; flex-direction: column; gap: var(--mos-space-1); padding-block: var(--mos-space-2); border-top: 1px solid var(--mos-line); }
+.rail-item-wrap { display: flex; }
+.rail-item {
+  display: flex; flex: 1; flex-direction: column; align-items: center; gap: var(--mos-stack-gap);
+  box-sizing: border-box; min-width: 0; min-height: calc(var(--mos-icon-md) + var(--mos-nav-row)); padding: var(--mos-space-2) 0;
+  border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--mos-ink);
+  font: var(--mos-type-meta); font-weight: var(--mos-weight-semibold); text-align: center; text-decoration: none; cursor: pointer;
+}
+.rail-item:hover { background: var(--mos-hover); }
+.rail-item--here, .rail-item--here:hover { background: var(--mos-accent-tint); color: var(--mos-accent); }
+.rail-item__icon { position: relative; display: inline-flex; flex: none; }
+.rail-item__icon svg { width: var(--mos-icon-md); height: var(--mos-icon-md); flex: none; }
+.rail-item__label { max-width: 100%; padding-inline: var(--mos-space-1); box-sizing: border-box; overflow-wrap: anywhere; }
+
+/* ── Pages panel: the selected area's pages beside the rail ── */
+.nav-panel { display: flex; flex-direction: column; width: var(--mos-rail-width); flex: none; min-height: 0; background: var(--mos-band); border-right: 1px solid var(--mos-line); }
+.nav-panel__head { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap); flex: none; min-height: var(--mos-control-height); padding: var(--mos-space-3) var(--mos-space-3) var(--mos-space-1) calc(var(--mos-space-3) + var(--mos-inline-gap)); }
+.nav-panel__title { font: var(--mos-type-nav); font-weight: var(--mos-weight-bold); color: var(--mos-ink); overflow-wrap: anywhere; }
+.nav-panel__body { padding: var(--mos-space-1) var(--mos-row-pad-x) var(--mos-row-pad-y); }
+.nav-panel .nav-item--child, .nav-flyout .nav-item--child { padding-inline-start: var(--mos-inline-gap); }
+.nav-panel .nav-group-heading, .nav-flyout .nav-group-heading { padding-inline-start: var(--mos-inline-gap); }
+
+/* ── Flyout: grouped pages of one area beside the folded rail ── */
+.nav-flyout {
+  position: fixed; z-index: var(--z-drawer);
+  box-sizing: border-box; width: 280px; overflow-y: auto; overscroll-behavior: contain; padding: var(--mos-menu-pad) var(--mos-menu-pad) var(--mos-row-pad-y);
+  border-radius: var(--radius-sm); background: var(--mos-surface);
+  box-shadow: inset 0 0 0 1px var(--mos-line), var(--shadow-popover);
+}
+.nav-flyout__title { padding: var(--mos-space-3) var(--mos-inline-gap) var(--mos-space-1); font: var(--mos-type-nav); font-weight: var(--mos-weight-bold); color: var(--mos-ink); }
+
+/* The account menu opens beside a narrow rail, so it keeps its own width. */
+.shell-nav--rail .user-chip-menu--left { width: 16rem; }
+
+@media (pointer: coarse) { :root { --mos-nav-row: 44px; } }
+@media (prefers-reduced-motion: reduce) {
+  .nav-toggle__chevron, .nav-collapse-toggle, .nav-collapse-toggle__chevron { transition: none; }
+}

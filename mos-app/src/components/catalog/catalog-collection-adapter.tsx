@@ -43,7 +43,7 @@ import type {
   RecordCollectionDescriptor,
 } from '@/lib/record-collection/types'
 import type { ReadLease } from '@/lib/scoped-reads'
-import { CatalogListPresentation } from './catalog-list-presentation'
+import { CatalogDirectionRegister } from './catalog-direction-register'
 
 // ── Shared types ─────────────────────────────────────────────────────────────────────────────────
 
@@ -76,15 +76,17 @@ export interface CatalogRow {
   currentOccurrence?: ProcessCollectionFact['current_occurrence']
 }
 
-export type CatalogView = 'active' | 'archived' | 'all'
-export type CatalogTypeFilter = 'all' | CatalogType
+type CatalogView = 'active' | 'archived' | 'all'
+type CatalogTypeFilter = 'all' | CatalogType
 /**
  * OD-V4-1 H7 fix: a "does this record have any linked work" filter. Objectives is the only
  * descriptor that exposes it in the toolbar today (Projects/Processes already had the `type`
  * filter); the field is shared on the query type so either descriptor could opt in later.
  */
-export type CatalogCoverageFilter = 'all' | 'has-tasks' | 'no-tasks'
+type CatalogCoverageFilter = 'all' | 'has-tasks' | 'no-tasks'
 export type CatalogPresentation = 'list'
+export type CatalogSort = 'name' | 'accountable' | 'period' | 'progress'
+export type CatalogDirection = 'ascending' | 'descending'
 export type CatalogAction = never
 
 export interface CatalogCollectionQuery {
@@ -95,6 +97,9 @@ export interface CatalogCollectionQuery {
   type: CatalogTypeFilter
   /** Task-coverage filter (OD-V4-1 H7). Projects/Processes never populate it today. */
   coverage: CatalogCoverageFilter
+  /** Register sort: the default is name A–Z, shown by the sorted header's arrow. */
+  sort: CatalogSort
+  direction: CatalogDirection
   savedViewId: string | null
 }
 
@@ -137,7 +142,7 @@ export interface CatalogRelations {
 }
 
 /** Which side of the Objective ⇄ Project/Process relation a catalog's rows sit on. */
-export type CatalogRelationsKind = 'objective' | 'work_line'
+type CatalogRelationsKind = 'objective' | 'work_line'
 
 /** Display context the list presentation reads — the FR-422 trace line + the relations per row id. */
 export interface CatalogCollectionContext {
@@ -163,7 +168,7 @@ export interface CatalogRenderGroup {
 }
 
 const CATALOG_QUERY_KEYS: readonly QueryKey<CatalogCollectionQuery>[] = [
-  'layout', 'view', 'q', 'type', 'coverage', 'savedViewId',
+  'layout', 'view', 'q', 'type', 'coverage', 'sort', 'direction', 'savedViewId',
 ]
 
 const CATALOG_NEUTRAL_QUERY: CatalogCollectionQuery = {
@@ -172,12 +177,15 @@ const CATALOG_NEUTRAL_QUERY: CatalogCollectionQuery = {
   q: '',
   type: 'all',
   coverage: 'all',
+  sort: 'name',
+  direction: 'ascending',
   savedViewId: null,
 }
 
 const VIEWS: readonly CatalogView[] = ['active', 'archived', 'all']
 const TYPE_FILTERS: readonly CatalogTypeFilter[] = ['all', 'project', 'process']
 const COVERAGE_FILTERS: readonly CatalogCoverageFilter[] = ['all', 'has-tasks', 'no-tasks']
+const SORTS: readonly CatalogSort[] = ['name', 'accountable', 'period', 'progress']
 
 function parseCatalogQuery(params: URLSearchParams): CollectionQueryParse<CatalogCollectionQuery> {
   const query: CatalogCollectionQuery = { ...CATALOG_NEUTRAL_QUERY }
@@ -196,6 +204,11 @@ function parseCatalogQuery(params: URLSearchParams): CollectionQueryParse<Catalo
     query.coverage = coverage as CatalogCoverageFilter
   }
 
+  const sort = params.get('sort')
+  if (sort !== null && SORTS.includes(sort as CatalogSort)) query.sort = sort as CatalogSort
+  const dir = params.get('dir')
+  if (dir === 'ascending' || dir === 'descending') query.direction = dir
+
   query.savedViewId = params.get('saved')
 
   return { ok: true, query }
@@ -208,11 +221,13 @@ function serializeCatalogQuery(query: CatalogCollectionQuery): URLSearchParams {
   if (query.q) p.set('q', query.q)
   if (query.type !== 'all') p.set('type', query.type)
   if (query.coverage !== 'all') p.set('coverage', query.coverage)
+  if (query.sort !== CATALOG_NEUTRAL_QUERY.sort) p.set('sort', query.sort)
+  if (query.direction !== CATALOG_NEUTRAL_QUERY.direction) p.set('dir', query.direction)
   if (query.savedViewId) p.set('saved', query.savedViewId)
   return p
 }
 
-export const catalogCollectionQuery: CollectionQuerySchema<CatalogCollectionQuery> = {
+const catalogCollectionQuery: CollectionQuerySchema<CatalogCollectionQuery> = {
   keys: CATALOG_QUERY_KEYS,
   neutral: CATALOG_NEUTRAL_QUERY,
   parse: parseCatalogQuery,
@@ -385,6 +400,29 @@ function isFiltered(query: CatalogCollectionQuery, visible: number, total: numbe
     || query.coverage !== 'all' || query.view !== 'active'
 }
 
+/** Sort key per register column; blanks sort last in either direction. */
+function catalogComparator(query: CatalogCollectionQuery, context: CatalogCollectionContext) {
+  const dir = query.direction === 'ascending' ? 1 : -1
+  const key = (row: CatalogRow): string | number | null => {
+    if (query.sort === 'accountable') return (row.accountablePersonId ? context.peopleById?.get(row.accountablePersonId) : undefined)?.toLowerCase() ?? null
+    if (query.sort === 'period') return row.periodYear == null ? null : row.periodYear * 10 + (row.periodQuarter ?? 0)
+    if (query.sort === 'progress') {
+      const value = row.type === 'process' ? row.currentOccurrence : context.progressById.get(row.id)
+      return value && value.total > 0 ? value.done / value.total : null
+    }
+    return row.name.toLowerCase()
+  }
+  return (a: CatalogRow, b: CatalogRow) => {
+    const ka = key(a)
+    const kb = key(b)
+    if (ka === null && kb === null) return a.name.localeCompare(b.name)
+    if (ka === null) return 1
+    if (kb === null) return -1
+    const order = typeof ka === 'number' && typeof kb === 'number' ? ka - kb : String(ka).localeCompare(String(kb))
+    return order === 0 ? a.name.localeCompare(b.name) : order * dir
+  }
+}
+
 function projectCatalog(
   data: CollectionData<CatalogRow, CatalogCollectionContext>,
   query: CatalogCollectionQuery,
@@ -402,11 +440,12 @@ function projectCatalog(
     if (term && !row.name.toLowerCase().includes(term)) return false
     return true
   })
+  const sorted = [...visibleRecords].sort(catalogComparator(query, data.context))
   return {
-    visibleRecords,
-    groups: [{ key: query.view, label: null, rows: visibleRecords }],
+    visibleRecords: sorted,
+    groups: [{ key: query.view, label: null, rows: sorted }],
     totalRecords: data.records.length,
-    visibleRecordsAreFiltered: isFiltered(query, visibleRecords.length, data.records.length),
+    visibleRecordsAreFiltered: isFiltered(query, sorted.length, data.records.length),
   }
 }
 
@@ -459,14 +498,14 @@ function makeCatalogDescriptor(config: {
         capabilities: {
           search: true,
           filterKeys: config.filterKeys,
-          sortKeys: [],
+          sortKeys: ['sort', 'direction'],
           groupKeys: [],
           savedViews: false,
           selection: false,
           recordOpening: false,
           bulkActions: [],
         },
-        render: (props) => <CatalogListPresentation {...props} />,
+        render: (props) => <CatalogDirectionRegister {...props} />,
       },
     },
     load: ({ readLease }) => config.load(readLease),

@@ -3,7 +3,7 @@ import { loginAs } from './helpers/login'
 import { ADMIN, MANAGER } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
 import { isShipGated } from './helpers/ship-gate'
-import { taskViewsGroup } from './helpers/tasks'
+import { taskViewsPicker } from './helpers/tasks'
 import { e2eAppPath } from './helpers/app-path'
 
 // notFound.title (i18n/messages.ts): the not-found page's ONE heading now carries the message
@@ -113,7 +113,6 @@ test('AC-004 (DD-WAY-36): /work/follow-ups renders not-found in one hop — no r
 test('AC-004: /tasks/:taskId redirects to /work/tasks/:taskId and renders the task surface', async ({ page }) => {
   await page.goto(`tasks/${TASKS.VIEWER_ACCOUNTABLE.id}`)
   await expect(page).toHaveURL(new RegExp(`/work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}$`))
-  await expect(taskViewsGroup(page)).toBeVisible()
   await expect(page.getByRole('heading', { name: TASKS.VIEWER_ACCOUNTABLE.title, exact: true })).toBeVisible()
 })
 
@@ -123,9 +122,9 @@ test('AC-005: /kitchen/* redirects to /cafe/* and renders the re-homed kitchen s
     // page-head heading every state renders, not a table that only some states do.
     { oldPath: 'kitchen/log', finalPath: /\/cafe\/production$/, title: 'Production' },
     { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, title: 'Plan' },
-    { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, title: 'Stock' },
+    { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, title: 'Available to transfer' },
     { oldPath: 'kitchen/review', finalPath: /\/cafe\/review$/, title: 'Review' },
-    { oldPath: 'kitchen/pushes', finalPath: /\/cafe\/pushes$/, title: 'Pushes' },
+    { oldPath: 'kitchen/pushes', finalPath: /\/cafe\/pushes$/, title: 'Sent to ESB' },
   ]
 
   for (const routeCase of cases) {
@@ -165,15 +164,15 @@ test('AC-025: /work/signals, /cafe, and /work/tasks?view=overdue resolve and are
   await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Signals' })).toBeVisible()
   await expect(page.getByRole('searchbox', { name: /search signals/i })).toBeVisible()
 
-  // /cafe remains the Café Today entry; production and transfer have dedicated routes.
+  // /cafe is the Café home; production and transfer have dedicated routes.
   await page.goto('cafe')
   await expect(page).toHaveURL(/\/cafe$/)
-  await expect(page.getByTestId('page-head').getByRole('heading', { level: 1, name: 'Production', exact: true })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('page-head').getByRole('heading', { level: 1, name: 'Café home', exact: true })).toBeVisible({ timeout: 15_000 })
 
   await page.goto('work/tasks?view=overdue')
   await expect(page).toHaveURL(/\/work\/tasks\?view=overdue$/)
   await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Tasks' })).toBeVisible()
-  await expect(taskViewsGroup(page)).toBeVisible()
+  await expect(taskViewsPicker(page)).toBeVisible()
 })
 
 

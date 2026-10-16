@@ -6,14 +6,9 @@
    it now opens a REAL panel instead of relying on the native `title` tooltip,
    which touch input never triggers — see help-tip.tsx for the full reasoning.
 
-   Hit area padded to 44x44 on ALL pointers via an invisible ::before — the
-   visible glyph box stays 14x14 so nothing repaints larger.
-   inset:-16px (not -15px): box-sizing:border-box + the 1px border means the
-   ::before's containing block is the 12px PADDING box (14 - 2x1px border),
-   not the 14px border box — verified live (getComputedStyle): -15px only
-   reaches 42x42; -16px pads the clickable region to the full 44x44
-   (12 + 16 + 16) without shifting layout (no margin/padding change on the
-   real 14x14 box).
+   The button itself owns a 44x44 hit area on every pointer type. A centered
+   14px outline preserves the quiet round-1 mark without relying on a pseudo-
+   element to satisfy geometry checks or assistive input.
    ════════════════════════════════════════════════════════════════════════════ */
 .help-tip-anchor {
   display: inline-flex;
@@ -21,22 +16,28 @@
   flex: none;
 }
 
+.content-header .help-tip-anchor {
+  /* The 44px hit area sits half over the title's gap, so the mark reads as part of the title. */
+  margin-inline-start: -14px;
+}
+
 .help-tip {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: 44px;
+  height: var(--mos-control-height);
   padding: 0;
   margin: 0;
   box-sizing: border-box;
   background: transparent;
   font-family: inherit;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
+  border: 0;
+  border-radius: var(--radius-round);
   color: var(--muted-foreground);
-  font-size: var(--font-size-overline);
+  font-size: var(--mos-size-1);
+  font-weight: 600;
   line-height: 1;
   cursor: help;
   flex: none;
@@ -44,15 +45,23 @@
 .help-tip::before {
   content: '';
   position: absolute;
-  inset: -16px;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  width: var(--mos-icon-sm);
+  height: var(--mos-icon-sm);
+  translate: -50% -50%;
+  box-sizing: border-box;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-xs);
+  pointer-events: none;
 }
 .help-tip[aria-expanded='true'] {
-  border-color: var(--ring);
   color: var(--foreground);
 }
+.help-tip[aria-expanded='true']::before { border-color: var(--ring); }
 .help-tip:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: var(--mos-focus-offset);
 }
 
 /* The panel is position:fixed and its top/left are measured in JS from the
@@ -64,13 +73,13 @@
   position: fixed;
   z-index: var(--z-popover);
   box-sizing: border-box;
-  padding: 10px 12px;
+  padding: var(--mos-row-pad-y) var(--mos-row-pad-x);
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--popover, var(--card));
   color: var(--popover-foreground, var(--foreground));
   box-shadow: var(--shadow-overlay);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
   line-height: 1.45;
   text-align: start;
   font-weight: 400;

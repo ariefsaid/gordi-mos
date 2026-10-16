@@ -1,0 +1,58 @@
+/* Stock comparison item panel. Geometry from the density tokens, type from the role tokens, colour from the round-1 palette.
+   Global class names (`scmp-`): below the split width the shared host mounts the panel in a portal, outside the page. */
+.scmp-panel__body { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); min-width: 0; padding: var(--mos-gutter); overflow: auto; overflow-wrap: anywhere; }
+.scmp-panel__back {
+  align-self: flex-start; min-height: var(--mos-control-height); margin: 0 0 0 calc(-1 * var(--mos-space-2)); padding: 0 var(--mos-space-2); border: 0; border-radius: var(--radius-sm);
+  background: none; color: var(--mos-accent); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); cursor: pointer;
+}
+.scmp-panel__back:hover { color: var(--mos-accent-hover); text-decoration: underline; text-underline-offset: 3px; }
+.scmp-panel__back:focus-visible, .scmp-panel__title:focus-visible, .scmp-panel__link:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.scmp-panel__title { margin: 0; color: var(--mos-ink); font: var(--mos-type-group); }
+.scmp-panel__scope { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap); margin: 0; color: var(--mos-muted); font: var(--mos-type-body); }
+.scmp-panel__flags { display: flex; flex-wrap: wrap; gap: var(--mos-inline-gap); margin: 0; }
+.scmp-panel__flags:empty { display: none; }
+.scmp-panel__note { margin: 0; color: var(--mos-muted); font: var(--mos-type-body); }
+.scmp-panel__section { display: flex; flex-direction: column; gap: var(--mos-inline-gap); padding-top: var(--mos-group-above); border-top: 1px solid var(--mos-line); }
+.scmp-panel__section-title { margin: 0; color: var(--mos-ink); font: var(--mos-type-label); }
+.scmp-panel__link {
+  display: inline-flex; align-items: center; align-self: flex-start; min-height: var(--mos-control-height);
+  color: var(--mos-accent); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); text-decoration: none;
+}
+.scmp-panel__link:hover { color: var(--mos-accent-hover); text-decoration: underline; text-underline-offset: 3px; }
+
+/* The two dated figures and the gap between them. */
+.scmp-figures { display: grid; margin: 0; border-top: 1px solid var(--mos-line); }
+.scmp-figure { display: grid; grid-template-columns: minmax(7rem, 1fr) minmax(0, 2fr); gap: var(--mos-row-gap); padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--mos-line); }
+.scmp-figure dt { color: var(--mos-muted); font: var(--mos-type-label); }
+.scmp-figure dd { display: flex; flex-direction: column; gap: var(--mos-label-gap); min-width: 0; margin: 0; color: var(--mos-ink); font: var(--mos-type-body); }
+.scmp-figure__value { font: var(--mos-type-control); font-variant-numeric: var(--mos-numeric); }
+.scmp-meta { display: block; color: var(--mos-muted); font: var(--mos-type-meta); }
+
+/* Count history */
+.scmp-range { display: grid; grid-template-columns: repeat(2, minmax(0, 12rem)) auto; justify-content: start; align-items: end; gap: var(--mos-toolbar-gap); }
+.scmp-range__error { grid-column: 1 / -1; margin: 0; color: var(--mos-error-text); font: var(--mos-type-label); }
+.scmp-history { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.scmp-history__row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--mos-row-gap); align-items: center; min-height: var(--mos-row-min);
+  padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--mos-line); font: var(--mos-type-body);
+}
+.scmp-history__date { font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); }
+.scmp-history__qty { text-align: end; font-variant-numeric: var(--mos-numeric); }
+.scmp-qty { font-variant-numeric: var(--mos-numeric); }
+
+@media (max-width: 767.98px) {
+  .scmp-panel__body { padding: var(--mos-space-4); }
+  .scmp-figure { grid-template-columns: minmax(0, 1fr); gap: var(--mos-label-gap); }
+  .scmp-range { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scmp-range__apply { grid-column: 1 / -1; width: 100%; }
+  .scmp-history__row { grid-template-columns: minmax(0, 1fr) auto; }
+  .scmp-history__qty { grid-column: 1 / -1; text-align: start; }
+}
+
+/* The Count history range: one line saying the dates; the labelled From / To fields open from it. */
+.scmp-range-details > summary {
+  display: flex; align-items: center; min-height: var(--mos-control-height); color: var(--mos-accent); font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); cursor: pointer;
+}
+.scmp-range-details > summary:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.scmp-range-details[open] > summary { margin-bottom: var(--mos-inline-gap); }
+.scmp-range-details:not([open]) > :not(summary) { display: none; }

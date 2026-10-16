@@ -2,14 +2,17 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding-block: 16px;
+  gap: var(--mos-toolbar-gap);
+  padding-block: var(--mos-field-gap);
 }
+
+.list-paging--bare { display: contents; }
+.list-paging--bare .list-paging__error--hidden { display: none; }
 
 .list-paging p {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: var(--font-size-body);
+  font-size: var(--mos-size-3);
 }
 
 .list-paging__continue {
@@ -30,6 +33,6 @@
 
 @media (pointer: coarse), (max-width: 768px) {
   .list-paging .btn {
-    min-height: 44px;
+    min-height: var(--mos-control-height);
   }
 }

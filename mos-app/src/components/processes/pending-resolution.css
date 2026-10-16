@@ -1,13 +1,11 @@
 /* PendingResolution (Step 6 / AC-624) — a thin candidate-choice panel over the DS tokens. */
 .pending-resolution-title {
-  font-size: var(--font-size-body-lg); font-weight: 600; color: var(--foreground); margin: 0 0 8px;
+  font-size: var(--mos-size-3); font-weight: 600; color: var(--foreground); margin: 0 0 8px;
 }
 .pending-resolution-candidates {
-  display: flex; flex-wrap: wrap; gap: 8px;
+  display: flex; flex-wrap: wrap; gap: var(--mos-inline-gap);
 }
-/* CQ IMPORTANT-1 — inline resolve-failure state (choose() catch). Tightened padding vs the
-   block-level .error-state default: this sits inside a thin candidate-choice panel, not a
-   full pane. */
+/* CQ IMPORTANT-1 — inline resolve-failure state (choose() catch), inside a thin candidate-choice panel. */
 .pending-resolution-error.error-state {
-  margin-top: 8px; padding: 8px 0;
+  margin: 8px 0 0;
 }

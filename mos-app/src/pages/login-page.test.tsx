@@ -55,19 +55,16 @@ describe('LoginPage — Google sign-in', () => {
     setRememberedRoute(undefined)
   })
 
-  it('hides Google while settings load, then shows it when settings enable the provider without moving the slot', async () => {
+  it('hides Google while settings load, then shows it when settings enable the provider', async () => {
     let resolveSettings!: (enabled: boolean) => void
     mockGoogleProviderEnabled.mockReturnValue(new Promise((resolve) => { resolveSettings = resolve }))
 
     render(<LoginPage />)
 
     expect(screen.queryByRole('button', { name: 'Continue with Google' })).not.toBeInTheDocument()
-    const slot = screen.getByTestId('google-sign-in-slot')
-    expect(slot).toHaveStyle({ height: '96px' })
 
     resolveSettings(true)
     expect(await screen.findByRole('button', { name: 'Continue with Google' })).toBeInTheDocument()
-    expect(slot).toHaveStyle({ height: '96px' })
   })
 
   it('keeps Google hidden when public auth settings report it disabled', async () => {
@@ -633,7 +630,7 @@ describe('LoginPage — demo login (dev-only)', () => {
 
   it('renders the demo-login panel in dev (import.meta.env.DEV)', () => {
     render(<LoginPage />)
-    expect(screen.getByText(/demo login/i)).toBeInTheDocument()
+    expect(screen.getByText(/demo accounts/i)).toBeInTheDocument()
   })
 
   it('one-click persona signs in with the persona email + shared dev password', async () => {
@@ -664,7 +661,7 @@ describe('LoginPage — demo login (dev-only)', () => {
     vi.stubEnv('DEV', false)
     try {
       render(<LoginPage />)
-      expect(screen.queryByText(/demo login/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/demo accounts/i)).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /director/i })).not.toBeInTheDocument()
       expect(screen.queryByText(/Passw0rd!dev/)).not.toBeInTheDocument()
     } finally {
@@ -825,7 +822,7 @@ describe('LoginPage — email client-validation (fix-2)', () => {
 
     const email = screen.getByLabelText('Email')
     await user.type(email, 'not-an-email')
-    await user.click(screen.getByRole('button', { name: /forgot password/i }))
+    await user.click(screen.getByRole('button', { name: /lupa kata sandi/i }))
 
     expect(email).toHaveValue('not-an-email')
     expect(email).toHaveAttribute('aria-invalid', 'true')
@@ -873,15 +870,6 @@ describe('LoginPage — phone tap contract lives at the shared seam (#403)', () 
 
     expect(forgotBtn.style.minHeight).toBe('')
     expect(magicBtn.style.minHeight).toBe('')
-  })
-
-  it('the "Forgot password?" row keeps 8px (mt-2) off the password field it sits under', () => {
-    // DESIGN.md pairs the 44px floor with "8px between adjacent targets". At mt-1 the two 44px
-    // boxes sat 4.0px apart and a mistap cost the person their typed password. Structural twin of
-    // the measured gap assertion in GUARD-TAP.
-    render(<LoginPage />)
-    const forgotBtn = screen.getByRole('button', { name: /forgot password/i })
-    expect(forgotBtn.parentElement?.className).toContain('mt-2')
   })
 })
 

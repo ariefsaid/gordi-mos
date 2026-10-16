@@ -1,6 +1,7 @@
 import { useLocation } from 'react-router-dom'
 import { sectionForPath } from './sections'
-import { destinationForPath, allModules, phoneModuleForViewer } from './destinations'
+import { destinationForPath, admittedModules, pageCount, pageGroupsFor, phoneModuleForViewer } from './module-registry'
+import { useNavLayout } from './use-nav'
 import { useBreadcrumbTitle, useCollectionLeaf, useBoundaryLabel } from './breadcrumb-title'
 import { useIsNarrow } from './use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
@@ -17,13 +18,22 @@ export function Breadcrumb() {
   const dynamicTitle = useBreadcrumbTitle()
   const auth = useAuth()
   const isNarrow = useIsNarrow()
+  const layout = useNavLayout()
   const t = useT()
   const collectionLeaf = useCollectionLeaf()
   const boundaryLabel = useBoundaryLabel()
 
   const destination = destinationForPath(pathname)
-  // No destination → nothing to show (unknown/404 path — FIX-4 preserved).
-  if (!destination) return null
+  // No destination: nothing to show, unless the page names itself (the not-found page does, so the top
+  // bar still says where you are on an unknown path).
+  if (!destination) {
+    if (!boundaryLabel) return null
+    return (
+      <span className="top-bar__breadcrumb-content">
+        <b className="truncate top-bar__breadcrumb-leaf text-foreground font-semibold" title={boundaryLabel} aria-current="page">{boundaryLabel}</b>
+      </span>
+    )
+  }
 
   // Rule 5 (I7 — "rail owns it; breadcrumb leaf when the viewer has no rail entry"): whichever
   // location-owning nav surface is on screen for this width takes precedence; the breadcrumb
@@ -33,24 +43,32 @@ export function Breadcrumb() {
   let leafCarriesCurrent: boolean
   if (isNarrow) {
     // Phone: the bottom-tab-bar is the location-owning surface, and it covers only Home · Work
-    // (+ every /work/* child) · the viewer's promoted module · Inbox. The More button is a
+    // (+ every /work/* child) · the viewer's promoted module. The More button is a
     // door, not a location — it no longer claims aria-current (that was the Rule-5 defect this
     // rebuild fixes). Every other live destination (Signals, Money, Admin, Profile, a
     // non-promoted module) has no tab, so the breadcrumb leaf owns it.
     const promoted = viewer ? phoneModuleForViewer(viewer.affiliated, viewer.accessRoles, pathname) : null
-    const tabIds = new Set(['home', 'work', 'inbox', ...(promoted ? [promoted.id] : [])])
+    const tabIds = new Set(['home', 'work', ...(promoted ? [promoted.id] : [])])
     leafCarriesCurrent = !tabIds.has(destination.id)
   } else {
-    // Desktop: the rail renders every live workspace destination, Admin at its foot, and the
-    // viewer's affiliated modules (OD-REDESIGN-68). Two gaps: a modules-zone route the viewer
-    // has no rail entry for (an admin visiting /cafe directly), and Personal Profile, which
-    // lives in the identity menu rather than the rail (OD-WAY-77).
+    // Desktop: the nav marks the current PAGE with aria-current="page" wherever it lists that page. The breadcrumb
+    // leaf takes it for what the nav does not list: Inbox (it is the bell, with no menu row), a module the viewer
+    // is not admitted to, and — in the folded 64px rail, where pages sit behind a closed flyout — any area
+    // that has pages.
+    const roles = viewer?.accessRoles ?? []
+    const landing = destination.primaryPath ?? destination.links[0].path
+    const hasPages = pageCount(pageGroupsFor(destination, roles)) >= 2 || destination.id === 'work'
+    // The area's own row is the page when its landing is open; any deeper route has no row of its own to hold "page".
     leafCarriesCurrent =
-      destination.id === 'profile' ||
-      (destination.zone === 'modules' &&
-        viewer != null &&
-        !allModules(viewer.accessRoles).some((m) => m.id === destination.id))
+      destination.id === 'inbox' ||
+      (destination.id === 'profile' && pathname !== landing) ||
+      (destination.zone === 'modules' && viewer != null && !admittedModules(roles).some((m) => m.id === destination.id)) ||
+      (layout.compact && hasPages && pathname !== landing)
   }
+
+  // A self-named page under a known section that is not itself a section page (an unknown /work/xyz)
+  // has no nav row to hold "page", so the leaf does.
+  if (boundaryLabel && sectionForPath(pathname) === null) leafCarriesCurrent = true
 
   // A denied deep link is named ONCE, by the panel, and the trail says the same word: the crumb
   // must not print the screen the boundary withholds (`People` over an `Admin Settings` panel) nor
@@ -65,8 +83,7 @@ export function Breadcrumb() {
     // Work child label (Signals/Tasks/Projects & Processes/Objectives) — record routes
     // resolve to their owning child (e.g. /work/tasks/123 → Tasks).
     const child = sectionForPath(pathname)
-    const childLabel = child ? (child.labelKey ? t(child.labelKey) : child.label) : t('nav.tasks')
-    crumbs.push(childLabel)
+    if (child) crumbs.push(child.labelKey ? t(child.labelKey) : child.label)
     if (pathname === '/work/tasks/new') {
       crumbs.push(t('tasks.create.new')) // OD-71i verb family
     } else if (dynamicTitle) {
@@ -78,17 +95,33 @@ export function Breadcrumb() {
       }
     }
   } else if (destination.id === 'cafe') {
-    // /cafe and /cafe/log are the module default → bare "Café"; other sub-routes get a leaf.
+    // /cafe and /cafe/log are the module default → bare "Café"; job-tab routes retain their
+    // parent job in the trail so the selected view has a clear context and return path.
     if (pathname !== '/cafe' && pathname !== '/cafe/log') {
+      const parentPath = pathname.startsWith('/cafe/receive/') ? '/cafe/receive'
+        : pathname.startsWith('/cafe/request/') ? '/cafe/request'
+          : null
+      if (parentPath) {
+        const parent = sectionForPath(parentPath)
+        if (parent) crumbs.push(parent.labelKey ? t(parent.labelKey) : parent.label)
+      }
       const sec = sectionForPath(pathname)
       if (sec) crumbs.push(sec.labelKey ? t(sec.labelKey) : sec.label)
-      if (dynamicTitle) crumbs.push(dynamicTitle)
+      // A Café page that titles itself with its own job name (Receive, Count, ...) must not repeat it.
+      if (dynamicTitle && dynamicTitle !== crumbs[crumbs.length - 1]) crumbs.push(dynamicTitle)
     }
   } else if (destination.id === 'money' && pathname.startsWith('/money/branch/') && dynamicTitle) {
     crumbs.push(dynamicTitle)
+  } else if (destination.id === 'money' && pathname.startsWith('/money/') && !pathname.startsWith('/money/branch/')) {
+    // A Money leaf page (Pending bills, ...) names itself after Money, as a branch page does.
+    const sec = sectionForPath(pathname)
+    if (sec && sec.path !== '/money') crumbs.push(sec.labelKey ? t(sec.labelKey) : sec.label)
   } else if (destination.id === 'admin') {
     const sec = sectionForPath(pathname)
     if (sec) crumbs.push(sec.labelKey ? t(sec.labelKey) : sec.label)
+    if (dynamicTitle) crumbs.push(dynamicTitle) // an open person
+  } else if (destination.id === 'profile' && pathname.startsWith('/profile/connected-agents')) {
+    crumbs.push(t('agentConnections.self.title'))
   }
   // home / events (Signals) / inbox / profile / ecommerce / roastery → bare destLabel.
 
@@ -101,7 +134,7 @@ export function Breadcrumb() {
   const leaf = isNarrow && collectionLeafShown ? crumbs[crumbs.length - 2] : crumbs[crumbs.length - 1]
   if (isNarrow || crumbs.length === 1) {
     return (
-      <span className="top-bar__breadcrumb-content" style={{ fontSize: 'var(--font-size-body-lg)' }}>
+      <span className="top-bar__breadcrumb-content">
         <b className="truncate top-bar__breadcrumb-leaf text-foreground font-semibold" title={leaf} aria-current={leafCarriesCurrent ? 'page' : undefined}>
           {leaf}
         </b>
@@ -110,7 +143,7 @@ export function Breadcrumb() {
   }
 
   return (
-    <span className="top-bar__breadcrumb-content" style={{ fontSize: 'var(--font-size-body-lg)' }}>
+    <span className="top-bar__breadcrumb-content">
       {crumbs.slice(0, -1).map((label) => (
         <span key={label} className="top-bar__breadcrumb-fixed">
           <span className="text-muted-foreground">{label}</span>

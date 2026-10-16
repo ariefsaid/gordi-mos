@@ -1,15 +1,14 @@
 import { supabase } from '@/lib/supabase'
 import {
-  PRIVATE_PHOTO_MAX_BYTES,
+  
   PRIVATE_PHOTO_MAX_PHOTOS,
   PRIVATE_PHOTO_MIME_TYPES,
   prepareEvidencePhoto,
   type PrivatePhotoEvidence,
 } from './photo-evidence'
 
-export const WASTE_PHOTO_BUCKET = 'waste-photos'
+const WASTE_PHOTO_BUCKET = 'waste-photos'
 export const MAX_WASTE_PHOTOS = PRIVATE_PHOTO_MAX_PHOTOS
-export const MAX_WASTE_PHOTO_BYTES = PRIVATE_PHOTO_MAX_BYTES
 export const WASTE_PHOTO_UPLOAD_WINDOW_MINUTES = 15
 export const WASTE_PHOTO_UPLOAD_WINDOW_MS = WASTE_PHOTO_UPLOAD_WINDOW_MINUTES * 60 * 1000
 export const WASTE_PHOTO_MIME_TYPES = PRIVATE_PHOTO_MIME_TYPES

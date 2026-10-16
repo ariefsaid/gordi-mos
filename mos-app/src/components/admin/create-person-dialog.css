@@ -1,23 +1,35 @@
-.create-person-dialog {
-  display: flex;
-  flex-direction: column;
-}
+/* Create person: a full page on desktop and phone (workspace) or a dialog; the same form either way. */
+.create-person-dialog { display: flex; flex-direction: column; }
+.create-person-dialog__form { display: flex; flex-direction: column; min-height: 0; max-height: calc(100dvh - 32px); }
+.create-person-dialog__header, .create-person-dialog__footer { flex: none; }
+.create-person-dialog__header { padding: var(--mos-gutter) var(--mos-gutter) var(--mos-panel-pad); }
+.create-person-dialog__title { margin: 0; color: var(--mos-ink); font: var(--mos-type-group); }
+.create-person-dialog__subtitle { margin: var(--mos-space-1) 0 0; color: var(--mos-muted); font: var(--mos-type-body); }
+.create-person-dialog__rule { border-top: 1px solid var(--mos-line); }
+.create-person-dialog .create-person-dialog__footer { padding-inline: var(--mos-space-6); }
+.create-person-dialog__reveal { padding: var(--mos-space-6); }
+.create-person-dialog__body { display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--mos-field-gap); min-height: 0; padding: var(--mos-group-above) var(--mos-gutter); overflow-y: auto; overscroll-behavior: contain; }
+.create-person-workspace { max-width: 880px; margin: 0; }
+.create-person-workspace .create-person-dialog__form { max-height: none; }
+.create-person-workspace .create-person-dialog__header, .create-person-workspace .create-person-dialog__rule { display: none; }
+.create-person-workspace .create-person-dialog__body { overflow: visible; padding-inline: 0; }
 
-.create-person-dialog__form {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  max-height: calc(100dvh - 32px);
-}
-
-.create-person-dialog__header,
-.create-person-dialog__footer {
-  flex: none;
-}
-
-.create-person-dialog__body {
-  min-height: 0;
-  flex: 1 1 auto;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+/* Fields. */
+.create-person__field { display: flex; flex-direction: column; gap: var(--mos-label-gap); }
+.create-person__error { margin: 0; color: var(--mos-error-text); font: var(--mos-type-label); }
+.create-person__option .admin-check-row__label { padding-inline: 0; }
+.create-person__option .admin-check-row__label:hover { background: transparent; }
+.create-person__signin-name { padding: var(--mos-space-2) var(--mos-space-3); border-radius: var(--radius-sm); background: var(--mos-band); }
+.create-person__signin-label { color: var(--mos-muted); font: var(--mos-type-label); }
+.create-person__signin-value { display: block; margin-top: var(--mos-space-1); color: var(--mos-ink); font: var(--mos-type-body); font-family: var(--font-mono); }
+.create-person__access { display: flex; flex-direction: column; gap: var(--mos-label-gap); min-width: 0; margin: 0; padding: 0; border: 0; }
+.create-person__access legend { margin-bottom: var(--mos-space-1); padding: 0; }
+.create-person__login { display: flex; flex-direction: column; gap: var(--mos-label-gap); }
+.create-person__login-row { display: flex; align-items: center; gap: var(--mos-row-gap); min-height: var(--mos-control-height); cursor: pointer; user-select: none; }
+.create-person__login-row--locked { color: var(--mos-muted); cursor: not-allowed; }
+.create-person__login-label { color: var(--mos-ink); font: var(--mos-type-control); }
+.create-person__login-help { margin: 0; padding-inline-start: calc(28px + var(--mos-space-3)); color: var(--mos-muted); font: var(--mos-type-subnav); }
+@media (max-width: 767.98px) {
+  .create-person-workspace { width: 100%; max-width: none; }
+  .create-person__login-help { padding-inline-start: 0; }
 }

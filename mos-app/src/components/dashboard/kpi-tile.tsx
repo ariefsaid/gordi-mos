@@ -15,7 +15,7 @@ import { DQBadge, type DqState } from './dq-badge'
 import { FreshnessLabel } from './freshness-label'
 import './kpi-tile.css'
 
-export interface KPITileDelta {
+interface KPITileDelta {
   text: string
   tone: 'success' | 'destructive' | 'neutral'
   dot?: boolean

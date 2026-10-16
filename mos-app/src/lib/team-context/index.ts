@@ -9,28 +9,11 @@
 //   - Issue 6 RecordCollection: filterTasksByTeam / groupTaskIdsByTeam -> Tasks CollectionAdapter.
 //   - Café/Work DAL: resolveTeamContext + filterEffectiveMemberships replace due[0]/myTeams[0].
 
-export type {
-  EligibleTeam,
-  TeamContextCandidate,
-  TeamMembershipRow,
-  TeamContextResolution,
-} from './types'
-export { filterEffectiveMemberships, resolveTeamContext } from './eligible-teams'
-export {
-  classifyTaskTeamRehome,
-  buildRehomeReport,
-  formatRatifyLine,
-} from './task-team-rehome'
-export type {
-  LegacyTaskRow,
-  RehomeContext,
-  RehomeClassification,
-  RehomeUnresolvedReason,
-  RehomeReport,
-  RehomeResolvedRow,
-  RehomeUnresolvedRow,
-} from './task-team-rehome'
-export { deriveTaskTeamView, toViewerTeam } from './task-team-view'
-export type { TaskTeamView, ViewerTeam } from './task-team-view'
-export { filterTasksByTeam, groupTaskIdsByTeam } from './task-team-filter'
-export type { TeamScopedTask } from './task-team-filter'
+
+export {  resolveTeamContext } from './eligible-teams'
+
+
+export { deriveTaskTeamView,  } from './task-team-view'
+export type { TaskTeamView,  } from './task-team-view'
+
+

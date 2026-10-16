@@ -4,7 +4,6 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { Pill } from '@/components/ui/pill'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import {
-  INBOX_FILTERS,
   isHandled,
   type InboxFilter,
   type TriageNotificationRow,
@@ -13,9 +12,13 @@ import { nudgeAgeDays } from './nudge-semantics'
 // #583: the compact "2h"/"3d" age grammar Activity already renders (task-formatters.ts) — reused
 // here rather than inventing a second created-time format for the same row shape.
 import { formatAge } from '@/components/tasks/task-formatters'
-import { attentionLabel } from '@/components/signals/signal-attention-label'
-import { attentionSlug } from '@/lib/db/signals.types'
+import { formatWibWeekdayTime } from '@/lib/format/date'
+import { Link } from 'react-router-dom'
+import { StatusBadge, STATUS_MAP } from '@/components/ui/status-badge'
 import { deriveInboxRowPresentation, type InboxEntityType } from './inbox-row-presentation'
+import { inboxRedesignText } from '@/i18n/inbox-redesign'
+import type { MessageKey } from '@/i18n/messages'
+import { InboxQueueIndex } from './inbox-queue-index'
 
 /**
  * InboxTriage — the ONE chrome-free Inbox triage content surface (Issue 7). The same component
@@ -77,21 +80,15 @@ export type InboxTriageProps = {
   onSignInAgain?(): void
   /** Rows with an in-flight action; every affordance on that row is busy+disabled. */
   pendingActions?: Readonly<Record<string, InboxPendingAction>>
+  unavailable?: { notificationId: string; messageKey: MessageKey } | null
 }
 
 export type InboxPendingAction = 'open' | 'read' | 'handled'
 
-const SEVERITY_KEY = {
-  info: 'inbox.severity.info',
-  warning: 'inbox.severity.warning',
-  critical: 'inbox.severity.critical',
-} as const
-
-const FILTER_KEY: Record<InboxFilter, 'inbox.filter.all' | 'inbox.filter.unread' | 'inbox.filter.handled'> = {
-  all: 'inbox.filter.all',
-  unread: 'inbox.filter.unread',
-  handled: 'inbox.filter.handled',
-}
+// Inbox severity speaks the same attention words as Signals (Urgent · Needs attention · FYI) through
+// the one shared status map; there is no second vocabulary.
+const SEVERITY_STATUS = { info: 'fyi', warning: 'needsAttention', critical: 'urgent' } as const
+const ATTENTION_STATUS = { 'Urgent': 'urgent', 'Needs attention': 'needsAttention', 'FYI': 'fyi' } as const
 
 const ENTITY_KEY: Record<Exclude<InboxEntityType, 'unknown'>, 'inbox.target.type.signal' | 'inbox.target.type.task' | 'inbox.target.type.followUp'> = {
   signal: 'inbox.target.type.signal',
@@ -115,15 +112,15 @@ export function InboxTriage({
   onRetry,
   onSignInAgain,
   pendingActions,
+  unavailable,
 }: InboxTriageProps) {
   const t = useT()
   const { locale } = useI18n()
   const pending = new Map(Object.entries(pendingActions ?? {}))
+  const readSettled = state === 'ready' || state === 'empty'
   // One render-time boundary for every row (AC-141-3): a single shared `now` means every row's
   // day-bucket is judged against the SAME local midnight, so the queue can't disagree with itself.
   const now = new Date()
-  const filters = INBOX_FILTERS.filter((f) => f !== 'handled' || handledFilterAvailable)
-
   // H7 fix (design audit, 2026-07-27): ↑/↓ moves focus between rows (Tab already reaches every
   // row one at a time — this is the fast path); 'R' marks the FOCUSED row read without opening it.
   // Scoped to keydowns that bubble from an actual row button, so it never hijacks the filter
@@ -150,25 +147,17 @@ export function InboxTriage({
 
   return (
     <div className="inbox-triage" data-mode={mode}>
-      <div className="inbox-triage__filters" role="group" aria-label={t('inbox.filter.label')}>
-        {filters.map((f) => (
-          <button
-            key={f}
-            type="button"
-            className="inbox-triage__filter"
-            aria-pressed={filter === f}
-            onClick={() => onFilterChange(f)}
-          >
-            {counts
-              ? t(hasMore ? 'inbox.filter.withLoadedCount' : 'inbox.filter.withCount', {
-                label: t(FILTER_KEY[f]),
-                count: counts[f],
-              })
-              : t(FILTER_KEY[f])}
-          </button>
-        ))}
+      <div className="inbox-toolbar">
+        {/* While the read is out or failed, no count and no "0 shown": a made-up zero reads as an empty inbox (SD5). */}
+        <InboxQueueIndex filter={filter} counts={readSettled ? counts : undefined} hasMore={hasMore} handledAvailable={handledFilterAvailable} onChange={onFilterChange} />
+        {readSettled ? (
+          <p className="inbox-triage__scope">
+            {inboxRedesignText(locale, 'loadedScope', { count: rows.length, more: hasMore ? inboxRedesignText(locale, 'moreAvailable') : '' })}
+            <span aria-hidden="true"> · </span>{inboxRedesignText(locale, 'sortOrder')}
+          </p>
+        ) : null}
       </div>
-
+      <section className="inbox-triage__queue" aria-label={t('inbox.title')}>
       {state === 'loading' ? (
         <LoadingShell count={4} label={t('inbox.title')} />
       ) : state === 'unauthorized' ? (
@@ -196,7 +185,7 @@ export function InboxTriage({
             {hiddenCount > 0 ? (
               <button
                 type="button"
-                className="inbox-triage__show-all"
+                className="btn btn-outline inbox-triage__show-all"
                 onClick={() => onFilterChange('all')}
               >
                 {t('inbox.emptyUnread.showAll')}
@@ -210,15 +199,21 @@ export function InboxTriage({
             copy={t('inbox.emptyPartial.copy')}
           />
         ) : (
-          <EmptyState variant="quiet" title={t('inbox.empty')} copy={t('inbox.emptyCopy')} />
+          <EmptyState
+            variant="quiet"
+            title={t('inbox.empty')}
+            copy={t('inbox.emptyCopy')}
+          >
+            {mode === 'page' ? (
+              <Link to="/work/tasks?view=my-work" className="btn btn-outline">
+                {inboxRedesignText(locale, 'viewTasks')}
+              </Link>
+            ) : null}
+          </EmptyState>
         )
       ) : (
         <>
-          {onQuickMarkRead ? (
-            <p className="inbox-triage__kbd-hint" aria-hidden="true">
-              {t('inbox.kbdHint')}
-            </p>
-          ) : null}
+          {onQuickMarkRead ? <p className="inbox-triage__kbd-hint">{inboxRedesignText(locale, 'keyboardHelp')}</p> : null}
           <ul className="inbox-list" aria-label={t('inbox.title')} onKeyDown={handleListKeyDown}>
             {rows.map((n) => {
               const unread = n.read_at == null
@@ -241,7 +236,6 @@ export function InboxTriage({
               const entityLabel = presentation.entityType !== 'unknown'
                 ? t(ENTITY_KEY[presentation.entityType])
                 : null
-              const attention = presentation.attention ? attentionLabel(t, presentation.attention) : null
               const sourceLine = presentation.isSignalRetraction
                 ? t('inbox.signalRetraction.reason', {
                   reason: presentation.reason ?? presentation.sourceLine ?? t('inbox.signalRetraction.reasonUnavailable'),
@@ -255,35 +249,31 @@ export function InboxTriage({
                     onClick={() => onOpen(n)}
                     disabled={isPending}
                     aria-busy={isPending || undefined}
-                    aria-label={`${actorTitle}${entityLabel ? `, ${entityLabel}` : ''}${attention ? `, ${attention}` : ''}${unread ? ' (unread)' : ''}${ageDays != null ? ` (${t('inbox.age.days', { count: ageDays })})` : ''}`}
                   >
                     <span
                       className={`inbox-row__dot inbox-row__dot--${n.severity}`}
-                      aria-label={t(SEVERITY_KEY[n.severity])}
+                      aria-label={t(STATUS_MAP[SEVERITY_STATUS[n.severity]].label)}
                     />
                     <span className="inbox-row__content">
+                      {/* The accessible name is the visible text plus a spoken prefix, so voice control can say what it sees (WCAG 2.5.3). */}
+                      <span className="sr-only">{inboxRedesignText(locale, 'openRecord')}{unread ? `, ${t('inbox.filter.unread')}` : ''}: </span>
                       <span className="inbox-row__titleline">
-                        <span className="inbox-row__title">{actorTitle}</span>
                         {entityLabel ? <span className="inbox-row__type">{entityLabel}</span> : null}
-                        {attention ? (
-                          <span className={`inbox-row__attention inbox-row__attention--${attentionSlug(presentation.attention!)}`}>
-                            {attention}
-                          </span>
-                        ) : null}
-                        {ageDays != null ? (
-                          <Pill tone="neutral" dot={false} className="inbox-row__age">
-                            {t('inbox.age.days', { count: ageDays })}
-                          </Pill>
-                        ) : null}
-                        <span className="inbox-row__time">{formatAge(n.created_at, now, locale)}</span>
+                        {presentation.attention ? <StatusBadge status={ATTENTION_STATUS[presentation.attention]} /> : n.severity !== 'info' ? <StatusBadge status={SEVERITY_STATUS[n.severity]} /> : null}
+                        {ageDays != null ? <Pill tone="neutral" dot={false} className="inbox-row__age">{t('inbox.age.days', { count: ageDays })}</Pill> : null}
+                        <span className="inbox-row__time">{formatWibWeekdayTime(n.created_at, locale)} · {formatAge(n.created_at, now, locale)}</span>
                       </span>
                       {sourceLine ? <span className="inbox-row__body">{sourceLine}</span> : null}
+                      <span className="inbox-row__attribution">{actorTitle}</span>
                     </span>
                   </button>
+                  {unavailable?.notificationId === n.id ? <p className="inbox-row__unavailable" role="status" aria-live="polite">{t(unavailable.messageKey)}</p> : null}
+                  <div className="inbox-row__actions">
+                    {unread && onQuickMarkRead ? <button type="button" className="btn btn-outline inbox-row__read" onClick={() => onQuickMarkRead(n)} disabled={isPending} aria-busy={isPending || undefined}>{inboxRedesignText(locale, 'markRead')}</button> : null}
                   {canHandle ? (
                     <button
                       type="button"
-                      className="inbox-row__handle"
+                      className="btn btn-outline inbox-row__handle"
                       onClick={() => onMarkHandled?.(n)}
                       disabled={isPending}
                       aria-busy={isPending || undefined}
@@ -291,6 +281,7 @@ export function InboxTriage({
                       {t('inbox.markHandled')}
                     </button>
                   ) : null}
+                  </div>
                 </li>
               )
             })}
@@ -304,6 +295,7 @@ export function InboxTriage({
           </div>
         </>
       )}
+      </section>
     </div>
   )
 }

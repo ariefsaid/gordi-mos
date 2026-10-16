@@ -34,11 +34,6 @@ describe('DQBadge', () => {
     expect(goodBlock).not.toContain('var(--success-foreground)')
   })
 
-  it('always carries a leading dot (status semantics, unlike BasisChip)', () => {
-    const { container } = render(<DQBadge dq="partial" />)
-    expect(container.querySelector('.dq-badge .dot')).not.toBeNull()
-  })
-
   it('renders "BOM coverage" as the accessible qualifier for each variant', () => {
     const { rerender } = render(<DQBadge dq="good" />)
     expect(screen.getByText(/good/i)).toBeInTheDocument()

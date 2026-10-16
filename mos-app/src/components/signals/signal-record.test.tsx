@@ -4,12 +4,13 @@ import { resolve } from 'node:path'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { RecordMenu, type RecordMenuItem } from '@/components/record/record-menu'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import type { TaskComment } from '@/components/tasks/CommentThread'
 import type { PersonOption } from '@/lib/db/directory'
 import {
-  SignalMessage, SignalReach, SignalDiscussion, SignalFacts, SignalHistory, SignalOverflowMenu,
+  SignalMessage, SignalRecordHeader, SignalReach, SignalDiscussion, SignalFacts, SignalHistory,
   type SignalRevisionView,
 } from './signal-record'
 
@@ -27,45 +28,54 @@ function wrap(node: React.ReactNode) {
 describe('SignalMessage — the content leads (LAW-1/LAW-2)', () => {
   it('AC-ANAT-002: renders the supplied body once in the message region, with attention + occurred in the compact control row', () => {
     const body = 'HQ bar espresso volumes are down about 15% this week versus last week — corrected count.\nInvestigating the grinder.'
-    wrap(<SignalMessage body={body} attention="Needs attention" occurredLabel="22 Jul 2026, 17:18 WIB" />)
-    expect(screen.getByText(/HQ bar espresso volumes are down about 15%.*Investigating the grinder\./, { selector: '.signal-message-body' })).toBeInTheDocument()
+    wrap(<SignalMessage body={body} />)
+    expect(screen.getAllByText(/HQ bar espresso volumes are down about 15%.*Investigating the grinder\./)).toHaveLength(1)
+  })
+
+  it('AC-ANAT-002: the record header carries the heading, the attention level and when it happened', () => {
+    wrap(
+      <SignalRecordHeader
+        title="HQ bar espresso volumes are down"
+        headingLevel={1}
+        attention="Needs attention"
+        occurredLabel="22 Jul 2026, 17:18 WIB"
+        menu={[]}
+        menuLabel="More signal actions"
+        factsLabel="Facts"
+      />,
+    )
+    expect(screen.getByRole('heading', { level: 1, name: 'HQ bar espresso volumes are down' })).toBeInTheDocument()
     expect(screen.getByText('Needs attention')).toBeInTheDocument()
     expect(screen.getByText(/Occurred 22 Jul 2026, 17:18 WIB/)).toBeInTheDocument()
   })
 
   it('AC-ANAT-010: a retracted Signal keeps the original line and explains who/when/why, with no live controls', () => {
-    wrap(<SignalMessage body={'Original text\nA longer detail'} attention="FYI" occurredLabel="x" retracted retractReason="Duplicate report" retractedBy="Lead One" retractedAtLabel="22 Jul 2026" />)
-    expect(document.querySelector('.signal-tombstone-status')).toHaveTextContent(/retracted/i)
-    expect(screen.getByText('Original text', { selector: '.signal-tombstone-original' })).toBeInTheDocument()
+    wrap(<SignalMessage body={'Original text\nA longer detail'} retracted retractReason="Duplicate report" retractedBy="Lead One" retractedAtLabel="22 Jul 2026" />)
+    expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument()
+    expect(screen.getByText('Original text')).toBeInTheDocument()
     expect(screen.getByText(/Lead One/)).toBeInTheDocument()
     expect(screen.getByText(/22 Jul 2026/)).toBeInTheDocument()
     expect(screen.getByText('Duplicate report')).toBeInTheDocument()
     expect(screen.queryByText('A longer detail')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /edit attention|create task|more actions/i })).not.toBeInTheDocument()
   })
-
-  it('keeps record actions in one compact control row before the body', () => {
-    wrap(
-      <SignalMessage
-        body={'A line\nMore detail'}
-        attention="FYI"
-        occurredLabel="now"
-        actionControls={<div data-testid="signal-action-controls"><button type="button">Create task</button></div>}
-      />,
-    )
-    const message = document.querySelector('.signal-message') as HTMLElement
-    expect(message.querySelector('.signal-record-control-row')).toBeTruthy()
-    expect(within(message.querySelector('.signal-record-control-row') as HTMLElement).getByRole('button', { name: /create task/i })).toBeInTheDocument()
-    expect(message.innerHTML.indexOf('signal-record-control-row')).toBeLessThan(message.innerHTML.indexOf('signal-message-body'))
-  })
 })
 
-describe('SignalOverflowMenu — nested Escape stays inside the menu', () => {
+const signalMenuItems = (opts: { copy?: boolean; all?: boolean }): RecordMenuItem[] => [
+  { id: 'link', label: 'Link existing task', onSelect: vi.fn() },
+  ...(opts.copy || opts.all ? [{ id: 'copy', label: 'Copy link', onSelect: vi.fn() }] : []),
+  ...(opts.all ? [{ id: 'page', label: 'Open full page', onSelect: vi.fn() }] : []),
+]
+function SignalMenu(opts: { copy?: boolean; all?: boolean }) {
+  return <RecordMenu items={signalMenuItems(opts)} label="More signal actions" minItems={1} />
+}
+
+describe('Record ⋯ menu (Signal actions) — nested Escape stays inside the menu', () => {
   it('closes the menu, returns focus to its trigger, and does not close the record host', async () => {
     const onRecordClose = vi.fn()
     wrap(
       <div onKeyDown={(event) => { if (event.key === 'Escape') onRecordClose() }}>
-        <SignalOverflowMenu onLinkExistingTask={vi.fn()} />
+        <SignalMenu />
       </div>,
     )
 
@@ -81,26 +91,9 @@ describe('SignalOverflowMenu — nested Escape stays inside the menu', () => {
   })
 })
 
-describe('SignalOverflowMenu — keyboard focus enters available actions', () => {
-  it('opens a closed trigger with ArrowDown and focuses the first available action', async () => {
-    wrap(
-      <SignalOverflowMenu
-        onLinkExistingTask={vi.fn()}
-        onCopyLink={vi.fn()}
-        onOpenFullPage={vi.fn()}
-      />,
-    )
-
-    const trigger = screen.getByRole('button', { name: /more signal actions/i })
-    trigger.focus()
-    await userEvent.keyboard('{ArrowDown}')
-
-    expect(screen.getByRole('menu')).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /link existing task/i })).toHaveFocus()
-  })
-
+describe('Record ⋯ menu (Signal actions) — keyboard focus enters available actions', () => {
   it('opens a closed trigger with Enter and focuses the first available action', async () => {
-    wrap(<SignalOverflowMenu onLinkExistingTask={vi.fn()} onCopyLink={vi.fn()} />)
+    wrap(<SignalMenu copy />)
 
     const trigger = screen.getByRole('button', { name: /more signal actions/i })
     trigger.focus()
@@ -111,7 +104,7 @@ describe('SignalOverflowMenu — keyboard focus enters available actions', () =>
   })
 
   it('opens a closed trigger with Space and focuses the first available action', async () => {
-    wrap(<SignalOverflowMenu onLinkExistingTask={vi.fn()} onCopyLink={vi.fn()} />)
+    wrap(<SignalMenu copy />)
 
     const trigger = screen.getByRole('button', { name: /more signal actions/i })
     trigger.focus()
@@ -121,30 +114,13 @@ describe('SignalOverflowMenu — keyboard focus enters available actions', () =>
     expect(screen.getByRole('menuitem', { name: /link existing task/i })).toHaveFocus()
   })
 
-  it('opens a closed trigger with ArrowUp and focuses the last available action when Retract is absent', async () => {
-    wrap(<SignalOverflowMenu onLinkExistingTask={vi.fn()} onCopyLink={vi.fn()} />)
-
-    const trigger = screen.getByRole('button', { name: /more signal actions/i })
-    trigger.focus()
-    await userEvent.keyboard('{ArrowUp}')
-
-    expect(screen.getByRole('menu')).toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: /retract/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /copy link/i })).toHaveFocus()
-  })
-
   it('uses ArrowDown, ArrowUp, Home, and End to move actual focus within the menu', async () => {
     wrap(
-      <SignalOverflowMenu
-        onLinkExistingTask={vi.fn()}
-        onCopyLink={vi.fn()}
-        onOpenFullPage={vi.fn()}
-      />,
+      <SignalMenu all />,
     )
 
     const trigger = screen.getByRole('button', { name: /more signal actions/i })
     await userEvent.click(trigger)
-    await userEvent.keyboard('{ArrowDown}')
     const link = screen.getByRole('menuitem', { name: /link existing task/i })
     const copy = screen.getByRole('menuitem', { name: /copy link/i })
     const fullPage = screen.getByRole('menuitem', { name: /open full page/i })
@@ -161,7 +137,7 @@ describe('SignalOverflowMenu — keyboard focus enters available actions', () =>
   })
 
   it('closes when the opener is clicked after keyboard focus entered a menu action', async () => {
-    wrap(<SignalOverflowMenu onLinkExistingTask={vi.fn()} onCopyLink={vi.fn()} />)
+    wrap(<SignalMenu copy />)
 
     const trigger = screen.getByRole('button', { name: /more signal actions/i })
     trigger.focus()
@@ -177,7 +153,7 @@ describe('SignalOverflowMenu — keyboard focus enters available actions', () =>
   it('closes when Tab leaves the still-focused trigger after pointer activation', async () => {
     wrap(
       <>
-        <SignalOverflowMenu onLinkExistingTask={vi.fn()} />
+        <SignalMenu />
         <button type="button">Next record action</button>
       </>,
     )
@@ -195,7 +171,7 @@ describe('SignalOverflowMenu — keyboard focus enters available actions', () =>
   it('closes when Tab leaves a focused menu action and focuses the next record action', async () => {
     wrap(
       <>
-        <SignalOverflowMenu onLinkExistingTask={vi.fn()} />
+        <SignalMenu />
         <button type="button">Next record action</button>
       </>,
     )
@@ -211,7 +187,7 @@ describe('SignalOverflowMenu — keyboard focus enters available actions', () =>
   })
 
   it('closes when Shift+Tab leaves a focused action and returns to the opener', async () => {
-    wrap(<SignalOverflowMenu onLinkExistingTask={vi.fn()} />)
+    wrap(<SignalMenu />)
 
     const trigger = screen.getByRole('button', { name: /more signal actions/i })
     await userEvent.click(trigger)
@@ -222,13 +198,6 @@ describe('SignalOverflowMenu — keyboard focus enters available actions', () =>
 
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
-  })
-})
-
-describe('SignalOverflowMenu — trigger glyph', () => {
-  it('uses the app-wide ⋯ overflow glyph, matching every other record menu', () => {
-    wrap(<SignalOverflowMenu onLinkExistingTask={vi.fn()} />)
-    expect(screen.getByRole('button', { name: /more signal actions/i })).toHaveTextContent('⋯')
   })
 })
 

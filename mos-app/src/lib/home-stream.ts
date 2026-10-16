@@ -32,11 +32,11 @@ import type { AttentionDirectory, AttentionItem, AttentionPic } from '@/lib/home
 
 export type { AttentionDirectory } from '@/lib/home-attention'
 
-export type StreamBandKind = 'signals' | 'overdue' | 'due-today' | 'blocked' | 'failed-checks' | 'my-work'
+type StreamBandKind = 'signals' | 'overdue' | 'due-today' | 'blocked' | 'failed-checks' | 'my-work'
 export type StreamBandState = 'loading' | 'ready' | 'error'
 
 /** The tone a reason chip carries — drives its i18n label + colour token. `days` is set for overdue. */
-export type StreamReasonTone = 'urgent' | 'attention' | 'overdue' | 'due' | 'blocked' | 'check'
+type StreamReasonTone = 'urgent' | 'attention' | 'overdue' | 'due' | 'blocked' | 'check'
 export interface StreamReason {
   tone: StreamReasonTone
   /** Whole days overdue (tone === 'overdue' only). */

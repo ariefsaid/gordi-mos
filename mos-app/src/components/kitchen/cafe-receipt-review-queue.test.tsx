@@ -74,7 +74,7 @@ describe('CafeReceiptReviewQueue', () => {
 
     renderQueue(streamKey(selectedStream.branch.id, selectedStream.activity), streamCatalog)
 
-    expect(await screen.findAllByText('Received by Shift member')).toHaveLength(50)
+    expect(await screen.findAllByRole('button', { name: /^Shift member/ })).toHaveLength(50)
     expect(listCafeUnsentReceipts).toHaveBeenCalledWith(selectedStream)
     expect(screen.queryByText('No receipts to review')).toBeNull()
     expect(screen.getByText('10 newer unsent receipts are not listed.')).toBeInTheDocument()
@@ -254,11 +254,11 @@ describe('CafeReceiptReviewQueue', () => {
       more: 7,
     })
     renderQueue()
-    const rows = await screen.findAllByRole('listitem')
-    const receiptRows = rows.filter(row => row.classList.contains('cafe-receipt-review__row'))
+    const queue = await screen.findByRole('navigation')
+    const receiptRows = within(queue).getAllByRole('button')
     expect(receiptRows).toHaveLength(51)
-    expect(within(receiptRows[0]).getByText('Received by Reviewer')).toBeInTheDocument()
-    expect(within(receiptRows[1]).getByText(/^Counted, not sent · locked/)).toBeInTheDocument()
+    expect(receiptRows[0]).toHaveTextContent('Reviewer')
+    expect(receiptRows[1]).toHaveTextContent(/Counted, not sent · locked/)
     expect(screen.getByText('7 newer unsent receipts are not listed.')).toBeInTheDocument()
   })
 })

@@ -1,0 +1,12 @@
+/* A person's Modules: the shared person-card rows, plus the preview Select and the disabled Save. Tokens only. */
+.person-modules__row { flex-wrap: wrap; }
+.person-modules__select { flex: 0 1 12rem; margin-inline-start: auto; }
+.person-modules__badge { margin: 0 0 var(--mos-space-2); }
+.person-modules__org-link { margin-top: var(--mos-space-1); min-height: var(--mos-control-height); }
+.person-modules__nc::before { content: '\2014\00a0\00b7\00a0'; }
+.person-modules__on { color: var(--mos-success-text); }
+.person-modules__save { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap) var(--mos-field-gap); margin-top: var(--mos-space-4); }
+
+@media (max-width: 767.98px) {
+  .person-modules__select { flex-basis: 100%; margin-inline-start: 0; }
+}

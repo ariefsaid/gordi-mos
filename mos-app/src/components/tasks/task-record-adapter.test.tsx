@@ -10,7 +10,6 @@ import { RecordViewer } from '@/components/records/record-viewer'
 import {
   createTaskRecordAdapter,
   createTaskFieldCommit,
-  teamOwnershipField,
   type TaskRecordAdapterInput,
 } from './task-record-adapter'
 import type { RecordFieldSpec, RecordViewerAdapter } from '@/components/records/record-viewer.types'
@@ -267,7 +266,7 @@ describe('createTaskRecordAdapter', () => {
     expect(team.displayValue).toBe('No team yet')
     expect(team.readOnlyReason).toBe('No team is assigned to this task yet.')
 
-    expect(fieldByKey(adapter, 'pic').label).toBe('Person in charge (PIC)')
+    expect(fieldByKey(adapter, 'pic').label).toBe('PIC')
     expect(fieldByKey(adapter, 'supervisor').label).toBe('Supervisor')
 
     // No RACI vocabulary leaks into any field key/label or content.
@@ -402,11 +401,11 @@ describe('createTaskRecordAdapter — AC-061 on the record: edit/archive follow 
       </I18nProvider>,
     )
     expect(container).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Person in charge (PIC)' }))
-    fireEvent.click(screen.getByRole('combobox', { name: 'Person in charge (PIC)' }))
+    fireEvent.click(screen.getByRole('button', { name: /Edit PIC$/ }))
+    fireEvent.click(screen.getByRole('combobox', { name: 'PIC' }))
     expect(screen.getAllByRole('option').map((o) => o.textContent?.trim())).toEqual(['Nico', 'Made Manager'])
     fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' })
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Supervisor' }))
+    fireEvent.click(screen.getByRole('button', { name: /Edit Supervisor$/ }))
     fireEvent.click(screen.getByRole('combobox', { name: 'Supervisor' }))
     expect(screen.getAllByRole('option').map((o) => o.textContent?.trim()))
       .toEqual(['Nico', 'Wayan Kusuma', 'Made Manager', 'Far Away'])
@@ -501,33 +500,38 @@ describe('createTaskRecordAdapter — context and overdue cue', () => {
   })
 })
 
-describe('teamOwnershipField — honest Team model and viewer-scoped options', () => {
+describe('Team ownership field — honest Team model and viewer-scoped options', () => {
+  const teamField = (over: Partial<TaskRecordAdapterInput> = {}) =>
+    fieldByKey(createTaskRecordAdapter(makeInput(over)), 'team')
+
   it('missing → plain unassigned state; real lookup → label', () => {
-    const missing = teamOwnershipField(null)
+    const missing = teamField()
     expect(missing.key).toBe('team')
     expect(missing.editable).toBe(false)
     expect(missing.displayValue).toBe('No team yet')
 
-    const real = teamOwnershipField({ id: 't-1', label: 'HQ Kitchen' })
+    const real = teamField({ team: { id: 't-1', label: 'HQ Kitchen' } })
     expect(real.value).toBe('t-1')
     expect(real.displayValue).toBe('HQ Kitchen')
     expect(real.editable).toBe(false)
   })
 })
 
-describe('teamOwnershipField — edit options (#1033)', () => {
+describe('Team ownership field — edit options (#1033)', () => {
   const HQ = { id: 't-1', label: 'HQ Kitchen' }
   const OPS = { id: 't-2', label: 'Ops' }
+  const teamField = (over: Partial<TaskRecordAdapterInput>) =>
+    fieldByKey(createTaskRecordAdapter(makeInput(over)), 'team')
 
   it('offers the current team even when the viewer\'s Team list omits it', () => {
-    const field = teamOwnershipField(HQ, undefined, true, [OPS])
+    const field = teamField({ team: HQ, teamOptions: [OPS] })
     expect(field.options?.map((o) => o.value)).toContain('t-1')
   })
 
   it('lists Teams first and the not-assigned placeholder last, never leading with it', () => {
-    const field = teamOwnershipField(HQ, undefined, true, [HQ, OPS])
+    const field = teamField({ team: HQ, teamOptions: [HQ, OPS] })
     expect(field.options?.map((o) => o.label)).toEqual(['HQ Kitchen', 'Ops', 'No team yet'])
-    expect(teamOwnershipField(null, undefined, true, [OPS]).options?.[0]).toEqual({ value: 't-2', label: 'Ops' })
+    expect(teamField({ team: null, teamOptions: [OPS] }).options?.[0]).toEqual({ value: 't-2', label: 'Ops' })
   })
 })
 

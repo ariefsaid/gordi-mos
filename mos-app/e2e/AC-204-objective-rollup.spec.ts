@@ -42,18 +42,17 @@ test.describe('AC-204: Objective roll-up and drill', () => {
     await page.goto(`work/objectives?q=${encodeURIComponent(AC204.objective.name)}`)
     await expect(page.getByRole('heading', { name: 'Objectives', level: 1 })).toBeVisible()
 
-    const row = page.locator('.catalog-collection__row', { hasText: AC204.objective.name })
-    await expect(row).toHaveCount(1)
+    // The search narrows the list to the one Objective, so its roll-up and its one real child
+    // (named, not counted) are the only ones on the page.
+    const objectives = page.getByRole('region', { name: 'Objectives', exact: true })
+    await expect(objectives.getByRole('link', { name: AC204.objective.name, exact: true })).toHaveCount(1)
 
-    // Count roll-up only — no target, no percentage, no measure (OD-WAY-32) — and the one real
-    // child's name, inline in the row's Work cell (named, not counted).
+    // Count roll-up only — no target, no percentage, no measure (OD-WAY-32).
     const { done, total } = AC204.counts.all
     // #1294 requires Objective roll-ups to name Tasks as the completion unit without changing the count.
-    await expect(row.getByTestId('catalog-progress')).toHaveText(`${done} / ${total} Tasks done`)
-    await expect(row).not.toContainText('%')
-    await expect(row.getByRole('cell', { name: `Projects & Processes: ${AC204.launch.name}`, exact: true })).toBeVisible()
-    await expect(row).toContainText(AC204.launch.name)
-    await expect(row).not.toContainText(/Projects & Processes: \d/)
+    await expect(objectives.getByText(`${done} / ${total} tasks done`, { exact: true })).toBeVisible()
+    await expect(objectives).not.toContainText('%')
+    await expect(objectives.getByRole('link', { name: AC204.launch.name, exact: true })).toHaveAttribute('href', href(`/work/projects/${AC204.launch.id}`))
 
     // Level 2 — the Objective's own canonical page lists a real door to the child record under
     // its Projects & Processes section.
@@ -62,7 +61,7 @@ test.describe('AC-204: Objective roll-up and drill', () => {
     const work = page.getByRole('region', { name: 'Projects & Processes', exact: true })
     const tasks = page.getByRole('region', { name: 'Tasks', exact: true })
     // The Objective total belongs to Tasks; Projects & Processes keeps each child's own progress.
-    await expect(tasks).toContainText(`${done} / ${total} Tasks done`)
+    await expect(tasks).toContainText(new RegExp(`${done} / ${total} tasks done`, 'i'))
     const child = work.getByRole('link', { name: AC204.launch.name, exact: true })
     await expect(child).toHaveAttribute('href', href(`/work/projects/${AC204.launch.id}`))
     await child.click()

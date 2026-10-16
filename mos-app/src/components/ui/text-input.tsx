@@ -9,15 +9,21 @@ import './TextInput.css'
 export interface TextInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   label?: string
   Icon?: ReactNode
+  /** A control after the field, inside the box (e.g. a show/hide toggle). It sets its own square size. */
+  trailing?: ReactNode
   error?: boolean
   fullWidth?: boolean
+  /** Shows the app's one required mark (a decorative "*") after the label; pair it with `required`. */
+  requiredMark?: boolean
 }
 
 export function TextInput({
   label,
   Icon,
+  trailing,
   error = false,
   fullWidth = false,
+  requiredMark = false,
   id,
   className,
   disabled,
@@ -35,7 +41,7 @@ export function TextInput({
 
   return (
     <div className={cls}>
-      {label && <label className="mk-textinput__label" htmlFor={inputId}>{label}</label>}
+      {label && <label className="mk-textinput__label" htmlFor={inputId}>{label}{requiredMark ? <span aria-hidden="true"> *</span> : null}</label>}
       <div className="mk-textinput__box">
         {Icon != null && <span className="mk-textinput__icon">{Icon}</span>}
         <input
@@ -45,6 +51,7 @@ export function TextInput({
           aria-invalid={error || undefined}
           {...rest}
         />
+        {trailing != null && <span className="mk-textinput__trailing">{trailing}</span>}
       </div>
     </div>
   )

@@ -1,14 +1,19 @@
+import { useSearchParamState } from '@/lib/use-search-param-state'
+import { CafeNoMatch } from '@/components/kitchen/cafe-no-match'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { ArrowRightIcon } from '@/shell/icons'
 import { useAuth } from '@/auth/use-auth'
-import { CafeCaptureQuantityControl, CafeCaptureTable, type CafeItemQuantityEntry } from '@/components/kitchen/cafe-capture-table'
+import { CaptureQuantityControl, CaptureRow, CaptureTable, type CafeItemQuantityEntry } from '@/components/kitchen/capture-row'
 import { CafeRequestHistory } from '@/components/kitchen/cafe-request-history'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
-import { DateField } from '@/components/ui/date-field'
+import { CafeRequestBrief } from '@/components/cafe/redesign/cafe-request-brief'
+import { Worksheet } from '@/components/cafe/redesign/worksheet'
+import { ActionBar } from '@/components/ui/action-bar'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canReviewCafe } from '@/lib/kitchen-gates'
@@ -22,11 +27,17 @@ import {
 import { wibToday } from '@/lib/db/cafe-opening'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
+import { cafeItemLabel } from '@/lib/cafe-item-label'
 import { isInvalidCafeItemEntry, useCafeItemCapture } from '@/lib/use-cafe-item-capture'
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { recordsHref } from '@/lib/cafe-records/url-state'
+import { streamLabel } from '@/lib/kitchen-action-label'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsOffline } from '@/shell/use-is-offline'
+import { RouteLeaveGuard } from '@/shell/route-leave-guard'
+import { Notice } from '@/components/ui/notice'
+import '@/components/ui/Disclosure.css'
 import './cafe-request-page.css'
 
 type Sent = { requiredBy: string; note: string; lines: Array<{ name: string; quantity: string; unit: string }> }
@@ -51,11 +62,17 @@ export function CafeRequestPage() {
   const isOnline = !useIsOffline()
   const today = useMemo(() => wibToday(), [])
   const dateBounds = cafePurchaseRequestRequiredByBounds(today)
-  const [requiredBy, setRequiredBy] = useState('')
+  // Needed by starts as tomorrow, the usual ask; the person changes it when it is different.
+  const tomorrow = useMemo(() => {
+    const next = new Date(`${today}T00:00:00Z`)
+    next.setUTCDate(next.getUTCDate() + 1)
+    return next.toISOString().slice(0, 10)
+  }, [today])
+  const [requiredBy, setRequiredBy] = useState(tomorrow)
   const [requiredByInvalid, setRequiredByInvalid] = useState(false)
   const [note, setNote] = useState('')
-  const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('All')
+  const [search, setSearch] = useSearchParamState('q', '')
+  const [category, setCategory] = useSearchParamState('category', 'All')
   const [clientKey, setClientKey] = useState(() => newCafeReceiptClientKey())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ReturnType<typeof sendErrorKey> | null>(null)
@@ -76,7 +93,7 @@ export function CafeRequestPage() {
   }, [canRequest, viewerId])
   useEffect(loadRecent, [loadRecent])
 
-  const hasInput = capture.hasQuantity || requiredBy !== '' || note.trim() !== ''
+  const hasInput = capture.hasQuantity || requiredBy !== tomorrow || note !== ''
   const dateProblem = requiredBy === '' ? 'cafe.request.requiredByMissing' as const
     : requiredByInvalid || requiredBy < dateBounds.min || requiredBy > dateBounds.max ? 'cafe.request.requiredByInvalid' as const
     : null
@@ -107,7 +124,7 @@ export function CafeRequestPage() {
         item_unit_id: entry.unitId,
         quantity,
       })))
-      setSent({ requiredBy, note: note.trim(), lines: lines.map(({ item, quantity, unitName }) => ({ name: item.name, quantity, unit: unitName })) })
+      setSent({ requiredBy, note: note.trim(), lines: lines.map(({ item, quantity, unitName }) => ({ name: cafeItemLabel(item), quantity, unit: unitName })) })
       loadRecent()
     } catch (cause) {
       const key = sendErrorKey(cause instanceof Error ? cause.message : '')
@@ -121,7 +138,7 @@ export function CafeRequestPage() {
 
   function startAnother() {
     setSent(null)
-    setRequiredBy('')
+    setRequiredBy(tomorrow)
     setNote('')
     setClientKey(newCafeReceiptClientKey())
     capture.resetEntries()
@@ -139,9 +156,20 @@ export function CafeRequestPage() {
   const pageState = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error' : busy ? 'saving' : 'default'
   const ready = loadState === 'ready' && stream !== null && canRequest
 
+  const instructions = (
+    <details className="cafe-request__scope-copy"><summary>{t('cafe.capture.instructions')}</summary>
+      <p>{t('cafe.request.help', { stream: streamLabel(t, stream) })}</p>
+      {hasInput && <p className="cafe-count__switch-note" role="status">{t('cafe.request.streamLocked')}</p>}
+    </details>
+  )
+
   return (
-    <CafePageFrame page="request" streamBar={streamBar} state={pageState}>
+    <CafePageFrame page="request" streamBar={streamBar} state={pageState}
+      recordsHref={recordsHref({ question: 'requested', reading: 'entries', stream: stream ? { branchId: stream.branch.id, activity: stream.activity } : null, today: wibToday() })}>
       <div className="cafe-capture-page cafe-count cafe-request">
+        {canReview && <nav className="cafe-capture-page-links" aria-label={t('cafe.request.linksAria')}>
+          <Link to="/cafe/review?queue=requests">{t('cafe.request.review.title')}<ArrowRightIcon /></Link>
+        </nav>}
         {loadState === 'loading' && <LoadingShell count={3} />}
         {loadState === 'error' && (
           <ErrorState
@@ -153,20 +181,13 @@ export function CafeRequestPage() {
         {loadState === 'ready' && !stream && (
           <CafeStreamChoices options={streamOptions} homeStream={homeStream} myStreamKeys={myStreamKeys} onChoose={chooseStream} />
         )}
-        {(canReview || (loadState === 'ready' && canRequest)) && (
-          <div className="cafe-request__top">
-            {loadState === 'ready' && canRequest && (
-              <CafeRequestHistory requests={recent} failed={recentFailed} onRetry={loadRecent} />
-            )}
-          </div>
-        )}
         {loadState === 'ready' && stream && !canRequest && (
-          <p className="cafe-count__notice" role="status">{t('cafe.request.readOnly')}</p>
+          <Notice tone="info">{t('cafe.request.readOnly')}</Notice>
         )}
         {ready && sent && (
-          <section className="cafe-receive__counted" aria-labelledby="cafe-request-sent-title">
+          <section className="cafe-request__result" aria-labelledby="cafe-request-sent-title">
             <h2 id="cafe-request-sent-title" ref={sentHeading} tabIndex={-1}>{t('cafe.request.sent.title')}</h2>
-            <p>{t('cafe.request.sent.copy')}</p>
+            <p>{t('cafe.request.sent.copy', { stream: streamLabel(t, stream) })}</p>
             <p className="cafe-request__sent-facts">
               {t('cafe.request.recent.neededBy', { date: formatWeekdayDayMonth(sent.requiredBy) })}
               {sent.note && <><br />{t('cafe.request.review.note', { note: sent.note })}</>}
@@ -184,36 +205,18 @@ export function CafeRequestPage() {
             </button>
           </section>
         )}
+        {ready && !sent && canRequest && (
+          <div className="cafe-request__history-top"><CafeRequestHistory requests={recent} failed={recentFailed} onRetry={loadRecent} /></div>
+        )}
         {ready && !sent && (
           <>
-            <div className="cafe-count__intro">
-              <p className="cafe-receive__help">{t('cafe.request.help')}</p>
-              {hasInput && <p className="cafe-count__switch-note" role="status">{t('cafe.request.streamLocked')}</p>}
-            </div>
-            <div className="cafe-request__fields">
-              <div className="cafe-request__field">
-                <div className="cafe-request__date-control">
-                  <DateField id="cafe-request-required-by" label={t('cafe.request.requiredBy')} value={requiredBy}
-                    min={dateBounds.min} max={dateBounds.max} fullWidth required disabled={busy}
-                    onValidityChange={setRequiredByInvalid} onChange={value => { setRequiredBy(value); setError(null) }} />
-                </div>
-              </div>
-              <div className="cafe-request__field">
-                <label htmlFor="cafe-request-note">{t('cafe.request.note')}</label>
-                <textarea
-                  id="cafe-request-note"
-                  rows={2}
-                  maxLength={500}
-                  value={note}
-                  disabled={busy}
-                  onChange={event => setNote(event.target.value)}
-                />
-              </div>
-            </div>
+            {isDesktop && instructions}
+            <div className="cafe-request__workspace">
             {items.length === 0 ? (
               <CafeItemsEmptyState stream={stream} requiresStockUnit />
             ) : (
               <>
+                <Worksheet label={t('cafe.request.listAria')} className="cafe-request__finder">
                 <KitchenToolbar
                   search={search}
                   onSearchChange={setSearch}
@@ -224,75 +227,90 @@ export function CafeRequestPage() {
                   onCategoryChange={setCategory}
                   searchPlaceholder={t('kitchen.log.searchPlaceholder')}
                   ariaLabel={t('kitchen.log.toolbarAria')}
+                  resultCount={{ shown: visibleItems.length, total: items.length }}
+                  sortLabel={t('cafe.toolbar.sorted.az')}
                 />
-                <CafeCaptureTable
+                <>
+                <CaptureTable
                   rows={visibleItems}
                   caption={t('cafe.request.listAria')}
-                  quantityHeader={t('cafe.request.quantityLabel')}
-                  isDesktop={isDesktop}
+                  columns={{ item: t('kitchen.log.col.item'), itemSort: 'asc', controls: [{ label: t('cafe.request.quantityLabel') }] }}
                   state={visibleItems.length > 0 ? 'ready' : 'empty'}
-                  emptyLabel={t('kitchen.filter.noMatch')}
-                  renderControls={item => {
+                  emptyLabel={<CafeNoMatch bare onClear={() => { setSearch(''); setCategory('All') }} />}
+                  renderRow={item => {
                     const invalid = isInvalidCafeItemEntry(entries[item.id])
                     const errorId = `cafe-request-${item.id}-quantity-error`
                     return (
-                      <CafeCaptureQuantityControl
-                        id={`cafe-request-${item.id}`}
-                        itemName={item.name}
-                        quantityFor={t('cafe.request.quantityFor', { item: item.name })}
-                        value={entries[item.id]?.quantity ?? ''}
-                        enterKeyHint="next"
-                        unitName={item.units.find(unit => unit.id === entries[item.id]?.unitId)?.name ?? ''}
-                        invalid={invalid}
-                        describedById={invalid ? errorId : undefined}
-                        disabled={busy}
-                        units={item.units}
-                        selectedUnitId={entries[item.id]?.unitId}
-                        changingUnit={entries[item.id]?.changingUnit}
-                        onQuantityChange={quantity => patchEntry(item.id, { quantity })}
-                        onToggleUnit={() => patchEntry(item.id, { changingUnit: !entries[item.id]?.changingUnit })}
-                        onUnitChange={unitId => patchEntry(item.id, { unitId })}
+                      <CaptureRow
+                        id={item.id}
+                        name={item.name}
+                        kind={new Set(items.map(entry => entry.kind)).size > 1 ? item.kind : null}
+                        category={new Set(items.map(entry => entry.category).filter(Boolean)).size > 1 ? item.category : null}
+                        controls={[{ node: (
+                          <CaptureQuantityControl
+                            id={`cafe-request-${item.id}`}
+                            itemName={item.name}
+                            quantityFor={t('cafe.request.quantityFor', { item: item.name })}
+                            value={entries[item.id]?.quantity ?? ''}
+                            enterKeyHint="next"
+                            unitName={item.units.find(unit => unit.id === entries[item.id]?.unitId)?.name ?? ''}
+                            invalid={invalid}
+                            describedById={invalid ? errorId : undefined}
+                            disabled={busy}
+                            units={item.units}
+                            selectedUnitId={entries[item.id]?.unitId}
+                            changingUnit={entries[item.id]?.changingUnit}
+                            onQuantityChange={quantity => patchEntry(item.id, { quantity })}
+                            onToggleUnit={() => patchEntry(item.id, { changingUnit: !entries[item.id]?.changingUnit })}
+                            onUnitChange={unitId => patchEntry(item.id, { unitId })}
+                          />
+                        ) }]}
+                        detail={invalid ? <p id={errorId} className="cafe-count__field-error" role="alert">{t('cafe.receive.quantityInvalid')}</p> : null}
                       />
                     )
                   }}
-                  renderFeedback={item => isInvalidCafeItemEntry(entries[item.id])
-                    ? <p id={`cafe-request-${item.id}-quantity-error`} className="cafe-count__field-error" role="alert">{t('cafe.receive.quantityInvalid')}</p>
-                    : null}
                 />
+                </>
+                </Worksheet>
               </>
             )}
+            <aside className="cafe-request__brief-slot">
+              <CafeRequestBrief
+                requiredBy={requiredBy} min={dateBounds.min} max={dateBounds.max} disabled={busy}
+                onValidityChange={setRequiredByInvalid}
+                onRequiredByChange={value => { setRequiredBy(value); setError(null) }}
+                note={note} onNoteChange={value => setNote(value)}
+                lines={lines.map(({ item, quantity, unitName }) => ({ id: item.id, name: cafeItemLabel(item), quantity, unit: unitName }))}
+                invalidItems={invalidCount > 0 ? <p className="cafe-request-brief__error">{t(invalidCount === 1 ? 'cafe.receive.fixInvalid.one' : 'cafe.receive.fixInvalid.other', { count: invalidCount })}: {items.filter(item => isInvalidCafeItemEntry(entries[item.id])).map(item => item.name).join(', ')}</p> : null}
+                dateProblem={lines.length > 0 ? dateProblem : null}
+              />
+            </aside>
+            </div>
+            {!isDesktop && instructions}
           </>
         )}
-        {canReview && <nav className="cafe-capture-page-links" aria-label={t('cafe.request.linksAria')}>
-          <Link to="/cafe/request/review">{t('cafe.request.review.title')}</Link>
-        </nav>}
         {ready && !sent && items.length > 0 && (
-          <div className="cafe-capture-footer cafe-count__footer">
-            <div className="cafe-receive__band-status">
-              <p className="cafe-count__tally" aria-live="polite">
-                {t(lines.length === 1 ? 'cafe.receive.lines.one' : 'cafe.receive.lines.other', { count: lines.length })}
-              </p>
-              {!isOnline ? (
-                <p className="cafe-count__field-error" role="status">{t('cafe.request.offline')}</p>
-              ) : invalidCount > 0 ? (
-                <p className="cafe-count__field-error" role="status">
-                  {t(invalidCount === 1 ? 'cafe.receive.fixInvalid.one' : 'cafe.receive.fixInvalid.other', { count: invalidCount })}
-                </p>
-              ) : lines.length > 0 && dateProblem && (
-                <p className="cafe-count__field-error" role="status">{t(dateProblem)}</p>
-              )}
-              {error && isOnline && <p className="cafe-count__field-error" role="alert">{t(error)}</p>}
-            </div>
-            <button
-              type="button"
-              className="btn btn-primary cafe-count__submit"
-              disabled={!canSend}
-              onClick={() => void handleSend()}
-            >
+          <ActionBar
+            className="cafe-capture-footer"
+            alert={error && isOnline ? <p className="cafe-count__field-error" role="alert">{t(error)}</p> : undefined}
+            summary={<span aria-live="polite">{t(lines.length === 1 ? 'cafe.receive.lines.one' : 'cafe.receive.lines.other', { count: lines.length })}{requiredBy && !dateProblem ? ` · ${t('cafe.request.recent.neededBy', { date: formatWeekdayDayMonth(requiredBy) })}` : ''}</span>}
+            reason={!isOnline ? (
+              <span className="cafe-count__field-error" role="status">{t('cafe.request.offline')}</span>
+            ) : invalidCount > 0 ? (
+              <span className="cafe-count__field-error" role="status">
+                {t(invalidCount === 1 ? 'cafe.receive.fixInvalid.one' : 'cafe.receive.fixInvalid.other', { count: invalidCount })}
+              </span>
+            ) : lines.length > 0 && dateProblem ? (
+              <span className="cafe-count__field-error" role="status">{t(dateProblem)}</span>
+            ) : lines.length === 0 && !busy ? (
+              <span className="cafe-count__bar-status" role="status">{t(requiredBy === '' ? 'cafe.request.needsQuantityAndDate' : 'cafe.capture.needsQuantity')}</span>
+            ) : undefined}
+            primary={<button type="button" className="btn btn-primary cafe-count__submit" disabled={!canSend} onClick={() => void handleSend()}>
               {busy ? t('common.working') : t('cafe.request.send')}
-            </button>
-          </div>
+            </button>}
+          />
         )}
+        <RouteLeaveGuard when={ready && !sent && hasInput} message={t('cafe.request.leaveWarning')} />
       </div>
     </CafePageFrame>
   )

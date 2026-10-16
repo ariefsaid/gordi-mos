@@ -1,96 +1,37 @@
-/* ════════════════════════════════════════════════════════════════════════════
-   ViewTabs — the ONE shared view-tab strip (DESIGN.md OD-P3-6, Wave-5 archetype
-   de-duplication). Reconciles the dashboard TabStrip + the tasks `.vtab` block into
-   a single grammar. inactive = muted-foreground; hover = foreground; active =
-   brand-navy-text text + a 2px primary-accent bottom border (the ONE accent hue,
-   shared with Create/links/active-nav — product-color-accent-only). `soon`/`disabled` = muted + not-allowed +
-   disabled + aria-disabled (out of the tab order). Count pill = secondary bg +
-   muted-foreground. The container is the canonical full-width sticky strip (the
-   dashboard placement); the records toolbar resets the strip chrome to an inline
-   placement (TasksWorkspace.css) — the TAB GRAMMAR stays unified either way.
-   Token-only (DESIGN.md).
-   ════════════════════════════════════════════════════════════════════════════ */
+/* Tabs: 2-3 views of one job. Labels sit 24px apart, control height, accent/600 label with a 2px underline
+   exactly as wide as the label, never a filled blob. Each tab has 8px side padding so the focus ring clears
+   the label; the strip is pulled out by the same 8px so the first label still sits on the page's left edge.
+   System rule for narrow screens: 2-3 tabs share the row in equal columns and their labels wrap; a set of
+   more than three (not a tabs job by DESIGN.md, but some exist) scrolls sideways inside its own strip. */
 .view-tabs {
-  display: flex;
-  align-items: stretch;
-  gap: 2px;
-  padding: 0 24px;
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  /* Pin OVER the PageFrame's 24px top gutter: sticky top:0 stops at the padded content
-     edge, letting rows scroll visibly through the gutter band above the strip. */
-  top: -24px;
-  background: var(--background);
-  z-index: var(--z-inline-raised);
-  box-sizing: border-box;
+  --view-tabs-pad: var(--mos-space-2);
+  display: flex; align-items: stretch; gap: 0; padding: 0; margin-inline: calc(-1 * var(--view-tabs-pad));
+  background: linear-gradient(var(--mos-line), var(--mos-line)) no-repeat var(--view-tabs-pad) 100% / calc(100% - 2 * var(--view-tabs-pad)) 1px;
+  box-sizing: border-box; overflow-x: auto;
 }
-
 .view-tabs__tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 38px;
-  padding: 0 14px;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--muted-foreground);
-  font-family: inherit;
-  font-size: var(--font-size-control);
-  font-weight: 600;
-  cursor: pointer;
-  transition: color var(--dur-fast) ease, border-color var(--dur-fast) ease;
+  display: inline-flex; align-items: center; gap: var(--mos-space-2); flex: none;
+  min-height: var(--mos-control-height); padding: 0 var(--view-tabs-pad); border: 0; background: transparent;
+  color: var(--mos-ink); font: var(--mos-type-control); cursor: pointer; white-space: nowrap; position: relative;
 }
-.view-tabs__tab:hover {
-  color: var(--foreground);
+.view-tabs__tab:hover { color: var(--mos-accent-hover); }
+.view-tabs__tab::after {
+  content: ''; position: absolute; inset-inline: var(--view-tabs-pad); bottom: 0; height: 2px; background: transparent;
 }
-/* active = brand-navy-text text + primary-accent underline (the one accent hue) */
-.view-tabs__tab--active {
-  color: var(--brand-navy-text);
-  border-bottom-color: var(--brand-orange);
-}
-/* soon/disabled = muted, not-allowed, out of the tab order (DESIGN.md SOON stubs) */
-.view-tabs__tab--soon,
-.view-tabs__tab--soon:hover {
-  color: var(--muted-foreground);
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-@media (prefers-reduced-motion: reduce) {
-  .view-tabs__tab { transition: none; }
-}
-
-.view-tabs__count {
-  font-size: var(--font-size-overline);
-  font-weight: 600;
-  color: var(--muted-foreground);
-  background: var(--secondary);
-  border-radius: var(--radius-pill); /* rounded.full */
-  padding: 1px 7px;
-}
-
-.view-tabs__trailing {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-  font-size: var(--font-size-overline);
-  color: var(--muted-foreground);
-}
-
-/* Mobile: 44px touch floor (design-plan §1.3; Luna 390 audit — Table/Card tabs meet the
-   44px minimum). */
+.view-tabs__tab--active { color: var(--mos-accent); font-weight: var(--mos-weight-semibold); }
+.view-tabs__tab--active::after { background: var(--mos-accent); }
+.view-tabs__tab--soon, .view-tabs__tab--soon:hover { color: var(--mos-muted); cursor: not-allowed; }
+.view-tabs__tab:focus-visible { outline-offset: calc(-1 * var(--mos-focus-width)); }
+.view-tabs__count { font: var(--mos-type-meta); font-weight: var(--mos-weight-semibold); color: var(--mos-muted); background: var(--mos-band); border-radius: var(--radius-xs); padding: 0 var(--mos-space-2); }
+.view-tabs__tab--active .view-tabs__count { color: var(--mos-accent); background: var(--mos-accent-tint); }
+.view-tabs__trailing { margin-left: auto; display: flex; align-items: center; gap: var(--mos-space-2); padding-inline: var(--view-tabs-pad); font: var(--mos-type-meta); color: var(--mos-muted); }
+@media (prefers-reduced-motion: reduce) { .view-tabs__tab { transition: none; } }
+@media (min-width: 768px) { .view-tabs__tab + .view-tabs__tab { margin-inline-start: var(--mos-space-2); } }
 @media (max-width: 767.98px) {
-  .view-tabs {
-    padding: 0 14px;
-  }
-  .view-tabs__tab {
-    height: 44px;
-    padding: 0 12px;
-    font-size: var(--font-size-control);
-  }
-  .view-tabs__trailing {
-    display: none; /* no room on phone; the sticky filter rail carries the hint */
+  .view-tabs__trailing { display: none; }
+  .view-tabs__tab { min-height: var(--mos-control-height); min-width: 44px; justify-content: center; }
+  .view-tabs[data-tabs='2'], .view-tabs[data-tabs='3'] { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); overflow-x: visible; }
+  .view-tabs[data-tabs='2'] .view-tabs__tab, .view-tabs[data-tabs='3'] .view-tabs__tab {
+    flex-wrap: wrap; row-gap: 0; min-width: 0; padding-block: var(--mos-space-1); white-space: normal; text-align: center; overflow-wrap: anywhere;
   }
 }

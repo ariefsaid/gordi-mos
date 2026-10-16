@@ -1,7 +1,7 @@
 // Pending bills view-model (#1464): what one copied bill reads as on the Finance list.
 import { describe, it, expect } from 'vitest'
 import type { PendingBillRow } from '@/lib/db/reporting-pending-bills'
-import { filterPendingBills, isPendingBillCopyStale, normalizePendingBillFinanceLabel, pendingBillAgeDays, summarizePendingBills, toPendingBillViews, validatePendingBillFinanceLabel, type PendingBillFilters } from './pending-bills'
+import { billParamKey, billSortKey, DEFAULT_BILL_SORT, filterPendingBills, isPendingBillCopyStale, normalizePendingBillFinanceLabel, parseBillSort, pendingBillAgeDays, sortPendingBills, summarizePendingBills, toPendingBillViews, validatePendingBillFinanceLabel, type PendingBillFilters } from './pending-bills'
 
 function bill(over: Partial<PendingBillRow>): PendingBillRow {
   return {
@@ -248,5 +248,29 @@ describe('isPendingBillCopyStale — more than 30 hours since the copy ran', () 
   it('is fresh at 30 hours and stale just after', () => {
     expect(isPendingBillCopyStale(copy, new Date('2026-10-07T01:05:00Z'))).toBe(false)
     expect(isPendingBillCopyStale(copy, new Date('2026-10-07T01:06:00Z'))).toBe(true)
+  })
+})
+
+describe('sorting and the open bill in the URL', () => {
+  const views = toPendingBillViews([
+    bill({ bill_no: 'A', bill_date: '2026-09-01', amount: 100000 }),
+    bill({ bill_no: 'B', bill_date: '2026-09-20', amount: 900000 }),
+    bill({ bill_no: 'C', bill_date: '2026-10-02', amount: 500000 }),
+  ], '2026-10-06')
+
+  it('defaults to the oldest bill first and reads a bad value as the default', () => {
+    expect(parseBillSort(null)).toEqual({ column: 'date', desc: false })
+    expect(parseBillSort('nonsense.up')).toEqual({ column: 'date', desc: false })
+    expect(billSortKey(parseBillSort(DEFAULT_BILL_SORT))).toBe(DEFAULT_BILL_SORT)
+  })
+
+  it('sorts by date, amount and balance in either direction', () => {
+    expect(sortPendingBills(views, parseBillSort('date.desc')).map((v) => v.billNo)).toEqual(['C', 'B', 'A'])
+    expect(sortPendingBills(views, parseBillSort('amount.desc')).map((v) => v.billNo)).toEqual(['B', 'C', 'A'])
+    expect(sortPendingBills(views, parseBillSort('balance.asc')).map((v) => v.billNo)).toEqual(['A', 'C', 'B'])
+  })
+
+  it('names an open bill by its three copy identifiers', () => {
+    expect(billParamKey(views[0])).toBe('GKI|rumah_rames|A')
   })
 })

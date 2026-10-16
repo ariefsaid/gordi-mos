@@ -31,7 +31,7 @@ export interface RecipeFinding {
   recipe_versions: { version: number; first_seen: string } | null
 }
 
-export interface RecipeFindingReceipt {
+interface RecipeFindingReceipt {
   esb_code: string
   window_start: string
   window_end: string

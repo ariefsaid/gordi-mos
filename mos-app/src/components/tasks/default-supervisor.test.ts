@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/db/directory', () => ({ getDirectManagerPersonIds: vi.fn(), getPeople: vi.fn() }))
 
 import { getDirectManagerPersonIds, getPeople } from '@/lib/db/directory'
-import { defaultSupervisorId, resolvePicSupervisor } from './default-supervisor'
+import { resolvePicSupervisor } from './default-supervisor'
 
 const PEOPLE = [{ id: 'manager', full_name: 'Manager' }, { id: 'other', full_name: 'Other' }]
 
@@ -13,14 +13,20 @@ beforeEach(() => {
 })
 
 describe('PIC manager Supervisor default', () => {
-  it('uses exactly one active direct manager, not the PIC themself', () => {
-    expect(defaultSupervisorId(['pic', 'manager', 'manager'], 'pic', ['pic', 'manager'])).toBe('manager')
+  it('uses exactly one active direct manager, not the PIC themself', async () => {
+    vi.mocked(getDirectManagerPersonIds).mockResolvedValue(['pic', 'manager', 'manager'])
+    vi.mocked(getPeople).mockResolvedValue([{ id: 'pic', full_name: 'Pic' }, { id: 'manager', full_name: 'Manager' }])
+    expect(await resolvePicSupervisor('pic', 'retail')).toEqual({ supervisorId: 'manager', status: 'ready' })
   })
 
-  it('does not guess when no unique active manager exists', () => {
-    expect(defaultSupervisorId([], 'pic', ['manager'])).toBeNull()
-    expect(defaultSupervisorId(['manager', 'other'], 'pic', ['manager', 'other'])).toBeNull()
-    expect(defaultSupervisorId(['manager'], 'pic', ['pic'])).toBeNull()
+  it('does not guess when no unique active manager exists', async () => {
+    vi.mocked(getDirectManagerPersonIds).mockResolvedValue([])
+    expect((await resolvePicSupervisor('pic', 'retail')).supervisorId).toBeNull()
+    vi.mocked(getDirectManagerPersonIds).mockResolvedValue(['manager', 'other'])
+    expect((await resolvePicSupervisor('pic', 'retail')).supervisorId).toBeNull()
+    vi.mocked(getDirectManagerPersonIds).mockResolvedValue(['manager'])
+    vi.mocked(getPeople).mockResolvedValue([{ id: 'pic', full_name: 'Pic' }])
+    expect((await resolvePicSupervisor('pic', 'retail')).supervisorId).toBeNull()
   })
 
   it('resolves only the PIC manager for the Task BU and reports missing or unreadable data', async () => {

@@ -10,10 +10,12 @@
 // the mechanical scan (`impeccable detect`) flagged this exact line. The success state
 // is already carried by the message copy; the border stays a single uniform hairline.
 
+import { CloseIcon } from '@/shell/icons'
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import type { ToastState } from './use-toast'
 import { OverlayPortal } from '@/components/ui/overlay-portal'
 import { focusableWithin } from '@/lib/focusable'
+import { useT } from '@/i18n/use-t'
 
 function focusElement(element: HTMLElement | null): boolean {
   if (!element?.isConnected || element === document.body) return false
@@ -53,6 +55,7 @@ export interface ToastProps {
 }
 
 export function Toast({ toast, onDismiss }: ToastProps) {
+  const t = useT()
   const containerRef = useRef<HTMLDivElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const restoreFocusAfterDismissRef = useRef(false)
@@ -118,20 +121,16 @@ export function Toast({ toast, onDismiss }: ToastProps) {
         aria-atomic="true"
         // role="status" is the accessible equivalent to polite live region
         role="status"
-        className="fixed right-6 pointer-events-none"
-        style={{ minWidth: 280, maxWidth: 420, bottom: '24px', zIndex: 'var(--z-toast)' }}
+        className="admin-toast-host"
       >
         {toast && (
-          <div
-            className="flex items-center gap-3 rounded-lg px-4 py-3 pointer-events-auto"
-            style={{
-              background: 'var(--popover)',
-              color: 'var(--popover-foreground)',
-              border: '1px solid var(--border)',
-              boxShadow: 'var(--shadow-overlay)',
-            }}
-          >
-            <span className="flex-1 text-sm font-medium">{toast.message}</span>
+          <div className="admin-toast">
+            <span className="admin-toast__message">{toast.message}</span>
+            {toast.action ? (
+              <button type="button" className="toast-action btn btn-ghost" onClick={toast.action.onClick}>
+                {toast.action.label}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={dismiss}
@@ -141,13 +140,12 @@ export function Toast({ toast, onDismiss }: ToastProps) {
                 event.stopPropagation()
                 dismiss()
               }}
-              aria-label="Dismiss notification"
+              aria-label={t('admin.people.dismiss')}
               data-focus-trap-target="toast-dismiss"
               data-touch-target="true"
-              className="toast-dismiss tap-floor text-current opacity-60 hover:opacity-100 transition-opacity"
-              style={{ lineHeight: 1 }}
+              className="toast-dismiss tap-floor"
             >
-              ✕
+              <CloseIcon />
             </button>
           </div>
         )}

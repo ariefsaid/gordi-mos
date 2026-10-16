@@ -131,6 +131,9 @@ export default defineConfig(({ mode }) => {
   const { basePath } = resolveBuildSettings(env)
   const releaseSha = resolveReleaseSha()
   return {
+  // node_modules is shared (symlinked) across worktrees; a per-checkout dep cache keeps parallel dev
+  // servers from overwriting each other's pre-bundles (duplicate React → "reading 'useState'" crashes).
+  cacheDir: resolve(__dir, '.vite-cache'),
   define: { 'import.meta.env.VITE_RELEASE_SHA': JSON.stringify(releaseSha) },
   base: basePath,
   plugins: [

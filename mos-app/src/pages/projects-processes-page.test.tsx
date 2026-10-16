@@ -69,9 +69,17 @@ function renderPage(entry = "/", locale: 'en' | 'id' = 'en') {
   )
 }
 
-function openViewOptions() {
-  fireEvent.click(screen.getByRole('button', { name: 'View & filters' }))
+// Below 768px the collection reflows to cards; the row/column facts are asserted at desktop width.
+const defaultMatchMedia = window.matchMedia
+function desktopWidth() {
+  window.matchMedia = ((query: string) => ({
+    matches: query.includes('(min-width: 768px)'),
+    media: query, onchange: null,
+    addEventListener: () => {}, removeEventListener: () => {},
+    addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+  })) as typeof window.matchMedia
 }
+afterEach(() => { window.matchMedia = defaultMatchMedia })
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -97,25 +105,23 @@ beforeEach(() => {
 })
 
 describe('Projects & Processes collection-first contract', () => {
-  it('renders real row links with relation, progress, and activity facts', async () => {
+  it('renders real row links with relation and progress facts', async () => {
     vi.mocked(listTasks).mockResolvedValue([
       task('t1', 'obj-1', 'wl-1', 'Done'),
       task('t2', 'obj-1', 'wl-1'),
     ])
-    const { container } = renderPage()
+    desktopWidth()
+    renderPage()
     await screen.findByText('Menu launch')
     expect(screen.getByRole('link', { name: 'Menu launch' })).toHaveAttribute('href', '/work/projects/wl-1')
     const menuLaunch = screen.getByRole('link', { name: 'Menu launch' })
-    const menuLaunchRow = menuLaunch.closest('[role="row"]') as HTMLElement
+    const menuLaunchRow = menuLaunch.closest('tr') as HTMLElement
     // Task-derived Objective context belongs in the Objective cell even without a direct parent.
-    expect(
-      within(menuLaunchRow).getByRole('cell', { name: 'Objective: Not set. Contributes through Tasks to: Grow revenue' }),
-    ).toBeInTheDocument()
+    const contribution = within(menuLaunchRow).getByRole('link', { name: /Grow revenue/ })
+    expect(contribution).toHaveAttribute('href', '/work/objectives/obj-1')
+    expect(contribution).toHaveTextContent('via tasks')
     expect(screen.getByRole('columnheader', { name: 'Objective' })).toBeInTheDocument()
-    expect(within(menuLaunchRow).getByText('Contributes through Tasks to: Grow revenue')).toBeInTheDocument()
-    expect(screen.getByText('1 / 2 done')).toBeInTheDocument()
-    expect(screen.getByText('07 Jul 2026, 07:00 WIB')).toBeInTheDocument()
-    expect(container.querySelector('.catalog-collection__disclosure')).toBeNull()
+    expect(within(menuLaunchRow).getByText('1 / 2')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /rename menu launch/i })).toBeNull()
   })
 
@@ -155,30 +161,21 @@ describe('Projects & Processes collection-first contract', () => {
       },
     ] as never)
 
+    desktopWidth()
     renderPage()
 
-    const daily = await screen.findByRole('link', { name: 'Daily prep' })
-    const dailyRow = daily.closest('[role="row"]') as HTMLElement
-    expect(within(dailyRow).getByTestId('catalog-progress')).toHaveTextContent('1 / 2 done')
-    expect(within(dailyRow).queryByText('0 / 3 done')).toBeNull()
-
-    const unscheduled = screen.getByRole('link', { name: 'Unscheduled process' })
-    const unscheduledRow = unscheduled.closest('[role="row"]') as HTMLElement
-    expect(within(unscheduledRow).getByTestId('catalog-progress')).toHaveTextContent('No schedule')
-
-    const manual = screen.getByRole('link', { name: 'Ad hoc process' })
-    const manualRow = manual.closest('[role="row"]') as HTMLElement
-    expect(within(manualRow).getByTestId('catalog-progress')).toHaveTextContent('On demand')
-
-    const pending = screen.getByRole('link', { name: 'Started with pending work' })
-    const pendingRow = pending.closest('[role="row"]') as HTMLElement
-    expect(within(pendingRow).getByTestId('catalog-progress')).toHaveTextContent('1 awaiting assignment')
+    const rowOf = (name: string) => screen.getByRole('link', { name }).closest('tr') as HTMLElement
+    await screen.findByRole('link', { name: 'Daily prep' })
+    expect(within(rowOf('Daily prep')).getByText('1 / 2')).toBeInTheDocument()
+    expect(within(rowOf('Daily prep')).queryByText('0 / 3')).toBeNull()
+    expect(rowOf('Unscheduled process')).toHaveTextContent('No schedule')
+    expect(rowOf('Ad hoc process')).toHaveTextContent('On demand')
+    expect(rowOf('Started with pending work')).toHaveTextContent('1 awaiting assignment')
   })
 
-  it('uses the head Create door and renders a form ABOVE the table, never inside it', async () => {
+  it('uses the Create door and renders a form outside the table', async () => {
     renderPage()
     await screen.findByText('Menu launch')
-    expect(screen.getByTestId('page-head').querySelector('.ch-action')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Create project or process' }))
     const form = await screen.findByRole('form', { name: 'Create project or process' })
     // Defect 1: the create form is its own block, not a row wedged under the table's column
@@ -232,18 +229,14 @@ describe('Projects & Processes collection-first contract', () => {
     expect(screen.getByRole('button', { name: 'Create project or process' })).toHaveFocus()
   })
 
-  it('puts All / Projects / Processes behind the phone view disclosure and filters the rows', async () => {
-    const { container } = renderPage()
+  it('offers All types / Projects / Processes as the type choice and filters the rows', async () => {
+    renderPage()
     await screen.findByText('Menu launch')
-    expect(screen.queryByRole('button', { name: 'Projects' })).toBeNull()
-    openViewOptions()
-    expect(screen.getByRole('button', { name: 'All types' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Projects' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Processes' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Processes' }))
+    fireEvent.click(screen.getByRole('combobox', { name: 'Work type' }))
+    expect(screen.getAllByRole('option').map((option) => option.textContent?.trim())).toEqual(['All types', 'Projects', 'Processes'])
+    fireEvent.click(screen.getByRole('option', { name: 'Processes' }))
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Menu launch' })).toBeNull())
     expect(screen.getByRole('link', { name: 'Daily prep' })).toBeInTheDocument()
-    expect(container.querySelector('.catalog-collection__disclosure')).toBeNull()
   })
 })
 
@@ -266,7 +259,8 @@ describe('R5 collection state boundaries', () => {
   it('keeps filtered empty clearable with the shared item-specific message', async () => {
     renderPage('/?q=no-such-record')
     expect(await screen.findByRole('heading', { name: 'No projects and processes match these filters' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    // The search box has its own clear control; the empty state's is the last one.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Clear search' }).at(-1)!)
     expect(await screen.findByRole('link', { name: 'Menu launch' })).toBeInTheDocument()
   })
 
@@ -274,19 +268,21 @@ describe('R5 collection state boundaries', () => {
     if (empty) vi.mocked(listWorkLinesAll).mockResolvedValue([])
     renderPage('/?view=archived')
     expect(await screen.findByRole('heading', { name: 'Nothing archived yet' })).toBeInTheDocument()
-    const disclosure = screen.queryByRole('button', { name: /View & filters/ })
-    if (disclosure) fireEvent.click(disclosure)
-    expect(screen.getByRole('button', { name: 'Current status' })).toHaveTextContent('Archived')
     expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
     expect(screen.queryByText('No projects or processes yet')).toBeNull()
   })
 
-  it('labels the status trigger and states that the default view is active-only', async () => {
+  it('states that the default view is active-only and reveals archived records on request', async () => {
+    vi.mocked(listWorkLinesAll).mockResolvedValue([
+      { id: 'wl-1', name: 'Menu launch', type: 'project', archived_at: null },
+      { id: 'wl-old', name: 'Old campaign', type: 'project', archived_at: '2026-01-01' },
+    ])
     renderPage()
     await screen.findByRole('link', { name: 'Menu launch' })
-    openViewOptions()
-    const trigger = screen.getByRole('button', { name: 'Current status' })
-    expect(trigger).toHaveTextContent('Active only')
+    expect(screen.queryByRole('link', { name: 'Old campaign' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Filters & options' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Include archived' }))
+    expect(await screen.findByRole('link', { name: 'Old campaign' })).toBeInTheDocument()
   })
 
   it.each(['timeout', 'server'])('keeps a %s failure out of empty success and retries', async (failure) => {
@@ -341,13 +337,13 @@ describe('one create entry per width', () => {
     expect(await screen.findByRole('button', { name: 'Create project or process' })).toBeInTheDocument()
   })
 
-  it('hides the header create button while the rail is collapsed, and opens the form from the global create intent', async () => {
+  it('keeps exactly one create entry while the rail is collapsed, and opens the form from the global create intent', async () => {
     railCollapsed(true)
     renderPage('/?create=1')
     const form = await screen.findByRole('form', { name: 'Create project or process' })
-    // The form's own submit may share the label; no button of that name sits outside the form.
+    // The form's own submit may share the label; one button of that name sits outside the form.
     const outside = screen.queryAllByRole('button', { name: 'Create project or process' }).filter((button) => !form.contains(button))
-    expect(outside).toHaveLength(0)
+    expect(outside).toHaveLength(1)
   })
 })
 

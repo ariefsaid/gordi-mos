@@ -19,13 +19,12 @@ test.describe('shell aria-current', () => {
     test.use({ viewport: { width: 390, height: 844 } })
 
     test('AC-008: on phone, primary destinations mark their tab and non-primary destinations mark More', async ({ page }) => {
-      // The admin's fixed primaries are Home/Work/Inbox. Café is a MODULE tab promoted for a
+      // The admin's fixed primaries are Home/Work (Inbox is the top-bar bell and a More destination). Café is a MODULE tab promoted for a
       // café-affiliated viewer (admission: shell-navigation-parity.spec.ts) or, for anyone else,
       // while they stand on a Café page (covered at the end of this test).
       const primaryCases = [
         { path: '', label: 'Home' },
         { path: 'work/tasks', label: 'Work' },
-        { path: 'inbox', label: 'Inbox' },
       ]
       // Scoped to the bottom-tab bar (nav "Primary"): the top-bar bell/breadcrumb also renders an
       // "Inbox" link (top-bar.tsx), so an unscoped getByRole('link', {name:'Inbox'}) is a strict-
@@ -45,7 +44,7 @@ test.describe('shell aria-current', () => {
       // exists per route; here we additionally prove it's on the breadcrumb, not on More.
       // Money is omitted for this admin-only viewer by its revenue-view role gate, so Profile
       // remains the non-primary destination used to assert breadcrumb current ownership.
-      const nonPrimaryCases = ['profile'].filter((path) => !isShipGated(`/${path}`))
+      const nonPrimaryCases = ['profile', 'inbox'].filter((path) => !isShipGated(`/${path}`))
       for (const path of nonPrimaryCases) {
         await page.goto(path)
         await expect.poll(() => pageCurrentCount(page)).toBe(1)

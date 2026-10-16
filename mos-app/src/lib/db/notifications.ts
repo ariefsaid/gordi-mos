@@ -11,10 +11,10 @@ import { notificationAvailableInProfile } from '@/config/notification-profile'
 
 const mos = () => supabase.schema('mos')
 
-export type NotificationSeverity = 'info' | 'warning' | 'critical'
+type NotificationSeverity = 'info' | 'warning' | 'critical'
 
 /** A deep-link into the owning surface, carried in metadata. */
-export interface NotificationEntity {
+interface NotificationEntity {
   type: string
   id: string
   route: string

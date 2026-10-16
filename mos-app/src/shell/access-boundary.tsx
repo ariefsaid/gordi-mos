@@ -1,7 +1,7 @@
 import { Link, Navigate, matchPath, useLocation } from 'react-router-dom'
 import { PageFamilyFrame } from './page-family-frame'
 import { PAGE_FAMILY_FRAME_ROUTES } from './page-family-migration'
-import { areaTitleKeyForPath, destinationForPath, linkTitleKeyForPath, viewerAdmittedToRoute } from './destinations'
+import { areaTitleKeyForPath, destinationForPath, linkTitleKeyForPath, viewerAdmittedToRoute } from './module-registry'
 import { useSetBoundaryLabel } from './breadcrumb-title'
 import { EmptyState } from '@/components/ui/state-kit'
 import { isShipGated } from '@/lib/ship-gate'

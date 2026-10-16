@@ -127,14 +127,8 @@ export function HelpTip({ label, className }: HelpTipProps) {
         aria-label={t('common.help')}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        /* polish (2026-07-28): `data-touch-target="true"` was ALSO opting this button into the
-           blunt global `min-height: 44px` phone rule (Button.css), which stretched the 14x14
-           glyph into a 14x44 capsule at 375px — measured live, and visibly inconsistent with
-           the same control's 14x14 circle on desktop. HelpTip does not need that rule: it is
-           the component that solves target size the precise way, with `::before{inset:-16px}`
-           (help-tip.css), giving a 46x46 hit area while the glyph stays 14x14. Two mechanisms
-           for one job, and the blunt one was the one you could see. The attribute is removed,
-           not the floor — re-measured at 375px after the change: still 46x46. */
+        /* The button itself is a 44×44 target on every pointer type; help-tip.css draws the
+           small round-1 mark within it, so visual scale never trades away touch access. */
         onClick={() => setPinned(v => !v)}
         // Hover keeps the desktop affordance the old `title` provided, for mice only — a
         // touch pointer must not fake a hover state that then sticks with no way to dismiss it.

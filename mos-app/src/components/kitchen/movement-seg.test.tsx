@@ -1,6 +1,6 @@
 import { StrictMode, useState } from 'react'
 import { describe, expect, it } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -38,7 +38,7 @@ function DeferredHarness() {
         type="button"
         onClick={() => {
           setPending(null)
-          screen.getByRole('tab', { name: 'Production' }).focus()
+          screen.getByRole('button', { name: 'Production' }).focus()
         }}
       >
         Cancel switch
@@ -89,30 +89,32 @@ function ModalConfirmHarness() {
 }
 
 describe('MovementSeg keyboard contract', () => {
-  it('uses one Tab stop and moves focus and selection with arrows, Home, and End', async () => {
+  it('reaches every option in Tab order and selects the focused one with Enter or Space', async () => {
     const user = userEvent.setup()
     render(<I18nProvider><Harness /></I18nProvider>)
-    const tabs = screen.getAllByRole('tab')
+    const production = screen.getByRole('button', { name: 'Production' })
+    const radiant = screen.getByRole('button', { name: 'Transfer to Radiant' })
+    const hq = screen.getByRole('button', { name: 'Transfer to Gordi HQ' })
+    expect(production).toHaveAttribute('aria-pressed', 'true')
 
-    expect(tabs.map(tab => tab.getAttribute('tabindex'))).toEqual(['0', '-1', '-1'])
-    tabs[0].focus()
-    await user.keyboard('{ArrowRight}')
-    expect(tabs[1]).toHaveFocus()
-    expect(tabs[1]).toHaveAttribute('aria-selected', 'true')
-    expect(tabs.map(tab => tab.getAttribute('tabindex'))).toEqual(['-1', '0', '-1'])
-
-    await user.keyboard('{End}')
-    expect(tabs[2]).toHaveFocus()
-    expect(tabs[2]).toHaveAttribute('aria-selected', 'true')
-
-    await user.keyboard('{Home}')
-    expect(tabs[0]).toHaveFocus()
-    expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
+    await user.tab()
+    expect(production).toHaveFocus()
+    await user.tab()
+    expect(radiant).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(radiant).toHaveAttribute('aria-pressed', 'true')
+    expect(production).toHaveAttribute('aria-pressed', 'false')
+    await user.tab()
+    expect(hq).toHaveFocus()
+    await user.keyboard(' ')
+    expect(hq).toHaveAttribute('aria-pressed', 'true')
+    expect(radiant).toHaveAttribute('aria-pressed', 'false')
   })
 
-  it('wraps ArrowLeft and keeps Home and End navigation tied to controlled requests', () => {
+  it('requests a choice by click and follows the controlled value', async () => {
+    const user = userEvent.setup()
     const requests: KitchenMovement[] = []
-    function NavigationHarness() {
+    function RequestHarness() {
       const [value, setValue] = useState(options[0])
       return (
         <MovementSeg
@@ -123,89 +125,62 @@ describe('MovementSeg keyboard contract', () => {
         />
       )
     }
-    render(
-      <I18nProvider>
-        <NavigationHarness />
-      </I18nProvider>,
-    )
-    const tabs = screen.getAllByRole('tab')
-    tabs[0].focus()
+    render(<I18nProvider><RequestHarness /></I18nProvider>)
 
-    fireEvent.keyDown(tabs[0], { key: 'ArrowLeft' })
-    expect(tabs[2]).toHaveFocus()
-    expect(requests).toEqual([options[2]])
-
-    fireEvent.keyDown(tabs[2], { key: 'Home' })
-    expect(tabs[0]).toHaveFocus()
-    fireEvent.keyDown(tabs[0], { key: 'End' })
-    expect(tabs[2]).toHaveFocus()
-    expect(requests).toEqual([options[2], options[0], options[2]])
+    await user.click(screen.getByRole('button', { name: 'Transfer to Gordi HQ' }))
+    await user.click(screen.getByRole('button', { name: 'Production' }))
+    await user.click(screen.getByRole('button', { name: 'Production' }))
+    expect(requests).toEqual([options[2], options[0]])
   })
 
-  it('keeps the committed tab focused while a request is deferred, then focuses its commit', async () => {
+  it('keeps the committed option selected while a request is deferred, then selects its commit', async () => {
     const user = userEvent.setup()
     render(<I18nProvider><DeferredHarness /></I18nProvider>)
-    const production = screen.getByRole('tab', { name: 'Production' })
-    const cikal = screen.getByRole('tab', { name: 'Transfer to Radiant' })
-    production.focus()
-    fireEvent.keyDown(production, { key: 'ArrowRight' })
+    const production = screen.getByRole('button', { name: 'Production' })
+    const radiant = screen.getByRole('button', { name: 'Transfer to Radiant' })
+    await user.click(radiant)
 
-    expect(production).toHaveAttribute('aria-selected', 'true')
-    expect(cikal).toHaveAttribute('aria-selected', 'false')
-    expect(production).toHaveFocus()
+    expect(production).toHaveAttribute('aria-pressed', 'true')
+    expect(radiant).toHaveAttribute('aria-pressed', 'false')
 
     await user.click(screen.getByRole('button', { name: 'Confirm switch' }))
-    await waitFor(() => {
-      expect(cikal).toHaveAttribute('aria-selected', 'true')
-      expect(cikal).toHaveFocus()
-    })
+    await waitFor(() => expect(radiant).toHaveAttribute('aria-pressed', 'true'))
   })
 
-  it('focuses the committed tab after a guarded ConfirmDialog returns focus on confirm', async () => {
+  it('selects the commit after a guarded ConfirmDialog is confirmed', async () => {
     const user = userEvent.setup()
     render(<I18nProvider><ModalConfirmHarness /></I18nProvider>)
-    const production = screen.getByRole('tab', { name: 'Production' })
-    const cikal = screen.getByRole('tab', { name: 'Transfer to Radiant' })
-    production.focus()
+    const production = screen.getByRole('button', { name: 'Production' })
+    const radiant = screen.getByRole('button', { name: 'Transfer to Radiant' })
 
-    await user.keyboard('{ArrowRight}')
+    await user.click(radiant)
     const dialog = await screen.findByRole('dialog', { name: 'Switch movement?' })
-    expect(production).toHaveAttribute('aria-selected', 'true')
-    expect(cikal).toHaveAttribute('aria-selected', 'false')
+    expect(production).toHaveAttribute('aria-pressed', 'true')
+    expect(radiant).toHaveAttribute('aria-pressed', 'false')
     await user.click(screen.getByRole('button', { name: 'Switch and clear' }))
 
-    await waitFor(() => {
-      expect(cikal).toHaveAttribute('aria-selected', 'true')
-      expect(cikal).toHaveFocus()
-    })
+    await waitFor(() => expect(radiant).toHaveAttribute('aria-pressed', 'true'))
     expect(dialog).not.toBeInTheDocument()
   })
 
-  it('keeps deferred focus through the StrictMode ModalShell effect replay', async () => {
+  it('keeps the guarded switch working through the StrictMode ModalShell effect replay', async () => {
     const user = userEvent.setup()
     render(
       <StrictMode>
         <I18nProvider><ModalConfirmHarness /></I18nProvider>
       </StrictMode>,
     )
-    const production = screen.getByRole('tab', { name: 'Production' })
-    const cikal = screen.getByRole('tab', { name: 'Transfer to Radiant' })
-    production.focus()
+    const radiant = screen.getByRole('button', { name: 'Transfer to Radiant' })
 
-    await user.keyboard('{ArrowRight}')
+    await user.click(radiant)
     const dialog = await screen.findByRole('dialog', { name: 'Switch movement?' })
-    expect(production).toHaveAttribute('aria-selected', 'true')
-    expect(cikal).toHaveAttribute('aria-selected', 'false')
     await user.click(screen.getByRole('button', { name: 'Switch and clear' }))
 
-    await waitFor(() => {
-      expect(cikal).toHaveAttribute('aria-selected', 'true')
-      expect(cikal).toHaveFocus()
-    })
+    await waitFor(() => expect(radiant).toHaveAttribute('aria-pressed', 'true'))
     expect(dialog).not.toBeInTheDocument()
   })
 
-  it('restores committed focus for the same deferred request from pointer activation', async () => {
+  it('leaves the committed option selected when a deferred request comes from a click and is never confirmed', async () => {
     const user = userEvent.setup()
     const requests: KitchenMovement[] = []
     render(
@@ -218,33 +193,30 @@ describe('MovementSeg keyboard contract', () => {
         />
       </I18nProvider>,
     )
-    const production = screen.getByRole('tab', { name: 'Production' })
-    const cikal = screen.getByRole('tab', { name: 'Transfer to Radiant' })
+    const production = screen.getByRole('button', { name: 'Production' })
+    const radiant = screen.getByRole('button', { name: 'Transfer to Radiant' })
 
-    await user.click(cikal)
+    await user.click(radiant)
 
     expect(requests).toEqual([options[1]])
-    expect(production).toHaveAttribute('aria-selected', 'true')
-    expect(cikal).toHaveAttribute('aria-selected', 'false')
-    expect(production).toHaveFocus()
+    expect(production).toHaveAttribute('aria-pressed', 'true')
+    expect(radiant).toHaveAttribute('aria-pressed', 'false')
   })
 
-  it('clears a cancelled deferred focus before an unrelated controlled context change', async () => {
+  it('applies an unrelated controlled context change after a cancelled deferred request', async () => {
     const user = userEvent.setup()
     render(<I18nProvider><DeferredHarness /></I18nProvider>)
-    const production = screen.getByRole('tab', { name: 'Production' })
-    const cikal = screen.getByRole('tab', { name: 'Transfer to Radiant' })
-    production.focus()
-    fireEvent.keyDown(production, { key: 'ArrowRight' })
+    const production = screen.getByRole('button', { name: 'Production' })
+    const radiant = screen.getByRole('button', { name: 'Transfer to Radiant' })
+    await user.click(radiant)
     await user.click(screen.getByRole('button', { name: 'Cancel switch' }))
 
-    expect(production).toHaveFocus()
+    expect(production).toHaveAttribute('aria-pressed', 'true')
     await user.click(screen.getByRole('button', { name: 'Change context' }))
-    await waitFor(() => expect(cikal).toHaveAttribute('aria-selected', 'true'))
-    expect(screen.getByRole('button', { name: 'Change context' })).toHaveFocus()
+    await waitFor(() => expect(radiant).toHaveAttribute('aria-pressed', 'true'))
   })
 
-  it('focuses an already-selected Home target after an external controlled reset without requesting a change', () => {
+  it('follows an external controlled reset without requesting a change', () => {
     const requests: KitchenMovement[] = []
     function TrackedResetHarness() {
       const [value, setValue] = useState(options[1])
@@ -262,20 +234,17 @@ describe('MovementSeg keyboard contract', () => {
     }
 
     render(<I18nProvider><TrackedResetHarness /></I18nProvider>)
-    const production = screen.getByRole('tab', { name: 'Production' })
-    const cikal = screen.getByRole('tab', { name: 'Transfer to Radiant' })
-    cikal.focus()
+    const production = screen.getByRole('button', { name: 'Production' })
+    const radiant = screen.getByRole('button', { name: 'Transfer to Radiant' })
+    expect(radiant).toHaveAttribute('aria-pressed', 'true')
     fireEvent.click(screen.getByRole('button', { name: 'Reset selection' }))
 
-    expect(cikal).toHaveFocus()
-    expect(production).toHaveAttribute('aria-selected', 'true')
-    fireEvent.keyDown(cikal, { key: 'Home' })
-
-    expect(production).toHaveFocus()
+    expect(production).toHaveAttribute('aria-pressed', 'true')
+    expect(radiant).toHaveAttribute('aria-pressed', 'false')
     expect(requests).toEqual([])
   })
 
-  it('keeps one usable tab stop when the controlled value is temporarily absent from the options', () => {
+  it('shows no option selected when the controlled value is temporarily absent from the options', () => {
     render(
       <I18nProvider>
         <MovementSeg
@@ -287,7 +256,8 @@ describe('MovementSeg keyboard contract', () => {
       </I18nProvider>,
     )
 
-    expect(screen.getAllByRole('tab').map(tab => tab.getAttribute('tabindex'))).toEqual(['0', '-1'])
+    const group = screen.getByRole('group', { name: 'Action type' })
+    expect(within(group).getAllByRole('button').map(button => button.getAttribute('aria-pressed'))).toEqual(['false', 'false'])
   })
 
   it('keeps empty, single-option, and disabled strips safe', () => {
@@ -296,21 +266,19 @@ describe('MovementSeg keyboard contract', () => {
         <MovementSeg value={options[0]} options={[]} branches={branches} onChange={() => {}} />
       </I18nProvider>,
     )
-    expect(screen.getByRole('tablist', { name: 'Action type' })).toBeEmptyDOMElement()
+    expect(screen.getByRole('group', { name: 'Action type' })).toBeEmptyDOMElement()
     empty.unmount()
 
+    const requests: KitchenMovement[] = []
     const single = render(
       <I18nProvider>
-        <MovementSeg value={options[0]} options={[options[0]]} branches={branches} onChange={() => {}} />
+        <MovementSeg value={options[0]} options={[options[0]]} branches={branches} onChange={next => { requests.push(next) }} />
       </I18nProvider>,
     )
-    const only = screen.getByRole('tab', { name: 'Production' })
-    expect(only).toHaveAttribute('tabindex', '0')
-    only.focus()
-    fireEvent.keyDown(only, { key: 'ArrowRight' })
-    fireEvent.keyDown(only, { key: 'Home' })
-    fireEvent.keyDown(only, { key: 'End' })
-    expect(only).toHaveFocus()
+    const only = screen.getByRole('button', { name: 'Production' })
+    expect(only).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(only)
+    expect(requests).toEqual([])
     single.unmount()
 
     render(
@@ -318,8 +286,7 @@ describe('MovementSeg keyboard contract', () => {
         <MovementSeg value={options[0]} options={options} branches={branches} onChange={() => {}} disabled />
       </I18nProvider>,
     )
-    const disabledTabs = screen.getAllByRole('tab')
-    expect(disabledTabs.every(tab => tab.hasAttribute('disabled'))).toBe(true)
-    expect(disabledTabs.map(tab => tab.getAttribute('tabindex'))).toEqual(['-1', '-1', '-1'])
+    const group = screen.getByRole('group', { name: 'Action type' })
+    expect(within(group).getAllByRole('button').every(button => button.hasAttribute('disabled'))).toBe(true)
   })
 })

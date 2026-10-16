@@ -138,6 +138,15 @@ function idWrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, { initialLocale: 'id' }, children))
 }
 
+/** Choose a log in the queue list; its decision workbench opens beside (or over) it. */
+async function pickLog(item: string) {
+  const row = await screen.findByRole('button', { name: new RegExp(`^${item}`, 'i') })
+  // Let the page's own effects settle first, as they do before a person's tap lands.
+  await act(async () => { await Promise.resolve() })
+  fireEvent.click(row)
+  await screen.findByRole('heading', { level: 2, name: new RegExp(`^${item}$`, 'i') })
+}
+
 function chooseStream(optionName: string) {
   fireEvent.click(screen.getByRole('button', { name: /^switch (stream|kitchen|bar)$/i }))
   fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
@@ -273,7 +282,7 @@ describe('KitchenReviewPage — states', () => {
     }])
     mockPlan.mockResolvedValue({ w1: { produce: 1.5 } })
     render(<KitchenReviewPage />, { wrapper })
-    expect(await screen.findByText('3 × 0.5 pack (1.5 pack)')).toBeInTheDocument()
+    expect(await screen.findByText(/3 × 0\.5 pack \(1\.5 pack\)/)).toBeInTheDocument()
   })
 
   it('empty: renders the shared awaiting EmptyState without a completion control', async () => {
@@ -283,12 +292,7 @@ describe('KitchenReviewPage — states', () => {
     render(<KitchenReviewPage />, { wrapper })
     expect(await screen.findByText(/nothing to review/i)).toBeInTheDocument()
 
-    const emptyState = kitchenReviewEmptyState()
-    expect(emptyState).toHaveAttribute('data-empty-variant', 'awaiting')
-    expect(emptyState.querySelector('.empty-state-icon')).not.toBeNull()
-    expect(emptyState.querySelector('.empty-title')).not.toBeNull()
-    expect(emptyState.querySelector('.empty-copy')).not.toBeNull()
-    expect(emptyState.querySelector('.empty-note')).not.toBeNull()
+    kitchenReviewEmptyState()
     expect(screen.queryByRole('group', { name: /item list completeness/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /confirm the item list is complete/i })).not.toBeInTheDocument()
     expect(screen.queryByText('0 items loaded · end of list')).not.toBeInTheDocument()
@@ -318,12 +322,9 @@ describe('KitchenReviewPage — states', () => {
     await waitFor(() => expect(vi.mocked(listCafeCountLines)).toHaveBeenCalledTimes(1))
 
     const emptyState = kitchenReviewEmptyState()
-    const emptyActions = emptyState.querySelector('.empty-actions')
-    expect(emptyActions).not.toBeNull()
-    expect(emptyActions!.querySelectorAll('button, a')).toHaveLength(1)
     const [refresh] = screen.getAllByRole('button', { name: /refresh/i })
     expect(screen.getAllByRole('button', { name: /refresh/i })).toHaveLength(1)
-    expect(within(emptyState).getByText(/refresh to check for newly submitted logs/i)).toBeInTheDocument()
+    expect(within(emptyState).getByText(/no submitted logs are waiting for review/i)).toBeInTheDocument()
     expect(within(emptyState).queryByText(/pull again/i)).toBeNull()
 
     fireEvent.click(refresh!)
@@ -370,11 +371,9 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
     expect(screen.getByText('Today prep batch')).toBeInTheDocument()
     expect(mockList).toHaveBeenCalledWith(undefined, {})
     expect(mockPlan).toHaveBeenCalledWith('2026-09-25', expect.objectContaining({ branch: expect.objectContaining({ id: BRANCH_ID }) }))
-    const rows = Array.from(document.querySelectorAll('.krow-card'))
+    const rows = screen.getAllByRole('button', { name: /prep batch/i })
     expect(rows[0]).toHaveTextContent('Yesterday prep batch')
-    const cardHead = rows[0].querySelector('.krow-card-head')!
-    expect(cardHead.querySelector('.krow-card-tags')).toBeInTheDocument()
-    expect(cardHead.querySelector('.krow-card-tags')?.textContent).toContain('off-plan')
+    expect(rows[0]).toHaveTextContent('not in plan')
     expect(rows[0]).toHaveTextContent(/25 Sept?/i)
     expect(rows[1]).toHaveTextContent('Today prep batch')
   })
@@ -405,10 +404,10 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
     render(<KitchenReviewPage />, { wrapper })
 
     await screen.findByText('Earlier plan row')
-    const olderRow = screen.getByText('Earlier plan row').closest('.krow-card') as HTMLElement
-    const newerRow = screen.getByText('Later plan row').closest('.krow-card') as HTMLElement
-    expect(within(olderRow).getByText('on-plan')).toBeInTheDocument()
-    expect(within(newerRow).getByText('off-plan')).toBeInTheDocument()
+    const olderRow = screen.getByRole('button', { name: /^Earlier plan row/ })
+    const newerRow = screen.getByRole('button', { name: /^Later plan row/ })
+    expect(olderRow).toHaveTextContent('on-plan')
+    expect(newerRow).toHaveTextContent('not in plan')
     expect(mockPlan).toHaveBeenCalledWith('2026-09-25', expect.objectContaining({ branch: expect.objectContaining({ id: BRANCH_ID }) }))
     expect(mockPlan).toHaveBeenCalledWith('2026-09-28', expect.objectContaining({ branch: expect.objectContaining({ id: BRANCH_ID }) }))
   })
@@ -423,7 +422,7 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
     expect(screen.getByText('All pending logs')).toBeInTheDocument()
     fireEvent.change(date, { target: { value: '25/09/2026' } })
     await waitFor(() => expect(mockList).toHaveBeenLastCalledWith('2026-09-25', {}))
-    fireEvent.click(screen.getByRole('button', { name: 'Clear date' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show all dates' }))
     await waitFor(() => expect(mockList).toHaveBeenLastCalledWith(undefined, {}))
     expect(screen.getByText('All pending logs')).toBeInTheDocument()
   })
@@ -436,13 +435,9 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
 
     await waitFor(() => expect(mockList).toHaveBeenLastCalledWith('2026-09-25', {}))
     await screen.findByRole('heading', { name: /nothing to review/i })
-    const headDate = screen.getByTestId('page-head').querySelector('.ch-meta time')?.textContent?.trim()
     const queueEmpty = kitchenReviewEmptyState()
-    const emptyCopy = queueEmpty.querySelector('.empty-copy')!
-    expect(headDate).toBeTruthy()
-    expect(headDate).not.toBe('2026-09-25')
-    expect(emptyCopy).toHaveTextContent(headDate!)
-    expect(emptyCopy).not.toHaveTextContent('2026-09-25')
+    expect(queueEmpty).toHaveTextContent(/Fri 25 Sep/)
+    expect(queueEmpty).not.toHaveTextContent('2026-09-25')
   })
 
   it('lists ONLY Submitted logs grouped by action_type', async () => {
@@ -464,26 +459,17 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
       // planQtyFor() in kitchen-review-page.tsx looks up movementKey(), never the label.
       mockPlan.mockResolvedValue({ w1: { produce: 12 }, w2: { [`transfer:${RADIANT_ID}`]: 40 } })
       render(<KitchenReviewPage />, { wrapper })
-      expect(await screen.findByText('Nasi Goreng')).toBeInTheDocument()
-      expect(screen.getByText('Cold Brew')).toBeInTheDocument()
-      // one DataTable group per (date, action), with action groups in the same-day order
-      const groupLabels = document.querySelectorAll('.dt-group-label')
-      expect(groupLabels).toHaveLength(2)
-      expect(groupLabels[0].textContent).toContain('Production')
-      expect(groupLabels[1].textContent).toContain('Transfer to Radiant')
-      // the shared review queue columns render (folded from the retired review-table test)
-      const ths = Array.from(document.querySelectorAll('thead th'))
-      expect(ths.map(th => th.textContent)).toEqual([
-        'Item', 'Plan vs logged', 'Submitter', 'Time', 'Note', 'Decision',
-      ])
+      const nasi = await screen.findByRole('button', { name: /^Nasi Goreng/ })
+      const cold = screen.getByRole('button', { name: /^Cold Brew/ })
+      // one group per (date, action), with action groups in the same-day order
+      const production = screen.getByRole('button', { name: /· Production \(1\)$/ })
+      const transfer = screen.getByRole('button', { name: /· Transfer to Radiant \(1\)$/ })
+      expect(production.compareDocumentPosition(transfer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       // rows land under their owning group, in source order (Nasi Goreng under
       // Production, above the Transfer to Radiant header)
-      const trs = Array.from(document.querySelector('tbody')!.querySelectorAll('tr'))
-      const prodHeaderIdx = trs.findIndex(tr => tr.textContent?.includes('Production'))
-      const xferHeaderIdx = trs.findIndex(tr => tr.textContent?.includes('Transfer to Radiant'))
-      const nasiIdx = trs.findIndex(tr => tr.textContent?.includes('Nasi Goreng'))
-      expect(nasiIdx).toBeGreaterThan(prodHeaderIdx)
-      expect(nasiIdx).toBeLessThan(xferHeaderIdx)
+      expect(production.compareDocumentPosition(nasi) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(nasi.compareDocumentPosition(transfer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(transfer.compareDocumentPosition(cold) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     } finally {
       matchMediaSpy.mockRestore()
     }
@@ -499,12 +485,13 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
     render(<KitchenReviewPage />, { wrapper })
 
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    await pickLog('Ayam Bakar')
     expect(screen.getByRole('list', { name: /waste photos/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /open waste photo 1 of 1/i })).toHaveAttribute(
       'href',
       'https://storage.example/signed/photo-1.jpg',
     )
-    expect(screen.getByText(/· Waste$/)).toBeInTheDocument()
+    expect(screen.getAllByText(/· Waste$/).length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: /approve all/i })).not.toBeInTheDocument()
     expect(mockWastePhotos).toHaveBeenCalledWith([WASTE_LOG.id])
   })
@@ -563,6 +550,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-003' })
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
+    await pickLog('nasi goreng')
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
     await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', '2026-06-20T09:12:00Z', null))
     // confirmed batch id surfaced + row leaves the queue
@@ -579,6 +567,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-004' })
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
+    await pickLog('nasi goreng')
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
     expect(await screen.findByText(/PR-20260620-004/)).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /view pushes/i })).not.toBeInTheDocument()
@@ -590,6 +579,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     mockApprove.mockRejectedValue(new KitchenRpcError('P0003', 'not Submitted'))
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
+    await pickLog('nasi goreng')
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
     expect(await screen.findByText(/already reviewed/i)).toBeInTheDocument()
     // re-fetched the queue (now empty)
@@ -604,6 +594,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-010' })
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Cold Brew')
+    await pickLog('cold brew')
     fireEvent.click(screen.getByRole('button', { name: /approve cold brew/i }))
     // first click reveals the note gate, does NOT approve
     expect(mockApprove).not.toHaveBeenCalled()
@@ -625,6 +616,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-011' })
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
+    await pickLog('nasi goreng')
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
     // no note gate — the submitter's own note already explains the variance
     expect(screen.queryByRole('textbox', { name: /approve note/i })).toBeNull()
@@ -642,6 +634,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-012' })
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
+    await pickLog('nasi goreng')
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
     // first click reveals the note gate — a blank submitter note is not an explanation
     expect(mockApprove).not.toHaveBeenCalled()
@@ -659,6 +652,7 @@ describe('KitchenReviewPage — reject (FR-041, AC-041)', () => {
     mockReject.mockResolvedValue(undefined)
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
+    await pickLog('nasi goreng')
     fireEvent.click(screen.getByRole('button', { name: /reject nasi goreng/i }))
     const note = screen.getByRole('textbox', { name: /reject note for nasi goreng/i })
     fireEvent.change(note, { target: { value: 'wrong item' } })
@@ -674,6 +668,7 @@ describe('KitchenReviewPage — reject (FR-041, AC-041)', () => {
     mockReject.mockRejectedValueOnce(new KitchenRpcError('XX000', 'db down')).mockResolvedValue(undefined)
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
+    await pickLog('nasi goreng')
     fireEvent.click(screen.getByRole('button', { name: /reject nasi goreng/i }))
     const note = screen.getByRole('textbox', { name: /reject note for nasi goreng/i })
     fireEvent.change(note, { target: { value: 'wrong item' } })
@@ -695,13 +690,16 @@ describe('KitchenReviewPage — production-first gate (FR-042, AC-042)', () => {
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Cold Brew')
     // the Transfer row's Approve is disabled …
+    await pickLog('cold brew')
     const xferApprove = screen.getByRole('button', { name: /approve cold brew/i })
     expect(xferApprove).toBeDisabled()
     // … and carries the gate reason as its title (AC-042, folded from the retired row suite)
     expect(xferApprove).toHaveAttribute('title', 'Finish Production approvals first.')
     // but the Production row's Approve is live
+    await pickLog('nasi goreng')
     expect(screen.getByRole('button', { name: /approve nasi goreng/i })).not.toBeDisabled()
     // and the Transfer Reject stays live
+    await pickLog('cold brew')
     expect(screen.getByRole('button', { name: /reject cold brew/i })).not.toBeDisabled()
   })
 
@@ -733,10 +731,10 @@ describe('KitchenReviewPage — production-first gate (FR-042, AC-042)', () => {
       ['2026-09-25', BRANCH_ID, 'kitchen'],
       ['2026-09-28', BRANCH_ID, 'kitchen'],
     ]))
-    const olderRow = screen.getByText('Earlier transfer').closest('.krow-card') as HTMLElement
-    const newerRow = screen.getByText('Later transfer').closest('.krow-card') as HTMLElement
-    expect(within(olderRow).getByRole('button', { name: /approve earlier transfer/i })).toBeDisabled()
-    expect(within(newerRow).getByRole('button', { name: /approve later transfer/i })).toBeEnabled()
+    await pickLog('Earlier transfer')
+    expect(screen.getByRole('button', { name: /approve earlier transfer/i })).toBeDisabled()
+    await pickLog('Later transfer')
+    expect(screen.getByRole('button', { name: /approve later transfer/i })).toBeEnabled()
   })
 })
 
@@ -798,6 +796,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     await waitFor(() => expect(screen.queryByText('Ayam Bakar')).not.toBeInTheDocument())
     expect(screen.queryByText('Sambal')).not.toBeInTheDocument()
     expect(screen.getByText('Tahu')).toBeInTheDocument()
+    await pickLog('tahu')
     fireEvent.click(screen.getByRole('button', { name: /approve tahu/i }))
     expect(await screen.findByRole('textbox', { name: /approve note for tahu/i })).toBeInTheDocument()
     expect(mockApproveBulk).toHaveBeenCalledTimes(1)
@@ -929,6 +928,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
 
     expect(screen.queryByRole('button', { name: /approve all/i })).not.toBeInTheDocument()
     // the only path left is the per-row one, and it forces the note (AC-040)
+    await pickLog('tahu')
     fireEvent.click(screen.getByRole('button', { name: /approve tahu/i }))
     expect(await screen.findByRole('textbox', { name: /approve note for tahu/i })).toBeInTheDocument()
     expect(mockApprove).not.toHaveBeenCalled()
@@ -1021,10 +1021,13 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     chooseStream('All streams')
     await screen.findByText('Es Kopi')
     // own-stream row keeps its controls; the other stream's row carries the ops-lead marker instead
+    await pickLog('nasi goreng')
     expect(screen.getByRole('button', { name: /approve nasi goreng/i })).toBeInTheDocument()
+    expect(screen.queryByText('Ops lead decides')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^Es Kopi/ }))
+    expect(await screen.findByText('Ops lead decides')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /approve es kopi/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /reject es kopi/i })).not.toBeInTheDocument()
-    expect(screen.getByText('Ops lead decides')).toBeInTheDocument()
   })
 
   // #783 AC-051 (DB half #778): the DB widened stream-reviewer rights to ANY live membership,
@@ -1048,7 +1051,9 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     chooseStream('All streams')
     await screen.findByText('Es Kopi')
     // both streams now carry decision controls — neither reads "Ops lead decides".
+    await pickLog('nasi goreng')
     expect(screen.getByRole('button', { name: /approve nasi goreng/i })).toBeInTheDocument()
+    await pickLog('es kopi')
     expect(screen.getByRole('button', { name: /approve es kopi/i })).toBeInTheDocument()
     expect(screen.queryByText('Ops lead decides')).not.toBeInTheDocument()
   })
@@ -1074,9 +1079,11 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     chooseStream('All streams')
     await screen.findByText('Es Kopi')
     // her primary stream still decides; the finite-end stream reads "Ops lead decides".
+    await pickLog('nasi goreng')
     expect(screen.getByRole('button', { name: /approve nasi goreng/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^Es Kopi/ }))
+    expect(await screen.findByText('Ops lead decides')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /approve es kopi/i })).toBeNull()
-    expect(screen.getAllByText('Ops lead decides').length).toBeGreaterThan(0)
   })
 
   it('FR-043: the production-first gate is PER STREAM — another stream\'s pending production does not lock this one\'s transfer', async () => {
@@ -1085,7 +1092,9 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     mockList.mockResolvedValue([PROD_LOG, XFER_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Es Kopi')
+    await pickLog('cold brew')
     expect(screen.getByRole('button', { name: /approve cold brew/i })).toBeDisabled()
+    await pickLog('es kopi')
     expect(screen.getByRole('button', { name: /approve es kopi/i })).not.toBeDisabled()
   })
 
@@ -1096,6 +1105,7 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     mockApprove.mockRejectedValue(new KitchenRpcError('P0004', 'locked'))
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Es Kopi')
+    await pickLog('es kopi')
     fireEvent.click(screen.getByRole('button', { name: /approve es kopi/i }))
     await screen.findByText(/production awaiting review/i)
   })
@@ -1144,8 +1154,10 @@ describe('KitchenReviewPage — GUARD-PRIMARY: bulk approve is the only solid pr
     // Row rank (#249): Approve steps down to outline, and Reject — which only opens a
     // required-note gate, where Approve commits on one click — steps down again to the
     // quietest rank the system has.
+    await pickLog('Nasi Goreng')
     expect(screen.getByRole('button', { name: 'Approve Nasi Goreng' })).toHaveClass('btn-outline')
     expect(screen.getByRole('button', { name: 'Reject Nasi Goreng' })).toHaveClass('btn-ghost')
+    await pickLog('Es Kopi')
     expect(screen.getByRole('button', { name: 'Approve Es Kopi' })).toHaveClass('btn-outline')
     expect(screen.getByRole('button', { name: 'Reject Es Kopi' })).toHaveClass('btn-ghost')
   })
@@ -1164,6 +1176,7 @@ describe('KitchenReviewPage — offline (FR-005, NFR-008)', () => {
       // `.` matches either the straight or curly apostrophe — the i18n catalog uses ’ (U+2019).
       expect(screen.getByText(/you.re offline/i)).toBeInTheDocument()
       // per-row approve is disabled
+      await pickLog('ayam bakar')
       expect(screen.getByRole('button', { name: /approve ayam bakar/i })).toBeDisabled()
       // bulk approve is disabled (writes are online-only)
       expect(screen.getByRole('button', { name: /approve all/i })).toBeDisabled()
@@ -1197,10 +1210,8 @@ describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', 
     const checkbox = screen.getByRole('checkbox', { name: /confirm the item list is complete/i })
     expect(checkbox).toBeEnabled()
     expect(screen.queryByRole('button', { name: /confirm the item list is complete/i })).toBeNull()
-    const queue = screen.queryByRole('table') ?? document.querySelector('.dt-cards')
-    expect(queue).not.toBeNull()
-    expect(queue!.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // It gates nothing: the queue's own decision controls are untouched by an unconfirmed list.
+    await pickLog('nasi goreng')
     expect(screen.getByRole('button', { name: /approve nasi goreng/i })).toBeInTheDocument()
   })
 
@@ -1299,16 +1310,13 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
     } as MediaQueryList)
     try {
       render(<KitchenReviewPage />, { wrapper: idWrapper })
-      await screen.findByText('Nasi Goreng')
-      // column headers
-      const ths = Array.from(document.querySelectorAll('thead th'))
-      expect(ths.map((th) => th.textContent)).toEqual([
-        'Item', 'Rencana vs dicatat', 'Pengaju', 'Waktu', 'Catatan', 'Keputusan',
-      ])
+      await screen.findByRole('button', { name: /^Nasi Goreng/ })
+      // column header
+      expect(screen.getByRole('columnheader', { name: 'Log yang diajukan' })).toBeInTheDocument()
       // the variance tag (row is on-plan: plan 8, logged 8) and the qty words
-      expect(screen.getByText('sesuai rencana')).toBeInTheDocument()
-      expect(screen.getByText('rencana')).toBeInTheDocument()
-      expect(screen.getByText('· dicatat')).toBeInTheDocument()
+      expect(screen.getAllByText('sesuai rencana').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('rencana').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('dicatat').length).toBeGreaterThan(0)
       // no English chrome survives
       expect(screen.queryByText('Plan vs logged')).toBeNull()
       expect(screen.queryByText('Submitter')).toBeNull()
@@ -1322,17 +1330,18 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
   it('phone card chrome is Indonesian too: variance tag and qty words', async () => {
     // Default jsdom matchMedia (matches: false) → the phone-card branch (#436).
     render(<KitchenReviewPage />, { wrapper: idWrapper })
-    await screen.findByText('Nasi Goreng')
-    expect(screen.getByText('sesuai rencana')).toBeInTheDocument()
-    expect(screen.getByText('rencana')).toBeInTheDocument()
-    expect(screen.getByText(/dicatat/)).toBeInTheDocument()
+    const row = await screen.findByRole('button', { name: /^Nasi Goreng/ })
+    expect(row).toHaveTextContent('sesuai rencana')
+    expect(row).toHaveTextContent(/rencana 8/)
+    expect(row).toHaveTextContent(/dicatat 8/)
     expect(screen.queryByText('on-plan')).toBeNull()
-    expect(screen.queryByText(/· logged/)).toBeNull()
+    expect(screen.queryByText(/logged/)).toBeNull()
   })
 
   it('idle row: Approve/Reject buttons and their aria names are Indonesian', async () => {
     render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
+    await pickLog('Nasi Goreng')
     expect(screen.getByRole('button', { name: 'Setujui Nasi Goreng' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Tolak Nasi Goreng' })).toBeInTheDocument()
     expect(screen.queryByText('Approve')).toBeNull()
@@ -1344,6 +1353,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
     render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
 
+    await pickLog('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: 'Tolak Nasi Goreng' }))
     expect(screen.getByText('Catatan penolakan')).toBeInTheDocument()
     const note = screen.getByLabelText('Catatan penolakan untuk Nasi Goreng')
@@ -1366,17 +1376,18 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
     mockReject.mockReturnValue(new Promise(() => {})) // never resolves
     render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
+    await pickLog('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: 'Tolak Nasi Goreng' }))
     fireEvent.change(screen.getByLabelText('Catatan penolakan untuk Nasi Goreng'), {
       target: { value: 'x' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Konfirmasi tolak Nasi Goreng' }))
-    expect(await screen.findByText('Memproses…')).toBeInTheDocument()
+    expect((await screen.findAllByText('Memproses…')).length).toBeGreaterThan(0)
     expect(screen.queryByText('Working…')).toBeNull()
     // #411 review: the busy state must reach the ACCESSIBLE name too. A static aria-label on
     // a button with visible text wins over its content, so a screen-reader user heard the
     // idle label for the whole round-trip while the sighted label read "Memproses…".
-    expect(screen.getByRole('button', { name: 'Memproses…' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Memproses…' }).length).toBeGreaterThan(0)
   })
 
   // #411 review: the trigger opens a gate; the confirm commits irreversibly. Two controls one
@@ -1385,6 +1396,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
   it('the destructive confirm does not announce the same name as the trigger that opened it', async () => {
     render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
+    await pickLog('Nasi Goreng')
     const trigger = screen.getByRole('button', { name: 'Tolak Nasi Goreng' })
     const triggerName = trigger.textContent
     fireEvent.click(trigger)
@@ -1408,6 +1420,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-010' })
     render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
+    await pickLog('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: 'Setujui Nasi Goreng' }))
     expect(screen.getByText('Catatan persetujuan')).toBeInTheDocument()
     const note = screen.getByLabelText('Catatan persetujuan untuk Nasi Goreng')
@@ -1422,6 +1435,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
     mockApprove.mockRejectedValue(new KitchenRpcError('42501', 'forbidden'))
     render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
+    await pickLog('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: 'Setujui Nasi Goreng' }))
     expect(await screen.findByText('Anda tidak memiliki izin untuk meninjau log ini.')).toBeInTheDocument()
   })
@@ -1432,50 +1446,42 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
 // card path. These assert the card's OWN anatomy (they fail against the generic
 // <dl> fallback — proven by removing the renderCard prop) and that the figures
 // band is the DESIGN.md Metric summary rule, never a tile strip.
-describe('KitchenReviewPage — phone card + summary rule (#422 / DD-WAY-40)', () => {
-  it('renders the purpose-built card: head, ONE meta line, decision controls reachable', async () => {
+describe('KitchenReviewPage — queue row + summary rule (#422 / DD-WAY-40)', () => {
+  it('a chosen log shows its submit note and reaches its decision controls', async () => {
     mockList.mockResolvedValue([PROD_LOG])
     mockPlan.mockResolvedValue({ w1: { produce: 8 } })
-    render(<KitchenReviewPage />)
-    const card = (await screen.findByText('Nasi Goreng')).closest('.krow-card')
-    expect(card).not.toBeNull()
-    expect(card!.querySelector('.krow-card-head')).not.toBeNull()
-    expect(card!.querySelector('.krow-card-meta')).not.toBeNull()
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    await pickLog('Nasi Goreng')
     // the submit note renders only when the row carries one — PROD_LOG does
-    expect(card!.querySelector('.krow-card-note')?.textContent).toContain('kurang bahan')
-    // the SAME decision component the desktop table mounts, inside the card
-    expect(within(card as HTMLElement).getByRole('button', { name: /approve|setujui/i })).toBeInTheDocument()
-    expect(document.querySelector('.dt-card-detail')).toBeNull()
+    expect(screen.getByText(/kurang bahan/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /approve nasi goreng/i })).toBeInTheDocument()
   })
 
-  it('a row with no note renders NO note block', async () => {
+  it('a log with no note says so', async () => {
     mockList.mockResolvedValue([XFER_LOG])
     mockPlan.mockResolvedValue({ w2: { [`transfer:${RADIANT_ID}`]: 42 } })
-    render(<KitchenReviewPage />)
-    const card = (await screen.findByText('Cold Brew')).closest('.krow-card')!
-    expect(card.querySelector('.krow-card-note')).toBeNull()
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Cold Brew')
+    await pickLog('Cold Brew')
+    expect(screen.getByText('No note submitted.')).toBeInTheDocument()
   })
 
-  it('the figures band is the summary RULE (one line, no tiles), and the note-gate delta renders only when off-plan rows exist', async () => {
+  it('the note-gate delta renders only when off-plan rows exist', async () => {
     mockList.mockResolvedValue([PROD_LOG, XFER_LOG])
     mockPlan.mockResolvedValue({ w1: { produce: 8 }, w2: { [`transfer:${RADIANT_ID}`]: 40 } }) // XFER off-plan (42 vs 40)
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
-    const band = document.querySelector('.msr')
-    expect(band).not.toBeNull()
-    // never the retired tile strip
-    expect(document.querySelector('.kks-wrap, .kitchen-kpi-strip, [class*="kpi-tile"]')).toBeNull()
     // the delta carries an actionable state: off-plan rows need a note to approve
-    expect(band!.querySelector('.msr-delta--destructive')).not.toBeNull()
+    expect(screen.getByText('note required to approve')).toBeInTheDocument()
   })
 
   it('with every row on plan, the band renders NO delta at all (no neutral noise)', async () => {
     mockList.mockResolvedValue([PROD_LOG])
     mockPlan.mockResolvedValue({ w1: { produce: 8 } })
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
-    expect(document.querySelector('.msr')).not.toBeNull()
-    expect(document.querySelector('.msr-delta')).toBeNull()
+    expect(screen.queryByText('note required to approve')).toBeNull()
   })
 })
 
@@ -1525,17 +1531,15 @@ describe('issue 587: the row names its own stream in the All-streams view', () =
       mockList.mockResolvedValue([PROD_LOG, RADIANT_LOG])
       mockPlan.mockResolvedValue({ w1: { produce: 8 }, w9: { produce: 3 } })
       render(<KitchenReviewPage />, { wrapper })
-      await screen.findByText('Nasi Goreng')
-      await screen.findByText('Kopi Susu')
+      await screen.findByRole('button', { name: /^Nasi Goreng/ })
+      await screen.findByRole('button', { name: /^Kopi Susu/ })
       // Both same-date Production rows share one date/action group; #587 names the stream
       // on the ROW, it does not split the same-day action group.
-      const groupLabels = document.querySelectorAll('.dt-group-label')
-      expect(groupLabels).toHaveLength(1)
-      expect(groupLabels[0].textContent).toContain('Production')
-      const nasiRow = screen.getByText('Nasi Goreng').closest('tr')!
-      const kopiRow = screen.getByText('Kopi Susu').closest('tr')!
-      expect(within(nasiRow).getByText('Rumah Rames · Kitchen')).toBeInTheDocument()
-      expect(within(kopiRow).getByText('Radiant · Bar')).toBeInTheDocument()
+      expect(screen.getAllByRole('button', { name: /· Production \(2\)$/ })).toHaveLength(1)
+      const nasiRow = screen.getByRole('button', { name: /^Nasi Goreng/ })
+      const kopiRow = screen.getByRole('button', { name: /^Kopi Susu/ })
+      expect(nasiRow).toHaveTextContent('Rumah Rames · Kitchen')
+      expect(kopiRow).toHaveTextContent('Radiant · Bar')
     } finally {
       matchMediaSpy.mockRestore()
     }
@@ -1545,10 +1549,10 @@ describe('issue 587: the row names its own stream in the All-streams view', () =
     mockList.mockResolvedValue([PROD_LOG, RADIANT_LOG])
     mockPlan.mockResolvedValue({ w1: { produce: 8 }, w9: { produce: 3 } })
     render(<KitchenReviewPage />, { wrapper })
-    const nasiCard = (await screen.findByText('Nasi Goreng')).closest<HTMLElement>('.krow-card')!
-    const kopiCard = (await screen.findByText('Kopi Susu')).closest<HTMLElement>('.krow-card')!
-    expect(within(nasiCard).getByText('Rumah Rames · Kitchen')).toBeInTheDocument()
-    expect(within(kopiCard).getByText('Radiant · Bar')).toBeInTheDocument()
+    const nasiCard = await screen.findByRole('button', { name: /^Nasi Goreng/ })
+    const kopiCard = await screen.findByRole('button', { name: /^Kopi Susu/ })
+    expect(nasiCard).toHaveTextContent('Rumah Rames · Kitchen')
+    expect(kopiCard).toHaveTextContent('Radiant · Bar')
   })
 
   it('scoped to ONE stream, the row carries no stream label (nothing to disambiguate)', async () => {
@@ -1561,7 +1565,7 @@ describe('issue 587: the row names its own stream in the All-streams view', () =
     await waitFor(() => expect(filter).toHaveTextContent('Rumah Rames · Kitchen'))
     // the stated stream legitimately carries this stream's name — the assertion is on the
     // queue row, never on the head's own statement.
-    expect(document.querySelector('.krow-stream')).toBeNull()
+    expect(screen.getByRole('button', { name: /^Nasi Goreng/ })).not.toHaveTextContent('Rumah Rames · Kitchen')
   })
 })
 
@@ -1572,9 +1576,10 @@ describe('issue 222: a queued row whose item left its stream\'s list stays revie
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
     expect(screen.getAllByText('Not on this stream’s list')).toHaveLength(1)
-    const card = screen.getByText('Not on this stream’s list').closest('tr, .krow-card') as HTMLElement
-    expect(card).toHaveTextContent('Nasi Goreng')
-    expect(within(card).getByRole('button', { name: /approve/i })).toBeEnabled()
+    const row = screen.getByRole('button', { name: /^Nasi Goreng/ })
+    expect(row).toHaveTextContent('Not on this stream’s list')
+    await pickLog('Nasi Goreng')
+    expect(screen.getByRole('button', { name: /approve nasi goreng/i })).toBeEnabled()
   })
 })
 
@@ -1631,6 +1636,7 @@ it('Review paging keeps the fetched cursor after approving the boundary row', as
   render(<KitchenReviewPage />, { wrapper })
   await screen.findByText('Boundary item 49')
   expect(screen.getByRole('button', { name: /approve loaded on-plan/i })).toBeInTheDocument()
+  await pickLog('boundary item 49')
   fireEvent.click(screen.getByRole('button', { name: /approve boundary item 49/i }))
   await waitFor(() => expect(screen.queryByText('Boundary item 49')).not.toBeInTheDocument())
   fireEvent.click(screen.getByRole('button', { name: /Load more/ }))

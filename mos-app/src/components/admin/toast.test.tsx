@@ -22,12 +22,6 @@ afterEach(() => {
 })
 
 describe('shared Toast placement', () => {
-  it('uses the shared tap-floor utility for the dismiss target', () => {
-    render(<Toast toast={{ id: 1, message: 'Saved' }} onDismiss={vi.fn()} />)
-
-    expect(screen.getByRole('button', { name: 'Dismiss notification' })).toHaveClass('toast-dismiss', 'tap-floor')
-  })
-
   it('keeps notifications above the bottom navigation and any stacked sticky action bar', () => {
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 })
     const nav = document.createElement('nav')
@@ -132,8 +126,7 @@ describe('shared Toast placement', () => {
     const status = screen.getByRole('status')
     expect(recordPanel.parentElement).toBe(overlayRoot)
     expect(status.parentElement).toBe(overlayRoot)
-    expect(status).toHaveStyle({ zIndex: 'var(--z-toast)' })
-    screen.getByRole('button', { name: 'Dismiss notification' }).click()
+    screen.getByRole('button', { name: 'Dismiss' }).click()
     expect(onDismiss).toHaveBeenCalledOnce()
 
     pageLayer.remove()

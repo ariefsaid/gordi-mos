@@ -88,19 +88,15 @@ beforeEach(() => {
 })
 
 describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => {
-  it('renders the Home feed door, live count, and plain-text row meta without row actions', async () => {
+  it('renders the live count and plain-text row meta without row actions', async () => {
     renderSection({ signals: [
       row({ id: 's1', body: 'Freezer alarm went off' }),
       row({ id: 's2', body: 'Grinder is running slowly' }),
     ]})
 
-    expect(screen.getByRole('button', { name: 'Share a Signal' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Signals · 2' })).toBeInTheDocument()
-    const feed = screen.getByTestId('signal-feed')
-    // P1 (#770): the meta line is plain text in BOTH variants — never bordered chips.
-    expect(feed.querySelectorAll('.home-signal-location-chip')).toHaveLength(0)
-    expect(feed.querySelectorAll('.home-signal-time-chip')).toHaveLength(0)
-    expect(feed.querySelectorAll('.home-signal-meta-fact').length).toBeGreaterThan(0)
+    expect(screen.getByRole('heading', { name: 'Signals (2)' })).toBeInTheDocument()
+    // P1 (#770): the meta line is plain text in BOTH variants.
+    expect(screen.getAllByText('Author One').length).toBeGreaterThan(0)
     expect(screen.queryByText('Visible to HQ Operations')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add category/i })).not.toBeInTheDocument()
   })
@@ -110,16 +106,6 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
     expect(screen.getByText('Author One')).toBeInTheDocument()
     expect(screen.getByText('HQ Operations')).toBeInTheDocument()
-  })
-
-  // GOAL UNCHANGED (C1/C2): from the Home feed a viewer can start a Signal in one action.
-  // Only the STEP changed — owner 2026-07-28 split the one full-width row into a search field
-  // plus a create button, because the row's shape read as search and behaved as a composer.
-  it('the create-Signal button opens the shared composer host (C1/C2)', async () => {
-    renderSection()
-    await userEvent.click(screen.getByRole('button', { name: /Share a Signal/i }))
-    expect(openSignalComposer).toHaveBeenCalledTimes(1)
-    expect(openSignalComposer).toHaveBeenCalledWith()
   })
 
   // The GOAL of feed search: a viewer who half-remembers a Signal can get back to it — by what it
@@ -156,12 +142,9 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
     renderSection({ signals: [row({ body: 'The freezer alarm went off' })] })
     await userEvent.type(screen.getByRole('searchbox', { name: /search signals/i }), 'zzzz')
     const empty = await screen.findByTestId('empty-state')
-    expect(empty).toHaveAttribute('data-empty-variant', 'blank')
     expect(within(empty).getByRole('heading', { name: 'No Signals match this search' })).toBeInTheDocument()
-    expect(empty.querySelector('.empty-copy')).toHaveTextContent('Search: “zzzz”.')
-    expect(empty.querySelector('.empty-state-icon svg')).not.toBeNull()
-    expect(empty.querySelector('.empty-state-glyph')).not.toHaveTextContent('✓')
-    await userEvent.click(screen.getByRole('button', { name: /clear search/i }))
+    expect(empty).toHaveTextContent('Search: “zzzz”.')
+    await userEvent.click(within(empty).getByRole('button', { name: /clear search/i }))
     expect(screen.getByText(/freezer alarm/i)).toBeInTheDocument()
   })
 
@@ -181,13 +164,13 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
 
   it('opening a card navigates to the canonical record URL', async () => {
     renderSection()
-    await userEvent.click(screen.getByRole('button', { name: /open signal/i }))
+    await userEvent.click(screen.getByRole('button', { name: /the freezer alarm went off/i }))
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/work/signals?record=signal-1'))
   })
 
   it('opens a Home Signal in the shared record host and keeps Home as the underlying page', async () => {
     renderSectionWithHost()
-    await userEvent.click(screen.getByRole('button', { name: /open signal/i }))
+    await userEvent.click(screen.getByRole('button', { name: /the freezer alarm went off/i }))
     await waitFor(() => expect(screen.getByTestId('home-signal-record')).toHaveAttribute('data-signal-id', 'signal-1'))
     expect(document.querySelector('[data-overlay-host]')).toBeInTheDocument()
     expect(document.body.textContent).toContain('The freezer alarm went off')
@@ -199,13 +182,11 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
     expect(screen.queryByRole('button', { name: 'Create Task' })).not.toBeInTheDocument()
   })
 
-  it('keeps the empty Home feed compact with its archive door beside the message', async () => {
+  it('keeps the empty Home feed compact with its archive door', async () => {
     renderSection({ signals: [] })
     const empty = await screen.findByTestId('empty-state')
-    expect(empty).toHaveClass('stream-all-clear')
     expect(within(empty).getByRole('heading', { name: 'No Signals yet.' })).toBeInTheDocument()
     expect(within(empty).getByRole('link', { name: 'See all Signals →' })).toHaveAttribute('href', '/work/signals')
-    expect(screen.getByRole('button', { name: /Share a Signal/i })).toBeInTheDocument()
   })
 
   it('names the compact Signals destination in Indonesian', async () => {
@@ -275,7 +256,7 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
 describe('FR-928: the Signals column is named Signals, and states no untraceable count', () => {
   it('the heading is "Signals" — the word the picker and the destination already use', async () => {
     renderSection()
-    const head = await screen.findByRole('heading', { name: /^signals · 1$/i })
+    const head = await screen.findByRole('heading', { name: 'Signals (1)' })
     expect(head).toBeInTheDocument()
     expect(screen.queryByText(/^recent$/i)).not.toBeInTheDocument()
   })
@@ -288,19 +269,19 @@ describe('FR-928: the Signals column is named Signals, and states no untraceable
       ],
     })
     await waitFor(() => expect(screen.getByText(/freezer alarm/i)).toBeInTheDocument())
-    expect(screen.getByRole('heading', { name: 'Signals · 2' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Signals (2)' })).toBeInTheDocument()
   })
 
   it('does not show a count when the read failed', async () => {
     renderSection({ signals: [], error: true })
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
     expect(screen.getByRole('heading', { name: 'Signals' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Signals · 0' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Signals (0)' })).not.toBeInTheDocument()
   })
 
   it('counts the ambient rows actually rendered after the feed cap', async () => {
     renderSection({ signals: Array.from({ length: 11 }, (_, index) => row({ id: `s${index}` })) })
-    await waitFor(() => expect(screen.getAllByRole('button', { name: /open signal/i })).toHaveLength(6))
-    expect(screen.getByRole('heading', { name: 'Signals · 6' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /the freezer alarm went off/i })).toHaveLength(6))
+    expect(screen.getByRole('heading', { name: 'Signals (6)' })).toBeInTheDocument()
   })
 })

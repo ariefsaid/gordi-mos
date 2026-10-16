@@ -4,21 +4,37 @@
   },
   "overrides": [
     {
-      "files": ["src/**/*.css"],
+      "files": [
+        "src/**/*.css"
+      ],
       "rules": {
         "color-no-hex": true,
-        "function-disallowed-list": ["rgb", "rgba", "hsl", "hsla", "oklch", "oklcha"]
+        "function-disallowed-list": [
+          "rgb",
+          "rgba",
+          "hsl",
+          "hsla",
+          "oklch",
+          "oklcha"
+        ],
+        "declaration-property-value-disallowed-list": {
+          "font-size": [
+            "/^[0-9.]+(px|rem|em)$/"
+          ],
+          "/.*/": [
+            "/var\\(--ds-/"
+          ]
+        }
       }
     },
     {
       "files": [
-        "src/styles/tokens/theme-light.css",
-        "src/styles/tokens/theme-dark.css",
-        "src/index.css"
+        "src/styles/tokens/round1.css"
       ],
       "rules": {
         "color-no-hex": null,
-        "function-disallowed-list": null
+        "function-disallowed-list": null,
+        "declaration-property-value-disallowed-list": null
       }
     }
   ],

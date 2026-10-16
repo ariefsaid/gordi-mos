@@ -1,11 +1,12 @@
 import { Suspense, useState, useRef, useMemo, type ReactNode } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
-import { Rail } from './rail'
+import { SideNav } from './side-nav'
 import { TopBar } from './top-bar'
 import { ContextRow } from './context-row'
 import { MobileDrawer } from './mobile-drawer'
 import { BottomTabBar } from './bottom-tab-bar'
-import { useRailCompact } from './use-rail-compact'
+import { useNavLayout, useRememberModule } from './use-nav'
+import { CafeWaitingProvider } from '@/components/cafe/cafe-waiting-provider'
 import { useIsOffline } from './use-is-offline'
 import { ContentErrorBoundary } from './content-error-boundary'
 import { CommandMenu } from '@/components/command/command-menu'
@@ -18,9 +19,10 @@ import { OverlayHostProvider, OverlayHostSlot, useOptionalOverlayHost, type Over
 import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
 import { createRecordDeepLinkResolver, RECORD_KINDS } from './record-deep-link-resolver'
 import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
-import { WorkCollectionSwitcher } from './work-collection-switcher'
 import { useT } from '@/i18n/use-t'
 import { OverlayPortal } from '@/components/ui/overlay-portal'
+import { Notice } from '@/components/ui/notice'
+import './offline-line.css'
 import { CreateDraftProvider } from './create-drafts'
 
 // Mounted with the Signals surface, exactly as the deferral note here said it would be (#267).
@@ -61,7 +63,7 @@ function SkipLink() {
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-sm)',
               padding: '8px 12px',
-              fontSize: 'var(--font-size-body-lg)',
+              fontSize: 'var(--mos-size-3)',
               boxShadow: 'var(--shadow-overlay)',
             }
           : {
@@ -123,16 +125,11 @@ const AssistantPanel = lazyPage(() =>
 )
 
 function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
-  // OD-REDESIGN-84.2 (P1-1): the intermediate 920–1099.98px regime — desktop rail still
-  // mounted (isNarrow is false) but too tight for the full 232px labelled rail — collapses
-  // to the ~72px icon-only rail. Reuses the existing split-width breakpoint family (the same
-  // 1100px threshold `task-drawer`, `tasks-layout` and `record-panel-host` already key their own
-  // regime off) rather than inventing a new query,
-  // so the rail's compact boundary tracks the app's one documented "narrow vs split" breakpoint.
-  // #442: that width regime now shares one decision seam with the user's own collapse
-  // preference — `useRailCompact` — because the top bar's brand column reads the SAME answer to
-  // keep the header divider on the rail boundary, and two copies of the expression would drift.
-  const { isNarrow, compact: railCompact, collapsible: railCollapsible } = useRailCompact()
+  // One decision seam for the shell's navigation (use-nav.ts): the admitted module count picks sidebar or
+  // rail + pages panel, the viewport (and the viewer's own fold-away choice) picks full or 64px rail. The top
+  // bar's brand cell reads the SAME answer so its divider stays on the nav boundary.
+  const { isNarrow, columnWidth } = useNavLayout()
+  useRememberModule()
   const t = useT()
   // Offline is a header fact, not a page fact: the one muted line sits in the header block, above
   // both rail and content, and is absent entirely while online (DESIGN.md § Components → State
@@ -179,8 +176,9 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
           unbind that row and let the whole shell grow (the "grows" case), breaking the internal
           scroll. h-dvh keeps the exact grid behaviour, only swapping vh → dvh. */}
       <div
-        className="h-dvh bg-secondary/35"
+        className="h-dvh app-viewport"
         style={{
+          background: 'var(--mos-canvas)',
           display: 'grid',
           width: '100%',
           maxWidth: '100vw',
@@ -192,10 +190,10 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
           // table/cards) stretch the track past the viewport → app-wide horizontal scroll.
           gridTemplateColumns: isNarrow
             ? 'minmax(0, 1fr)'
-            : `${railCompact ? 'var(--rail-w-compact)' : 'var(--rail-w)'} minmax(0, 1fr)`,
+            : `${columnWidth} minmax(0, 1fr)`,
           gridTemplateRows: isNarrow
-            ? `var(--header-h)${isOffline ? ' auto' : ''} minmax(0, 1fr) var(--tabbar-h)`
-            : `var(--header-h)${isOffline ? ' auto' : ''} minmax(0, 1fr)`,
+            ? `var(--mos-topbar-height)${isOffline ? ' auto' : ''} minmax(0, 1fr) var(--mos-tabbar-height)`
+            : `var(--mos-topbar-height)${isOffline ? ' auto' : ''} minmax(0, 1fr)`,
           gridTemplateAreas: isNarrow
             ? `"topbar"${isOffline ? ' "offline"' : ''} "main" "tabbar"`
             : `"topbar topbar"${isOffline ? ' "offline offline"' : ''} "rail main"`,
@@ -204,16 +202,17 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
         {/* TopBar — grid-area: topbar, spans full width across both columns (ADR-0013 D1) */}
         <TopBar onOpenSearch={() => openWithMode('search')} searchTriggerRef={searchTriggerRef} />
 
-        {/* The offline line — one muted sentence under the header, never a banner with an action:
-            there is nothing to press, and it disappears the moment the connection returns. */}
+        {/* The offline line — one short sentence under the header in the attention pair (amber, words +
+            icon), never a banner with an action: there is nothing to press, and it disappears the
+            moment the connection returns. The live region below announces it; this strip is visual. */}
         {isOffline && (
           <div
             aria-hidden="true"
             data-anatomy="offline-line"
-            className="text-muted-foreground border-b border-border px-4 py-1"
+            className="shell-offline-line"
             style={{ gridArea: 'offline' }}
           >
-            {t('shell.offline')}
+            <Notice tone="attention" role="none">{t('shell.offline')}</Notice>
           </div>
         )}
         <OverlayPortal>
@@ -236,13 +235,14 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
           </span>
         </OverlayPortal>
 
-        {/* Rail — grid-area: rail, row 2 col 1; hidden at <920px (drawer is the nav);
-            icon-only compact regime at 920–1099.98px (OD-REDESIGN-84.2 / P1-1). */}
-        {!isNarrow && <Rail compact={railCompact} collapsible={railCollapsible} />}
+        {/* Navigation — grid-area: rail, row 2 col 1. One admitted module: the single sidebar; two or more: the module
+            rail + pages panel; under 1280px or folded: the 64px rail with flyouts. Under 768px the tab bar and More
+            drawer are the nav (see use-nav.ts / side-nav.tsx). */}
+        {!isNarrow && <SideNav />}
 
         {/* Main — grid-area: main, row 2 col 2; owns scroll; each page provides its own <main> */}
         <div
-          className="flex min-w-0 flex-col min-h-0"
+          className="flex min-w-0 flex-col min-h-0 shell-main-viewport"
           data-shell-main
           data-panel-docked={dockedPanel}
           style={{ gridArea: 'main', overflow: 'hidden' }}
@@ -257,12 +257,11 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
             id="main-content"
             tabIndex={-1}
             data-anatomy="content"
-            className="min-w-0 flex-1 min-h-0 overflow-hidden flex flex-col focus:outline-none"
+            className="min-w-0 flex-1 min-h-0 overflow-hidden flex flex-col focus:outline-none content-viewport"
           >
             {/* A read that fails because the network did renders its error HERE, inside the frame
                 — the rail, the header and the context row above are untouched. */}
             <ContentErrorBoundary>
-              <WorkCollectionSwitcher />
               <Outlet />
             </ContentErrorBoundary>
           </div>
@@ -337,7 +336,10 @@ export function AppShell({ contextRow }: { contextRow?: ReactNode }) {
     <CreateDraftProvider>
       <SignalComposerHost>
         <OverlayHostRoot>
-          <ShellContent contextRow={contextRow} />
+          {/* One shared read of the Review queue counts for the nav badge, Café home and Review itself. */}
+          <CafeWaitingProvider>
+            <ShellContent contextRow={contextRow} />
+          </CafeWaitingProvider>
         </OverlayHostRoot>
       </SignalComposerHost>
     </CreateDraftProvider>

@@ -250,7 +250,7 @@ describe('ObjectiveWriteupEditor', () => {
   it('keeps the side-menu handle and every menu control a 44px target on touch and phone widths', () => {
     const css = readFileSync(resolve(__dirname, 'objective-writeup-editor.css'), 'utf8')
     const phone = css.slice(css.lastIndexOf('@media (hover: none), (max-width: 767.98px) {'))
-    expect(phone).toMatch(/\.bn-side-menu \.bn-ak-button \{ min-width: 44px; min-height: 44px; \}/)
+    expect(phone).toMatch(/\.bn-side-menu \.bn-ak-button \{ min-width: 44px; min-height: var\(--mos-control-height\); \}/)
     expect(phone).not.toMatch(/\.bn-side-menu \{ display: none/)
   })
 

@@ -5,7 +5,7 @@ import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import type { HomeCafeDoorData } from '@/lib/db/home-cafe'
 import './home-cafe-door.css'
 
-export type HomeCafeDoorState = 'loading' | 'ready' | 'error'
+type HomeCafeDoorState = 'loading' | 'ready' | 'error'
 
 export interface HomeCafeDoorProps {
   state?: HomeCafeDoorState

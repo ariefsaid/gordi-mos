@@ -144,7 +144,7 @@ export function leafInThisTable(path: string) {
 }
 
 /** The pathname half of a redirect target — `matchRoutes` matches paths, not query strings. */
-export function pathnameOf(to: string): string {
+function pathnameOf(to: string): string {
   return to.split('#')[0].split('?')[0]
 }
 
@@ -167,31 +167,6 @@ export function gatesOnPath(path: string): string[] {
     }
     if (el.type === AdminRoute) return ['admin']
     return []
-  })
-}
-
-/**
- * Does the ROUTE admit a viewer holding these access roles? (OD-WAY-51.)
- *
- * Evaluates the same gates `gatesOnPath` enumerates, with the same logic the gate
- * components themselves use — membership for an access-role gate and `admin` for the admin gate.
- * `ProtectedRoute` is not consulted: every path here is behind it, so
- * it can never distinguish two authenticated viewers.
- *
- * This is what lets the nav guard derive what SHOULD be rendered from the route table, instead of
- * from a hand-picked list of personas that can only ever confirm what someone already thought of.
- */
-export function routeAdmits(path: string, accessRoles: readonly string[]): boolean {
-  const matches = matchRoutes(routeConfig, pathnameOf(path)) ?? []
-  return matches.every(({ route }) => {
-    const el = route.element
-    if (!isValidElement(el)) return true
-    if (el.type === RequireAccessRole) {
-      const { anyOf } = el.props as { anyOf: readonly string[] }
-      return anyOf.some((r) => accessRoles.includes(r))
-    }
-    if (el.type === AdminRoute) return accessRoles.includes('admin')
-    return true
   })
 }
 

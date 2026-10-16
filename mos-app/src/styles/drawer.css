@@ -46,7 +46,7 @@
        flow (no z-index) and would be covered by this fixed z-drawer panel from the top edge — incl.
        the bell/deputy/⌘K cluster and the very bell that opened it. Anchoring below the header
        leaves the whole chrome row reachable while the panel still overlays the page. */
-    top: var(--header-h);
+    top: var(--mos-topbar-height);
     right: 0;
     bottom: 0;
     width: var(--shell-panel-w);
@@ -84,7 +84,7 @@
     /* TB-1 / OD-P4-9: same chrome-reachability contract as .drawer-shell-split — the standalone
        companion (Deputy, no record open) anchors below the header so the top-bar cluster that
        opened it stays reachable instead of being covered by this fixed z-drawer surface. */
-    top: var(--header-h);
+    top: var(--mos-topbar-height);
     bottom: 0;
     width: min(var(--assistant-w), 100vw);
     border-radius: 0;
@@ -97,11 +97,11 @@
   .drawer.overlay-companion-host--with-record {
     /* The measured companion uses the record's column, below both the shared chrome and its
        identity/actions header. The compact height leaves the record body visible below it. */
-    top: var(--companion-top, calc(var(--header-h) + 12px));
+    top: var(--companion-top, calc(var(--mos-topbar-height) + 12px));
     right: var(--companion-right, 0px);
     bottom: auto;
     width: var(--companion-width, min(var(--assistant-w), 100vw));
-    height: min(35vh, max(0px, calc(100vh - var(--companion-top, var(--header-h)) - 16px)));
+    height: min(35vh, max(0px, calc(100vh - var(--companion-top, var(--mos-topbar-height)) - 16px)));
     min-height: 0;
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-strong);
@@ -117,7 +117,7 @@
   position: absolute; inset: 0; background: var(--scrim);
 }
 @media (prefers-reduced-motion: no-preference) {
-  .drawer-scrim { animation: scrim-in var(--dur-med) ease; }
+  .drawer-scrim { animation: scrim-in var(--mos-duration-fast) ease; }
   @keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
 }
 /* Right-side sheet (desktop / narrow-laptop band). */
@@ -127,9 +127,9 @@
      at the same value as --record-panel-w's floor (index.css) — one record-panel floor, not a
      private number that could drift from it. drawer.css.test.ts derives the expected value from
      the token rather than repeating the literal. `max-width: 100%` covers below-floor viewports. */
-  width: clamp(440px, 45vw, 520px); max-width: 100%; border-radius: 0;
+  width: clamp(480px, 45vw, 520px); max-width: 100%; border-radius: 0;
   border: 0; border-left: 1px solid var(--border);
-  box-shadow: -8px 0 32px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
+  box-shadow: var(--shadow-drawer);
   display: flex; flex-direction: column;
 }
 /* Full-screen surface (<768px mobile). */
@@ -138,7 +138,7 @@
   display: flex; flex-direction: column;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .drawer-modal.drawer-sheet { animation: sheet-in var(--dur-slow) ease; }
+  .drawer-modal.drawer-sheet { animation: sheet-in var(--mos-duration-slow) ease; }
   @keyframes sheet-in { from { transform: translateX(16px); opacity: 0.6; } to { transform: none; opacity: 1; } }
 }
 /* Phone (<768px): the sheet variant collapses to a full-height opaque sheet too —

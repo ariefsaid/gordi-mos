@@ -3,7 +3,7 @@
 
 export type RecentTask = { id: string; title: string }
 
-export const RECENT_TASKS_KEY = 'mos.command.recentTasks'
+const RECENT_TASKS_KEY = 'mos.command.recentTasks'
 const MAX_RECENT = 5
 
 // Read the recent-tasks buffer, newest-first. Tolerates absent/corrupt storage.

@@ -19,6 +19,21 @@ import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { StatusPill, type TaskStatus } from '@/components/tasks/status-pill'
 import { isOverdue, type FollowUpRow, type FollowUpState, type FollowUpTransition } from '@/lib/db/follow-ups'
 import { formatIDR } from '@/lib/format/money'
+import type { MessageKey } from '@/i18n/messages'
+import './follow-up-queue-table.css'
+
+const FOLLOW_UP_STATE_KEY: Record<FollowUpState, MessageKey> = {
+  open: 'moneyB.followups.state.open',
+  chased: 'moneyB.followups.state.chased',
+  promised: 'moneyB.followups.state.promised',
+  partial: 'moneyB.followups.state.partial',
+  settled: 'moneyB.followups.state.settled',
+  confirmed: 'moneyB.followups.state.confirmed',
+}
+const FOLLOW_UP_KIND_KEY: Record<FollowUpRow['kind'], MessageKey> = {
+  b2b_ar: 'moneyB.followups.kind.b2b_ar',
+  retail_pending: 'moneyB.followups.kind.retail_pending',
+}
 import type { FollowUpQueueState } from './use-follow-up-queue'
 
 function nextActions(row: FollowUpRow, canConfirm: boolean, canChase: boolean): FollowUpTransition[] {
@@ -37,11 +52,15 @@ function followUpStatusTone(state: FollowUpState): TaskStatus {
 export function FollowUpQueueTable({
   queue,
   onOpenRecord,
+  masterDetail = false,
+  selectedId,
 }: {
   queue: FollowUpQueueState
-  // WHY: no-host embeds render plain text because the retired Work record route has no page left
-  // to link; an overlay host still provides the panel-only record door (DD-WAY-36).
+  // No-host embeds render plain text because the retired Work record route has no page left.
   onOpenRecord?: (row: FollowUpRow) => void
+  /** Money page composition: keep the queue identity-led and put lifecycle actions in the selected record. */
+  masterDetail?: boolean
+  selectedId?: string | null
 }) {
   const t = useT()
   const isDesktop = useIsDesktop()
@@ -56,7 +75,7 @@ export function FollowUpQueueTable({
       : !!form.cash_in_date && !!form.evidence && !!form.amount
 
     return (
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--mos-inline-gap)' }}>
         {verb === 'promise' ? (
           <DateField
             label={t('followUps.promiseDate')}
@@ -109,20 +128,20 @@ export function FollowUpQueueTable({
               onClick={() => onOpenRecord(row)}
               aria-label={`Open follow-up ${row.source_invoice_ref ?? row.id}`}
             >
-              {row.source_invoice_ref ?? row.kind}
+              {row.source_invoice_ref ?? t(FOLLOW_UP_KIND_KEY[row.kind])}
             </button>
           ) : (
-            row.source_invoice_ref ?? row.kind
+            row.source_invoice_ref ?? t(FOLLOW_UP_KIND_KEY[row.kind])
           )}
         </div>
       ),
     },
-    {
+    ...(!masterDetail ? [{
       key: 'original_amount',
       header: t('followUps.amount'),
       numeric: true,
-      render: (row) => formatIDR(row.original_amount),
-    },
+      render: (row: FollowUpRow) => formatIDR(row.original_amount),
+    }] : []),
     {
       key: 'running_balance',
       header: t('followUps.balance'),
@@ -132,7 +151,7 @@ export function FollowUpQueueTable({
     {
       key: 'state',
       header: t('followUps.state'),
-      render: (row) => <StatusPill status={followUpStatusTone(row.state)} label={row.state} />,
+      render: (row) => <StatusPill status={followUpStatusTone(row.state)} label={t(FOLLOW_UP_STATE_KEY[row.state])} />,
     },
     {
       key: 'due_date',
@@ -144,14 +163,14 @@ export function FollowUpQueueTable({
         </>
       ),
     },
-    {
+    ...(!masterDetail ? [{
       key: 'actions',
       header: t('followUps.actions'),
-      render: (row) => {
+      render: (row: FollowUpRow) => {
         const actions = nextActions(row, canConfirm, canChase)
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--mos-inline-gap)' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--mos-inline-gap)' }}>
               {actions.length === 0 && <span style={{ color: 'var(--muted-foreground)' }}>—</span>}
               {actions.map((verb) => (
                 <Button key={verb} variant="outline" onClick={() => void run(row, verb)}>
@@ -162,7 +181,7 @@ export function FollowUpQueueTable({
           </div>
         )
       },
-    },
+    }] : []),
   ]
 
   return (
@@ -174,7 +193,10 @@ export function FollowUpQueueTable({
       {state === 'ready' && rows.length === 0 && <EmptyState title={t('followUps.empty')} />}
       {state === 'ready' && rows.length > 0 && (
         <>
-          <DataTable columns={columns} rows={rows} isDesktop={isDesktop} caption={t('followUps.title')} />
+          <DataTable columns={columns} rows={rows} isDesktop={isDesktop} caption={t('followUps.title')} tableClassName={masterDetail ? 'follow-up-queue-table--master-detail' : undefined} rowClassName={masterDetail ? (row) => row.id === selectedId ? 'follow-up-queue-row is-selected' : 'follow-up-queue-row' : undefined} renderCard={masterDetail ? (row: FollowUpRow) => <div className="follow-up-queue-card">
+            <div className="follow-up-queue-card__top"><button type="button" className="follow-up-queue-table__open-record" onClick={() => onOpenRecord?.(row)} aria-label={`Open follow-up ${row.source_invoice_ref ?? row.id}`}><strong>{row.counterparty}</strong><span>{row.running_balance === null ? '—' : formatIDR(row.running_balance)}</span></button></div>
+            <button type="button" className="follow-up-queue-card__identity" onClick={() => onOpenRecord?.(row)}>{row.source_invoice_ref ?? t(FOLLOW_UP_KIND_KEY[row.kind])} · {row.due_date ?? '—'} · {t(FOLLOW_UP_STATE_KEY[row.state])}{isOverdue(row) ? ` · ${t('followUps.overdue')}` : ''}</button>
+          </div> : undefined} />
           <ListPaging count={rows.length} hasMore={hasMore} loading={loadingMore}
             error={moreError} onLoadMore={() => { void loadMore() }} />
         </>
@@ -184,16 +206,16 @@ export function FollowUpQueueTable({
           role="complementary"
           aria-label="AR Follow-up detail"
           style={{
-            marginTop: 16,
-            padding: 16,
+            marginTop: 'var(--mos-field-gap)',
+            padding: 'var(--mos-panel-pad)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-lg)',
             background: 'var(--card)',
             boxShadow: 'var(--shadow-rest)',
           }}
         >
-          <h2 style={{ margin: '0 0 8px', fontSize: 16 }}>{detailRow.counterparty}</h2>
-          <dl style={{ display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '6px 12px', margin: '0 0 12px' }}>
+          <h2 style={{ margin: '0 0 var(--mos-inline-gap)', fontSize: 'var(--mos-size-3)' }}>{detailRow.counterparty}</h2>
+          <dl style={{ display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: 'var(--mos-label-gap) var(--mos-row-gap)', margin: '0 0 var(--mos-toolbar-gap)' }}>
             <dt style={{ color: 'var(--muted-foreground)' }}>Source</dt>
             <dd style={{ margin: 0 }}>{detailRow.source_invoice_ref ?? detailRow.kind}</dd>
             <dt style={{ color: 'var(--muted-foreground)' }}>State</dt>

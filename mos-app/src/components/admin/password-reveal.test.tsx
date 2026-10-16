@@ -48,7 +48,7 @@ describe('PasswordReveal', () => {
     expect(screen.getByText('TempPw9999')).toBeInTheDocument()
     expect(screen.getByText(/copy this now/i)).toBeInTheDocument()
     expect(screen.getByText('budi.santoso@ops.gordi.local')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /hide password and close/i })).toBeInTheDocument()
   })
 
   it('renders the reset-context heading variant', () => {
@@ -60,7 +60,7 @@ describe('PasswordReveal', () => {
     const user = userEvent.setup()
     const onDone = vi.fn()
     renderReveal({ onDone })
-    await user.click(screen.getByRole('button', { name: /done/i }))
+    await user.click(screen.getByRole('button', { name: /hide password and close/i }))
     expect(onDone).toHaveBeenCalled()
   })
 
@@ -96,7 +96,7 @@ describe('PasswordReveal', () => {
     renderReveal()
 
     const copyBtn = screen.getByRole('button', { name: /copy password/i })
-    const doneBtn = screen.getByRole('button', { name: /done/i })
+    const doneBtn = screen.getByRole('button', { name: /hide password and close/i })
 
     // Copy is auto-focused on open (design-plan §4.4)
     await waitFor(() => expect(copyBtn).toHaveFocus())
@@ -114,6 +114,6 @@ describe('PasswordReveal', () => {
     // Esc is intentionally NOT a dismiss path here — pressing it must not throw or
     // surface any close affordance; Done remains the only way out.
     await user.keyboard('{Escape}')
-    expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /hide password and close/i })).toBeInTheDocument()
   })
 })

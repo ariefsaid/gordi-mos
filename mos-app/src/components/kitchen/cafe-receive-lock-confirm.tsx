@@ -7,7 +7,7 @@ import { CafeReceiptConditionPills } from './cafe-receipt-line-condition'
 import './cafe-receipt.css'
 import './cafe-receive-lock-confirm.css'
 
-export type CafeReceiveLockLine = { unitId: string; name: string; quantity: string; unit: string; damagedWrong?: boolean }
+type CafeReceiveLockLine = { unitId: string; name: string; quantity: string; unit: string; damagedWrong?: boolean }
 
 type Props = {
   open: boolean

@@ -19,7 +19,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
 
 // Gitignored (mos-app/.gitignore) — these are live sessions, not fixtures.
-export const AUTH_STATE_DIR = resolve(__dir, '../.auth')
+const AUTH_STATE_DIR = resolve(__dir, '../.auth')
 
 export function storageStatePath(email: string): string {
   return resolve(AUTH_STATE_DIR, `${email}.json`)
@@ -49,7 +49,7 @@ export async function captureStorageState(
     const page = await context.newPage()
     await page.goto('login')
     await page.getByLabel('Email').fill(email)
-    await page.getByLabel('Password').fill(password)
+    await page.getByLabel('Password', { exact: true }).fill(password)
     await page.getByRole('button', { name: /sign in/i }).click()
     await waitForAuthenticatedShell(page)
     await context.storageState({ path: storageStatePath(email) })

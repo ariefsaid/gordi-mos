@@ -10,20 +10,12 @@
 // Type-only import binds the descriptor's literal unions to the REAL component types via
 // `satisfies`, so a future rename fails tsc here — keeping the manifest honest without pulling
 // React into the pure manifest module.
-import type { KPITileDelta } from '@/components/dashboard/kpi-tile'
 import {
   registryManifest,
-  type PrimitiveStatus,
-  type PropSchemaDescriptor,
-  type DataShapeDescriptor,
-  type PrimitiveDescriptor,
+  
+  
+  
+  
 } from './registry-manifest'
-
-export type { PrimitiveStatus, PropSchemaDescriptor, DataShapeDescriptor, PrimitiveDescriptor }
-
-// Compile-time guard binding the KPITile delta tone union to the descriptor (rename-safe).
-// Exported (rather than a bare unreferenced const) so `noUnusedLocals` doesn't fail the build —
-// the guard's purpose is purely to fail tsc here if KPITileDelta['tone'] is ever renamed.
-export const KPI_DELTA_TONES = ['success', 'destructive', 'neutral'] as const satisfies readonly KPITileDelta['tone'][]
 
 export const registry = registryManifest

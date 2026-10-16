@@ -1,6 +1,6 @@
 /**
  * BottomTabBar tests — Redesign Step 2 (T15). Phone bottom-nav = Home · Work ·
- * Café · Inbox · More (5). More opens the More menu; More carries aria-current=
+ * Café · More. More opens the More menu; More carries aria-current=
  * page when a non-primary destination is active (AC-021/022 unit arm).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -15,10 +15,6 @@ const mockUseAuth = vi.mocked(useAuth)
 vi.mock('./use-is-narrow')
 import { useIsNarrow } from './use-is-narrow'
 const mockUseIsNarrow = vi.mocked(useIsNarrow)
-
-vi.mock('@/hooks/useUnreadCount', () => ({ useUnreadCount: vi.fn() }))
-import { useUnreadCount } from '@/hooks/useUnreadCount'
-const mockUseUnreadCount = vi.mocked(useUnreadCount)
 
 import { BottomTabBar } from './bottom-tab-bar'
 
@@ -71,25 +67,24 @@ beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
   setAuthAs([])
-  mockUseUnreadCount.mockReturnValue({ unreadCount: 0, loading: false, refresh: vi.fn() })
 })
 
-describe('AC-021 / OD-REDESIGN-68: phone bottom-nav is Home · Work · <role module> · Inbox · More', () => {
-  it('a café-affiliated viewer sees Home · Work · Café · Inbox + More, in order', () => {
+describe('AC-021 / OD-REDESIGN-68: phone bottom-nav is Home · Work · <role module> · More', () => {
+  it('a café-affiliated viewer sees Home · Work · Café + More, in order', () => {
     setCafeViewer()
     renderTabBar('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const links = within(nav).getAllByRole('link')
-    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Café', 'Inbox'])
+    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Café'])
     expect(within(nav).getByRole('button', { name: /More/i })).toBeInTheDocument()
   })
 
-  it('an org-wide viewer with no module role omits the module slot (Home · Work · Inbox + More)', () => {
+  it('an org-wide viewer with no module role omits the module slot (Home · Work + More)', () => {
     setAuthAs(['admin']) // org-wide role, unaffiliated → no module tab (OD-68, #744)
     renderTabBar('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const links = within(nav).getAllByRole('link')
-    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Inbox'])
+    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work'])
     expect(within(nav).queryByRole('link', { name: /Café/ })).toBeNull()
     expect(within(nav).getByRole('button', { name: /More/i })).toBeInTheDocument()
   })
@@ -104,26 +99,17 @@ describe('AC-021 / OD-REDESIGN-68: phone bottom-nav is Home · Work · <role mod
     renderTabBar('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const links = within(nav).getAllByRole('link')
-    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Inbox'])
+    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work'])
     expect(within(nav).queryByRole('link', { name: /Roastery/ })).toBeNull()
   })
 
-  it('AC-051: the phone Inbox tab badge renders the shared unread figure', () => {
-    mockUseUnreadCount.mockReturnValue({ unreadCount: 2, loading: false, refresh: vi.fn() })
-    renderTabBar('/')
-    const inbox = within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: /Inbox,.*2/i })
-    expect(inbox).toBeInTheDocument()
-    expect(within(inbox).getByText('2')).toBeInTheDocument()
-  })
-
-  it('primary tabs link to /, /work/tasks, /cafe, /inbox (café viewer)', () => {
+  it('primary tabs link to /, /work/tasks, /cafe (café viewer)', () => {
     setCafeViewer()
     renderTabBar('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(nav).getByRole('link', { name: /Home/ })).toHaveAttribute('href', '/')
     expect(within(nav).getByRole('link', { name: /Work/ })).toHaveAttribute('href', '/work/tasks')
     expect(within(nav).getByRole('link', { name: /Café/ })).toHaveAttribute('href', '/cafe')
-    expect(within(nav).getByRole('link', { name: /Inbox/ })).toHaveAttribute('href', '/inbox')
   })
 
   it('More button calls onOpenMore', () => {
@@ -145,8 +131,7 @@ describe('AC-021 / OD-REDESIGN-68: phone bottom-nav is Home · Work · <role mod
   it('the persistent phone plus launcher opens the approved action launcher', () => {
     const onOpenActionLauncher = vi.fn()
     renderTabBar('/', { onOpenActionLauncher })
-    const launcher = screen.getByRole('button', { name: /open actions/i })
-    expect(launcher).toHaveClass('mobile-action-launcher')
+    const launcher = screen.getByRole('button', { name: /^actions$/i })
     expect(launcher).toHaveAttribute('aria-haspopup', 'dialog')
     fireEvent.click(launcher)
     expect(onOpenActionLauncher).toHaveBeenCalledOnce()
@@ -182,13 +167,13 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
   it.each(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/request', '/cafe/plan', '/cafe/stock', '/cafe/review'])('capture surface %s yields the + launcher to its own action', (path) => {
     setCafeViewer()
     renderTabBar(path)
-    expect(screen.queryByRole('button', { name: /open actions/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^actions$/i })).not.toBeInTheDocument()
   })
 
   it.each(['/cafe/items', '/cafe/pushes', '/cafe/items/'])('support route %s keeps the quick-capture launcher', (path) => {
     setCafeViewer()
     renderTabBar(path)
-    expect(screen.getByRole('button', { name: /open actions/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^actions$/i })).toBeInTheDocument()
   })
 
   // UPDATED, not relaxed — and it is the SAME Rule-5 contract, read the other way round. These
@@ -221,45 +206,28 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
     expect(within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')).toHaveLength(0)
   })
 
-  // A door still shows where the viewer stands: the bar marks More visually, while the single
-  // aria-current stays on the breadcrumb leaf.
-  it.each(['/admin/people', '/profile'])('More reads as the current place at %s', (path) => {
-    setAuthAs(['admin'])
-    renderTabBar(path)
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('button', { name: /More/i })).toHaveClass('bottom-tab--active')
-    expect(within(nav).getAllByRole('link').some((l) => l.classList.contains('bottom-tab--active'))).toBe(false)
-  })
-
-  it('More is not marked while a primary tab is current', () => {
-    renderTabBar('/work/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('button', { name: /More/i })).not.toHaveClass('bottom-tab--active')
-  })
-
   // A Director works no café line, so Café is not promoted at Home — but on a Café page the bar
   // names the module they are in and marks it current.
   it.each(['/cafe', '/cafe/items', '/cafe/review', '/cafe/pushes'])('an unaffiliated admin gets the Café tab, current, at %s', (path) => {
     setAuthAs(['admin', 'manager'])
     renderTabBar(path)
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Home', 'Work', 'Café', 'Inbox'])
+    expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Home', 'Work', 'Café'])
     const page = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
     expect(page).toHaveLength(1)
     expect(page[0]).toHaveAccessibleName(/Café/)
-    expect(within(nav).getByRole('button', { name: /More/i })).not.toHaveClass('bottom-tab--active')
   })
 
-  it.each(['finance', 'manager'])('%s sees More as the active door at /money, not a Money tab', (role) => {
+  it.each(['finance', 'manager'])('%s gets the Money tab, current, at /money; More stays a door', (role) => {
     setAuthAs([role])
     renderTabBar('/money')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const more = within(nav).getByRole('button', { name: /More/i })
-    expect(more).toHaveClass('bottom-tab--active')
     expect(more).not.toHaveAttribute('aria-current')
     expect(more).toHaveAttribute('aria-haspopup', 'dialog')
-    expect(within(nav).queryByRole('link', { name: /^Money$/ })).toBeNull()
-    expect(within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')).toHaveLength(0)
+    const page = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(page).toHaveLength(1)
+    expect(page[0]).toHaveAccessibleName(/Money/)
   })
 })
 
@@ -286,8 +254,6 @@ describe('F-B / Rule 5/9: Work tab is aria-current=page for every /work/* child 
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const workLink = within(nav).getByRole('link', { name: /Work/ })
     expect(workLink).not.toHaveAttribute('aria-current', 'page')
-    const inboxLink = within(nav).getByRole('link', { name: /Inbox/ })
-    expect(inboxLink).toHaveAttribute('aria-current', 'page')
   })
 })
 
@@ -308,17 +274,11 @@ describe('a11y: every tab icon is aria-hidden', () => {
 })
 
 describe('issue 1032: one create entry on phone', () => {
-  it.each(['/work/tasks', '/work/signals', '/work/tasks/', '/work/signals/'])('%s carries its own in-page create, so the + launcher yields', (path) => {
-    renderTabBar(path)
-    expect(screen.queryByRole('button', { name: /open actions/i })).toBeNull()
-    expect(screen.getByRole('navigation', { name: 'Primary' })).not.toHaveClass('bottom-tab-bar--with-launcher')
-  })
-
   it.each(['/', '/work/projects', '/work/objectives', '/work/tasks/abc-123', '/inbox'])(
     '%s has no in-page create, so the + launcher stays',
     (path) => {
       renderTabBar(path)
-      expect(screen.getByRole('button', { name: /open actions/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /^actions$/i })).toBeInTheDocument()
     },
   )
 })

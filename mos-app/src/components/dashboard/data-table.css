@@ -13,7 +13,7 @@
    mid-glyph instead of hidden under an opaque bar. Separate borders keep each cell's own
    background box intact under `position: sticky`. `border-spacing: 0` keeps every row's own
    1px `border-bottom` (below) the only visible divider, matching the collapsed look exactly. */
-.dt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--font-size-control); }
+.dt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--mos-size-3); }
 
 .dt-caption {
   /* visually hidden but announced — the accessible table name lives on aria-label
@@ -30,25 +30,8 @@
   border: 0;
 }
 
-/* Sticky header (DESIGN.md "Data Table (signature)": "Header cells: sticky, `card` bg…").
-   Sticks to the top of the nearest scrolling ancestor (the page's own scroll container);
-   `card` bg + a low z-index keep it opaque over rows that scroll underneath without
-   introducing a new stacking surface. */
-.dt-table thead th {
-  text-align: left;
-  font-size: var(--font-size-overline);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-  background: var(--card);
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky);
-}
+/* Sticky header: the shared table-head grammar (styles/table-head.css) sets the look; this keeps it pinned. */
+.dt-table thead th { position: sticky; top: 0; z-index: var(--z-sticky); }
 .dt-table thead .dt-th-num { text-align: right; }
 
 .dt-sort-button {
@@ -65,29 +48,12 @@
 .dt-sort-button:hover {
   color: var(--foreground);
 }
-.dt-table th[aria-sort] .dt-sort-button::after {
-  content: '';
-  display: inline-block;
-  width: 0;
-  height: 0;
-  margin-left: 5px;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  vertical-align: middle;
-}
-.dt-table th[aria-sort='ascending'] .dt-sort-button::after {
-  border-bottom: 5px solid currentColor;
-}
-.dt-table th[aria-sort='descending'] .dt-sort-button::after {
-  border-top: 5px solid currentColor;
-}
-
 /* Dense body rows — the SHARED list-row rhythm: row height, padding scale, and divider
    colour come from the one --row-* token set (index.css) so every list surface reads at
    the same rhythm, not a rival one. */
 .dt-table tbody td {
-  height: var(--row-min-h);
-  padding: var(--row-pad-y) var(--row-pad-x);
+  height: var(--mos-row-min);
+  padding: var(--mos-row-pad-y) var(--mos-row-pad-x);
   border-bottom: 1px solid var(--row-divider);
   color: var(--foreground);
   vertical-align: middle;
@@ -95,19 +61,22 @@
 .dt-table tbody tr:last-child td { border-bottom: none; }
 .dt-table tbody .dt-row-detail > td {
   height: auto;
-  padding-block: 2px 8px;
+  padding-block: var(--mos-stack-gap) var(--mos-inline-gap);
   background: var(--card);
 }
 .dt-row-detail .quantity-field-error { width: 100%; }
+/* A detail row with nothing in it draws no row, so no second divider. */
+.dt-table tbody .dt-row-detail:has(> td:empty) { display: none; }
 
 /* quiet hover wash — --surface-secondary (grey), NEVER the blue --accent */
 .dt-table tbody tr:hover td {
-  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+  background: var(--mos-hover);
 }
 
 .dt-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 
 /* negative-number tint — AA-darkened red, never base --destructive (WCAG) */
@@ -117,16 +86,16 @@
 }
 
 .dt-empty {
-  padding: 24px 12px;
+  padding: var(--mos-gutter) var(--mos-row-pad-x);
   color: var(--muted-foreground);
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
   text-align: center;
 }
 
 /* footer totals row */
 .dt-table tfoot td {
-  background: color-mix(in srgb, var(--secondary) 40%, transparent);
-  border-top: 1.5px solid var(--border);
+  background: var(--mos-band);
+  border-top: 1px solid var(--mos-line);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -144,38 +113,38 @@
 .dt-cards {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--mos-inline-gap);
 }
 
 .dt-card {
-  padding: 14px;
+  padding: var(--mos-row-pad-y) var(--mos-row-pad-x);
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-rest);
+  box-shadow: none;
   box-sizing: border-box;
-  min-height: 44px; /* touch target floor (design-plan §4.2) */
+  min-height: var(--mos-row-min); /* touch target floor (design-plan §4.2) */
 }
 
 /* The `renderCard` body's own box. The class is data-table.tsx's, so its style belongs
    here rather than in a consuming page's stylesheet: routes are code-split, so a page that
    applies the class without owning it gets whichever chunk happens to be loaded (measured
    on v4 — 14px base padding instead of the intended 10px 12px). */
-.dt-card--compact { padding: 10px 12px; }
+.dt-card--compact { padding: var(--mos-row-pad-y) var(--mos-row-pad-x); }
 
 .dt-card-title {
   min-width: 0;
   overflow-wrap: anywhere;
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
   font-weight: 500;
   color: var(--foreground);
-  margin-bottom: 8px;
+  margin-bottom: var(--mos-stack-gap);
 }
 
 .dt-card-detail {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 6px 12px;
+  gap: var(--mos-label-gap) var(--mos-row-gap);
   margin: 0;
 }
 .dt-card-detail-row {
@@ -183,12 +152,12 @@
 }
 .dt-card-detail dt {
   color: var(--muted-foreground);
-  font-size: var(--font-size-label);
+  font-size: var(--mos-size-1);
 }
 .dt-card-detail dd {
   margin: 0;
   color: var(--foreground);
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
   text-align: right;
 }
 
@@ -204,27 +173,27 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 32px 16px;
+  gap: var(--mos-toolbar-gap);
+  padding: var(--mos-section-gap) var(--mos-panel-pad);
 }
 .dt-error-text {
   margin: 0;
   color: var(--status-lost-text);
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
 }
 .dt-retry {
-  height: 32px;
-  padding: 0 14px;
+  height: var(--mos-control-height);
+  padding: 0 var(--mos-row-pad-x);
   background: var(--background);
   border: 1px solid var(--input);
   border-radius: var(--radius-sm);
   color: var(--foreground);
   font-family: inherit;
-  font-size: var(--font-size-control);
+  font-size: var(--mos-size-3);
   cursor: pointer;
 }
 .dt-retry:hover {
-  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+  background: var(--mos-hover);
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -236,125 +205,34 @@
    ▸/▾/▴ glyph). Token-only (DESIGN.md).
    ════════════════════════════════════════════════════════════════════════════ */
 
-.dt-group-row > .dt-group-cell { padding: 0; }
-.dt-group-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  /* neutralise the <th> default bold so only the label reads 700 */
-  font-weight: 400;
-  height: 38px;
-  padding: 0 12px;
-  background: transparent;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-}
-
-.dt-group-toggle {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--muted-foreground);
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-}
-.dt-group-toggle:hover { color: var(--foreground); }
-
-/* shared <Chevron>: down = expanded, rotated -90° (right) = collapsed */
-.dt-group-chev { transition: transform var(--dur-fast) ease; }
-.dt-group-chev-collapsed { transform: rotate(-90deg); }
-@media (prefers-reduced-motion: reduce) {
-  .dt-group-chev { transition: none; }
-}
-
-.dt-group-label {
-  font-size: var(--font-size-control);
-  font-weight: 700;
-  color: var(--brand-navy-text);
-}
-.dt-group-count {
-  font-size: var(--font-size-label);
-  color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
-}
-.dt-group-hint {
-  font-size: var(--font-size-label);
-  color: var(--muted-foreground);
-}
+.dt-group-row > .dt-group-cell { padding: 0; font: var(--mos-type-label); text-align: start; }
+.dt-group-hint, .dt-cards-group-hint { font: var(--mos-type-meta); color: var(--mos-muted); }
 /* optional per-group actions (e.g. "Approve all") — pushed to the RIGHT edge of
    the flex .dt-group-bar (margin-left:auto) so they follow the label/count. */
 .dt-group-actions {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  margin-left: auto;
+  gap: var(--mos-inline-gap);
 }
 
-/* ── Phone: group heading (matches the desktop group label — 13px/700 navy) ── */
-.dt-cards-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 4px 2px;
-}
-.dt-cards-group-toggle {
-  position: relative;
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--muted-foreground);
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-}
-/* 44x44 hit area on a 24x24 glyph — the SAME technique `.help-tip` already proved
-   (help-tip.css: 14x14 visual, `::before{inset:-16px}`). This toggle collapses a group on
-   the phone capture surfaces, so a mis-tap costs a standing floor worker a scroll-and-retry.
-   24 + (2 x 10) = 44 — WCAG 2.5.8 / the 44px phone rule. The overlay is transparent and sits
-   under the glyph, so it steals no clicks from the non-interactive group label beside it. */
-.dt-cards-group-toggle::before {
-  content: '';
-  position: absolute;
-  inset: -10px;
-}
-.dt-cards-group-toggle:hover { color: var(--foreground); }
-.dt-cards-group-chev { transition: transform var(--dur-fast) ease; }
-.dt-cards-group-chev-collapsed { transform: rotate(-90deg); }
-@media (prefers-reduced-motion: reduce) {
-  .dt-cards-group-chev { transition: none; }
-}
-.dt-cards-group-label {
-  font-size: var(--font-size-control);
-  font-weight: 700;
-  color: var(--brand-navy-text);
-}
-.dt-cards-group-count {
-  font-size: var(--font-size-label);
-  color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
-}
-.dt-cards-group-hint {
-  font-size: var(--font-size-label);
-  color: var(--muted-foreground);
-}
+/* ── Phone: group heading (the shared GroupHeader on the page gutter) ── */
 /* optional per-group actions rendered UNDER the phone group heading. */
 .dt-cards-group-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding: 0 4px 6px;
+  gap: var(--mos-inline-gap);
+  padding: 0 var(--mos-label-gap) var(--mos-group-below);
+}
+
+
+/* Phone cards: the item and quantity column labels once above the list, a band like the desktop head. */
+@media (max-width: 767.98px) {
+  .dt-cards-head {
+    box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: var(--mos-row-gap);
+     padding: var(--mos-band-pad-y) var(--mos-band-pad-x);
+    background: var(--mos-band); border-bottom: 1px solid var(--mos-line);
+    color: var(--mos-muted); font: var(--mos-type-label);
+  }
+  .dt-cards-head .cafe-qty-heading { display: inline-flex; gap: var(--mos-inline-gap); }
 }

@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef } from 'react'
  * presses cycle through the matches; a short buffer carries a multi-letter prefix.
  */
 
-export const TYPEAHEAD_BUFFER_MS = 1000
+const TYPEAHEAD_BUFFER_MS = 1000
 
 export type TypeaheadOption = {
   value: string

@@ -1,10 +1,8 @@
 import { describe, it, expect, expectTypeOf } from 'vitest'
-import type {
-  RecordKind,
-  RecordViewerAdapter,
-  RecordContentSlot,
-  RecordContentSlotContext,
-} from './record-viewer.types'
+import type { RecordViewerAdapter, RecordContentSlot } from './record-viewer.types'
+
+type RecordKind = RecordViewerAdapter['kind']
+type RecordContentSlotContext = Parameters<RecordContentSlot['render']>[0]
 
 /**
  * Type-level + fixture proof that the shared grammar carries two REAL, DISTINCT
