@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
+import { SHOW_FOLLOWUPS } from '@/config/features'
 import { FollowUpsPage } from './follow-ups-page'
 
+vi.mock('@/config/features', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/config/features')>()),
+  SHOW_FOLLOWUPS: true,
+}))
 vi.mock('@/auth/use-auth')
 vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn() }))
 vi.mock('@/lib/db/follow-ups', async () => {
@@ -85,7 +90,12 @@ function renderRoute(initialEntry: string) {
         createElement(
           Routes,
           null,
-          createElement(Route, { path: '/money/follow-ups', element: createElement(FollowUpsPage) }),
+          createElement(Route, {
+            path: '/money/follow-ups',
+            element: SHOW_FOLLOWUPS
+              ? createElement(FollowUpsPage)
+              : createElement(Navigate, { to: '/', replace: true }),
+          }),
         ),
       ),
     ),
@@ -120,6 +130,18 @@ describe('FollowUpsPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Open follow-up INV-1001' }))
 
     expect(await screen.findByRole('complementary', { name: 'Record details' })).toHaveTextContent(row.counterparty)
+  })
+
+  it('shows only one lifecycle form for the selected record', async () => {
+    const user = userEvent.setup()
+    renderRoute('/money/follow-ups')
+    await user.click(await screen.findByRole('button', { name: 'Open follow-up INV-1001' }))
+
+    const detail = await screen.findByRole('complementary', { name: 'Record details' })
+    await user.click(within(detail).getByRole('button', { name: 'Settle' }))
+
+    expect(await screen.findAllByLabelText(/cash-in date/i)).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Submit' })).toHaveLength(1)
   })
 
   it('AC-520: renders queue rows with the money and state, and offers the lifecycle actions on the opened record', async () => {
