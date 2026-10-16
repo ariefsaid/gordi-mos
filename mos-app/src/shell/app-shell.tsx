@@ -20,6 +20,7 @@ import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
 import { createRecordDeepLinkResolver, RECORD_KINDS } from './record-deep-link-resolver'
 import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
 import { useT } from '@/i18n/use-t'
+import { useModuleAvailability } from '@/lib/module-availability'
 import { OverlayPortal } from '@/components/ui/overlay-portal'
 import { Notice } from '@/components/ui/notice'
 import './offline-line.css'
@@ -128,7 +129,7 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
   // One decision seam for the shell's navigation (use-nav.ts): the admitted module count picks sidebar or
   // rail + pages panel, the viewport (and the viewer's own fold-away choice) picks full or 64px rail. The top
   // bar's brand cell reads the SAME answer so its divider stays on the nav boundary.
-  const { isNarrow, columnWidth } = useNavLayout()
+  const { isNarrow, columnWidth, isOn } = useNavLayout()
   useRememberModule()
   const t = useT()
   // Offline is a header fact, not a page fact: the one muted line sits in the header block, above
@@ -314,7 +315,7 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
           behind SHOW_ASSISTANT; OverlayCompanionSlot/RecordPanelHost own its physical chrome. The launcher is a neutral
           header icon in the top-bar on every viewport (DESIGN.md No-FAB Rule — no floating FAB).
           Absent entirely when the flag is off (FR-P2-CF-003). */}
-      {SHOW_ASSISTANT && (
+      {SHOW_ASSISTANT && isOn('assistant') && (
         <Suspense fallback={null}>
           <AssistantPanel />
         </Suspense>
@@ -324,6 +325,7 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
 }
 
 export function AppShell({ contextRow }: { contextRow?: ReactNode }) {
+  const { isOn } = useModuleAvailability()
   // Wrap the shell in the runtime provider ONLY when the deputy capability is on (FR-P2-CF-003).
   // Flag-off skips the provider entirely so no assistant context/state mounts.
   //
@@ -344,6 +346,6 @@ export function AppShell({ contextRow }: { contextRow?: ReactNode }) {
       </SignalComposerHost>
     </CreateDraftProvider>
   )
-  if (!SHOW_ASSISTANT) return shellWithOverlay
+  if (!SHOW_ASSISTANT || !isOn('assistant')) return shellWithOverlay
   return <AgentRuntimeProvider>{shellWithOverlay}</AgentRuntimeProvider>
 }

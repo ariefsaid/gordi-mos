@@ -10,16 +10,13 @@ import * as comparison from './cafe-stock-comparison'
 const ctx = { client_request_id: '00000000-0000-4000-8000-000000000000' }
 const key = { origin_branch_id: 'a', origin_activity: 'kitchen' as const, destination_branch_id: 'b' }
 
-describe('disconnected backend stubs', () => {
+describe('unavailable backend stubs', () => {
   const calls: [string, () => Promise<unknown>][] = [
     ['listCafeTransferRoutes', () => routes.listCafeTransferRoutes()],
     ['createCafeTransferRoute', () => routes.createCafeTransferRoute(key, ctx)],
     ['updateCafeTransferRoute', () => routes.updateCafeTransferRoute(key, 1, key, ctx)],
     ['removeCafeTransferRoute', () => routes.removeCafeTransferRoute(key, 1, ctx)],
-    ['listOrgModuleSettings', () => modules.listOrgModuleSettings()],
     ['listPersonModuleSettings', () => modules.listPersonModuleSettings('p')],
-    ['getViewerModuleAvailability', () => modules.getViewerModuleAvailability()],
-    ['saveOrgModuleSettings', () => modules.saveOrgModuleSettings([], ctx)],
     ['savePersonModuleSettings', () => modules.savePersonModuleSettings('p', [], ctx)],
     ['countModuleDisableImpact', () => modules.countModuleDisableImpact('cafe')],
     ['listCafeLocations', () => locations.listCafeLocations()],
@@ -42,17 +39,21 @@ describe('disconnected backend stubs', () => {
   })
 
   it('every stub carries a HANDOVER comment naming its section', () => {
-    for (const file of ['cafe-transfer-routes.ts', 'module-settings.ts', 'cafe-locations.ts', 'cafe-stock-comparison.ts']) {
+    for (const file of ['cafe-transfer-routes.ts', 'cafe-locations.ts', 'cafe-stock-comparison.ts']) {
       const source = readFileSync(join(__dirname, file), 'utf8')
       const exported = source.match(/export async function \w+/g) ?? []
       const marks = source.match(/\/\/ HANDOVER: R\/handover\/[\w-]+\.md §/g) ?? []
       expect(marks.length).toBeGreaterThan(exported.length)
     }
+    const moduleSource = readFileSync(join(__dirname, 'module-settings.ts'), 'utf8')
+    const moduleStubs = moduleSource.match(/export async function (listPersonModuleSettings|savePersonModuleSettings|countModuleDisableImpact)/g) ?? []
+    const moduleMarks = moduleSource.match(/\/\/ HANDOVER: R\/handover\/module-switches\.md §Client/g) ?? []
+    expect(moduleMarks.length).toBeGreaterThanOrEqual(moduleStubs.length)
   })
 
-  it('no screen or hook calls a stub while disconnected (types only)', () => {
+  it('no screen or hook calls an unavailable endpoint (types only)', () => {
     const src = join(__dirname, '..', '..')
-    const stubFns = /\b(listCafeTransferRoutes|createCafeTransferRoute|updateCafeTransferRoute|removeCafeTransferRoute|listOrgModuleSettings|listPersonModuleSettings|getViewerModuleAvailability|saveOrgModuleSettings|savePersonModuleSettings|countModuleDisableImpact|listCafeLocations|listCafeLocationsByIds|createCafeLocation|updateCafeLocation|archiveCafeLocation|fetchCafeLocationBalances|moveCafeStock|listCafeRecordLocations|getCafeStreamLocationDefaults|saveCafeStreamLocationDefaults|listStockComparison|getStockComparisonItem|listEsbStockMovements)\b/
+    const stubFns = /\b(listCafeTransferRoutes|createCafeTransferRoute|updateCafeTransferRoute|removeCafeTransferRoute|listPersonModuleSettings|savePersonModuleSettings|countModuleDisableImpact|listCafeLocations|listCafeLocationsByIds|createCafeLocation|updateCafeLocation|archiveCafeLocation|fetchCafeLocationBalances|moveCafeStock|listCafeRecordLocations|getCafeStreamLocationDefaults|saveCafeStreamLocationDefaults|listStockComparison|getStockComparisonItem|listEsbStockMovements)\b/
     const walk = (dir: string): string[] => readdirSync(dir).flatMap((name) => {
       const full = join(dir, name)
       return statSync(full).isDirectory() ? walk(full) : /\.(ts|tsx)$/.test(name) ? [full] : []

@@ -28,10 +28,12 @@ describe('effective availability', () => {
 })
 
 describe('registry facts', () => {
-  it('lists the four registry modules in order, with Roastery and Ecommerce not released', () => {
+  it('lists switchable modules in Admin order and keeps the registry release status', () => {
     const facts = moduleFacts()
-    expect(facts.map((f) => f.id)).toEqual(['money', 'cafe', 'roastery', 'ecommerce'])
-    expect(facts.find((f) => f.id === 'cafe')?.released).toBe(true)
+    expect(facts.map((fact) => fact.id)).toEqual(['work', 'money', 'cafe', 'assistant', 'roastery', 'ecommerce'])
+    expect(facts.find((fact) => fact.id === 'work')?.released).toBe(true)
+    expect(facts.find((fact) => fact.id === 'assistant')?.released).toBe(true)
+    expect(facts.find((fact) => fact.id === 'cafe')?.released).toBe(true)
     expect(facts.find((f) => f.id === 'roastery')?.released).toBe(false)
     expect(facts.find((f) => f.id === 'ecommerce')?.released).toBe(false)
   })

@@ -5,6 +5,7 @@ import { isShipGated } from '@/lib/ship-gate'
 import { HomeIcon, WorkIcon, MoreIcon } from './icons'
 import { useIsNarrow } from './use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
+import { useModuleAvailability } from '@/lib/module-availability'
 import type { MessageKey } from '@/i18n/messages'
 import { useT } from '@/i18n/use-t'
 import './bottom-tab-bar.css'
@@ -75,12 +76,13 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
   const { pathname } = useLocation()
   const auth = useAuth()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
+  const { isOn } = useModuleAvailability()
 
   // The third slot names the module in play: the module whose page is open wins; elsewhere the last module the
   // viewer opened, then their affiliation default; with none of the three the slot is omitted rather than made up.
   // This is EMPHASIS only (OD-WAY-51) — every module the viewer's routes admit is listed in the More drawer
   // regardless, so nothing is hidden by not being promoted.
-  const moduleDest = viewer ? phoneModuleForViewer(viewer.affiliated, viewer.accessRoles, pathname) : null
+  const moduleDest = viewer ? phoneModuleForViewer(viewer.affiliated, viewer.accessRoles, pathname, isOn) : null
   const moduleTab: PrimaryTab | null = moduleDest
     ? {
         id: moduleDest.id,
@@ -92,7 +94,7 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
     : null
 
   const primaryTabs: PrimaryTab[] = [HOME, WORK, ...(moduleTab ? [moduleTab] : [])]
-    .filter((tab) => !isShipGated(tab.href))
+    .filter((tab) => !isShipGated(tab.href) && (tab.id !== 'work' || isOn('work')))
 
   if (!isNarrow || FOCUSED_DECISION_PATHS.includes(pathname)) return null
 

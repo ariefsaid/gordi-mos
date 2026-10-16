@@ -7,7 +7,7 @@ import { isShipGated } from '@/lib/ship-gate'
 import { admittedModules, destinationForPath, goToEntries, pageGroupsFor } from './module-registry'
 import { ADMIN_SECTIONS, sectionForPath, visibleSections } from './sections'
 
-const PREVIEW_PATHS = ['/cafe/transfer-routes', '/cafe/locations', '/cafe/locations/change-location', '/cafe/locations/move', '/cafe/stock-comparison', '/admin/modules', '/admin/access/modules']
+const PREVIEW_PATHS = ['/cafe/transfer-routes', '/cafe/locations', '/cafe/locations/change-location', '/cafe/locations/move', '/cafe/stock-comparison']
 
 function findRoute(routes: RouteObject[], target: string, parent = ''): RouteObject | undefined {
   for (const route of routes) {
@@ -42,14 +42,19 @@ describe('preview ship state without the local opt-in (the default, and every pr
     expect(sectionForPath('/cafe/locations')).toBeNull()
     expect(goToEntries(['admin']).map((entry) => entry.path)).not.toContain('/cafe/transfer-routes')
     expect(sectionForPath('/cafe/transfer-routes')).toBeNull()
-    expect(destinationForPath('/admin/modules')).toBeNull()
-    expect(visibleSections(ADMIN_SECTIONS, ['admin']).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/access', '/admin/agents'])
+    expect(isShipGated('/admin/people/modules')).toBe(true)
+    expect(isShipGated('/admin/modules')).toBe(false)
+    expect(isShipGated('/admin/access/modules')).toBe(false)
+    expect(destinationForPath('/admin/modules')?.id).toBe('admin')
+    expect(visibleSections(ADMIN_SECTIONS, ['admin']).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/access', '/admin/modules', '/admin/agents'])
   })
 
-  it('keeps the old Access › Modules path closed too: it forwards away, never to the new page', () => {
-    expect(isShipGated('/admin/access/modules')).toBe(true)
+  it('keeps the old Access › Modules redirect released with the Modules page', () => {
+    expect(isShipGated('/admin/access/modules')).toBe(false)
     expect(findRoute(ungatedRouteTable, '/admin/access/modules')).toBeDefined()
-    expect(closed(findRoute(applyShipGate(ungatedRouteTable), '/admin/access/modules'))).toBe(true)
+    const legacy = findRoute(applyShipGate(ungatedRouteTable), '/admin/access/modules')
+    expect(closed(legacy)).toBe(false)
+    expect(isValidElement(legacy?.element) && (legacy.element.props as { to?: string }).to).toBe('/admin/modules')
   })
 
   it('never gates the existing Transfer and Access routes', () => {
@@ -81,6 +86,7 @@ describe('preview ship state with the full local opt-in', () => {
     expect(goToEntries(['member']).map((entry) => entry.path)).toContain('/cafe/transfer-routes')
     expect(sectionForPath('/cafe/transfer-routes')?.labelKey).toBe('nav.cafe.transferRoutes')
     expect(destinationForPath('/admin/modules')?.id).toBe('admin')
+    expect(isShipGated('/admin/people/modules')).toBe(false)
     expect(visibleSections(ADMIN_SECTIONS, ['admin']).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/access', '/admin/modules', '/admin/agents'])
   })
 

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { isShipGated } from '@/lib/ship-gate'
+import { useModuleAvailability } from '@/lib/module-availability'
 
 /** The Objective a task group belongs to. `id: null` = named but not actually joined to one. */
 type ObjectiveHintValue = { id: string | null; name: string }
@@ -30,7 +31,8 @@ type ObjectiveHintProps = {
  * Use the joined record identity so duplicate or renamed Objectives still open the right record.
  */
 export function ObjectiveHint({ hint, className }: ObjectiveHintProps) {
-  const drillable = hint.id != null && !isShipGated('/work/objectives')
+  const { isOn } = useModuleAvailability()
+  const drillable = hint.id != null && !isShipGated('/work/objectives') && isOn('work')
   return (
     <span className={className}>
       {drillable

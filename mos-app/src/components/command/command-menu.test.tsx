@@ -28,6 +28,8 @@ vi.mock('@/config/features', async (importOriginal) => ({
   get SHOW_ASSISTANT() { return features.SHOW_ASSISTANT },
 }))
 vi.mock('@/auth/use-auth')
+const moduleAvailability = vi.hoisted(() => ({ isOn: vi.fn((moduleId: string) => moduleId.length > 0) }))
+vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ status: 'ready', isOn: moduleAvailability.isOn, retry: vi.fn() }) }))
 import { useAuth } from '@/auth/use-auth'
 import { searchTasksByTitle, type TaskTitleRef } from '@/lib/db/tasks'
 import { searchSignalsByBody } from '@/lib/db/signals'
@@ -89,9 +91,10 @@ function renderMenu(onClose = vi.fn(), locale: 'en' | 'id' = 'en', onShareSignal
 }
 
 beforeEach(() => {
-  features.SHOW_ASSISTANT = true
-  localStorage.clear()
   vi.clearAllMocks()
+  features.SHOW_ASSISTANT = true
+  moduleAvailability.isOn.mockImplementation(() => true)
+  localStorage.clear()
   mockSearch.mockResolvedValue([])
   mockSearchSignals.mockResolvedValue([])
   mockSearchFollowUps.mockResolvedValue([])
@@ -348,6 +351,15 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search-only palette', 
 
   // Go to asks the rail's own question (`isLive` + `visibleSections`, derived in
   // `goToDestinations`), so a destination the rail hides for a role is absent here too.
+  it('removes Money pages from Go to when the module switch is off', () => {
+    setAuth(['finance'])
+    moduleAvailability.isOn.mockImplementation((moduleId) => moduleId !== 'money')
+    renderMenu()
+    const goTo = within(screen.getByRole('group', { name: 'Go to' }))
+    expect(goTo.queryByRole('option', { name: /^Money$/i })).toBeNull()
+    expect(goTo.queryByRole('option', { name: /Pending bills/i })).toBeNull()
+  })
+
   it('AC-031: a destination the rail hides for the role is absent from Go to (Money is not for a member)', () => {
     setAuth(['member'])
     renderMenu()
@@ -376,6 +388,14 @@ describe('AC-015: universal actions — Ask Deputy · Share Signal · Create Tas
     expect(screen.getByRole('option', { name: /Share.*Signal/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Create.*Task/i })).toBeInTheDocument()
   })
+  it('hides Ask Deputy when the org Assistant switch is off without hiding other actions', () => {
+    moduleAvailability.isOn.mockImplementation((moduleId) => moduleId !== 'assistant')
+    renderMenu()
+    expect(screen.queryByRole('option', { name: /Ask Deputy/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Share Signal/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Create Task/i })).toBeInTheDocument()
+  })
+
   it('AC-015: lists the universal actions in stable order (verb+object)', () => {
     renderMenu()
     expect(screen.getByRole('option', { name: /Ask Deputy/i })).toBeInTheDocument()
