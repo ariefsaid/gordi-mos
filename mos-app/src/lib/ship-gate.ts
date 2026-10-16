@@ -43,7 +43,6 @@ const SHIP_GATED_PATHS: readonly string[] = [
  */
 const SHIP_PREVIEW_PATHS: readonly string[] = [
   '/cafe/transfer-routes',
-  '/cafe/locations',
   // Stock comparison: ESB expected beside the latest Count. ESB stock is not connected, so the screen shows real Counts and a labelled sample.
   '/cafe/stock-comparison',
   '/admin/modules',

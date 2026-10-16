@@ -7,7 +7,7 @@ import { isShipGated } from '@/lib/ship-gate'
 import { admittedModules, destinationForPath, goToEntries, pageGroupsFor } from './module-registry'
 import { ADMIN_SECTIONS, sectionForPath, visibleSections } from './sections'
 
-const PREVIEW_PATHS = ['/cafe/transfer-routes', '/cafe/locations', '/cafe/locations/change-location', '/cafe/locations/move', '/cafe/stock-comparison', '/admin/modules', '/admin/access/modules']
+const PREVIEW_PATHS = ['/cafe/transfer-routes', '/cafe/stock-comparison', '/admin/modules', '/admin/access/modules']
 
 function findRoute(routes: RouteObject[], target: string, parent = ''): RouteObject | undefined {
   for (const route of routes) {
@@ -32,18 +32,27 @@ describe('preview ship state without the local opt-in (the default, and every pr
     expect(closed(findRoute(applyShipGate(ungatedRouteTable), path))).toBe(true)
   })
 
-  it('keeps the preview out of the Café menu, the command menu and the route owner lookup', () => {
+  it('keeps remaining previews out of the Café menu, the command menu and the route owner lookup', () => {
     expect(cafePaths(['admin'])).not.toContain('/cafe/transfer-routes')
-    expect(cafePaths(['admin'])).not.toContain('/cafe/locations')
     expect(cafePaths(['admin'])).not.toContain('/cafe/stock-comparison')
     expect(goToEntries(['admin']).map((entry) => entry.path)).not.toContain('/cafe/stock-comparison')
     expect(sectionForPath('/cafe/stock-comparison')).toBeNull()
-    expect(goToEntries(['admin']).map((entry) => entry.path)).not.toContain('/cafe/locations')
-    expect(sectionForPath('/cafe/locations')).toBeNull()
+    expect(cafePaths(['admin'])).toContain('/cafe/locations')
+    expect(goToEntries(['admin']).map((entry) => entry.path)).toContain('/cafe/locations')
+    expect(sectionForPath('/cafe/locations')?.labelKey).toBe('nav.cafe.locations')
     expect(goToEntries(['admin']).map((entry) => entry.path)).not.toContain('/cafe/transfer-routes')
     expect(sectionForPath('/cafe/transfer-routes')).toBeNull()
     expect(destinationForPath('/admin/modules')).toBeNull()
     expect(visibleSections(ADMIN_SECTIONS, ['admin']).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/access', '/admin/agents'])
+  })
+
+  it('keeps the released Locations route available without the local preview opt-in', () => {
+    for (const path of ['/cafe/locations', '/cafe/locations/change-location', '/cafe/locations/move']) {
+      expect(isShipGated(path)).toBe(false)
+    }
+    expect(findRoute(ungatedRouteTable, '/cafe/locations')).toBeDefined()
+    expect(closed(findRoute(applyShipGate(ungatedRouteTable), '/cafe/locations'))).toBe(false)
+    expect(goToEntries(['member']).map((entry) => entry.path)).toContain('/cafe/locations')
   })
 
   it('keeps the old Access › Modules path closed too: it forwards away, never to the new page', () => {

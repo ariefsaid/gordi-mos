@@ -38,8 +38,8 @@ describe('preview is allowed only on a flagged dev server at localhost:4400', ()
 })
 
 describe('ship states', () => {
-  it('registers the three preview roots and their descendants as preview', () => {
-    for (const path of ['/cafe/transfer-routes', '/cafe/transfer-routes/anything', '/cafe/locations', '/cafe/stock-comparison', '/cafe/stock-comparison?stream=x', '/admin/modules?q=cafe', '/admin/modules#x', '/admin/access/modules?view=people']) {
+  it('registers preview roots and their descendants as preview', () => {
+    for (const path of ['/cafe/transfer-routes', '/cafe/transfer-routes/anything', '/cafe/stock-comparison', '/cafe/stock-comparison?stream=x', '/admin/modules?q=cafe', '/admin/modules#x', '/admin/access/modules?view=people']) {
       expect(shipStateInProfile(path, 'full')).toBe('preview')
     }
   })
@@ -66,12 +66,14 @@ describe('ship states', () => {
     expect(shipStateInProfile('/work/tasks', 'full')).toBe('released')
   })
 
-  it('treats a preview path as gated everywhere while preview is not allowed', () => {
+  it('treats a preview path as gated everywhere while released Locations stays open', () => {
     expect(isShipGated('/cafe/transfer-routes')).toBe(true)
     expect(isShipGated('/cafe/transfer-routes?origin=all')).toBe(true)
     expect(isShipGated('/admin/modules')).toBe(true)
     expect(isShipGated('/admin/access/modules')).toBe(true)
-    expect(isShipGatedInProfile('/cafe/locations', 'full')).toBe(true)
+    expect(shipStateInProfile('/cafe/locations', 'full')).toBe('released')
+    expect(isShipGatedInProfile('/cafe/locations', 'full')).toBe(false)
+    expect(isShipGated('/cafe/locations')).toBe(false)
     expect(isShipGated('/cafe/transfer')).toBe(false)
     expect(isShipGated('/admin/access')).toBe(false)
   })

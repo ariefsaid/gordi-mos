@@ -1,53 +1,67 @@
-// @vitest-environment-options {"url": "http://localhost:4400/"}
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { LocationBalanceSection, LocationLineField, LocationLineOverride, LocationPanelFields, LocationRecordFields, LocationRecordsFilter } from './location-preview-fields'
+import { LocationLineField, LocationPanelFields } from './location-preview-fields'
 
 vi.mock('@/auth/use-auth', () => ({
   useAuth: () => ({ status: 'authenticated', viewer: { person: { id: 'p1' }, accessRoles: ['admin'], roles: [], isManager: false, affiliated: [] }, signOut: vi.fn() }),
 }))
 
-const ui = () => (
-  <MemoryRouter>
-    <LocationPanelFields kind="production" />
-    <LocationPanelFields kind="transfer" />
-    <LocationPanelFields kind="receive" />
-    <LocationLineOverride />
-    <LocationLineField kind="waste" />
-    <LocationLineField kind="count" />
-    <LocationRecordsFilter />
-    <dl><LocationRecordFields keys={['production', 'storeOutput', 'from', 'to', 'storage', 'storeIn']} /></dl>
-    <LocationBalanceSection />
-  </MemoryRouter>
-)
-afterEach(() => { cleanup(); vi.unstubAllEnvs() })
+const LOCATIONS = [
+  { id: 'kitchen', name: 'Kitchen', use: 'production' as const, parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
+  { id: 'chiller', name: 'Chiller', use: 'storage' as const, parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
+]
+const EMPTY_VALUES = { production_location_id: null, from_storage_location_id: null, to_storage_location_id: null }
 
-describe('location fields on released pages', () => {
-  it('render nothing at all without the preview opt-in (the released pages are unchanged)', () => {
-    const { container } = render(ui())
-    expect(container.querySelector('[data-location-preview]')).toBeNull()
-    expect(screen.queryByText(/location/i)).not.toBeInTheDocument()
-    expect(screen.queryByText('Change location')).not.toBeInTheDocument()
-    expect(container.querySelector('a, button, select, input, details')).toBeNull()
+afterEach(() => { cleanup() })
+
+describe('connected capture location fields', () => {
+  it('offers Unassigned and enabled branch locations and sends the explicit selection', () => {
+    const onChange = vi.fn()
+    render(<MemoryRouter><LocationPanelFields
+      kind="production"
+      locations={{ production: LOCATIONS, from: [], to: [], storage: LOCATIONS }}
+      values={{ ...EMPTY_VALUES, production_location_id: 'kitchen', to_storage_location_id: null }}
+      onChange={onChange}
+    /></MemoryRouter>)
+
+    const production = screen.getByRole('combobox', { name: 'Production location' })
+    expect(production).toHaveTextContent('Kitchen')
+    expect(production).not.toBeDisabled()
+    fireEvent.click(production)
+    fireEvent.click(screen.getByRole('option', { name: 'Unassigned' }))
+    expect(onChange).toHaveBeenCalledWith('production_location_id', null)
+
+    const output = screen.getByRole('combobox', { name: 'Store output in' })
+    fireEvent.click(output)
+    fireEvent.click(screen.getByRole('option', { name: 'Chiller' }))
+    expect(onChange).toHaveBeenCalledWith('to_storage_location_id', 'chiller')
   })
 
-  it('with the opt-in, show every field disabled and "Not recorded", and link to Locations for an admin', () => {
-    vi.stubEnv('MODE', 'development')
-    vi.stubEnv('VITE_FUTURE_PREVIEW', '1')
-    const { container } = render(ui())
-    for (const label of ['Production location', 'Store output in', 'From storage', 'To storage', 'Storage location', 'Store in']) {
-      expect(screen.getAllByText(label).length).toBeGreaterThan(0)
-    }
-    expect(screen.getAllByText('— · Not recorded').length).toBeGreaterThan(5)
-    // Each decision sits at its own step: panel fields beside Submit / Lock, a line's own storage on the line; no header block.
-    expect(container.querySelector('[data-location-preview="receive-panel"]')).not.toBeNull()
-    expect(container.querySelector('[data-location-preview="receive-line"] summary')).toHaveTextContent('Store this line somewhere else')
-    expect(container.querySelector('[data-location-preview="waste-line"]')).not.toBeNull()
-    expect(container.querySelector('[data-location-preview="production"], [data-location-preview="transfer"]')).toBeNull()
-    expect(container.querySelectorAll('button[role=combobox]:not([disabled])').length).toBe(0)
-    expect(screen.getAllByRole('link', { name: 'Manage locations' })[0]).toHaveAttribute('href', '/cafe/locations')
-    expect(screen.getByRole('link', { name: 'Change location' })).toHaveAttribute('href', '/cafe/locations/change-location')
-    expect(screen.getByText(/Quantities by location are not available/)).toBeInTheDocument()
+  it('keeps optional capture usable as Unassigned and offers a retry when the catalog read fails', () => {
+    const retry = vi.fn()
+    render(<MemoryRouter><LocationPanelFields
+      kind="receive"
+      locations={{ production: [], from: [], to: [], storage: [] }}
+      values={EMPTY_VALUES}
+      loadState="error"
+      onRetry={retry}
+      onChange={vi.fn()}
+    /></MemoryRouter>)
+
+    expect(screen.getByRole('combobox', { name: 'Store in' })).toBeDisabled()
+    expect(screen.getByText('Locations and branches could not be loaded.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(retry).toHaveBeenCalledOnce()
+  })
+
+  it('lets Count and Waste choose storage per line', () => {
+    const onChange = vi.fn()
+    render(<LocationLineField kind="count" locations={LOCATIONS} value={null} onChange={onChange} />)
+    const storage = screen.getByRole('combobox', { name: 'Storage location' })
+    expect(storage).not.toBeDisabled()
+    fireEvent.click(storage)
+    fireEvent.click(screen.getByRole('option', { name: 'Chiller' }))
+    expect(onChange).toHaveBeenCalledWith('chiller')
   })
 })
