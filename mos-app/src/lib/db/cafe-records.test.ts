@@ -80,11 +80,13 @@ describe('listCafeRecordLogs', () => {
 })
 
 describe('listCafeRecordCounts', () => {
-  it('never selects the expected balance or the variance', async () => {
-    const q = builder({ data: [], error: null })
-    await listCafeRecordCounts({ from: 'a', to: 'b' })
+  it('reads stored submitter identity without selecting expected balance or variance', async () => {
+    const q = builder({ data: [{ id: 'c1', activity: 'kitchen', status: 'Confirmed', submitted_by: 'person-1' }], error: null })
+    const result = await listCafeRecordCounts({ from: 'a', to: 'b' })
     const select = q.called('select')[0][0] as string
+    expect(select).toContain('submitted_by')
     expect(select).not.toMatch(/expected|variance/)
+    expect(result.rows[0].submitted_by).toBe('person-1')
     expect(q.called('in')).toEqual([['status', ['Submitted', 'Confirmed', 'Rejected']]])
     expect(q.called('order')[0]).toEqual(['count_date', { ascending: false }])
   })
@@ -106,6 +108,7 @@ describe('listCafeRecordReceipts / Requests', () => {
     expect(q.called('gte')).toEqual([['requested_at', '2026-10-01T00:00:00+07:00']])
     expect(q.called('lt')).toEqual([['requested_at', '2026-11-01T00:00:00+07:00']])
     expect(q.called('order')).toEqual([['requested_at', { ascending: false }], ['id', { ascending: false }]])
+    expect(q.called('select')[0][0]).toContain('wip_item_id, item_unit_id')
   })
 })
 
@@ -119,10 +122,12 @@ describe('nested line pagers', () => {
     expect(q.called('order')).toEqual([['id', { ascending: true }]])
   })
 
-  it('reads request lines through the existing embed: referenced-table order, limit and id filter', async () => {
-    const q = builder({ data: [{ id: 'r1', lines: [{ id: 'l2' }] }], error: null })
+  it('reads request item and unit ids through the existing embed: referenced-table order, limit and id filter', async () => {
+    const line = { id: 'l2', wip_item_id: 'i1', item_unit_id: 'u1', item_name: 'Milk', item_category: null, unit_name: 'l', quantity: '2' }
+    const q = builder({ data: [{ id: 'r1', lines: [line] }], error: null })
     const lines = await listCafeRecordRequestLines('r1', 'l1', 50)
-    expect(lines).toEqual([{ id: 'l2' }])
+    expect(lines).toEqual([line])
+    expect(q.called('select')[0][0]).toContain('wip_item_id,item_unit_id')
     expect(q.called('filter')).toEqual([['lines.id', 'gt', 'l1']])
     expect(q.called('order')).toEqual([['id', { referencedTable: 'lines', ascending: true }]])
     expect(q.called('limit')).toEqual([[50, { referencedTable: 'lines' }]])

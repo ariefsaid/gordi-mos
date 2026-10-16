@@ -137,7 +137,7 @@ function parseLog(row: Record<string, unknown>): CafeRecordLog {
 // ── Counts ────────────────────────────────────────────────────────────────────────────────────────
 
 // Expected balance and variance are deliberately NOT selected: Records never shows them.
-const COUNT_COLUMNS = 'id,branch_id,activity,count_date,wip_item_id,item_name,item_category,item_kind,item_unit_id,unit_name,counted_quantity,status,posting_status,submitted_at,reviewed_at,row_version'
+const COUNT_COLUMNS = 'id,branch_id,activity,count_date,wip_item_id,item_name,item_category,item_kind,item_unit_id,unit_name,counted_quantity,status,posting_status,submitted_by,submitted_at,reviewed_at,row_version'
 const COUNT_KEY = ['count_date', 'submitted_at', 'id'] as const
 const COUNT_STATUSES: readonly CafeCountStatus[] = ['Submitted', 'Confirmed', 'Rejected']
 
@@ -155,6 +155,7 @@ export interface CafeRecordCount {
   counted_quantity: number | string
   status: CafeCountStatus
   posting_status: CafeCountPostingStatus
+  submitted_by: string | null
   submitted_at: string
   reviewed_at: string | null
   row_version: number
@@ -162,8 +163,7 @@ export interface CafeRecordCount {
 
 export interface CafeRecordCountRead extends RecordPeriodRead<CafeCountStatus> { itemId?: string }
 
-/** Counts in a period. There is no submitter column in this contract, so Records has no "who" for a Count. */
-// HANDOVER: R/handover/records-gaps.md §5. Count submitter identity — COUNT_COLUMNS has no submitted_by; Counts are never corrected in place (§6).
+/** Counts in a period, including their stored submitter identity. */
 export async function listCafeRecordCounts(read: CafeRecordCountRead): Promise<RecordPage<CafeRecordCount>> {
   let query = ops().from('cafe_count_lines').select(COUNT_COLUMNS)
     .gte('count_date', read.from).lte('count_date', read.to)
@@ -213,13 +213,17 @@ export async function listCafeRecordReceipts(read: CafeRecordReceiptRead): Promi
 
 const REQUEST_KEY = ['requested_at', 'id'] as const
 const REQUEST_STATUSES: readonly CafePurchaseRequestStatus[] = ['Submitted', 'Approved', 'Rejected']
+const RECORD_REQUEST_FIELDS = REQUEST_FIELDS.replace(
+  'lines:cafe_purchase_request_lines(id, item_name, item_category, unit_name, quantity)',
+  'lines:cafe_purchase_request_lines(id, wip_item_id, item_unit_id, item_name, item_category, unit_name, quantity)',
+)
 
 export interface CafeRecordRequestRead extends RecordPeriodRead<CafePurchaseRequestStatus> { requestedBy?: string }
 
-/** Requests by requested_at (WIB day range). Lines stay name-only: no item or unit ids are evidenced. */
+/** Requests by requested_at (WIB day range), with stored item and unit identity on each line. */
 export async function listCafeRecordRequests(read: CafeRecordRequestRead): Promise<RecordPage<CafePurchaseRequest>> {
   const instants = wibInstantRange({ from: read.from, to: read.to })
-  let query = ops().from('cafe_purchase_requests').select(REQUEST_FIELDS)
+  let query = ops().from('cafe_purchase_requests').select(RECORD_REQUEST_FIELDS)
     .gte('requested_at', instants.gte).lt('requested_at', instants.lt)
     .in('status', [...(read.statuses?.length ? read.statuses : REQUEST_STATUSES)])
   if (read.stream) query = query.eq('branch_id', read.stream.branchId).eq('activity', read.stream.activity)
@@ -237,6 +241,7 @@ export async function listCafeRecordRequests(read: CafeRecordRequestRead): Promi
 // ── Nested lines (parent paging does not prove line completeness) ─────────────────────────────────
 
 const RECEIPT_LINE_COLUMNS = 'receipt_id,id,item_unit_id,item_name,item_category,unit_name,received_quantity,conditions,condition_reason,condition_updated_at'
+const REQUEST_LINE_COLUMNS = 'id,wip_item_id,item_unit_id,item_name,item_category,unit_name,quantity'
 
 export interface CafeRecordReceiptLine {
   receipt_id: string
@@ -260,12 +265,20 @@ export async function listCafeRecordReceiptLines(receiptId: string, after?: stri
   return (data ?? []) as unknown as CafeRecordReceiptLine[]
 }
 
-export interface CafeRecordRequestLine { id: string; item_name: string; item_category: string | null; unit_name: string; quantity: number | string }
+export interface CafeRecordRequestLine {
+  id: string
+  wip_item_id: string
+  item_unit_id: string
+  item_name: string
+  item_category: string | null
+  unit_name: string
+  quantity: number | string
+}
 
 /** One request's lines through the existing embed: embedded rows ordered by id ascending, filtered and limited. */
 export async function listCafeRecordRequestLines(requestId: string, after?: string | null, limit = RECORDS_PAGE_LIMIT): Promise<CafeRecordRequestLine[]> {
   let query = ops().from('cafe_purchase_requests')
-    .select('id,lines:cafe_purchase_request_lines(id,item_name,item_category,unit_name,quantity)')
+    .select(`id,lines:cafe_purchase_request_lines(${REQUEST_LINE_COLUMNS})`)
     .eq('id', requestId)
   if (after) query = query.filter('lines.id', 'gt', after)
   const { data, error } = await query
