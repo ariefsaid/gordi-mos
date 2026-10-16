@@ -49,9 +49,6 @@ const SHIP_PREVIEW_PATHS: readonly string[] = [
   '/admin/modules',
   // Where Modules lived before it became its own Admin page; the old path redirects to /admin/modules and stays closed with it.
   '/admin/access/modules',
-  // Hide in MOS on Recipes: no route of its own. Every switch, filter and column asks this path (lib/recipe-visibility-preview.ts), so the
-  // released /cafe/recipes page is unchanged when the preview is off.
-  '/cafe/recipes/visibility',
 ]
 
 export type ShipState = 'released' | 'hidden' | 'preview'

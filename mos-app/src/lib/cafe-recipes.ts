@@ -85,7 +85,7 @@ export interface RecipeFilters {
   status: EsbStatusFilter
   type: RecipeTypeFilter
   wipBomIds?: RecipeWipBomIds
-  /** Preview only: recipes hidden in MOS, and whether to list them anyway. Leave unset when the preview is off. */
+  /** Recipes hidden in MOS, and whether to include them in the list. */
   hidden?: ReadonlySet<string>
   showHidden?: boolean
 }
