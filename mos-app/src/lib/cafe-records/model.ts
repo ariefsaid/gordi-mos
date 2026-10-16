@@ -1,7 +1,7 @@
 // Café Records model: normalises the four sources (logs, Counts, receipt lines, request lines) into one
 // entry shape and derives the three readings from it. Pure: no IO, no React. Every rule here is a
 // "truthful quantity" rule from the spec — units never convert, unlike units never add, a missing
-// Count is not zero, a rejected quantity never joins an accepted total, names never become ids.
+// Count is not zero, a rejected quantity never joins an accepted total, and names never substitute for ids.
 import type { ProductionActivity } from '@/lib/db/kitchen-logs.types'
 import type { CafeRecordCount, CafeRecordLog } from '@/lib/db/cafe-records'
 import type { CafeReceipt, CafeReceiptLine } from '@/lib/db/cafe-receipts'
@@ -128,9 +128,7 @@ function fromCount(count: CafeRecordCount, ctx: BuildContext): RecordEntry {
     streamKey, branchId: count.branch_id, activity: count.activity, destinationBranchId: null,
     status: count.status === 'Confirmed' ? 'confirmed' : count.status === 'Rejected' ? 'rejected' : 'pending',
     rawStatus: count.status, date: count.count_date, at: count.submitted_at,
-    // No submitter column is evidenced for Counts: Who stays unavailable, never guessed from the reviewer.
-    // HANDOVER: R/handover/records-gaps.md §5. Count submitter identity (stored submitted_by, null for legacy rows).
-    personId: null, qty: parseDecimal(count.counted_quantity),
+    personId: count.submitted_by, qty: parseDecimal(count.counted_quantity),
     unit: unitId
       ? { key: unitId, name: count.unit_name?.trim() || ctx.unitName(unitId), unsummable: false }
       : { key: `unknown:${count.id}`, name: count.unit_name?.trim() || null, unsummable: !count.unit_name },
@@ -162,19 +160,22 @@ function fromReceiptLine(receipt: CafeReceipt, line: CafeReceiptLine, ctx: Build
 }
 
 function fromRequestLine(request: CafePurchaseRequest, line: CafePurchaseRequestLine, ctx: BuildContext): RecordEntry {
-  // HANDOVER: R/handover/records-gaps.md §4. Request → PO fulfilment — request lines carry names only, no PO link or fulfilled quantity.
   const streamKey = streamKeyOf(request.branch_id, request.activity)
+  const itemId = line.wip_item_id ?? null
+  const unitId = line.item_unit_id ?? null
   const name = line.item_name ?? ''
-  const unit = line.unit_name?.trim() || null
+  const unit = line.unit_name?.trim() || (unitId ? ctx.unitName(unitId) : null)
   return {
     key: `request:${line.id}`, source: 'request', parentId: request.id, movement: 'requested',
-    // Names are exact-name groups. They are never joined to item ids, even when a name matches one.
-    itemKey: `request-name:${name}`, itemName: name,
+    // Link only with the identity stored on the request line; a matching name is not an item id.
+    itemKey: itemId ?? `request-name:${name}`, itemName: itemId ? ctx.itemName(itemId, streamKey) ?? name : name,
     streamKey, branchId: request.branch_id, activity: request.activity, destinationBranchId: null,
     status: request.status === 'Approved' ? 'approved' : request.status === 'Rejected' ? 'rejected' : 'pending',
     rawStatus: request.status, date: ctx.wibDateOf(request.requested_at), at: request.requested_at,
     personId: request.requested_by, qty: parseDecimal(line.quantity),
-    unit: unit ? { key: `name:${unit}`, name: unit, unsummable: false } : { key: `unknown:${line.id}`, name: null, unsummable: true },
+    unit: unitId
+      ? { key: unitId, name: unit, unsummable: false }
+      : unit ? { key: `name:${unit}`, name: unit, unsummable: false } : { key: `unknown:${line.id}`, name: null, unsummable: true },
     entered: null, raw: { source: 'request', request, line },
   }
 }

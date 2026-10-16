@@ -5,6 +5,8 @@ export type CafePurchaseRequestStatus = 'Submitted' | 'Approved' | 'Rejected'
 
 export type CafePurchaseRequestLine = {
   id: string
+  wip_item_id?: string
+  item_unit_id?: string
   item_name: string
   item_category: string | null
   unit_name: string
