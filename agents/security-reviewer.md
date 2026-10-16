@@ -43,12 +43,30 @@ and code, and by running `supabase test db` (pgTAP) where the diff touches schem
 Verify by reading code (cite `file:line`) and by running the relevant tests — not by trusting the
 report.
 
+## The one fact
+Most changes are safe because of one fact (for example "every RPC reads the org from the session,
+never from an argument"). Name it. Say how far you proved it, on this scale, and show the proof:
+1. said so; 2. pointed at `file:line`; 3. walked the failure path and it cannot reach; 4. ran a
+test or script that fails loud if the fact is false; 5. reproduced in the running app. Below 4 the
+fact is unproven: write that, do not pass it off as checked.
+
+## Judging findings
+Sort every finding into one of four buckets, each with a one-line reason: **Act on** (blocks the
+merge), **Consider** (real, cost unclear), **Noted** (valid, not actionable now), **Dismissed**
+(wrong, nitpick, or missing context, say which). A hypothetical only counts when the input can
+actually arrive; trace the call site. "I would have done it differently" is not a finding.
+Security and correctness findings get more scrutiny before dismissal, never less.
+
 ## Report
 - ✅ No exposure found (RLS present, seam enforced, authz checked, no secrets/PII, after code
   inspection + test run), or
 - ❌ Issues found: specific list with `file:line` references, grouped Critical / Important / Minor.
   A weakness that is itself sensitive (see disclosure rules above) is described to the Director
   only, never quoted into the report verbatim if the report's destination is the tree/tracker.
+- Always: the one fact, its proof level and proof; the four buckets. On a release candidate the
+  lens runs twice on the same prompt, an Opus or Fable reviewer and a Luna reviewer; the artifact
+  adds an **Agreement** section (raised by both, by one, contradicted) and the Opus/Fable reviewer
+  stamps.
 Change nothing — findings route back to the builder; that is the only repair path.
 
 ## MOS bindings
