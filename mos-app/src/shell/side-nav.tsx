@@ -1,4 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { isShipGated } from '@/lib/ship-gate'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
@@ -107,8 +108,8 @@ function Sidebar({ data }: { data: NavData }) {
       {layout.collapsible && <div className="nav-collapse-row"><CollapseToggle compact={false} /></div>}
       <nav id="rail-primary-nav" aria-label={t('nav.primary')} className="nav-primary">
         <div className="nav-fixed nav-list">
-          <AreaLink destination={HOME} to="/" state={rowState(pathname, '/', '/', undefined)} />
-          <div>
+          {!isShipGated('/') && <AreaLink destination={HOME} to="/" state={rowState(pathname, '/', '/', undefined)} />}
+          {!isShipGated('/work') && <div>
             <AreaLink
               destination={WORK}
               to={landingOf(WORK)}
@@ -118,7 +119,7 @@ function Sidebar({ data }: { data: NavData }) {
             <div id="nav-children-work" hidden={!workOpen} className="nav-children">
               <PageLinks groups={workGroups} pathname={pathname} forPath={badges.forPath} />
             </div>
-          </div>
+          </div>}
         </div>
         <div className="nav-scroll">
           {modules.length > 0 && <div className="nav-group-heading nav-group-heading--top">{t('shell.nav.modules')}</div>}
@@ -344,8 +345,8 @@ function Rail({ data, hasPanel }: { data: NavData; hasPanel: boolean }) {
       {compact && layout.collapsible && <div className="nav-collapse-row nav-collapse-row--compact"><CollapseToggle compact /></div>}
       <nav id="rail-primary-nav" aria-label={t('nav.primary')} className="rail-nav">
         <div className="rail-scroll nav-scroll">
-          {item(HOME)}
-          {item(WORK)}
+          {!isShipGated('/') && item(HOME)}
+          {!isShipGated('/work') && item(WORK)}
           {modules.map(item)}
         </div>
         <div className="rail-foot-links">

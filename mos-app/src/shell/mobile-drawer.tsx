@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
+import { isShipGated } from '@/lib/ship-gate'
 import { useLocation } from 'react-router-dom'
 import { UserChip } from './user-chip'
 import { CloseIcon } from './icons'
@@ -123,15 +124,15 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
 
         <nav aria-label={t('nav.moreDestinations')} className="mobile-drawer-nav">
           <div className="nav-list">
-            <AreaLink destination={HOME} to="/" state={state(HOME, [])} onNavigate={closeAndReturn} />
-            <div>
+            {!isShipGated('/') && <AreaLink destination={HOME} to="/" state={state(HOME, [])} onNavigate={closeAndReturn} />}
+            {!isShipGated('/work') && <div>
               <AreaLink destination={WORK} to={landingOf(WORK)} state={state(WORK, workGroups)} onNavigate={closeAndReturn} />
               {area?.id === 'work' && (
                 <div className="nav-children">
                   <PageLinks groups={workGroups} pathname={pathname} forPath={badges.forPath} onNavigate={closeAndReturn} />
                 </div>
               )}
-            </div>
+            </div>}
             {/* Inbox has no desktop menu row (it is the bell); on a phone the bell is on the top bar and here. */}
             <AreaLink destination={INBOX_AREA} to={landingOf(INBOX_AREA)} state={state(INBOX_AREA, [])} onNavigate={closeAndReturn} />
           </div>
