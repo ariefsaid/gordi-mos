@@ -1,5 +1,5 @@
 -- Hide selected ESB recipe references in MOS without changing the retained source copy.
--- DOWN: run supabase/rollbacks/20261010000500_ops_cafe_recipe_visibility.sql.
+-- DOWN: run supabase/rollbacks/20261016000500_ops_cafe_recipe_visibility.sql.
 -- The guarded rollback refuses to drop saved visibility choices or audit history.
 
 create table ops.recipe_visibility (

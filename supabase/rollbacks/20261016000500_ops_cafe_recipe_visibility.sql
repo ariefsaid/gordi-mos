@@ -1,4 +1,4 @@
--- Guarded rollback for 20261010000500_ops_cafe_recipe_visibility.sql.
+-- Guarded rollback for 20261016000500_ops_cafe_recipe_visibility.sql.
 -- Visibility choices and their audit history are durable user data; preserve them before rollback.
 begin;
 
