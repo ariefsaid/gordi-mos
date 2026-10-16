@@ -11,6 +11,8 @@ ok()  { pass=$((pass+1)); printf '  ok    %s\n' "$1"; }
 bad() { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 
+# The test lock is a 3-slot semaphore by default; these mutex cases pin it to one slot.
+export MOS_TEST_LOCK_SLOTS=1
 for w in db test; do
   WRAP="scripts/with-${w}-lock.sh"
   VAR="MOS_$(echo "$w" | tr a-z A-Z)_LOCK"          # MOS_DB_LOCK / MOS_TEST_LOCK
@@ -48,10 +50,28 @@ for w in db test; do
                  || bad "$w: expected 75 with guard stripped, got $rc"
 done
 
+unset MOS_TEST_LOCK_SLOTS
+
+# semaphore: three test suites run at once; the fourth waits and gives up with 75
+SEM="$tmp/sem.lock"
+for i in 1 2 3; do env MOS_TEST_LOCK="$SEM" scripts/with-test-lock.sh sleep 4 >/dev/null 2>&1 & done
+sleep 1
+env MOS_TEST_LOCK="$SEM" MOS_TEST_LOCK_TIMEOUT=1 scripts/with-test-lock.sh echo fourth >/dev/null 2>&1
+rc=$?
+[ $rc -eq 75 ] && ok "test: the fourth suite waits behind three holders (default 3 slots)" \
+               || bad "test: expected 75 behind three holders, got $rc"
+wait
+[ -e "$SEM" ] && [ -e "$SEM.1" ] && [ -e "$SEM.2" ] && [ ! -e "$SEM.3" ] \
+  && ok "test: the slots are the lock path, .1 and .2" || bad "test: unexpected slot files: $(ls "$tmp" | grep sem | tr '\n' ' ')"
+# a nested db lock inside a test slot stays a plain mutex (FLOCK_SLOTS is not inherited)
+env MOS_TEST_LOCK="$SEM" MOS_DB_LOCK="$tmp/nested-db.lock" scripts/with-test-lock.sh scripts/with-db-lock.sh true >/dev/null 2>&1
+[ -e "$tmp/nested-db.lock" ] && [ ! -e "$tmp/nested-db.lock.1" ] \
+  && ok "db: nested inside a test slot it stays a single lock" || bad "db: nested lock grew extra slots"
+
 # default path: with no override the test lock is the one shared with the sibling repo, under $HOME
 mkdir -p "$tmp/home"
 env -u MOS_TEST_LOCK -u MOS_TEST_LOCK_HELD HOME="$tmp/home" scripts/with-test-lock.sh true >/dev/null 2>&1
-[ -e "$tmp/home/.pmo-test.lock" ] && [ "$(ls -A "$tmp/home")" = ".pmo-test.lock" ] \
+[ -e "$tmp/home/.pmo-test.lock" ] && [ "$(ls -A "$tmp/home" | grep -vc '^\.pmo-test\.lock')" = 0 ] \
   && ok "test: default lock (MOS_TEST_LOCK unset) is \$HOME/.pmo-test.lock" \
   || bad "test: default lock is not \$HOME/.pmo-test.lock (found: $(ls -A "$tmp/home" | tr '\n' ' '))"
 

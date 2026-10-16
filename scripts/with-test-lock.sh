@@ -22,6 +22,7 @@
 #
 #   MOS_TEST_LOCK          override the lock path (default ~/.pmo-test.lock)
 #   MOS_TEST_LOCK_TIMEOUT  seconds to wait before giving up (default 2700 = 45 min; 0 = forever)
+#   MOS_TEST_LOCK_SLOTS    concurrent holders machine-wide (default 3; 1 = plain mutex)
 set -euo pipefail
 
 LOCK="${MOS_TEST_LOCK:-$HOME/.pmo-test.lock}"
@@ -40,5 +41,7 @@ if [ "${MOS_TEST_LOCK_HELD:-}" = "1" ]; then
 fi
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-exec "$DIR/lib/flock-run.sh" "test-lock" "$LOCK" "$TIMEOUT" "MOS_TEST_LOCK_HELD" \
+# Three heavy suites may run at once machine-wide (sibling projects share these lock files);
+# MOS_TEST_LOCK_SLOTS=1 restores the single mutex.
+FLOCK_SLOTS="${MOS_TEST_LOCK_SLOTS:-3}" exec "$DIR/lib/flock-run.sh" "test-lock" "$LOCK" "$TIMEOUT" "MOS_TEST_LOCK_HELD" \
   "the shared test suite" -- "$@"
