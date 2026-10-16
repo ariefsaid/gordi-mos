@@ -28,19 +28,19 @@ test('an admin switch removes Work from navigation and closes direct routes unti
     signedIn = true
     await page.goto('admin/modules')
     await expect(page.getByRole('combobox', { name: 'Work: Org availability' })).toHaveText('On')
-    await expect(page.getByRole('link', { name: 'Work' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Work', exact: true })).toBeVisible()
 
     settingTouched = true
     await setWork(page, 'off')
     workWasDisabled = true
-    await expect(page.getByRole('link', { name: 'Work' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Work', exact: true })).toHaveCount(0)
 
     await page.goto('work')
     await expect(page.getByRole('heading', { name: 'This module is switched off' })).toBeVisible()
 
     await setWork(page, 'on')
     workWasDisabled = false
-    await expect(page.getByRole('link', { name: 'Work' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Work', exact: true })).toBeVisible()
   } finally {
     try {
       if (signedIn && settingTouched && workWasDisabled) await setWork(page, 'on')
