@@ -379,7 +379,7 @@ as $$
          ) as row_data
     from reasoned
 $$;
-revoke all on function ops._stock_comparison_rows(uuid, uuid, text, uuid) from public, anon, authenticated, service_role;
+revoke execute on function ops._stock_comparison_rows(uuid, uuid, text, uuid) from public, anon, authenticated, service_role;
 
 create function ops.list_stock_comparison(
   p_branch_id uuid,
@@ -651,7 +651,7 @@ begin
   return v_result;
 end;
 $$;
-revoke all on function ops.list_stock_comparison(uuid, text, boolean, text, text, text, text, text, text, integer)
+revoke execute on function ops.list_stock_comparison(uuid, text, boolean, text, text, text, text, text, text, integer)
   from public, anon, service_role;
 grant execute on function ops.list_stock_comparison(uuid, text, boolean, text, text, text, text, text, text, integer)
   to authenticated;
@@ -740,7 +740,7 @@ begin
   );
 end;
 $$;
-revoke all on function ops.get_stock_comparison_item(uuid, text, uuid, uuid, text)
+revoke execute on function ops.get_stock_comparison_item(uuid, text, uuid, uuid, text)
   from public, anon, service_role;
 grant execute on function ops.get_stock_comparison_item(uuid, text, uuid, uuid, text)
   to authenticated;

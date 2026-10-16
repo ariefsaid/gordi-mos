@@ -30,7 +30,7 @@ import {
 } from '@/lib/cafe-locations-view'
 import { formatWibShortDateTime } from '@/lib/format/date'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
-import { useCafeSetupWorkspace } from './use-cafe-setup-workspace'
+import { useCafeSetupWorkspace, useOpenerFocusReturn } from './use-cafe-setup-workspace'
 import '@/components/record-collection/record-collection.css'
 import '@/components/kitchen/cafe-setup-workspace.css'
 import './cafe-locations-page.css'
@@ -105,14 +105,7 @@ function Locations() {
   const searchable = useCallback((row: LocationRow) => `${nameOf(row)} ${t(USE_KEY[row.use])} ${parentOf(row) ?? ''} ${branchesText(row)}`, [nameOf, t, parentOf, branchesText])
   const visible = useMemo(() => applyLocationFilters(rows, filters, searchable), [rows, filters, searchable])
 
-  useEffect(() => {
-    if (!data || selected) return
-    if (lastOpened.current) {
-      const opener = document.querySelector<HTMLElement>(`[data-location-open="${CSS.escape(lastOpened.current)}"]`)
-      lastOpened.current = null
-      if (opener) opener.focus(); else listRef.current?.focus()
-    }
-  }, [selected, data, lastOpened, listRef])
+  useOpenerFocusReturn('location-open', Boolean(data) && !selected, lastOpened, listRef)
 
   const chips: { key: string; label: string; clear: Record<string, string | null> }[] = [
     ...(filters.branch !== 'all' ? [{ key: 'branch', label: `${t('cafe.locations.branch')}: ${branchName(filters.branch)}`, clear: { branch: null } }] : []),

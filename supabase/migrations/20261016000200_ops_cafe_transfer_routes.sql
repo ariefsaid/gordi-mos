@@ -140,7 +140,7 @@ begin
   end;
 end;
 $$;
-revoke all on function ops._parse_cafe_transfer_route(jsonb) from public, anon, authenticated, service_role;
+revoke execute on function ops._parse_cafe_transfer_route(jsonb) from public, anon, authenticated, service_role;
 
 create function ops._validate_cafe_transfer_route(
   p_org_id uuid,
@@ -190,7 +190,7 @@ begin
   end if;
 end;
 $$;
-revoke all on function ops._validate_cafe_transfer_route(uuid,uuid,text,uuid) from public, anon, authenticated, service_role;
+revoke execute on function ops._validate_cafe_transfer_route(uuid,uuid,text,uuid) from public, anon, authenticated, service_role;
 
 -- The session's org/person and the granted capability are resolved on every invocation; no caller
 -- supplied tenant or actor can widen this check.
@@ -258,7 +258,7 @@ end;
 $$;
 comment on function ops.list_cafe_transfer_routes() is
   'Complete caller-org route list, ordered by canonical branch names and annotated when current stream/destination eligibility needs attention.';
-revoke all on function ops.list_cafe_transfer_routes() from public, anon, service_role;
+revoke execute on function ops.list_cafe_transfer_routes() from public, anon, service_role;
 grant execute on function ops.list_cafe_transfer_routes() to authenticated;
 
 create function ops.create_cafe_transfer_route(p_input jsonb, p_client_request_id uuid)
@@ -360,7 +360,7 @@ end;
 $$;
 comment on function ops.create_cafe_transfer_route(jsonb,uuid) is
   'Admin-only, idempotent create for one eligible cross-branch route. Stamps org, actor, version and audit in one transaction.';
-revoke all on function ops.create_cafe_transfer_route(jsonb,uuid) from public, anon, service_role;
+revoke execute on function ops.create_cafe_transfer_route(jsonb,uuid) from public, anon, service_role;
 grant execute on function ops.create_cafe_transfer_route(jsonb,uuid) to authenticated;
 
 create function ops.update_cafe_transfer_route(p_key jsonb, p_expected_version bigint, p_input jsonb, p_client_request_id uuid)
@@ -475,7 +475,7 @@ end;
 $$;
 comment on function ops.update_cafe_transfer_route(jsonb,bigint,jsonb,uuid) is
   'Admin-only, optimistic and idempotent update; key replacement and audit are atomic.';
-revoke all on function ops.update_cafe_transfer_route(jsonb,bigint,jsonb,uuid) from public, anon, service_role;
+revoke execute on function ops.update_cafe_transfer_route(jsonb,bigint,jsonb,uuid) from public, anon, service_role;
 grant execute on function ops.update_cafe_transfer_route(jsonb,bigint,jsonb,uuid) to authenticated;
 
 create function ops.remove_cafe_transfer_route(p_key jsonb, p_expected_version bigint, p_client_request_id uuid)
@@ -537,7 +537,7 @@ end;
 $$;
 comment on function ops.remove_cafe_transfer_route(jsonb,bigint,uuid) is
   'Admin-only, optimistic and idempotent route disable. Existing capture/review rows and their destinations remain unchanged.';
-revoke all on function ops.remove_cafe_transfer_route(jsonb,bigint,uuid) from public, anon, service_role;
+revoke execute on function ops.remove_cafe_transfer_route(jsonb,bigint,uuid) from public, anon, service_role;
 grant execute on function ops.remove_cafe_transfer_route(jsonb,bigint,uuid) to authenticated;
 
 create function ops._reject_cafe_transfer_route_audit_mutation()
@@ -555,7 +555,7 @@ begin
   raise exception 'transfer route audit is append-only' using errcode = '55000';
 end;
 $$;
-revoke all on function ops._reject_cafe_transfer_route_audit_mutation() from public, anon, authenticated, service_role;
+revoke execute on function ops._reject_cafe_transfer_route_audit_mutation() from public, anon, authenticated, service_role;
 create trigger cafe_transfer_route_audit_immutable
   before update or delete on ops.cafe_transfer_route_audit
   for each row execute function ops._reject_cafe_transfer_route_audit_mutation();
@@ -588,7 +588,7 @@ begin
   return new;
 end;
 $$;
-revoke all on function ops._lock_cafe_transfer_route() from public, anon, authenticated, service_role;
+revoke execute on function ops._lock_cafe_transfer_route() from public, anon, authenticated, service_role;
 create trigger kitchen_logs_zz_transfer_route_lock
   before insert or update of branch_id, activity, action, destination_branch_id on ops.kitchen_logs
   for each row execute function ops._lock_cafe_transfer_route();

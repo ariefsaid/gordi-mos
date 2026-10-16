@@ -29,7 +29,7 @@ import {
   type RouteProblem, type RouteRow,
 } from '@/lib/cafe-transfer-routes-view'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
-import { useCafeSetupWorkspace } from './use-cafe-setup-workspace'
+import { useCafeSetupWorkspace, useOpenerFocusReturn } from './use-cafe-setup-workspace'
 import '@/components/record-collection/record-collection.css'
 import '@/components/kitchen/cafe-setup-workspace.css'
 import './cafe-transfer-routes-page.css'
@@ -130,14 +130,7 @@ function TransferRoutes() {
   }, [rows, destinationText])
 
   // Focus returns to the row that opened the record, or the list.
-  useEffect(() => {
-    if (!data || selected) return
-    if (lastOpened.current) {
-      const opener = document.querySelector<HTMLElement>(`[data-route-open="${CSS.escape(lastOpened.current)}"]`)
-      lastOpened.current = null
-      if (opener) opener.focus(); else listRef.current?.focus()
-    }
-  }, [selected, data, lastOpened, listRef])
+  useOpenerFocusReturn('route-open', Boolean(data) && !selected, lastOpened, listRef)
 
   const chips: { key: string; label: string; clear: Record<string, string | null> }[] = [
     ...(filters.origin !== 'all' ? [{ key: 'origin', label: `${t('cafe.routes.origin')}: ${originOptions.find(([k]) => k === filters.origin)?.[1] ?? filters.origin}`, clear: { origin: null } }] : []),
@@ -148,11 +141,23 @@ function TransferRoutes() {
 
   const sortState = (key: 'origin' | 'destination') => filters.sort === key ? filters.dir : undefined
   const open = (key: string) => { lastOpened.current = key; setMutationError(null); update({ route: key }, false) }
-  const saveRoute = useCallback(async (row: RouteRow | null, input: TransferRouteInput) => {
-    if (offline) { setMutationError('cafe.routes.error.unavailable'); return }
+  // Every write clears the open record on success and reports a typed error otherwise.
+  const mutate = useCallback(async (work: () => Promise<void>) => {
     setSaving(true)
     setMutationError(null)
     try {
+      await work()
+      setDirty(false)
+      update({ route: null }, false)
+    } catch (error) {
+      setMutationError(routeMutationErrorKey(error))
+    } finally {
+      setSaving(false)
+    }
+  }, [update, setDirty])
+  const saveRoute = useCallback(async (row: RouteRow | null, input: TransferRouteInput) => {
+    if (offline) { setMutationError('cafe.routes.error.unavailable'); return }
+    await mutate(async () => {
       const context: WriteContext = { client_request_id: globalThis.crypto.randomUUID() }
       const saved = row
         ? await updateCafeTransferRoute({
@@ -165,39 +170,26 @@ function TransferRoutes() {
         ...current,
         destinations: [...current.destinations.filter((route) => routeKey(route) !== row?.key && routeKey(route) !== routeKey(saved)), saved],
       } : current)
-      setDirty(false)
-      update({ route: null }, false)
-    } catch (error) {
-      setMutationError(routeMutationErrorKey(error))
-    } finally {
-      setSaving(false)
-    }
-  }, [offline, update, setData, setDirty])
+    })
+  }, [offline, mutate, setData])
   const disableRoute = useCallback(async (row: RouteRow) => {
     if (offline || row.rowVersion === null) {
       setMutationError(offline ? 'cafe.routes.error.unavailable' : 'cafe.routes.error.failed')
       return
     }
-    setSaving(true)
-    setMutationError(null)
-    try {
+    const rowVersion = row.rowVersion
+    await mutate(async () => {
       await removeCafeTransferRoute({
         origin_branch_id: row.originBranchId,
         origin_activity: row.originActivity,
         destination_branch_id: row.destinationBranchId,
-      }, row.rowVersion, { client_request_id: globalThis.crypto.randomUUID() })
+      }, rowVersion, { client_request_id: globalThis.crypto.randomUUID() })
       setData((current) => current ? {
         ...current,
         destinations: current.destinations.filter((route) => routeKey(route) !== row.key),
       } : current)
-      setDirty(false)
-      update({ route: null }, false)
-    } catch (error) {
-      setMutationError(routeMutationErrorKey(error))
-    } finally {
-      setSaving(false)
-    }
-  }, [offline, update, setData, setDirty])
+    })
+  }, [offline, mutate, setData])
   const hrefFor = (key: string) => { const next = new URLSearchParams(params); next.set('route', key); return { pathname: '/cafe/transfer-routes', search: next.toString() } }
   const columns: DataTableColumn<RouteRow & { id: string }>[] = [
     { key: 'origin', header: t('cafe.routes.col.origin'), sortable: true, render: (row) => originText(row) },

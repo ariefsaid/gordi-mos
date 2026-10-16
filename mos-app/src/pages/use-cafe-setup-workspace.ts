@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -25,4 +25,16 @@ export function useCafeSetupWorkspace<Data>() {
     t, locale, isAdmin, isDesktop, offline, params, setParams, data, setData,
     error, setError, retry, setRetry, dirty, setDirty, listRef, lastOpened,
   }
+}
+
+/** Focus returns to the row that opened the record (marked `[data-<attr>="key"]`), or to the list, once the record closes. */
+export function useOpenerFocusReturn(attr: string, closed: boolean, lastOpened: RefObject<string | null>, listRef: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    if (!closed) return
+    if (lastOpened.current) {
+      const opener = document.querySelector<HTMLElement>(`[data-${attr}="${CSS.escape(lastOpened.current)}"]`)
+      lastOpened.current = null
+      if (opener) opener.focus(); else listRef.current?.focus()
+    }
+  }, [attr, closed, lastOpened, listRef])
 }
