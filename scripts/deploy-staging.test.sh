@@ -44,6 +44,7 @@ else printf 'argv supabase-safe\n' >> "$ARGVLOG"; fi
 # The token on argv is logged verbatim, so the "never reached argv log" checks can fail.
 if [ -n "${FAKE_ACCESS_TOKEN:-}" ] && [[ "$*" == *"$FAKE_ACCESS_TOKEN"* ]]; then printf 'argv supabase-token %s\n' "$FAKE_ACCESS_TOKEN" >> "$ARGVLOG"; fi
 if [ -n "${PGPASSWORD:-}" ]; then printf 'pgpw-set\n' >> "$ARGVLOG"; else printf 'pgpw-empty\n' >> "$ARGVLOG"; fi
+case "$*" in *--db-url*) a="$*"; u="${a#*--db-url }"; u="${u%% *}"; h="${u#*@}"; printf 'db-url-host %s\n' "${h%%[:/]*}" >> "$ARGVLOG" ;; esac
 if [ -n "${FAKE_FUNCTION_SECRET_VALUE:-}" ] && [[ "$*" == *"$FAKE_FUNCTION_SECRET_VALUE"* ]]; then printf 'argv function-secret\n' >> "$ARGVLOG"; fi
 case "$*" in
   *"secrets list"*)
@@ -76,7 +77,7 @@ case "$*" in
     ;;
   *--dry-run*) printf 'supabase dry-run\n' >> "$CALLS"
     echo "Connecting to $FAKE_URL"
-    if [ "${FAKE_DRY_RC:-0}" != 0 ]; then echo "failed to connect to host=$FAKE_HOST user=deployer" >&2; exit "$FAKE_DRY_RC"; fi
+    if [ "${FAKE_DRY_RC:-0}" != 0 ]; then echo "failed to connect to host=${h:-$FAKE_HOST} user=deployer" >&2; exit "$FAKE_DRY_RC"; fi
     printf '%s\n' "${FAKE_DRY_OUT}" ;;
   *"db push"*) printf 'supabase push\n' >> "$CALLS"; echo "Finished supabase db push."; exit "${FAKE_PUSH_RC:-0}" ;;
   *"functions deploy"*)
@@ -486,6 +487,25 @@ run "database, edge and direct-promotion order" 0 "" FAKE_FN_DIFF=$'supabase/fun
 order="$(grep -E '^(pg_dump|pg_restore-list|supabase push|supabase functions-deploy agent-chat|git-push)' "$calls" | tr '\n' ' ')"
 case "$order" in pg_dump\ pg_restore-list\ supabase\ push\ supabase\ functions-deploy\ agent-chat\ git-push\ push\ origin\ aaaa:refs/heads/staging*) ok "order: backup, database push, edge deploy, direct promotion" ;; *) bad "unexpected DB/edge/promotion order: $order" ;; esac
 if grep -q 'rehearse-migrations\.sh' "$SCRIPT"; then bad "removed migration helper is still called"; else ok "no removed migration helper call remains"; fi
+
+echo "pooler url file"
+printf 'postgresql://postgres.ref@pooler.fake.invalid:5432/postgres\n' > "$tmp/pooler-url"
+run "pooler file routes the database commands through the pooler host" 0 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url" -- --dry-run
+has "pooler path announced" "Database host: session pooler (IPv4)"
+if grep -qx 'db-url-host pooler.fake.invalid' "$ARGVLOG"; then ok "db push used the pooler host"; else bad "db push did not use the pooler host"; fi
+if grep -qx 'db-url-host pooler.fake.invalid' "$ARGVLOG" && ! grep -q "^db-url-host $SECRET_HOST" <(tail -n 3 "$ARGVLOG"); then ok "direct host not used on the pooler run"; else bad "direct host still used on the pooler run"; fi
+printf 'postgresql://postgres.ref:leak@pooler.fake.invalid:5432/postgres\n' > "$tmp/pooler-url-pw"
+run "pooler file with a password is refused" 1 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url-pw" -- --dry-run
+has "refusal names the rule" "pooler URL file must not carry a password"
+expect_not "no dry run after a refused pooler file" "supabase dry-run"
+printf 'postgresql://postgres.ref@pooler.fake.invalid:5432/postgres?Password=leak\n' > "$tmp/pooler-url-qs"
+run "pooler file with a password in the query string is refused" 1 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url-qs" -- --dry-run
+has "query-string refusal names the rule" "pooler URL file must not carry a password"
+expect_not "no dry run after a refused query-string pooler file" "supabase dry-run"
+run "pooler host is masked on a failed dry run" 1 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url" FAKE_DRY_RC=7 -- --dry-run
+hasnt "failed dry run output hides the pooler host" "pooler.fake.invalid"
+run "absent pooler file keeps the direct host" 0 "" STAGING_POOLER_URL_FILE="$tmp/no-such-file" -- --dry-run
+hasnt "no pooler announcement without the file" "session pooler"
 
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
