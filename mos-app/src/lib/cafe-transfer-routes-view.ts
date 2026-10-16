@@ -1,11 +1,13 @@
-// Transfer routes (preview) — the pure view model over the REAL reads: ops.cafe_destinations rows, the
-// stream Teams and the branch catalog. No IO, no writes. A route is one stored triple (origin branch,
+// Transfer routes — the pure view model over stored routes, stream Teams and the branch catalog.
+// No IO, no writes. A route is one stored triple (origin branch,
 // origin activity, destination branch); it is "Configured" when both ends still resolve and the pair
 // is one MOS would offer, and "Needs attention" otherwise — never silently dropped.
 import { branchDisplayName, streamKey } from '@/lib/kitchen-action-label'
+import type { TransferRoute } from '@/lib/db/cafe-transfer-routes'
 import type { BranchOption, CafeDestination, ProductionActivity, ProductionStream, StreamPair } from '@/lib/db/kitchen-logs.types'
 
-export type RouteProblem = 'originUnknown' | 'originNotProducing' | 'destinationUnknown' | 'sameBranch' | 'noDestinationBar'
+export type RouteProblem = 'originUnknown' | 'originNotProducing' | 'destinationUnknown' | 'destinationNotEligible' | 'sameBranch' | 'noDestinationBar'
+type RouteForView = CafeDestination & Partial<Pick<TransferRoute, 'row_version' | 'updated_at' | 'updated_by' | 'eligibility' | 'reason'>>
 
 export interface RouteRow {
   /** Stable URL key: origin branch id, activity, destination branch id. */
@@ -19,6 +21,9 @@ export interface RouteRow {
   /** The destination as the floor reads it (alias, e.g. Bungur). */
   destinationAlias: string | null
   problem: RouteProblem | null
+  rowVersion: number | null
+  eligibility: 'eligible' | 'needs_attention'
+  reason: string | null
 }
 
 export interface DerivedRow {
@@ -42,7 +47,9 @@ export function eligibleDestinations(
 ): BranchOption[] {
   if (!origin) return []
   return branches.filter((branch) =>
-    branch.id !== origin.branch.id && (origin.activity === 'kitchen' || hasBar(pairs, branch.id)))
+    branch.id !== origin.branch.id &&
+    pairs.some((pair) => pair.branch_id === branch.id) &&
+    (origin.activity === 'kitchen' || hasBar(pairs, branch.id)))
 }
 
 export interface RouteContext {
@@ -52,7 +59,7 @@ export interface RouteContext {
   pairs: readonly StreamPair[]
 }
 
-export function buildRouteRows(destinations: readonly CafeDestination[], ctx: RouteContext): RouteRow[] {
+export function buildRouteRows(destinations: readonly RouteForView[], ctx: RouteContext): RouteRow[] {
   const active = new Map(ctx.activeBranches.map((branch) => [branch.id, branch]))
   const names = new Map<string, string>([...ctx.extraBranches.map((b) => [b.id, b.name] as const), ...ctx.activeBranches.map((b) => [b.id, b.name] as const)])
   return destinations.map((route): RouteRow => {
@@ -65,6 +72,8 @@ export function buildRouteRows(destinations: readonly CafeDestination[], ctx: Ro
     else if (pair.produces !== true) problem = 'originNotProducing'
     else if (!destination) problem = 'destinationUnknown'
     else if (route.origin_activity === 'bar' && !hasBar(ctx.pairs, destination.id)) problem = 'noDestinationBar'
+    else if (!eligibleDestinations({ branch: origin, activity: route.origin_activity }, ctx.activeBranches, ctx.pairs)
+      .some((branch) => branch.id === destination.id)) problem = 'destinationNotEligible'
     return {
       key: routeKey(route),
       originBranchId: route.origin_branch_id, originActivity: route.origin_activity, destinationBranchId: route.destination_branch_id,
@@ -72,6 +81,9 @@ export function buildRouteRows(destinations: readonly CafeDestination[], ctx: Ro
       destinationName: names.get(route.destination_branch_id) ?? null,
       destinationAlias: destination ? branchDisplayName(destination) : null,
       problem,
+      rowVersion: typeof route.row_version === 'number' ? route.row_version : null,
+      eligibility: route.eligibility ?? (problem ? 'needs_attention' : 'eligible'),
+      reason: route.reason ?? null,
     }
   })
 }
