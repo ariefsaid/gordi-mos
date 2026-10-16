@@ -9,6 +9,7 @@ import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { ObjectiveHint } from './objective-hint'
 import type { TaskTeamOption } from './task-row'
+import { occurrenceRollupSummaryKey } from './occurrence-rollup-summary'
 
 // ── Shared group-model type (aligned with TasksWorkspace.RenderGroup) ─────────
 type MobileRenderGroup = {
@@ -239,75 +240,75 @@ export function MobileGroupedCards({
 
   return (
     <div className="mgc" role="list" aria-label={t('tasks.title')}>
-      {groups.map(group => (
-        <div key={`mgc-${group.key}`} className="mgc-group">
-          <GroupHeader
-            className="mgc-group-head"
-                        label={<span className="mgc-group-headings">
-              {/* The Objective sits ABOVE the Project/Process title, in its own line. */}
-              {group.objectiveHint && <ObjectiveHint hint={group.objectiveHint} className="mgc-objective-hint" />}
-              <span className="mgc-label">{group.label}</span>
-              {/* RI-1: work-line type tag — text always present, never color-only (WCAG 1.4.1) */}
-              {group.workLineType != null && <MobileWorkLineTypeTag type={group.workLineType} />}
-            </span>}
-            count={group.occurrenceRollup
-              ? t(
-                group.occurrenceRollup.pendingUnresolved === 0
-                  ? 'processes.rollup.summary'
-                  : onAssignPending
-                    ? 'processes.rollup.summaryNoAssign'
-                    : 'processes.rollup.summaryUnassigned',
-                {
-                  done: group.occurrenceRollup.done, total: group.occurrenceRollup.total,
-                  overdue: group.occurrenceRollup.overdue, pending: group.occurrenceRollup.pendingUnresolved,
-                },
-              )
-              : group.rows.length}
-            open={!isCollapsed(group.key)}
-            onToggle={() => toggleCollapsed(group.key)}
-            trailing={<>
-              {group.occurrenceRollup && group.occurrenceRollup.pendingUnresolved > 0 && onAssignPending && (
-                <button type="button" className="mgc-sub mgc-sub-pending" onClick={() => onAssignPending(group.key)}>
-                  {t('processes.pending.assignCount', { count: group.occurrenceRollup.pendingUnresolved })}
+      {groups.map((group) => {
+        const pendingUnresolved = group.occurrenceRollup?.pendingUnresolved ?? 0
+        const hasPendingAssignment = pendingUnresolved > 0 && Boolean(onAssignPending)
+        return (
+          <div key={`mgc-${group.key}`} className="mgc-group">
+            <GroupHeader
+              className="mgc-group-head"
+              label={<span className="mgc-group-headings">
+                {/* The Objective sits ABOVE the Project/Process title, in its own line. */}
+                {group.objectiveHint && <ObjectiveHint hint={group.objectiveHint} className="mgc-objective-hint" />}
+                <span className="mgc-label">{group.label}</span>
+                {/* RI-1: work-line type tag — text always present, never color-only (WCAG 1.4.1) */}
+                {group.workLineType != null && <MobileWorkLineTypeTag type={group.workLineType} />}
+              </span>}
+              count={group.occurrenceRollup
+                ? t(
+                  occurrenceRollupSummaryKey(pendingUnresolved, hasPendingAssignment),
+                  {
+                    done: group.occurrenceRollup.done, total: group.occurrenceRollup.total,
+                    overdue: group.occurrenceRollup.overdue, pending: pendingUnresolved,
+                  },
+                )
+                : group.rows.length}
+              open={!isCollapsed(group.key)}
+              onToggle={() => toggleCollapsed(group.key)}
+              trailing={<>
+                {group.occurrenceRollup && hasPendingAssignment && onAssignPending && (
+                  <button type="button" className="mgc-sub mgc-sub-pending" onClick={() => onAssignPending(group.key)}>
+                    {t('processes.pending.assignCount', { count: pendingUnresolved })}
+                  </button>
+                )}
+                {!group.occurrenceRollup && group.overdue > 0 && (
+                  <button type="button" className="mgc-sub" aria-label={t('tasks.filter.overdueAria', { count: group.overdue })} onClick={() => setOverdueOnly(true)}>
+                    {t('tasks.filter.overdueCount', { count: group.overdue })}
+                  </button>
+                )}
+                <button type="button" className="mgc-add" aria-label={t('tasks.group.add', { label: group.label })} onClick={() => openAddTask(group.prefillParam)}>
+                  {t('tasks.add')}
                 </button>
-              )}
-              {!group.occurrenceRollup && group.overdue > 0 && (
-                <button type="button" className="mgc-sub" aria-label={t('tasks.filter.overdueAria', { count: group.overdue })} onClick={() => setOverdueOnly(true)}>
-                  {t('tasks.filter.overdueCount', { count: group.overdue })}
-                </button>
-              )}
-              <button type="button" className="mgc-add" aria-label={t('tasks.group.add', { label: group.label })} onClick={() => openAddTask(group.prefillParam)}>
-                {t('tasks.add')}
-              </button>
-            </>}
-          />
-          {!isCollapsed(group.key) && group.rows.map(task => (
-            <div key={task.id} role="listitem">
-              <TaskCard
-                task={task}
-                now={now}
-                buName={buMap.get(task.business_unit_id) ?? ''}
-                teamName={teamMap.get(task.team_id ?? '') ?? ''}
-                rName={personMap.get(task.responsible_person_id) ?? ''}
-                supervisorName={personMap.get(task.accountable_person_id) ?? ''}
-                recordSearch={recordSearch}
-                onOpenTask={openTask}
-                provenanceRoleName={provenanceFor(task)}
-                onEditTitle={onEditTitle}
-                onEditPic={onEditPic}
-                onEditTeam={onEditTeam}
-                onEditSupervisor={onEditSupervisor}
-                personOptions={personOptions}
-                supervisorOptions={supervisorOptions}
-                teamOptions={teamOptions}
-                isNew={task.id === draftTaskId}
-                onDiscardNewTask={onDiscardNewTask}
-                viewerHasNoDownline={viewerHasNoDownline}
-              />
-            </div>
-          ))}
-        </div>
-      ))}
+              </>}
+            />
+            {!isCollapsed(group.key) && group.rows.map(task => (
+              <div key={task.id} role="listitem">
+                <TaskCard
+                  task={task}
+                  now={now}
+                  buName={buMap.get(task.business_unit_id) ?? ''}
+                  teamName={teamMap.get(task.team_id ?? '') ?? ''}
+                  rName={personMap.get(task.responsible_person_id) ?? ''}
+                  supervisorName={personMap.get(task.accountable_person_id) ?? ''}
+                  recordSearch={recordSearch}
+                  onOpenTask={openTask}
+                  provenanceRoleName={provenanceFor(task)}
+                  onEditTitle={onEditTitle}
+                  onEditPic={onEditPic}
+                  onEditTeam={onEditTeam}
+                  onEditSupervisor={onEditSupervisor}
+                  personOptions={personOptions}
+                  supervisorOptions={supervisorOptions}
+                  teamOptions={teamOptions}
+                  isNew={task.id === draftTaskId}
+                  onDiscardNewTask={onDiscardNewTask}
+                  viewerHasNoDownline={viewerHasNoDownline}
+                />
+              </div>
+            ))}
+          </div>
+        )
+      })}
     </div>
   )
 }
