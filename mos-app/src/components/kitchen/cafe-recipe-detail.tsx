@@ -28,7 +28,7 @@ export function CafeRecipeDetail({ versions, status, type, visibility }: {
   /** ESB status and type of the latest version; omitted where the caller has not derived them (the item's own recipe section). */
   status?: EsbStatus
   type?: RecipeType
-  /** The Hide in MOS preview switch, when it is on for this viewer. */
+  /** The organization visibility control, when supplied by the Recipes page. */
   visibility?: ReactNode
 }) {
   const t = useT()

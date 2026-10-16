@@ -47,9 +47,6 @@ const SHIP_PREVIEW_PATHS: readonly string[] = [
   '/cafe/stock-comparison',
   // Personal module overrides are a preview; org-level Modules settings are released.
   '/admin/people/modules',
-  // Hide in MOS on Recipes: no route of its own. Every switch, filter and column asks this path (lib/recipe-visibility-preview.ts), so the
-  // released /cafe/recipes page is unchanged when the preview is off.
-  '/cafe/recipes/visibility',
 ]
 
 export type ShipState = 'released' | 'hidden' | 'preview'

@@ -47,10 +47,8 @@ describe('ship states', () => {
     }
   })
 
-  it('gates Hide in MOS on Recipes by its own path and never the Recipes page itself', () => {
-    expect(shipStateInProfile('/cafe/recipes/visibility', 'full')).toBe('preview')
-    expect(isShipGated('/cafe/recipes/visibility')).toBe(true)
-    for (const path of ['/cafe/recipes', '/cafe/recipes?status=All', '/cafe/recipes/visibility-old']) {
+  it('releases recipe visibility without gating the Recipes page or similarly named paths', () => {
+    for (const path of ['/cafe/recipes', '/cafe/recipes?status=All', '/cafe/recipes/visibility', '/cafe/recipes/visibility-old']) {
       expect(shipStateInProfile(path, 'full')).toBe('released')
       expect(isShipGated(path)).toBe(false)
     }
