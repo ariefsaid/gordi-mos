@@ -7,7 +7,7 @@ import { isShipGated } from '@/lib/ship-gate'
 import { admittedModules, destinationForPath, goToEntries, pageGroupsFor } from './module-registry'
 import { ADMIN_SECTIONS, sectionForPath, visibleSections } from './sections'
 
-const PREVIEW_PATHS = ['/cafe/locations', '/cafe/locations/change-location', '/cafe/locations/move']
+const PREVIEW_PATHS = ['/admin/people/modules']
 
 function findRoute(routes: RouteObject[], target: string, parent = ''): RouteObject | undefined {
   for (const route of routes) {
@@ -26,17 +26,15 @@ const cafePaths = (roles: string[]) =>
 afterEach(() => vi.unstubAllEnvs())
 
 describe('preview ship state without the local opt-in (the default, and every production build)', () => {
-  it.each(PREVIEW_PATHS)('%s is gated and its route forwards away', (path) => {
+  it.each(PREVIEW_PATHS)('%s is gated', (path) => {
     expect(isShipGated(path)).toBe(true)
-    expect(findRoute(ungatedRouteTable, path)).toBeDefined()
-    expect(closed(findRoute(applyShipGate(ungatedRouteTable), path))).toBe(true)
   })
 
   it('keeps the preview out of the Café menu, the command menu and the route owner lookup', () => {
     expect(cafePaths(['admin'])).toContain('/cafe/transfer-routes')
-    expect(cafePaths(['admin'])).not.toContain('/cafe/locations')
-    expect(goToEntries(['admin']).map((entry) => entry.path)).not.toContain('/cafe/locations')
-    expect(sectionForPath('/cafe/locations')).toBeNull()
+    expect(cafePaths(['admin'])).toContain('/cafe/locations')
+    expect(goToEntries(['admin']).map((entry) => entry.path)).toContain('/cafe/locations')
+    expect(sectionForPath('/cafe/locations')?.labelKey).toBe('nav.cafe.locations')
     expect(goToEntries(['admin']).map((entry) => entry.path)).toContain('/cafe/transfer-routes')
     expect(sectionForPath('/cafe/transfer-routes')?.labelKey).toBe('nav.cafe.transferRoutes')
     expect(isShipGated('/admin/people/modules')).toBe(true)
@@ -44,6 +42,15 @@ describe('preview ship state without the local opt-in (the default, and every pr
     expect(isShipGated('/admin/access/modules')).toBe(false)
     expect(destinationForPath('/admin/modules')?.id).toBe('admin')
     expect(visibleSections(ADMIN_SECTIONS, ['admin']).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/access', '/admin/modules', '/admin/agents'])
+  })
+
+  it('keeps the released Locations route available without the local preview opt-in', () => {
+    for (const path of ['/cafe/locations', '/cafe/locations/change-location', '/cafe/locations/move']) {
+      expect(isShipGated(path)).toBe(false)
+    }
+    expect(findRoute(ungatedRouteTable, '/cafe/locations')).toBeDefined()
+    expect(closed(findRoute(applyShipGate(ungatedRouteTable), '/cafe/locations'))).toBe(false)
+    expect(goToEntries(['member']).map((entry) => entry.path)).toContain('/cafe/locations')
   })
 
   it('keeps the old Access › Modules redirect released with the Modules page', () => {
@@ -82,10 +89,9 @@ describe('preview ship state with the full local opt-in', () => {
     vi.stubEnv('VITE_FUTURE_PREVIEW', '1')
   }
 
-  it.each(PREVIEW_PATHS)('%s routes, and every navigation surface asks the same authority', (path) => {
+  it.each(PREVIEW_PATHS)('%s opens with the local opt-in', (path) => {
     optIn()
     expect(isShipGated(path)).toBe(false)
-    expect(closed(findRoute(applyShipGate(ungatedRouteTable), path))).toBe(false)
   })
 
   it('shows released Transfer routes in the Café Setup group and the command menu', () => {
@@ -126,12 +132,12 @@ describe('preview ship state with the full local opt-in', () => {
   it('is refused again when any one condition of the opt-in is missing', () => {
     optIn()
     vi.stubEnv('VITE_FUTURE_PREVIEW', '')
-    expect(isShipGated('/cafe/locations')).toBe(true)
+    expect(isShipGated('/admin/people/modules')).toBe(true)
     optIn()
     vi.stubEnv('MODE', 'production')
-    expect(isShipGated('/cafe/locations')).toBe(true)
+    expect(isShipGated('/admin/people/modules')).toBe(true)
     optIn()
     vi.stubEnv('VITE_FUTURE_PREVIEW_PORT', '4401')
-    expect(isShipGated('/cafe/locations')).toBe(true)
+    expect(isShipGated('/admin/people/modules')).toBe(true)
   })
 })

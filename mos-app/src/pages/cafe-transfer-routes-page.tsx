@@ -1,6 +1,6 @@
 // Café › Setup › Transfer routes uses the versioned route RPCs; submitted transfers keep their snapshots.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
@@ -12,7 +12,6 @@ import { Pill } from '@/components/ui/pill'
 import { SearchField } from '@/components/ui/search-field'
 import { Select } from '@/components/ui/select'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
-import { useI18n } from '@/i18n/I18nProvider'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import { listActiveBranches, listBranchesByIds } from '@/lib/db/branches'
@@ -30,8 +29,7 @@ import {
   type RouteProblem, type RouteRow,
 } from '@/lib/cafe-transfer-routes-view'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
-import { useIsDesktop } from '@/shell/use-is-desktop'
-import { useIsOffline } from '@/shell/use-is-offline'
+import { useCafeSetupWorkspace } from './use-cafe-setup-workspace'
 import '@/components/record-collection/record-collection.css'
 import '@/components/kitchen/cafe-setup-workspace.css'
 import './cafe-transfer-routes-page.css'
@@ -73,21 +71,12 @@ export function CafeTransferRoutesPage() {
 }
 
 function TransferRoutes() {
-  const t = useT()
-  const { locale } = useI18n()
-  const auth = useAuth()
-  const isAdmin = auth.status === 'authenticated' && auth.viewer.accessRoles.includes('admin')
-  const isDesktop = useIsDesktop()
-  const offline = useIsOffline()
-  const [params, setParams] = useSearchParams()
-  const [data, setData] = useState<Loaded>()
-  const [error, setError] = useState(false)
-  const [retry, setRetry] = useState(0)
-  const [dirty, setDirty] = useState(false)
+  const {
+    t, locale, isAdmin, isDesktop, offline, params, setParams, data, setData,
+    error, setError, retry, setRetry, dirty, setDirty, listRef, lastOpened,
+  } = useCafeSetupWorkspace<Loaded>()
   const [saving, setSaving] = useState(false)
   const [mutationError, setMutationError] = useState<MessageKey | null>(null)
-  const listRef = useRef<HTMLElement>(null)
-  const lastOpened = useRef<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -105,7 +94,7 @@ function TransferRoutes() {
       if (active) { setData({ destinations, pairs, branches, extra, partial, at: new Date().toISOString() }); setError(false) }
     })()
     return () => { active = false }
-  }, [retry])
+  }, [retry, setData, setError])
 
   const filters = parseRouteFilters(params)
   const selected = params.get('route')
@@ -148,7 +137,7 @@ function TransferRoutes() {
       lastOpened.current = null
       if (opener) opener.focus(); else listRef.current?.focus()
     }
-  }, [selected, data])
+  }, [selected, data, lastOpened, listRef])
 
   const chips: { key: string; label: string; clear: Record<string, string | null> }[] = [
     ...(filters.origin !== 'all' ? [{ key: 'origin', label: `${t('cafe.routes.origin')}: ${originOptions.find(([k]) => k === filters.origin)?.[1] ?? filters.origin}`, clear: { origin: null } }] : []),
@@ -183,7 +172,7 @@ function TransferRoutes() {
     } finally {
       setSaving(false)
     }
-  }, [offline, update])
+  }, [offline, update, setData, setDirty])
   const disableRoute = useCallback(async (row: RouteRow) => {
     if (offline || row.rowVersion === null) {
       setMutationError(offline ? 'cafe.routes.error.unavailable' : 'cafe.routes.error.failed')
@@ -208,7 +197,7 @@ function TransferRoutes() {
     } finally {
       setSaving(false)
     }
-  }, [offline, update])
+  }, [offline, update, setData, setDirty])
   const hrefFor = (key: string) => { const next = new URLSearchParams(params); next.set('route', key); return { pathname: '/cafe/transfer-routes', search: next.toString() } }
   const columns: DataTableColumn<RouteRow & { id: string }>[] = [
     { key: 'origin', header: t('cafe.routes.col.origin'), sortable: true, render: (row) => originText(row) },

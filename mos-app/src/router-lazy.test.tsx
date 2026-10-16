@@ -48,6 +48,8 @@ import { CafeStockComparisonPage } from './pages/cafe-stock-comparison-page'
 import { CafeRecordsPage } from './pages/cafe-records-page'
 import { CafeReceivePage } from './pages/cafe-receive-page'
 import { CafeReceiptIssuesPage } from './pages/cafe-receipt-issues-page'
+import { CafeLocationsPage } from './pages/cafe-locations-page'
+import { CafeMoveStockPage } from './pages/cafe-move-stock-page'
 import { CafeRequestPage } from './pages/cafe-request-page'
 import { CafeReviewPage } from './pages/cafe-review-page'
 import { KitchenPushesPage } from './pages/kitchen-pushes-page'
@@ -181,6 +183,8 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/cafe/stock-comparison', CafeStockComparisonPage, 'stock-comparison'],
   ['/cafe/receive', CafeReceivePage, '1422'],
   ['/cafe/receive/issues', CafeReceiptIssuesPage, '1422'],
+  ['/cafe/locations', CafeLocationsPage, 'locations'],
+  ['/cafe/locations/change-location', CafeMoveStockPage, 'locations'],
   ['/cafe/request', CafeRequestPage, '1428'],
   ['/cafe/plan', KitchenPlanPage, 'dev'],
   ['/cafe/stock', KitchenStockPage, 'dev'],

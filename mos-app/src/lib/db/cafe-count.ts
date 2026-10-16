@@ -27,6 +27,7 @@ export type CafeCountLine = {
   item_kind: 'RAW' | 'WIP'
   item_unit_id: string
   unit_name: string
+  storage_location_id?: string | null
   counted_quantity: string
   variance: string | null
   expected_balance: string | null
@@ -43,6 +44,7 @@ export type CafeCountDraftLine = {
   client_key: string
   item_id: string
   quantity: string
+  storage_location_id?: string | null
 }
 
 export type CafeCountLineOutcome = {
@@ -71,7 +73,7 @@ type CountableItemRow = {
 
 const COUNT_LINE_FIELDS = [
   'id', 'branch_id', 'activity', 'count_date', 'wip_item_id', 'item_name', 'item_category', 'item_kind',
-  'item_unit_id', 'unit_name', 'counted_quantity', 'variance', 'expected_balance', 'expected_status',
+  'item_unit_id', 'unit_name', 'storage_location_id', 'counted_quantity', 'variance', 'expected_balance', 'expected_status',
   'expected_recorded_at', 'status', 'posting_status', 'submitted_at', 'reviewed_at', 'row_version',
 ].join(', ')
 
@@ -134,7 +136,10 @@ export async function submitCafeCounts(
   stream: ProductionStream,
   lines: readonly CafeCountDraftLine[],
 ): Promise<CafeCountLineOutcome[]> {
-  const p_lines = lines.map(({ client_key, item_id, quantity }) => ({ client_key, item_id, quantity }))
+  const p_lines = lines.map(({ client_key, item_id, quantity, storage_location_id }) => ({
+    client_key, item_id, quantity,
+    ...(storage_location_id === undefined ? {} : { storage_location_id }),
+  }))
   const { data, error } = await supabase.schema('ops').rpc('submit_cafe_counts', {
     p_branch_id: stream.branch.id,
     p_activity: stream.activity,

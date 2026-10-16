@@ -56,6 +56,7 @@ export type CafeReceiptLine = {
   item_category: string | null
   unit_name: string
   received_quantity: string
+  storage_location_id?: string | null
   conditions: CafeReceiptCondition[]
   condition_reason: string | null
   /** When the server last changed the condition or reason; null before any explanation. */
@@ -88,7 +89,9 @@ export type CafeReceipt = {
   photosUnavailable?: boolean
 }
 
-export type CafeReceiptDraftLine = { item_unit_id: string; quantity: string; damaged_wrong?: boolean }
+export type CafeReceiptDraftLine = {
+  item_unit_id: string; quantity: string; damaged_wrong?: boolean; to_storage_location_id?: string | null
+}
 
 export type CafeReceiptSubmitResult = {
   receipt_id: string
@@ -111,7 +114,7 @@ export const RECEIPT_FIELDS = [
   'id', 'branch_id', 'activity', 'arrival_date', 'delivery_note_number', 'status', 'posting_status',
   'posting_hold_reason', 'received_by', 'received_at', 'submitted_at', 'reviewed_by', 'reviewed_at',
   'review_note', 'row_version',
-  'lines:cafe_receipt_lines(id, item_unit_id, item_name, item_category, unit_name, received_quantity, conditions, condition_reason, condition_updated_at, po_created_after_delivery:cafe_receipt_line_po_created_after_delivery)',
+  'lines:cafe_receipt_lines(id, item_unit_id, item_name, item_category, unit_name, received_quantity, storage_location_id, conditions, condition_reason, condition_updated_at, po_created_after_delivery:cafe_receipt_line_po_created_after_delivery)',
   'posting:cafe_receipt_posting',
 ].join(', ')
 
@@ -305,6 +308,9 @@ export function parseCafeReceiptLine(line: Record<string, unknown>): CafeReceipt
     item_category: typeof line.item_category === 'string' ? line.item_category : null,
     unit_name: line.unit_name,
     received_quantity: String(line.received_quantity),
+    ...(line.storage_location_id === undefined ? {} : {
+      storage_location_id: typeof line.storage_location_id === 'string' ? line.storage_location_id : null,
+    }),
     conditions: line.conditions as CafeReceiptCondition[],
     condition_reason: line.condition_reason as string | null,
     condition_updated_at: typeof line.condition_updated_at === 'string' ? line.condition_updated_at : null,
@@ -325,7 +331,10 @@ export async function submitCafeReceipt(
     p_activity: stream.activity,
     p_arrival_date: arrivalDate,
     p_client_key: clientKey,
-    p_lines: lines.map(({ item_unit_id, quantity, damaged_wrong }) => ({ item_unit_id, quantity, damaged_wrong: damaged_wrong === true })),
+    p_lines: lines.map(({ item_unit_id, quantity, damaged_wrong, to_storage_location_id }) => ({
+      item_unit_id, quantity, damaged_wrong: damaged_wrong === true,
+      ...(to_storage_location_id === undefined ? {} : { to_storage_location_id }),
+    })),
   })
   if (error) throw new Error(`submitCafeReceipt failed: ${error.message}`)
   const row = data as Record<string, unknown> | null

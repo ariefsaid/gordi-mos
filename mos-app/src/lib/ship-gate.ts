@@ -42,7 +42,6 @@ const SHIP_GATED_PATHS: readonly string[] = [
  * covers its descendants. Never gate the existing capture / Records / balance / Access routes here.
  */
 const SHIP_PREVIEW_PATHS: readonly string[] = [
-  '/cafe/locations',
   // Personal module overrides are a preview; org-level Modules settings are released.
   '/admin/people/modules',
 ]

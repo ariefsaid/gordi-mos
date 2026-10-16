@@ -1,3 +1,5 @@
+import type { CaptureLocations } from './cafe-locations'
+
 // Kitchen module types — ops.kitchen_logs, ops.wip_items, shared.business_units.
 // Snake_case matches DB columns directly (no camelCase bridge).
 // DB stamped: org_id, submitted_by (on insert), reviewed_by/reviewed_at (on approve).
@@ -187,7 +189,7 @@ export interface KitchenStockRow {
 // ── ops.kitchen_logs (insert payload) ────────────────────────────────────────
 // Only what the client sends — DB stamps org_id + submitted_by.
 // status defaults to 'Submitted' at the DB; never sent by the client.
-export interface CreateKitchenLogInput {
+export interface CreateKitchenLogInput extends CaptureLocations {
   client_request_id: string
   business_unit_id: string
   log_date: string // 'YYYY-MM-DD' WIB
