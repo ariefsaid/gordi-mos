@@ -10,6 +10,7 @@ import {
 } from './module-registry'
 import { useNavBadges } from './use-nav'
 import { useAuth } from '@/auth/use-auth'
+import { useModuleAvailability } from '@/lib/module-availability'
 import { useT } from '@/i18n/use-t'
 import { focusableWithin } from '@/lib/focusable'
 import { OverlayPortal } from '@/components/ui/overlay-portal'
@@ -57,6 +58,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   const t = useT()
   const badges = useNavBadges()
   const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const { isOn } = useModuleAvailability()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
 
   const closeAndReturn = useCallback(() => {
@@ -89,11 +91,11 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   if (!open) return null
 
   const area = destinationForPath(pathname)
-  const modules = admittedModules(accessRoles)
+  const modules = admittedModules(accessRoles, isOn)
   const footer = footerAreas(accessRoles)
   const admin = footer.find((d) => d.id === 'admin')
   const profile = footer.find((d) => d.id === 'profile')
-  const workGroups = pageGroupsFor(WORK, accessRoles)
+  const workGroups = pageGroupsFor(WORK, accessRoles, isOn)
   const adminGroups = admin ? pageGroupsFor(admin, accessRoles) : []
   const state = (destination: Destination, groups: ReturnType<typeof pageGroupsFor>) =>
     rowState(pathname, landingOf(destination), destination.id === 'home' ? '/' : rootOf(destination), currentPagePath(groups, pathname))
@@ -125,7 +127,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
         <nav aria-label={t('nav.moreDestinations')} className="mobile-drawer-nav">
           <div className="nav-list">
             {!isShipGated('/') && <AreaLink destination={HOME} to="/" state={state(HOME, [])} onNavigate={closeAndReturn} />}
-            {!isShipGated('/work') && <div>
+            {!isShipGated('/work') && isOn('work') && <div>
               <AreaLink destination={WORK} to={landingOf(WORK)} state={state(WORK, workGroups)} onNavigate={closeAndReturn} />
               {area?.id === 'work' && (
                 <div className="nav-children">

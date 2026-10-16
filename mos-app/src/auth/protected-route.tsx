@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from './use-auth'
 import { useAccountLocale } from '@/i18n/account-locale'
+import { useModuleAvailabilitySession } from '@/lib/module-availability'
 import { OrphanScreen } from './orphan-screen'
 import { SetPasswordScreen } from './set-password-screen'
 
@@ -14,6 +15,8 @@ import { SetPasswordScreen } from './set-password-screen'
 // authenticated → render the route (Outlet)
 export function ProtectedRoute() {
   const auth = useAuth()
+  // Keep the module cache tied to this auth boundary, which survives AppShell's sign-out unmount.
+  useModuleAvailabilitySession()
   const accountLocale = useAccountLocale()
   const location = useLocation()
 

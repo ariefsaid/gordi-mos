@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  admittedModules, currentPagePath, destinationForPath, footerAreas, goToEntries, navModeFor, pageCount, pageGroupsFor,
+  admittedModules, currentPagePath, destinationForPath, FIXED_AREAS, footerAreas, goToEntries, navModeFor, pageCount, pageGroupsFor,
   phoneModuleForViewer, rememberModule, rowState,
 } from './module-registry'
 
@@ -19,6 +19,18 @@ describe('the module registry feeds every navigation surface', () => {
     expect(navModeFor(['ops_lead'])).toBe('sidebar')
     expect(navModeFor(['finance'])).toBe('panel')
     expect(navModeFor(['supervisor'])).toBe('panel')
+  })
+
+  it('counts only enabled modules and removes disabled Work and module pages', () => {
+    const cafeOnly = (moduleId: string) => moduleId === 'cafe'
+    expect(admittedModules(['finance'], cafeOnly).map((module) => module.id)).toEqual(['cafe'])
+    expect(navModeFor(['finance'], cafeOnly)).toBe('sidebar')
+    expect(pageGroupsFor(FIXED_AREAS[1], ['ops_lead'], () => false)).toEqual([])
+    const paths = goToEntries(['finance'], (moduleId) => moduleId !== 'money').map((entry) => entry.path)
+    expect(paths).not.toContain('/money')
+    expect(paths).not.toContain('/money/pending-bills')
+    expect(paths).toContain('/')
+    expect(paths).toContain('/inbox')
   })
 
   it('groups Café as home, Today, Stock, Close, Setup with Receipt issues straight after Receive', () => {
@@ -110,6 +122,11 @@ describe('the phone module tab', () => {
     expect(phoneModuleForViewer(['cafe'], ['finance'], '/')?.id).toBe('cafe')
     rememberModule('money')
     expect(phoneModuleForViewer(['cafe'], ['finance'], '/work/tasks')?.id).toBe('money')
+  })
+
+  it('does not restore a switched-off module through last-visit or affiliation fallback', () => {
+    rememberModule('money')
+    expect(phoneModuleForViewer(['money'], ['finance'], '/', (moduleId) => moduleId !== 'money')).toBeNull()
   })
 
   it('omits the slot when there is nothing to name, rather than making a module up', () => {

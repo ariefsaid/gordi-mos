@@ -12,6 +12,8 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ThemeProvider } from '@/theme/theme-provider'
 
+const moduleSwitches = vi.hoisted(() => ({ isOn: vi.fn((moduleId: string) => moduleId.length > 0) }))
+vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ status: 'ready', isOn: moduleSwitches.isOn, retry: vi.fn() }) }))
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
@@ -58,6 +60,7 @@ function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'],
 
 beforeEach(() => {
   vi.clearAllMocks()
+  moduleSwitches.isOn.mockImplementation(() => true)
   localStorage.clear()
 })
 
@@ -101,6 +104,13 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
     expect(screen.queryByRole('link', { name: /^Log$/ })).toBeNull()
     expect(screen.queryByRole('link', { name: /^Review$/ })).toBeNull()
     expect(screen.queryByRole('link', { name: /^Pushes$/ })).toBeNull()
+  })
+
+  it('hides Work and Money when their org switches are off', () => {
+    moduleSwitches.isOn.mockImplementation((moduleId) => moduleId !== 'work' && moduleId !== 'money')
+    renderDrawer({ accessRoles: ['finance'] })
+    expect(screen.queryByRole('link', { name: /^Work$/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
   })
 
   it('admin sees the Inbox root but not Money without a revenue-view role', () => {

@@ -8,6 +8,8 @@ import { render, screen, within, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
+const moduleSwitches = vi.hoisted(() => ({ isOn: vi.fn((moduleId: string) => moduleId.length > 0) }))
+vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ status: 'ready', isOn: moduleSwitches.isOn, retry: vi.fn() }) }))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
@@ -65,6 +67,7 @@ function renderTabBar(initialPath = '/', {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  moduleSwitches.isOn.mockImplementation(() => true)
   localStorage.clear()
   setAuthAs([])
 })
@@ -101,6 +104,21 @@ describe('AC-021 / OD-REDESIGN-68: phone bottom-nav is Home · Work · <role mod
     const links = within(nav).getAllByRole('link')
     expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work'])
     expect(within(nav).queryByRole('link', { name: /Roastery/ })).toBeNull()
+  })
+
+  it('hides Work when its org switch is off', () => {
+    moduleSwitches.isOn.mockImplementation((moduleId) => moduleId !== 'work')
+    renderTabBar('/')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).queryByRole('link', { name: 'Work' })).toBeNull()
+  })
+
+  it('hides the Money module tab when its org switch is off', () => {
+    setAuthAs(['finance'], [], ['money'])
+    moduleSwitches.isOn.mockImplementation((moduleId) => moduleId !== 'money')
+    renderTabBar('/money')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).queryByRole('link', { name: 'Money' })).toBeNull()
   })
 
   it('primary tabs link to /, /work/tasks, /cafe (café viewer)', () => {

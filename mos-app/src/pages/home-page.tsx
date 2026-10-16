@@ -68,6 +68,7 @@ import { CAFE_OPENING_ENABLED } from '@/lib/cafe-opening-enabled'
 import { loadHomeCafeDoor, type HomeCafeDoorData } from '@/lib/db/home-cafe'
 import { loadHomeObjectiveProgress, type HomeObjectiveProgress } from '@/lib/db/home-objectives'
 import { isShipGated } from '@/lib/ship-gate'
+import { useModuleAvailability } from '@/lib/module-availability'
 import './home-page.css'
 import '@/components/signals/signal-feed-section.css'
 
@@ -86,6 +87,7 @@ export function HomePage() {
   useDocumentTitle(t('common.docTitle', { page: t('nav.home') }))
   const { locale } = useI18n()
   const auth = useAuth()
+  const { isOn } = useModuleAvailability()
   const { open: openSignalComposer, canPost } = useSignalComposer()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   // Keep the Indonesian day-part grammar (siang <15, sore 15+) while giving English users the
@@ -417,7 +419,7 @@ export function HomePage() {
   // Home reuses the task projection already in flight, then reads only the active Objective and
   // Work-line edges needed to resolve each task to its Objective. No percentage or target is
   // invented; an empty catalog and a read failure remain distinct states.
-  const showObjectives = holdsObjectivesScope && !isShipGated('/work/objectives')
+  const showObjectives = holdsObjectivesScope && !isShipGated('/work/objectives') && isOn('work')
   const [objectiveRows, setObjectiveRows] = useState<HomeObjectiveProgress[]>([])
   const [objectiveReadState, setObjectiveReadState] = useState<FetchState>('ready')
   const objectiveInFlightRef = useRef(false)

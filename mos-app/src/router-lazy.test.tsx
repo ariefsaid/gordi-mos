@@ -56,6 +56,7 @@ import { PendingBillsPage } from './pages/pending-bills-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
 import { AdminUsersPage } from './pages/admin-users-page'
+import { AdminModulesPage } from './pages/admin-modules-page'
 import { AdminPersonPage } from './pages/admin-person-page'
 import { AdminAccessPage } from './pages/admin-access-page'
 import { AdminAgentConnectionsPage } from './pages/admin-agent-connections-page'
@@ -194,6 +195,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/oauth/consent', OAuthConsentPage, 'redesign'],
   ['/profile/connected-agents', ProfileConnectedAgentsPage, 'review-stamp'],
   ['/admin/people', AdminUsersPage, 'dev'],
+  ['/admin/modules', AdminModulesPage, 'dev'],
   ['/admin/people/:personId', AdminPersonPage, 'redesign'],
   ['/admin/teams', AdminTeamsPage, 'redesign'],
   ['/admin/access', AdminAccessPage, 'redesign'],

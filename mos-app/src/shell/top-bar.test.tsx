@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('../auth/use-auth')
+const moduleAvailability = vi.hoisted(() => ({ isOn: vi.fn((moduleId: string) => moduleId.length > 0) }))
+vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ status: 'ready', isOn: moduleAvailability.isOn, retry: vi.fn() }) }))
 import { useAuth } from '@/auth/use-auth'
 
 vi.mock('./use-is-narrow')
@@ -16,7 +18,7 @@ vi.mock('./use-is-desktop', () => ({ useIsDesktop: () => true }))
 const nav = vi.hoisted(() => ({ brandWide: true }))
 vi.mock('./use-nav', async () => {
   const { useIsNarrow: narrow } = await import('./use-is-narrow')
-  return { useNavLayout: () => ({ isNarrow: narrow(), brandWide: nav.brandWide }) }
+  return { useNavLayout: () => ({ isNarrow: narrow(), brandWide: nav.brandWide, isOn: moduleAvailability.isOn }) }
 })
 
 vi.mock('@/lib/db/notifications', () => ({
@@ -88,6 +90,7 @@ function renderTopBarWithLocation(path = '/work/tasks') {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  moduleAvailability.isOn.mockImplementation(() => true)
   localStorage.clear()
   mockUseAuth.mockReturnValue({ status: 'authenticated', viewer, signOut: vi.fn() })
   mockUseIsNarrow.mockReturnValue(false)
@@ -106,6 +109,12 @@ describe('AC-014: TopBar layout (OD-57)', () => {
     expect(screen.getByRole('button', { name: /Open deputy/i })).toBeInTheDocument()
     expect(screen.queryByText('Cahya Cafe')).toBeNull()
     expect(screen.queryByText('Barista')).toBeNull()
+  })
+
+  it('hides the assistant launcher when the Assistant module is switched off', () => {
+    moduleAvailability.isOn.mockImplementation((moduleId) => moduleId !== 'assistant')
+    renderTopBar()
+    expect(screen.queryByRole('button', { name: /Open deputy/i })).toBeNull()
   })
 
   it('AC-014: order left→right is brand → breadcrumb → search → inbox → deputy', () => {
