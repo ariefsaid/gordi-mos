@@ -43,8 +43,6 @@ const SHIP_GATED_PATHS: readonly string[] = [
  */
 const SHIP_PREVIEW_PATHS: readonly string[] = [
   '/cafe/locations',
-  // Stock comparison: ESB expected beside the latest Count. ESB stock is not connected, so the screen shows real Counts and a labelled sample.
-  '/cafe/stock-comparison',
   // Personal module overrides are a preview; org-level Modules settings are released.
   '/admin/people/modules',
 ]

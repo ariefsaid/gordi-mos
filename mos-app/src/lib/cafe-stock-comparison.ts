@@ -1,12 +1,10 @@
-// Stock comparison — the pure derivation behind /cafe/stock-comparison (spec: R/work/design/future-stock-comparison-spec.md).
-// One row per stream/item/exact stored unit: the latest physical Count beside ESB's expected on-hand.
+// Stock comparison — exact client formatting and filtering for the reviewer-scoped reporting read model.
+// One row per stream/item/exact stored unit, using the latest physical Count beside ESB EOD stock.
 // Everything here is exact (bigint decimals from lib/cafe-records/decimal), read-only and free of React.
-// ESB stock is NOT connected yet, so a real row carries `expected: { kind: 'not_connected' }` and every ESB-derived
-// cell is blank with that shared reason; the filled-in forms exist for the labelled in-memory sample and for the day
-// the read model arrives. Difference is a dated comparison, NOT Count review Variance, and never a recipe-loss claim.
+// Difference is a dated comparison, not Count review Variance, and never a recipe-loss claim.
 import { compareDec, formatDec, parseDecimal, type Dec } from '@/lib/cafe-records/decimal'
 import { addDays } from '@/lib/cafe-records/period'
-import type { Flag, Missing } from '@/lib/db/cafe-stock-comparison'
+import type { ComparisonRow as StockComparisonRow, Flag, Missing } from '@/lib/db/cafe-stock-comparison'
 
 const FRESH_HOURS = 24
 export const PAGE_SIZE = 50
@@ -30,7 +28,7 @@ export interface CountObservation {
 }
 
 /** ESB's expected on-hand for one exact product-detail/unit coordinate. */
-export interface ExpectedStock {
+interface ExpectedStock {
   quantity: Dec
   unitId: string
   unitName: string
@@ -79,7 +77,7 @@ export function pickLatestCount(observations: readonly CountObservation[]): Coun
 
 // ── Row ───────────────────────────────────────────────────────────────────────────────────────────
 
-export type Bucket = 'gap' | 'unknown' | 'zero'
+type Bucket = 'gap' | 'unknown' | 'zero'
 
 export interface ComparisonRow extends ItemIdentity {
   key: string
@@ -98,6 +96,60 @@ export interface ComparisonRow extends ItemIdentity {
   /** Dates differ or the ESB snapshot is intraday: the gap is a dated indication, never "reconciled". */
   indicative: boolean
   bucket: Bucket
+}
+
+/** Convert exact server decimals without recomputing the authorized server comparison. */
+export function comparisonRowFromStock(row: StockComparisonRow): ComparisonRow {
+  const expectedQuantity = row.expected === null ? null : parseDecimal(row.expected.quantity)
+  const countedQuantity = row.count === null ? null : parseDecimal(row.count.quantity)
+  const difference = row.difference === null ? null : parseDecimal(row.difference)
+  const percent = row.difference_pct === null ? null : parseDecimal(row.difference_pct)
+  if ((row.expected !== null && expectedQuantity === null) || (row.count !== null && countedQuantity === null)
+    || (row.difference !== null && difference === null) || (row.difference_pct !== null && percent === null)) {
+    throw new Error('listStockComparison returned an invalid decimal')
+  }
+  const identity: ItemIdentity = {
+    itemId: row.item_id,
+    itemName: row.item_name,
+    kind: row.kind,
+    category: row.category,
+    unitId: row.unit_id ?? '',
+    unitName: row.unit_name,
+  }
+  const expected: ExpectedStock | null = row.expected && expectedQuantity !== null ? {
+    quantity: expectedQuantity,
+    unitId: row.missing === 'unit_mismatch' ? 'source-unit-mismatch' : row.unit_id ?? '',
+    unitName: row.expected.unit_code,
+    asOf: row.expected.as_of,
+    businessDate: row.expected.business_date,
+    basis: row.expected.basis,
+    complete: row.expected.row_complete,
+  } : null
+  const count: CountObservation | null = row.count && countedQuantity !== null ? {
+    id: row.count.id,
+    quantity: countedQuantity,
+    unitId: row.count.unit_id,
+    unitName: row.count.unit_name,
+    countDate: row.count.count_date,
+    submittedAt: row.count.submitted_at,
+    status: row.count.status,
+  } : null
+  const bucket: Bucket = difference === null ? 'unknown' : difference === 0n ? 'zero' : 'gap'
+  return {
+    ...identity,
+    key: row.key,
+    expectedSide: expected ? { kind: 'value', value: expected }
+      : row.missing === 'mapping_needed' ? { kind: 'mapping_needed' } : { kind: 'not_connected' },
+    expected,
+    count,
+    difference,
+    percent,
+    zeroExpected: row.flags.includes('zero_expected'),
+    missing: row.missing,
+    flags: [...row.flags],
+    indicative: row.indicative,
+    bucket,
+  }
 }
 
 function wibEndOfDay(day: string): number {

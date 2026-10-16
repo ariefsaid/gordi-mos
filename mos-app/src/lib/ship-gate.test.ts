@@ -39,11 +39,18 @@ describe('preview is allowed only on a flagged dev server at localhost:4400', ()
 
 describe('ship states', () => {
   it('keeps person-module overrides preview-only while org module settings are released', () => {
-    for (const path of ['/cafe/locations', '/cafe/stock-comparison', '/cafe/stock-comparison?stream=x', '/admin/people/modules', '/admin/people/modules/person-1']) {
+    for (const path of ['/cafe/locations', '/admin/people/modules', '/admin/people/modules/person-1']) {
       expect(shipStateInProfile(path, 'full')).toBe('preview')
     }
     for (const path of ['/admin/modules', '/admin/modules?q=cafe', '/admin/modules#x', '/admin/access/modules', '/admin/access/modules?view=people']) {
       expect(shipStateInProfile(path, 'full')).toBe('released')
+    }
+  })
+
+  it('releases Stock comparison and its stream query', () => {
+    for (const path of ['/cafe/stock-comparison', '/cafe/stock-comparison?stream=x']) {
+      expect(shipStateInProfile(path, 'full')).toBe('released')
+      expect(isShipGated(path)).toBe(false)
     }
   })
 
