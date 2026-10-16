@@ -134,6 +134,16 @@ fi
 URL="$(op-get.sh "$OP_ITEM" "$OP_VAULT" "$OP_FIELD" 2>/dev/null </dev/null)" || die "op-get.sh could not read the staging connection (is 1Password signed in?)"
 [ -n "$URL" ] || die "the staging connection string is empty"
 ops_conn_from_url "$URL"
+# The direct host is IPv6-only. When a pooler URL file exists (session pooler, port 5432, IPv4;
+# written by the staging repair runbook), connect through it; it must carry no password.
+POOLER_URL_FILE="${STAGING_POOLER_URL_FILE:-$ROOT/supabase/.temp/pooler-url}"
+if [ -s "$POOLER_URL_FILE" ]; then
+  pooler="$(tr -d '[:space:]' < "$POOLER_URL_FILE")"
+  case "${pooler#*://}" in *:*@*) die "pooler URL file must not carry a password" ;; esac
+  [ -n "$PGPASSWORD" ] || die "pooler connection needs the password from the secret store"
+  CONN="$pooler"; SECRETS+=("$pooler" "${pooler#*@}")
+  say "Database host: session pooler (IPv4) from $(basename "$POOLER_URL_FILE")"
+fi
 
 # ── 3. Dry run: the pending migration list (file names only).
 set +e; out="$(supabase --workdir "$ROOT" db push --dry-run --db-url "$CONN" 2>&1 </dev/null)"; rc=$?; set -e
