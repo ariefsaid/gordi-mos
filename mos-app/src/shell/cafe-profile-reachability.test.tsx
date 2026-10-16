@@ -101,6 +101,12 @@ describe.runIf(APP_RELEASE_PROFILE === 'cafe')('Cafe profile reachability', () =
     vi.clearAllMocks()
     localStorage.clear()
     mockUseIsNarrow.mockReturnValue(false)
+    // Desktop at full navigation width: the sidebar renders its rows as links. (The collapsed rail renders
+    // buttons that open flyouts; jsdom's default matchMedia says every query is false, which would pick the rail.)
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true, writable: true,
+      value: (query: string) => ({ matches: true, media: query, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false }),
+    })
     setViewer(VIEWERS.director)
   })
 
@@ -238,7 +244,7 @@ describe.runIf(APP_RELEASE_PROFILE === 'cafe')('Cafe profile reachability', () =
       expect(desktopLinks.length, `${name} desktop nav`).toBeGreaterThan(0) // a Café member sees Café alone: Inbox is the bell, Admin is not theirs
       expect(outsideProfile(desktopLinks), `${name} desktop nav`).toEqual([])
       expect(desktopLinks, name).toContain('/cafe')
-      expect(desktopLinks, name).toContain('/inbox')
+      // Inbox has no sidebar row in the redesign: it is the top-bar bell (and a drawer row on the phone).
       desktop.unmount()
     }
   })
