@@ -240,6 +240,7 @@ describe('MobileGroupedCards', () => {
       const zeroGroup = { ...OCC_GROUP, occurrenceRollup: { ...OCC_GROUP.occurrenceRollup, pendingUnresolved: 0 } }
       renderCards({ groups: [zeroGroup], onAssignPending: vi.fn() })
       expect(screen.queryByRole('button', { name: /^\d+ to assign$/ })).not.toBeInTheDocument()
+      expect(screen.queryByText(/to assign/i)).not.toBeInTheDocument()
     })
 
     it('a non-occurrence group is unaffected (plain count grammar, no assign affordance)', () => {

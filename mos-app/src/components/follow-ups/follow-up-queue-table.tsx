@@ -201,7 +201,7 @@ export function FollowUpQueueTable({
             error={moreError} onLoadMore={() => { void loadMore() }} />
         </>
       )}
-      {state === 'ready' && detailRow && (
+      {!masterDetail && state === 'ready' && detailRow && (
         <aside
           role="complementary"
           aria-label="AR Follow-up detail"

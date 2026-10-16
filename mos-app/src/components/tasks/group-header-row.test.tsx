@@ -170,6 +170,7 @@ describe('GroupHeaderRow', () => {
         onAssignPending: vi.fn(),
       })
       expect(screen.queryByRole('button', { name: /^\d+ to assign$/ })).not.toBeInTheDocument()
+      expect(screen.queryByText(/to assign/i)).not.toBeInTheDocument()
     })
 
     it('does not render the affordance when no onAssignPending handler is given (nothing to open)', () => {
