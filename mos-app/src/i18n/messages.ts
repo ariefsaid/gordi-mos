@@ -354,9 +354,8 @@ export const messages = {
     'home.region.countPending': 'count not available yet',
     'home.region.tablist': 'Home regions',
     'home.day.counts': '${done} handled · ${left} left',
-    // The same word Tasks uses for the same idea ("11 open"). "left" named no state and
-    // no noun, at the far edge of the greeting row, above the three counts it sums.
-    'home.day.left': '${left} open tasks',
+    // This is the viewer's personal open-task tally, not the wider Tasks collection count.
+    'home.day.left': 'My open tasks · ${left}',
     'locale.toggle.label': 'Language',
     'locale.en': 'English',
     'locale.id': 'Bahasa Indonesia',
@@ -1684,7 +1683,8 @@ export const messages = {
     'nav.work.projects': 'Projects & Processes',
     'nav.work.signals': 'Signals',
     'nav.work.tasks': 'Tasks',
-    'rail.badge.openTasks': '${count} open tasks',
+    'rail.badge.openTasks': 'My open tasks: ${count}',
+    'rail.badge.openTasksShort': 'Mine · ${count}',
     // #442 — the collapse toggle's accessible name. It states the ACTION the press performs
     // ("Collapse navigation"), not the current state; `aria-expanded` on the button carries state.
     'rail.collapse': 'Collapse navigation',
@@ -4114,7 +4114,7 @@ export const messages = {
     'home.region.countPending': 'jumlah belum tersedia',
     'home.region.tablist': 'Bagian Beranda',
     'home.day.counts': '${done} selesai · ${left} tersisa',
-    'home.day.left': '${left} tugas terbuka',
+    'home.day.left': 'Tugas terbuka saya · ${left}',
     'locale.toggle.label': 'Bahasa',
     'locale.en': 'English',
     'locale.id': 'Bahasa Indonesia',
@@ -5402,7 +5402,8 @@ export const messages = {
     'nav.work.projects': 'Proyek & Proses',
     'nav.work.signals': 'Sinyal',
     'nav.work.tasks': 'Tugas',
-    'rail.badge.openTasks': '${count} tugas terbuka',
+    'rail.badge.openTasks': 'Tugas terbuka saya: ${count}',
+    'rail.badge.openTasksShort': 'Saya · ${count}',
     'rail.collapse': 'Ciutkan navigasi',
     'nav.sidebar': 'Bilah samping',
     'shell.nav.modules': 'Modul',

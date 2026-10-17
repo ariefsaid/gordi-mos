@@ -237,8 +237,10 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
   // ── Sort control (phone) ─────────────────────────────────────────────────────────────────────────
   const sortOptions: SortKey[] = READING_SORTS[reading].filter(key => key !== 'destination' || showDestination)
   const sortValues = sortOptions.flatMap(key => key === 'item' || key === 'date' || key === 'quantity' ? [`${key}:asc`, `${key}:desc`] : [`${key}:${DEFAULT_DIR[key]}`])
+  const selectedSortValue = `${state.sort}:${state.dir}`
+  const selectedSortLabel = t(SORT_LABEL[selectedSortValue])
   const sortControl = (
-    <Select label={t('records.sort.label')} fullWidth value={`${state.sort}:${state.dir}`} onChange={event => { const [sort, dir] = event.target.value.split(':'); setSort(sort as SortKey, dir as SortDir) }}>
+    <Select label={t('records.sort.label')} fullWidth value={selectedSortValue} onChange={event => { const [sort, dir] = event.target.value.split(':'); setSort(sort as SortKey, dir as SortDir) }}>
       {sortValues.map(value => <option key={value} value={value}>{t(SORT_LABEL[value])}</option>)}
     </Select>
   )
@@ -346,7 +348,9 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
           ariaLabel={t('records.toolbar.aria')}
           filtersPanel={{ label: t('records.filters.label'), summary: [state.item && itemChoices.find(([k]) => k === state.item)?.[1], state.destination && destinationChoices.find(([k]) => k === state.destination)?.[1]].filter(Boolean).join(' · ') }}
           countLabel={!loading && !denied && !dayNeedsNote ? t(total === 1 ? 'records.count.one' : 'records.count.other', { count: total }) : undefined}
+          sortLabel={selectedSortLabel}
           sortControl={sortControl}
+          sortControlIn="panel"
           trailing={<>
             <Select label={t('kitchen.log.col.item')} value={state.item} onChange={event => update({ item: event.target.value })} className="ktb-category">
               <option value="">{t('records.item.all')}</option>

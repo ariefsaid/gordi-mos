@@ -39,7 +39,7 @@ export function AreaLink({ destination, to, state, onNavigate, trailing, badge, 
       >
         <span className="iconrow__icon"><Icon /></span>
         <span className="nav-item__label">{label}</span>
-        <CountBadge count={badge?.count} bounded={badge?.bounded} unavailable={badge?.unavailable} label={badge ? badge.label : undefined} />
+        <CountBadge count={badge?.count} bounded={badge?.bounded} unavailable={badge?.unavailable} label={badge ? badge.label : undefined} displayText={badge?.displayText} />
       </Link>
       {trailing}
     </NavRow>
@@ -76,7 +76,7 @@ function PageLink({ section, current, badge, onNavigate }: { section: Section; c
         className={`nav-item nav-item--child${current ? ' nav-item--active' : ''}`}
       >
         <span className="nav-item__label">{label}</span>
-        <CountBadge count={badge?.count} bounded={badge?.bounded} unavailable={badge?.unavailable} label={badge ? badge.label : undefined} />
+        <CountBadge count={badge?.count} bounded={badge?.bounded} unavailable={badge?.unavailable} label={badge ? badge.label : undefined} displayText={badge?.displayText} />
       </Link>
     </NavRow>
   )

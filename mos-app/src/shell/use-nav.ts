@@ -75,7 +75,7 @@ export function useNavLayout(): NavLayout {
   }
 }
 
-export interface NavBadge { count: number; bounded?: boolean; unavailable?: boolean; label: string }
+export interface NavBadge { count: number; bounded?: boolean; unavailable?: boolean; label: string; displayText?: string }
 
 /**
  * The counts a nav row can carry, by page path: the viewer's own open Tasks, and the actionable total across the
@@ -86,7 +86,11 @@ export function useNavBadges(): { forPath: (path: string) => NavBadge | undefine
   const openTasks = useMyOpenTaskCount()
   const waiting = useCafeWaiting()
   const review = reviewBadgeCount(waiting)
-  const tasks: NavBadge | undefined = openTasks ? { count: openTasks, label: t('rail.badge.openTasks', { count: openTasks }) } : undefined
+  const tasks: NavBadge | undefined = openTasks ? {
+    count: openTasks,
+    label: t('rail.badge.openTasks', { count: openTasks }),
+    displayText: t('rail.badge.openTasksShort', { count: openTasks }),
+  } : undefined
   // Unknown is "—", never zero: a failed read says the count is unavailable; a read still in flight says nothing yet.
   const unknown = waiting.admitted && waiting.keys.some((key) => key !== 'issues' && waiting.queues[key].status === 'error')
   const reviewBadge: NavBadge | undefined = unknown

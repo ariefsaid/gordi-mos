@@ -27,6 +27,22 @@ describe('Work decision boundary preserves collection operations', () => {
     expect(onSort).toHaveBeenCalledWith('title')
   })
 
+  it('Escape closes Filters & options and returns keyboard focus to its door', () => {
+    render(<CollectionToolbar
+      presentation={{ label: 'Layout', value: 'list', options: [{ value: 'list', label: 'List' }], onChange: vi.fn() }}
+      views={{ label: 'Scope', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+      exposedFilterIds={[]}
+      filters={[{ id: 'sort', label: 'Sort', value: 'due', options: [{ value: 'due', label: 'Due' }], onChange: vi.fn() }]} />)
+    const door = screen.getByRole('button', { name: 'Filters & options' })
+    fireEvent.click(door)
+    const sort = screen.getByLabelText('Sort')
+    sort.focus()
+    fireEvent.keyDown(sort, { key: 'Escape' })
+    expect(screen.queryByLabelText('Sort')).toBeNull()
+    expect(door).toHaveAttribute('aria-expanded', 'false')
+    expect(door).toHaveFocus()
+  })
+
   it('keeps failed save drafts available for retry rather than clearing the name', async () => {
     const onSave = vi.fn().mockResolvedValue(null)
     render(<CollectionToolbar

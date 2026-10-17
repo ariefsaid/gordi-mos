@@ -140,8 +140,18 @@ export function TasksToolbar({
     return t('tasks.filter.occurrence')
   }
 
-  // Every control carries its own visible label above it. Group and Sort sit in the bar; the
-  // narrowing filters live behind "Filters & options" and show as removable chips when set.
+  const sortOptions = [
+    { value: 'due:ascending', label: t('tasks.filter.sortDueSoonest') },
+    { value: 'due:descending', label: t('tasks.filter.sortDueLatest') },
+    { value: 'task:ascending', label: t('tasks.filter.sortTask') },
+    { value: 'status:ascending', label: t('tasks.filter.sortStatus') },
+    { value: 'pic:ascending', label: t('tasks.filter.sortPic') },
+    { value: 'supervisor:ascending', label: t('tasks.supervisor') },
+    { value: 'activity:descending', label: t('tasks.filter.sortActivity') },
+  ]
+  const selectedSortLabel = sortOptions.find(({ value }) => value === `${query.sort}:${query.direction}`)?.label
+  // Every control carries its own visible label above it. Group and Sort sit in the desktop bar;
+  // the narrowing filters live behind "Filters & options" and show as removable chips when set.
   const filters: CollectionToolbarFilter[] = [
     {
       id: 'group',
@@ -157,15 +167,7 @@ export function TasksToolbar({
       id: 'sort',
       label: t('tasks.filter.sort'),
       value: `${query.sort}:${query.direction}`,
-      options: [
-        { value: 'due:ascending', label: t('tasks.filter.sortDueSoonest') },
-        { value: 'due:descending', label: t('tasks.filter.sortDueLatest') },
-        { value: 'task:ascending', label: t('tasks.filter.sortTask') },
-        { value: 'status:ascending', label: t('tasks.filter.sortStatus') },
-        { value: 'pic:ascending', label: t('tasks.filter.sortPic') },
-        { value: 'supervisor:ascending', label: t('tasks.supervisor') },
-        { value: 'activity:descending', label: t('tasks.filter.sortActivity') },
-      ],
+      options: sortOptions,
       onChange: (value) => {
         const [sort, direction] = value.split(':')
         onQueryChange({ sort: sort as TaskCollectionSort, direction: direction as SortDir })
@@ -243,8 +245,12 @@ export function TasksToolbar({
   return (
     <CollectionToolbar
       className="tasks-decision-toolbar"
-      exposedFilterIds={isDesktop ? ['sort', 'group'] : ['sort']}
-      resultSummary={resultSummary}
+      exposedFilterIds={isDesktop ? ['sort', 'group'] : []}
+      resultSummary={resultSummary || (!isDesktop && selectedSortLabel) ? <>
+        {resultSummary}
+        {resultSummary && !isDesktop && selectedSortLabel ? ' · ' : null}
+        {!isDesktop && selectedSortLabel ? <>{t('tasks.filter.sort')}: {selectedSortLabel}</> : null}
+      </> : undefined}
       chips={chips}
       onClearAll={onClearFilters}
       scopeActions={attentionTotal > 0 ? <div className="tasks-attention-actions" role="group" aria-label={t('tasks.filter.attentionAria', { count: attentionTotal })}>
