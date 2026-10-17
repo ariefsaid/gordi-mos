@@ -20,9 +20,8 @@ import './nav.css'
 /**
  * The desktop navigation. ONE module registry feeds every form of it (module-registry.tsx):
  *
- *  - ONE admitted module  → `Sidebar`: a single 240px labelled sidebar (Home, Work, Modules with the open
- *    module's pages under it, Admin settings and Personal profile at the foot).
- *  - TWO OR MORE          → `Rail` (64px, labelled icons) + `PagesPanel` (240px, the selected area's pages).
+ *  - ONE available page-bearing area → `Sidebar`: the labelled sidebar (Home, Work, modules, and footer utilities).
+ *  - TWO OR MORE                     → `Rail` (64px, labelled icons) + `PagesPanel` (240px, the selected area's pages).
  *  - under 1280px, or folded by the viewer → the same `Rail` alone, each area with pages opening a grouped flyout.
  *
  * The pages are `PageLinks` over `pageGroupsFor` in every form, so the panel, the sidebar branch and the
@@ -78,7 +77,7 @@ function CollapseToggle({ compact }: { compact: boolean }) {
   )
 }
 
-/* ───────────────────────────── one module: the single sidebar ───────────────────────────── */
+/* ───────────────────────────── one available page-bearing area: the single sidebar ───────────────────────────── */
 
 function Sidebar({ data }: { data: NavData }) {
   const t = useT()
@@ -164,7 +163,7 @@ function Sidebar({ data }: { data: NavData }) {
   )
 }
 
-/* ───────────────────────────── two or more: rail + pages panel ───────────────────────────── */
+/* ───────────────────────────── two or more available page-bearing areas: rail + pages panel ───────────────────────────── */
 
 /** The rail's flyout: one area's grouped pages, portalled beside the rail. Escape or an outside press closes it and focus returns to the trigger. */
 function RailFlyout({ destination, groups, pathname, forPath, anchor, onClose }: {
