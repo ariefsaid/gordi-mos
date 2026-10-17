@@ -34,8 +34,8 @@ import {
  * Projects & Processes · Objectives · Events. Events is ship-gated (#348), so four of the five render.
  * Admin is anyOf-gated (admin): absent, not disabled, when unauthorized.
  *
- * Adaptive shell: a viewer admitted to ONE module gets the single labelled sidebar; TWO OR MORE get the
- * module rail plus the pages panel (`navModeFor`). The pages themselves (`pageGroupsFor`) are identical in both.
+ * Adaptive shell: one available page-bearing area gets the single labelled sidebar; two or more get the
+ * module rail plus the pages panel (`navModeFor`). Work counts when its route and module are available; Home and footer utilities do not.
  */
 export type DestinationId =
   | 'home' | 'work' | 'money' | 'inbox'
@@ -179,8 +179,8 @@ function admit(module: Destination, accessRoles: string[], isOn: (moduleId: Modu
 }
 
 /**
- * Every module the viewer's ROUTES admit, in registry order. The module count decides the shell
- * (`navModeFor`); the list feeds the sidebar, the rail, the flyouts, ⌘K, the phone tab and More.
+ * Every module the viewer's ROUTES admit and module settings enable, in registry order. The list feeds the sidebar,
+ * rail, flyouts, ⌘K, phone tab and More; `navModeFor` also counts the fixed Work area when it is live and enabled.
  */
 export function admittedModules(accessRoles: string[], isOn: (moduleId: ModuleId) => boolean = () => true): Destination[] {
   return MODULE_REGISTRY
@@ -190,12 +190,14 @@ export function admittedModules(accessRoles: string[], isOn: (moduleId: ModuleId
 }
 
 /**
- * The shell by admitted module count, never by role: ONE module → the single labelled sidebar,
- * TWO OR MORE → the module rail with the selected module's pages panel beside it.
+ * The shell by available page-bearing areas, never by role: one → the single labelled sidebar,
+ * two or more → the module rail with the selected area's pages panel beside it. Work counts only when live and enabled; Home and utilities do not.
  */
 export type NavMode = 'sidebar' | 'panel'
 export function navModeFor(accessRoles: string[], isOn: (moduleId: ModuleId) => boolean = () => true): NavMode {
-  return admittedModules(accessRoles, isOn).length >= 2 ? 'panel' : 'sidebar'
+  const work = WORKSPACE.find((destination) => destination.id === 'work')!
+  const availableAreas = admittedModules(accessRoles, isOn).length + Number(isOn('work') && isLive(work, accessRoles))
+  return availableAreas >= 2 ? 'panel' : 'sidebar'
 }
 
 /**

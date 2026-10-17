@@ -1,6 +1,4 @@
 .work-home { width: 100%; }
-.work-home__action { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-group-above); padding: var(--mos-group-above) 0 var(--mos-gutter); border-bottom: 1px solid var(--border); }
-.work-home__action p { max-width: 48ch; margin: 0; color: var(--muted-foreground); }
 .work-home__doors { display: flex; flex-direction: column; }
 .work-home__door { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-group-above); min-height: var(--mos-row-min); padding: var(--mos-field-gap) var(--mos-inline-gap); border-bottom: 1px solid var(--border); color: var(--foreground); text-decoration: none; }
 .work-home__door:hover { background: var(--mos-accent-tint); }
@@ -10,8 +8,6 @@
 .work-home__door-copy > span { color: var(--muted-foreground); }
 .work-home__arrow { flex: none; color: var(--accent); font-size: var(--mos-size-4); }
 @media (max-width: 767.98px) {
- .work-home__action { align-items: stretch; flex-direction: column; padding-block: 14px 18px; }
- .work-home__action .btn { min-height: var(--mos-control-height); }
  .work-home__door { min-height: 76px; padding-inline: 4px; }
  .work-home__door-copy strong { font-size: var(--mos-size-3); }
 }

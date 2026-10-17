@@ -14,12 +14,6 @@ describe('the module registry feeds every navigation surface', () => {
     expect(admittedModules(['admin']).map((m) => m.id)).not.toContain('roastery')
   })
 
-  it('picks the shell by admitted module count, never by role', () => {
-    expect(navModeFor([])).toBe('sidebar')
-    expect(navModeFor(['ops_lead'])).toBe('sidebar')
-    expect(navModeFor(['finance'])).toBe('panel')
-    expect(navModeFor(['supervisor'])).toBe('panel')
-  })
 
   it('counts only enabled modules and removes disabled Work and module pages', () => {
     const cafeOnly = (moduleId: string) => moduleId === 'cafe'

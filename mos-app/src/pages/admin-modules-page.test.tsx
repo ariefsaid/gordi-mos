@@ -12,12 +12,12 @@ const stubs = vi.hoisted(() => ({ fns: Object.fromEntries(
 vi.mock('@/lib/db/module-settings', () => stubs.fns)
 vi.mock('@/shell/use-is-offline', () => ({ useIsOffline: () => false }))
 
-function rows(moneyEnabled = true) {
+function rows(moneyEnabled = true, assistantEnabled = false, assistantVersion = 0) {
   return [
     { module_id: 'work', enabled: true, row_version: 1, updated_at: null, updated_by: null },
     { module_id: 'money', enabled: moneyEnabled, row_version: 7, updated_at: null, updated_by: null },
     { module_id: 'cafe', enabled: true, row_version: 2, updated_at: null, updated_by: null },
-    { module_id: 'assistant', enabled: true, row_version: 3, updated_at: null, updated_by: null },
+    { module_id: 'assistant', enabled: assistantEnabled, row_version: assistantVersion, updated_at: null, updated_by: null },
     { module_id: 'roastery', enabled: true, row_version: 0, updated_at: null, updated_by: null },
     { module_id: 'ecommerce', enabled: true, row_version: 0, updated_at: null, updated_by: null },
   ]
@@ -56,6 +56,7 @@ describe('Admin › Modules', () => {
     ])
     expect(within(tableRows[1]).getByText('On', { selector: 'td > span' })).toBeInTheDocument()
     expect(within(tableRows[1]).getByRole('combobox', { name: 'Money: Org availability' })).toHaveTextContent('On')
+    expect(within(tableRows[3]).getByRole('combobox', { name: 'Assistant: Org availability' })).toHaveTextContent('Off')
     expect(within(tableRows[4]).getAllByText('Not released').length).toBeGreaterThan(0)
     expect(within(tableRows[4]).getByRole('combobox', { name: 'Roastery: Org availability' })).toBeDisabled()
     expect(within(tableRows[4]).getByRole('combobox', { name: 'Roastery: Org availability' })).toHaveTextContent('Off')
@@ -63,6 +64,52 @@ describe('Admin › Modules', () => {
     expect(within(tableRows[5]).getByRole('combobox', { name: 'Ecommerce: Org availability' })).toHaveTextContent('Off')
     expect(screen.getByRole('button', { name: 'Save module settings' })).toBeDisabled()
     expect(stubs.fns.listOrgModuleSettings).toHaveBeenCalledOnce()
+  })
+
+  it('honors an existing Assistant-on setting without marking the page dirty', async () => {
+    stubs.fns.listOrgModuleSettings.mockResolvedValue(rows(true, true, 3))
+    renderPage()
+
+    expect(await screen.findByRole('combobox', { name: 'Assistant: Org availability' })).toHaveTextContent('On')
+    expect(screen.getByRole('button', { name: 'Save module settings' })).toBeDisabled()
+  })
+
+  it('defaults a missing Assistant row to Off without making the page dirty', async () => {
+    stubs.fns.listOrgModuleSettings.mockResolvedValue(rows().filter((row) => row.module_id !== 'assistant'))
+    renderPage()
+
+    expect(await screen.findByRole('combobox', { name: 'Assistant: Org availability' })).toHaveTextContent('Off')
+    expect(screen.getByRole('button', { name: 'Save module settings' })).toBeDisabled()
+  })
+
+  it('lets an admin turn Assistant on and off using the returned version as the next baseline', async () => {
+    const user = userEvent.setup()
+    stubs.fns.saveOrgModuleSettings
+      .mockResolvedValueOnce(rows(true, true, 1))
+      .mockResolvedValueOnce(rows(true, false, 2))
+    renderPage()
+
+    const assistant = await screen.findByRole('combobox', { name: 'Assistant: Org availability' })
+    await user.click(assistant)
+    await user.click(screen.getByRole('option', { name: 'On' }))
+    await user.click(screen.getByRole('button', { name: 'Save module settings' }))
+
+    await waitFor(() => expect(stubs.fns.saveOrgModuleSettings).toHaveBeenCalledTimes(1))
+    expect(stubs.fns.saveOrgModuleSettings.mock.calls[0][0]).toEqual([
+      { module_id: 'assistant', enabled: true, expected_version: 0 },
+    ])
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Assistant: Org availability' })).toHaveTextContent('On'))
+    expect(screen.getByRole('button', { name: 'Save module settings' })).toBeDisabled()
+
+    await user.click(screen.getByRole('combobox', { name: 'Assistant: Org availability' }))
+    await user.click(screen.getByRole('option', { name: 'Off' }))
+    await user.click(screen.getByRole('button', { name: 'Save module settings' }))
+
+    await waitFor(() => expect(stubs.fns.saveOrgModuleSettings).toHaveBeenCalledTimes(2))
+    expect(stubs.fns.saveOrgModuleSettings.mock.calls[1][0]).toEqual([
+      { module_id: 'assistant', enabled: false, expected_version: 1 },
+    ])
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Assistant: Org availability' })).toHaveTextContent('Off'))
   })
 
   it('keeps an unreleased module unavailable and its org control disabled at Off', async () => {

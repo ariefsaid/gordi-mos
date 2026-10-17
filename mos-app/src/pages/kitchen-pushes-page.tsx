@@ -24,7 +24,7 @@
 
 import { StatusBadge, STATUS_MAP } from '@/components/ui/status-badge'
 import { ENV_TAG, PUSH_STATUS, formatPushDate as formatDate, formatPushTime as formatTime } from '@/lib/kitchen-push-display'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useSearchParamState } from '@/lib/use-search-param-state'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
@@ -100,7 +100,12 @@ export function KitchenPushesPage() {
   const [retryKey, setRetryKey] = useState(0)
   const [selectedParam, setSelectedParam] = useSearchParamState('push', '')
   const selectedId = selectedParam || null
-  const setSelectedId = useCallback((next: string | null) => setSelectedParam(next ?? ''), [setSelectedParam])
+  const selectedIdRef = useRef(selectedId)
+  selectedIdRef.current = selectedId
+  const setSelectedId = useCallback((next: string | null) => {
+    selectedIdRef.current = next
+    setSelectedParam(next ?? '')
+  }, [setSelectedParam])
 
   const fetchPushes = useCallback(async () => {
     setLoad({ kind: 'loading' })
@@ -123,8 +128,10 @@ export function KitchenPushesPage() {
   }, [auth.status, allowed, fetchPushes, retryKey])
   useEffect(() => {
     if (load.kind !== 'ready') return
-    if (selectedId && rows.some(row => row.id === selectedId)) return
-    setSelectedId(isDesktop ? rows[0]?.id ?? null : null)
+    const currentSelection = selectedIdRef.current
+    if (currentSelection && rows.some(row => row.id === currentSelection)) return
+    const defaultSelection = isDesktop ? rows[0]?.id ?? null : null
+    if (currentSelection !== defaultSelection) setSelectedId(defaultSelection)
   }, [isDesktop, load.kind, rows, selectedId, setSelectedId])
 
   // ── Auth loading ────────────────────────────────────────────────────────────

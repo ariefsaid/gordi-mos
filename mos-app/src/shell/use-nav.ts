@@ -32,7 +32,7 @@ export interface NavLayout {
   isNarrow: boolean
   roles: string[]
   isOn: (moduleId: ModuleId) => boolean
-  /** One module → the single labelled sidebar; two or more → the module rail with a pages panel. */
+  /** One available page-bearing area → sidebar; two or more → the module rail with a pages panel. */
   mode: NavMode
   /** The 64px rail with flyouts: either the viewport is under 1280px or the viewer folded the nav away. */
   compact: boolean
@@ -50,7 +50,7 @@ export interface NavLayout {
 
 /**
  * The ONE place that decides which shell the desktop viewer gets, so the grid column, the top bar's brand
- * cell and the nav itself cannot disagree: the module count picks sidebar or rail + panel, the viewport
+ * cell and the nav itself cannot disagree: available page-bearing areas pick sidebar or rail + panel, the viewport
  * (and the viewer's own choice) picks full or 64px rail.
  */
 export function useNavLayout(): NavLayout {

@@ -14,7 +14,11 @@ const item = (id: string, title = `Item ${id}`): StreamItem => ({
 
 const feed = <div data-testid="supporting-feed">Signals feed</div>
 
-async function renderBrief(overrides: Partial<Parameters<typeof buildHomeRegions>[0]> = {}, showFailedChecks = true) {
+async function renderBrief(
+  overrides: Partial<Parameters<typeof buildHomeRegions>[0]> = {},
+  showFailedChecks = true,
+  locale: 'en' | 'id' = 'en',
+) {
   const regions = buildHomeRegions({
     overdue: [item('late', 'Fix the espresso grinder')],
     dueToday: [],
@@ -27,7 +31,7 @@ async function renderBrief(overrides: Partial<Parameters<typeof buildHomeRegions
   let utils!: ReturnType<typeof render>
   await act(async () => {
     utils = render(
-      <I18nProvider>
+      <I18nProvider initialLocale={locale}>
         <MemoryRouter>
           <HomeDailyBrief regions={regions} feed={feed} showFailedChecks={showFailedChecks} layout="list" />
         </MemoryRouter>
@@ -90,18 +94,44 @@ describe('HomeDailyBrief', () => {
       .toHaveAttribute('href', '/work/tasks?view=my-work')
   })
 
-  it('distinguishes a genuinely empty brief from a pending or failed read', async () => {
-    await renderBrief({ failedChecks: [], overdue: [], myWork: [] })
-    const allClear = await screen.findByText("You're all caught up")
-    expect(await screen.findByText('No failed checks')).toBeInTheDocument()
-    expect(await screen.findByText(/Nothing else open/i)).toBeInTheDocument()
+  it.each([
+    { locale: 'en' as const, allClear: "You're all caught up", failedChecks: 'No failed checks', myWorkEmpty: /Nothing else open/i, viewTasks: 'View tasks →' },
+    { locale: 'id' as const, allClear: 'Semua beres', failedChecks: 'Tidak ada pemeriksaan gagal', myWorkEmpty: /Tidak ada lagi yang terbuka/i, viewTasks: 'Lihat tugas →' },
+  ])('distinguishes a genuinely empty brief from a pending or failed read in $locale', async ({ locale, allClear: allClearCopy, failedChecks, myWorkEmpty, viewTasks }) => {
+    await renderBrief({ failedChecks: [], overdue: [], dueToday: [], blocked: [], myWork: [] }, true, locale)
+    const allClear = await screen.findByText(allClearCopy)
+    expect(await screen.findByText(failedChecks)).toBeInTheDocument()
+    expect(await screen.findByText(myWorkEmpty)).toBeInTheDocument()
     const emptyStates = screen.getAllByTestId('empty-state')
     expect(emptyStates).toHaveLength(3)
     const allClearState = allClear.closest('[data-testid="empty-state"]') as HTMLElement
-    expect(within(allClearState).getByRole('link', { name: 'View tasks →' }))
+    expect(within(allClearState).getByRole('link', { name: viewTasks }))
       .toHaveAttribute('href', '/work/tasks?view=my-work')
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it.each([
+    { locale: 'en' as const, kind: 'overdue' as const, nextTask: 'Next task', otherTasks: 'No other tasks need your attention', allClear: "You're all caught up" },
+    { locale: 'en' as const, kind: 'blocked' as const, nextTask: 'Next task', otherTasks: 'No other tasks need your attention', allClear: "You're all caught up" },
+    { locale: 'id' as const, kind: 'overdue' as const, nextTask: 'Tugas berikutnya', otherTasks: 'Tidak ada tugas lain yang perlu Anda perhatikan.', allClear: 'Semua beres' },
+    { locale: 'id' as const, kind: 'blocked' as const, nextTask: 'Tugas berikutnya', otherTasks: 'Tidak ada tugas lain yang perlu Anda perhatikan.', allClear: 'Semua beres' },
+  ])('does not announce an all-clear when the sole $kind task is lifted as Next task in $locale', async ({ locale, kind, nextTask, otherTasks, allClear }) => {
+    const task = item('sole', 'Fix the espresso grinder')
+    await renderBrief({
+      overdue: kind === 'overdue' ? [task] : [],
+      dueToday: [],
+      blocked: kind === 'blocked' ? [task] : [],
+      myWork: [task],
+      myWorkFullCount: 1,
+      failedChecks: [],
+    }, true, locale)
+
+    const next = await screen.findByRole('region', { name: nextTask })
+    expect(screen.getByRole('heading', { name: locale === 'en' ? /Needs you now.*\(1\)/ : /Perlu Anda sekarang.*\(1\)/ })).toBeInTheDocument()
+    expect(within(next).getByRole('link', { name: /fix the espresso grinder/i })).toHaveAttribute('href', '/work/tasks/sole')
+    expect(await screen.findByText(otherTasks)).toBeInTheDocument()
+    expect(screen.queryByText(allClear)).toBeNull()
   })
 
   it('preserves state-kit loading and error states in the queue', async () => {
