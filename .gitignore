@@ -115,3 +115,6 @@ renders/
 
 # vitest cache written beside mos-app
 .vitest/
+
+# agy (Antigravity CLI) drops a per-directory workspace link here
+.antigravitycli/
