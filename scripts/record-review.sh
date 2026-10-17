@@ -75,7 +75,7 @@ if [ "$lens" = security ]; then
   elif [ -n "$migration" ]; then
     case "$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')" in
       opus*|claude-opus*|anthropic/claude-opus*|gpt-6.1-sol*|openai-codex/gpt-6.1-sol*|gpt-6-luna*|openai-codex/gpt-6-luna*|luna*) ;;
-      *) die "this is a migration branch — its security lens needs an Opus or Luna reviewer (Opus id starting opus / claude-opus; Luna id starting gpt-6-luna / openai-codex/gpt-6-luna / luna; got '$reviewer'); dispatch one and stamp with --reviewer <that id>" ;;
+      *) die "this is a migration branch — its security lens needs an Opus, Sol or Luna reviewer (Opus id starting opus / claude-opus; Sol id starting gpt-6.1-sol / openai-codex/gpt-6.1-sol; Luna id starting gpt-6-luna / openai-codex/gpt-6-luna / luna; got '$reviewer'); dispatch one and stamp with --reviewer <that id>" ;;
     esac
   fi
 fi
