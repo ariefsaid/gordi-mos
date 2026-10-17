@@ -134,7 +134,9 @@ function renderPage() {
 /** Choose a batch in the list; its posting details open beside (or over) it. */
 async function openPush(ref: string) {
   fireEvent.click(await screen.findByRole('button', { name: new RegExp(ref) }))
-  return screen.findByRole('region', { name: 'Diagnostic details' })
+  const details = await screen.findByRole('region', { name: 'Diagnostic details' })
+  await within(details).findByText(ref)
+  return details
 }
 
 beforeEach(() => {

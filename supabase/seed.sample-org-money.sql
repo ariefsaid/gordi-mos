@@ -18,8 +18,8 @@
 -- day writes nothing. A run on a later day adds the days since, like a nightly sync.
 --
 -- Shape: four POS branches every day; the roastery's B2B invoices on weekdays; Cikal is the
--- partial branch (no row for the latest day, and a two-day gap every 41 days); Radiant has a COGS
--- sync gap every 47 days (margin null, never a made-up figure).
+-- partial branch (no row for the latest day, and historical two-day gaps every 41 days); Radiant
+-- has a COGS sync gap every 47 days (margin null, never a made-up figure).
 --
 -- Hosted: psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/seed.sample-org-money.sql
 do $$
@@ -75,7 +75,7 @@ begin
       cross join day d
       cross join lateral (select md5(br.code || ':' || to_char(d.day, 'YYYY-MM-DD')) as md5) h
      where not (br.channel = 'B2B' and extract(isodow from d.day) > 5)
-       and not (br.code = 'cikal' and (d.day = load_day - 1 or d.n % 41 in (0, 1)))
+       and not (br.code = 'cikal' and (d.day = load_day - 1 or (d.day < load_day - 2 and d.n % 41 in (0, 1))))
   ),
   sale as (
     select c.*,
