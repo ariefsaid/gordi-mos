@@ -181,7 +181,7 @@ function RailFlyout({ destination, groups, pathname, forPath, anchor, onClose }:
   const landing = landingOf(destination)
   const landingListed = groups.some((group) => group.items.some((item) => item.path === landing))
 
-  // Beside the rail from the trigger's row, kept inside the window and below the top bar.
+  // Beside the rail: utilities align to the trigger's bottom, others to its top; clamp below the top bar and inside the window.
   useLayoutEffect(() => {
     const node = ref.current
     if (!node) return
@@ -190,9 +190,10 @@ function RailFlyout({ destination, groups, pathname, forPath, anchor, onClose }:
     const topBar = (document.querySelector('header')?.getBoundingClientRect().bottom ?? 0) + gap
     const room = window.innerHeight - topBar - gap
     const height = Math.min(node.scrollHeight, room)
-    const top = Math.max(topBar, Math.min(rect.top, window.innerHeight - gap - height))
+    const preferredTop = destination.zone === 'utility' ? rect.bottom - height : rect.top
+    const top = Math.max(topBar, Math.min(preferredTop, window.innerHeight - gap - height))
     setPlace({ top, left: rect.right + gap, maxHeight: window.innerHeight - top - gap })
-  }, [anchor, groups])
+  }, [anchor, destination.zone, groups])
 
   useEffect(() => {
     const first = ref.current?.querySelector<HTMLElement>('a[aria-current="page"], a')
