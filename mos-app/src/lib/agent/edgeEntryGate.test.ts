@@ -133,3 +133,58 @@ describe.each(GATED)('%s entry point', (_name, load) => {
     expect((await preflight('https://evil.example')).headers.get('Access-Control-Allow-Origin')).toBeNull()
   })
 })
+
+const agentChatLoad = entries['../../../../supabase/functions/agent-chat/index.ts']!
+
+type AssistantSettingResult = { data: { enabled: boolean } | null; error: unknown | null }
+
+function mockAgentChatClients(setting: AssistantSettingResult) {
+  const getUser = vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null }))
+  const verifier = { auth: { getUser } }
+  const query = {
+    select: vi.fn(() => query),
+    eq: vi.fn(() => query),
+    maybeSingle: vi.fn().mockResolvedValue(setting),
+  }
+  const serviceRole = { schema: vi.fn(() => ({ from: vi.fn(() => query) })) }
+  createClient.mockReturnValueOnce(verifier as never)
+    .mockReturnValueOnce(serviceRole as never)
+    .mockReturnValue({} as never)
+  return { getUser, query }
+}
+
+async function postAgentChat(serve: Serve) {
+  const jwt = makeJwt({ org_id: 'org-1', person_id: 'person-1', access_roles: ['admin'] })
+  return serve(new Request('http://localhost/fn', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cancel: { runId: 'run-1' } }),
+  }))
+}
+
+describe('agent-chat org Assistant gate', () => {
+  beforeEach(() => { createClient.mockReset() })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it.each([
+    ['no setting row', { data: null, error: null }, 403],
+    ['explicitly off', { data: { enabled: false }, error: null }, 403],
+    ['setting read failure', { data: null, error: new Error('read failed') }, 503],
+  ] as const)('refuses before creating a caller client when Assistant is %s', async (_name, setting, status) => {
+    mockAgentChatClients(setting)
+    const serve = await loadServe(agentChatLoad, { AGENT_MODEL_DEFAULT: 'm', AGENT_MODEL_API_KEY: 'k', AGENT_MODEL_BASE_URL: 'http://model' })
+
+    const response = await postAgentChat(serve)
+    expect(response.status).toBe(status)
+    expect(createClient).toHaveBeenCalledTimes(2)
+  })
+
+  it('admits only an explicitly enabled row', async () => {
+    mockAgentChatClients({ data: { enabled: true }, error: null })
+    const serve = await loadServe(agentChatLoad, { AGENT_MODEL_DEFAULT: 'm', AGENT_MODEL_API_KEY: 'k', AGENT_MODEL_BASE_URL: 'http://model' })
+
+    const response = await postAgentChat(serve)
+    expect(response.status).toBe(200)
+    expect(createClient).toHaveBeenCalledTimes(3)
+  })
+})
