@@ -7,7 +7,7 @@
 #   scripts/record-review.sh --lens security --reviewer openai-codex/gpt-6-luna --artifact docs/reviews/feat-x.md [--base main|staging]
 #
 # Rules:
-#   - reviewer: an agent that did not write the branch — glm / luna (cross-family), Claude opus/fable fallback.
+#   - reviewer: an agent that did not write the branch — glm / luna (cross-family), Claude opus or gpt-6.1-sol fallback.
 #   - the artifact is the reviewer's actual output: each lens must cite the full 40-character HEAD,
 #     carry a `Reviewer:` line, and carry a Verdict for THIS lens. DO NOT MERGE clears only that
 #     lens's passing stamp; it cannot be stamped into a passing gate.
@@ -54,14 +54,14 @@ fi
 case "$lens" in spec|code-quality|security) ;; *) die "unknown lens '$lens' (spec|code-quality|security)" ;; esac
 
 case "$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')" in
-  *glm*|*luna*|*opus*|*fable*) ;;
-  *) die "reviewer '$reviewer' is not an accepted independent reviewer (glm/luna, or a Claude opus/fable fallback)" ;;
+  *glm*|*luna*|*opus*|*gpt-6.1-sol*) ;;
+  *) die "reviewer '$reviewer' is not an accepted independent reviewer (glm/luna, or a Claude opus or gpt-6.1-sol fallback)" ;;
 esac
 
 [ -s "$artifact" ] || die "artifact missing or empty: $artifact"
 head="$(git rev-parse HEAD)" || die "not a git repo"
 
-# Release candidates need an Opus security lens; migration branches accept Opus or an exact-prefix
+# Release candidates need an Opus or Sol security lens; migration branches accept Opus or an exact-prefix
 # Luna id. A release candidate is on release/*, targets main/staging, or is already contained in
 # origin/main. A migration branch touches supabase/migrations/.
 if [ "$lens" = security ]; then
@@ -69,12 +69,12 @@ if [ "$lens" = security ]; then
   migration="$(git diff --name-only origin/dev...HEAD -- supabase/migrations 2>/dev/null | head -1)"
   if [ "$release" = 1 ]; then
     case "$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')" in
-      opus*|claude-opus*|anthropic/claude-opus*|fable*|claude-fable*|anthropic/claude-fable*) ;;
-      *) die "this is a release candidate — its security lens needs an Opus or Fable reviewer (id starting opus / claude-opus / fable / claude-fable; got '$reviewer'); dispatch one and stamp with --reviewer <that id>" ;;
+      opus*|claude-opus*|anthropic/claude-opus*|gpt-6.1-sol*|openai-codex/gpt-6.1-sol*) ;;
+      *) die "this is a release candidate — its security lens needs an Opus or Sol reviewer (id starting opus / claude-opus / gpt-6.1-sol / openai-codex/gpt-6.1-sol; got '$reviewer'); dispatch one and stamp with --reviewer <that id>" ;;
     esac
   elif [ -n "$migration" ]; then
     case "$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')" in
-      opus*|claude-opus*|anthropic/claude-opus*|fable*|claude-fable*|anthropic/claude-fable*|gpt-6-luna*|openai-codex/gpt-6-luna*|luna*) ;;
+      opus*|claude-opus*|anthropic/claude-opus*|gpt-6.1-sol*|openai-codex/gpt-6.1-sol*|gpt-6-luna*|openai-codex/gpt-6-luna*|luna*) ;;
       *) die "this is a migration branch — its security lens needs an Opus or Luna reviewer (Opus id starting opus / claude-opus; Luna id starting gpt-6-luna / openai-codex/gpt-6-luna / luna; got '$reviewer'); dispatch one and stamp with --reviewer <that id>" ;;
     esac
   fi
