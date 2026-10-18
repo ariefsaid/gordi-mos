@@ -10,6 +10,17 @@ import type { ShellRedesignMessageKey } from './shell-redesign'
 
 export const messages = {
   en: {
+    "workbench.home.otherOpen": "Other open tasks",
+    "workbench.tasks.summary": "${view} · ${count} open in this view",
+    "workbench.tasks.attention": "${overdue} overdue · ${blocked} blocked",
+    "workbench.tasks.noGrouping": "No grouping",
+    "workbench.task.about": "About this task",
+    "workbench.record.details": "Record details",
+    "workbench.records.options": "Filters & sort",
+    "workbench.production.localOnly": "Local entries, not submitted",
+    "workbench.production.discard": "Discard local entries",
+    "workbench.production.otherDrafts": "Local drafts for other dates",
+    "workbench.production.additiveHelp": "Add additional production; this does not replace today's recorded amounts.",
     // ── Café Records (generated block; edit the strings here) ──
     'nav.cafe.records': 'Records',
     'cafe.pageTitle.records': 'Records',
@@ -3773,6 +3784,17 @@ export const messages = {
     'kitchen.stock.head.tersedia': 'Available to transfer',
   },
   id: {
+    "workbench.home.otherOpen": "Tugas terbuka lainnya",
+    "workbench.tasks.summary": "${view} · ${count} tugas terbuka dalam tampilan ini",
+    "workbench.tasks.attention": "${overdue} terlambat · ${blocked} terblokir",
+    "workbench.tasks.noGrouping": "Tanpa pengelompokan",
+    "workbench.task.about": "Tentang tugas ini",
+    "workbench.record.details": "Detail catatan",
+    "workbench.records.options": "Filter & urutan",
+    "workbench.production.localOnly": "Entri lokal, belum dikirim",
+    "workbench.production.discard": "Buang entri lokal",
+    "workbench.production.otherDrafts": "Draf lokal untuk tanggal lain",
+    "workbench.production.additiveHelp": "Tambahkan produksi baru; jumlah yang sudah dicatat hari ini tidak diganti.",
     // ── Café Records (generated block; edit the strings here) ──
     'nav.cafe.records': 'Catatan',
     'cafe.pageTitle.records': 'Catatan',
