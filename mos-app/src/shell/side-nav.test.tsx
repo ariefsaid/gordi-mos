@@ -33,9 +33,9 @@ const auth: AuthState = {
   signOut: vi.fn(),
 }
 
-function renderNav(path = '/') {
+function renderNav(path = '/', locale: 'en' | 'id' = 'en') {
   vi.mocked(useAuth).mockReturnValue(auth)
-  return render(<I18nProvider><MemoryRouter initialEntries={[path]}><SideNav /></MemoryRouter></I18nProvider>)
+  return render(<I18nProvider initialLocale={locale}><MemoryRouter initialEntries={[path]}><SideNav /></MemoryRouter></I18nProvider>)
 }
 
 beforeEach(() => {
@@ -48,6 +48,13 @@ beforeEach(() => {
 })
 
 describe('desktop navigation follows org module settings', () => {
+  it('keeps Indonesian rail names as readable whole words', () => {
+    renderNav('/', 'id')
+    expect(screen.getByText('Beranda')).toBeInTheDocument()
+    expect(screen.getByText('Keuangan')).toBeInTheDocument()
+    expect(screen.getByText('Kotak Masuk')).toBeInTheDocument()
+  })
+
   it('shows Work, Inbox and admitted modules on the labelled global rail', () => {
     renderNav()
     expect(screen.getByRole('link', { name: 'Work' })).toBeInTheDocument()
@@ -84,5 +91,58 @@ describe('desktop navigation follows org module settings', () => {
 
     expect(screen.queryByRole('group', { name: 'Admin settings' })).toBeNull()
     expect(trigger).toHaveFocus()
+  })
+
+  it('returns focus to the Admin trigger after an outside press closes its flyout', async () => {
+    renderNav('/admin/access')
+    const trigger = screen.getByRole('button', { name: 'Admin settings' })
+    fireEvent.click(trigger)
+    const activePage = await screen.findByRole('link', { name: 'Access levels' })
+    fireEvent.pointerDown(document.body)
+    await waitFor(() => expect(trigger).toHaveFocus())
+    expect(screen.queryByRole('group', { name: 'Admin settings' })).toBeNull()
+    expect(activePage).not.toBeInTheDocument()
+  })
+
+  it('keeps the Admin flyout inside the viewport and above its bottom utility trigger', async () => {
+    const oldWidth = Object.getOwnPropertyDescriptor(window, 'innerWidth')
+    const oldHeight = Object.getOwnPropertyDescriptor(window, 'innerHeight')
+    const oldScrollHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollHeight')
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 500 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 300 })
+    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get() { return (this as HTMLElement).classList.contains('nav-flyout') ? 400 : 0 },
+    })
+    const rect = (x: number, y: number, width: number, height: number) => ({
+      x, y, width, height, top: y, left: x, right: x + width, bottom: y + height,
+      toJSON: () => ({}),
+    }) as DOMRect
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains('rail-item')) return rect(20, 250, 104, 40)
+      if (this.classList.contains('nav-flyout')) return rect(0, 0, 280, 0)
+      return rect(0, 0, 0, 0)
+    })
+
+    try {
+      renderNav('/admin/access')
+      fireEvent.click(screen.getByRole('button', { name: 'Admin settings' }))
+      const flyout = await screen.findByRole('group', { name: 'Admin settings' })
+      await waitFor(() => expect(within(flyout).getByRole('link', { name: 'Access levels' })).toHaveFocus())
+      const top = Number.parseFloat((flyout as HTMLElement).style.top)
+      const left = Number.parseFloat((flyout as HTMLElement).style.left)
+      const maxHeight = Number.parseFloat((flyout as HTMLElement).style.maxHeight)
+      expect(top).toBeGreaterThanOrEqual(8)
+      expect(top).toBeLessThan(250)
+      expect(top + maxHeight).toBeLessThanOrEqual(window.innerHeight - 8)
+      expect(left).toBeGreaterThanOrEqual(132)
+      expect(left).toBeLessThan(500)
+    } finally {
+      rectSpy.mockRestore()
+      if (oldScrollHeight) Object.defineProperty(HTMLElement.prototype, 'scrollHeight', oldScrollHeight)
+      else delete (HTMLElement.prototype as { scrollHeight?: number }).scrollHeight
+      if (oldWidth) Object.defineProperty(window, 'innerWidth', oldWidth)
+      if (oldHeight) Object.defineProperty(window, 'innerHeight', oldHeight)
+    }
   })
 })

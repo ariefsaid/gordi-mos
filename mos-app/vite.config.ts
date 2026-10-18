@@ -238,7 +238,7 @@ export default defineConfig(({ mode }) => {
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html'],
+      reporter: ['text', 'html', 'json'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         '**/*.test.{ts,tsx}',

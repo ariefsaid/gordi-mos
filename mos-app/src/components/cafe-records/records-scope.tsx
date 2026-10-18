@@ -49,6 +49,15 @@ export function RecordsScope({ t, question, onQuestion, period, onPeriod, from, 
   const [showError, setShowError] = useState(false)
   const panelId = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const editorRef = useRef<HTMLDivElement>(null)
+  const focusEditorRequested = useRef(false)
+  useEffect(() => {
+    if (!open || !focusEditorRequested.current) return
+    focusEditorRequested.current = false
+    const question = editorRef.current?.querySelector<HTMLElement>('[role="combobox"]')
+    question?.scrollIntoView?.({ block: 'center' })
+    question?.focus({ preventScroll: true })
+  }, [open])
   // A date field holding text that is not a real day says so itself; Apply must refuse it too.
   const [typedInvalid, setTypedInvalid] = useState({ from: false, to: false })
   // The form's own copy is the truth while typing (the URL copy follows it); an outside change to the URL (Back, a link) replaces it.
@@ -72,19 +81,19 @@ export function RecordsScope({ t, question, onQuestion, period, onPeriod, from, 
   }
   return (
     <>
-      <section className="rec-scope" aria-label={t('records.scope.label')}>
+      <section className={`rec-scope${open ? ' rec-scope--editing' : ''}`} aria-label={t('records.scope.label')}>
         <div className="rec-scope__summary">
           <div className="rec-scope__summary-copy">
             <div className="rec-scope__summary-question"><span>{t(QUESTION_LABEL[question])}</span><span aria-hidden="true">·</span><span>{t(PERIOD_LABEL[period])}</span></div>
             <div className="rec-scope__summary-context"><span>{streamName}</span><span aria-hidden="true">·</span><span className="tabular">{exact}</span>{isUnfinished(period, { from, to }, today) && <span className="rec-range-line__through">{t('records.range.throughToday')}</span>}</div>
           </div>
-          <Button ref={triggerRef} type="button" variant="outline" className="rec-scope__toggle" aria-expanded={open} aria-controls={panelId} onClick={() => onOpenChange(!open)}>
+          <Button ref={triggerRef} type="button" variant="outline" className="rec-scope__toggle" aria-expanded={open} aria-controls={panelId} onClick={() => { focusEditorRequested.current = !open; onOpenChange(!open) }}>
             {t('records.scope.change')}
           </Button>
           {trailing ? <div className="rec-scope__summary-trailing">{trailing}</div> : null}
         </div>
       </section>
-      <div id={panelId} className="rec-scope__editor" hidden={!open} onKeyDown={onEditorKeyDown}>
+      <div ref={editorRef} id={panelId} className="rec-scope__editor" hidden={!open} onKeyDown={onEditorKeyDown}>
         {open ? <>
           <div className="rec-scope__row">
             <Select label={t('records.question.label')} value={question} fullWidth onChange={event => onQuestion(event.target.value as Question)} className="rec-scope__question">

@@ -268,8 +268,8 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
             ? 'minmax(0, 1fr)'
             : `${columnWidth} minmax(0, 1fr)`,
           gridTemplateRows: isNarrow
-            ? `var(--mos-topbar-height)${isOffline ? ' auto' : ''} minmax(0, 1fr) var(--mos-tabbar-height)`
-            : `var(--mos-topbar-height)${isOffline ? ' auto' : ''} minmax(0, 1fr)`,
+            ? `minmax(var(--mos-topbar-height), auto)${isOffline ? ' auto' : ''} minmax(0, 1fr) minmax(var(--mos-tabbar-height), auto)`
+            : `minmax(var(--mos-topbar-height), auto)${isOffline ? ' auto' : ''} minmax(0, 1fr)`,
           gridTemplateAreas: isNarrow
             ? `"topbar"${isOffline ? ' "offline"' : ''} "main" "tabbar"`
             : `"topbar topbar"${isOffline ? ' "offline offline"' : ''} "rail main"`,

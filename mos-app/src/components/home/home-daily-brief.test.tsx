@@ -10,14 +10,17 @@ const item = (id: string, title = `Item ${id}`): StreamItem => ({
   id,
   title,
   route: `/work/tasks/${id}`,
+  status: 'Blocked',
+  meta: 'Wed 16 Sep',
+  pic: { name: `PIC ${id}` },
+  reason: { tone: 'blocked' },
 })
 
-const feed = <div data-testid="supporting-feed">Signals feed</div>
+const feed = <section aria-label="Signals">Signals feed</section>
 
 async function renderBrief(
   overrides: Partial<Parameters<typeof buildHomeRegions>[0]> = {},
-  showFailedChecks = true,
-  locale: 'en' | 'id' = 'en',
+  options: { showFailedChecks?: boolean; layout?: 'focused' | 'overview' | 'list'; locale?: 'en' | 'id' } = {},
 ) {
   const regions = buildHomeRegions({
     overdue: [item('late', 'Fix the espresso grinder')],
@@ -25,15 +28,22 @@ async function renderBrief(
     blocked: [],
     myWork: [item('next', 'Confirm tomorrow\'s prep')],
     failedChecks: [item('check', 'Production log · morning')],
-    failedChecksAdmitted: showFailedChecks,
+    failedChecksAdmitted: true,
     ...overrides,
   })
   let utils!: ReturnType<typeof render>
   await act(async () => {
     utils = render(
-      <I18nProvider initialLocale={locale}>
+      <I18nProvider initialLocale={options.locale ?? 'en'}>
         <MemoryRouter>
-          <HomeDailyBrief regions={regions} feed={feed} showFailedChecks={showFailedChecks} layout="list" />
+          <HomeDailyBrief
+            regions={regions}
+            feed={feed}
+            objectives={<section aria-label="Objectives">Objectives</section>}
+            cafeDoor={<section aria-label="Café">Café</section>}
+            showFailedChecks={options.showFailedChecks}
+            layout={options.layout ?? 'list'}
+          />
         </MemoryRouter>
       </I18nProvider>,
     )
@@ -43,148 +53,93 @@ async function renderBrief(
   return utils
 }
 
-describe('HomeDailyBrief', () => {
-  it('labels the member assigned-work union as My open work', async () => {
-    const regions = buildHomeRegions({
-      overdue: [item('late')], dueToday: [], blocked: [], myWork: [item('next')], failedChecks: [], failedChecksAdmitted: true,
-    })
-    render(
-      <I18nProvider>
-        <MemoryRouter>
-          <HomeDailyBrief regions={regions} feed={feed} composition="member" layout="list" />
-        </MemoryRouter>
-      </I18nProvider>,
-    )
-
-    expect(await screen.findByRole('region', { name: /^My open work/ })).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: /^Needs you now/ })).toBeNull()
-  })
-
-  it('shows the next task, the attention and My work regions, and keeps Signals alongside', async () => {
+describe('HomeDailyBrief work queue', () => {
+  it('keeps the featured urgent Task inside the ranked list with one truthful Open task action', async () => {
     await renderBrief()
-    expect(screen.getByRole('region', { name: 'Next task' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /^Needs you now/ })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /^My open work/ })).toBeInTheDocument()
-    expect(screen.getByTestId('supporting-feed')).toBeInTheDocument()
-    expect(screen.queryByRole('tablist')).toBeNull()
-  })
-
-  it('shows an explicit next action in the canonical next-task link', async () => {
-    await renderBrief()
-    const next = await screen.findByRole('region', { name: 'Next task' })
-    const taskLink = await within(next).findByRole('link', { name: /fix the espresso grinder/i })
-
+    const urgent = await screen.findByRole('region', { name: /Needs you now/ })
+    const taskLink = within(urgent).getByRole('link', { name: /Fix the espresso grinder/i })
     expect(taskLink).toHaveAttribute('href', '/work/tasks/late')
     expect(within(taskLink).getByText('Open task')).toBeInTheDocument()
+    expect(within(urgent).getAllByRole('link', { name: /Fix the espresso grinder/i })).toHaveLength(1)
+    expect(screen.queryByRole('region', { name: /Next task/i })).toBeNull()
   })
 
-  it('keeps every resolved collection door on its canonical route', async () => {
+  it.each(['focused', 'overview', 'list'] as const)('$layout preserves every real section and its canonical destination', async (layout) => {
     await renderBrief({
       overdue: [item('late', 'Fix the espresso grinder')],
+      dueToday: [item('today', 'Prepare the morning batch')],
+      blocked: [item('blocked', 'Repair the mixer')],
       failedChecks: [item('check', 'Production log · morning')],
-      myWork: [item('next', 'Confirm tomorrow\'s prep')],
-      myWorkFullCount: 7,
-    })
+      myWork: [item('other', 'Confirm tomorrow\'s prep')],
+      myWorkTotalItemCount: 1,
+    }, { layout })
 
-    expect(await screen.findByRole('link', { name: 'View tasks →' }))
-      .toHaveAttribute('href', '/work/tasks?view=my-work')
-    expect(await screen.findByRole('link', { name: 'Review logs →' }))
-      .toHaveAttribute('href', '/cafe/log')
-    expect(await screen.findByRole('link', { name: /1 shown · 7 open/i }))
-      .toHaveAttribute('href', '/work/tasks?view=my-work')
+    const needsYou = await screen.findByRole('region', { name: /Needs you now/ })
+    expect(within(needsYou).getByRole('link', { name: /Fix the espresso grinder/i })).toHaveAttribute('href', '/work/tasks/late')
+    expect(within(needsYou).getByRole('link', { name: /Prepare the morning batch/i })).toBeInTheDocument()
+    expect(within(needsYou).getByRole('link', { name: /Repair the mixer/i })).toBeInTheDocument()
+    const failed = screen.getByRole('region', { name: /Failed checks/ })
+    expect(within(failed).getByRole('link', { name: /Review/i })).toHaveAttribute('href', '/cafe/log')
+    const other = screen.getByRole('region', { name: /Other open tasks/ })
+    expect(within(other).getByRole('link', { name: /Confirm tomorrow's prep/i })).toHaveAttribute('href', '/work/tasks/other')
+    expect(screen.getByRole('region', { name: 'Café' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Objectives' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Signals' })).toBeInTheDocument()
   })
 
   it.each([
-    { locale: 'en' as const, allClear: "You're all caught up", failedChecks: 'No failed checks', myWorkEmpty: /Nothing else open/i, viewTasks: 'View tasks →' },
-    { locale: 'id' as const, allClear: 'Semua beres', failedChecks: 'Tidak ada pemeriksaan gagal', myWorkEmpty: /Tidak ada lagi yang terbuka/i, viewTasks: 'Lihat tugas →' },
-  ])('distinguishes a genuinely empty brief from a pending or failed read in $locale', async ({ locale, allClear: allClearCopy, failedChecks, myWorkEmpty, viewTasks }) => {
-    await renderBrief({ failedChecks: [], overdue: [], dueToday: [], blocked: [], myWork: [] }, true, locale)
-    const allClear = await screen.findByText(allClearCopy)
-    expect(await screen.findByText(failedChecks)).toBeInTheDocument()
-    expect(await screen.findByText(myWorkEmpty)).toBeInTheDocument()
-    const emptyStates = screen.getAllByTestId('empty-state')
-    expect(emptyStates).toHaveLength(3)
-    const allClearState = allClear.closest('[data-testid="empty-state"]') as HTMLElement
-    expect(within(allClearState).getByRole('link', { name: viewTasks }))
-      .toHaveAttribute('href', '/work/tasks?view=my-work')
-    expect(screen.queryByRole('alert')).toBeNull()
-    expect(screen.queryByRole('status')).toBeNull()
-  })
-
-  it.each([
-    { locale: 'en' as const, kind: 'overdue' as const, nextTask: 'Next task', otherTasks: 'No other tasks need your attention', allClear: "You're all caught up" },
-    { locale: 'en' as const, kind: 'blocked' as const, nextTask: 'Next task', otherTasks: 'No other tasks need your attention', allClear: "You're all caught up" },
-    { locale: 'id' as const, kind: 'overdue' as const, nextTask: 'Tugas berikutnya', otherTasks: 'Tidak ada tugas lain yang perlu Anda perhatikan.', allClear: 'Semua beres' },
-    { locale: 'id' as const, kind: 'blocked' as const, nextTask: 'Tugas berikutnya', otherTasks: 'Tidak ada tugas lain yang perlu Anda perhatikan.', allClear: 'Semua beres' },
-  ])('does not announce an all-clear when the sole $kind task is lifted as Next task in $locale', async ({ locale, kind, nextTask, otherTasks, allClear }) => {
+    { locale: 'en' as const, noAttention: 'No tasks need your attention', noFailed: 'No failed checks' },
+    { locale: 'id' as const, noAttention: 'Tidak ada tugas yang perlu perhatian Anda', noFailed: 'Tidak ada pemeriksaan gagal' },
+  ])('does not make a false all-clear when the sole urgent Task is visible in $locale', async ({ locale, noAttention, noFailed }) => {
     const task = item('sole', 'Fix the espresso grinder')
     await renderBrief({
-      overdue: kind === 'overdue' ? [task] : [],
-      dueToday: [],
-      blocked: kind === 'blocked' ? [task] : [],
-      myWork: [task],
-      myWorkFullCount: 1,
+      overdue: [task], dueToday: [], blocked: [], myWork: [], myWorkTotalItemCount: 0,
       failedChecks: [],
-    }, true, locale)
+    }, { locale })
 
-    const next = await screen.findByRole('region', { name: nextTask })
-    expect(screen.getByRole('heading', { name: locale === 'en' ? /Needs you now.*\(1\)/ : /Perlu Anda sekarang.*\(1\)/ })).toBeInTheDocument()
-    expect(within(next).getByRole('link', { name: /fix the espresso grinder/i })).toHaveAttribute('href', '/work/tasks/sole')
-    expect(await screen.findByText(otherTasks)).toBeInTheDocument()
-    expect(screen.queryByText(allClear)).toBeNull()
+    const urgent = await screen.findByRole('region', { name: /Needs you now/ })
+    expect(urgent).toHaveAccessibleName(/Needs you now.*1/)
+    expect(within(urgent).getByRole('link', { name: /Fix the espresso grinder/i })).toBeInTheDocument()
+    expect(screen.queryByText(noAttention)).toBeNull()
+    expect(screen.queryByText(/caught up|semua beres/i)).toBeNull()
+    expect(await screen.findByText(noFailed)).toBeInTheDocument()
   })
 
-  it('preserves state-kit loading and error states in the queue', async () => {
-    const { rerender } = await renderBrief({ taskState: 'loading' })
-    const brief = screen.getByTestId('home-daily-brief')
-    expect(within(brief).getAllByRole('status')).toHaveLength(2)
-    // The shared task projection keeps both task-derived lanes pending; failed checks resolved empty.
-    expect(within(brief).getAllByText('(—)')).toHaveLength(2)
-    expect(within(brief).getByRole('heading', { name: /^My open work/ })).toBeInTheDocument()
-
-    const regions = buildHomeRegions({
-      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true, taskState: 'error',
-    })
-    rerender(
-      <I18nProvider>
-        <MemoryRouter>
-          <HomeDailyBrief regions={regions} feed={feed} layout="list" />
-        </MemoryRouter>
-      </I18nProvider>,
-    )
-    expect((await within(screen.getByTestId('home-daily-brief')).findAllByRole('alert'))[0])
-      .toHaveTextContent(/couldn't load/i)
-  })
-
-  it('can omit failed checks for viewers who cannot enter the café log route', async () => {
-    await renderBrief({}, false)
-    expect(screen.queryByRole('heading', { name: 'Failed checks' })).toBeNull()
-    expect(screen.queryByText('Production log · morning')).toBeNull()
-  })
-
-  it('keeps a quiet failed-check status when the resolved collection is clear', async () => {
-    await renderBrief({ failedChecks: [] })
-    expect(await screen.findByRole('heading', { name: /^Failed checks/ })).toBeInTheDocument()
-    expect(await screen.findByText('No failed checks')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Failed checks' })).toBeNull()
-  })
-
-  it('labels the capped My work band with the rows it renders, never the full count (DD-COUNT-1)', async () => {
+  it('caps rendered queue rows without subtracting the first row twice or using the shared count as a remainder', async () => {
+    const urgentItems = Array.from({ length: 7 }, (_, index) => item(`urgent-${index + 1}`, `Urgent task ${index + 1}`))
+    const otherItems = Array.from({ length: 9 }, (_, index) => item(`other-${index + 1}`, `Other task ${index + 1}`))
     await renderBrief({
-      overdue: [], dueToday: [], blocked: [],
-      myWork: [item('a', 'Wipe the machines'), item('b', 'Restock cups')],
-      failedChecks: [], failedChecksAdmitted: false,
-      myWorkFullCount: 9,
+      overdue: urgentItems, dueToday: [], blocked: [], myWork: otherItems.slice(0, 7), myWorkTotalItemCount: 9,
+      failedChecks: [],
     })
-    expect(screen.getByRole('heading', { name: /^My open work/ })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /2 shown · 9 open/ })).toBeInTheDocument()
-    expect(screen.queryByText(/\b9 shown\b/)).toBeNull()
+
+    const urgent = await screen.findByRole('region', { name: /Needs you now.*7/ })
+    expect(within(urgent).getAllByRole('link', { name: /Open task/i })).toHaveLength(5)
+    expect(within(urgent).getByRole('link', { name: /5 shown.*2 more in Tasks/i })).toHaveAttribute('href', '/work/tasks?view=my-work')
+    const other = screen.getByRole('region', { name: /Other open tasks.*9/ })
+    expect(within(other).getByRole('link', { name: /7 shown.*2 more in Tasks/i })).toHaveAttribute('href', '/work/tasks?view=my-work')
+    expect(within(other).queryByText(/16 open/)).toBeNull()
   })
 
-  it('keeps the full My work collection door beside the wide main lane', async () => {
-    await renderBrief({ myWork: [item('next', 'Confirm tomorrow\'s prep')], myWorkFullCount: 1 })
-    expect(screen.getByRole('link', { name: /1 shown · 1 open/i })).toHaveAttribute(
-      'href', '/work/tasks?view=my-work',
+  it('keeps read failures and loading separate from successful empty states', async () => {
+    const regions = buildHomeRegions({
+      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true,
+      taskState: 'loading', failedChecksState: 'error',
+    })
+    render(
+      <I18nProvider><MemoryRouter><HomeDailyBrief regions={regions} feed={feed} layout="focused" /></MemoryRouter></I18nProvider>,
     )
+    const brief = screen.getByTestId('home-daily-brief')
+    expect(within(brief).getAllByRole('status').length).toBeGreaterThan(0)
+    expect(within(brief).queryByText('No tasks need your attention')).toBeNull()
+    expect(within(brief).queryByText('No failed checks')).toBeNull()
+    expect(await within(brief).findByRole('alert')).toHaveTextContent(/couldn't load/i)
+  })
+
+  it('omits failed checks when the viewer is not admitted, without removing task context', async () => {
+    await renderBrief({}, { showFailedChecks: false })
+    expect(screen.queryByRole('region', { name: /Failed checks/ })).toBeNull()
+    expect(screen.getByRole('region', { name: /Needs you now/ })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /Other open tasks/ })).toBeInTheDocument()
   })
 })

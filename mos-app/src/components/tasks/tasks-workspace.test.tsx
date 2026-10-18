@@ -681,10 +681,10 @@ function chooseFilterOption(trigger: HTMLElement, label: string) {
   fireEvent.click(option)
 }
 
-// Opens the Filters & options door when it is closed and returns the whole toolbar: the bar
+// Opens the Filters & sort door when it is closed and returns the whole toolbar: the bar
 // (search, view, Sort, Group on desktop) plus the door's panel (Business Unit, Status, Person, ...).
 function ensureFiltersOpen() {
-  const trigger = screen.queryByRole('button', { name: /^filters & options|^filter & opsi/i })
+  const trigger = screen.queryByRole('button', { name: /^filters & sort|^filter & urutan/i })
   if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
   return screen.getByTestId('record-collection-toolbar')
 }
@@ -696,7 +696,7 @@ function chooseView(name: string) {
   fireEvent.click(screen.getByRole('option', { name }))
 }
 
-// The attention shortcuts ("N overdue", "N blocked") live in Filters & options on phone.
+// The attention shortcuts ("N overdue", "N blocked") live in Filters & sort on phone.
 function openAttentionMenu() {
   ensureFiltersOpen()
   const trigger = screen.getByRole('group', { name: /tasks need attention/i })
@@ -715,14 +715,14 @@ function statusSelect() {
 // A member's first phone viewport must show work, not the configuration wall.
 // The options control should be the only toolbar affordance before the card list.
 describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () => {
-  it('OD-WAY-89: phone keeps search and the view outside one Filters & options door around the rest', async () => {
+  it('OD-WAY-89: phone keeps search and the view outside one Filters & sort door around the rest', async () => {
     stubMatchMedia(false, false)
     mockListTasks.mockResolvedValue([makeTask({ title: 'Phone toolbar item' })])
 
     renderTable()
     await waitFor(() => screen.getByText('Phone toolbar item'))
 
-    const trigger = screen.getByRole('button', { name: /^filters & options/i })
+    const trigger = screen.getByRole('button', { name: /^filters & sort/i })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
     // OD-TASK-3: the member's broadest view reads Relevant.
@@ -742,19 +742,19 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     renderTable()
     await waitFor(() => screen.getByText('First mobile work item'))
 
-    const options = screen.getByRole('button', { name: /^filters & options/i })
+    const options = screen.getByRole('button', { name: /^filters & sort/i })
     expect(options).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('combobox', { name: /group/i })).toBeNull()
     expect(screen.getByTestId('task-card')).toContainElement(screen.getByText('First mobile work item'))
   })
 
-  it('AC-574: the Filters & options door counts a real non-default filter and shows it as a chip', async () => {
+  it('AC-574: the Filters & sort door counts a real non-default filter and shows it as a chip', async () => {
     stubMatchMedia(false, false)
     mockListTasks.mockResolvedValue([makeTask({ title: 'Cue task' })])
 
     renderTable()
     await waitFor(() => screen.getByText('Cue task'))
-    const trigger = screen.getByRole('button', { name: /^filters & options/i })
+    const trigger = screen.getByRole('button', { name: /^filters & sort/i })
     expect(trigger).toHaveTextContent(/^Filters & options$/)
 
     fireEvent.click(trigger)
@@ -763,7 +763,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     expect(screen.getByRole('button', { name: /status: blocked/i })).toBeInTheDocument()
   })
 
-  it('Rule 8/11: the filter stack collapses behind the single Filters & options door, and reveals on expand', async () => {
+  it('Rule 8/11: the filter stack collapses behind the single Filters & sort door, and reveals on expand', async () => {
     // Work leads; the configuration is one tap away, not the front wall.
     stubMatchMedia(false, false)
     mockListTasks.mockResolvedValue([makeTask({ title: 'Phone work item' })])
@@ -1122,7 +1122,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Window task' })])
     renderTable()
     await screen.findByText('1 task')
-    expect(screen.getByTestId('page-head')).toHaveTextContent('1 open in this view')
+    expect(screen.getByTestId('page-head')).toHaveTextContent('1 open')
     expect(screen.getByTestId('page-head')).toHaveTextContent('Relevant')
     expect(screen.getByTestId('tasks-result-summary')).toHaveTextContent(/Due soonest · Active \+ Done in the last 30 days/)
   })
@@ -2356,7 +2356,7 @@ describe('Tasks head meta names the list scope and open work', () => {
     await waitFor(() => expect(screen.getByText('Resolved')).toBeInTheDocument())
     // Blocked still counts as open (not Done); only the Done task is excluded from open.
     await waitFor(() => expect(screen.getByTestId('page-head')).toHaveTextContent('3 tasks'))
-    expect(screen.getByTestId('page-head')).toHaveTextContent('2 open in this view')
+    expect(screen.getByTestId('page-head')).toHaveTextContent('2 open')
     expect(screen.getByTestId('tasks-result-summary')).toHaveTextContent('Active + Done in the last 30 days')
   })
 })

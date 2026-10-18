@@ -193,6 +193,12 @@ describe('Café Records page', () => {
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
   })
 
+  it('focuses Question when opening the full scope editor', async () => {
+    renderPage()
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Change scope' }))
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Question' })).toHaveFocus())
+  })
+
   it('keeps the scoped answer and dates in the empty state; Change period opens the editor on Period', async () => {
     reads.logs.mockImplementation(page([]))
     renderPage('?question=made&reading=summary')

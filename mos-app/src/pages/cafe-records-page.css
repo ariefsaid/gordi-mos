@@ -12,9 +12,9 @@
 .rec-empty-answer .btn { min-height: var(--mos-control-height); }
 
 /* ── Scope: the current answer stays visible; its URL-backed editor opens on request ── */
-.rec-scope { min-width: 0; }
+.rec-scope { position: sticky; top: 0; z-index: var(--z-sticky); min-width: 0; background: var(--mos-canvas); }
+.rec-scope--editing { position: static; }
 .rec-scope__summary {
-  position: sticky; top: 0; z-index: var(--z-sticky);
   display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center;
   gap: var(--mos-inline-gap) var(--mos-row-gap); min-width: 0; padding-block: var(--mos-label-gap);
   border-bottom: 1px solid var(--mos-line); background: var(--mos-canvas);
@@ -133,7 +133,7 @@
 
 /* ── Phone ── */
 @media (max-width: 767.98px) {
-  .rec-scope__summary { position: static; top: auto; z-index: auto; grid-template-columns: minmax(0, 1fr) auto; }
+  .rec-scope__summary { grid-template-columns: minmax(0, 1fr) auto; }
   .rec-scope__summary-copy { grid-column: 1; grid-row: 1 / 3; }
   .rec-scope__toggle { grid-column: 2; grid-row: 1 / 3; min-height: 44px; }
   .rec-scope__summary-trailing { grid-column: 1 / -1; justify-content: flex-end; }

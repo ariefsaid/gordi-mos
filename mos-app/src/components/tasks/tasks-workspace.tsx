@@ -941,13 +941,6 @@ export function TasksWorkspace({
 
   const personOptions = dataContext?.people ?? []
   const buOptions = dataContext?.businessUnits ?? []
-  const sortLabel = query.sort === 'due'
-    ? t(query.direction === 'descending' ? 'tasks.filter.sortDueLatest' : 'tasks.filter.sortDueSoonest')
-    : query.sort === 'task' ? t('tasks.filter.sortTask')
-      : query.sort === 'status' ? t('tasks.filter.sortStatus')
-        : query.sort === 'pic' ? t('tasks.filter.sortPic')
-          : query.sort === 'supervisor' ? t('tasks.supervisor')
-            : t('tasks.filter.sortActivity')
   const tasksToolbar = (
     <TasksToolbar
       query={query}
@@ -966,7 +959,9 @@ export function TasksWorkspace({
       onAttentionOverdue={() => setQuery({ overdueOnly: true, status: null })}
       onAttentionBlocked={() => setQuery({ overdueOnly: false, status: 'Blocked' })}
       viewerOrgWide={viewerOrgWide}
-      resultSummary={<span className="tasks-count-line" data-testid="tasks-result-summary">{sortLabel} · {t(isDesktop ? 'tasks.meta.windowScope' : 'tasks.meta.compactWindowScope')}</span>}
+      resultSummary={<span className="tasks-count-line" data-testid="tasks-result-summary">
+        {t(isDesktop ? 'tasks.meta.windowScope' : 'tasks.meta.compactWindowScope')}
+      </span>}
       onClearFilters={onClearFilters}
       buOptions={buOptions}
       personOptions={personOptions}
@@ -1057,7 +1052,7 @@ export function TasksWorkspace({
       titleHelp={<HelpTip label={`${t('job.tasks')} ${t('job.tasksHelp')} ${t('tasks.meta.windowScope')}`} />}
       headClassName="tasks-page-head"
       count={draftTask || stats === null ? null : t(visibleTaskCount === 1 ? 'tasks.meta.taskCount.one' : 'tasks.meta.taskCount.other', { count: visibleTaskCount })}
-      meta={!isDesktop || draftTask || stats === null ? undefined : <span>{activeView.label} · {t('tasks.meta.openCount', { count: stats.open })}</span>}
+      meta={draftTask || stats === null ? undefined : <span>{t('workbench.tasks.summary', { view: activeView.label, count: stats.open })}</span>}
       phoneActionBar
       state={frameState}
       action={showNewTask && !draftTask ? (

@@ -1692,6 +1692,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
 
   function handleInlineInspectClick(event: React.MouseEvent<HTMLDivElement>) {
     if (!(event.target instanceof Element) || !event.target.closest('summary')) return
+    event.preventDefault()
     const next = !inspectEntriesOpen
     inspectionFocusRef.current = next ? 'heading' : 'trigger'
     setInspectEntriesOpen(next)

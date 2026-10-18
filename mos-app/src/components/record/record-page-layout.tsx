@@ -9,6 +9,7 @@
 //   children     ReactNode          the record's sections (<RecordSection/>), in domain order
 //   about        ReactNode          facts that are not in the header; a 300px aside on a page >=1280,
 //                                   otherwise a block after the sections
+//   companion    ReactNode          stable context beside work when space allows, before discussion when stacked
 //   history      { title, node, count? }   (optional; omit when there is nothing to show) folded
 //                                   in the wide About aside and at the end on narrower layouts.
 //                                   `node` mounts only when shown.
@@ -23,7 +24,7 @@
 // RecordDisclosure props   { title, count?, defaultOpen?, open?, onToggle?, children }
 //   children render only while open. Pass `open` to control it (the caller then owns the state).
 // RecordAbout props        { items: { key, label, value }[] }
-import { createContext, useContext, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { createContext, useContext, useId, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from 'react'
 import { Button } from '@/components/ui/button'
 import { SkeletonRows } from '@/components/ui/state-kit'
 import { PhoneActionBarContext, usePhoneActionBar } from '@/shell/page-action-bar'
@@ -40,12 +41,12 @@ type RecordSectionAction = {
   variant?: 'primary' | 'outline' | 'ghost'
 }
 
-type SectionHeadingProps = { id?: string; children: ReactNode; className: string }
+type SectionHeadingProps = { id?: string; tabIndex?: number; headingRef?: Ref<HTMLHeadingElement>; children: ReactNode; className: string }
 
-function SectionHeading({ id, children, className }: SectionHeadingProps) {
+function SectionHeading({ id, tabIndex, headingRef, children, className }: SectionHeadingProps) {
   const level = useContext(HeadingLevelContext)
   const Tag = level === 1 ? 'h2' : 'h3'
-  return <Tag id={id} className={className}>{children}</Tag>
+  return <Tag ref={headingRef} id={id} tabIndex={tabIndex} className={className}>{children}</Tag>
 }
 
 export type RecordSectionProps = {
@@ -53,15 +54,19 @@ export type RecordSectionProps = {
   title: string
   count?: ReactNode
   action?: RecordSectionAction
+  headingId?: string
+  headingTabIndex?: number
+  headingRef?: Ref<HTMLHeadingElement>
   children: ReactNode
 }
 
-export function RecordSection({ id, title, count, action, children }: RecordSectionProps) {
-  const headingId = useId()
+export function RecordSection({ id, title, count, action, headingId: suppliedHeadingId, headingTabIndex, headingRef, children }: RecordSectionProps) {
+  const generatedHeadingId = useId()
+  const headingId = suppliedHeadingId ?? generatedHeadingId
   return (
     <section className="rp-section" data-record-section={id} aria-labelledby={headingId}>
       <div className="rp-section__head">
-        <SectionHeading id={headingId} className="rp-section__title">{title}</SectionHeading>
+        <SectionHeading id={headingId} tabIndex={headingTabIndex} headingRef={headingRef} className="rp-section__title">{title}</SectionHeading>
         {count !== undefined && count !== null ? <span className="rp-section__count">{count}</span> : null}
         {action ? (
           <Button variant={action.variant ?? 'ghost'} className="rp-section__action" disabled={action.disabled} onClick={action.onClick}>
@@ -190,11 +195,13 @@ export type RecordPageLayoutProps = {
   children: ReactNode
   about?: { title: string; node: ReactNode; disclosure?: { defaultOpen?: boolean } }
   discussion?: ReactNode
+  /** Stable companion content for document layouts; CSS places it beside the work when space allows. */
+  companion?: ReactNode
   history?: { title: string; node: ReactNode; count?: ReactNode }
   kind?: string
 }
 
-export function RecordPageLayout({ label, mode, headingLevel, header, notice, setup, children, about, discussion, history, kind }: RecordPageLayoutProps) {
+export function RecordPageLayout({ label, mode, headingLevel, header, notice, setup, children, about, discussion, companion, history, kind }: RecordPageLayoutProps) {
   const wide = useIsWideRecordPage() && mode === 'page'
   // Only a record's own page uses the phone action bar; a panel keeps its primary in its header.
   const pageBar = usePhoneActionBar()
@@ -209,27 +216,40 @@ export function RecordPageLayout({ label, mode, headingLevel, header, notice, se
         {header}
         {notice}
         <div className="rp-body">
-          <div className="rp-main">
-            {setup}
-            {children}
-            {!(wide && (about || history)) && about ? (
-              <section className="rp-section rp-about" aria-label={about.title}>
-                {aboutContent}
-              </section>
-            ) : null}
-            {discussion}
-            {!(wide && (about || history)) && history ? <RecordDisclosure title={history.title} count={history.count}>{history.node}</RecordDisclosure> : null}
-          </div>
-          {wide && (about || history) ? (
-            <aside className="rp-aside">
-              {about ? (
-                <section className="rp-aside__block" aria-label={about.title}>
-                  {aboutContent}
-                </section>
+          {companion !== undefined ? (
+            <>
+              <div className="rp-main">
+                {setup}
+                {children}
+              </div>
+              <div className="rp-aside rp-companion">{companion}</div>
+              {discussion ? <div className="rp-discussion">{discussion}</div> : null}
+            </>
+          ) : (
+            <>
+              <div className="rp-main">
+                {setup}
+                {children}
+                {!(wide && (about || history)) && about ? (
+                  <section className="rp-section rp-about" aria-label={about.title}>
+                    {aboutContent}
+                  </section>
+                ) : null}
+                {discussion}
+                {!(wide && (about || history)) && history ? <RecordDisclosure title={history.title} count={history.count}>{history.node}</RecordDisclosure> : null}
+              </div>
+              {wide && (about || history) ? (
+                <aside className="rp-aside">
+                  {about ? (
+                    <section className="rp-aside__block" aria-label={about.title}>
+                      {aboutContent}
+                    </section>
+                  ) : null}
+                  {history ? <RecordDisclosure title={history.title} count={history.count}>{history.node}</RecordDisclosure> : null}
+                </aside>
               ) : null}
-              {history ? <RecordDisclosure title={history.title} count={history.count}>{history.node}</RecordDisclosure> : null}
-            </aside>
-          ) : null}
+            </>
+          )}
         </div>
       </section>
     </HeadingLevelContext.Provider>

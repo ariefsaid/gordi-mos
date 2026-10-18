@@ -146,9 +146,9 @@ describe('AC-021 / OD-REDESIGN-68: phone bottom-nav is Home · Work · <role mod
     expect(more).toHaveFocus()
   })
 
-  it('the persistent phone plus launcher opens the approved action launcher', () => {
+  it('the phone plus launcher remains available on unrelated support pages', () => {
     const onOpenActionLauncher = vi.fn()
-    renderTabBar('/', { onOpenActionLauncher })
+    renderTabBar('/cafe/items', { onOpenActionLauncher })
     const launcher = screen.getByRole('button', { name: /^actions$/i })
     expect(launcher).toHaveAttribute('aria-haspopup', 'dialog')
     fireEvent.click(launcher)
@@ -184,6 +184,11 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
 
   it.each(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/request', '/cafe/plan', '/cafe/stock', '/cafe/review'])('capture surface %s yields the + launcher to its own action', (path) => {
     setCafeViewer()
+    renderTabBar(path)
+    expect(screen.queryByRole('button', { name: /^actions$/i })).not.toBeInTheDocument()
+  })
+
+  it.each(['/', '/work/tasks', '/work/tasks/task-123', '/cafe/records', '/cafe/production'])('core working route %s leaves the content free of quick-create', (path) => {
     renderTabBar(path)
     expect(screen.queryByRole('button', { name: /^actions$/i })).not.toBeInTheDocument()
   })
@@ -298,11 +303,19 @@ describe('a11y: every tab icon is aria-hidden', () => {
 })
 
 describe('issue 1032: one create entry on phone', () => {
-  it.each(['/', '/work/projects', '/work/objectives', '/work/tasks/abc-123', '/inbox'])(
-    '%s has no in-page create, so the + launcher stays',
+  it.each(['/work/projects', '/work/objectives', '/inbox'])(
+    '%s keeps the launcher because the page has no reserved create action',
     (path) => {
       renderTabBar(path)
       expect(screen.getByRole('button', { name: /^actions$/i })).toBeInTheDocument()
+    },
+  )
+
+  it.each(['/', '/work/tasks/abc-123'])(
+    '%s omits the launcher when the core surface owns its action',
+    (path) => {
+      renderTabBar(path)
+      expect(screen.queryByRole('button', { name: /^actions$/i })).not.toBeInTheDocument()
     },
   )
 })

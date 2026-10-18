@@ -1,24 +1,9 @@
-/* Home owns a wide, container-aware action brief. Layout arrangements define the primary/sidecar
-   relationship; the page frame controls the overall measure. */
-.home-frame {
-  container: home / inline-size;
-  min-width: 0;
-}
-
+/* Home owns a wide, container-aware workbench; page framing stays with PageFamilyFrame. */
+.home-frame { container: home / inline-size; min-width: 0; }
+.home-layout-host,
 .home-brief-main,
-.home-aside {
-  min-width: 0;
-}
-
-.home-aside .stream-band {
-  border-top: 1px solid var(--border);
-  padding-top: var(--mos-inline-gap);
-}
-
-.home-aside .home-objective-row {
-  padding-block: var(--mos-row-pad-y);
-}
+.home-standing { min-width: 0; }
 
 @media (max-width: 767.98px) {
-  .home-aside { padding-bottom: max(var(--mos-space-4), env(safe-area-inset-bottom)); }
+  .home-standing { padding-bottom: max(var(--mos-space-4), env(safe-area-inset-bottom)); }
 }

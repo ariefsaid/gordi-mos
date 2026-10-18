@@ -1,6 +1,6 @@
 import type React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { destinationForPath, phoneModuleForViewer } from './module-registry'
+import { destinationForPath, FIXED_AREAS, MODULE_REGISTRY, phoneModuleForViewer } from './module-registry'
 import { isShipGated } from '@/lib/ship-gate'
 import { HomeIcon, WorkIcon, MoreIcon } from './icons'
 import { useIsNarrow } from './use-is-narrow'
@@ -28,26 +28,43 @@ type PrimaryTab = {
 const HOME: PrimaryTab = { id: 'home', labelKey: 'dest.home', href: '/', Icon: HomeIcon }
 const WORK: PrimaryTab = { id: 'work', labelKey: 'dest.work', href: '/work/tasks', sectionPrefix: '/work', Icon: WorkIcon }
 
-// One rule for the quick-create button: it is on every phone page, except where it yields the thumb zone on capture surfaces —
-// the Café root and its dedicated production/transfer/waste/Count/Receive/Request/plan/stock/review screens — where
-// the surface's own control is the primary action. Match route roots exactly: a `/cafe` prefix
-// also swallowed item settings and push history, which are support surfaces where quick capture
-// should remain available (and remain after the launcher closes).
+// Keep the launcher out of existing capture surfaces and the core queue/document routes that own their
+// primary action. Paths come from the route registry so route changes cannot leave a stale shell allow-list.
+const WORK_DESTINATION = FIXED_AREAS.find((destination) => destination.id === 'work')!
+const HOME_DESTINATION = FIXED_AREAS.find((destination) => destination.id === 'home')!
+const CAFE_DESTINATION = MODULE_REGISTRY.find((destination) => destination.id === 'cafe')!
+const cafeSectionPath = (key: string) => CAFE_DESTINATION.children?.find((section) => section.labelKey === key)?.path
+const TASKS_PATH = WORK_DESTINATION.children?.find((section) => section.labelKey === 'nav.work.tasks')?.path
+const RECORDS_PATH = cafeSectionPath('nav.cafe.records')
+const PRODUCTION_PATH = cafeSectionPath('nav.cafe.production')
 const CAPTURE_SURFACE_PATHS = [
-  '/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/request',
-  '/cafe/plan', '/cafe/stock', '/cafe/review',
-]
+  CAFE_DESTINATION.primaryPath,
+  ...['nav.cafe.production', 'nav.cafe.transfer', 'nav.cafe.waste', 'nav.cafe.count', 'nav.cafe.receive', 'cafe.request.title', 'nav.cafe.plan', 'nav.cafe.stock', 'nav.cafe.review']
+    .map(cafeSectionPath),
+].filter((path): path is string => Boolean(path))
 
 // A decision the person must make in one place: no tabs to wander off to, no "+" beside Allow.
 const FOCUSED_DECISION_PATHS = ['/oauth/consent']
 
-function isCaptureSurface(pathname: string): boolean {
-  return CAPTURE_SURFACE_PATHS.includes(pathname.replace(/\/+$/, '') || '/')
+function normalizePath(pathname: string): string {
+  return pathname.replace(/\/+$/, '') || '/'
+}
+
+function isTaskRoute(path: string): boolean {
+  return TASKS_PATH !== undefined && (path === TASKS_PATH || path.startsWith(`${TASKS_PATH}/`))
 }
 
 function shouldShowActionDock(pathname: string): boolean {
-  const path = pathname.replace(/\/+$/, '') || '/'
-  return !isCaptureSurface(path) && path !== '/cafe/records' && !/^\/profile(?:\/|$)/.test(path)
+  const path = normalizePath(pathname)
+  const coreActionPath = [HOME_DESTINATION.primaryPath, TASKS_PATH, RECORDS_PATH, PRODUCTION_PATH].includes(path)
+  return !isCaptureSurface(path)
+    && !coreActionPath
+    && !isTaskRoute(path)
+    && !/^\/profile(?:\/|$)/.test(path)
+}
+
+function isCaptureSurface(pathname: string): boolean {
+  return CAPTURE_SURFACE_PATHS.includes(normalizePath(pathname))
 }
 
 type BottomTabBarProps = {

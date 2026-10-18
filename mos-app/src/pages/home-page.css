@@ -1,5 +1,4 @@
-/* Home day header — greeting/context and its share door stay on one purposeful line where space
-   allows, then wrap naturally before either control is compressed. */
+/* Home orients with its date/role and keeps open-work and Share Signal actions inline. */
 .content-header .ch-meta .home-head-role {
   white-space: normal;
   font-size: var(--mos-size-1);
@@ -20,10 +19,16 @@
 }
 
 .home-head-counts {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--mos-control-height);
   font-size: var(--mos-size-1);
-  color: var(--muted-foreground);
+  color: var(--text-on-accent-tint);
+  text-decoration: none;
   white-space: nowrap;
 }
+.home-head-counts:hover { text-decoration: underline; }
+.home-head-counts:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-radius: var(--radius-xs); }
 
 .home-head-actions {
   display: flex;

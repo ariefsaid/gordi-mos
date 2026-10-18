@@ -2585,6 +2585,11 @@ describe('OD-K-5: sticky-footer tally', () => {
     await user.click(actionTrigger())
     expect(inlinePanel()).not.toHaveAttribute('open')
     expect(inlineTrigger()).toHaveFocus()
+    await user.click(inlineTrigger())
+    expect(inlinePanel()).toHaveAttribute('open')
+    await user.click(inlineTrigger())
+    expect(inlinePanel()).not.toHaveAttribute('open')
+    expect(inlineTrigger()).toHaveFocus()
   })
 
   it('shows the zero count, but no Discard link, before anything is staged', async () => {

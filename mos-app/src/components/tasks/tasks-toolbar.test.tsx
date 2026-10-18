@@ -45,7 +45,7 @@ function renderToolbar(props: TasksToolbarProps = makeProps(), locale: 'en' | 'i
 // The desktop long tail lives behind the surface's own door. "Reachable" is the contract these
 // tests assert, so they open it the way a reader would rather than reaching past it.
 function openFilters() {
-  const trigger = screen.queryByRole('button', { name: /^filters & options|^filter & opsi/i })
+  const trigger = screen.queryByRole('button', { name: /^filters & sort|^filter & urutan/i })
   if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
   return trigger
 }
@@ -135,8 +135,8 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
   it('keeps phone search and views immediate, with sort and group changes in the door in EN and ID', () => {
     matchMedia(false)
     const locales = [
-      { locale: 'en' as const, viewLabel: 'Task views', viewOption: 'My work', sortLabel: 'Sort', sortOption: 'Due latest', groupLabel: 'Group', groupOption: 'Status', door: /^filters & options/i, sortSummary: 'Sort: Due soonest' },
-      { locale: 'id' as const, viewLabel: 'Tampilan tugas', viewOption: 'Pekerjaan saya', sortLabel: 'Urutkan', sortOption: 'Jatuh tempo terjauh', groupLabel: 'Kelompok', groupOption: 'Status', door: /^filter & opsi/i, sortSummary: 'Urutkan: Jatuh tempo terdekat' },
+      { locale: 'en' as const, viewLabel: 'Task views', viewOption: 'My work', sortLabel: 'Sort', sortOption: 'Due latest', groupLabel: 'Group', groupOption: 'Status', door: /^filters & sort/i, sortSummary: 'Sort: Due soonest' },
+      { locale: 'id' as const, viewLabel: 'Tampilan tugas', viewOption: 'Pekerjaan saya', sortLabel: 'Urutkan', sortOption: 'Jatuh tempo terjauh', groupLabel: 'Kelompok', groupOption: 'Status', door: /^filter & urutan/i, sortSummary: 'Urutkan: Jatuh tempo terdekat' },
     ]
 
     for (const locale of locales) {
@@ -228,7 +228,7 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
 
   // #1030: an opened control that shows only its value ("Anyone", "All units", "Due soonest") is
   // unlabeled for a sighted reader; every dropdown in the door names what it filters or orders.
-  it('names every control in the Filters & options door, in both locales', () => {
+  it('names every control in the Filters & sort door, in both locales', () => {
     const expected = {
       en: { businessUnit: 'Business Unit', person: 'Person', sort: 'Sort', status: 'Status', group: 'Group' },
       id: { businessUnit: 'Unit Bisnis', person: 'Orang', sort: 'Urutkan', status: 'Status', group: 'Kelompok' },

@@ -131,7 +131,7 @@ export function TasksToolbar({
 
   const statusLabel = (key: (typeof STATUS_VALUES)[number]['key']) => t(`tasks.status.${key}` as const)
   const groupLabel = (key: (typeof GROUP_VALUES)[number]['key']) => {
-    if (key === 'none') return t('tasks.filter.none')
+    if (key === 'none') return t('workbench.tasks.noGrouping')
     if (key === 'status') return t('tasks.filter.status')
     if (key === 'pic') return t('tasks.pic')
     if (key === 'businessUnit') return t('tasks.filter.businessUnit')
@@ -245,6 +245,7 @@ export function TasksToolbar({
   return (
     <CollectionToolbar
       className="tasks-decision-toolbar"
+      optionsLabel={t('workbench.records.options')}
       exposedFilterIds={isDesktop ? ['sort', 'group'] : []}
       resultSummary={resultSummary || (!isDesktop && selectedSortLabel) ? <>
         {resultSummary}

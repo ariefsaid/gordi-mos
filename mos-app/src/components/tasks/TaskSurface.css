@@ -3,6 +3,13 @@
 /* branches mounted before that block, leaving .sk / .not-found-title unstyled.           */
 /* All raw values are DESIGN.md CSS-var tokens — no hardcoded hex/spacing literals.       */
 
+/* ── Task record facts and context jump ── */
+.rp[data-record-kind='task'] .rp-fact--action { margin-inline-start: auto; }
+.rp[data-record-kind='task'] .rp-fact--action .rp-link-btn { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); }
+@media (max-width: 767.98px) {
+  .rp[data-record-kind='task'] .rp-fact--action { flex: 1 1 100%; justify-content: flex-end; margin-inline-start: 0; }
+}
+
 /* ── Breadcrumb ── */
 .rp[data-record-kind='task'] .rp-facts .record-field__edit--status {
   inline-size: max-content;

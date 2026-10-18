@@ -385,3 +385,9 @@
 .cafe-production-sheet .cap-table { --cap-clearance: 164px; }
 .cafe-transfer-sheet .cap-table { --cap-clearance: 176px; }
 .kl-unit-context-note { max-width: 62ch; margin: 0 0 8px; color: var(--muted-foreground); font-size: var(--mos-size-1); }
+
+@media (max-width: 767.98px) {
+  .cafe-capture-footer .action-bar__info { flex-direction: row; align-items: center; gap: 0 var(--mos-inline-gap); }
+  .cafe-capture-footer .action-bar__reason { flex-direction: row; gap: 0 var(--mos-inline-gap); }
+  .cafe-capture-footer .action-bar__summary { font-size: var(--mos-size-3); }
+}
