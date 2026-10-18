@@ -71,17 +71,19 @@ export function RecordsScope({ t, question, onQuestion, period, onPeriod, from, 
     triggerRef.current?.focus()
   }
   return (
-    <section className="rec-scope" aria-label={t('records.scope.label')}>
-      <div className="rec-scope__summary">
-        <div className="rec-scope__summary-copy">
-          <div className="rec-scope__summary-question"><span>{t(QUESTION_LABEL[question])}</span><span aria-hidden="true">·</span><span>{t(PERIOD_LABEL[period])}</span></div>
-          <div className="rec-scope__summary-context"><span>{streamName}</span><span aria-hidden="true">·</span><span className="tabular">{exact}</span>{isUnfinished(period, { from, to }, today) && <span className="rec-range-line__through">{t('records.range.throughToday')}</span>}</div>
+    <>
+      <section className="rec-scope" aria-label={t('records.scope.label')}>
+        <div className="rec-scope__summary">
+          <div className="rec-scope__summary-copy">
+            <div className="rec-scope__summary-question"><span>{t(QUESTION_LABEL[question])}</span><span aria-hidden="true">·</span><span>{t(PERIOD_LABEL[period])}</span></div>
+            <div className="rec-scope__summary-context"><span>{streamName}</span><span aria-hidden="true">·</span><span className="tabular">{exact}</span>{isUnfinished(period, { from, to }, today) && <span className="rec-range-line__through">{t('records.range.throughToday')}</span>}</div>
+          </div>
+          <Button ref={triggerRef} type="button" variant="outline" className="rec-scope__toggle" aria-expanded={open} aria-controls={panelId} onClick={() => onOpenChange(!open)}>
+            {t('records.scope.change')}
+          </Button>
+          {trailing ? <div className="rec-scope__summary-trailing">{trailing}</div> : null}
         </div>
-        <Button ref={triggerRef} type="button" variant="outline" className="rec-scope__toggle" aria-expanded={open} aria-controls={panelId} onClick={() => onOpenChange(!open)}>
-          {t('records.scope.change')}
-        </Button>
-        {trailing ? <div className="rec-scope__summary-trailing">{trailing}</div> : null}
-      </div>
+      </section>
       <div id={panelId} className="rec-scope__editor" hidden={!open} onKeyDown={onEditorKeyDown}>
         {open ? <>
           <div className="rec-scope__row">
@@ -105,6 +107,6 @@ export function RecordsScope({ t, question, onQuestion, period, onPeriod, from, 
           )}
         </> : null}
       </div>
-    </section>
+    </>
   )
 }

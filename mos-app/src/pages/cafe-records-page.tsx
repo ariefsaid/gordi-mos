@@ -302,13 +302,11 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
     body = <CafeNoMatch onClear={clearFilters} />
   } else if (noRows && failed.length === 0) {
     body = (
-      <EmptyState
-        variant="blank"
-        title={singleSource ? t('records.empty.title', { source: sourceName(singleSource) }) : t('records.empty.everything')}
-        copy={t('records.empty.scopedBody', { question: t(QUESTION_LABEL[state.question]), stream: streamText, range: rangeText })}
-      >
+      <section className="rec-empty-answer" aria-live="polite">
+        <h2>{singleSource ? t('records.empty.title', { source: sourceName(singleSource) }) : t('records.empty.everything')}</h2>
+        <p>{t('records.empty.scopedBody', { question: t(QUESTION_LABEL[state.question]), stream: streamText, range: rangeText })}</p>
         <Button variant="outline" className="btn-touch" onClick={openScopeAtPeriod}>{t('records.empty.changePeriod')}</Button>
-      </EmptyState>
+      </section>
     )
   } else if (reading === 'summary') {
     body = <SummaryReading text={text} question={state.question} incomplete={incompleteMovements} groups={summaryPage.groups} sort={state.sort} dir={state.dir} onSort={setSort}
@@ -358,7 +356,7 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
           onSearchChange={onSearch}
           searchPlaceholder={t('kitchen.log.searchPlaceholder')}
           ariaLabel={t('records.toolbar.aria')}
-          filtersPanel={{ label: t('records.filters.label'), summary: [state.item && itemChoices.find(([k]) => k === state.item)?.[1], state.destination && destinationChoices.find(([k]) => k === state.destination)?.[1]].filter(Boolean).join(' · ') }}
+          filtersPanel={{ label: t('workbench.records.options'), summary: [state.item && itemChoices.find(([k]) => k === state.item)?.[1], state.destination && destinationChoices.find(([k]) => k === state.destination)?.[1]].filter(Boolean).join(' · ') }}
           countLabel={!loading && !denied && !dayNeedsNote ? t(total === 1 ? 'records.count.one' : 'records.count.other', { count: total }) : undefined}
           sortLabel={selectedSortLabel}
           sortControl={sortControl}

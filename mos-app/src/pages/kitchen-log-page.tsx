@@ -422,11 +422,13 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   const [retryKey, setRetryKey] = useState(0)
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
   const [inspectEntriesOpen, setInspectEntriesOpen] = useState(false)
+  const inspectionFocusRef = useRef<'heading' | 'trigger' | null>(null)
+  const inspectionPanelRef = useRef<HTMLDivElement>(null)
+  const companionHeadingRef = useRef<HTMLHeadingElement>(null)
   const [savedDraftAt, setSavedDraftAt] = useState<string | null>(null)
   const [restoredDraft, setRestoredDraft] = useState(false)
   const capturePageState = useCafeCaptureDraftPageState()
   const {
-    restoredDraftInfo,
     setRestoredDraftInfo,
     restoreAnnouncement,
     setRestoreAnnouncement,
@@ -446,6 +448,20 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
       ?? captureRef.current?.querySelector<HTMLInputElement>('.kls-qty')
     target?.focus()
   }, [captureRef, discardConfirmOpen, otherDateDrafts, pendingDateDraftDiscard, restoredDraft])
+
+  useLayoutEffect(() => {
+    if (isDesktop) return
+    const destination = inspectionFocusRef.current
+    if (!destination) return
+    inspectionFocusRef.current = null
+    if (destination === 'heading' && inspectEntriesOpen) {
+      const heading = inspectionPanelRef.current?.querySelector<HTMLElement>('h3')
+      heading?.scrollIntoView?.({ block: 'nearest' })
+      heading?.focus()
+    } else if (destination === 'trigger') {
+      inspectionPanelRef.current?.querySelector<HTMLElement>('summary')?.focus()
+    }
+  }, [inspectEntriesOpen, isDesktop])
   // #586: `lines` stages ONE row per item across every movement segment (produce, each
   // transfer) — a qty typed under Produce was still there, unchanged, when the segment
   // switched to a Transfer that never touched that item, and Submit filed it under
@@ -1442,14 +1458,16 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   const mixedKinds = new Set(wipItems.map(item => item.kind ?? 'WIP')).size > 1
   const showEmptyTransferAvailability = mode === 'transfer' && transferDestinationChosen && stagedCount === 0
     && visibleItems.some(item => lines[item.id].stok > 0 && lines[item.id].tersedia === 0)
-  const stagedSummary = stagedLines.flatMap(line => {
-    const item = wipItems.find(candidate => candidate.id === line.wip_item_id)
-    if (!item) return []
+  const stagedSummary = wipItems.flatMap(item => {
+    const line = lines[item.id]
+    if (!line) return []
+    const invalidRaw = invalidQuantityIds.has(item.id) ? invalidQuantityDrafts[item.id] : undefined
+    if (line.qty_porsi <= 0 && invalidRaw === undefined) return []
     const unit = line.entry_unit_name ?? item.units.find(candidate => candidate.id === line.item_unit_id)?.name ?? item.units[0]?.name ?? t('kitchen.unit.porsi')
     return [{
       id: item.id,
       name: item.name,
-      quantity: line.entry_quantity ?? line.qty_porsi,
+      quantity: invalidRaw ?? (line.entry_quantity ?? line.qty_porsi),
       factor: line.entry_unit_factor ?? 1,
       unit,
     }]
@@ -1511,7 +1529,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
           <strong>{transferDestinationName ?? t('kitchen.actionType.transferTo.fallback')}</strong>
         </div>
       )}
-      <h3>{t(mode === 'transfer' ? 'kitchen.transfer.draft.items' : 'kitchen.log.summary.entered')}</h3>
+      <h3 tabIndex={-1}>{t(mode === 'transfer' ? 'kitchen.transfer.draft.items' : 'kitchen.log.summary.entered')}</h3>
       {stagedSummary.length === 0 ? (
         <p className="kl-capture-summary__empty">{t('kitchen.log.summary.draftEmpty')}</p>
       ) : (
@@ -1520,7 +1538,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
             <li key={line.id}>
               <span>{line.name}</span>
               <strong className="tabular">
-                {formatCaptureQty(line.quantity)}{line.factor === 1 ? ' ' : ' × '}
+                {typeof line.quantity === 'number' ? formatCaptureQty(line.quantity) : line.quantity}{line.factor === 1 ? ' ' : ' × '}
                 {line.factor === 1 ? line.unit : formatUnitMultiple(line.factor, line.unit, document.documentElement.lang || 'en')}
               </strong>
             </li>
@@ -1656,6 +1674,28 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
       },
     },
   ]
+
+  function handleInspectEntriesAction() {
+    if (mode === 'transfer') {
+      setInspectEntriesOpen(value => !value)
+      return
+    }
+    if (isDesktop) {
+      companionHeadingRef.current?.scrollIntoView?.({ block: 'nearest' })
+      companionHeadingRef.current?.focus()
+      return
+    }
+    const next = !inspectEntriesOpen
+    inspectionFocusRef.current = next ? 'heading' : 'trigger'
+    setInspectEntriesOpen(next)
+  }
+
+  function handleInlineInspectClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (!(event.target instanceof Element) || !event.target.closest('summary')) return
+    const next = !inspectEntriesOpen
+    inspectionFocusRef.current = next ? 'heading' : 'trigger'
+    setInspectEntriesOpen(next)
+  }
 
   const clearCaptureFilters = () => { capturePageState.setSearch(''); capturePageState.setKindFilter('All'); capturePageState.setCategory('All') }
   const logToolbar = (
@@ -1796,25 +1836,11 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
         {restoreAnnouncement && (
           <p className="cafe-vh" role="status" aria-live="polite">{restoreAnnouncement}</p>
         )}
-        {status.kind === 'ready' && restoredDraft && draftCount > 0 && savedDraftAt && restoredDraftInfo && (
-          <section className="kl-capture-draft-notice" aria-live="off">
-            <RecordDisclosure
-              className="kl-capture-draft-details"
-              defaultOpen={isDesktop}
-              title={`${t('cafe.production.drafts')} · ${t(restoredDraftInfo.count === 1 ? 'cafe.captureDraft.restoredCompact.one' : 'cafe.captureDraft.restoredCompact.other', { count: restoredDraftInfo.count })} · ${t('cafe.captureDraft.savedAt', { time: formatWibDateTime(restoredDraftInfo.savedAt) })}`}
-            >
-              <div className="kl-capture-draft-details__body">
-                <small>{t('cafe.captureDraft.savedAt', { time: formatWibDateTime(restoredDraftInfo.savedAt) })}</small>
-                {otherDateDrafts.length === 0 && <small>{t('cafe.captureDraft.expiry')}</small>}
-              </div>
-            </RecordDisclosure>
-            <button type="button" className="btn btn-outline" onClick={handleDiscardClick} disabled={isSubmitting}>
-              {t('kitchen.log.discard')}
-            </button>
-          </section>
-        )}
         {status.kind === 'ready' && otherDateDrafts.length > 0 && (
-          <Panel title={t('cafe.production.drafts')} className="kl-capture-draft-list">
+          <RecordDisclosure
+            title={`${t('workbench.production.otherDrafts')} · ${otherDateDrafts.length}`}
+            className="kl-capture-draft-list cafe-production-other-drafts"
+          >
             <section aria-labelledby="kl-other-date-drafts">
             <h2 id="kl-other-date-drafts" ref={draftListHeadingRef} tabIndex={-1}>{t('cafe.captureDraft.otherDates')}</h2>
             <p className="kl-capture-draft-guidance">{t('cafe.captureDraft.otherDatesNextStep')}</p>
@@ -1829,7 +1855,6 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
                 >
                   <RecordDisclosure
                     className="kl-capture-draft-details"
-                    defaultOpen={isDesktop}
                     title={t(savedLines.length === 1 ? 'cafe.captureDraft.otherDate.one' : 'cafe.captureDraft.otherDate.other', { date, count: savedLines.length })}
                   >
                     <div className="kl-capture-draft-details__body">
@@ -1856,7 +1881,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
             })}
             <small className="kl-capture-draft-expiry">{t('cafe.captureDraft.expiry')}</small>
             </section>
-          </Panel>
+          </RecordDisclosure>
         )}
         {/* The Location/opening door and the Plan/Made/Off-plan figures dock into one compact
             context header so the summary reads as that header's own figures, never an orphan
@@ -1921,7 +1946,6 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
               rows you are about to write, the stream is which books the whole surface is
               written in, and that second one has to be readable from every Café screen, not
               only from the ones with a toolbar. */}
-          {productionWorksheet && isDesktop && <p className="cafe-production-additive-help">{t('cafe.production.additiveHelp')}</p>}
           {showNoStreamChoices ? (
             // No dish list, no filters over a list that isn't there, and nothing that LOOKS
             // like an editable quantity field until a stream makes it one — one guidance state
@@ -1936,6 +1960,60 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
               onChoose={selectStream}
               disabled={status.kind === 'submitting'}
             />
+          ) : productionWorksheet && stream !== null ? (
+            <>
+              <p className="cafe-production-additive-help">{t('cafe.production.additiveHelp')}</p>
+              {logToolbar}
+              <div className="cafe-production-workbench">
+                <section className="cafe-production-workbench__ledger">
+                  {!isDesktop && draftCount > 0 && (
+                    <p className="cafe-production-inline-status" role="status">
+                      <span>{t('workbench.production.localOnly')}</span>
+                      {stagedCount > 0 && savedDraftAt && <time dateTime={savedDraftAt}>{t('cafe.captureDraft.savedAt', { time: formatWibDateTime(savedDraftAt) })}</time>}
+                    </p>
+                  )}
+                  {!isDesktop && <div className="cafe-production-inspect-mobile" ref={inspectionPanelRef} onClick={handleInlineInspectClick}>
+                    <Panel title={t('cafe.production.inspectEntries')} open={inspectEntriesOpen} className="cafe-production-inspect">{captureDraftContent}</Panel>
+                  </div>}
+                  {logTable}
+                  {visibleItems.length > 0 && (
+                    <div className="kl-about">
+                      <RecordDisclosure title={t('cafe.capture.aboutFigures')}>
+                        <p className="kl-unit-context-note">
+                          {t('cafe.capture.balanceBasis')}
+                          {noPlanForAll && ` ${t('cafe.capture.uniform.noPlan')}`}
+                          {noRecordedForAll && ` ${t('cafe.capture.uniform.noRecorded', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })}`}
+                        </p>
+                      </RecordDisclosure>
+                    </div>
+                  )}
+                  {stream && buId && !captureClosed && <div className="cafe-production-sheet__missing"><ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} /></div>}
+                </section>
+                <aside className="cafe-production-workbench__companion" aria-label={t(isDesktop ? 'cafe.production.stagedEntries' : 'cafe.production.recordedToday')}>
+                  {isDesktop && <section className="cafe-production-companion__draft">
+                    <h2 ref={companionHeadingRef} tabIndex={-1}>{t('cafe.production.stagedEntries')}</h2>
+                    {draftCount > 0 && <p className="cafe-production-local-only" role="status">{t('workbench.production.localOnly')}</p>}
+                    {draftCount > 0 && stagedCount > 0 && savedDraftAt && <time className="cafe-production-saved-at" dateTime={savedDraftAt}>{t('cafe.captureDraft.savedAt', { time: formatWibDateTime(savedDraftAt) })}</time>}
+                    {captureDraftContent}
+                  </section>}
+                  <Panel title={t('cafe.production.recordedToday')} className="cafe-production-recorded">
+                    <ul>{wipItems.filter(item => (actualsMap[item.id]?.[movementKey(movement)] ?? []).length > 0).map(item => <li key={item.id}><strong>{mixedKinds ? cafeItemLabel(item) : item.name}</strong><span>{renderActualUnits(actualsMap[item.id]?.[movementKey(movement)] ?? [], item)}</span></li>)}</ul>
+                    {wipItems.every(item => !(actualsMap[item.id]?.[movementKey(movement)] ?? []).length) && <p>{t('cafe.production.noRecordedToday')}</p>}
+                  </Panel>
+                </aside>
+              </div>
+              {canCapture && <LocationPanelFields
+                kind="production"
+                locations={locationChoices}
+                values={locationValues}
+                onChange={(field, value) => setSelectedLocationState({
+                  scope: locationScope, values: { ...locationValues, [field]: value },
+                })}
+                loadState={locationLoadState}
+                onRetry={retryLocationChoices}
+                disabled={status.kind === 'submitting'}
+              />}
+            </>
           ) : (
             <>
               {logToolbar}
@@ -1943,29 +2021,23 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
                 <p className="kls-availability-note" role="status">{t('kitchen.transfer.availabilityCut')}</p>
               )}
               {mode === 'transfer' && !transferDestinationChosen && !readOnlyNoStream ? null : logTable}
-              {(productionWorksheet || transferWorksheet) && visibleItems.length > 0 && (
+              {transferWorksheet && visibleItems.length > 0 && (
                 <div className="kl-about">
                   <RecordDisclosure title={t('cafe.capture.aboutFigures')}>
-                    {productionWorksheet && !isDesktop && <p>{t('cafe.production.additiveHelp')}</p>}
                     <p className="kl-unit-context-note">
                       {t('cafe.capture.balanceBasis')}
                       {noPlanForAll && ` ${t('cafe.capture.uniform.noPlan')}`}
-                      {noRecordedForAll && ` ${t(transferWorksheet ? 'cafe.capture.uniform.noTransferred' : 'cafe.capture.uniform.noRecorded', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })}`}
-                      {transferWorksheet && availableMatchesStock && ` ${t('cafe.capture.uniform.availableMatchesStock')}`}
+                      {noRecordedForAll && ` ${t('cafe.capture.uniform.noTransferred', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })}`}
+                      {availableMatchesStock && ` ${t('cafe.capture.uniform.availableMatchesStock')}`}
                     </p>
                   </RecordDisclosure>
                 </div>
               )}
-              {(productionWorksheet || mode === 'transfer') && stream && buId && !captureClosed && <div className="cafe-production-sheet__missing"><ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} /></div>}
-              {productionWorksheet && <Panel title={t('cafe.production.recordedToday')} className="cafe-production-recorded">
-                <ul>{wipItems.filter(item => (actualsMap[item.id]?.[movementKey(movement)] ?? []).length > 0).map(item => <li key={item.id}><strong>{mixedKinds ? cafeItemLabel(item) : item.name}</strong><span>{renderActualUnits(actualsMap[item.id]?.[movementKey(movement)] ?? [], item)}</span></li>)}</ul>
-                {wipItems.every(item => !(actualsMap[item.id]?.[movementKey(movement)] ?? []).length) && <p>{t('cafe.production.noRecordedToday')}</p>}
-              </Panel>}
-              {productionWorksheet && <Panel title={t('cafe.production.stagedEntries')} open={inspectEntriesOpen} className="cafe-production-inspect">{captureDraftContent}</Panel>}
+              {mode === 'transfer' && stream && buId && !captureClosed && <div className="cafe-production-sheet__missing"><ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} /></div>}
               {mode === 'transfer' && <Panel title={t('kitchen.transfer.draft.title')} open={inspectEntriesOpen} className="cafe-transfer-inspect">{captureDraftContent}</Panel>}
               {/* Where it is made / stored is decided here, above Submit and the entries panel, not in the page header (preview only; nothing when the preview is off). */}
-              {canCapture && (productionWorksheet || (mode === 'transfer' && transferDestinationChosen)) && <LocationPanelFields
-                kind={mode === 'transfer' ? 'transfer' : 'production'}
+              {canCapture && mode === 'transfer' && transferDestinationChosen && <LocationPanelFields
+                kind="transfer"
                 locations={locationChoices}
                 values={locationValues}
                 onChange={(field, value) => setSelectedLocationState({
@@ -2001,8 +2073,8 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
             </>}
             summary={!streamMissing ? <>
               <span aria-live="polite">{t(stagedCount === 1 ? 'kitchen.log.footer.item.one' : 'kitchen.log.footer.item.other', { count: stagedCount })}</span>
-              {draftCount > 0 && !(restoredDraft && savedDraftAt) && (
-                <button type="button" className="kl-discard-link" onClick={handleDiscardClick} disabled={isSubmitting}>{t('kitchen.log.discard')}</button>
+              {draftCount > 0 && (
+                <button type="button" className="kl-discard-link" onClick={handleDiscardClick} disabled={isSubmitting}>{t('workbench.production.discard')}</button>
               )}
             </> : undefined}
             reason={<>
@@ -2036,7 +2108,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
                 </button>
               )}
             </>}
-            secondary={(productionWorksheet || mode === 'transfer') ? <button type="button" className="btn btn-outline" aria-expanded={inspectEntriesOpen} onClick={() => setInspectEntriesOpen(value => !value)}>{t(mode === 'transfer' ? 'cafe.transfer.inspectEntries' : 'cafe.production.inspectEntries')}</button> : undefined}
+            secondary={(productionWorksheet || mode === 'transfer') ? <button type="button" className="btn btn-outline" aria-expanded={mode === 'transfer' || !isDesktop ? inspectEntriesOpen : undefined} onClick={handleInspectEntriesAction}>{t(mode === 'transfer' ? 'cafe.transfer.inspectEntries' : 'cafe.production.inspectEntries')}</button> : undefined}
             primary={<SubmitButton
               form="kitchen-log-form"
               mode={mode}

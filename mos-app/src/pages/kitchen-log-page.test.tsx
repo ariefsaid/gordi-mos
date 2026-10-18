@@ -1715,6 +1715,16 @@ describe('capture retry identity and saved drafts', () => {
       activity: 'kitchen',
       logDate: yesterday,
     }
+    const todayScope = { ...scope, logDate: today }
+    writeCafeCaptureDraft(todayScope, {
+      branch_id: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      movement: { action: 'produce' },
+      lines: { w1: {
+        wip_item_id: 'w1', qty_porsi: 3, entry_quantity: 3, entry_unit_factor: 1,
+        item_unit_id: 'u1-porsi', entry_unit_name: 'porsi', client_request_id: '50000000-0000-0000-0000-000000000003',
+      } as KitchenLogLine },
+    })
     writeCafeCaptureDraft(scope, {
       branch_id: BRANCH_RUMAH_RAMES.id,
       activity: 'kitchen',
@@ -1739,8 +1749,14 @@ describe('capture retry identity and saved drafts', () => {
 
     await renderPage()
     const quantity = await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    const currentQuantity = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
 
     expect(quantity).not.toHaveValue(8)
+    expect(currentQuantity).toHaveValue('3')
+    const archive = screen.getByRole('button', { name: /local drafts for other dates · 2/i })
+    expect(archive).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(archive)
+    expect(archive).toHaveAttribute('aria-expanded', 'true')
     const oldDrafts = await screen.findAllByRole('article', { name: /unsent from/i })
     for (const draft of oldDrafts) {
       fireEvent.click(within(draft).getByRole('button', { name: /unsent from/i }))
@@ -1757,7 +1773,9 @@ describe('capture retry identity and saved drafts', () => {
     const draftHeading = screen.getByRole('heading', { name: 'Unsent entries from other dates' })
     await waitFor(() => expect(document.activeElement).toBe(draftHeading))
     expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).toBeNull()
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(todayScope))).not.toBeNull()
     expect(localStorage.getItem(cafeCaptureDraftStorageKey(nextScope))).not.toBeNull()
+    expect(currentQuantity).toHaveValue('3')
   })
 
   it('restores a matching saved draft after an explicit stream choice when no default stream is available', async () => {
@@ -2390,7 +2408,7 @@ describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
     expect(nasiInput).toHaveAttribute('aria-invalid', 'true')
     expect(screen.getByRole('button', { name: '1 item needs fixing' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^discard local entries$/i }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /^discard$/i }))
 
@@ -2418,7 +2436,7 @@ describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
     fireEvent.change(ayamInput, { target: { value: '20' } })
     expect((ayamInput as HTMLInputElement).value).toBe('20')
 
-    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^discard local entries$/i }))
     // The house dialog, not the browser's: it is labelled in the app's own locale.
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /^discard$/i }))
@@ -2436,7 +2454,7 @@ describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
     const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     fireEvent.change(ayamInput, { target: { value: '20' } })
 
-    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^discard local entries$/i }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /cancel/i }))
     expect((ayamInput as HTMLInputElement).value).toBe('20') // unchanged
@@ -2455,7 +2473,7 @@ describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
     fireEvent.blur(nasiInput)
     expect(nasiInput).toHaveAttribute('aria-invalid', 'true')
 
-    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^discard local entries$/i }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /cancel/i }))
 
@@ -2475,7 +2493,7 @@ describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
 
     const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     fireEvent.change(ayamInput, { target: { value: '1,125' } })
-    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^discard local entries$/i }))
 
     expect(await screen.findByRole('dialog')).toHaveTextContent('This clears 1 typed quantity')
   })
@@ -2487,7 +2505,7 @@ describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
     const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     fireEvent.change(ayamInput, { target: { value: '20' } })
     fireEvent.change(ayamInput, { target: { value: '1,125' } })
-    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^discard local entries$/i }))
 
     expect(await screen.findByRole('dialog')).toHaveTextContent('This clears 1 typed quantity')
   })
@@ -2506,7 +2524,7 @@ describe('OD-K-5: sticky-footer tally', () => {
 
     expect(screen.getAllByText(/2 items/i).length).toBeGreaterThan(0)
     expect(screen.queryByText(/32 porsi/i)).toBeNull()
-    expect(screen.getByRole('button', { name: /^discard$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^discard local entries$/i })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /submit 2/i })).toHaveLength(1)
   })
 
@@ -2522,7 +2540,8 @@ describe('OD-K-5: sticky-footer tally', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }), { target: { value: '17' } })
     fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }), { target: { value: '12' } })
 
-    const entries = screen.getByText('Entries to submit').closest('details') as HTMLElement
+    const entries = screen.getByRole('complementary', { name: 'Entries to submit' })
+    expect(entries).toHaveTextContent('Local entries, not submitted')
     expect(entries).toHaveTextContent('17 botol')
     expect(entries).toHaveTextContent('12 porsi')
     expect(entries).not.toHaveTextContent('29')
@@ -2533,13 +2552,48 @@ describe('OD-K-5: sticky-footer tally', () => {
     await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledOnce())
   })
 
+  it('shows an invalid raw quantity and its unit in the desktop companion without treating it as submitted', async () => {
+    setWideMatchMedia(true)
+    await renderPage()
+    const quantity = await screen.findByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(quantity, { target: { value: '1,125' } })
+    fireEvent.blur(quantity)
+
+    const entries = screen.getByRole('complementary', { name: 'Entries to submit' })
+    expect(entries).toHaveTextContent('Local entries, not submitted')
+    expect(entries).toHaveTextContent('1,125 porsi')
+    expect(screen.getByRole('button', { name: '1 item needs fixing' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^submit/i })).toBeDisabled()
+    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+  })
+
+  it('phone Inspect entries opens, focuses its contents, closes and returns focus to the trigger', async () => {
+    await renderPage()
+    await screen.findAllByText('Ayam Bakar')
+    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }), { target: { value: '17' } })
+    expect(screen.getByText('Local entries, not submitted')).toBeInTheDocument()
+
+    const user = userEvent.setup()
+    const actionTrigger = () => screen.getAllByRole('button', { name: 'Inspect entries' }).find(button => !button.closest('details'))!
+    const inlineTrigger = () => screen.getAllByText('Inspect entries', { exact: true }).find(node => node.closest('summary'))!.closest('summary')!
+    const inlinePanel = () => inlineTrigger().closest('details')!
+    await user.click(actionTrigger())
+    expect(inlinePanel()).toHaveAttribute('open')
+    expect(screen.getByRole('heading', { level: 3, name: 'Entered items' })).toHaveFocus()
+    expect(screen.getByText('17 porsi')).toBeInTheDocument()
+
+    await user.click(actionTrigger())
+    expect(inlinePanel()).not.toHaveAttribute('open')
+    expect(inlineTrigger()).toHaveFocus()
+  })
+
   it('shows the zero count, but no Discard link, before anything is staged', async () => {
     await renderPage()
     await screen.findAllByText('Ayam Bakar')
 
     expect(screen.getByText(/0 items/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^submit/i })).toBeDisabled()
-    expect(screen.queryByRole('button', { name: /^discard$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^discard local entries$/i })).not.toBeInTheDocument()
   })
 })
 
@@ -3338,7 +3392,11 @@ describe('/cafe/transfer destination selection', () => {
     await user.type(screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i }), '2')
     await user.type(screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for nasi goreng/i }), '3')
 
+    const inspect = screen.getByRole('button', { name: 'Inspect transfer' })
+    await user.click(inspect)
+    expect(inspect).toHaveAttribute('aria-expanded', 'true')
     const draft = screen.getByText('Transfer draft').closest('details') as HTMLElement
+    expect(draft).toHaveAttribute('open')
     expect(draft).toHaveTextContent('Destination')
     expect(draft).toHaveTextContent('Radiant')
     expect(draft).toHaveTextContent('Ayam Bakar')
