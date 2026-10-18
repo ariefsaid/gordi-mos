@@ -14,9 +14,9 @@ describe('the module registry feeds every navigation surface', () => {
     expect(admittedModules(['admin']).map((m) => m.id)).not.toContain('roastery')
   })
 
-  it('picks the shell by admitted module count, never by role', () => {
-    expect(navModeFor([])).toBe('sidebar')
-    expect(navModeFor(['ops_lead'])).toBe('sidebar')
+  it('counts Work with admitted modules for the global rail and contextual panel', () => {
+    expect(navModeFor([])).toBe('panel')
+    expect(navModeFor(['ops_lead'])).toBe('panel')
     expect(navModeFor(['finance'])).toBe('panel')
     expect(navModeFor(['supervisor'])).toBe('panel')
   })
@@ -81,7 +81,7 @@ describe('the module registry feeds every navigation surface', () => {
     expect(footerAreas(['admin']).map((d) => d.id)).toEqual(['admin', 'profile'])
   })
 
-  it('owns Inbox as a destination with no menu row, so the bell and breadcrumb still resolve it', () => {
+  it('owns Inbox as a global destination and the route owner for its notification surface', () => {
     expect(destinationForPath('/inbox')?.id).toBe('inbox')
   })
 })

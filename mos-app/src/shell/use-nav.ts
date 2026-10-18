@@ -13,7 +13,7 @@ import { useRailCollapsePref } from './use-rail-collapse-pref'
 import { useModuleAvailability } from '@/lib/module-availability'
 import type { ModuleId } from '@/lib/db/module-settings'
 
-/** The full labelled nav needs 240px (or 64 + 240) beside a usable page; below this it is the 64px rail with flyouts. */
+/** The labelled global rail remains visible; below 1280px its contextual pages move into flyouts. */
 const FULL_NAV_QUERY = '(min-width: 1280px)'
 
 function useIsFullNavWidth(): boolean {
@@ -32,17 +32,17 @@ export interface NavLayout {
   isNarrow: boolean
   roles: string[]
   isOn: (moduleId: ModuleId) => boolean
-  /** One module → the single labelled sidebar; two or more → the module rail with a pages panel. */
+  /** One page-bearing destination → labelled sidebar; Work plus an admitted module → rail with contextual panel. */
   mode: NavMode
   /** The 64px rail with flyouts: either the viewport is under 1280px or the viewer folded the nav away. */
   compact: boolean
   /** The viewer's own fold-away choice can change something right now. */
   collapsible: boolean
-  /** The destination whose pages the panel lists (module mode, expanded, two or more pages); null = no panel. */
+  /** The expanded contextual destination's pages; null when the rail is folded or the route has no panel. */
   panelArea: Destination | null
   /** The destination that owns the current route. */
   area: Destination | null
-  /** Width of the nav column: 240 sidebar, 64 rail, 64 + 240 rail with panel. */
+  /** Width of the nav column: 240 sidebar, 64 rail, or rail plus the 216px contextual panel. */
   columnWidth: string
   /** The top bar's brand cell sits over the rail (64) or the whole sidebar (240). */
   brandWide: boolean
@@ -50,8 +50,8 @@ export interface NavLayout {
 
 /**
  * The ONE place that decides which shell the desktop viewer gets, so the grid column, the top bar's brand
- * cell and the nav itself cannot disagree: the module count picks sidebar or rail + panel, the viewport
- * (and the viewer's own choice) picks full or 64px rail.
+ * cell and the nav itself cannot disagree: admitted Work plus module destinations pick the rail + panel,
+ * while the viewport (and the viewer's own choice) picks full panel or 64px rail.
  */
 export function useNavLayout(): NavLayout {
   const auth = useAuth()
@@ -68,14 +68,14 @@ export function useNavLayout(): NavLayout {
   const panelArea = !compact && mode === 'panel' && panelCandidate && pageCount(pageGroupsFor(panelCandidate, roles, isOn)) >= 2 ? panelCandidate : null
   const columnWidth = compact ? 'var(--mos-rail-collapsed)'
     : mode === 'sidebar' ? 'var(--mos-rail-width)'
-      : panelArea ? 'calc(var(--mos-rail-collapsed) + var(--mos-rail-width))' : 'var(--mos-rail-collapsed)'
+      : panelArea ? 'calc(var(--mos-rail-collapsed) + var(--mos-context-width))' : 'var(--mos-rail-collapsed)'
   return {
     isNarrow, roles, isOn, mode, compact, collapsible: !isNarrow && fullWidth, panelArea, area, columnWidth,
     brandWide: !compact && mode === 'sidebar',
   }
 }
 
-export interface NavBadge { count: number; bounded?: boolean; unavailable?: boolean; label: string }
+export interface NavBadge { count: number; bounded?: boolean; unavailable?: boolean; label: string; displayText?: string }
 
 /**
  * The counts a nav row can carry, by page path: the viewer's own open Tasks, and the actionable total across the
@@ -86,7 +86,11 @@ export function useNavBadges(): { forPath: (path: string) => NavBadge | undefine
   const openTasks = useMyOpenTaskCount()
   const waiting = useCafeWaiting()
   const review = reviewBadgeCount(waiting)
-  const tasks: NavBadge | undefined = openTasks ? { count: openTasks, label: t('rail.badge.openTasks', { count: openTasks }) } : undefined
+  const tasks: NavBadge | undefined = openTasks ? {
+    count: openTasks,
+    label: t('rail.badge.openTasks', { count: openTasks }),
+    displayText: t('rail.badge.openTasksShort', { count: openTasks }),
+  } : undefined
   // Unknown is "—", never zero: a failed read says the count is unavailable; a read still in flight says nothing yet.
   const unknown = waiting.admitted && waiting.keys.some((key) => key !== 'issues' && waiting.queues[key].status === 'error')
   const reviewBadge: NavBadge | undefined = unknown

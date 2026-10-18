@@ -188,6 +188,12 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
     expect(screen.queryByRole('button', { name: /^actions$/i })).not.toBeInTheDocument()
   })
 
+  it.each(['/cafe/records', '/cafe/records/', '/profile'])('reading and preferences route %s leaves the content free of quick-create', (path) => {
+    renderTabBar(path)
+    expect(screen.queryByRole('button', { name: /^actions$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /More/i })).toBeInTheDocument()
+  })
+
   it.each(['/cafe/items', '/cafe/pushes', '/cafe/items/'])('support route %s keeps the quick-capture launcher', (path) => {
     setCafeViewer()
     renderTabBar(path)

@@ -8,7 +8,7 @@ import { UserChip } from './user-chip'
 import { CountBadge } from './count-badge'
 import { AreaLink, Disclosure, NavRow, PageLinks } from './nav-parts'
 import {
-  FIXED_AREAS, admittedModules, currentPagePath, footerAreas, pageCount, pageGroupsFor, rowState,
+  FIXED_AREAS, INBOX_AREA, admittedModules, currentPagePath, footerAreas, pageCount, pageGroupsFor, rowState,
   type Destination, type PageGroup,
 } from './module-registry'
 import { useNavBadges, useNavLayout, type NavBadge, type NavLayout } from './use-nav'
@@ -20,9 +20,8 @@ import './nav.css'
 /**
  * The desktop navigation. ONE module registry feeds every form of it (module-registry.tsx):
  *
- *  - ONE admitted module  → `Sidebar`: a single 240px labelled sidebar (Home, Work, Modules with the open
- *    module's pages under it, Admin settings and Personal profile at the foot).
- *  - TWO OR MORE          → `Rail` (64px, labelled icons) + `PagesPanel` (240px, the selected area's pages).
+ *  - ONE page-bearing destination → `Sidebar`: a labelled sidebar with Home, Work, Inbox and utilities.
+ *  - TWO OR MORE                  → `Rail` (64px, labelled icons) + a contextual pages panel.
  *  - under 1280px, or folded by the viewer → the same `Rail` alone, each area with pages opening a grouped flyout.
  *
  * The pages are `PageLinks` over `pageGroupsFor` in every form, so the panel, the sidebar branch and the
@@ -120,6 +119,7 @@ function Sidebar({ data }: { data: NavData }) {
               <PageLinks groups={workGroups} pathname={pathname} forPath={badges.forPath} />
             </div>
           </div>}
+          <AreaLink destination={INBOX_AREA} to="/inbox" state={rowState(pathname, '/inbox', '/inbox', undefined)} />
         </div>
         <div className="nav-scroll">
           {modules.length > 0 && <div className="nav-group-heading nav-group-heading--top">{t('shell.nav.modules')}</div>}
@@ -181,24 +181,41 @@ function RailFlyout({ destination, groups, pathname, forPath, anchor, onClose }:
   const [place, setPlace] = useState<{ top: number; left: number; maxHeight: number } | null>(null)
   const landing = landingOf(destination)
   const landingListed = groups.some((group) => group.items.some((item) => item.path === landing))
+  const positioned = place !== null
 
   // Beside the rail from the trigger's row, kept inside the window and below the top bar.
   useLayoutEffect(() => {
     const node = ref.current
     if (!node) return
-    const rect = anchor.getBoundingClientRect()
-    const gap = 8
-    const topBar = (document.querySelector('header')?.getBoundingClientRect().bottom ?? 0) + gap
-    const room = window.innerHeight - topBar - gap
-    const height = Math.min(node.scrollHeight, room)
-    const top = Math.max(topBar, Math.min(rect.top, window.innerHeight - gap - height))
-    setPlace({ top, left: rect.right + gap, maxHeight: window.innerHeight - top - gap })
-  }, [anchor, groups])
+    const update = () => {
+      const panel = ref.current
+      if (!panel) return
+      const rect = anchor.getBoundingClientRect()
+      const gap = 8
+      const topBar = (document.querySelector('header')?.getBoundingClientRect().bottom ?? 0) + gap
+      const room = Math.max(0, window.innerHeight - topBar - gap)
+      const height = Math.min(panel.scrollHeight, room)
+      const width = panel.getBoundingClientRect().width || 280
+      const preferredTop = destination.id === 'admin' ? rect.bottom - height : rect.top
+      const top = Math.max(topBar, Math.min(preferredTop, window.innerHeight - gap - height))
+      const left = Math.max(gap, Math.min(rect.right + gap, window.innerWidth - width - gap))
+      setPlace({ top, left, maxHeight: window.innerHeight - top - gap })
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [anchor, destination.id, groups])
 
   useEffect(() => {
-    const first = ref.current?.querySelector<HTMLElement>('a[aria-current="page"], a')
+    if (!positioned) return
+    const first = ref.current?.querySelector<HTMLElement>('a[aria-current="page"]')
+      ?? ref.current?.querySelector<HTMLElement>('a')
     first?.focus()
-  }, [place])
+  }, [anchor, positioned])
 
   useEffect(() => {
     const onPress = (event: PointerEvent) => {
@@ -210,7 +227,7 @@ function RailFlyout({ destination, groups, pathname, forPath, anchor, onClose }:
   }, [anchor, onClose])
 
   const onKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Escape') { event.preventDefault(); onClose(); anchor.focus(); return }
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(); anchor.focus(); return }
     const links = Array.from(ref.current?.querySelectorAll<HTMLElement>('a') ?? [])
     const index = links.indexOf(document.activeElement as HTMLElement)
     const move = (next: number) => { event.preventDefault(); links[(next + links.length) % links.length]?.focus() }
@@ -330,7 +347,7 @@ function Rail({ data, hasPanel }: { data: NavData; hasPanel: boolean }) {
         to={landing}
         state={state}
         groups={groups}
-        flyouts={compact}
+        flyouts={compact || destination.id === 'admin'}
         badge={badges.forDestination(destination.id)}
         pathname={pathname}
         forPath={badges.forPath}
@@ -347,6 +364,7 @@ function Rail({ data, hasPanel }: { data: NavData; hasPanel: boolean }) {
         <div className="rail-scroll nav-scroll">
           {!isShipGated('/') && item(HOME)}
           {!isShipGated('/work') && isOn('work') && item(WORK)}
+          {item(INBOX_AREA)}
           {modules.map(item)}
         </div>
         <div className="rail-foot-links">

@@ -11,6 +11,7 @@
 // is converted to the default-unit basis; `item_unit_id` stays that ERP coordinate on the save path.
 
 import { CafeNoMatch } from '@/components/kitchen/cafe-no-match'
+import { RecordDisclosure } from '@/components/record/record-page-layout'
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
@@ -1794,22 +1795,16 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
         )}
         {status.kind === 'ready' && restoredDraft && draftCount > 0 && savedDraftAt && restoredDraftInfo && (
           <section className="kl-capture-draft-notice" aria-live="off">
-            <details className="kl-capture-draft-details" open={isDesktop}>
-              <summary>
-                <strong><span>{t('cafe.production.drafts')}</span> · {t(
-                  restoredDraftInfo.count === 1
-                    ? 'cafe.captureDraft.restoredCompact.one'
-                    : 'cafe.captureDraft.restoredCompact.other',
-                  { count: restoredDraftInfo.count },
-                )}</strong>
-                <span className="cafe-vh">{t('cafe.captureDraft.details')}</span>
-                <small>{t('cafe.captureDraft.savedAt', { time: formatWibDateTime(restoredDraftInfo.savedAt) })}</small>
-              </summary>
+            <RecordDisclosure
+              className="kl-capture-draft-details"
+              defaultOpen={isDesktop}
+              title={`${t('cafe.production.drafts')} · ${t(restoredDraftInfo.count === 1 ? 'cafe.captureDraft.restoredCompact.one' : 'cafe.captureDraft.restoredCompact.other', { count: restoredDraftInfo.count })} · ${t('cafe.captureDraft.savedAt', { time: formatWibDateTime(restoredDraftInfo.savedAt) })}`}
+            >
               <div className="kl-capture-draft-details__body">
                 <small>{t('cafe.captureDraft.savedAt', { time: formatWibDateTime(restoredDraftInfo.savedAt) })}</small>
                 {otherDateDrafts.length === 0 && <small>{t('cafe.captureDraft.expiry')}</small>}
               </div>
-            </details>
+            </RecordDisclosure>
             <button type="button" className="btn btn-outline" onClick={handleDiscardClick} disabled={isSubmitting}>
               {t('kitchen.log.discard')}
             </button>
@@ -1829,11 +1824,11 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
                   className="kl-capture-draft-notice"
                   aria-label={t(savedLines.length === 1 ? 'cafe.captureDraft.otherDate.one' : 'cafe.captureDraft.otherDate.other', { date, count: savedLines.length })}
                 >
-                  <details className="kl-capture-draft-details" open={isDesktop}>
-                    <summary>
-                      <strong>{t(savedLines.length === 1 ? 'cafe.captureDraft.otherDate.one' : 'cafe.captureDraft.otherDate.other', { date, count: savedLines.length })}</strong>
-                      <span className="cafe-vh">{t('cafe.captureDraft.details')}</span>
-                    </summary>
+                  <RecordDisclosure
+                    className="kl-capture-draft-details"
+                    defaultOpen={isDesktop}
+                    title={t(savedLines.length === 1 ? 'cafe.captureDraft.otherDate.one' : 'cafe.captureDraft.otherDate.other', { date, count: savedLines.length })}
+                  >
                     <div className="kl-capture-draft-details__body">
                       <ul>
                         {savedLines.map(line => {
@@ -1849,7 +1844,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
                       </ul>
                       <small>{t('cafe.captureDraft.savedAt', { time: formatWibDateTime(record.updatedAt) })}</small>
                     </div>
-                  </details>
+                  </RecordDisclosure>
                   <button type="button" className="btn btn-outline" onClick={() => requestDiscardDateDraft(record.scope)}>
                     {t('kitchen.log.discard')}
                   </button>
@@ -1945,16 +1940,19 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
                 <p className="kls-availability-note" role="status">{t('kitchen.transfer.availabilityCut')}</p>
               )}
               {mode === 'transfer' && !transferDestinationChosen && !readOnlyNoStream ? null : logTable}
-              {(productionWorksheet || transferWorksheet) && visibleItems.length > 0 && <details className="kl-about">
-                <summary>{t('cafe.capture.aboutFigures')}</summary>
-                {productionWorksheet && !isDesktop && <p>{t('cafe.production.additiveHelp')}</p>}
-                <p className="kl-unit-context-note">
-                  {t('cafe.capture.balanceBasis')}
-                  {noPlanForAll && ` ${t('cafe.capture.uniform.noPlan')}`}
-                  {noRecordedForAll && ` ${t(transferWorksheet ? 'cafe.capture.uniform.noTransferred' : 'cafe.capture.uniform.noRecorded', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })}`}
-                  {transferWorksheet && availableMatchesStock && ` ${t('cafe.capture.uniform.availableMatchesStock')}`}
-                </p>
-              </details>}
+              {(productionWorksheet || transferWorksheet) && visibleItems.length > 0 && (
+                <div className="kl-about">
+                  <RecordDisclosure title={t('cafe.capture.aboutFigures')}>
+                    {productionWorksheet && !isDesktop && <p>{t('cafe.production.additiveHelp')}</p>}
+                    <p className="kl-unit-context-note">
+                      {t('cafe.capture.balanceBasis')}
+                      {noPlanForAll && ` ${t('cafe.capture.uniform.noPlan')}`}
+                      {noRecordedForAll && ` ${t(transferWorksheet ? 'cafe.capture.uniform.noTransferred' : 'cafe.capture.uniform.noRecorded', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })}`}
+                      {transferWorksheet && availableMatchesStock && ` ${t('cafe.capture.uniform.availableMatchesStock')}`}
+                    </p>
+                  </RecordDisclosure>
+                </div>
+              )}
               {(productionWorksheet || mode === 'transfer') && stream && buId && !captureClosed && <div className="cafe-production-sheet__missing"><ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} /></div>}
               {productionWorksheet && <Panel title={t('cafe.production.recordedToday')} className="cafe-production-recorded">
                 <ul>{wipItems.filter(item => (actualsMap[item.id]?.[movementKey(movement)] ?? []).length > 0).map(item => <li key={item.id}><strong>{mixedKinds ? cafeItemLabel(item) : item.name}</strong><span>{renderActualUnits(actualsMap[item.id]?.[movementKey(movement)] ?? [], item)}</span></li>)}</ul>

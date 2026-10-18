@@ -173,11 +173,42 @@ describe('Café Records page', () => {
     expect(screen.getAllByRole('link', { name: 'Back to Café' }).length).toBeGreaterThan(0)
   })
 
-  it('shows No records, with a way to change the period, when a complete source is empty', async () => {
+  it('keeps the scoped answer and dates in the empty state; Change period opens the editor on Period', async () => {
     reads.logs.mockImplementation(page([]))
     renderPage('?question=made&reading=summary')
     expect(await screen.findByText('No production, transfer and waste records in this period')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Change period' })).toBeInTheDocument()
+    expect(screen.getByText(/No records match “What was produced\?” in Gordi HQ · Bar for/)).toBeInTheDocument()
+    const changePeriod = screen.getByRole('button', { name: 'Change period' })
+    await userEvent.setup().click(changePeriod)
+    const period = screen.getByRole('combobox', { name: 'Period' })
+    await waitFor(() => expect(period).toHaveFocus())
+    expect(screen.getByRole('button', { name: 'Change scope' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('updates both the open editor and collapsed scope summary when Back changes the URL', async () => {
+    const seen: string[] = []
+    renderPage('?question=made&period=today&reading=summary', seen)
+    await screen.findByRole('heading', { level: 1, name: 'Records' })
+    const changeScope = screen.getByRole('button', { name: 'Change scope' })
+    expect(screen.queryByRole('combobox', { name: 'Question' })).toBeNull()
+    const scopeSummary = within(document.querySelector('.rec-scope__summary') as HTMLElement)
+    expect(scopeSummary.getByText('What was produced?')).toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(changeScope)
+    const question = screen.getByRole('combobox', { name: 'Question' })
+    await user.click(question)
+    await user.click(screen.getByRole('option', { name: 'How much was wasted?' }))
+    await waitFor(() => expect(new URLSearchParams(seen.at(-1)).get('question')).toBe('wasted'))
+    expect(question).toHaveTextContent('How much was wasted?')
+    expect(scopeSummary.getByText('How much was wasted?')).toBeInTheDocument()
+
+    ;(window as unknown as { __nav: (n: number) => void }).__nav(-1)
+    await waitFor(() => expect(question).toHaveTextContent('What was produced?'))
+    expect(scopeSummary.getByText('What was produced?')).toBeInTheDocument()
+    await user.click(changeScope)
+    expect(screen.queryByRole('combobox', { name: 'Question' })).toBeNull()
+    expect(scopeSummary.getByText('What was produced?')).toBeInTheDocument()
   })
 
   it('does not carry one account\'s rows to another: switching the viewer starts from nothing', async () => {

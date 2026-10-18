@@ -873,7 +873,8 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(screen.getByText('Freshly created')).toBeInTheDocument()
     })
     await waitFor(() => {
-      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 task · 1 open in this view')
+      expect(document.querySelector('[data-testid="page-head"]')?.textContent).toContain('1 task')
+      expect(document.querySelector('[data-testid="page-head"]')?.textContent).toMatch(/1 open in this view/)
     })
     // Inline create never navigates — the draft was already on the table — so there is no
     // ?highlight= flash (that belonged to the retired create-form door).
@@ -1093,7 +1094,8 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockArchiveTask.mockResolvedValue()
     renderAt('/work/tasks/task-2')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
-    await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 tasks · 2 open in this view'))
+    await waitFor(() => expect(document.querySelector('[data-testid="page-head"]')?.textContent).toContain('2 tasks'))
+    expect(document.querySelector('[data-testid="page-head"]')?.textContent).toMatch(/2 open in this view/)
 
     // Archive is grouped with the record's other secondary actions.
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
@@ -1113,7 +1115,8 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(screen.queryByText('Archive me')).toBeNull()
     }, { timeout: 4000 })
     expect(screen.getByText('Keep me')).toBeInTheDocument()
-    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 task · 1 open in this view')
+    expect(document.querySelector('[data-testid="page-head"]')?.textContent).toContain('1 task')
+    expect(document.querySelector('[data-testid="page-head"]')?.textContent).toMatch(/1 open in this view/)
   }, 10_000)
 })
 

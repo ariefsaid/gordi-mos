@@ -119,7 +119,7 @@ export function AdminModulesPage() {
     { key: 'release', header: t('admin.modules.col.release'), render: (fact) => <ReleasePill fact={fact} /> },
     { key: 'availability', header: t('admin.modules.col.availability'), render: (fact) => <OrgState fact={fact} enabled={enabledFor(fact)} /> },
     { key: 'overrides', header: t('admin.modules.col.overrides'), render: (fact) => <OverridesLink fact={fact} /> },
-    { key: 'actions', header: t('admin.modules.col.actions'), render: (fact) => <OrgControl fact={fact} enabled={enabledFor(fact)} disabled={saving || !fact.released} setEnabled={(enabled) => setOrgEnabled(fact.id, enabled)} /> },
+    { key: 'actions', header: t('admin.modules.col.actions'), render: (fact) => <OrgControl fact={fact} enabled={enabledFor(fact)} turningOff={settings.get(fact.id)?.enabled !== false && !enabledFor(fact)} disabled={saving || !fact.released} setEnabled={(enabled) => setOrgEnabled(fact.id, enabled)} /> },
   ]
 
   return (
@@ -166,7 +166,7 @@ export function AdminModulesPage() {
                       <div className="modules__card">
                         <div className="modules__card-head"><strong className="modules__name">{t(fact.labelKey)}</strong><ReleasePill fact={fact} /></div>
                         <OrgState fact={fact} enabled={enabledFor(fact)} />
-                        <OrgControl fact={fact} enabled={enabledFor(fact)} disabled={saving || !fact.released} setEnabled={(enabled) => setOrgEnabled(fact.id, enabled)} />
+                        <OrgControl fact={fact} enabled={enabledFor(fact)} turningOff={settings.get(fact.id)?.enabled !== false && !enabledFor(fact)} disabled={saving || !fact.released} setEnabled={(enabled) => setOrgEnabled(fact.id, enabled)} />
                         <div className="modules__card-overrides">
                           <span className="modules__muted">{t('admin.modules.col.overrides')}</span>
                           <OverridesLink fact={fact} />
@@ -216,9 +216,10 @@ function OverridesLink({ fact }: { fact: ModuleFact }) {
   )
 }
 
-function OrgControl({ fact, enabled, disabled, setEnabled }: {
+function OrgControl({ fact, enabled, turningOff, disabled, setEnabled }: {
   fact: ModuleFact
   enabled: boolean
+  turningOff: boolean
   disabled: boolean
   setEnabled: (enabled: boolean) => void
 }) {
@@ -236,7 +237,7 @@ function OrgControl({ fact, enabled, disabled, setEnabled }: {
         <option value="on">{t('admin.modules.on')}</option>
         <option value="off">{t('admin.modules.off')}</option>
       </Select>
-      {fact.released && !enabled && <span className="modules__muted">{t('admin.modules.offConsequence')}</span>}
+      {fact.released && turningOff && <span className="modules__muted">{t('admin.modules.offConsequence')}</span>}
     </div>
   )
 }

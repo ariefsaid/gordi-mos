@@ -23,7 +23,7 @@
 // RecordDisclosure props   { title, count?, defaultOpen?, open?, onToggle?, children }
 //   children render only while open. Pass `open` to control it (the caller then owns the state).
 // RecordAbout props        { items: { key, label, value }[] }
-import { createContext, useContext, useId, useState, type ReactNode } from 'react'
+import { createContext, useContext, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { SkeletonRows } from '@/components/ui/state-kit'
 import { PhoneActionBarContext, usePhoneActionBar } from '@/shell/page-action-bar'
@@ -116,6 +116,7 @@ export function RecordGetStarted({ title, why, items }: RecordGetStartedProps) {
 
 export type RecordDisclosureProps = {
   title: string
+  className?: string
   count?: ReactNode
   defaultOpen?: boolean
   /** Controlled state; leave undefined for an uncontrolled disclosure. */
@@ -124,14 +125,23 @@ export type RecordDisclosureProps = {
   children: ReactNode
 }
 
-export function RecordDisclosure({ title, count, defaultOpen = false, open: controlled, onToggle, children }: RecordDisclosureProps) {
+export function RecordDisclosure({ title, className, count, defaultOpen = false, open: controlled, onToggle, children }: RecordDisclosureProps) {
   const [own, setOwn] = useState(defaultOpen)
   const open = controlled ?? own
   const setOpen = (next: boolean) => { setOwn(next); onToggle?.(next) }
   const panelId = useId()
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Escape' || !open) return
+    event.preventDefault()
+    event.stopPropagation()
+    setOpen(false)
+    triggerRef.current?.focus()
+  }
   return (
-    <div className="rp-disclosure-wrap">
+    <div className={`rp-disclosure-wrap${className ? ` ${className}` : ''}`} onKeyDown={onKeyDown}>
       <button
+        ref={triggerRef}
         type="button"
         className="rp-disclosure"
         aria-expanded={open}
@@ -178,15 +188,20 @@ export type RecordPageLayoutProps = {
   notice?: ReactNode
   setup?: ReactNode
   children: ReactNode
-  about?: { title: string; node: ReactNode }
+  about?: { title: string; node: ReactNode; disclosure?: { defaultOpen?: boolean } }
+  discussion?: ReactNode
   history?: { title: string; node: ReactNode; count?: ReactNode }
   kind?: string
 }
 
-export function RecordPageLayout({ label, mode, headingLevel, header, notice, setup, children, about, history, kind }: RecordPageLayoutProps) {
+export function RecordPageLayout({ label, mode, headingLevel, header, notice, setup, children, about, discussion, history, kind }: RecordPageLayoutProps) {
   const wide = useIsWideRecordPage() && mode === 'page'
   // Only a record's own page uses the phone action bar; a panel keeps its primary in its header.
   const pageBar = usePhoneActionBar()
+  const aboutContent = about ? about.disclosure
+    ? <RecordDisclosure title={about.title} defaultOpen={about.disclosure.defaultOpen}>{about.node}</RecordDisclosure>
+    : <><SectionHeading className="rp-section__title">{about.title}</SectionHeading>{about.node}</>
+    : null
   return (
     <PhoneActionBarContext.Provider value={mode === 'page' ? pageBar : null}>
     <HeadingLevelContext.Provider value={headingLevel}>
@@ -199,18 +214,17 @@ export function RecordPageLayout({ label, mode, headingLevel, header, notice, se
             {children}
             {!(wide && (about || history)) && about ? (
               <section className="rp-section rp-about" aria-label={about.title}>
-                <SectionHeading className="rp-section__title">{about.title}</SectionHeading>
-                {about.node}
+                {aboutContent}
               </section>
             ) : null}
+            {discussion}
             {!(wide && (about || history)) && history ? <RecordDisclosure title={history.title} count={history.count}>{history.node}</RecordDisclosure> : null}
           </div>
           {wide && (about || history) ? (
             <aside className="rp-aside">
               {about ? (
                 <section className="rp-aside__block" aria-label={about.title}>
-                  <SectionHeading className="rp-section__title">{about.title}</SectionHeading>
-                  {about.node}
+                  {aboutContent}
                 </section>
               ) : null}
               {history ? <RecordDisclosure title={history.title} count={history.count}>{history.node}</RecordDisclosure> : null}

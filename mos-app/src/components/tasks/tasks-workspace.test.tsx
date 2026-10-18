@@ -696,8 +696,9 @@ function chooseView(name: string) {
   fireEvent.click(screen.getByRole('option', { name }))
 }
 
-// The attention shortcuts ("N overdue", "N blocked") sit in the line under the toolbar bar.
+// The attention shortcuts ("N overdue", "N blocked") live in Filters & options on phone.
 function openAttentionMenu() {
+  ensureFiltersOpen()
   const trigger = screen.getByRole('group', { name: /tasks need attention/i })
   return {
     trigger,
@@ -863,7 +864,7 @@ describe('TasksWorkspace — V3 Workspace frame (Issue 3)', () => {
 
     // The Tasks collection copy is neutral across All / My work / Team work scopes; the internal
     // family name never renders as chrome.
-    expect(screen.getByText('Active + Done in the last 30 days')).toBeInTheDocument()
+    expect(screen.getByTestId('tasks-result-summary')).toHaveTextContent('Active + Done in the last 30 days')
     expect(screen.queryByText('Workspace')).toBeNull()
 
     // The typed Tasks region survives the frame swap.
@@ -880,7 +881,7 @@ describe('TasksWorkspace — V3 Workspace frame (Issue 3)', () => {
     // The route's initial data load must keep the page identity, queue controls, and one
     // announced Loading tasks status mounted; a bare skeleton is not an acceptable first paint.
     expect(screen.getByRole('heading', { level: 1, name: /^tasks$/i })).toBeInTheDocument()
-    expect(screen.getByText('Active + Done in the last 30 days')).toBeInTheDocument()
+    expect(screen.getByTestId('tasks-result-summary')).toHaveTextContent('Active + Done in the last 30 days')
     expect(ensureFiltersOpen()).toBeInTheDocument()
     expect(screen.getByRole('status', { name: 'Loading tasks' })).toBeInTheDocument()
   })
@@ -1120,8 +1121,10 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
   it('labels the current task window by its open count and active/recent-Done scope', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Window task' })])
     renderTable()
-    expect(await screen.findByTestId('tasks-count-line')).toHaveTextContent('1 task · 1 open in this view')
-    expect(screen.getByText('Active + Done in the last 30 days')).toBeInTheDocument()
+    await screen.findByText('1 task')
+    expect(screen.getByTestId('page-head')).toHaveTextContent('1 open in this view')
+    expect(screen.getByTestId('page-head')).toHaveTextContent('Relevant')
+    expect(screen.getByTestId('tasks-result-summary')).toHaveTextContent(/Due soonest · Active \+ Done in the last 30 days/)
   })
 
   it('AC-133: loading shows a skeleton + aria-busy + role=status', async () => {
@@ -1230,7 +1233,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     expect(screen.getAllByRole('button', { name: /clear (filters|search)/i }).length).toBeGreaterThan(0)
   })
 
-  it('AC-133: zero-overdue omits the overdue segment entirely (no "0 overdue" in count line)', async () => {
+  it('AC-133: a clear queue omits the attention shortcuts rather than showing zero counts', async () => {
     mockListTasks.mockResolvedValue([
       // Switch to All segment to make non-viewer tasks visible
       makeTask({ id: 't1', title: 'On time task', due_date: '2030-12-31' }),
@@ -1238,12 +1241,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     renderTable()
     await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
     await switchToAll()
-    await waitFor(() => {
-      const countEl = document.querySelector('[data-testid="tasks-count-line"]')
-      // The count line is always present; assert it and that it omits "0 overdue".
-      expect(countEl).toBeTruthy()
-      expect(countEl!.textContent).not.toMatch(/0 overdue/)
-    })
+    await waitFor(() => expect(screen.queryByRole('group', { name: /tasks need attention/i })).toBeNull())
   })
 
   it('AC-128: the combined attention menu filters to overdue-only', async () => {
@@ -2357,8 +2355,9 @@ describe('Tasks head meta names the list scope and open work', () => {
     await switchToAll()
     await waitFor(() => expect(screen.getByText('Resolved')).toBeInTheDocument())
     // Blocked still counts as open (not Done); only the Done task is excluded from open.
-    await waitFor(() => expect(screen.getByTestId('tasks-count-line')).toHaveTextContent('3 tasks · 2 open in this view'))
-    expect(screen.getByText('Active + Done in the last 30 days')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByTestId('page-head')).toHaveTextContent('3 tasks'))
+    expect(screen.getByTestId('page-head')).toHaveTextContent('2 open in this view')
+    expect(screen.getByTestId('tasks-result-summary')).toHaveTextContent('Active + Done in the last 30 days')
   })
 })
 

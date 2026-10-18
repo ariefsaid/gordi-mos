@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react'
+import { Suspense, type ReactNode } from 'react'
 import type { MessageKey } from '@/i18n/messages'
 import type { OverlayDeepLinkResolver, OverlayEntry } from './overlay-host'
 import type { OverlayOwner } from './overlay-navigation'
-import { SignalRecordHost } from '@/components/signals/signal-record-host'
-import { FollowUpRecordHost } from '@/components/follow-ups/follow-up-record-host'
+import { ContentErrorBoundary } from './content-error-boundary'
+import { LoadingShell } from '@/components/ui/state-kit'
+import { lazyPage } from '@/lib/lazy-page'
 
 /**
  * The shell-level deep-link restore seam (D-A1, fix work-order item 4). A hard load / refresh onto
@@ -61,17 +62,36 @@ export type RecordKindRegistry = Readonly<Record<string, RecordKindDescriptor>>
  * Task stays deliberately absent (scope note above): its addressable restore is owned by the
  * Tasks `?record=` page effect, which always wins.
  */
+const LazySignalRecordHost = lazyPage(() =>
+  import('@/components/signals/signal-record-host').then((m) => ({ default: m.SignalRecordHost })),
+)
+const LazyFollowUpRecordHost = lazyPage(() =>
+  import('@/components/follow-ups/follow-up-record-host').then((m) => ({ default: m.FollowUpRecordHost })),
+)
+
 export const RECORD_KINDS: RecordKindRegistry = {
   signal: {
     owner: 'signals',
     titleKey: 'signals.record.title',
     pagePath: (recordId) => `/work/signals/${recordId}`,
-    renderPanel: (recordId) => <SignalRecordHost signalId={recordId} mode="panel" />,
+    renderPanel: (recordId) => (
+      <ContentErrorBoundary>
+        <Suspense fallback={<LoadingShell />}>
+          <LazySignalRecordHost signalId={recordId} mode="panel" />
+        </Suspense>
+      </ContentErrorBoundary>
+    ),
   },
   'follow-up': {
     owner: 'shell',
     titleKey: 'followUps.record.title',
-    renderPanel: (recordId) => <FollowUpRecordHost followUpId={recordId} mode="panel" />,
+    renderPanel: (recordId) => (
+      <ContentErrorBoundary>
+        <Suspense fallback={<LoadingShell />}>
+          <LazyFollowUpRecordHost followUpId={recordId} mode="panel" />
+        </Suspense>
+      </ContentErrorBoundary>
+    ),
   },
 }
 

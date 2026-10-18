@@ -140,8 +140,8 @@ export function TasksToolbar({
     return t('tasks.filter.occurrence')
   }
 
-  // Every control carries its own visible label above it. Group and Sort sit in the bar; the
-  // narrowing filters live behind "Filters & options" and show as removable chips when set.
+  // Every control carries its own visible label above it. Desktop exposes Sort and Group; the
+  // phone keeps just Search, View and the door in the bar.
   const filters: CollectionToolbarFilter[] = [
     {
       id: 'group',
@@ -240,17 +240,20 @@ export function TasksToolbar({
     }
   }
 
+  const attentionActions = attentionTotal > 0 ? <div className="tasks-attention-actions" role="group" aria-label={t('tasks.filter.attentionAria', { count: attentionTotal })}>
+    {attention.overdue > 0 ? <AttentionChip tone="overdue" pressed={query.overdueOnly || query.view === 'overdue'} onClick={() => (onAttentionOverdue ?? (query.overdueOnly ? onClearOverdue : onOverdueFilter))()}>{t('tasks.filter.overdueCount', { count: attention.overdue })}</AttentionChip> : null}
+    {attention.blocked > 0 ? <AttentionChip tone="blocked" pressed={query.status === 'Blocked'} onClick={() => (onAttentionBlocked ?? (() => onQueryChange({ overdueOnly: false, status: 'Blocked' })))()}>{t('tasks.filter.blockedCount', { count: attention.blocked })}</AttentionChip> : null}
+  </div> : undefined
+
   return (
     <CollectionToolbar
       className="tasks-decision-toolbar"
-      exposedFilterIds={isDesktop ? ['sort', 'group'] : ['sort']}
+      exposedFilterIds={isDesktop ? ['sort', 'group'] : []}
       resultSummary={resultSummary}
       chips={chips}
       onClearAll={onClearFilters}
-      scopeActions={attentionTotal > 0 ? <div className="tasks-attention-actions" role="group" aria-label={t('tasks.filter.attentionAria', { count: attentionTotal })}>
-        {attention.overdue > 0 ? <AttentionChip tone="overdue" pressed={query.overdueOnly || query.view === 'overdue'} onClick={() => (onAttentionOverdue ?? (query.overdueOnly ? onClearOverdue : onOverdueFilter))()}>{t('tasks.filter.overdueCount', { count: attention.overdue })}</AttentionChip> : null}
-        {attention.blocked > 0 ? <AttentionChip tone="blocked" pressed={query.status === 'Blocked'} onClick={() => (onAttentionBlocked ?? (() => onQueryChange({ overdueOnly: false, status: 'Blocked' })))()}>{t('tasks.filter.blockedCount', { count: attention.blocked })}</AttentionChip> : null}
-      </div> : undefined}
+      scopeActions={isDesktop ? attentionActions : undefined}
+      panelActions={!isDesktop ? attentionActions : undefined}
       presentation={{
         // Card is the phone rendering of Table, so Tasks has one live presentation and no
         // dead Table/Card choice.

@@ -18,13 +18,13 @@
   .mobile-action-fab { transition: background-color var(--mos-duration-fast) ease-out; }
 }
 /* A page with its own bottom action bar owns the thumb zone. */
-body:has([data-testid='action-bar']) .mobile-action-fab { display: none; }
+body:has([data-testid='action-bar'], .page-action-bar:not(:empty)) .mobile-action-fab { display: none; }
 body:has(.not-found-workbench) .mobile-action-fab { display: none; }
 /* Editing one person: no quick create over the Change buttons. */
 body:has(.person-page) .mobile-action-fab { display: none; }
 /* Reserve the button's height at the foot of the scrolling page. */
 @media (max-width: 767.98px) {
-  body:has(.mobile-action-fab):not(:has([data-testid='action-bar'], .person-page)) .page-frame--v3 {
+  body:has(.mobile-action-fab):not(:has([data-testid='action-bar'], .page-action-bar:not(:empty), .person-page)) .page-frame--v3 {
     padding-bottom: calc(var(--mos-fab-size) + var(--mos-space-4) * 2);
   }
 }

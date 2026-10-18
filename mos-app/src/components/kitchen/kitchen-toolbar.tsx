@@ -232,7 +232,7 @@ export function KitchenToolbar({
   // Phone, no leading scope band: the count shares the search label's line (PA4: one row less above the first entry).
   const countOnLabel = !desktop && !children && countNode !== null
   return (
-    <div className="ktb" aria-label={ariaLabel}>
+    <div className="ktb" role="group" aria-label={ariaLabel}>
       {children && (
         <div className={filtersBand ? 'ktb-children ktb-children--band' : 'ktb-children'}>
           {children}

@@ -167,6 +167,13 @@ function activateFieldByKey(key: string) {
   fireEvent.click(btn)
 }
 
+function openTaskAbout() {
+  const about = screen.getByRole('region', { name: 'About' })
+  const trigger = within(about).getByRole('button', { name: 'About' })
+  if (trigger.getAttribute('aria-expanded') !== 'true') fireEvent.click(trigger)
+  return about
+}
+
 function chooseRecordOption(label: string) {
   fireEvent.click(screen.getByRole('combobox'))
   fireEvent.click(screen.getByRole('option', { name: label }))
@@ -219,6 +226,8 @@ describe('TaskSurface — view mode', () => {
       business_unit_id: null, is_company_wide: false, accountable_person_id: null, period_year: null, period_quarter: null, updated_at: '',
     })
     renderSurface()
+    await screen.findByRole('region', { name: 'About' })
+    openTaskAbout()
     expect((await screen.findAllByRole('link', { name: 'Archived Objective' }))[0]).toHaveAttribute('href', '/work/objectives/archived-objective')
     fireEvent.click(screen.getByRole('button', { name: /Edit Objective$/ }))
     fireEvent.click(screen.getByRole('combobox', { name: 'Objective' }))
@@ -258,14 +267,23 @@ describe('TaskSurface — view mode', () => {
     // Status/action stay in the compact header; the full work path and context remain in one view.
     // The title's edit control must carry a localized accessible name, never the raw field key.
     expect(screen.getByRole('button', { name: /Edit Title$/ })).toBeInTheDocument()
-    // The facts line answers what state, who has it and by when, before any section.
+    // The compact facts band answers state and due date; ownership remains available in context below.
     const facts = screen.getByRole('list', { name: 'Key facts' })
     expect(within(facts).getByRole('button', { name: /Edit Status$/ })).toHaveTextContent('Open')
-    expect(within(facts).getByText('PIC')).toBeInTheDocument()
-    expect(within(facts).getByText('Supervisor')).toBeInTheDocument()
+    expect(within(facts).queryByText('PIC')).toBeNull()
+    expect(within(facts).queryByText('Supervisor')).toBeNull()
     expect(within(facts).getByRole('button', { name: /Edit Due$/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
     expect(screen.queryByText(/RACI|Responsible \(R\)|Accountable \(A\)|Consulted|Informed/)).toBeNull()
+    const about = screen.getByRole('region', { name: 'About' })
+    const aboutTrigger = within(about).getByRole('button', { name: 'About' })
+    expect(aboutTrigger).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(aboutTrigger)
+    expect(within(about).getByRole('button', { name: /Edit PIC$/ })).toBeInTheDocument()
+    expect(within(about).getByRole('button', { name: /Edit Supervisor$/ })).toBeInTheDocument()
+    fireEvent.keyDown(aboutTrigger, { key: 'Escape' })
+    expect(aboutTrigger).toHaveAttribute('aria-expanded', 'false')
+    expect(aboutTrigger).toHaveFocus()
     expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
     expect(screen.getByText('Inspect coil')).toBeInTheDocument()
     // The event log is History: folded away until asked for.
@@ -287,6 +305,8 @@ describe('TaskSurface — view mode', () => {
       </AuthContext.Provider>,
     )
 
+    await screen.findByRole('region', { name: 'About' })
+    openTaskAbout()
     const objectiveLink = await screen.findByRole('link', { name: 'Grow direct orders' })
     expect(objectiveLink).toHaveAttribute('href', '/work/objectives/obj-direct')
     fireEvent.click(objectiveLink)
@@ -322,8 +342,9 @@ describe('TaskSurface — view mode', () => {
     expect(document.querySelector('.rp[data-record-kind="task"][data-record-mode="page"]')).toBeTruthy()
     const sections = [...document.querySelectorAll('[data-record-section]')]
       .map((node) => (node as HTMLElement).dataset.recordSection)
-    expect([...sections].sort()).toEqual(['checklist', 'comments', 'description'])
+    expect(sections).toEqual(['description', 'checklist', 'comments'])
     expect(screen.getByRole('region', { name: 'About' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'About' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('button', { name: /History/ })).toBeNull() // no events, no History
   })
 
@@ -532,6 +553,7 @@ describe('TaskSurface — view mode', () => {
 
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    openTaskAbout()
     fireEvent.click(screen.getByRole('button', { name: /Edit Team$/ }))
     fireEvent.click(screen.getByRole('combobox', { name: 'Team' }))
     fireEvent.click(screen.getByRole('option', { name: 'Sales Team' }))
@@ -589,6 +611,7 @@ describe('TaskSurface — mutation handlers', () => {
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
     // V3 Issue 5: PIC is now a shared RecordViewer/RecordField picker.
+    openTaskAbout()
     activateFieldByKey('pic')
     chooseRecordOption('Other Person')
     await waitFor(() => expect(vi.mocked(updateTaskFields)).toHaveBeenCalledWith(
@@ -742,6 +765,7 @@ describe('TaskSurface — live region (AC-111)', () => {
     vi.mocked(getDownlinePersonIds).mockResolvedValue(['other-id'])
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    openTaskAbout()
     activateFieldByKey('pic')
     chooseRecordOption('Other Person')
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))

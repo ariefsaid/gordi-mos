@@ -7,8 +7,17 @@
 .rec-main { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); min-width: 0; }
 .rec-content { min-width: 0; }
 
-/* ── Scope: Question → Period → Production stream, then the exact days ── */
+/* ── Scope: the current answer stays visible; its URL-backed editor opens on request ── */
 .rec-scope { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); min-width: 0; }
+.rec-scope__summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--mos-inline-gap) var(--mos-row-gap); min-width: 0; }
+.rec-scope__summary-copy { display: flex; flex-direction: column; gap: var(--mos-label-gap); min-width: 0; color: var(--mos-ink); font: var(--mos-type-body); }
+.rec-scope__summary-question, .rec-scope__summary-context { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--mos-inline-gap); min-width: 0; overflow-wrap: anywhere; }
+.rec-scope__summary-question { font-weight: var(--mos-weight-semibold); }
+.rec-scope__summary-context { color: var(--mos-muted); }
+.rec-scope__toggle { min-height: var(--mos-control-height); white-space: nowrap; }
+.rec-scope__summary-trailing { display: flex; justify-content: flex-end; min-width: 0; }
+.rec-scope__editor { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); min-width: 0; }
+.rec-scope__editor[hidden] { display: none; }
 .rec-scope__row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--mos-toolbar-gap); align-items: start; }
 .rec-scope__row > * { min-width: 0; }
 .rec-range { display: grid; justify-content: start; grid-template-columns: repeat(2, minmax(0, 12rem)) auto; gap: var(--mos-toolbar-gap); align-items: end; }
@@ -76,6 +85,7 @@
 
 .rec-about { margin-top: var(--mos-section-gap); }
 .rec-about p { max-width: 72ch; margin: 0 0 var(--mos-field-gap); color: var(--mos-ink); font: var(--mos-type-body); }
+.rec-about .rp-disclosure-wrap { margin-top: 0; }
 
 /* ── Record panel body (item history, entry) ── */
 .rec-panel__body { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); padding: var(--mos-gutter); overflow-wrap: anywhere; }
@@ -113,6 +123,10 @@
 
 /* ── Phone ── */
 @media (max-width: 767.98px) {
+  .rec-scope__summary { grid-template-columns: minmax(0, 1fr) auto; }
+  .rec-scope__summary-copy { grid-column: 1; grid-row: 1 / 3; }
+  .rec-scope__toggle { grid-column: 2; grid-row: 1 / 3; min-height: 44px; }
+  .rec-scope__summary-trailing { grid-column: 1 / -1; justify-content: flex-end; }
   .rec-scope__row { grid-template-columns: minmax(0, 1fr); }
   .rec-range { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rec-range__apply { grid-column: 1 / -1; width: 100%; }

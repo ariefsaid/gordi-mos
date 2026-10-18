@@ -8,6 +8,7 @@ import { RecordField } from '@/components/records/record-field'
 import type { RecordFieldSpec, RecordValue, RecordViewerAdapter } from '@/components/records/record-viewer.types'
 import { RecordPageHeader, type RecordFact, type RecordFactTone } from '@/components/record/record-page-header'
 import { RecordAbout, RecordPageLayout, RecordSection } from '@/components/record/record-page-layout'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import type { RecordMenuItem } from '@/components/record/record-menu'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { dueStatus } from '@/lib/due-status'
@@ -69,6 +70,7 @@ export function TaskRecordDocument({
 }: TaskRecordDocumentProps) {
   const t = useT()
   const offline = useIsOffline()
+  const desktop = useIsDesktop()
   const { toast, showToast, clearToast } = useToast()
   const { runtime, openPanel } = useAgentRuntime()
   const editable = !adapter.permission.readOnly
@@ -82,16 +84,11 @@ export function TaskRecordDocument({
   const due = spec('dueDate')
   if (!titleSpec || !statusSpec || !pic || !supervisor || !due) return null
 
-  // ── Header facts: status · PIC · Supervisor · Due · Project/Process · Objective ──────────────
+  // The header keeps only the decision state and due date; ownership and links stay in context below.
   const facts: RecordFact[] = []
   if (archived) facts.push({ type: 'state', key: 'status', label: t('tasks.archivedLabel'), tone: 'neutral' })
   else if (editable) facts.push({ type: 'field', key: 'status', field: statusSpec })
   else facts.push({ type: 'state', key: 'status', label: statusSpec.displayValue, tone: STATUS_TONE[task.status] })
-  facts.push({ type: 'person', key: 'pic', role: 'neutral', field: pic })
-  facts.push({
-    type: 'person', key: 'supervisor', role: 'neutral', hint: supervisor.subline,
-    field: { ...supervisor, subline: undefined },
-  })
 
   const open = !archived && task.status !== 'Done'
   const dueKind = open ? dueStatus(task.due_date, now) : 'none'
@@ -111,10 +108,6 @@ export function TaskRecordDocument({
     if (field.value === null) return field
     return field.href ? field : null
   }
-  const context = [link('projectProcess'), link('objective')]
-    .filter((field): field is RecordFieldSpec => field !== null)
-  if (context.length > 0) facts.push({ type: 'group', key: 'context', fields: context })
-
   // ── Primary: the one lifecycle action, quiet while the task is not ready to complete ──────────
   const lifecycle = adapter.actions.find((action) => action.id === 'complete' || action.id === 'reopen')
   const primary = lifecycle
@@ -165,13 +158,12 @@ export function TaskRecordDocument({
       commitsFrozen={fieldCommitsFrozen}
     />
   )
-  const aboutItems = ['team', 'businessUnit', 'createdBy', 'generatedFrom', 'completedAt']
-    .map((key) => spec(key))
-    .filter((fieldSpec): fieldSpec is RecordFieldSpec => fieldSpec !== undefined)
-    .map((fieldSpec) => ({
-      key: fieldSpec.key, label: fieldSpec.label,
-      value: <span className="rp-about__field">{field(fieldSpec)}</span>,
-    }))
+  const aboutFields = [pic, supervisor, link('projectProcess'), link('objective'), ...['team', 'businessUnit', 'createdBy', 'generatedFrom', 'completedAt'].map((key) => spec(key))]
+    .filter((fieldSpec): fieldSpec is RecordFieldSpec => fieldSpec !== undefined && fieldSpec !== null)
+  const aboutItems = aboutFields.map((fieldSpec) => ({
+    key: fieldSpec.key, label: fieldSpec.label,
+    value: <span className="rp-about__field">{field(fieldSpec)}</span>,
+  }))
 
   return (
     <>
@@ -197,7 +189,22 @@ export function TaskRecordDocument({
         />
       )}
       notice={<>{editable ? <OfflineNotice /> : null}{notice}</>}
-      about={{ title: t('record.page.about'), node: <RecordAbout items={aboutItems} /> }}
+      about={{ title: t('record.page.about'), node: <RecordAbout items={aboutItems} />, disclosure: { defaultOpen: desktop } }}
+      discussion={showComments ? (
+        <RecordSection id="comments" title={t('tasks.commentsTitle')} count={comments.length > 0 ? comments.length : undefined}>
+          <CommentThread
+            variant="record"
+            comments={comments}
+            people={people}
+            canPost={editable && !offline}
+            onPost={onPostComment}
+            draftValue={commentDraft}
+            onDraftChange={onCommentDraftChange}
+            emptyLabel={null}
+            onDirtyChange={onCommentDirtyChange}
+          />
+        </RecordSection>
+      ) : undefined}
       history={events.length > 0 ? {
         title: t('tasks.history.title'),
         count: eventsHasMore ? `${events.length}+` : events.length,
@@ -205,6 +212,13 @@ export function TaskRecordDocument({
           loadingMore={eventsLoadingMore} moreError={eventsMoreError} onLoadMore={onLoadMoreEvents} />,
       } : undefined}
     >
+      {showDescription ? (
+        <RecordSection id="description" title={t('tasks.description.title')}>
+          <div className="task-description">
+            {field(hasDescription ? description : { ...description, displayValue: t('tasks.description.add') })}
+          </div>
+        </RecordSection>
+      ) : null}
       {showChecklist ? (
         <RecordSection
           id="checklist"
@@ -219,28 +233,6 @@ export function TaskRecordDocument({
             onReorder={onReorderChecklist}
             onDelete={onDeleteChecklist}
             saveError={checklistError ? { message: t('record.field.saveError'), onRetry: checklistError } : null}
-          />
-        </RecordSection>
-      ) : null}
-      {showDescription ? (
-        <RecordSection id="description" title={t('tasks.description.title')}>
-          <div className="task-description">
-            {field(hasDescription ? description : { ...description, displayValue: t('tasks.description.add') })}
-          </div>
-        </RecordSection>
-      ) : null}
-      {showComments ? (
-        <RecordSection id="comments" title={t('tasks.commentsTitle')} count={comments.length > 0 ? comments.length : undefined}>
-          <CommentThread
-            variant="record"
-            comments={comments}
-            people={people}
-            canPost={editable && !offline}
-            onPost={onPostComment}
-            draftValue={commentDraft}
-            onDraftChange={onCommentDraftChange}
-            emptyLabel={null}
-            onDirtyChange={onCommentDirtyChange}
           />
         </RecordSection>
       ) : null}

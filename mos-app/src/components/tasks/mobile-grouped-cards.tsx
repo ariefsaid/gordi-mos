@@ -106,8 +106,7 @@ type TaskCardProps = {
    *  its own picker — this prop only feeds the persisted card's display line. */
   teamName: string
   rName: string
-  /** Draft-only: TaskCreateForm's Supervisor picker display value. The persisted card no longer
-   *  shows Supervisor (#760 AC-048 — it moved to the record, one tap away). */
+  /** The accountable person, also shown beside the PIC on the scan row. */
   supervisorName: string
   recordSearch?: string
   onOpenTask: (taskId: string) => void
@@ -128,7 +127,7 @@ type TaskCardProps = {
 }
 
 function TaskCard({
-  task, now, buName, rName, recordSearch = '', provenanceRoleName, onOpenTask,
+  task, now, rName, supervisorName, recordSearch = '', provenanceRoleName, onOpenTask,
 }: TaskCardProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -150,10 +149,8 @@ function TaskCard({
           <span className={isArchived ? 'task-name task-name-archived collection-grammar-title' : 'task-name collection-grammar-title'}>{task.title}</span>
           <StatusPill status={task.status} openTreatment="neutral" />
         </div>
-        {/* One muted meta line (Business Unit, as under the title on desktop · who is responsible) and the due line; the labels live in the
-            table header on desktop and the record shows every other fact. */}
-        <p className="task-card-meta-line" title={`${t('tasks.pic')}: ${rName}`}>
-          {[buName || '—', rName ? `${rName}${provenanceRoleName ? ` (${t('tasks.pic.via', { role: provenanceRoleName })})` : ''}` : null].filter(Boolean).join(' · ')}
+        <p className="task-card-meta-line">
+          {t('tasks.pic')}: {rName || '—'}{provenanceRoleName ? ` (${t('tasks.pic.via', { role: provenanceRoleName })})` : ''} · {t('tasks.supervisor')}: {supervisorName || '—'}
         </p>
         <p className={`task-card-due tabular-nums ${dueClass}`}>
           <span className="sr-only">{t('tasks.dueLabel')}: </span>{dueText}

@@ -129,14 +129,24 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
     expect(screen.getByRole('button', { name: /^save view$/i })).toBeInTheDocument()
   })
 
-  it('on a phone only Sort stays in the bar; Group and the field list move behind the door', () => {
+  it('on a phone keeps Search, View and Filters together, with every sort, group and attention choice in the door', () => {
     matchMedia(false)
-    renderToolbar(makeProps())
-    expect(screen.getByRole('combobox', { name: /^sort$/i })).toBeInTheDocument()
+    const props = makeProps({ attentionCounts: { overdue: 2, blocked: 1, total: 3 } })
+    renderToolbar(props)
+
+    expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Task views' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /^sort$/i })).toBeNull()
     expect(screen.queryByRole('combobox', { name: /^group$/i })).toBeNull()
     openFilters()
+    expect(screen.getByRole('combobox', { name: /^sort$/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /^group$/i })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '3 tasks need attention' })).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: /^fields$/i })).toBeNull()
+
+    fireEvent.click(screen.getByRole('combobox', { name: /^sort$/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'Due latest' }))
+    expect(props.onQueryChange).toHaveBeenCalledWith({ sort: 'due', direction: 'descending' })
   })
 
   it('shows an attention shortcut per exception and applies it', () => {

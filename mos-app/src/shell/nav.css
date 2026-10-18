@@ -102,7 +102,7 @@
 .rail-item__label { max-width: 100%; padding-inline: var(--mos-space-1); box-sizing: border-box; overflow-wrap: anywhere; }
 
 /* ── Pages panel: the selected area's pages beside the rail ── */
-.nav-panel { display: flex; flex-direction: column; width: var(--mos-rail-width); flex: none; min-height: 0; background: var(--mos-band); border-right: 1px solid var(--mos-line); }
+.nav-panel { display: flex; flex-direction: column; width: var(--mos-context-width); flex: none; min-height: 0; background: var(--mos-band); border-right: 1px solid var(--mos-line); }
 .nav-panel__head { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap); flex: none; min-height: var(--mos-control-height); padding: var(--mos-space-3) var(--mos-space-3) var(--mos-space-1) calc(var(--mos-space-3) + var(--mos-inline-gap)); }
 .nav-panel__title { font: var(--mos-type-nav); font-weight: var(--mos-weight-bold); color: var(--mos-ink); overflow-wrap: anywhere; }
 .nav-panel__body { padding: var(--mos-space-1) var(--mos-row-pad-x) var(--mos-row-pad-y); }

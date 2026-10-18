@@ -1742,6 +1742,9 @@ describe('capture retry identity and saved drafts', () => {
 
     expect(quantity).not.toHaveValue(8)
     const oldDrafts = await screen.findAllByRole('article', { name: /unsent from/i })
+    for (const draft of oldDrafts) {
+      fireEvent.click(within(draft).getByRole('button', { name: /unsent from/i }))
+    }
     const oldDraft = oldDrafts.find(draft => draft.textContent?.includes('8 porsi'))!
     expect(oldDraft).toHaveTextContent('Nasi Goreng')
     expect(screen.getByText(/today's form can't send older entries.*ask a café lead/i)).toBeInTheDocument()
@@ -2065,6 +2068,19 @@ const WIP_ITEMS_WITH_OFFPLAN: CaptureFormItem[] = [
 // figure comes from submitted day entries, not the editable line state; the old KPI tiles and
 // help tip are retired from the capture surface.
 describe('R4 / FR-018: Log summary line', () => {
+  it('keeps figure guidance in a local disclosure that Escape closes and returns focus to', async () => {
+    await renderPage()
+    await screen.findAllByText('Ayam Bakar')
+    const trigger = screen.getByRole('button', { name: 'About these figures' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText(/Plan and stock balances have no recorded unit/)).toBeInTheDocument()
+    fireEvent.keyDown(trigger, { key: 'Escape' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).toHaveFocus()
+  })
+
   it('shows plan, submitted made and off-plan totals in the head without KPI tiles or help', async () => {
     mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
     mockFetchActualsMap.mockResolvedValue({

@@ -46,7 +46,8 @@ function isCaptureSurface(pathname: string): boolean {
 }
 
 function shouldShowActionDock(pathname: string): boolean {
-  return !isCaptureSurface(pathname)
+  const path = pathname.replace(/\/+$/, '') || '/'
+  return !isCaptureSurface(path) && path !== '/cafe/records' && !/^\/profile(?:\/|$)/.test(path)
 }
 
 type BottomTabBarProps = {

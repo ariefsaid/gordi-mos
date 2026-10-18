@@ -744,11 +744,46 @@ tr.grp td { padding: 0; }
   .task-card-meta-pair--supervisor .owner > .ownav {
     display: none;
   }
+
+  /* Search gets a full row; View and Filters share one aligned 44px action row. */
+  .tasks-decision-toolbar .collection-toolbar__bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: end;
+  }
+  .tasks-decision-toolbar .collection-toolbar__bar > .search-field {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    flex: none;
+  }
+  .tasks-decision-toolbar .collection-toolbar__view {
+    grid-column: 1;
+    min-width: 0;
+    width: 100%;
+    flex: none;
+  }
+  .tasks-decision-toolbar .collection-toolbar__door {
+    grid-column: 2;
+    width: 100%;
+    min-width: 0;
+    flex: none;
+    align-self: end;
+  }
+  .tasks-decision-toolbar .collection-toolbar__panel-actions {
+    flex: 1 1 100%;
+  }
 }
 
-/* A status pill is never cut: the trigger that wraps it does not ellipsize — the fixed
-   .th-status/.td-status floor above already fits the longest label at every width. */
-.tasks-table td.td-status .inline-cell-trigger { overflow: visible; text-overflow: clip; }
+/* Long localized statuses stay intact: narrow table cells grow the row instead of clipping a badge. */
+.tasks-table td.td-status .inline-cell-trigger {
+  height: auto;
+  min-height: var(--mos-control-height);
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+.tasks-table td.td-status .status-pill { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 
 /* Editable cells: the trigger's own 4px inset is outdented so cell text and badges sit on the header's left edge. */
 .tasks-table td .inline-cell-trigger { margin-inline-start: -4px; width: calc(100% + 4px); max-width: none; min-height: var(--mos-row-content); }
@@ -756,9 +791,4 @@ tr.grp td { padding: 0; }
 /* Quick filters ("9 overdue", "2 blocked") start on the toolbar's left edge; their 8px hover inset is outdented. */
 .tasks-attention-actions { margin-inline-start: -8px; }
 
-/* The status track is sized to the longest word in either language, so a badge stays on one line. Only
-   the narrow track beside an open record lets it wrap inside the badge, as the badge spec allows. */
-.tasks-table td.td-status .status-pill { max-width: 100%; white-space: nowrap; }
-@container work-list (max-width: 809.98px) {
-  .split:not(.nodrawer) .tasks-table td.td-status .status-pill { white-space: normal; }
-}
+/* The status trigger can wrap its badge in a narrow split column without adding page overflow. */

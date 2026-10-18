@@ -163,6 +163,9 @@ export default defineConfig(({ mode }) => {
           // The write-up editor's stack loads only with the Write-up tab: its own chunk keeps it out of
           // every eager vendor chunk.
           if (/@blocknote|@ariakit|@tiptap|prosemirror|emoji-mart|linkifyjs|orderedmap|rope-sequence|w3c-keyname|crelt/.test(id)) return 'vendor-editor'
+          // Chart dependencies are reached through Money's lazy route; shared React and
+          // use-sync-external-store keep their existing chunks.
+          if (/node_modules\/(?:recharts|victory-vendor|d3(?:-[^/]+)?|@reduxjs\/toolkit|redux(?:-thunk)?|react-redux|reselect|immer|clsx|decimal\.js-light|es-toolkit|eventemitter3|tiny-invariant|internmap|@standard-schema\/(?:spec|utils))\//.test(id)) return 'vendor-charts'
           // Anchored to the package directory: a substring match also catches @floating-ui/react-dom,
           // whose @floating-ui/dom dependency sits in `vendor`, making vendor and vendor-react import each other.
           if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'vendor-react'

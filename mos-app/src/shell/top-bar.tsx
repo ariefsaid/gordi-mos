@@ -9,7 +9,10 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useUnreadCount } from '@/hooks/useUnreadCount'
 import { useIsDesktop } from './use-is-desktop'
 import { useOptionalOverlayHost } from './overlay-host'
-import { InboxTriageConnected } from '@/components/inbox/inbox-triage-connected'
+import { Suspense } from 'react'
+import { lazyPage } from '@/lib/lazy-page'
+import { LoadingShell } from '@/components/ui/state-kit'
+import { ContentErrorBoundary } from './content-error-boundary'
 import { setTopBarBackSlot } from './top-bar-back-slot'
 import './top-bar.css'
 
@@ -25,6 +28,10 @@ type TopBarProps = {
    */
   onOpenDrawer?: () => void
 }
+
+const InboxTriageConnected = lazyPage(() =>
+  import('@/components/inbox/inbox-triage-connected').then((m) => ({ default: m.InboxTriageConnected })),
+)
 
 // Bell icon — 16px, stroke-2, aria-hidden (notification stub, ADR-0013 D1)
 function BellIcon() {
@@ -159,7 +166,11 @@ function NotificationBell() {
         actions: <Link to="/inbox" className="btn btn-outline">{t('shell.openInbox')}</Link>,
         content: (
           <div className="top-bar__quick-inbox">
-            <InboxTriageConnected mode="quick" />
+            <ContentErrorBoundary>
+              <Suspense fallback={<LoadingShell />}>
+                <InboxTriageConnected mode="quick" />
+              </Suspense>
+            </ContentErrorBoundary>
           </div>
         ),
       },

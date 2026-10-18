@@ -4,6 +4,23 @@
 /* All raw values are DESIGN.md CSS-var tokens — no hardcoded hex/spacing literals.       */
 
 /* ── Breadcrumb ── */
+.rp[data-record-kind='task'] .rp-facts .record-field__edit--status {
+  inline-size: max-content;
+}
+.rp[data-record-kind='task'] .rp-facts .record-field__edit--status .record-field__pill {
+  inline-size: max-content;
+  min-inline-size: min-content;
+  max-inline-size: 100%;
+  gap: var(--mos-label-gap);
+  white-space: normal;
+  overflow-wrap: normal;
+}
+@media (max-width: 767.98px) {
+  .rp[data-record-kind='task'] .rp-facts .record-field__edit {
+    min-height: var(--mos-control-height);
+  }
+}
+
 .breadcrumb { font-size: var(--mos-size-3); color: var(--muted-foreground); margin-bottom: 12px; }
 .breadcrumb-link { color: var(--muted-foreground); text-decoration: none; }
 .breadcrumb-link:hover { color: var(--foreground); }

@@ -330,6 +330,8 @@
 
 /* Secondary explanation sits below the work, behind a disclosure (UX-STANDARD PA4, LC3). */
 .kl-about { color: var(--mos-muted); font: var(--mos-type-body); }
+.kl-about .rp-disclosure-wrap { margin: 0; border: 0; }
+.kl-about .rp-disclosure { min-height: 44px; color: var(--mos-muted); font: var(--mos-type-body); }
 .kl-about p { max-width: 65ch; margin: 0 0 6px; }
 
 /* The pinned action bar is tall on a phone: the list ends clear of it. */

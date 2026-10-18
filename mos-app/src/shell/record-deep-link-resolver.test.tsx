@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { isValidElement, type ReactElement } from 'react'
+import { render, screen } from '@testing-library/react'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import type { MessageKey } from '@/i18n/messages'
 import type { OverlayHistoryMarker } from './overlay-navigation'
 import {
@@ -7,13 +9,21 @@ import {
   RECORD_KINDS,
   type RecordKindRegistry,
 } from './record-deep-link-resolver'
-import {
-  FollowUpRecordHost,
-  type FollowUpRecordHostProps,
-} from '@/components/follow-ups/follow-up-record-host'
-import { SignalRecordHost, type SignalRecordHostProps } from '@/components/signals/signal-record-host'
 import { messages } from '@/i18n/messages'
 import { isRedirect, leafInThisTable } from '@/test/route-table'
+import type { FollowUpRecordHostProps } from '@/components/follow-ups/follow-up-record-host'
+import type { SignalRecordHostProps } from '@/components/signals/signal-record-host'
+
+vi.mock('@/components/follow-ups/follow-up-record-host', () => ({
+  FollowUpRecordHost: ({ followUpId, mode }: FollowUpRecordHostProps) => (
+    <div data-testid="lazy-follow-up-host" data-id={followUpId} data-mode={mode} />
+  ),
+}))
+vi.mock('@/components/signals/signal-record-host', () => ({
+  SignalRecordHost: ({ signalId, mode }: SignalRecordHostProps) => (
+    <div data-testid="lazy-signal-host" data-id={signalId} data-mode={mode} />
+  ),
+}))
 
 // D-A1 (item 4): the shell deep-link resolver rebuilds a record entry from a persisted route
 // marker so a hard-load/refresh restores route sessions whose id lives only in the marker.
@@ -110,7 +120,7 @@ describe('RECORD_KINDS — the live registry (#424: a marker-only deep link reop
     }
   })
 
-  it('a Home-feed Signal reopens from its marker: owner signals, canonical pageTo, host content', () => {
+  it('a Home-feed Signal restores synchronously and mounts its lazy host after loading', async () => {
     const entry = live(marker('signal:sig-9'), {} as never)
     expect(entry).not.toBeNull()
     expect(entry).toMatchObject({
@@ -120,10 +130,11 @@ describe('RECORD_KINDS — the live registry (#424: a marker-only deep link reop
       pageTo: { pathname: '/work/signals/sig-9' },
     })
     expect(isValidElement(entry?.content)).toBe(true)
-    const content = entry?.content as ReactElement<SignalRecordHostProps>
-    expect(content.type).toBe(SignalRecordHost)
-    expect(content.props.signalId).toBe('sig-9')
-    expect(content.props.mode).toBe('panel')
+    const content = entry?.content as ReactElement
+    render(<I18nProvider>{content}</I18nProvider>)
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true')
+    expect(await screen.findByTestId('lazy-signal-host')).toHaveAttribute('data-id', 'sig-9')
+    expect(screen.getByTestId('lazy-signal-host')).toHaveAttribute('data-mode', 'panel')
   })
 
   it('restores an Inbox-opened Signal into the Inbox slot after a hard reload', () => {
@@ -132,17 +143,18 @@ describe('RECORD_KINDS — the live registry (#424: a marker-only deep link reop
     expect(entry?.pageTo).toEqual({ pathname: '/work/signals/sig-9' })
   })
 
-  it('a queue Follow-up reopens from its marker: owner shell, NO pageTo — DD-WAY-36 deleted the page', () => {
+  it('a queue Follow-up restores synchronously and mounts its lazy host after loading — DD-WAY-36', async () => {
     const entry = live(marker('follow-up:fu-3'), {} as never)
     expect(entry).not.toBeNull()
     expect(entry).toMatchObject({ key: 'follow-up:fu-3', owner: 'shell', tenant: 'record' })
     // Panel-only: a pageTo here would name the record route DD-WAY-36 (#369) removed.
     expect(entry?.pageTo).toBeUndefined()
     expect(isValidElement(entry?.content)).toBe(true)
-    const content = entry?.content as ReactElement<FollowUpRecordHostProps>
-    expect(content.type).toBe(FollowUpRecordHost)
-    expect(content.props.followUpId).toBe('fu-3')
-    expect(content.props.mode).toBe('panel')
+    const content = entry?.content as ReactElement
+    render(<I18nProvider>{content}</I18nProvider>)
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true')
+    expect(await screen.findByTestId('lazy-follow-up-host')).toHaveAttribute('data-id', 'fu-3')
+    expect(screen.getByTestId('lazy-follow-up-host')).toHaveAttribute('data-mode', 'panel')
   })
 
   it("the Signal descriptor's canonical path is a real, non-redirect leaf of the production table", () => {

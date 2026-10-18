@@ -18,9 +18,8 @@ import {
  * Desktop sidebar and rail, the collapsed rail's flyouts, the pages panel, ⌘K "Go to", the phone tab bar
  * and the More drawer all draw from the three zones below; nothing keeps a parallel list of its own.
  *
- *  - `WORKSPACE`       — Home, Work, Inbox. Home is fixed at the top; Work follows its org switch; Inbox has
- *                        no menu row (it lives on the top-bar bell) but stays here as the owner of `/inbox`,
- *                        and as a row in More and in ⌘K.
+ *  - `WORKSPACE`       — Home, Work, Inbox. Home and Inbox are fixed destinations; Work follows its org switch.
+ *                        The registry also owns Inbox's `/inbox` route, phone tab and ⌘K entry.
  *  - `MODULE_REGISTRY` — the modules, in registry order (Money, Café, then future Shift, Events, then
  *                        Roastery, Ecommerce). Each entry carries what a module owns: its ship gate (the
  *                        landing path asked of `lib/ship-gate.ts`), admission roles (`anyOf`, Money resolves
@@ -34,8 +33,8 @@ import {
  * Projects & Processes · Objectives · Events. Events is ship-gated (#348), so four of the five render.
  * Admin is anyOf-gated (admin): absent, not disabled, when unauthorized.
  *
- * Adaptive shell: a viewer admitted to ONE module gets the single labelled sidebar; TWO OR MORE get the
- * module rail plus the pages panel (`navModeFor`). The pages themselves (`pageGroupsFor`) are identical in both.
+ * Adaptive shell: Work counts as a workspace destination beside admitted modules. Two or more page-bearing
+ * destinations get the global rail plus the selected destination's contextual panel (`navModeFor`).
  */
 export type DestinationId =
   | 'home' | 'work' | 'money' | 'inbox'
@@ -179,8 +178,8 @@ function admit(module: Destination, accessRoles: string[], isOn: (moduleId: Modu
 }
 
 /**
- * Every module the viewer's ROUTES admit, in registry order. The module count decides the shell
- * (`navModeFor`); the list feeds the sidebar, the rail, the flyouts, ⌘K, the phone tab and More.
+ * Every module the viewer's ROUTES admit, in registry order. The list feeds the sidebar, rail, flyouts,
+ * ⌘K, the phone tab and More; `navModeFor` counts these beside admitted Work.
  */
 export function admittedModules(accessRoles: string[], isOn: (moduleId: ModuleId) => boolean = () => true): Destination[] {
   return MODULE_REGISTRY
@@ -190,12 +189,13 @@ export function admittedModules(accessRoles: string[], isOn: (moduleId: ModuleId
 }
 
 /**
- * The shell by admitted module count, never by role: ONE module → the single labelled sidebar,
- * TWO OR MORE → the module rail with the selected module's pages panel beside it.
+ * Work is a workspace destination with its own page set, so it counts alongside admitted modules:
+ * Work + Café gets the same rail-and-context-panel shell as Money + Café.
  */
 export type NavMode = 'sidebar' | 'panel'
 export function navModeFor(accessRoles: string[], isOn: (moduleId: ModuleId) => boolean = () => true): NavMode {
-  return admittedModules(accessRoles, isOn).length >= 2 ? 'panel' : 'sidebar'
+  const workspaces = !isShipGated('/work') && isOn('work') ? 1 : 0
+  return admittedModules(accessRoles, isOn).length + workspaces >= 2 ? 'panel' : 'sidebar'
 }
 
 /**
