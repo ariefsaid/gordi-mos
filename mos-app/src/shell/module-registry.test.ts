@@ -14,12 +14,6 @@ describe('the module registry feeds every navigation surface', () => {
     expect(admittedModules(['admin']).map((m) => m.id)).not.toContain('roastery')
   })
 
-  it('counts Work with admitted modules for the global rail and contextual panel', () => {
-    expect(navModeFor([])).toBe('panel')
-    expect(navModeFor(['ops_lead'])).toBe('panel')
-    expect(navModeFor(['finance'])).toBe('panel')
-    expect(navModeFor(['supervisor'])).toBe('panel')
-  })
 
   it('counts only enabled modules and removes disabled Work and module pages', () => {
     const cafeOnly = (moduleId: string) => moduleId === 'cafe'
@@ -81,7 +75,7 @@ describe('the module registry feeds every navigation surface', () => {
     expect(footerAreas(['admin']).map((d) => d.id)).toEqual(['admin', 'profile'])
   })
 
-  it('owns Inbox as a global destination and the route owner for its notification surface', () => {
+  it('owns Inbox as a destination with no menu row, so the bell and breadcrumb still resolve it', () => {
     expect(destinationForPath('/inbox')?.id).toBe('inbox')
   })
 })

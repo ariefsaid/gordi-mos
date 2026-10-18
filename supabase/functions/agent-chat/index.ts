@@ -61,8 +61,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .eq('org_id', orgId)
     .eq('module_id', 'assistant')
     .maybeSingle()
-  if (assistantSettingError) throw assistantSettingError
-  if (assistantSetting?.enabled === false) {
+  if (assistantSettingError) {
+    logStructuredError({ fn: 'agent-chat', errorCode: 'ASSISTANT_SETTING_UNAVAILABLE' })
+    return new Response(
+      JSON.stringify({ status: 503, error: 'MODULE_AVAILABILITY_UNAVAILABLE' }),
+      { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  if (assistantSetting?.enabled !== true) {
     return new Response(
       JSON.stringify({ status: 403, error: 'MODULE_OFF', detail: 'assistant is switched off for this org' }),
       { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

@@ -708,7 +708,7 @@ describe('Issue 245 / FR-928: Signals stays live, concise and honest', () => {
     // never move it.
     sharedCount.value = 0
     await renderHome(memberViewer)
-    expect(await screen.findByText('0 open tasks')).toBeInTheDocument()
+    expect(await screen.findByText('My open tasks · 0')).toBeInTheDocument()
 
     await act(async () => {
       resolveSignals([])
@@ -888,7 +888,7 @@ describe('AC-040 / AC-052: Home identity is day-aware and does not add a mention
     expect(head.querySelector('.home-head-date')).not.toBeNull()
     expect(head.querySelector('.home-head-date')?.textContent).toBeTruthy()
     expect(within(head).getByText('Managing Director')).toBeInTheDocument()
-    expect(screen.getByText('0 open tasks')).toBeInTheDocument()
+    expect(screen.getByText('My open tasks · 0')).toBeInTheDocument()
     expect(within(head).queryByRole('button')).toBeNull()
     expect(within(head).queryByRole('link')).toBeNull()
     expect(mockListNotifications).not.toHaveBeenCalled()
@@ -918,7 +918,7 @@ describe('AC-040 / AC-052: Home identity is day-aware and does not add a mention
     mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
     sharedCount.value = 9
     const utils = await renderHome(cafeViewer)
-    expect(screen.getByText('9 open tasks')).toBeInTheDocument()
+    expect(screen.getByText('My open tasks · 9')).toBeInTheDocument()
 
     // While the SHARED count itself has not resolved the figure is ABSENT, not zero (DIV-G5) —
     // even though the task list below has loaded.
@@ -952,7 +952,7 @@ describe("DD-COUNT-1: Home's header figure is the ONE shared open-task count (#1
     ])
     sharedCount.value = 9
     await renderHome({ ...cafeViewer, viewer: { ...cafeViewer.viewer, isManager: true } })
-    expect(screen.getByText('9 open tasks')).toBeInTheDocument()
+    expect(screen.getByText('My open tasks · 9')).toBeInTheDocument()
   })
 })
 

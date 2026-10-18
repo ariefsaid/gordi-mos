@@ -167,13 +167,14 @@ function HomeRegionCollectionInstance({ region, items, liftedCount }: Required<H
   })
   const hidden = (region.totalItemCount ?? region.items.length) - items.length - liftedCount
   const empty = region.state === 'ready' && items.length === 0
+  const needsYouEmptyAfterLift = region.id === 'needs-you' && liftedCount > 0 && items.length === 0
 
   return (
     <div className="home-region-collection" data-home-region={region.id} data-testid={`home-region-collection-${region.id}`}>
       <RecordCollectionSurface
         controller={controller}
         empty={{
-          title: t(EMPTY_KEY[region.id]),
+          title: t(needsYouEmptyAfterLift ? 'home.attention.noOtherTasks' : EMPTY_KEY[region.id]),
           className: 'stream-all-clear',
           create: empty ? <RegionDrillLink region={region} shown={liftedCount} /> : undefined,
         }}

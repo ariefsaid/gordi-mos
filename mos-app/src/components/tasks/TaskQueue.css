@@ -58,6 +58,33 @@
 }
 
 @media (max-width: 767.98px) {
+  .tasks-decision-toolbar .collection-toolbar__bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
+  .tasks-decision-toolbar .collection-toolbar__bar > .search-field {
+    grid-column: 1 / -1;
+  }
+
+  .tasks-decision-toolbar .collection-toolbar__bar > .collection-toolbar__field {
+    grid-column: 1;
+    width: 100%;
+    max-width: none;
+  }
+
+  .tasks-decision-toolbar .collection-toolbar__bar > .collection-toolbar__door {
+    grid-column: 2;
+    align-self: end;
+    white-space: normal;
+  }
+
+  .tasks-decision-toolbar .collection-toolbar__count {
+    min-width: 0;
+    white-space: normal;
+  }
+
   .tasks-work-queue .task-card.collection-grammar-card .task-card-link {
     min-height: var(--mos-control-height);
     padding: var(--mos-row-pad-y) var(--mos-row-pad-x);

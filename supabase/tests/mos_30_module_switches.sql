@@ -1,7 +1,7 @@
--- Org-level module switches default on when no setting row exists; only admins can manage them.
+-- Missing Assistant settings are off; other module defaults remain on, and only admins can manage them.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(35);
+select plan(45);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -36,8 +36,10 @@ select results_eq($$
 $$, $$
   values ('work'::text), ('money'), ('cafe'), ('roastery'), ('ecommerce'), ('assistant')
 $$, 'the admin list follows the fixed catalog order');
-select ok((select bool_and(enabled) from mos.list_org_module_settings()),
-  'every missing settings row defaults to enabled');
+select ok((select bool_and(enabled) from mos.list_org_module_settings() where module_id <> 'assistant'),
+  'other missing settings rows default to enabled');
+select is((select enabled from mos.list_org_module_settings() where module_id = 'assistant'),
+  false, 'a missing Assistant row defaults to off in the admin list');
 select ok((select bool_and(row_version = 0) from mos.list_org_module_settings()),
   'every missing settings row defaults to version zero');
 
@@ -46,6 +48,10 @@ select is((select enabled from mos.save_org_module_settings(
   '[{"module_id":"money","enabled":false,"expected_version":0}]'::jsonb,
   current_setting('test.module_request_id')::uuid) where module_id = 'money'),
   false, 'saving money off returns the saved value');
+select is((select enabled from mos.save_org_module_settings(
+  '[{"module_id":"money","enabled":false,"expected_version":0}]'::jsonb,
+  current_setting('test.module_request_id')::uuid) where module_id = 'assistant'),
+  false, 'a save response defaults a missing Assistant row to off');
 select is((select row_version from mos.save_org_module_settings(
   '[{"module_id":"money","enabled":false,"expected_version":0}]'::jsonb,
   current_setting('test.module_request_id')::uuid) where module_id = 'money'),
@@ -79,6 +85,10 @@ select is((select count(*)::int from mos.module_settings_audit
   where org_id = current_setting('test.org_a')::uuid
     and client_request_id = current_setting('test.module_request_id')::uuid),
   1, 'a repeated client request adds no audit row');
+select is((select enabled from mos.save_org_module_settings(
+  '[{"module_id":"money","enabled":false,"expected_version":0}]'::jsonb,
+  current_setting('test.module_request_id')::uuid) where module_id = 'assistant'),
+  false, 'an idempotent save response defaults a missing Assistant row to off');
 
 select shared._test_set_access_roles(jsonb_build_object(
   'org_id', current_setting('test.org_a'),
@@ -90,11 +100,46 @@ select is((select enabled from mos.viewer_module_availability() where module_id 
   false, 'availability includes the saved money value');
 select is((select enabled from mos.viewer_module_availability() where module_id = 'cafe'),
   true, 'availability materializes an enabled default for an unsaved module');
+select is((select enabled from mos.viewer_module_availability() where module_id = 'assistant'),
+  false, 'viewer availability defaults a missing Assistant row to off');
 select is((select count(distinct revision)::int from mos.viewer_module_availability()), 1,
   'all availability rows share one org revision');
 select set_config('test.module_revision_before',
   (select revision from mos.viewer_module_availability() where module_id = 'money'), true);
 
+select shared._test_set_access_roles(jsonb_build_object(
+  'org_id', current_setting('test.org_a'),
+  'person_id', current_setting('test.person_a_admin'),
+  'access_roles', jsonb_build_array('admin'))::text);
+select set_config('test.assistant_request_id', gen_random_uuid()::text, true);
+select is((select enabled from mos.save_org_module_settings(
+  '[{"module_id":"assistant","enabled":true,"expected_version":0}]'::jsonb,
+  current_setting('test.assistant_request_id')::uuid) where module_id = 'assistant'),
+  true, 'an admin explicitly enables Assistant through the save RPC');
+select is((select enabled from mos.save_org_module_settings(
+  '[{"module_id":"assistant","enabled":true,"expected_version":0}]'::jsonb,
+  current_setting('test.assistant_request_id')::uuid) where module_id = 'assistant'),
+  true, 'an idempotent save response preserves explicit Assistant on');
+select shared._test_set_access_roles(jsonb_build_object(
+  'org_id', current_setting('test.org_a'),
+  'person_id', current_setting('test.person_a_member'),
+  'access_roles', jsonb_build_array('member'))::text);
+select is((select enabled from mos.viewer_module_availability() where module_id = 'assistant'),
+  true, 'viewer availability reflects explicit Assistant on');
+select shared._test_set_access_roles(jsonb_build_object(
+  'org_id', current_setting('test.org_a'),
+  'person_id', current_setting('test.person_a_admin'),
+  'access_roles', jsonb_build_array('admin'))::text);
+select is((select enabled from mos.save_org_module_settings(
+  '[{"module_id":"assistant","enabled":false,"expected_version":1}]'::jsonb,
+  gen_random_uuid()) where module_id = 'assistant'),
+  false, 'an admin explicitly disables Assistant through the save RPC');
+select shared._test_set_access_roles(jsonb_build_object(
+  'org_id', current_setting('test.org_a'),
+  'person_id', current_setting('test.person_a_member'),
+  'access_roles', jsonb_build_array('member'))::text);
+select is((select enabled from mos.viewer_module_availability() where module_id = 'assistant'),
+  false, 'viewer availability reflects explicit Assistant off');
 select shared._test_set_access_roles(jsonb_build_object(
   'org_id', current_setting('test.org_a'),
   'person_id', current_setting('test.person_a_admin'),
@@ -123,6 +168,8 @@ select is((select enabled from mos.viewer_module_availability() where module_id 
   false, 'the other org sees its own disabled Café setting');
 select is((select enabled from mos.viewer_module_availability() where module_id = 'money'),
   true, 'the other org does not see org A''s disabled Money setting');
+select is((select enabled from mos.viewer_module_availability() where module_id = 'assistant'),
+  false, 'the other org receives its own Assistant default off');
 
 select shared._test_set_access_roles(jsonb_build_object(
   'org_id', current_setting('test.org_a'),
@@ -130,7 +177,7 @@ select shared._test_set_access_roles(jsonb_build_object(
   'access_roles', jsonb_build_array('admin'))::text);
 select is((select count(*)::int from mos.module_settings_audit
   where org_id = current_setting('test.org_a')::uuid),
-  2, 'an org admin reads that org''s audit rows');
+  4, 'an org admin reads that org''s audit rows');
 select shared._test_set_access_roles(jsonb_build_object(
   'org_id', current_setting('test.org_a'),
   'person_id', current_setting('test.person_a_member'),

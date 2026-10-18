@@ -77,7 +77,7 @@ function CollapseToggle({ compact }: { compact: boolean }) {
   )
 }
 
-/* ───────────────────────────── one module: the single sidebar ───────────────────────────── */
+/* ───────────────────────────── one available page-bearing area: the single sidebar ───────────────────────────── */
 
 function Sidebar({ data }: { data: NavData }) {
   const t = useT()
@@ -164,7 +164,7 @@ function Sidebar({ data }: { data: NavData }) {
   )
 }
 
-/* ───────────────────────────── two or more: rail + pages panel ───────────────────────────── */
+/* ───────────────────────────── two or more available page-bearing areas: rail + pages panel ───────────────────────────── */
 
 /** The rail's flyout: one area's grouped pages, portalled beside the rail. Escape or an outside press closes it and focus returns to the trigger. */
 function RailFlyout({ destination, groups, pathname, forPath, anchor, onClose }: {
@@ -183,7 +183,7 @@ function RailFlyout({ destination, groups, pathname, forPath, anchor, onClose }:
   const landingListed = groups.some((group) => group.items.some((item) => item.path === landing))
   const positioned = place !== null
 
-  // Beside the rail from the trigger's row, kept inside the window and below the top bar.
+  // Beside the rail: utilities align to the trigger's bottom, others to its top; clamp below the top bar and inside the window.
   useLayoutEffect(() => {
     const node = ref.current
     if (!node) return
