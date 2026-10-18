@@ -466,6 +466,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   const [visibleQuantityErrors, setVisibleQuantityErrors] = useState<Set<string>>(new Set())
   const [focusInvalidId, setFocusInvalidId] = useState<string | null>(null)
   const [tableResetKey, setTableResetKey] = useState(0)
+  const [quantityDraftResetKey, setQuantityDraftResetKey] = useState(0)
   // A missing note reads as plain guidance until the person points at it from the footer.
   const [noteAttempted, setNoteAttempted] = useState(false)
 
@@ -1154,6 +1155,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   function performDiscard() {
     focusDraftAfterDiscardRef.current = true
     setLines(buildLines(wipItems, planMap, stockMap, movement))
+    setQuantityDraftResetKey(key => key + 1)
     setNoteAttempted(false)
     if (auth.status === 'authenticated' && stream) {
       clearCafeCaptureDraft(kitchenDraftScope(
@@ -1572,6 +1574,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
       onQuantityErrorVisibilityChange={visible => handleQuantityErrorVisibilityChange(item.id, visible)}
       quantityErrorId={`quantity-${item.id}-quantity-error`}
       invalidDraft={invalidQuantityDrafts[item.id]}
+      resetKey={quantityDraftResetKey}
       onInvalidQuantityDraft={raw => handleInvalidQuantityDraft(item.id, raw)}
       unitOptions={item.units}
       unitMultiples={item.unit_multiples}

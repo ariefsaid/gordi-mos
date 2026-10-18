@@ -2370,6 +2370,45 @@ describe('OD-K-5: category filter narrows rows', () => {
 
 // task 10e — Discard (confirmed) resets all staged qty_porsi to 0
 describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
+  it('confirmed Discard clears valid and invalid drafts, notes, and validation state', async () => {
+    await renderPage()
+    await screen.findAllByText('Ayam Bakar')
+    await chooseCategory('Main')
+
+    const activeRecordsHref = screen.getByRole('link', { name: /view records/i }).getAttribute('href')
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    const nasiInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(ayamInput, { target: { value: '16' } })
+    const note = await screen.findByRole('textbox', { name: /^note for ayam bakar$/i })
+    fireEvent.change(note, { target: { value: 'extra batch' } })
+    fireEvent.change(nasiInput, { target: { value: '-2' } })
+    fireEvent.blur(nasiInput)
+
+    expect(ayamInput).toHaveValue('16')
+    expect(note).toHaveValue('extra batch')
+    expect(nasiInput).toHaveValue('-2')
+    expect(nasiInput).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('button', { name: '1 item needs fixing' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /^discard$/i }))
+
+    await waitFor(() => {
+      expect(ayamInput).toHaveValue('')
+      expect(nasiInput).toHaveValue('')
+      expect(nasiInput).not.toHaveAttribute('aria-invalid', 'true')
+    })
+    expect(screen.queryByRole('textbox', { name: /^note for ayam bakar$/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /needs fixing/i })).toBeNull()
+    expect(screen.getByText(/0 items/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^submit/i })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: /category/i })).toHaveTextContent('Main')
+    expect(screen.getByText(/Rumah Rames · Kitchen/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /view records/i })).toHaveAttribute('href', activeRecordsHref)
+    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+  })
+
   it('confirmed Discard clears every staged qty back to 0', async () => {
     await renderPage()
     await screen.findAllByText('Ayam Bakar')
@@ -2401,6 +2440,33 @@ describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /cancel/i }))
     expect((ayamInput as HTMLInputElement).value).toBe('20') // unchanged
+  })
+
+  it('cancelled Discard preserves an invalid quantity draft and its validation state', async () => {
+    await renderPage()
+    await screen.findAllByText('Ayam Bakar')
+
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    const nasiInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(ayamInput, { target: { value: '16' } })
+    const note = await screen.findByRole('textbox', { name: /^note for ayam bakar$/i })
+    fireEvent.change(note, { target: { value: 'extra batch' } })
+    fireEvent.change(nasiInput, { target: { value: '-2' } })
+    fireEvent.blur(nasiInput)
+    expect(nasiInput).toHaveAttribute('aria-invalid', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /cancel/i }))
+
+    expect(ayamInput).toHaveValue('16')
+    expect(note).toHaveValue('extra batch')
+    expect(nasiInput).toHaveValue('-2')
+    expect(nasiInput).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('button', { name: '1 item needs fixing' })).toBeInTheDocument()
+    expect(screen.getByText(/2 items/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^submit/i })).toBeDisabled()
+    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
 
   it('counts an invalid quantity draft in the discard confirmation', async () => {
