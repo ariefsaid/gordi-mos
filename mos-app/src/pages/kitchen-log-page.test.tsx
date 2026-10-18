@@ -1829,7 +1829,7 @@ describe('capture retry identity and saved drafts', () => {
     await renderPage(VIEWER_MEMBER, appUrl(path))
     const restored = await screen.findByRole('spinbutton', { name: quantityLabel })
     expect(restored).toHaveValue(String(quantity))
-    expect(screen.getByText(/1 unsent entry restored/)).toBeInTheDocument()
+    expect(screen.getByText(/Restored 1 unsent entry/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
     expect(await screen.findByText(/lines? submitted/i)).toBeInTheDocument()
     expect(localStorage.length).toBe(0)
@@ -1844,11 +1844,11 @@ describe('capture retry identity and saved drafts', () => {
     await renderPage(VIEWER_MEMBER, appUrl('/cafe'))
     const restored = await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
     const restoredStatus = () => screen.getAllByRole('status').find(node => /restored/i.test(node.textContent ?? ''))!
-    expect(screen.getByText(/1 unsent entry restored/)).toBeInTheDocument()
+    expect(screen.getByText(/Restored 1 unsent entry/)).toBeInTheDocument()
     const announcement = restoredStatus().textContent
     fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }), { target: { value: '3' } })
 
-    expect(screen.getByText(/1 unsent entry restored/)).toBeInTheDocument()
+    expect(screen.getByText(/Restored 1 unsent entry/)).toBeInTheDocument()
     expect(restoredStatus()).toHaveTextContent(announcement ?? '')
     expect(restored).toHaveValue('12')
   })

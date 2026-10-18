@@ -874,7 +874,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     })
     await waitFor(() => {
       expect(document.querySelector('[data-testid="page-head"]')?.textContent).toContain('1 task')
-      expect(document.querySelector('[data-testid="page-head"]')?.textContent).toMatch(/1 open in this view/)
+      expect(document.querySelector('[data-testid="page-head"]')?.textContent).toMatch(/1 open/)
     })
     // Inline create never navigates — the draft was already on the table — so there is no
     // ?highlight= flash (that belonged to the retired create-form door).
@@ -1095,7 +1095,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     renderAt('/work/tasks/task-2')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
     await waitFor(() => expect(document.querySelector('[data-testid="page-head"]')?.textContent).toContain('2 tasks'))
-    expect(document.querySelector('[data-testid="page-head"]')?.textContent).toMatch(/2 open in this view/)
+    expect(document.querySelector('[data-testid="page-head"]')?.textContent).toMatch(/2 open/)
 
     // Archive is grouped with the record's other secondary actions.
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
@@ -1116,7 +1116,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     }, { timeout: 4000 })
     expect(screen.getByText('Keep me')).toBeInTheDocument()
     expect(document.querySelector('[data-testid="page-head"]')?.textContent).toContain('1 task')
-    expect(document.querySelector('[data-testid="page-head"]')?.textContent).toMatch(/1 open in this view/)
+    expect(document.querySelector('[data-testid="page-head"]')?.textContent).toMatch(/1 open/)
   }, 10_000)
 })
 

@@ -27,7 +27,7 @@ async function renderBrief(
     dueToday: [],
     blocked: [],
     myWork: [item('next', 'Confirm tomorrow\'s prep')],
-    failedChecks: [item('check', 'Production log · morning')],
+    failedChecks: [{ ...item('check', 'Production log · morning'), route: '/cafe/log' }],
     failedChecksAdmitted: true,
     ...overrides,
   })
@@ -69,7 +69,7 @@ describe('HomeDailyBrief work queue', () => {
       overdue: [item('late', 'Fix the espresso grinder')],
       dueToday: [item('today', 'Prepare the morning batch')],
       blocked: [item('blocked', 'Repair the mixer')],
-      failedChecks: [item('check', 'Production log · morning')],
+      failedChecks: [{ ...item('check', 'Production log · morning'), route: '/cafe/log' }],
       myWork: [item('other', 'Confirm tomorrow\'s prep')],
       myWorkTotalItemCount: 1,
     }, { layout })
@@ -79,7 +79,7 @@ describe('HomeDailyBrief work queue', () => {
     expect(within(needsYou).getByRole('link', { name: /Prepare the morning batch/i })).toBeInTheDocument()
     expect(within(needsYou).getByRole('link', { name: /Repair the mixer/i })).toBeInTheDocument()
     const failed = screen.getByRole('region', { name: /Failed checks/ })
-    expect(within(failed).getByRole('link', { name: /Review/i })).toHaveAttribute('href', '/cafe/log')
+    expect(within(failed).getByRole('link', { name: /Production log · morning/i })).toHaveAttribute('href', '/cafe/log')
     const other = screen.getByRole('region', { name: /Other open tasks/ })
     expect(within(other).getByRole('link', { name: /Confirm tomorrow's prep/i })).toHaveAttribute('href', '/work/tasks/other')
     expect(screen.getByRole('region', { name: 'Café' })).toBeInTheDocument()
@@ -97,8 +97,8 @@ describe('HomeDailyBrief work queue', () => {
       failedChecks: [],
     }, { locale })
 
-    const urgent = await screen.findByRole('region', { name: /Needs you now/ })
-    expect(urgent).toHaveAccessibleName(/Needs you now.*1/)
+    const urgent = await screen.findByRole('region', { name: /Needs you now|Perlu Anda sekarang/ })
+    expect(urgent).toHaveAccessibleName(/(?:Needs you now|Perlu Anda sekarang).*1/)
     expect(within(urgent).getByRole('link', { name: /Fix the espresso grinder/i })).toBeInTheDocument()
     expect(screen.queryByText(noAttention)).toBeNull()
     expect(screen.queryByText(/caught up|semua beres/i)).toBeNull()

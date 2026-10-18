@@ -376,7 +376,6 @@ const ALL_DESTINATIONS: Destination[] = [
 
 /** Home and Work workspace destinations; Work visibility also follows its org switch. */
 export const FIXED_AREAS: readonly Destination[] = WORKSPACE.filter((d) => d.id === 'home' || d.id === 'work')
-export const INBOX_AREA: Destination = WORKSPACE.find((d) => d.id === 'inbox')!
 
 /** One row of ⌘K "Go to": an area, a page of it, or a Review queue, with the trail that names where it lives. */
 export interface GoToEntry {

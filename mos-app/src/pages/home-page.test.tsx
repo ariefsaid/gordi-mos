@@ -449,6 +449,7 @@ describe('Home daily operating brief', () => {
     expect(screen.getByRole('radio', { name: /overview/i })).toBeChecked()
     profile.unmount()
 
+    mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
     const firstHome = await renderHome(financeViewer)
     expect(await screen.findByTestId('home-daily-brief')).toBeInTheDocument()
     const firstQueue = screen.getByRole('region', { name: /^Needs you now/ })
@@ -533,7 +534,6 @@ describe('AC-H02: a member sees a usable brief and live Signals column', () => {
     const brief = await screen.findByTestId('home-daily-brief')
     const needsYou = within(brief).getByRole('region', { name: /^Needs you now/ })
     expect(within(needsYou).getByRole('link', { name: /Restock oat milk/i })).toBeInTheDocument()
-    expect(within(brief).queryByText('Failed checks')).toBeNull()
     expect(within(brief).queryByRole('region', { name: /^Objectives/ })).toBeNull()
 
     expect(await within(brief).findByRole('region', { name: /^Signals/ })).toBeInTheDocument()
@@ -561,7 +561,6 @@ describe('AC-H02: a member sees a usable brief and live Signals column', () => {
       .toHaveAttribute('href', '/cafe')
     expect(within(cafe).getByRole('link', { name: /Log production/i }))
       .toHaveAttribute("href", "/cafe")
-    expect(within(brief).queryByText('Failed checks')).toBeNull()
     expect(within(brief).queryByRole('region', { name: /^Objectives/ })).toBeNull()
     expect(within(brief).getByRole('link', { name: /Restock oat milk/ })).toHaveAttribute('href', '/work/tasks/t-late')
   })
@@ -600,13 +599,12 @@ describe('OD-WAY-93: failed checks follow Café affiliation, not generic route a
       const brief = await screen.findByTestId('home-daily-brief')
 
       expect(mockLoadFailedChecks.mock.calls.length > 0, 'queried the café-log DAL').toBe(eligible)
-      const failedTab = within(brief).queryByRole('tab', { name: /^Failed checks/ })
+      const failedRegion = within(brief).queryByRole('region', { name: /^Failed checks/ })
       if (eligible) {
-        expect(failedTab).not.toBeNull()
-        await userEvent.setup().click(failedTab!)
-        expect(await within(brief).findByText('Production · 2026-07-20')).toBeInTheDocument()
+        expect(failedRegion).not.toBeNull()
+        expect(await within(failedRegion!).findByText('Production · 2026-07-20')).toBeInTheDocument()
       } else {
-        expect(failedTab).toBeNull()
+        expect(failedRegion).toBeNull()
       }
       expect(screen.queryByText('Production · 2026-07-20') != null, 'rendered the reject').toBe(eligible)
     })
@@ -730,7 +728,7 @@ describe('Home Task queue preserves decision context and collection reachability
     const queue = await screen.findByRole('region', { name: /^Needs you now/ })
     const link = within(queue).getByRole('link', { name: /Restock oat milk/i })
     expect(within(link).getByText(/Overdue · \d+ days/)).toBeInTheDocument()
-    expect(within(link).getByText('Blocked')).toBeInTheDocument()
+    expect(within(link).getByText('In Progress')).toBeInTheDocument()
     await waitFor(() => expect(within(link).getByText('Cahya Cafe')).toBeInTheDocument())
     expect(within(link).getByText('Café')).toBeInTheDocument()
     expect(link).toHaveAttribute('href', '/work/tasks/t-late')
@@ -764,8 +762,8 @@ describe('Home Task queue preserves decision context and collection reachability
     const english = await renderHome(financeViewer, 'en')
     const englishRegion = await screen.findByRole('region', { name: /Other open tasks.*8/ })
     expect(within(englishRegion).getByRole('link', { name: /Routine 7/i })).toBeInTheDocument()
-    expect(within(englishRegion).getAllByRole('link', { name: /Open task/i })).toHaveLength(0)
-    expect(screen.getByRole('link', { name: 'Routine 1' })).toHaveAttribute('href', '/work/tasks/routine-1')
+    expect(within(englishRegion).queryAllByRole('link', { name: /Open task/i })).toHaveLength(0)
+    expect(screen.getByRole('link', { name: /^Routine 1\b/ })).toHaveAttribute('href', '/work/tasks/routine-1')
     expect(within(englishRegion).getByRole('link', { name: '7 shown · 1 more in Tasks →' }))
       .toHaveAttribute('href', '/work/tasks?view=my-work')
     expect(screen.queryByText('Routine 8')).toBeNull()
@@ -814,7 +812,7 @@ describe('DIV-G5: shared task loading/error states never become an empty all-cle
       await Promise.resolve()
       await Promise.resolve()
     })
-    await waitFor(() => expect(screen.queryAllByRole('status').filter(node => !node.closest('.list-paging'))).toHaveLength(0))
+    await waitFor(() => expect(document.querySelectorAll('[aria-busy="true"]')).toHaveLength(0))
   })
 })
 

@@ -755,11 +755,11 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     renderTable()
     await waitFor(() => screen.getByText('Cue task'))
     const trigger = screen.getByRole('button', { name: /^filters & sort/i })
-    expect(trigger).toHaveTextContent(/^Filters & options$/)
+    expect(trigger).toHaveTextContent(/^Filters & sort$/)
 
     fireEvent.click(trigger)
     chooseFilterOption(statusSelect(), 'Blocked')
-    await waitFor(() => expect(screen.getByRole('button', { name: /^filters & options/i })).toHaveTextContent('1'))
+    await waitFor(() => expect(screen.getByRole('button', { name: /^filters & sort/i })).toHaveTextContent('1'))
     expect(screen.getByRole('button', { name: /status: blocked/i })).toBeInTheDocument()
   })
 
@@ -775,7 +775,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     for (const name of [/group/i, /business unit/i, /person/i, /^status$/i]) {
       expect(screen.queryByRole('combobox', { name })).toBeNull()
     }
-    const options = screen.getByRole('button', { name: /^filters & options/i })
+    const options = screen.getByRole('button', { name: /^filters & sort/i })
     expect(options).toHaveAttribute('aria-expanded', 'false')
 
     // Expanding the ONE control reveals the full filter capability (no filter is lost).
@@ -793,7 +793,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     renderTable({}, managerState)
     await waitFor(() => screen.getByText('Manager mobile work item'))
 
-    const options = screen.getByRole('button', { name: /^filters & options/i })
+    const options = screen.getByRole('button', { name: /^filters & sort/i })
     expect(options).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('combobox', { name: /group/i })).toBeNull()
     expect(screen.getByTestId('task-card')).toContainElement(screen.getByText('Manager mobile work item'))
@@ -839,7 +839,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     renderTable({}, authedState, undefined, 'id')
     await waitFor(() => screen.getByText('Pekerjaan pertama'))
 
-    fireEvent.click(screen.getByRole('button', { name: /^filter & opsi/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^filter & urutan/i }))
     fireEvent.click(viewPicker())
     expect(screen.getByRole('option', { name: 'Pekerjaan saya' })).toBeInTheDocument()
     fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' })
@@ -950,13 +950,12 @@ describe('UI-fidelity chrome — default-flat list (mockup is ungrouped)', () =>
     ])
     renderTable()
     await waitFor(() => screen.getByText('Open one'))
-    // Flat: leaf rows render, but NO group header rows by default.
-    expect(document.querySelector('tr.task-row')).toBeTruthy()
-    expect(document.querySelectorAll('tr.grp').length).toBe(0)
+    expect(screen.getByRole('link', { name: /Open one/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Blocked one/ })).toBeInTheDocument()
     ensureFiltersOpen()
     // Group-by control still defaults to a flat (none) value.
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    expect(groupSelect).toHaveTextContent('None')
+    expect(groupSelect).toHaveTextContent('No grouping')
   })
 
   it('choosing a group dimension brings grouping back (capability preserved)', async () => {
@@ -994,16 +993,6 @@ describe('Task 9 — group-by control in toolbar', () => {
     expect(options).toContain('Status')
     expect(options).toContain('PIC')
     expect(options.some(o => o && /Business unit/i.test(o))).toBe(true)
-  })
-
-  it('group-by control defaults to "none" / FLAT (UI-fidelity: mockup is ungrouped)', async () => {
-    mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
-    renderTable()
-    await waitFor(() => screen.getByText('A task'))
-    ensureFiltersOpen()
-    const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    // Default is FLAT to match the signed mockup; grouping is opt-in via the chip.
-    expect(groupSelect).toHaveTextContent('None')
   })
 
   it('changing group-by persists the choice to localStorage (flat — no grouping output in PR-2)', async () => {
@@ -1124,7 +1113,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     await screen.findByText('1 task')
     expect(screen.getByTestId('page-head')).toHaveTextContent('1 open')
     expect(screen.getByTestId('page-head')).toHaveTextContent('Relevant')
-    expect(screen.getByTestId('tasks-result-summary')).toHaveTextContent(/Due soonest · Active \+ Done in the last 30 days/)
+    expect(screen.getByTestId('tasks-result-summary')).toHaveTextContent(/Active \+ Done in the last 30 days/)
   })
 
   it('AC-133: loading shows a skeleton + aria-busy + role=status', async () => {
@@ -1773,10 +1762,10 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       mockListTasks.mockResolvedValue([makeTask({ title: 'Phone escape work' })])
       renderTable()
       await waitFor(() => screen.getByText('Phone escape work'))
-      const options = screen.getByRole('button', { name: /^filters & options/i })
+      const options = screen.getByRole('button', { name: /^filters & sort/i })
       fireEvent.click(options)
       expect(options).toHaveAttribute('aria-expanded', 'true')
-      fireEvent.keyDown(screen.getByRole('group', { name: /^filters & options/i }), { key: 'Escape' })
+      fireEvent.keyDown(screen.getByRole('group', { name: /^filters & sort/i }), { key: 'Escape' })
       expect(options).toHaveAttribute('aria-expanded', 'false')
       expect(options).toHaveFocus()
     })
@@ -1786,13 +1775,13 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       mockListTasks.mockResolvedValue([makeTask({ title: 'Phone save isolation' })])
       renderTable()
       await waitFor(() => screen.getByText('Phone save isolation'))
-      fireEvent.click(screen.getByRole('button', { name: /^filters & options/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^filters & sort/i }))
       fireEvent.click(screen.getByRole('button', { name: /save view/i }))
       const input = screen.getByRole('textbox', { name: /view name/i })
       input.focus()
       fireEvent.keyDown(input, { key: 'Escape' })
       expect(screen.queryByRole('textbox', { name: /view name/i })).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /^filters & options/i })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByRole('button', { name: /^filters & sort/i })).toHaveAttribute('aria-expanded', 'true')
       expect(screen.getByRole('button', { name: /save view/i })).toBeInTheDocument()
     })
   })
@@ -2641,7 +2630,7 @@ describe('AC-W2C — desktop density: Due in-frame, optional cols in drawer', ()
     expect(row.querySelector('.due-calm,.due-soon,.due-overdue')).toBeTruthy() // Due
 
     ensureFiltersOpen()
-    // The Fields group stays open across toggles in the Filters & options panel.
+    // The Fields group stays open across toggles in the Filters & sort panel.
     const menu = () => within(screen.getByRole('group', { name: 'Fields' }))
     // Each offered field, checked → its real column (header + data cell) appears.
     const cases: readonly (readonly [string, string, string])[] = [
