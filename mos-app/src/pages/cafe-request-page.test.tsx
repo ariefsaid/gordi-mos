@@ -268,7 +268,8 @@ describe('CafeRequestPage', () => {
       {
         id: 'q-8', branch_id: 'branch-1', activity: 'kitchen', required_by: '2026-10-07', note: null, status: 'Approved',
         requested_by: 'person-1', requested_at: '2026-10-05T01:00:00Z', reviewed_by: 'p-2', reviewed_at: '2026-10-05T02:00:00Z',
-        review_note: null, row_version: 2, lines: [line('l-4', 'Vanilla syrup')],
+        review_note: null, row_version: 2, posting: { state: 'posted', esb_number: 'PR-SYNTH-014' },
+        lines: [line('l-4', 'Vanilla syrup')],
       },
     ])
     renderPage()
@@ -278,7 +279,7 @@ describe('CafeRequestPage', () => {
     expect(rejected).toHaveTextContent('Fresh milk, Oat milk +1 more')
     expect(rejected).toHaveTextContent('Rejected · raise a new request')
     expect(rejected).toHaveTextContent('Reason: Raised twice')
-    expect(approved).toHaveTextContent('Approved · not posted to ESB')
+    expect(approved).toHaveTextContent('Approved · posted to ESB (PR-SYNTH-014)')
     expect(mockList).toHaveBeenCalledWith(['Submitted', 'Approved', 'Rejected'], { requestedBy: 'person-1', limit: 10 })
   })
 
