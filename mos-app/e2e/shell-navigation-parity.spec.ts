@@ -54,15 +54,18 @@ for (const actor of personas) {
     await expect(dialog.getByRole('group', { name: /Go to|Actions/ })).toHaveCount(0)
     await expect(dialog.getByRole('option', { name: 'Create task', exact: true })).toHaveCount(0)
     await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
     // DD-MVP-17 (bottom-tab-bar.tsx CAPTURE_SURFACE_PATHS): /cafe is itself the capture surface
     // now, so the phone launcher is deliberately hidden there. This test is about the launcher's
     // PERSONA-gated options, so it reaches the launcher from a non-capture surface instead.
-    await page.goto('')
+    // Home owns its phone action bar; Inbox keeps the shared quick-action launcher available.
+    await page.goto('inbox')
     await page.getByRole('button', { name: 'Actions', exact: true }).click()
     await expect(dialog.getByRole('option', { name: 'Create task', exact: true })).toBeVisible()
     await expect(dialog.getByRole('option', { name: 'Share signal', exact: true })).toBeVisible()
     await expect(dialog.getByRole('option', { name: 'Log Café production', exact: true })).toHaveCount(actor.capture ? 1 : 0)
     await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
     await page.setViewportSize({ width: 1440, height: 900 })
     // The sidebar (or the rail beside its pages panel) holds the areas; Work's pages open with Work.
     const nav = page.locator('aside, nav:not([aria-label="Breadcrumb"])')
@@ -75,7 +78,8 @@ for (const actor of personas) {
       await expect(nav.getByRole('link', { name: new RegExp(`^${label}(,|\\s|$)`) }).first()).toBeVisible()
     }
     await expect(nav.getByRole('link', { name: 'Money', exact: true })).toHaveCount(money ? 1 : 0)
-    await expect(nav.getByRole('link', { name: 'Admin settings', exact: true })).toHaveCount(['admin', 'director'].includes(actor.name) ? 1 : 0)
+    // Admin opens from a flyout button on the desktop rail.
+    await expect(nav.getByRole('button', { name: 'Admin settings', exact: true })).toHaveCount(['admin', 'director'].includes(actor.name) ? 1 : 0)
     await nav.getByRole('link', { name: 'Café', exact: true }).first().click()
     await expect(page).toHaveURL(/\/cafe$/)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
@@ -90,6 +94,7 @@ for (const actor of personas) {
     await dialog.getByRole('combobox').fill('Log Café')
     await expect(dialog.getByRole('option', { name: 'Log Café production', exact: true })).toHaveCount(actor.capture ? 1 : 0)
     await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
 
     await page.getByRole('button', { name: /^Search/ }).click()
     await dialog.getByRole('combobox').fill(TASKS.VIEWER_ACCOUNTABLE.title)

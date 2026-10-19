@@ -26,7 +26,6 @@ test.describe('shell phone nav', () => {
     await expect(nav.getByRole('link', { name: 'Inbox' })).toHaveCount(0)
     // OD-68: an org-wide role gets no promoted module tab — Café is absent from the bottom nav.
     await expect(nav.getByRole('link', { name: 'Café' })).not.toBeVisible()
-    await expect(page.getByRole('button', { name: 'Actions' })).toBeVisible()
 
     await nav.getByRole('button', { name: 'More' }).click()
     const more = page.getByRole('dialog', { name: 'More' })
@@ -47,6 +46,13 @@ test.describe('shell phone nav', () => {
     await expect(page).toHaveURL(/\/profile$/)
     await expect(page.getByRole('heading', { name: 'Personal profile', exact: true })).toBeVisible()
     await expect(more).toBeHidden()
+
+    // Home owns its own phone action bar; Inbox leaves the shared quick-action launcher available.
+    await page.goto('inbox')
+    await page.getByRole('button', { name: 'Actions', exact: true }).click()
+    const launcher = page.getByRole('dialog', { name: 'Command menu' })
+    await expect(launcher.getByRole('option', { name: 'Create task', exact: true })).toBeVisible()
+    await page.keyboard.press('Escape')
   })
   // Café tab for a café-affiliated viewer and Money absence from the bar and More, per persona:
   // owned by shell-navigation-parity.spec.ts (R1).
