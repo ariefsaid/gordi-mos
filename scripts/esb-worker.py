@@ -119,17 +119,23 @@ Environment
   ESB_GOODS_RECEIPT_ENABLED "1" lets a drain post café goods receipts; unset, the drain does not
                             select them. Every drain gate above applies as well.
   ESB_GOODS_RECEIPT_SHAPE_FILE  optional JSON overriding GoodsReceiptShape fields
+  ESB_PURCHASE_REQUEST_ENABLED "1" lets a drain post café purchase requests; unset, the drain does
+                            not select them. Every drain gate above applies as well.
+  ESB_PURCHASE_REQUEST_SHAPE_FILE  optional JSON overriding PurchaseRequestShape fields
 
 Map file:
   {"target_env": "goo",
    "branches": {"<mos branch code>": {"branch_id": 0, "location_id": 0,
                                       "receiving_locations": {"<mos location key>": 0}}, ...},
    "items":    {"<mos wip_item_id uuid>": {"bom_id": 0, "product_detail_id": 0}, ...},
-   "item_units": {"<mos item_unit uuid>": {"product_detail_id": 0, "product_id": 0}, ...}}
+   "item_units": {"<mos item_unit uuid>": {"product_detail_id": 0, "product_id": 0}, ...},
+   "request_process_id": 0}
   "item_units" is optional; the open-PO refresh uses it to name an ESB PO line's MOS product
   detail, and a goods receipt needs its "product_id" too. "receiving_locations" is optional;
   a goods receipt for a branch without its location key is refused. On the ERP of record
-  ("items": "from-payload") the MOS catalog's own ids are used.
+  ("items": "from-payload") the MOS catalog's own ids are used. "request_process_id" is optional:
+  ESB's default request process for this environment, which every purchase-request line carries;
+  a purchase request is refused without it.
   "items" may be the string "from-payload" ONLY when target_env is "gkid"; the loader
   refuses that combination anywhere else, which is the safety line enforced at config
   time as well as at dispatch time.
@@ -180,6 +186,7 @@ ERP_OF_RECORD = "gkid"
 POST_SWITCH = "ESB_ALLOW_GKID"
 READ_SWITCH = "ESB_ALLOW_GKID_READ"
 GR_SWITCH = "ESB_GOODS_RECEIPT_ENABLED"
+PR_SWITCH = "ESB_PURCHASE_REQUEST_ENABLED"
 PASSTHROUGH = "from-payload"
 
 TRANSIENT_STATUS = {408, 429}
@@ -255,6 +262,7 @@ class IdMap:
     branches: dict[str, dict[str, int]]
     items: dict[str, dict[str, int]] | str
     item_units: dict[str, dict[str, int]] = field(default_factory=dict)
+    request_process_id: int | None = None
 
     @property
     def passthrough(self) -> bool:
@@ -324,8 +332,10 @@ class Config:
     max_rows: int
     timeout: float
     goods_receipt_enabled: bool = False
+    purchase_request_enabled: bool = False
     po_shape: OpenPoShape = field(default_factory=lambda: OpenPoShape())
     gr_shape: GoodsReceiptShape = field(default_factory=lambda: GoodsReceiptShape())
+    pr_shape: PurchaseRequestShape = field(default_factory=lambda: PurchaseRequestShape())
 
     @property
     def stamps_erp_of_record(self) -> bool:
@@ -413,7 +423,12 @@ def load_id_map(path: str, target_env: str) -> IdMap:
             raise ConfigError(f"id map {path}: item unit {unit!r} needs an integer "
                               f"`product_detail_id` (and `product_id`, when present, an integer)")
 
-    return IdMap(target_env=target_env, branches=branches, items=items, item_units=item_units)
+    process = raw.get("request_process_id")
+    if process is not None and (isinstance(process, bool) or not isinstance(process, int)):
+        raise ConfigError(f"id map {path}: `request_process_id` must be an integer ESB request process id")
+
+    return IdMap(target_env=target_env, branches=branches, items=items, item_units=item_units,
+                 request_process_id=process)
 
 
 def load_config(environ: dict[str, str], *, offline: bool, drains: bool,
@@ -498,8 +513,10 @@ def load_config(environ: dict[str, str], *, offline: bool, drains: bool,
         max_rows=_int_env(environ, "ESB_MAX_ROWS", 50),
         timeout=float(_int_env(environ, "ESB_HTTP_TIMEOUT", 30)),
         goods_receipt_enabled=_flag(environ, GR_SWITCH),
+        purchase_request_enabled=_flag(environ, PR_SWITCH),
         po_shape=_load_shape(environ, "ESB_OPEN_PO_SHAPE_FILE", OpenPoShape),
         gr_shape=_load_shape(environ, "ESB_GOODS_RECEIPT_SHAPE_FILE", GoodsReceiptShape),
+        pr_shape=_load_shape(environ, "ESB_PURCHASE_REQUEST_SHAPE_FILE", PurchaseRequestShape),
     )
 
 
@@ -628,9 +645,12 @@ class Outbox:
             "order": "created_at.asc",
             "limit": str(self.cfg.max_rows),
         }
-        if not self.cfg.goods_receipt_enabled:
-            # Left pending, not skipped after selection: they must not fill the page.
-            filters["and"] = "(endpoint.neq.goods-receipt)"
+        # A family whose worker switch is off is left pending, not skipped after selection:
+        # its rows must not fill the page.
+        off = [e for e, on in (("goods-receipt", self.cfg.goods_receipt_enabled),
+                               ("purchase-request", self.cfg.purchase_request_enabled)) if not on]
+        if off:
+            filters["and"] = f"({','.join('endpoint.neq.' + e for e in off)})"
         query = urllib.parse.urlencode(filters)
         _, rows = _request("GET", f"{self.cfg.supabase_url}/rest/v1/esb_push?{query}",
                            headers=self._headers(write=False), timeout=self.cfg.timeout)
@@ -1214,8 +1234,9 @@ def run_tick(cfg: Config, rows: list[dict[str, Any]], *,
             groups.setdefault(str(gid), []).append(row)
         else:
             singles.append(row)
+    runners = {"goods-receipt": _run_goods_receipt_group, "purchase-request": _run_purchase_request_group}
     for grouped in groups.values():
-        run = _run_goods_receipt_group if grouped[0].get("endpoint") == "goods-receipt" else _run_group
+        run = runners.get(grouped[0].get("endpoint"), _run_group)
         bad += run(cfg, client, outbox, grouped, plan_only=plan_only, out=out, wip_names=wip_names)
     rows = singles
     for row in rows:
@@ -1608,9 +1629,10 @@ def _gr_verdict(exc: Classified, shape: GoodsReceiptShape) -> str:
 
 
 def goods_receipt_units(cfg: Config, rows: list[dict[str, Any]], *,
-                        db: bool) -> dict[str, dict[str, int]]:
+                        db: bool, product: bool = True) -> dict[str, dict[str, int]]:
     """MOS item unit -> this environment's ESB product and product detail. Outside the ERP of
-    record only the id map's `item_units` are read; on it, the MOS catalog's own ids."""
+    record only the id map's `item_units` are read; on it, the MOS catalog's own ids. With
+    `product` false only the product detail is required (a purchase request names no product)."""
     ids = sorted({str((r.get("payload") or {}).get("item_unit_id") or "") for r in rows})
     if "" in ids:
         raise Permanent("payload carries no item unit")
@@ -1618,12 +1640,12 @@ def goods_receipt_units(cfg: Config, rows: list[dict[str, Any]], *,
         units = {}
         for unit in ids:
             entry = cfg.id_map.item_units.get(unit)
-            if not entry or "product_id" not in entry:
+            if not entry or (product and "product_id" not in entry):
                 raise Permanent(
                     f"item unit {unit} has no {cfg.target_env} id map entry with `product_id` "
                     f"and `product_detail_id` — refusing to send it, and refusing to fall back "
                     f"to the MOS catalog's ids (those name the ERP of record's records)")
-            units[unit] = {"product_id": entry["product_id"],
+            units[unit] = {"product_id": entry.get("product_id"),
                            "product_detail_id": entry["product_detail_id"]}
         return units
     if not db:
@@ -1637,9 +1659,10 @@ def goods_receipt_units(cfg: Config, rows: list[dict[str, Any]], *,
     units = {}
     for unit in ids:
         entry = by_id.get(unit) or {}
-        if entry.get("esb_product_detail_id") in (None, "") or entry.get("esb_product_id") in (None, ""):
+        if entry.get("esb_product_detail_id") in (None, "") or (
+                product and entry.get("esb_product_id") in (None, "")):
             raise Permanent(f"item unit {unit} has no ESB product or product detail in the MOS catalog")
-        units[unit] = {"product_id": _as_int(entry["esb_product_id"], "esb_product_id"),
+        units[unit] = {"product_id": _as_int(entry["esb_product_id"], "esb_product_id") if product else None,
                        "product_detail_id": _as_int(entry["esb_product_detail_id"], "esb_product_detail_id")}
     return units
 
@@ -1693,11 +1716,12 @@ def compose_goods_receipt(cfg: Config, rows: list[dict[str, Any]], units: dict[s
               "isAutoClosePO": False, "goodsReceiptDetails": details})
 
 
-def lookup_goods_receipt(client: ErpClient, shape: GoodsReceiptShape, key: str,
-                         po: str) -> tuple[str, bool] | None:
-    """FR-1028: the goods receipt ESB holds under this MOS key as (number, authorized), or None
-    when the reply proves there is none. Anything short of proof halts the group (Halt); a
-    read that failed in transit is retried (Transient)."""
+def lookup_goods_receipt(client: ErpClient, shape, key: str, po: str | None,
+                         what: str = "goods receipt") -> tuple[str, bool] | None:
+    """FR-1028: the `what` (a goods receipt, or a purchase request with PurchaseRequestShape) ESB
+    holds under this MOS key as (number, authorized), or None when the reply proves there is
+    none. Anything short of proof halts the group (Halt); a read that failed in transit is
+    retried (Transient)."""
     try:
         result = client.get(shape.lookup_path, {shape.lookup_param: key,
                                                 shape.lookup_page_size_param: shape.lookup_page_size})
@@ -1707,15 +1731,15 @@ def lookup_goods_receipt(client: ErpClient, shape: GoodsReceiptShape, key: str,
     if not isinstance(rows, list):
         raise Halt(f"the lookup of {key} returned no list")
     if any(not isinstance(r, dict) or not str(_dig(r, shape.lookup_key) or "").strip() for r in rows):
-        raise Halt(f"the lookup of {key} returned a goods receipt without the {shape.lookup_key!r} field")
+        raise Halt(f"the lookup of {key} returned a {what} without the {shape.lookup_key!r} field")
     found = [r for r in rows if str(_dig(r, shape.lookup_key)).strip() == key]
     if len(found) > 1:
-        raise Halt(f"{len(found)} ESB goods receipts carry {key}")
+        raise Halt(f"{len(found)} ESB {what}s carry {key}")
     if found:
         number = str(_dig(found[0], shape.lookup_number) or "").strip()
         po_seen = _dig(found[0], shape.lookup_po)
         if not number or (po_seen is not None and str(po_seen).strip() != po):
-            raise Halt(f"the ESB goods receipt carrying {key} has no number or names another PO")
+            raise Halt(f"the ESB {what} carrying {key} has no number or names another PO")
         return number, str(_dig(found[0], shape.lookup_status)) in {str(s) for s in shape.authorized_statuses}
     total = _dig(result, shape.lookup_total)
     if len(rows) >= shape.lookup_page_size and not (isinstance(total, int) and total <= len(rows)):
@@ -1928,6 +1952,225 @@ def _run_goods_receipt_group(cfg: Config, client: ErpClient, outbox: Outbox | No
         return len(rows)
     print(f"{ref}: posted -> {number} ({len(live)} portions)", file=out)
     return len(rows) - len(live)
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════
+# Café purchase requests (FR-1054/1055) — one outbox group per approved request
+# ══════════════════════════════════════════════════════════════════════════════════════
+# ops._enqueue_cafe_purchase_request writes one group per approved request, one member per line,
+# and only while the branch's request-posting switch is on. The worker creates the ESB purchase
+# request, then authorizes it, with the goods receipt's stages: `create_sent` before the create
+# leaves, so an ambiguous failure is looked up by the MOS key before any second create;
+# `awaiting_authorization` holds a created number until ESB authorizes it. A member is posted only
+# with an authorized number.
+#
+# THE ESB SHAPE BELOW IS NOT PROVEN (#1423, phase 2): the paths and result field are from ESB's
+# API reference; the default request process id is the target environment's id map entry
+# `request_process_id`; whether the additionalInfo filter matches exactly or by substring, and
+# whether the integration user may authorize after create, are sandbox questions. The lookup
+# matches the key exactly on the rows returned whatever the filter does.
+
+
+@dataclass(frozen=True)
+class PurchaseRequestShape:
+    create_path: str = "/purchase/purchase-request"
+    result_number: str = "purchaseRequestNum"
+    authorize_method: str = "PATCH"
+    authorize_path: str = "/purchase/purchase-request/{doc}/authorize"
+    lookup_path: str = "/purchase/purchase-request"
+    lookup_param: str = "additionalInfo"
+    lookup_page_size_param: str = "limit"
+    lookup_page_size: int = 20
+    lookup_rows: str = "result.data"
+    lookup_total: str = "result.count"
+    lookup_number: str = "purchaseRequestNum"
+    lookup_key: str = "additionalInfo"
+    lookup_po: str = ""  # a purchase request names no PO
+    lookup_status: str = "statusID"
+    authorized_statuses: tuple[str, ...] = ("3",)
+    additional_info_max: int = 1000
+
+
+_PR_GROUP_FACTS = ("request_id", "branch_code", "request_date", "required_date", "mos_key")
+
+
+def compose_purchase_request(cfg: Config, rows: list[dict[str, Any]],
+                             units: dict[str, dict[str, int]]) -> Request:
+    """AC-1042: one ESB purchase request for one approved MOS request: its branch, request and
+    required dates, the MOS key in the additional information, template off, and one detail per
+    line with the environment's default request process. The floor never chose purchase or
+    transfer, so the body carries no such choice."""
+    if not rows:
+        raise Permanent("empty purchase-request group")
+    for row in rows:
+        _own_env(cfg, row)
+    shape = cfg.pr_shape
+    head = rows[0].get("payload") or {}
+    if len({str(r.get("push_group_id")) for r in rows}) != 1 or any(
+            (r.get("payload") or {}).get(k) != head.get(k) for r in rows for k in _PR_GROUP_FACTS):
+        raise Permanent("a purchase-request group must be one request, with one branch and one set of dates")
+    branch = cfg.id_map.branch(head.get("branch_code"))
+    dates = {}
+    for field_name in ("request_date", "required_date"):
+        day = str(head.get(field_name) or "")
+        try:
+            datetime.strptime(day, "%Y-%m-%d")
+        except ValueError:
+            raise Permanent(f"payload {field_name} is not a date: {day!r}") from None
+        dates[field_name] = day
+    key = str(head.get("mos_key") or "")
+    if not key or _ascii(key, shape.additional_info_max) != key:
+        raise Permanent(f"MOS key {key!r} is missing, not ASCII or longer than the additional information "
+                        f"field ({shape.additional_info_max}); it is never shortened, because the lookup "
+                        f"finds the purchase request by it")
+    process = cfg.id_map.request_process_id
+    if process is None:
+        raise Permanent(f"the {cfg.target_env} id map has no `request_process_id` — add ESB's default "
+                        f"request process to it, never guess an id")
+    details = []
+    for row in rows:
+        payload = row.get("payload") or {}
+        qty = _as_float(payload.get("quantity"), "quantity")
+        if not qty > 0:
+            raise Permanent(f"request line quantity is not positive: {qty!r}")
+        details.append({"productDetailID": units[str(payload.get("item_unit_id"))]["product_detail_id"],
+                        "qty": qty, "requestProcessID": process})
+    if len({d["productDetailID"] for d in details}) != len(details):
+        raise Permanent("two request lines name the same ESB product detail")
+    return Request(
+        path=shape.create_path, result_key=shape.result_number,
+        body={"branchID": branch["branch_id"], "purchaseRequestDate": dates["request_date"],
+              "requiredDate": dates["required_date"], "additionalInfo": key, "isTemplate": False,
+              "purchaseRequestDetails": details})
+
+
+def authorize_purchase_request(cfg: Config, client: ErpClient, number: str) -> None:
+    shape = cfg.pr_shape
+    try:
+        client._call(shape.authorize_method,
+                     shape.authorize_path.format(doc=urllib.parse.quote(number, safe="")))
+    except Permanent as exc:
+        raise EsbRefused(f"ESB purchase request {number} was created but ESB refused to authorize "
+                         f"it: {esb_message(exc)}") from None
+    except Transient as exc:
+        raise Transient(f"authorization of ESB purchase request {number} is not confirmed: {exc}",
+                        kind=exc.kind) from None
+
+
+def _stop_purchase_request(outbox: Outbox, gid: str, rows: list[dict[str, Any]], ref: str,
+                           exc: Permanent, *, may_exist: bool, out) -> None:
+    """Dead-letter every member in flight. While ESB may hold a request for this group the stop
+    is a halt for a person, who checks ESB by the MOS key before anything is sent again."""
+    message = (f"HALTED for a person: {exc}. Check ESB for {ref} before anything is sent again"
+               if may_exist else str(exc))
+    _fail_members(outbox, rows, message, permanent=True)
+    outbox.patch_group(gid, {"status": "dead_letter", "last_error": message[:2000]})
+    print(f"{ref}: {'HALTED for a person' if may_exist else 'refused'} — {exc}", file=out)
+
+
+def _run_purchase_request_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
+                                rows: list[dict[str, Any]], *, plan_only: bool, out,
+                                wip_names: dict[str, str] | None = None) -> int:
+    """Post one approved request as one ESB purchase request: create, then authorize, then fan
+    the authorized number out to its lines. Returns how many rows did not post."""
+    head = rows[0].get("payload") or {}
+    ref = str(head.get("mos_key") or rows[0].get("push_group_id"))
+    if not plan_only and not cfg.purchase_request_enabled:
+        print(f"{ref}: held — purchase-request posting is off in this worker ({PR_SWITCH}); "
+              f"nothing sent", file=out)
+        return 0
+    gid = str(rows[0].get("push_group_id"))
+    meta = outbox.group_meta(gid) if outbox is not None else {}
+    number, stage = meta.get("esb_doc_num"), meta.get("posting_stage")
+    may_exist = bool(number or stage)
+    try:
+        if stage == GR_STAGE_OPERATOR_CONFIRMED:
+            if not number:
+                raise Permanent("operator-confirmed purchase request has no ESB number")
+            req = None
+        else:
+            units = goods_receipt_units(cfg, rows, db=outbox is not None, product=False)
+            req = compose_purchase_request(cfg, rows, units)
+    except Permanent as exc:
+        print(f"{ref}: {'REFUSED' if plan_only else 'group failed'} — {exc}", file=out)
+        if not plan_only and outbox is not None:
+            held, early = _resume_members(outbox, rows, ref, out, terminal_ok=False)
+            if early is None:
+                _stop_purchase_request(outbox, gid, held, ref, exc, may_exist=may_exist, out=out)
+        return len(rows)
+    except Transient as exc:
+        print(f"{ref}: not attempted — {exc}", file=out)
+        return len(rows)
+    if plan_only:
+        if req is None:
+            print(f"{ref}: ADOPT recorded ESB purchase request {number}", file=out)
+            return 0
+        print(f"{ref}: POST {req.path} {json.dumps(req.body, sort_keys=True)}", file=out)
+        print(f"{ref}: {cfg.pr_shape.authorize_method} "
+              f"{cfg.pr_shape.authorize_path.format(doc='<returned number>')}", file=out)
+        return 0
+
+    assert outbox is not None
+    live, early = _resume_members(outbox, rows, ref, out, terminal_ok=False)
+    if early is not None:
+        return early
+    shape = cfg.pr_shape
+    try:
+        if req is None:
+            pass
+        elif stage == GR_STAGE_AWAITING:
+            # The last authorize's answer may have been lost: ESB says whether it landed.
+            found = lookup_goods_receipt(client, shape, ref, None, "purchase request")
+            if found is None or found[0] != number:
+                raise Halt(f"ESB does not show created purchase request {number} under {ref}")
+            if not found[1]:
+                authorize_purchase_request(cfg, client, number)
+        elif not number:
+            found = (lookup_goods_receipt(client, shape, ref, None, "purchase request")
+                     if stage == GR_STAGE_SENT else None)
+            if found:
+                number = found[0]
+                outbox.patch_group(gid, {"status": "in_flight", "posting_stage": GR_STAGE_AWAITING,
+                                         "esb_doc_num": number})
+                if not found[1]:
+                    authorize_purchase_request(cfg, client, number)
+            else:
+                # Absent: nothing ESB holds carries this key (or no create was ever sent).
+                outbox.patch_group(gid, {"status": "in_flight", "posting_stage": GR_STAGE_SENT,
+                                         "last_error": None})
+                may_exist = True
+                try:
+                    number = client.post(req.path, req.body, req.result_key)
+                except Permanent as exc:
+                    # ESB's definitive refusal proves nothing was created.
+                    outbox.patch_group(gid, {"posting_stage": None})
+                    may_exist = False
+                    raise EsbRefused(f"ESB refused purchase request {ref}: {esb_message(exc)}") from None
+                if not number:
+                    raise Transient(f"ESB accepted purchase request {ref} but returned no number")
+                outbox.patch_group(gid, {"status": "in_flight", "posting_stage": GR_STAGE_AWAITING,
+                                         "esb_doc_num": number})
+                authorize_purchase_request(cfg, client, number)
+        for row in live:
+            outbox.close_posted(row, number)
+            row["status"] = "posted"
+        outbox.patch_group(gid, {"status": "posted", "esb_doc_num": number, "posting_stage": None,
+                                 "posted_at": _now(), "last_error": None})
+    except Permanent as exc:
+        _stop_purchase_request(outbox, gid, live, ref, exc, may_exist=may_exist, out=out)
+        return len(rows)
+    except Exception as exc:
+        # A transient ESB fault or a write-back fault. The group's stage and number stay as
+        # recorded, so the next attempt looks up or authorizes rather than creating again.
+        _fail_members(outbox, live, str(exc), permanent=False)
+        try:
+            outbox.patch_group(gid, {"status": "failed", "last_error": str(exc)[:2000]})
+        except Exception:
+            pass
+        print(f"{ref}: group failed — {exc}", file=out)
+        return len(rows)
+    print(f"{ref}: posted -> {number} ({len(live)} lines)", file=out)
+    return 0
 
 
 def load_rows(path: str) -> list[dict[str, Any]]:
