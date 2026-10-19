@@ -2,3 +2,4 @@
 @media(max-width:767.98px){.cafe-count-review{padding:14px}.cafe-count-review__facts{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:12px}.cafe-count-review__decision{justify-content:stretch}.cafe-count-review__decision .btn{width:100%}}
 /* Empty (also on a phone): no card of its own around the shared empty state. */
 .cafe-count-review.cafe-count-review--empty { padding: 0; }
+.cafe-count-review__facts dd .cafe-count-review__negative { display: inline; color: var(--status-lost-text); font-size: var(--mos-size-3); font-variant-numeric: tabular-nums; }
