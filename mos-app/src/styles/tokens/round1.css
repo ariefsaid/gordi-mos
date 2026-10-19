@@ -88,7 +88,7 @@
   --mos-space-1: 4px; --mos-space-2: 8px; --mos-space-3: 12px; --mos-space-4: 16px;
   --mos-space-5: 20px; --mos-space-6: 24px; --mos-space-8: 32px; --mos-space-10: 40px; --mos-space-12: 48px;
   --mos-icon-sm: 16px; --mos-icon-md: 20px;
-  --mos-rail-width: 240px; --mos-rail-collapsed: 64px;
+  --mos-rail-width: 240px; --mos-context-width: 13.5rem; --mos-rail-collapsed: 6.5rem;
   --mos-topbar-height: 64px; --mos-tabbar-height: 68px;
   --mos-gutter: 24px;
 

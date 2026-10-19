@@ -13,7 +13,7 @@ import { useRailCollapsePref } from './use-rail-collapse-pref'
 import { useModuleAvailability } from '@/lib/module-availability'
 import type { ModuleId } from '@/lib/db/module-settings'
 
-/** The full labelled nav needs 240px (or 64 + 240) beside a usable page; below this it is the 64px rail with flyouts. */
+/** The 104px whole-word global rail remains visible; below 1280px contextual pages move into flyouts. */
 const FULL_NAV_QUERY = '(min-width: 1280px)'
 
 function useIsFullNavWidth(): boolean {
@@ -32,26 +32,26 @@ export interface NavLayout {
   isNarrow: boolean
   roles: string[]
   isOn: (moduleId: ModuleId) => boolean
-  /** One available page-bearing area → sidebar; two or more → the module rail with a pages panel. */
+  /** One page-bearing destination → labelled sidebar; Work plus an admitted module → rail with contextual panel. */
   mode: NavMode
-  /** The 64px rail with flyouts: either the viewport is under 1280px or the viewer folded the nav away. */
+  /** The 104px labelled rail with flyouts: viewport under 1280px or the viewer folded the contextual panel away. */
   compact: boolean
   /** The viewer's own fold-away choice can change something right now. */
   collapsible: boolean
-  /** The destination whose pages the panel lists (module mode, expanded, two or more pages); null = no panel. */
+  /** The expanded contextual destination's pages; null when the rail is folded or the route has no panel. */
   panelArea: Destination | null
   /** The destination that owns the current route. */
   area: Destination | null
-  /** Width of the nav column: 240 sidebar, 64 rail, 64 + 240 rail with panel. */
+  /** Width of the nav column: 240px sidebar, 104px rail, or rail plus the clamped contextual panel. */
   columnWidth: string
-  /** The top bar's brand cell sits over the rail (64) or the whole sidebar (240). */
+  /** The top bar's brand cell spans the 104px rail or the whole 240px sidebar. */
   brandWide: boolean
 }
 
 /**
  * The ONE place that decides which shell the desktop viewer gets, so the grid column, the top bar's brand
- * cell and the nav itself cannot disagree: available page-bearing areas pick sidebar or rail + panel, the viewport
- * (and the viewer's own choice) picks full or 64px rail.
+ * cell and the nav itself cannot disagree: admitted Work plus module destinations pick the rail + panel,
+ * while the viewport (and the viewer's own choice) picks full panel or the 104px rail.
  */
 export function useNavLayout(): NavLayout {
   const auth = useAuth()
@@ -68,7 +68,7 @@ export function useNavLayout(): NavLayout {
   const panelArea = !compact && mode === 'panel' && panelCandidate && pageCount(pageGroupsFor(panelCandidate, roles, isOn)) >= 2 ? panelCandidate : null
   const columnWidth = compact ? 'var(--mos-rail-collapsed)'
     : mode === 'sidebar' ? 'var(--mos-rail-width)'
-      : panelArea ? 'calc(var(--mos-rail-collapsed) + var(--mos-rail-width))' : 'var(--mos-rail-collapsed)'
+      : panelArea ? 'calc(var(--mos-rail-collapsed) + clamp(12rem, var(--mos-context-width), 16rem))' : 'var(--mos-rail-collapsed)'
   return {
     isNarrow, roles, isOn, mode, compact, collapsible: !isNarrow && fullWidth, panelArea, area, columnWidth,
     brandWide: !compact && mode === 'sidebar',

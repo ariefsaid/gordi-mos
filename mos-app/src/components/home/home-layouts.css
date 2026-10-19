@@ -1,114 +1,94 @@
-/* Home's three saved arrangements share one ruled brief. The primary column carries ranked work;
-   The aside column carries the authorized Objectives door and the bounded Signals preview, so the
-   wide screen reads as two filled columns; it stacks under the brief when the container narrows. */
+/* One data projection, three placements. The ranked queue stays intact; standing context only moves beside or below it. */
 .home-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
-  gap: var(--mos-section-gap);
+  grid-template-columns: minmax(0, 2.27fr) minmax(300px, 1fr);
+  gap: var(--mos-section-gap) 32px;
   align-items: start;
 }
-
 .home-layout > * { min-width: 0; }
-.home-brief-main { display: grid; gap: var(--mos-group-above); min-width: 0; }
-.home-layout-leading { min-width: 0; }
-.home-aside { display: grid; gap: var(--mos-group-above); min-width: 0; align-content: start; }
-.home-overview-regions { display: grid; gap: var(--mos-section-gap); }
+.home-brief-main,
+.home-attention-queue { display: grid; gap: var(--mos-section-gap); min-width: 0; }
+.home-standing { display: grid; gap: var(--mos-section-gap); min-width: 0; align-content: start; }
+.home-layout--overview .home-brief-main { grid-column: 1 / -1; }
+.home-layout--overview .home-other-open { min-width: 0; }
+.home-layout--overview .home-standing { grid-column: 2; }
+.home-layout--list { grid-template-columns: minmax(0, 1fr); }
+.home-layout--list .home-standing { margin-top: var(--mos-section-gap); }
+.home-layout--overview .home-other-open .home-region { border-top: 1px solid var(--border); padding-top: var(--mos-inline-gap); }
+.home-region-count { color: var(--muted-foreground); font-weight: 400; white-space: nowrap; }
+.home-region-empty { margin: 0; padding: var(--mos-stack-gap) 0; color: var(--muted-foreground); font: var(--mos-type-body); }
+.home-region-more { min-width: 0; }
+.home-region-more .stream-band-link { display: inline-flex; align-items: center; min-height: var(--mos-control-height); }
+.home-region-more--phone { display: none; }
 
-.home-tab-count { margin-left: var(--mos-space-1); color: var(--muted-foreground); font-weight: 400; }
+.home-standing .home-objectives-door,
+.home-standing .home-cafe-door,
+.home-standing .home-signals { min-width: 0; }
+.home-standing .home-signals { border-top: 1px solid var(--border); padding-top: var(--mos-inline-gap); }
+.home-standing .home-signals .signal-feed-section { margin: 0; }
+.home-standing .home-objectives-door .group-header { margin-bottom: var(--mos-group-below); }
+.home-standing .home-objective-row { padding-block: var(--mos-row-pad-y); }
+.home-standing .home-cafe-door { border-top: 1px solid var(--border); padding-top: var(--mos-inline-gap); }
+.home-standing .home-signal-list { gap: 0; }
+.home-standing .home-signal-list > li + li { border-top: 1px solid var(--row-divider); }
+.home-standing .home-signal-row { padding-block: var(--mos-row-pad-y); }
 
-.home-aside .signal-feed-section {
-  margin: 0;
-  border-top: 1px solid var(--border);
-  padding-top: var(--mos-inline-gap);
-}
-.home-aside .group-header { margin-bottom: var(--mos-group-below); }
-.home-aside .group-header__trailing .stream-band-link { display: inline-flex; align-items: center; }
-
-/* Keep clear, aligned decisions visible without turning each region into a separate card. */
 .home-layout .stream-row-link {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--mos-row-gap);
   padding-block: var(--mos-row-pad-y);
 }
-
-/* One left edge: row text lines up with the headings above it, and the hover/focus fill bleeds
-   8px past the text instead of pushing the text in. Dividers stay on the list items. */
-.home-frame .stream-row-link,
-.home-frame .home-signal-row,
-.home-frame .home-objective-row {
-  margin-inline: calc(-1 * var(--mos-space-2));
-  padding-inline: var(--mos-space-2);
-  border-radius: var(--radius-sm);
-}
-.home-frame .home-signal-list { gap: 0; }
-.home-frame .home-signal-list > li + li { border-top: 1px solid var(--row-divider); }
-.home-frame .home-signal-list > li + li > .home-signal-row { border-top: 0; }
-.home-frame .home-signal-row { padding-block: var(--mos-row-pad-y); }
-.home-frame .home-signal-row--open:hover,
-.home-frame .home-objective-row:hover { background: var(--mos-hover); }
-.home-frame .home-signal-row--open:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
-.home-layout .stream-row-title {
-  color: var(--foreground);
-  font-size: var(--mos-size-3);
-  line-height: 1.5;
-}
+.home-layout .stream-row-title { font-size: var(--mos-size-3); line-height: 1.45; }
+.home-layout .stream-row--featured .stream-row-title { font-size: var(--mos-size-4); line-height: 1.35; }
 .home-layout .stream-row-tail { flex-wrap: wrap; justify-content: flex-end; max-width: 240px; }
 .home-layout .stream-row-action { margin-left: auto; color: var(--text-on-accent-tint); }
 .home-layout .home-signal-body { font-size: var(--mos-size-3); font-weight: 400; line-height: 1.6; }
 .home-layout .home-signal-row { flex-direction: row; gap: var(--mos-row-gap); }
 .home-layout .home-signal-meta { font-size: var(--mos-size-3); }
-.home-aside .home-signal-row { flex-direction: column; gap: var(--mos-label-gap); }
-.home-aside .home-signal-tail { align-self: flex-start; }
+.home-standing .home-signal-row { flex-direction: column; gap: var(--mos-label-gap); }
+.home-standing .home-signal-tail { align-self: flex-start; }
 .home-layout .home-signal-main { width: 100%; gap: var(--mos-inline-gap); }
 .home-layout .home-signal-meta-item { overflow: visible; white-space: normal; }
 .home-layout .signal-feed-label,
 .home-layout .stream-band-label,
 .home-layout .home-objectives-door .stream-band-label { font-size: var(--mos-size-3); }
 .home-layout .home-objective-name { white-space: normal; font-weight: 500; }
-.home-layout .stream-band-link,
-.home-layout .signal-feed-link { color: var(--text-on-accent-tint); }
-.home-layout .stream-band-head { flex-wrap: wrap; gap: var(--mos-stack-gap) var(--mos-row-gap); }
+.home-layout .stream-band-head { flex-wrap: wrap; gap: var(--mos-stack-gap) var(--mos-row-gap); margin-bottom: var(--mos-group-below); }
 .home-layout .stream-band-list { min-width: 0; }
-
-/* Overview is parallel ruled collections, not a wall of interchangeable boxes. */
-.home-overview-regions .stream-band { padding-top: var(--mos-inline-gap); }
+.home-layout .home-region-collection > .record-collection { gap: 0; }
 
 @container home (max-width: 940px) {
   .home-layout { grid-template-columns: minmax(0, 1fr); gap: var(--mos-section-gap); }
-}
-
-/* Side by side, the aside's first section shares the page head's rule instead of adding a second. */
-@container home (min-width: 941px) {
-  .home-layout .home-aside > :first-child,
-  .home-layout .home-aside > :first-child > .signal-feed-section:first-child { border-top: 0; }
+  .home-layout--overview .home-brief-main,
+  .home-layout--overview .home-other-open,
+  .home-layout--overview .home-standing { grid-column: 1; }
+  .home-layout--overview .home-standing { margin-top: 0; }
+  .home-layout--list .home-standing { margin-top: 0; }
 }
 
 @container home (max-width: 620px) {
   .home-layout { gap: var(--mos-field-gap); }
-  .home-brief-main { gap: var(--mos-row-gap); }
-  /* Three equal columns keep every tab visible on one row at 390, in English and Indonesian;
-     the label wraps and the count sits under it, so no label is ever cut off or scrolled away. */
-  .home-brief-main .view-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--mos-space-2); overflow: visible; }
-  .home-brief-main .view-tabs__tab {
-    flex-direction: column; justify-content: space-between; align-items: center; gap: 0;
-    min-width: 0; padding-block: var(--mos-space-2); white-space: normal; text-align: center;
-  }
-  .home-brief-main .home-tab-count { margin-left: 0; }
-  .home-brief-main .stream-all-clear .empty-state-body { flex-direction: column; align-items: flex-start; }
-  /* A task row is three lines: title, meta, then the reason and the status badge side by side (badge at the right end). */
-  .home-layout .stream-row-link { display: flex; flex-flow: row wrap; align-items: center; gap: var(--mos-label-gap) var(--mos-row-gap); padding-block: var(--mos-row-pad-y); }
-  .home-layout .stream-row-tail { max-width: none; justify-content: flex-end; }
+  .home-brief-main,
+  .home-attention-queue,
+  .home-standing { gap: var(--mos-field-gap); }
+  .home-layout .stream-row-link { display: flex; flex-flow: row wrap; align-items: center; gap: var(--mos-label-gap) var(--mos-row-gap); }
+  .home-layout .stream-row-body { display: contents; }
+  .home-layout .stream-row--attention .stream-row-link { flex-direction: column; align-items: stretch; }
+  .home-layout .stream-row--attention .stream-row-body { display: flex; flex-direction: column; align-items: stretch; order: 0; gap: var(--mos-label-gap); }
+  .home-layout .stream-row--attention .stream-row-priority { order: 0; }
+  .home-layout .stream-row--attention .stream-row-title { order: 1; }
+  .home-layout .stream-row--attention .stream-row-meta { order: 2; }
+  .home-layout .stream-row--attention .stream-row-tail { order: 1; align-self: flex-end; margin-inline-start: 0; }
+  .home-layout .stream-row-body > .stream-row-title,
+  .home-layout .stream-row-meta { order: 0; flex: 0 0 100%; }
+  .home-layout .stream-row-body > .stream-row-reason-line { order: 1; flex: 0 1 auto; }
+  .home-layout .stream-row-tail { max-width: none; flex-wrap: wrap; row-gap: var(--mos-label-gap); }
+  .home-layout .stream-row-action { min-height: var(--mos-control-height); display: inline-flex; align-items: center; }
   .home-layout .stream-band-link,
   .home-layout .signal-feed-link { display: inline-flex; align-items: center; min-height: var(--mos-control-height); }
   .home-layout .home-signal-row { align-items: flex-start; flex-direction: column; gap: var(--mos-label-gap); }
+  .home-layout .home-region-collection--needs-you .home-attention-list > .stream-row:nth-child(n + 4) { display: none; }
+  .home-region-more--desktop { display: none; }
+  .home-region-more--phone { display: block; }
 }
-
-@container home (min-width: 961px) {
-  .home-layout .home-brief-my-work .stream-row-link { display: flex; padding-block: var(--mos-row-pad-y); }
-  .home-layout .home-brief-my-work .stream-row-tail { flex-wrap: nowrap; }
-}
-
-/* Signals sit under the brief as their own section, so neither column runs far past the fold. */
-.home-signals { margin-top: var(--mos-section-gap); border-top: 1px solid var(--mos-line); padding-top: var(--mos-inline-gap); }
-.home-signals .signal-feed-section { margin: 0; }

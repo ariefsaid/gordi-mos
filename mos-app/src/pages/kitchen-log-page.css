@@ -258,28 +258,75 @@
   .kl-scope { width: 100%; }
 }
 
-/* Production composition: one full-width worksheet, comparison facts aligned before entry. */
+/* Production workbench: preserve the full capture engine and change only its page composition. */
 .kl-capture-wide:has(.cafe-production-sheet),
 .kl-capture-wide:has(.cafe-transfer-context) { display: block; }
-.kl-capture-main:has(.cafe-production-sheet) { width: 100%; min-width: 0; }
+.kl-capture-main:has(.cafe-production-sheet) {
+  width: 100%; min-width: 0; container: cafe-production / inline-size;
+}
 .kl-capture-main:has(.cafe-production-sheet) > .kl-inline-summary,
 .kl-capture-main:has(.cafe-transfer-context) > .kl-inline-summary { display: block; }
-.cafe-production-additive-help { margin: 0; max-width: 65ch; color: var(--muted-foreground); font-size: var(--mos-size-3); line-height: 1.45; }
-.cafe-production-sheet__missing { margin: 0; }
-.cafe-production-recorded { margin-top: 0; }
+.cafe-production-additive-help { margin: 0 0 var(--mos-inline-gap); max-width: 65ch; color: var(--muted-foreground); font-size: var(--mos-size-3); line-height: 1.45; }
+.cafe-production-workbench { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--mos-section-gap); min-width: 0; }
+.cafe-production-workbench__ledger,
+.cafe-production-workbench__companion { min-width: 0; }
+.cafe-production-workbench__ledger { order: 1; }
+.cafe-production-workbench__companion {
+  order: 0; display: flex; flex-direction: column; gap: var(--mos-section-gap); align-self: start;
+}
+.cafe-production-companion__draft { display: flex; flex-direction: column; gap: var(--mos-inline-gap); min-width: 0; }
+.cafe-production-companion__draft h2 { margin: 0; color: var(--foreground); font: var(--mos-type-control); font-weight: 600; }
+.cafe-production-companion__draft h2:focus { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.cafe-production-local-only,
+.cafe-production-saved-at,
+.cafe-production-inline-status { margin: 0; color: var(--mos-muted); font: var(--mos-type-body); overflow-wrap: anywhere; }
+.cafe-production-inline-status { display: none; }
+.cafe-production-inline-status time { display: block; font: var(--mos-type-meta); }
+.cafe-production-saved-at { font: var(--mos-type-meta); }
+.cafe-production-companion__draft .kl-capture-summary__lines { max-width: 100%; }
+.cafe-production-companion__draft .kl-capture-summary__lines li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--mos-label-gap) var(--mos-row-gap); min-width: 0; }
+.cafe-production-companion__draft .kl-capture-summary__lines li > span,
+.cafe-production-companion__draft .kl-capture-summary__lines li > strong { flex: 1 1 100%; min-width: 0; text-align: start; overflow-wrap: anywhere; }
+.cafe-production-workbench__companion .cafe-production-recorded { margin-top: 0; }
 .cafe-production-recorded ul { display: grid; gap: var(--mos-inline-gap); margin: 0; padding: 0; list-style: none; }
 .cafe-production-recorded li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--mos-label-gap) var(--mos-field-gap); min-height: var(--mos-row-min); padding: var(--mos-row-pad-y) 0; border-bottom: 1px solid var(--border); }
 .cafe-production-recorded li > span { display: flex; flex-wrap: wrap; gap: var(--mos-label-gap) var(--mos-row-gap); }
 .cafe-production-recorded p { margin: 0; color: var(--muted-foreground); }
+.cafe-production-inspect-mobile { display: none; }
 .cafe-production-inspect .kl-capture-summary__lines { max-width: 50rem; }
-.cafe-production-sheet .cafe-capture-footer,
-.cafe-production-sheet + .cafe-capture-footer { width: 100%; }
+.cafe-production-sheet__missing { margin: 0; }
+.cafe-production-other-drafts { margin: 0 0 var(--mos-inline-gap); }
+.cafe-production-other-drafts > section { display: grid; gap: var(--mos-inline-gap); min-width: 0; }
+.cafe-production-other-drafts section > h2 {
+  margin: 0; padding-bottom: var(--mos-inline-gap); border-bottom: 1px solid var(--border);
+  color: var(--foreground); font: var(--mos-type-control); font-weight: 600;
+}
+/* CaptureTable owns the width-aware row switch. At the full 1072px work width the ledger is 800px;
+   below that, the companion stacks before the ledger loses its quantity/unit tracks. */
+@container cafe-production (min-width: 67rem) {
+  .cafe-production-workbench { grid-template-columns: minmax(0, 1fr) 248px; column-gap: 24px; }
+  .cafe-production-workbench__ledger { grid-column: 1; grid-row: 1; order: 0; }
+  .cafe-production-workbench__companion {
+    grid-column: 2; grid-row: 1; order: 0; position: sticky; top: 16px;
+    max-height: calc(100dvh - 32px); overflow: auto;
+  }
+}
 @media (max-width: 767.98px) {
   .kl-capture-main:has(.cafe-production-sheet) > .kl-inline-summary,
   .kl-capture-main:has(.cafe-transfer-context) > .kl-inline-summary { margin-bottom: var(--mos-inline-gap); }
   .kl-capture-main:has(.cafe-transfer-context) > .kl-inline-summary > .msr { padding-bottom: 6px; margin-bottom: 0; }
-  .cafe-production-additive-help { margin-bottom: 8px; }
+  .cafe-production-additive-help { margin-bottom: var(--mos-inline-gap); }
+  .cafe-production-inline-status { display: flex; flex-wrap: wrap; gap: var(--mos-label-gap) var(--mos-inline-gap); }
+  .cafe-production-inspect-mobile { display: block; margin-bottom: var(--mos-inline-gap); }
+  .cafe-production-workbench__ledger { order: 0; }
+  .cafe-production-workbench__companion { order: 1; position: static; max-height: none; overflow: visible; }
+  .cafe-production-companion__draft { display: none; }
+  .cafe-production-sheet .cap-table .cap-row__name { display: block; }
+  .cafe-production-sheet .cap-table .cap-row__name > span:not(.cap-row__kind) {
+    display: block; -webkit-line-clamp: unset; line-clamp: unset; overflow: visible; overflow-wrap: anywhere;
+  }
 }
+
 .cafe-transfer-context > div:first-child { display:none; }
 @media (max-width: 767.98px) {
   .cafe-transfer-context__destination { width: 100%; }
@@ -330,9 +377,17 @@
 
 /* Secondary explanation sits below the work, behind a disclosure (UX-STANDARD PA4, LC3). */
 .kl-about { color: var(--mos-muted); font: var(--mos-type-body); }
+.kl-about .rp-disclosure-wrap { margin: 0; border: 0; }
+.kl-about .rp-disclosure { min-height: 44px; color: var(--mos-muted); font: var(--mos-type-body); }
 .kl-about p { max-width: 65ch; margin: 0 0 6px; }
 
 /* The pinned action bar is tall on a phone: the list ends clear of it. */
 .cafe-production-sheet .cap-table { --cap-clearance: 164px; }
 .cafe-transfer-sheet .cap-table { --cap-clearance: 176px; }
 .kl-unit-context-note { max-width: 62ch; margin: 0 0 8px; color: var(--muted-foreground); font-size: var(--mos-size-1); }
+
+@media (max-width: 767.98px) {
+  .cafe-capture-footer .action-bar__info { flex-direction: row; align-items: center; gap: 0 var(--mos-inline-gap); }
+  .cafe-capture-footer .action-bar__reason { flex-direction: row; gap: 0 var(--mos-inline-gap); }
+  .cafe-capture-footer .action-bar__summary { font-size: var(--mos-size-3); }
+}

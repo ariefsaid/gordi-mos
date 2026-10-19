@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  admittedModules, currentPagePath, destinationForPath, FIXED_AREAS, footerAreas, goToEntries, navModeFor, pageCount, pageGroupsFor,
+  admittedModules, currentPagePath, destinationForPath, FIXED_AREAS, footerAreas, globalNavigationDestinations, goToEntries, navModeFor, pageCount, pageGroupsFor,
   phoneModuleForViewer, rememberModule, rowState,
 } from './module-registry'
 
@@ -14,6 +14,12 @@ describe('the module registry feeds every navigation surface', () => {
     expect(admittedModules(['admin']).map((m) => m.id)).not.toContain('roastery')
   })
 
+
+  it('keeps every admitted root available through the shared global navigation list', () => {
+    const paths = globalNavigationDestinations(['finance']).map((destination) => destination.primaryPath ?? destination.links[0].path)
+    for (const path of ['/', '/work', '/money', '/inbox', '/cafe']) expect(paths).toContain(path)
+    expect(globalNavigationDestinations(['admin']).map((destination) => destination.id)).not.toContain('money')
+  })
 
   it('counts only enabled modules and removes disabled Work and module pages', () => {
     const cafeOnly = (moduleId: string) => moduleId === 'cafe'

@@ -8,6 +8,11 @@ afterEach(cleanup)
 beforeEach(() => { viewport.desktop = true })
 
 describe('Café toolbar: search, count at the right, removable chips', () => {
+  it('exposes its filters as a named group, not a toolbar contract', () => {
+    render(<KitchenToolbar search="" onSearchChange={vi.fn()} ariaLabel="Kitchen item filters" />)
+    expect(screen.getByRole('group', { name: 'Kitchen item filters' })).toBeInTheDocument()
+  })
+
   it('names the search field with a visible label and reports shown of total with the sort', () => {
     const onSearch = vi.fn()
     render(<KitchenToolbar search="" onSearchChange={onSearch} searchPlaceholder="Find an item"

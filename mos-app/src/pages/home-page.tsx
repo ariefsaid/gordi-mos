@@ -93,11 +93,6 @@ export function HomePage() {
   // Keep the Indonesian day-part grammar (siang <15, sore 15+) while giving English users the
   // ordinary afternoon window through 18:00. The catalogs intentionally reuse the evening key for
   // Indonesian "sore", so the locale controls the cutoff rather than adding another message key.
-  const greetingKey = () => {
-    const h = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'Asia/Jakarta' }).format(new Date()))
-    const afternoonCutoff = locale === 'id' ? 15 : 19
-    return h < 11 ? 'home.greeting.morning' as const : h < afternoonCutoff ? 'home.greeting.afternoon' as const : 'home.greeting.evening' as const
-  }
   const personId = viewer?.person?.id ?? null
   const readScope = auth.status === 'authenticated' && auth.viewer.person.id === personId
     ? auth.readScope ?? null
@@ -506,12 +501,11 @@ export function HomePage() {
       failedChecksAdmitted: seesCafe,
       taskState, onRetryTasks: retryTasks,
       failedChecksState: failedChecksBand.state, onRetryFailedChecks: loadFailedChecks,
-      myWorkFullCount: openCount ?? undefined,
       myWorkTotalItemCount: myWorkCandidates.length,
     }),
     [
       overdue, dueToday, blocked, myWork, myWorkCandidates, failedChecksBand,
-      taskState, retryTasks, loadFailedChecks, openCount,
+      taskState, retryTasks, loadFailedChecks,
       seesCafe,
     ],
   )
@@ -532,7 +526,7 @@ export function HomePage() {
     <PageFamilyFrame
       family="workspace"
       surfaceWash
-      title={viewer ? t(greetingKey(), { name: viewer.person.full_name.split(' ')[0] }) : t('home.title')}
+      title={t('home.title')}
       // No `jobSentence`: the day header is greeting + role chip + tally, one line — its answer
       // to "what is this page for right now" is the tally itself. A sentence here would be the
       // third line the header was just cut back from (ruling #6).
@@ -552,6 +546,7 @@ export function HomePage() {
       // mockup's greeting rung (`--fs-md` = subheading) and the rule that keeps the chip beside
       // the greeting until the ≤390 block in home-page.css drops it to line 2.
       headClassName="home-day-header content-header--compact"
+      phoneActionBar={false}
     >
       {/* Keep a stable frame around the replacement so the Home surface owns its wide measure while
           the daily brief's own container queries respond to the content width. */}
@@ -564,7 +559,7 @@ export function HomePage() {
         // The Signals feed is the ambient companion. Home rows remain read-only; Create task and
         // categorization are record-level actions on /work/signals.
         const aside = (
-          <div>
+          <>
             <SignalFeedSection
               signals={signals}
               authorNamesById={directory.people ?? NO_NAMES}
@@ -575,7 +570,7 @@ export function HomePage() {
               error={signalsState === 'error'}
               onReload={loadSignals}
             />
-          </div>
+          </>
         )
         const objectives = showObjectives ? (
           <HomeObjectivesDoor
@@ -593,7 +588,6 @@ export function HomePage() {
             feed={aside}
             objectives={objectives}
             cafeDoor={cafe}
-            composition={holdsCockpitScope ? 'cockpit' : 'member'}
             showFailedChecks={seesCafe}
             layout={homeLayout}
           />

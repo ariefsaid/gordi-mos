@@ -70,15 +70,18 @@ const NO_SAVED_VIEWS: CollectionSavedViewDescriptor<HomeCollectionQuery, 'home'>
 
 function HomeRows({ projection, context }: { projection: HomeCollectionProjection; context: HomeCollectionContext }) {
   const t = useT()
+  const urgent = context.regionId === 'needs-you'
   return (
-    <ul className="stream-band-list">
-      {projection.visibleRecords.map((item) => (
+    <ul className={`stream-band-list${urgent ? ' home-attention-list' : ''}`}>
+      {projection.visibleRecords.map((item, index) => (
         <StreamRow
           key={item.id}
           item={item}
           hidePic={HIDE_PIC[context.regionId]}
           reasonStyle={REASON_STYLE[context.regionId]}
-          actionLabel={context.regionId === 'failed-checks' ? t('home.brief.review') : undefined}
+          actionLabel={context.regionId === 'failed-checks' ? t('home.brief.review') : urgent ? t('home.brief.openTask') : undefined}
+          urgent={urgent}
+          featured={urgent && index === 0}
         />
       ))}
     </ul>
@@ -136,23 +139,23 @@ function homeRegionDescriptor(
   }
 }
 
-export interface HomeRegionCollectionProps {
+export type HomeRegionCollectionProps = {
   region: HomeRegion
   items?: readonly StreamItem[]
   liftedCount?: number
 }
 
-function collectionKey(region: HomeRegion, items: readonly StreamItem[], liftedCount: number) {
-  return `${region.state}:${liftedCount}:${JSON.stringify(items)}`
+const DISPLAY_CAP: Partial<Record<HomeRegionId, number>> = { 'needs-you': 5, 'my-work': 7 }
+
+function collectionKey(region: HomeRegion, items: readonly StreamItem[]) {
+  return `${region.state}:${JSON.stringify(items)}`
 }
 
-/** Hosts one Home region in the existing RecordCollection engine.
- * The engine owns async state and the typed Home presentation owns the row grammar. Layouts only
- * choose the host shape and, for Overview, the number of records passed to this collection. */
-export function HomeRegionCollection(props: HomeRegionCollectionProps) {
-  const items = props.items ?? props.region.items
-  const liftedCount = props.liftedCount ?? 0
-  return <HomeRegionCollectionInstance key={collectionKey(props.region, items, liftedCount)} {...props} items={items} liftedCount={liftedCount} />
+/** Each region uses the same RecordCollection data path and row renderer; only truthful display caps differ. */
+export function HomeRegionCollection({ region, items: suppliedItems, liftedCount = 0 }: HomeRegionCollectionProps) {
+  const cap = DISPLAY_CAP[region.id]
+  const items = suppliedItems ?? (cap === undefined ? region.items : region.items.slice(0, cap))
+  return <HomeRegionCollectionInstance key={`${liftedCount}:${collectionKey(region, items)}`} region={region} items={items} liftedCount={liftedCount} />
 }
 
 function HomeRegionCollectionInstance({ region, items, liftedCount }: Required<HomeRegionCollectionProps>) {
@@ -165,27 +168,40 @@ function HomeRegionCollectionInstance({ region, items, liftedCount }: Required<H
     viewerId: null,
     accessRoles: [],
   })
-  const hidden = (region.totalItemCount ?? region.items.length) - items.length - liftedCount
+  const total = region.totalItemCount ?? region.items.length
+  const desktopMore = region.state === 'ready' ? Math.max(0, total - items.length - liftedCount) : 0
+  const phoneShown = region.id === 'needs-you' ? Math.min(3, items.length) : items.length
+  const phoneMore = region.state === 'ready' && region.id === 'needs-you' ? Math.max(0, total - phoneShown - liftedCount) : 0
   const empty = region.state === 'ready' && items.length === 0
-  const needsYouEmptyAfterLift = region.id === 'needs-you' && liftedCount > 0 && items.length === 0
+  const needsYouEmptyAfterLift = region.id === 'needs-you' && liftedCount > 0 && empty
 
   return (
-    <div className="home-region-collection" data-home-region={region.id} data-testid={`home-region-collection-${region.id}`}>
-      <RecordCollectionSurface
-        controller={controller}
-        empty={{
-          title: t(needsYouEmptyAfterLift ? 'home.attention.noOtherTasks' : EMPTY_KEY[region.id]),
-          className: 'stream-all-clear',
-          create: empty ? <RegionDrillLink region={region} shown={liftedCount} /> : undefined,
-        }}
-        filteredEmpty={{ items: t(region.labelKey).toLowerCase(), clear: () => {} }}
-        error={{ message: t('home.attention.laneError'), retry: region.onRetry ?? (() => {}) }}
-        loadingLabel={t(region.labelKey)}
-      />
-      {hidden > 0 && !region.drillTo ? (
-        <p className="stream-band-more">{t('home.region.more', { count: hidden })}</p>
+    <div className={`home-region-collection home-region-collection--${region.id}`} data-home-region={region.id} data-testid={`home-region-collection-${region.id}`}>
+      {empty ? <>
+        <p className="home-region-empty">{t(needsYouEmptyAfterLift ? 'home.attention.noOtherTasks' : EMPTY_KEY[region.id])}</p>
+        {region.id === 'needs-you' ? <RegionDrillLink region={region} shown={liftedCount} /> : null}
+      </> : (
+        <RecordCollectionSurface
+          controller={controller}
+          empty={{ title: t(needsYouEmptyAfterLift ? 'home.attention.noOtherTasks' : EMPTY_KEY[region.id]), className: 'stream-all-clear' }}
+          filteredEmpty={{ items: t(region.labelKey).toLowerCase(), clear: () => {} }}
+          error={{ message: t('home.attention.laneError'), retry: region.onRetry ?? (() => {}) }}
+          loadingLabel={t(region.labelKey)}
+        />
+      )}
+      {desktopMore > 0 ? (
+        <div className="home-region-more home-region-more--desktop">
+          <RegionDrillLink region={region} shown={items.length} more={desktopMore} />
+        </div>
       ) : null}
-      {!empty && <RegionDrillLink region={region} shown={items.length + liftedCount} more={hidden > 0 ? hidden : undefined} />}
+      {phoneMore > 0 ? (
+        <div className="home-region-more home-region-more--phone">
+          <RegionDrillLink region={region} shown={phoneShown} more={phoneMore} />
+        </div>
+      ) : null}
+      {region.id === 'failed-checks' && region.state === 'ready' && region.items.length > 0 ? (
+        <RegionDrillLink region={region} shown={region.items.length} />
+      ) : null}
     </div>
   )
 }
