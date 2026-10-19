@@ -327,7 +327,7 @@ describe('router — Money gates (dev security series preserved)', () => {
     )!
     // #797: admin is users-and-settings and is not a money arm.
     expect(gate.element).toEqual(
-      <RequireAccessRole anyOf={['finance', 'manager', 'supervisor']} />,
+      <RequireAccessRole anyOf={['finance', 'manager', 'supervisor']} moduleId="money" />,
     )
   })
 
@@ -344,7 +344,7 @@ describe('router — Money gates (dev security series preserved)', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money/budget'),
     )!
-    expect(gate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+    expect(gate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} moduleId="money" />)
     expect(gate.element).not.toEqual(<RequireAccessRole anyOf={['finance', 'admin', 'manager']} />)
     expect(gate.element).not.toEqual(<RequireAccessRole anyOf={['finance', 'admin', 'supervisor']} />)
   })
@@ -397,7 +397,7 @@ describe('router — Pending bills is Finance only (#1464)', () => {
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money'),
     )!
     const financeGate = readGate.children!.find((c) => c.children?.some((cc) => cc.path === 'money/pending-bills'))!
-    expect(financeGate.element).toEqual(<RequireAccessRole anyOf={['finance']} scope="link" />)
+    expect(financeGate.element).toEqual(<RequireAccessRole anyOf={['finance']} scope="link" moduleId="money" />)
   })
 })
 
@@ -410,7 +410,7 @@ describe('router — Café review + pushes are role-gated', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'cafe/review'),
     )!
-    expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} scope="link" />)
+    expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} scope="link" moduleId="cafe" />)
     expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/receive/review', 'cafe/request/review', 'cafe/review', 'kitchen/review'])
   })
 
@@ -418,7 +418,7 @@ describe('router — Café review + pushes are role-gated', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'cafe/pushes'),
     )!
-    expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin']} scope="link" />)
+    expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin']} scope="link" moduleId="cafe" />)
     expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/pushes', 'kitchen/pushes'])
   })
 })

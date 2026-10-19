@@ -345,7 +345,7 @@ const routeTable: RouteObject[] = [
           // series that exists only on this line. Read admits the VIEW tiers; planning
           // (budget/pricing) stays finance|admin, and that split is why there are two gates.
           {
-            element: <RequireAccessRole anyOf={REVENUE_VIEW_ROLES} />,
+            element: <RequireAccessRole anyOf={REVENUE_VIEW_ROLES} moduleId="money" />,
             handle: infrastructureHandle('capability'),
             children: [
               { path: 'money', element: withSuspense(<MoneyPage />), handle: pageHandle('workspace') },
@@ -353,7 +353,7 @@ const routeTable: RouteObject[] = [
               // Pending bills is Finance's alone (#1464): the other Money tiers meet the boundary
               // naming the link, and reporting.pending_bills' read policy refuses them the rows.
               {
-                element: <RequireAccessRole anyOf={['finance']} scope="link" />,
+                element: <RequireAccessRole anyOf={['finance']} scope="link" moduleId="money" />,
                 handle: infrastructureHandle('capability'),
                 children: [
                   { path: 'money/pending-bills', element: withSuspense(<PendingBillsPage />), handle: pageHandle('workspace') },
@@ -368,7 +368,7 @@ const routeTable: RouteObject[] = [
             ],
           },
           {
-            element: <RequireAccessRole anyOf={['finance', 'admin']} />,
+            element: <RequireAccessRole anyOf={['finance', 'admin']} moduleId="money" />,
             handle: infrastructureHandle('capability'),
             children: [
               {
@@ -476,7 +476,7 @@ const routeTable: RouteObject[] = [
           // and NFR-002 still holds: which rows a supervisor may DECIDE is the server's, never
           // this route's. A route gate decides what is worth showing; it authorises nothing.
           {
-            element: <RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} scope="link" />,
+            element: <RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} scope="link" moduleId="cafe" />,
             handle: infrastructureHandle('capability'),
             children: [
               { path: ROUTE_PATHS.cafeReview, element: withSuspense(<CafeReviewPage />), handle: pageHandle('workspace') },
@@ -494,7 +494,7 @@ const routeTable: RouteObject[] = [
           // PUSHES stays ops_lead/admin: it is the dispatch/outbox surface, not a review queue —
           // #236 opened review per stream, and nothing about that opened posting state.
           {
-            element: <RequireAccessRole anyOf={['ops_lead', 'admin']} scope="link" />,
+            element: <RequireAccessRole anyOf={['ops_lead', 'admin']} scope="link" moduleId="cafe" />,
             handle: infrastructureHandle('capability'),
             children: [
               { path: ROUTE_PATHS.cafePushes, element: withSuspense(<KitchenPushesPage />), handle: pageHandle('workspace') },
@@ -571,7 +571,7 @@ const routeTable: RouteObject[] = [
                 element: withSuspense(<AdminAccessPage />),
                 handle: pageHandle('management'),
               },
-              // Organization module switches are live here; person overrides remain preview-only.
+              // Organization and per-person module settings are edited from their owning settings surfaces.
               {
                 path: ROUTE_PATHS.adminModules,
                 element: withSuspense(<AdminModulesPage />),
@@ -640,16 +640,18 @@ function pathsInRoute(route: RouteObject, parent = ''): string[] {
 
 function withModuleBoundaries(routes: RouteObject[]): RouteObject[] {
   const moduleRoots = [
-    { moduleId: 'work', root: '/work' },
-    { moduleId: 'money', root: '/money' },
-    { moduleId: 'cafe', root: '/cafe' },
-    { moduleId: 'roastery', root: '/roastery' },
-    { moduleId: 'ecommerce', root: '/ecommerce' },
+    { moduleId: 'work', roots: ['/work', '/objectives', '/tasks', '/updates'] },
+    { moduleId: 'money', roots: ['/money', '/sales', '/dashboard', '/plan/budget', '/plan/pricing'] },
+    { moduleId: 'cafe', roots: ['/cafe', '/kitchen'] },
+    { moduleId: 'roastery', roots: ['/roastery'] },
+    { moduleId: 'ecommerce', roots: ['/ecommerce'] },
   ] as const
   let remaining = routes
   const layouts: RouteObject[] = []
-  for (const { moduleId, root } of moduleRoots) {
-    const matching = remaining.filter((route) => pathsInRoute(route).some((path) => path === root || path.startsWith(`${root}/`)))
+  for (const { moduleId, roots } of moduleRoots) {
+    const matching = remaining.filter((route) => pathsInRoute(route).some((path) =>
+      roots.some((root) => path === root || path.startsWith(`${root}/`)),
+    ))
     if (!matching.length) continue
     remaining = remaining.filter((route) => !matching.includes(route))
     layouts.push({

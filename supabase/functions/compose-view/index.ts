@@ -53,7 +53,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
   const { userId, orgId, personId } = verdict.claims
   const serviceRoleClient = createClient(supabaseUrl, serviceRoleKey)
-  const assistantAvailability = await checkAssistantAvailability(serviceRoleClient, orgId, 'compose-view')
+  const assistantAvailability = await checkAssistantAvailability(serviceRoleClient, orgId, personId, 'compose-view')
   const assistantRefusal = assistantRefusalResponse(assistantAvailability, corsHeaders)
   if (assistantRefusal) return assistantRefusal
 

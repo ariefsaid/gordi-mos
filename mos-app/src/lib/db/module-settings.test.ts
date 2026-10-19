@@ -9,7 +9,13 @@ const db = vi.hoisted(() => {
 
 vi.mock('@/lib/supabase', () => ({ supabase: { schema: db.schema } }))
 
-import { getViewerModuleAvailability, listOrgModuleSettings, saveOrgModuleSettings } from './module-settings'
+import {
+  getViewerModuleAvailability,
+  listOrgModuleSettings,
+  listPersonModuleSettings,
+  saveOrgModuleSettings,
+  savePersonModuleSettings,
+} from './module-settings'
 
 describe('module settings data access', () => {
   afterEach(() => vi.restoreAllMocks())
@@ -29,11 +35,38 @@ describe('module settings data access', () => {
   })
 
   it('loads viewer availability through the mos RPC', async () => {
-    const availability = [{ module_id: 'work', enabled: false, revision: 'org-revision' }]
+    const availability = [{ module_id: 'work', enabled: false, person_override: 'inherit', revision: 'identity-revision' }]
     db.rpc.mockResolvedValue({ data: availability, error: null })
 
     await expect(getViewerModuleAvailability()).resolves.toEqual(availability)
     expect(db.rpc).toHaveBeenCalledWith('viewer_module_availability')
+  })
+
+  it('lists per-person settings with the target person id and org fact', async () => {
+    const settings = [{
+      person_id: 'person-1', module_id: 'cafe', override: 'block', row_version: 2,
+      updated_at: '2026-10-19T00:00:00Z', updated_by: 'admin-1', org_enabled: true,
+    }]
+    db.rpc.mockResolvedValue({ data: settings, error: null })
+
+    await expect(listPersonModuleSettings('person-1')).resolves.toEqual(settings)
+    expect(db.rpc).toHaveBeenCalledWith('list_person_module_settings', { p_person_id: 'person-1' })
+  })
+
+  it('saves per-person settings with exact RPC args and request id', async () => {
+    const rows = [{ module_id: 'cafe' as const, override: 'block' as const, expected_version: 0 }]
+    const saved = [{
+      person_id: 'person-1', module_id: 'cafe', override: 'block', row_version: 1,
+      updated_at: null, updated_by: 'admin-1', org_enabled: true,
+    }]
+    db.rpc.mockResolvedValue({ data: saved, error: null })
+
+    await expect(savePersonModuleSettings('person-1', rows, { client_request_id: 'request-1' })).resolves.toEqual(saved)
+    expect(db.rpc).toHaveBeenCalledWith('save_person_module_settings', {
+      p_person_id: 'person-1',
+      p_rows: rows,
+      p_client_request_id: 'request-1',
+    })
   })
 
   it('saves org settings with the write request id', async () => {
@@ -53,7 +86,9 @@ describe('module settings data access', () => {
 
     await expect(listOrgModuleSettings()).resolves.toEqual([])
     await expect(getViewerModuleAvailability()).resolves.toEqual([])
+    await expect(listPersonModuleSettings('person-1')).resolves.toEqual([])
     await expect(saveOrgModuleSettings([], { client_request_id: 'request-1' })).resolves.toEqual([])
+    await expect(savePersonModuleSettings('person-1', [], { client_request_id: 'request-1' })).resolves.toEqual([])
   })
 
   it('converts ordinary RPC failures into retryable errors', async () => {
@@ -71,5 +106,8 @@ describe('module settings data access', () => {
       name: 'ContractError', code: 'CONFLICT',
     })
     await expect(saveOrgModuleSettings([], { client_request_id: 'request-1' })).rejects.toBeInstanceOf(ContractError)
+    await expect(savePersonModuleSettings('person-1', [], { client_request_id: 'request-1' })).rejects.toMatchObject({
+      name: 'ContractError', code: 'CONFLICT',
+    })
   })
 })
