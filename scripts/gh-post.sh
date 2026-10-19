@@ -52,7 +52,7 @@ esac
 # ── api argv is parsed exactly as gh parses it, so the path, method and fields the door checks are
 # the ones gh sends: the endpoint comes straight after `api`, and every flag is one gh documents.
 # A short-flag cluster (`-iXPOST`) or a decoy flag value would otherwise slip a second meaning past.
-api_method="" api_input=0 api_fields=()
+api_method="" api_input=0 api_header=0 api_fields=() api_input_files=()
 if [ "$verb1" = "api" ]; then
   [ "${1:-}" = "api" ] && [ "${2:-}" = "$verb2" ] || die "'api' must come first, with the endpoint straight after it"
   argv=("$@")
@@ -73,7 +73,8 @@ if [ "$verb1" = "api" ]; then
         [ -n "$val" ] || die "'$flag' needs a non-empty value"
         api_method="$val" ;;
       -f|--raw-field|-F|--field) api_fields+=("$val") ;;
-      --input) api_input=1 ;;
+      --input) api_input=1; api_input_files+=("$val") ;;
+      -H|--header) api_header=1 ;;
     esac
   done
   api_effective_method="$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')"
@@ -124,19 +125,6 @@ for ((i = 0; i < ${#args[@]}; i++)); do
   fi
 done
 
-# ── Scan. Report the matching pattern so the fix is obvious; never echo the blocked text back.
-while IFS= read -r pat; do
-  case "$pat" in ''|'#'*) continue ;; esac
-  for t in "${texts[@]}"; do
-    # Here-string, not a pipe: see the changed-path check. A pattern grep cannot use refuses.
-    grep -Eiq -e "$pat" <<<"$t"; rc=$?
-    if [ "$rc" -eq 0 ]; then
-      die "REFUSED — text matches posting-policy pattern: $pat
-  This repo is public. Reword, or escalate to the owner. (Policy: $denylist)"
-    fi
-    [ "$rc" -eq 1 ] || die "REFUSED — posting-policy pattern is unusable (grep exit $rc): $pat"
-  done
-done < "$denylist"
 # ── Repo scope: every write through this door lands in THIS checkout's repo. An `api` path must
 # name it (repos/<owner>/<name>/…); a --repo on any other verb must equal it. A caller acting on
 # text found in an issue or PR body cannot redirect a write elsewhere.
@@ -167,6 +155,29 @@ else
     prev="$a"
   done
 fi
+
+# ── Private advisory drafts are private by design and must carry a field the public-text policy
+# refuses, so only a draft create on THIS repo skips the scan: POST, the exact collection path, no
+# headers. The `state` refusal below keeps this to drafts; publishing is never exempt.
+advisory_draft=0
+if [ "$verb1" = api ] && [ "$api_effective_method" = POST ] && [ "$api_header" = 0 ] \
+  && [ "${verb2#/}" = "repos/$this_repo/security-advisories" ]; then
+  advisory_draft=1
+fi
+
+# ── Scan. Report the matching pattern so the fix is obvious; never echo the blocked text back.
+[ "$advisory_draft" = 1 ] || while IFS= read -r pat; do
+  case "$pat" in ''|'#'*) continue ;; esac
+  for t in "${texts[@]}"; do
+    # Here-string, not a pipe: see the changed-path check. A pattern grep cannot use refuses.
+    grep -Eiq -e "$pat" <<<"$t"; rc=$?
+    if [ "$rc" -eq 0 ]; then
+      die "REFUSED — text matches posting-policy pattern: $pat
+  This repo is public. Reword, or escalate to the owner. (Policy: $denylist)"
+    fi
+    [ "$rc" -eq 1 ] || die "REFUSED — posting-policy pattern is unusable (grep exit $rc): $pat"
+  done
+done < "$denylist"
 
 
 # ── PR creation: stamps certify the exact HEAD being PRed — a security lens only when the diff is sensitive,
@@ -372,6 +383,17 @@ if [ "$verb1" = "api" ]; then
       esac
     fi
     [ "$api_write_allowed" = 1 ] || die "'api $api_effective_method $path' is not in the write allowlist. Allowed API writes: POST repos/$this_repo/security-advisories; POST repos/$this_repo/pulls (REST PR stamps required); POST repos/$this_repo/releases (existing v<semver> tag on main); POST repos/$this_repo/issues/<number>/comments; PATCH repos/$this_repo/issues/<number> without labels."
+  fi
+  # Advisory creation stays a draft: no `state` in any field or anywhere in an --input payload.
+  if [ "$path" = "repos/$this_repo/security-advisories" ] && [ "$api_effective_method" = POST ]; then
+    for kv in "${api_fields[@]+"${api_fields[@]}"}"; do
+      case "${kv%%=*}" in state|state\[*) die "advisory create may not set state — drafts only; publish from the GitHub UI" ;; esac
+    done
+    for f in "${api_input_files[@]+"${api_input_files[@]}"}"; do
+      command -v jq >/dev/null 2>&1 || die "jq is needed to check an advisory --input payload"
+      jq -e '[.. | objects | keys[] | select(. == "state")] | length == 0' "$f" >/dev/null 2>&1 \
+        || die "advisory --input must be JSON with no state key — drafts only; publish from the GitHub UI"
+    done
   fi
   # A release is permanent public prose: only for an existing v<semver> tag whose commit is on origin/main
   # (the pre-push tag rule), named by -f fields so nothing hides from the check.
