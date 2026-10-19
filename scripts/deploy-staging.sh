@@ -139,9 +139,15 @@ ops_conn_from_url "$URL"
 POOLER_URL_FILE="${STAGING_POOLER_URL_FILE:-$ROOT/supabase/.temp/pooler-url}"
 if [ -s "$POOLER_URL_FILE" ]; then
   pooler="$(tr -d '[:space:]' < "$POOLER_URL_FILE")"
-  case "${pooler#*://}" in *:*@*) die "pooler URL file must not carry a password" ;; esac
-  case "$(printf '%s' "$pooler" | tr '[:upper:]' '[:lower:]')" in *[?\&]password=*) die "pooler URL file must not carry a password" ;; esac
   [ -n "$PGPASSWORD" ] || die "pooler connection needs the password from the secret store"
+  # The secret-store connection is the trusted coordinate: the pooler must be this project's own Supabase
+  # session pooler, or the secret-store password would go to whatever destination the file names.
+  trusted_host="${URL#*@}"; trusted_host="${trusted_host%%[:/?]*}"
+  case "$trusted_host" in db.*.supabase.co) project="${trusted_host#db.}"; project="${project%.supabase.co}" ;; *) die "the staging connection is not a Supabase database host; refusing the pooler route" ;; esac
+  [[ "$project" =~ ^[a-z0-9]+$ ]] || die "could not read the project from the staging connection"
+  [[ "$pooler" =~ ^postgres(ql)?://postgres\.${project}@aws-[0-9]+-[a-z0-9-]+\.pooler\.supabase\.com:5432/postgres(\?sslmode=require)?$ ]] \
+    || die "pooler URL file must be this project's Supabase session pooler: postgresql://postgres.<project>@aws-<n>-<region>.pooler.supabase.com:5432/postgres, no password and no other options"
+  pooler="${pooler%%\?*}?sslmode=require"
   pooler_host="${pooler#*@}"; pooler_host="${pooler_host%%[:/?]*}"
   pooler_user="${pooler#*://}"; pooler_user="${pooler_user%%@*}"
   CONN="$pooler"; SECRETS+=("$pooler" "${pooler#*@}" "$pooler_host" "$pooler_user")
