@@ -42,7 +42,7 @@
 .kp-member-tools .btn { min-height: var(--mos-control-height); }
 .kp-horizon { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: var(--mos-gutter); align-items: start; }
 .cafe-plan-horizon__index { position: sticky; top: 12px; display: flex; flex-direction: column; max-height: 70vh; overflow: auto; }
-.cafe-plan-horizon__index a { display: flex; align-items: center; min-height: var(--mos-control-height); color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+.cafe-plan-horizon__index a { display: flex; align-items: center; min-height: var(--mos-control-height); color: var(--text-on-accent-tint); text-decoration: underline; text-underline-offset: 2px; }
 .cafe-plan-horizon__dates { min-width: 0; }
 .cafe-plan-horizon__date { padding: 0 0 var(--mos-field-gap); scroll-margin-top: 16px; }
 .cafe-plan-horizon__date > h2 { margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); font-size: var(--mos-size-4); }
