@@ -143,6 +143,7 @@ select throws_ok($$select review_note from ops.cafe_count_lines$$, '42501', null
   'blind: a supervisor of another stream cannot select the reject note');
 select is((select count(*)::int from ops.cafe_count_review_figures(array[current_setting('app.e')::uuid])), 0,
   'blind: the reviewer read returns no reject note to a supervisor of another stream');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 select throws_ok($$select ops.confirm_cafe_count_line(current_setting('app.e')::uuid, 3)$$,
   'P0018', 'CAFE_COUNT_NOT_SUBMITTED', 'AC-024 a Rejected line is frozen against review');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
