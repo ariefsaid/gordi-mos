@@ -391,7 +391,7 @@ if [ "$verb1" = "api" ]; then
     done
     for f in "${api_input_files[@]+"${api_input_files[@]}"}"; do
       command -v jq >/dev/null 2>&1 || die "jq is needed to check an advisory --input payload"
-      jq -e '[.. | objects | keys[] | select(. == "state")] | length == 0' "$f" >/dev/null 2>&1 \
+      jq -es 'length == 1 and ([.[0] | .. | objects | keys[] | select(. == "state")] | length == 0)' "$f" >/dev/null 2>&1 \
         || die "advisory --input must be JSON with no state key — drafts only; publish from the GitHub UI"
     done
   fi

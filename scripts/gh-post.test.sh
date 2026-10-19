@@ -161,6 +161,8 @@ check "the same text to a REST issue comment is refused" 1 no api repos/x/y/issu
 check_message "advisory create with a state field is refused" 1 no "drafts only" api repos/x/y/security-advisories -f summary=s -f state=published
 printf '{"summary":"s","vulnerabilities":[{"x":{"st\\u0061te":"published"}}]}\n' > "$tmp/repo/advisory-state.json"
 check_message "advisory create with state in --input JSON is refused" 1 no "drafts only" api repos/x/y/security-advisories --input "$tmp/repo/advisory-state.json"
+printf '{"state":"published"}\n{}\n' > "$tmp/repo/advisory-multi.json"
+check_message "advisory --input holding several JSON values is refused" 1 no "drafts only" api repos/x/y/security-advisories --input "$tmp/repo/advisory-multi.json"
 echo 'not json vulnerabilities' > "$tmp/repo/advisory-bad.json"
 check_message "advisory create with a non-JSON --input is refused" 1 no "drafts only" api repos/x/y/security-advisories --input "$tmp/repo/advisory-bad.json"
 check "PATCH to an advisory with denylisted text is refused" 1 no api repos/x/y/security-advisories/GHSA-1 -X PATCH -f description=vulnerabilities
