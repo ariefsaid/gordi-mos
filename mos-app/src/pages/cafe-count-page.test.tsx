@@ -391,7 +391,7 @@ describe('CafeCountPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Change unit' }))
     fireEvent.click(screen.getByRole('radio', { name: /0[.,]5/ }))
     fireEvent.change(box, { target: { value: '3' } })
-    expect(screen.getByText('= 1.5 kg')).toBeInTheDocument()
+    expect(screen.getByText('Equals 1.5 kg')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Submit stock count' }))
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledWith(streamMocks.stream, [expect.objectContaining({ quantity: '3', unit_factor: 0.5 })], '2026-10-06'))
   })
