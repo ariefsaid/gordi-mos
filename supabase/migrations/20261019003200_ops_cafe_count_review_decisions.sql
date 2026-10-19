@@ -1,7 +1,12 @@
 -- #1369 — reviewer decisions on the day's Count: reject with a note, confirm several lines at once,
 -- and the self-approval rule. Posting stays off; nothing here writes the outbox.
 --
+-- The reject note is readable only by reviewers, like the Count figures: the column is not granted
+-- to the browser role, ops.cafe_count_review_figures returns it, and record history keeps only that it changed.
+--
 -- DOWN (manual; drops reject notes, so check none are relied on first):
+--   0. Recreate ops.cafe_count_review_figures(uuid[]) and trigger record_history_cafe_count_lines as in
+--      20261019003100_ops_cafe_count_recount.sql.
 --   1. drop function ops.confirm_cafe_count_lines(jsonb);
 --      drop function ops.reject_cafe_count_line(uuid, integer, text);
 --   2. Restore ops.confirm_cafe_count_line(uuid, integer) and ops._guard_cafe_count_line() from
@@ -149,6 +154,8 @@ begin
      and (new.reason, new.reason_entered_by, new.reason_entered_at)
          is not distinct from (old.reason, old.reason_entered_by, old.reason_entered_at)
      and new.reviewed_by = shared.current_person_id()
+     and new.reviewed_by is distinct from old.submitted_by
+     and new.reviewed_by is distinct from old.recounted_by
      and new.reviewed_at is not null
      and new.posting_status = (case
            when v_action = 'reject' then old.posting_status
@@ -299,6 +306,10 @@ begin
   if not ops.can_review_stream(v_line.branch_id, v_line.activity) then
     raise exception 'CAFE_COUNT_REVIEW_FORBIDDEN' using errcode = '42501';
   end if;
+  -- The submitter or recounter never decides their own line, so they cannot discard it to count again.
+  if v_line.submitted_by = shared.current_person_id() or v_line.recounted_by = shared.current_person_id() then
+    raise exception 'CAFE_COUNT_SELF_REJECT' using errcode = '42501';
+  end if;
   if v_line.status <> 'Submitted' then
     raise exception 'CAFE_COUNT_NOT_SUBMITTED' using errcode = 'P0018';
   end if;
@@ -319,6 +330,35 @@ begin
 end;
 $$;
 comment on function ops.reject_cafe_count_line(uuid, integer, text) is
-  'Reviewer rejects a wrong figure with a required note (1-500 characters) and the current version. The line freezes and frees its branch, item and date, so the counter enters the item again as a new line; no figure is edited.';
+  'Reviewer, never the line''s submitter or recounter, rejects a wrong figure with a required note (1-500 characters) and the current version. The line freezes and frees its branch, item and date, so the counter enters the item again as a new line; no figure is edited.';
 revoke execute on function ops.reject_cafe_count_line(uuid, integer, text) from public, anon, authenticated;
 grant execute on function ops.reject_cafe_count_line(uuid, integer, text) to authenticated;
+
+-- ── The reject note is readable only by reviewers ──────────────────────────────────────────
+-- review_note is not in the browser role's column grant (20261019003100); reviewers read it here.
+drop function ops.cafe_count_review_figures(uuid[]);
+create function ops.cafe_count_review_figures(p_line_ids uuid[])
+returns table (id uuid, expected_balance numeric, variance numeric, review_note text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select line.id, line.expected_balance, line.variance, line.review_note
+    from ops.cafe_count_lines line
+   where shared.current_org_id() is not null
+     and shared.current_person_id() is not null
+     and coalesce(cardinality(p_line_ids), 0) <= 500
+     and line.org_id = shared.current_org_id()
+     and line.id = any (p_line_ids)
+     and ops.can_review_stream(line.branch_id, line.activity)
+$$;
+comment on function ops.cafe_count_review_figures(uuid[]) is
+  'Reviewer-only read of the Expected balance, Variance and reject note for up to 500 Count lines: returns a line only to its stream reviewer, ops lead or admin.';
+revoke execute on function ops.cafe_count_review_figures(uuid[]) from public, anon, service_role;
+grant execute on function ops.cafe_count_review_figures(uuid[]) to authenticated;
+
+drop trigger record_history_cafe_count_lines on ops.cafe_count_lines;
+create trigger record_history_cafe_count_lines
+  after insert or update or delete on ops.cafe_count_lines
+  for each row execute function shared._record_history_write('-updated_at', '~expected_balance', '~variance', '~review_note');

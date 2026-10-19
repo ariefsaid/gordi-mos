@@ -196,7 +196,7 @@ describe('CafeCountReviewQueue', () => {
     })
   }
 
-  it('AC-023 a reviewer never confirms a line they counted, alone or among chosen lines', async () => {
+  it('AC-023 a reviewer never confirms or rejects a line they counted, alone or among chosen lines', async () => {
     mockList.mockResolvedValue([
       line({ id: 'own', item_name: 'Sugar', submitted_by: 'person-reviewer' }),
       line({ id: 'other', item_name: 'Rice', counted_quantity: '3.0000', expected_balance: '2.0000', recounted_quantity: '2.0000', variance: '0.0000' }),
@@ -204,8 +204,9 @@ describe('CafeCountReviewQueue', () => {
     vi.mocked(confirmCafeCountLines).mockResolvedValue([{ line_id: 'other', outcome: 'refused', reason: 'CAFE_COUNT_VERSION_STALE' }])
     renderQueue()
     await openRow(/Sugar/)
-    expect(screen.getByText('You counted this line. Another reviewer confirms it.')).toBeInTheDocument()
+    expect(screen.getByText('You counted this line. Another reviewer confirms or rejects it.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: 'Choose Sugar to confirm' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Choose Rice to confirm' }))

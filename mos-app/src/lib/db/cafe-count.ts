@@ -92,7 +92,7 @@ type CountableItemRow = {
 const COUNT_LINE_FIELDS = [
   'id', 'branch_id', 'activity', 'count_date', 'wip_item_id', 'item_name', 'item_category', 'item_kind',
   'item_unit_id', 'unit_name', 'storage_location_id', 'counted_quantity', 'submitted_by', 'recounted_quantity',
-  'recounted_by', 'recounted_at', 'reason', 'review_note', 'variance', 'expected_balance', 'expected_status',
+  'recounted_by', 'recounted_at', 'reason', 'expected_status',
   'expected_recorded_at', 'status', 'posting_status', 'submitted_at', 'reviewed_at', 'row_version',
 ].join(', ')
 
@@ -131,7 +131,9 @@ export async function listCafeCountLines(countDate?: string): Promise<CafeCountL
     .order('submitted_at', { ascending: true })
     .order('id', { ascending: true })
   if (error) throw new Error(`listCafeCountLines failed: ${error.message}`)
-  return ((data ?? []) as unknown as Array<Record<string, unknown>>).map(row => {
+  const rows = (data ?? []) as unknown as Array<Record<string, unknown>>
+  const figures = await readCafeCountReviewFigures(rows.map(row => String(row.id)))
+  return rows.map(row => {
     if (row.activity !== 'kitchen' && row.activity !== 'bar') {
       throw new Error('listCafeCountLines failed: invalid Café stream')
     }
@@ -146,47 +148,46 @@ export async function listCafeCountLines(countDate?: string): Promise<CafeCountL
       counted_quantity: String(row.counted_quantity),
       recounted_quantity: row.recounted_quantity == null ? null : String(row.recounted_quantity),
       recounted_by: row.recounted_by == null ? null : String(row.recounted_by),
-      review_note: row.review_note == null ? null : String(row.review_note),
-      variance: row.variance == null ? null : String(row.variance),
-      expected_balance: row.expected_balance == null ? null : String(row.expected_balance),
+      review_note: figures.get(String(row.id))?.review_note ?? null,
+      variance: figures.get(String(row.id))?.variance ?? null,
+      expected_balance: figures.get(String(row.id))?.expected_balance ?? null,
     } as unknown as CafeCountLine
   })
 }
 
-/** Which follow-up a line needs from the floor; reads only whether the figures differ, never by how much. */
-export function cafeCountFloorState(line: Pick<CafeCountLine, 'status' | 'posting_status' | 'expected_status' | 'variance' | 'recounted_quantity' | 'reason'>): CafeCountFloorState {
-  if (line.status === 'Confirmed') return line.posting_status === 'held' ? 'held' : 'confirmed'
-  if (line.expected_status !== 'ready' || line.variance === null) return 'waiting'
-  if (!/^-?0+(\.0+)?$/.test(line.variance)) {
-    if (line.recounted_quantity === null) return 'needs_recount'
-    if (line.reason === null) return 'needs_reason'
+/** The Expected balance, Variance and reject note come only from the reviewer-gated read; lines the viewer cannot review have none. */
+type ReviewFigures = { expected_balance: string | null; variance: string | null; review_note: string | null }
+
+async function readCafeCountReviewFigures(ids: readonly string[]): Promise<Map<string, ReviewFigures>> {
+  const figures = new Map<string, ReviewFigures>()
+  for (let start = 0; start < ids.length; start += 500) {
+    const { data, error } = await supabase.schema('ops').rpc('cafe_count_review_figures', { p_line_ids: ids.slice(start, start + 500) })
+    if (error) throw new Error(`listCafeCountLines failed: ${error.message}`)
+    for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+      figures.set(String(row.id), {
+        expected_balance: row.expected_balance == null ? null : String(row.expected_balance),
+        variance: row.variance == null ? null : String(row.variance),
+        review_note: row.review_note == null ? null : String(row.review_note),
+      })
+    }
   }
-  return 'with_reviewer'
+  return figures
 }
 
-/** The stream's live lines for a date, reduced to floor-safe states before they leave this module. */
+const FLOOR_STATES: readonly CafeCountFloorState[] = ['waiting', 'needs_recount', 'needs_reason', 'with_reviewer', 'confirmed', 'held']
+
+/** The stream's live lines for a date as the server's state words; the floor never receives a figure. */
 export async function listCafeCountFloorLines(stream: ProductionStream, countDate: string): Promise<CafeCountFloorLine[]> {
-  const { data, error } = await supabase.schema('ops')
-    .from('cafe_count_lines')
-    .select('id, wip_item_id, status, posting_status, expected_status, variance, recounted_quantity, reason, row_version')
-    .eq('branch_id', stream.branch.id)
-    .eq('activity', stream.activity)
-    .eq('count_date', countDate)
-    .in('status', ['Submitted', 'Confirmed'])
+  const { data, error } = await supabase.schema('ops').rpc('cafe_count_floor_lines', {
+    p_branch_id: stream.branch.id,
+    p_activity: stream.activity,
+    p_count_date: countDate,
+  })
   if (error) throw new Error(`listCafeCountFloorLines failed: ${error.message}`)
-  return ((data ?? []) as Array<Record<string, unknown>>).map(row => ({
-    id: String(row.id),
-    itemId: String(row.wip_item_id),
-    state: cafeCountFloorState({
-      status: row.status as CafeCountStatus,
-      posting_status: row.posting_status as CafeCountPostingStatus,
-      expected_status: row.expected_status as CafeCountExpectedStatus,
-      variance: row.variance == null ? null : String(row.variance),
-      recounted_quantity: row.recounted_quantity == null ? null : String(row.recounted_quantity),
-      reason: row.reason == null ? null : String(row.reason),
-    }),
-    rowVersion: Number(row.row_version),
-  }))
+  return ((data ?? []) as Array<Record<string, unknown>>).map(row => {
+    if (!FLOOR_STATES.includes(row.state as CafeCountFloorState)) throw new Error('listCafeCountFloorLines failed: invalid state')
+    return { id: String(row.id), itemId: String(row.wip_item_id), state: row.state as CafeCountFloorState, rowVersion: Number(row.row_version) }
+  })
 }
 
 /** Items this branch already counted on the date from another of its streams, with which stream and when. */
