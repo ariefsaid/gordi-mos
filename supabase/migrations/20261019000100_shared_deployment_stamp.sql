@@ -1,3 +1,4 @@
+-- DOWN: drop policy deployment_stamp_read on shared.deployment_stamp; drop table shared.deployment_stamp;
 begin;
 
 create table shared.deployment_stamp (

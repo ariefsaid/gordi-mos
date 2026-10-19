@@ -289,6 +289,15 @@ export default async function globalSetup() {
   }
   console.log('[global-setup] created + linked the AC-014 bar stream personas (member + supervisor)')
 
+  // Assistant defaults off for orgs; the e2e journeys that exercise Deputy opt this fixture org in.
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `INSERT INTO mos.org_module_settings (org_id, module_id, enabled, updated_by)
+     VALUES ('${ORG}', 'assistant', true, '${ADMIN.personId}')
+     ON CONFLICT (org_id, module_id) DO UPDATE SET enabled = EXCLUDED.enabled`,
+  )
+
   // ── 4. Storage state (#903) — sign each persona in once for loginAs to reuse (helpers/auth-state.ts).
   // ORPHAN never reaches an authenticated shell and RECOVERY_VIEWER's password is rotated by its
   // own spec, so both keep signing in through the form.
