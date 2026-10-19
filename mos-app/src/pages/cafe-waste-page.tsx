@@ -145,6 +145,13 @@ function displayUnit(unit: CafeLogItem['units'][number], t: ReturnType<typeof us
     : t('cafe.items.unitDisambiguated', { name: unit.name, number: unit.labelOrdinal })
 }
 
+// The default unit's option names the marker once, even when the unit's own name already says it.
+function defaultUnitOptionLabel(unit: CafeLogItem['units'][number], t: ReturnType<typeof useT>): string {
+  const label = displayUnit(unit, t)
+  const tag = t('cafe.items.defaultTag')
+  return label.toLowerCase().includes(tag.toLowerCase()) ? label : `${label} · ${tag}`
+}
+
 function wasteEntryUnitLabel(item: CafeLogItem, entry: WasteEntry, t: ReturnType<typeof useT>): string {
   if (entry.unitFactor !== 1) {
     return formatUnitMultiple(entry.unitFactor, item.defaultUnit.name, document.documentElement.lang || undefined)
@@ -1218,7 +1225,7 @@ function WasteQuantityControl(props: WasteRowViewProps & {
               onChange={event => onUnitChange(event.target.value)}
             >
               {historicalUnit && <option value={current.unitId}>{entry?.capturedUnitName}</option>}
-              <option value={item.defaultUnit.id}>{displayUnit(selectedUnit, t)} · {t('cafe.items.defaultTag')}</option>
+              <option value={item.defaultUnit.id}>{defaultUnitOptionLabel(selectedUnit, t)}</option>
               {item.multiples.map(factor => (
                 <option key={`multiple:${factor}`} value={`multiple:${String(factor)}`}>
                   {formatUnitMultiple(factor, item.defaultUnit.name, document.documentElement.lang || undefined)}

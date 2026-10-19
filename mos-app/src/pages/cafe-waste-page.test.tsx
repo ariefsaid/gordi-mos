@@ -758,6 +758,18 @@ describe('CafeWastePage', () => {
     })))
   })
 
+  it.each(['cup', 'cup · Default'])('names the default marker once on the unit chip for a unit called %s', async (unitName) => {
+    mockListCafeItemSettings.mockResolvedValue([{
+      ...ITEM_SETTINGS[0]!,
+      units: [{ ...ITEM_SETTINGS[0]!.units[0]!, name: unitName }],
+      unitMultiples: [3],
+    }])
+    renderPage()
+
+    const chip = await screen.findByRole('combobox', { name: 'Waste unit for Oat Latte' })
+    expect(chip.textContent?.match(/Default/g)).toHaveLength(1)
+  })
+
   it('keeps 2 unchanged through a 3× unit round trip with no quantity error', async () => {
     mockListCafeItemSettings.mockResolvedValue([{
       ...ITEM_SETTINGS[0]!,
