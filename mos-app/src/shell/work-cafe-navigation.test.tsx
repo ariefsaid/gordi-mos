@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/theme/theme-provider'
 import { isProfilePathAvailable } from '@/config/build-settings'
 import { useAuth } from '@/auth/use-auth'
 import { SideNav } from './side-nav'
+vi.mock('@/lib/db/deployment-stamp', () => ({ readDeploymentStamp: async () => null }))
 
 const moduleAvailability = vi.hoisted(() => ({ isOn: (moduleId: string) => moduleId !== 'money' }))
 

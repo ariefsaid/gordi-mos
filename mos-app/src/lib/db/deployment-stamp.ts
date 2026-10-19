@@ -9,13 +9,13 @@ export function readDeploymentStamp(): Promise<DeploymentStamp | null> {
   if (deploymentStampRead) return deploymentStampRead
 
   const pending = Promise.resolve(
-    supabase.from('deployment_stamp').select('backend_sha, deployed_at').eq('id', true).maybeSingle(),
+    supabase.schema('shared').from('deployment_stamp').select('backend_sha, deployed_at').eq('id', true).maybeSingle(),
   )
     .then(({ data, error }) => {
-      if (error || !data) return null
+      if (error || !data) { deploymentStampRead = null; return null }
       return { backendSha: data.backend_sha, deployedAt: data.deployed_at }
     })
-    .catch(() => null)
+    .catch(() => { deploymentStampRead = null; return null })
   deploymentStampRead = pending
   return pending
 }

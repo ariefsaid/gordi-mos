@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockFrom = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/supabase', () => ({ supabase: { from: mockFrom } }))
+const mockSchema = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/supabase', () => ({ supabase: { schema: mockSchema } }))
 
 function queryResult(data: unknown, error: unknown) {
   const query = {
@@ -12,6 +13,7 @@ function queryResult(data: unknown, error: unknown) {
   query.select.mockReturnValue(query)
   query.eq.mockReturnValue(query)
   mockFrom.mockReturnValue(query)
+  mockSchema.mockReturnValue({ from: mockFrom })
   return query
 }
 
@@ -29,6 +31,7 @@ describe('deployment stamp read', () => {
     const [first, second] = await Promise.all([readDeploymentStamp(), readDeploymentStamp()])
 
     expect(mockFrom).toHaveBeenCalledTimes(1)
+    expect(mockSchema).toHaveBeenCalledWith('shared')
     expect(mockFrom).toHaveBeenCalledWith('deployment_stamp')
     expect(query.select).toHaveBeenCalledWith('backend_sha, deployed_at')
     expect(query.eq).toHaveBeenCalledWith('id', true)
@@ -41,6 +44,8 @@ describe('deployment stamp read', () => {
     const { readDeploymentStamp } = await import('./deployment-stamp')
 
     await expect(readDeploymentStamp()).resolves.toBeNull()
+    queryResult({ backend_sha: 'b'.repeat(40), deployed_at: '2026-10-19T12:00:00Z' }, null)
+    await expect(readDeploymentStamp()).resolves.toMatchObject({ backendSha: 'b'.repeat(40) })
   })
 
   it('returns no stamp when the query rejects', async () => {
