@@ -2,6 +2,7 @@
 // Masthead + one left-edged task column + contextual help line.
 
 import { GordiLogoMark } from '@/shell/logo-mark'
+import { ReleaseStamp } from '@/components/release-stamp'
 import { PageBackLink } from '@/shell/page-back-link'
 import { IconButton } from '@/components/ui/icon-button'
 import { SegmentedControl } from '@/components/ui/segmented-control'
@@ -91,7 +92,10 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         />
       </header>
       <main className="auth-main">{children}</main>
-      <aside className="auth-help">{t('auth.footer')}</aside>
+      <aside className="auth-help">
+        {t('auth.footer')}
+        <ReleaseStamp includeDatabase={false} />
+      </aside>
     </div>
   )
 }

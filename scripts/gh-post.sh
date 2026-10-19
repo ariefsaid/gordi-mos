@@ -355,7 +355,7 @@ if [ "$verb1" = "api" ]; then
   api_write_allowed=0
   if [ "$api_effective_method" != GET ]; then
     case "$api_effective_method:$path" in
-      "POST:repos/$this_repo/security-advisories"|"POST:repos/$this_repo/pulls") api_write_allowed=1 ;;
+      "POST:repos/$this_repo/security-advisories"|"POST:repos/$this_repo/pulls"|"POST:repos/$this_repo/releases") api_write_allowed=1 ;;
     esac
     issue_prefix="repos/$this_repo/issues/"
     if [ "$api_effective_method" = POST ]; then
@@ -371,7 +371,24 @@ if [ "$verb1" = "api" ]; then
           [ -n "$issue_number" ] && api_write_allowed=1 ;;
       esac
     fi
-    [ "$api_write_allowed" = 1 ] || die "'api $api_effective_method $path' is not in the write allowlist. Allowed API writes: POST repos/$this_repo/security-advisories; POST repos/$this_repo/pulls (REST PR stamps required); POST repos/$this_repo/issues/<number>/comments; PATCH repos/$this_repo/issues/<number> without labels."
+    [ "$api_write_allowed" = 1 ] || die "'api $api_effective_method $path' is not in the write allowlist. Allowed API writes: POST repos/$this_repo/security-advisories; POST repos/$this_repo/pulls (REST PR stamps required); POST repos/$this_repo/releases (existing v<semver> tag on main); POST repos/$this_repo/issues/<number>/comments; PATCH repos/$this_repo/issues/<number> without labels."
+  fi
+  # A release is permanent public prose: only for an existing v<semver> tag whose commit is on origin/main
+  # (the pre-push tag rule), named by -f fields so nothing hides from the check.
+  if [ "$path" = "repos/$this_repo/releases" ] && [ "$api_effective_method" = POST ]; then
+    [ "$api_input" = 0 ] || die "release create must pass tag_name as a -f field — an --input payload hides it from the tag check"
+    rel_tag=""
+    for kv in "${api_fields[@]:-}"; do
+      case "$kv" in
+        tag_name=*) [ -z "$rel_tag" ] || die "name one tag_name"; rel_tag="${kv#tag_name=}" ;;
+        target_commitish=*) die "release create names an existing tag only — no target_commitish" ;;
+      esac
+    done
+    [[ "$rel_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "release tag must be v<major>.<minor>.<patch> (got '$rel_tag')"
+    rel_sha="$(git ls-remote --tags origin "refs/tags/$rel_tag^{}" "refs/tags/$rel_tag" 2>/dev/null | head -1 | cut -f1)"
+    [ -n "$rel_sha" ] || die "tag $rel_tag is not on origin — push it first (the pre-push hook allows v-tags on main)"
+    git fetch -q origin main 2>/dev/null || die "could not fetch origin/main to check tag $rel_tag"
+    git merge-base --is-ancestor "$rel_sha" origin/main 2>/dev/null || die "tag $rel_tag points at a commit that is not on origin/main"
   fi
   # REST PR creation must pass the same HEAD stamps as `pr create`.
   if [ "$path" = "repos/$this_repo/pulls" ] && [ "$api_effective_method" = POST ]; then

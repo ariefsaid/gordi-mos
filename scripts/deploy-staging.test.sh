@@ -148,6 +148,12 @@ else printf 'argv psql-safe\n' >> "$ARGVLOG"; fi
 if [ -n "${PGPASSWORD:-}" ]; then printf 'pgpw-set\n' >> "$ARGVLOG"; else printf 'pgpw-empty\n' >> "$ARGVLOG"; fi
 sql="$*"; stdin=""; case "$sql" in *" -c "*) ;; *) stdin="$(cat)" ;; esac
 case "$sql$stdin" in
+  *"insert into shared.deployment_stamp"*)
+    printf 'psql deployment-stamp\n' >> "$CALLS"
+    if [[ "$sql" == *"${FAKE_ORIGIN_MAIN:-aaaa}"* ]]; then
+      printf 'psql deployment-stamp-sha %s\n' "${FAKE_ORIGIN_MAIN:-aaaa}" >> "$CALLS"
+    fi
+    [ "${FAKE_STAMP_RC:-0}" = 0 ] || { echo "deployment stamp write refused" >&2; exit "${FAKE_STAMP_RC:-1}"; } ;;
   *zz_preflight_probe*"create policy"*|*"create policy"*zz_preflight_probe*) printf 'psql probe\n' >> "$CALLS"
     [ "${FAKE_PROBE_RC:-0}" = 0 ] || { echo "permission denied for $FAKE_HOST" >&2; exit 3; } ;;
   *"count(*) from pg_policies"*) echo "${FAKE_LEFT:-0}" ;;
@@ -240,6 +246,8 @@ expect "op-get called with the local coordinates" "op-get fake-item fake-vault F
 expect "dry run called" "supabase dry-run"
 expect "probe ran (migration alters authenticator)" "psql probe"
 expect "push called" "supabase push"
+expect "deployment stamp is written after a successful database deploy" "psql deployment-stamp"
+if before "supabase push" "psql deployment-stamp"; then ok "deployment stamp follows the successful database push"; else bad "deployment stamp precedes the database push"; fi
 expect "promotion pushes the deployed origin/main sha to staging" "git-push push origin aaaa:refs/heads/staging"
 expect "remote staging is confirmed after the push" "git ls-remote --exit-code origin refs/heads/staging"
 expect_not "promotion never opens a PR" "gh-post"
@@ -406,6 +414,8 @@ expect "handler receives unauthenticated requests" "supabase no-verify-jwt"
 expect "deploy carries the project ref derived from the smoke host" "supabase project-ref-ok"
 expect "deploy cannot read the caller's stdin" "supabase deploy-stdin-closed"
 expect "unauthenticated POST smoke check ran" "curl POST"
+expect "backend stamp follows a successful function deploy and smoke checks" "psql deployment-stamp"
+if before "supabase functions-deploy agent-chat" "psql deployment-stamp"; then ok "deployment stamp follows the successful function deploy"; else bad "deployment stamp precedes the function deploy"; fi
 if before "supabase push" "supabase functions-deploy agent-chat"; then ok "edge deploy follows a successful migration push"; else bad "edge deploy follows a successful migration push"; fi
 expected_origins="$(grep '^const DEFAULT_APP_ORIGINS' supabase/functions/_shared/cors.ts | tr -cd "'" | wc -c | awk '{print int($1 / 2)}' | tr -d ' ')"
 actual_preflights="$(grep -c '^curl OPTIONS$' "$calls" || true)"
@@ -424,6 +434,7 @@ hasnt "deployment diagnostics hide the host" "$SECRET_HOST"
 hasnt "deployment diagnostics hide the project ref" "$SECRET_PROJECT_REF"
 hasnt "deployment diagnostics hide the token" "$FAKE_ACCESS_TOKEN"
 expect_not "no smoke check after failed deploy" "curl POST"
+expect_not "no deployment stamp after a failed function deploy" "psql deployment-stamp"
 run "a gateway 401 with its gateway code fails handler auth" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_POST_HANDLER=0 -- --yes --no-pr
 has "gateway 401 is not mistaken for handler auth" "unauthenticated POST smoke check failed"
 run "an unauthenticated POST returning 200 fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_POST_STATUS=200 -- --yes --no-pr
@@ -431,6 +442,7 @@ has "200 smoke failure is clear" "unauthenticated POST smoke check failed"
 expect_not "no promotion push after a failed smoke check" "git-push"
 run "a preflight that fails to echo the origin fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_CORS_MISMATCH=1 -- --yes --no-pr
 has "preflight echo failure is clear" "CORS preflight smoke check failed"
+expect_not "no deployment stamp after a failed function smoke check" "psql deployment-stamp"
 run "dry-run never deploys changed functions" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --dry-run
 expect_not "dry-run never deploys a function" "supabase functions-deploy"
 expect_not "dry-run never smoke-checks a function" "curl POST"
@@ -450,6 +462,13 @@ run "invalid function host is rejected before migration push" 1 "" FAKE_URL="pos
 expect_not "no migration push when the function host cannot provide a project ref" "supabase push"
 run "unreadable app origins are rejected before migration push" 1 "" FAKE_NO_ORIGINS=1 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
 expect_not "no migration push when app origins cannot be read" "supabase push"
+full_main_sha=abcdef0123456789abcdef0123456789abcdef01
+run "stamp records the full origin/main SHA" 0 "" FAKE_HEAD="$full_main_sha" FAKE_ORIGIN_MAIN="$full_main_sha" -- --yes --no-promote
+expect "deployment stamp uses the full main commit SHA" "psql deployment-stamp-sha $full_main_sha"
+run "deployment stamp write failure stops promotion" 1 "" FAKE_STAMP_RC=1 -- --yes
+has "stamp write failure is explained" "could not update the backend deployment stamp"
+expect_not "no promotion after a stamp write failure" "git-push"
+
 run "function-only deployment needs confirmation" 1 "" FAKE_DRY_OUT="Remote database is up to date." FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --no-pr
 has "function-only change is included in confirmation" "Deploy 0 migration(s) and 1 edge function(s) to staging?"
 expect_not "function-only change does not deploy without confirmation" "supabase functions-deploy"
@@ -483,6 +502,7 @@ expect_not "dry-run never pushes" "supabase push"
 run "push failure identifies the recovery backup" 1 "" FAKE_PUSH_RC=1 -- --yes --no-pr
 has "push failure names the backup path" "pre-push dump is at $tmp/dumps/pre-deploy-"
 expect "failed push was attempted" "supabase push"
+expect_not "no deployment stamp after a failed database push" "psql deployment-stamp"
 run "database, edge and direct-promotion order" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes
 order="$(grep -E '^(pg_dump|pg_restore-list|supabase push|supabase functions-deploy agent-chat|git-push)' "$calls" | tr '\n' ' ')"
 case "$order" in pg_dump\ pg_restore-list\ supabase\ push\ supabase\ functions-deploy\ agent-chat\ git-push\ push\ origin\ aaaa:refs/heads/staging*) ok "order: backup, database push, edge deploy, direct promotion" ;; *) bad "unexpected DB/edge/promotion order: $order" ;; esac

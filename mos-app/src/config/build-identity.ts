@@ -1,5 +1,5 @@
-export type BuildIdentity = Readonly<{ sha: string; builtAt: string }>
+export type BuildIdentity = Readonly<{ version: string; sha: string; builtAt: string }>
 
-export function createBuildIdentity(sha: string, builtAt: Date): BuildIdentity {
-  return { sha, builtAt: builtAt.toISOString() }
+export function createBuildIdentity(version: string, sha: string, builtAt: Date): BuildIdentity {
+  return { version, sha, builtAt: builtAt.toISOString() }
 }

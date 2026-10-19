@@ -21,7 +21,10 @@ git init -q --bare "$tmp/origin.git"
 git clone -q "$tmp/origin.git" "$tmp/repo"
 g "$tmp/repo" checkout -qb dev
 echo base > "$tmp/repo/f"; g "$tmp/repo" add f; g "$tmp/repo" commit -qm base
+BASE_SHA=$(g "$tmp/repo" rev-parse HEAD)
 g "$tmp/repo" push -q origin dev
+g "$tmp/repo" push -q origin "$BASE_SHA:refs/heads/main"
+g "$tmp/repo" fetch -q origin
 
 g "$tmp/repo" checkout -qb feat
 echo feat > "$tmp/repo/feat"; g "$tmp/repo" add feat; g "$tmp/repo" commit -qm feat
@@ -29,6 +32,12 @@ FEAT_SHA=$(g "$tmp/repo" rev-parse HEAD)
 
 check "branch rebased on origin/dev passes" 0 \
   "refs/heads/feat $FEAT_SHA refs/heads/feat $NULLSHA" "$tmp/repo"
+check "v-tag on a commit contained in origin/main passes" 0 \
+  "refs/tags/v0.11.0 $BASE_SHA refs/tags/v0.11.0 $NULLSHA" "$tmp/repo"
+check "v-tag pointing off origin/main is refused" 1 \
+  "refs/tags/v0.11.1 $FEAT_SHA refs/tags/v0.11.1 $NULLSHA" "$tmp/repo"
+check "non-v tag is refused" 1 \
+  "refs/tags/release-0.11.0 $BASE_SHA refs/tags/release-0.11.0 $NULLSHA" "$tmp/repo"
 
 # origin/dev moves ahead; feat is now stale.
 git clone -q -b dev "$tmp/origin.git" "$tmp/other"
