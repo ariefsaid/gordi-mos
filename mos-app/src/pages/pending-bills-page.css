@@ -67,7 +67,7 @@
 .pb-cell--date .pb-muted, .pb-cell--date .pending-bills__age-old { margin-top: var(--mos-stack-gap); font-size: var(--mos-size-1); }
 .pb-cell--state { white-space: normal; }
 .pb-open { display: inline-flex; align-items: center; min-height: 24px; max-width: 100%; padding: 0; border: 0; background: transparent; color: var(--foreground); font: inherit; font-weight: 600; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
-.pb-open:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+.pb-open:hover { color: var(--text-on-accent-tint); text-decoration: underline; text-underline-offset: 2px; }
 .pb-open:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-radius: var(--radius-sm); }
 .pb-sub { display: block; color: var(--muted-foreground); font-size: var(--mos-size-1); line-height: 1.4; overflow-wrap: anywhere; }
 .pending-bills-view-toolbar .view-tabs__tab { min-width: 44px; justify-content: center; }
