@@ -35,6 +35,7 @@ import {
 // #440: the stream is the MODULE's selection, not this page's — useCafeStream records it so
 // Plan/Stock/Review open on the same books, and every switch carries across (issue 456).
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { useCafeOpeningStatus } from '@/lib/use-cafe-opening-started'
 import { availableCafeLocationDefault, useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
 import { recordsHref } from '@/lib/cafe-records/url-state'
 import { formatUnitMultiple, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
@@ -155,9 +156,10 @@ function buildLines(
 // Recompute a line's gate state (note + cap) against its qty / movement.
 // FR-022: note required when qty != effective target (max(plan − stok, 0) for transfers).
 // FR-023: transfer cue when qty > tersedia.
-function gateLine(line: KitchenLogLine, movement: KitchenMovement): KitchenLogLine {
+// `noPlanYet`: today's opening has not started, so there is no plan to vary from — no note.
+function gateLine(line: KitchenLogLine, movement: KitchenMovement, noPlanYet = false): KitchenLogLine {
   if (line.qty_porsi <= 0) return { ...line, error: '', capError: '' }
-  const error = needsVarianceNote(line, movement) && !line.notes.trim() ? VARIANCE_NOTE_CUE : ''
+  const error = !noPlanYet && needsVarianceNote(line, movement) && !line.notes.trim() ? VARIANCE_NOTE_CUE : ''
   const capError = transferExceedsAvailable(line, movement) ? TRANSFER_SHORT_CUE : ''
   return { ...line, error, capError }
 }
@@ -403,6 +405,9 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   const writeClosed = !canCapture || streamMissing || streamNonProducing
   const captureClosed = writeClosed || !transferDestinationChosen
   const [logDate] = useState(wibToday) // today WIB; owner-decision: allow past dates flagged
+  // Until today's opening starts there is no plan, so every item would be off-plan: say so once
+  // and ask for no per-item note. Only today — a past date's plan is not the opening's.
+  const noPlanYet = useCafeOpeningStatus(stream?.branch.id ?? null) === 'not-started' && logDate === wibToday()
   const [wipItems, setWipItems] = useState<CaptureFormItem[]>([])
   const [planMap, setPlanMap] = useState<PlanMap>({})
   const [stockMap, setStockMap] = useState<StockMap>({})
@@ -815,11 +820,11 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
           stok: stockMap[item.id]?.stok ?? 0,
           tersedia: stockMap[item.id]?.tersedia ?? 0,
         }
-        next[item.id] = gateLine(base, movement)
+        next[item.id] = gateLine(base, movement, noPlanYet)
       }
       return next
     })
-  }, [movement, wipItems, planMap, stockMap])
+  }, [movement, wipItems, planMap, stockMap, noPlanYet])
 
   // #586: a movement switch with nothing staged is free (nothing would be lost); with
   // staged quantities, the switch is held behind `pendingMovement` until the confirm
@@ -1079,7 +1084,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
         entry_quantity: qty,
         qty_porsi: toDefaultUnitQuantity(qty, factor),
         dirty: staged,
-      }, movement)
+      }, movement, noPlanYet)
       return { ...prev, [itemId]: gated }
     })
   }
@@ -1094,7 +1099,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
         client_attempted: false,
         notes: note,
       }
-      return { ...prev, [itemId]: gateLine(next, movement) }
+      return { ...prev, [itemId]: gateLine(next, movement, noPlanYet) }
     })
   }
 
@@ -1120,7 +1125,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
           entry_unit_name: defaultUnit.name,
           qty_porsi: toDefaultUnitQuantity(entryQuantity, factor),
         }
-        return { ...prev, [itemId]: gateLine(next, movement) }
+        return { ...prev, [itemId]: gateLine(next, movement, noPlanYet) }
       }
       const selectedUnit = item?.units.find(unit => unit.id === unitChoice)
       if (!selectedUnit) return prev
@@ -1135,7 +1140,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
         entry_unit_name: selectedUnit.name,
         qty_porsi: toDefaultUnitQuantity(entryQuantity, 1),
       }
-      return { ...prev, [itemId]: gateLine(next, movement) }
+      return { ...prev, [itemId]: gateLine(next, movement, noPlanYet) }
     })
   }
 
@@ -1183,7 +1188,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
     let hasErrors = false
     const validated = { ...lines }
     for (const line of staged) {
-      const gated = gateLine({ ...line, dirty: true }, movement)
+      const gated = gateLine({ ...line, dirty: true }, movement, noPlanYet)
       if (gated.error || gated.capError) {
         validated[line.wip_item_id] = gated
         hasErrors = true
@@ -1536,7 +1541,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   // state is visible up front, not enabled-until-bounced). handleSubmit still re-gates
   // on click (defense in depth — the re-gate is the authority, this is the UX cue).
   const missingNoteLines = stagedLines.filter(
-    l => needsVarianceNote(l, movement) && !l.notes.trim(),
+    l => !noPlanYet && needsVarianceNote(l, movement) && !l.notes.trim(),
   )
   const noteUnresolved = missingNoteLines.length > 0
 
@@ -1788,6 +1793,9 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
         <OfflineBanner show={!isOnline && !showOfflineInFooter} />
         {status.kind === 'ready' && stream !== null && !canCapture && (
           <Notice tone="info">{t('cafe.capture.readOnly')}</Notice>
+        )}
+        {status.kind === 'ready' && stream !== null && canCapture && noPlanYet && (
+          <Notice tone="info">{t('cafe.capture.openingNotStarted')}</Notice>
         )}
         {restoreAnnouncement && (
           <p className="cafe-vh" role="status" aria-live="polite">{restoreAnnouncement}</p>
