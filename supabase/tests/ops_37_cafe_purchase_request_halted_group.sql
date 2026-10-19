@@ -50,6 +50,15 @@ set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}');
 select is((select count(*)::integer from ops.list_cafe_purchase_request_halted_groups()), 2,
   'Procurement discovers the halted request groups with the same receipt grant');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
+select ops.set_cafe_receipt_issue_access('00000000-0000-0000-0000-0000000000d6', false);
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}');
+select is((select count(*)::integer from ops.list_cafe_purchase_request_halted_groups()), 0,
+  'Revoking procurement removes halted-group discovery');
+select throws_ok($$select ops.resolve_cafe_purchase_request_halted_group(current_setting('app.group')::uuid, 'confirm_absent')$$,
+  '42501', 'CAFE_PURCHASE_REQUEST_HALTED_GROUP_FORBIDDEN', 'Revoked procurement cannot resolve a halted group');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
+select ops.set_cafe_receipt_issue_access('00000000-0000-0000-0000-0000000000d6', true);
 
 -- Each ungranted role is refused, including elevated roles without procurement.
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
@@ -175,6 +184,11 @@ select throws_ok($$select ops._enqueue_cafe_purchase_request(current_setting('ap
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 select is((select count(*)::integer from ops.cafe_purchase_request_posting_resolutions), 2, 'The requester can read their resolution records');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}');
+select is((select count(*)::integer from ops.cafe_purchase_request_posting_resolutions), 0,
+  'An unrelated same-org member cannot read resolution records');
+select is((select count(*)::integer from shared.record_history where table_name = 'cafe_purchase_request_posting_resolutions'), 0,
+  'An unrelated same-org member cannot read resolution history');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","admin"]}');
 select is((select count(*)::integer from ops.cafe_purchase_request_posting_resolutions), 0, 'Cross-org procurement cannot read resolution records');
 select is((select count(*)::integer from shared.record_history where table_name = 'cafe_purchase_request_posting_resolutions'), 0,
