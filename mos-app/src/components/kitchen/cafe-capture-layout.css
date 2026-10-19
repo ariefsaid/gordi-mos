@@ -67,6 +67,10 @@
 }
 .cafe-count__field-error { color: var(--field-error-text); }
 .cafe-count__line-success { color: var(--muted-foreground); }
+.cafe-count__followup { display: grid; gap: 8px; justify-items: start; max-width: 32rem; }
+.cafe-count__followup > label { font-weight: 600; }
+.cafe-count__followup .cafe-receive__reason { width: 100%; }
+.cafe-count__recount-prompt { margin: 0; color: var(--foreground); font-weight: 600; line-height: 1.4; }
 .cafe-count__fixing {
   margin: 0;
   color: var(--muted-foreground);
@@ -93,18 +97,22 @@
 }
 .cafe-receive__damage-flag { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height); font: var(--mos-type-body); }
 
+.cafe-review-card,
 .cafe-receive__counted,
 .cafe-receive__recent {
-  display: grid;
-  gap: 12px;
-  width: 100%;
-  max-width: var(--cafe-capture-content-measure, 48.25rem);
   box-sizing: border-box;
   margin: 0 0 var(--mos-gutter);
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--background);
+}
+.cafe-receive__counted,
+.cafe-receive__recent {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  max-width: var(--cafe-capture-content-measure, 48.25rem);
 }
 .cafe-receive__counted h2,
 .cafe-receive__recent h2 { margin: 0; color: var(--foreground); font-size: var(--mos-size-3); font-weight: 600; }
@@ -240,3 +248,5 @@
   .cafe-receive__recent { padding: 14px; }
 }
 
+.cafe-count__date { display: grid; gap: 4px; max-width: 16rem; margin-bottom: 12px; }
+.cafe-count__date > label { font-weight: 600; font-size: var(--mos-size-3); }

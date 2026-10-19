@@ -33,6 +33,25 @@ export const cafeWasteCleanupSql = `
   DELETE FROM ops.wip_items WHERE org_id = '${CAFE_WASTE_FIXTURE.orgId}' AND id = '${CAFE_WASTE_FIXTURE.itemId}';
 `
 
+// AC-037 (#1368): three bar items with fixed ids; the journey owns their count lines too.
+export const CAFE_COUNT_FIXTURE = {
+  orgId: org,
+  items: [
+    { id: 'a11e2e00-0000-0000-0000-000000013681', unitId: 'a11e2e00-0000-0000-0000-000000013691', settingId: 'a11e2e00-0000-0000-0000-0000000136a1', settingUnitId: 'a11e2e00-0000-0000-0000-0000000136b1', name: 'E2E Count Beans', firstCount: '6', expected: '6' },
+    { id: 'a11e2e00-0000-0000-0000-000000013682', unitId: 'a11e2e00-0000-0000-0000-000000013692', settingId: 'a11e2e00-0000-0000-0000-0000000136a2', settingUnitId: 'a11e2e00-0000-0000-0000-0000000136b2', name: 'E2E Count Milk', firstCount: '3', expected: '3' },
+    { id: 'a11e2e00-0000-0000-0000-000000013683', unitId: 'a11e2e00-0000-0000-0000-000000013693', settingId: 'a11e2e00-0000-0000-0000-0000000136a3', settingUnitId: 'a11e2e00-0000-0000-0000-0000000136b3', name: 'E2E Count Syrup', firstCount: '2', expected: '2.5', recount: '2', reason: 'One bottle was in the fridge' },
+  ],
+} as const
+const countItemIds = ids(CAFE_COUNT_FIXTURE.items.map(item => item.id))
+
+export const cafeCountCleanupSql = `
+  DELETE FROM ops.cafe_count_lines WHERE org_id = '${org}' AND wip_item_id IN (${countItemIds});
+  DELETE FROM ops.cafe_item_settings WHERE org_id = '${org}' AND wip_item_id IN (${countItemIds});
+  DELETE FROM ops.stream_items WHERE org_id = '${org}' AND wip_item_id IN (${countItemIds});
+  DELETE FROM ops.item_units WHERE org_id = '${org}' AND wip_item_id IN (${countItemIds});
+  DELETE FROM ops.wip_items WHERE org_id = '${org}' AND id IN (${countItemIds});
+`
+
 // OD-CAFE-MVP-12: Café capture fixtures must explicitly configure team-owned kind + active
 // state. Unclassified/inactive ERP seed items intentionally do not appear in capture anymore.
 const CAFE_PLAN_GUARD_FIXTURE = {
@@ -232,7 +251,7 @@ export function assertFixtureSqlSafe(query: string): void {
     return
   }
   const allowed = new Set(
-    [...fixtureCleanupSql.split(';'), ...cafeWasteCleanupSql.split(';'), ...cafePlanGuardCleanupSql.split(';')]
+    [...fixtureCleanupSql.split(';'), ...cafeWasteCleanupSql.split(';'), ...cafePlanGuardCleanupSql.split(';'), ...cafeCountCleanupSql.split(';')]
       .filter((sql) => sql.trim())
       .map(normalize),
   )
