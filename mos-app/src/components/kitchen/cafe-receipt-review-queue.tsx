@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
-import { CafeQueueEmpty } from '@/components/cafe/redesign/cafe-queue-empty'
+import { CafeReviewQueueStatus } from '@/components/kitchen/cafe-review-queue-status'
 import { useT } from '@/i18n/use-t'
 import { getPeople } from '@/lib/db/directory'
 import {
@@ -166,17 +165,16 @@ export function CafeReceiptReviewQueue({
         <p className="cafe-receipt-review__release-summary">{t('cafe.receipts.release.help')}</p>
         <CafeReceiptRelease online={online} refreshKey={decided} onCount={setHeldCount} />
       </details>
-      {loadError ? (
-        <ErrorState
-          message={t('common.loadFailed', { what: t('cafe.receipts.review.queueTitle') })}
-          onRetry={() => setRetry(value => value + 1)}
-          retryLabel={t('common.retry')}
-        />
-      ) : loading ? (
-        <LoadingShell count={2} />
-      ) : visibleRows.length === 0 ? (
-        <CafeQueueEmpty title={t('cafe.receipts.review.empty.title')} action={<button type="button" className="btn btn-outline btn-touch" onClick={() => setRetry(value => value + 1)}>{t('cafe.count.review.refresh')}</button>}>{t('cafe.receipts.review.empty.copy')}</CafeQueueEmpty>
-      ) : (
+      <CafeReviewQueueStatus
+        queueTitle={t('cafe.receipts.review.queueTitle')}
+        emptyTitle={t('cafe.receipts.review.empty.title')}
+        loading={loading}
+        loadError={loadError}
+        onRetry={() => setRetry(value => value + 1)}
+        emptyContent={visibleRows.length === 0 ? t('cafe.receipts.review.empty.copy') : null}
+        emptyAction={<button type="button" className="btn btn-outline btn-touch" onClick={() => setRetry(value => value + 1)}>{t('cafe.count.review.refresh')}</button>}
+      />
+      {!loadError && !loading && visibleRows.length > 0 && (
         <div className="cafe-receipt-review__workspace">
           <nav className="cafe-receipt-review__master" aria-label={t('cafe.receipts.review.queueTitle')}>
             <h2>{t('cafe.receipts.review.queueTitle')}</h2>

@@ -1,6 +1,6 @@
-import { CafeQueueEmpty } from '@/components/cafe/redesign/cafe-queue-empty'
 import { useEffect, useId, useMemo, useState } from 'react'
-import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { CafeReviewQueueStatus } from '@/components/kitchen/cafe-review-queue-status'
+import { useCafeReviewQueueState } from '@/components/kitchen/use-cafe-review-queue-state'
 import { useT } from '@/i18n/use-t'
 import { areCafeCountDecimalsEqual, calculateCafeCountVariance } from '@/lib/cafe-count-variance'
 import {
@@ -24,6 +24,7 @@ import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeCloseReviewWorkspace } from '@/components/cafe/redesign/cafe-close-review-workspace'
 import { Panel } from '@/components/cafe/redesign/worksheet'
 import { Notice } from '@/components/ui/notice'
+import './cafe-capture-layout.css'
 import './cafe-count-review-queue.css'
 import './cafe-decision-queue.css'
 
@@ -44,14 +45,22 @@ export function CafeCountReviewQueue({
   refreshKey?: number
 }) {
   const t = useT()
-  const [rows, setRows] = useState<CafeCountLine[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(false)
-  const [actionError, setActionError] = useState(false)
-  const [busyId, setBusyId] = useState<string | null>(null)
+  const {
+    rows,
+    setRows,
+    loading,
+    setLoading,
+    loadError,
+    setLoadError,
+    actionError,
+    setActionError,
+    busyId,
+    setBusyId,
+    retry,
+    setRetry,
+  } = useCafeReviewQueueState<CafeCountLine>()
   const online = !useIsOffline()
   const isDesktop = useIsDesktop()
-  const [retry, setRetry] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set())
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map())
@@ -76,7 +85,7 @@ export function CafeCountReviewQueue({
       setLoading(false)
     })
     return () => { active = false }
-  }, [refreshKey, retry])
+  }, [refreshKey, retry, setLoadError, setLoading, setRows])
 
   // Lines that differ (or still owe the floor something) come first; the rest keep oldest-first order.
   const visibleRows = useMemo(() => rows.filter(line => {
@@ -174,7 +183,7 @@ export function CafeCountReviewQueue({
 
   return (
     <section
-      className={`cafe-count-review${empty ? ' cafe-count-review--empty' : ''}`}
+      className={`cafe-review-card cafe-count-review${empty ? ' cafe-count-review--empty' : ''}`}
       aria-labelledby={empty ? undefined : 'cafe-count-review-title'}
       aria-label={empty ? t('cafe.count.review.title') : undefined}
     >
@@ -205,23 +214,20 @@ export function CafeCountReviewQueue({
             onClick={() => void confirmMany(chosenLines)}>{busyId === 'bulk' ? t('common.working') : t('cafe.count.review.confirmSelected', { count: chosenLines.length })}</button>}
         </div>
       )}
-      {loadError ? (
-        <ErrorState
-          message={t('common.loadFailed', { what: t('cafe.count.review.title') })}
-          onRetry={() => setRetry(value => value + 1)}
-          retryLabel={t('common.retry')}
-        />
-      ) : loading ? (
-        <LoadingShell count={2} />
-      ) : visibleRows.length === 0 ? (
-        <CafeQueueEmpty title={t('cafe.count.review.title')}>
-          {streamFilter === ALL_STREAMS
+      <CafeReviewQueueStatus
+        queueTitle={t('cafe.count.review.title')}
+        loading={loading}
+        loadError={loadError}
+        onRetry={() => setRetry(value => value + 1)}
+        emptyContent={visibleRows.length === 0
+          ? streamFilter === ALL_STREAMS
             ? t('cafe.count.review.empty.all')
             : t('cafe.count.review.empty.stream', {
               stream: streamLabel(t, streamCatalog.find(s => streamKey(s.branch.id, s.activity) === streamFilter) ?? null),
-            })}
-        </CafeQueueEmpty>
-      ) : (
+            })
+          : null}
+      />
+      {!loadError && !loading && visibleRows.length > 0 && (
         <CafeCloseReviewWorkspace
           label={t('cafe.count.review.title')}
           selected={selected !== null}

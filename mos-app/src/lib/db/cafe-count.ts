@@ -63,7 +63,7 @@ export type CafeCountLineOutcome = {
 }
 
 /** What the floor may know about its own line: a state word, never the Expected figure or Variance. */
-export type CafeCountFloorState = 'waiting' | 'needs_recount' | 'needs_reason' | 'with_reviewer' | 'confirmed' | 'held'
+type CafeCountFloorState = 'waiting' | 'needs_recount' | 'needs_reason' | 'with_reviewer' | 'confirmed' | 'held'
 
 export type CafeCountFloorLine = {
   id: string

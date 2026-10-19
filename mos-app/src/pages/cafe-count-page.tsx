@@ -45,6 +45,7 @@ import {
 import { wibToday } from '@/lib/db/cafe-opening'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { useCafeStreamBootstrap } from '@/lib/use-cafe-stream-bootstrap'
 import { useStockComparisonLink } from '@/lib/cafe-stock-comparison-access'
 import { useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
 import { recordsHref } from '@/lib/cafe-records/url-state'
@@ -104,7 +105,7 @@ export function CafeCountPage() {
   const t = useT()
   const auth = useAuth()
   const cafeStream = useCafeStream()
-  const { options: streamOptions, stream, homeStream, myStreamKeys, resolve, adopt, setStream, branchId } = cafeStream
+  const { options: streamOptions, stream, homeStream, myStreamKeys, setStream, branchId } = cafeStream
   const canCapture = auth.status === 'authenticated' && canCaptureCafe({
     affiliated: auth.viewer.affiliated,
     accessRoles: auth.viewer.accessRoles,
@@ -131,7 +132,6 @@ export function CafeCountPage() {
   const draftKey = draftScope ? JSON.stringify(draftScope) : null
   // The scope whose stored draft is loaded into entries; saving waits for it so a switch never overwrites.
   const [hydratedKey, setHydratedKey] = useState<string | null>(null)
-  const [catalogReady, setCatalogReady] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState<ReadonlySet<string>>(new Set())
   const toggleSection = (key: string) => setCollapsedSections(current => {
     const next = new Set(current)
@@ -140,6 +140,7 @@ export function CafeCountPage() {
   })
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [retryKey, setRetryKey] = useState(0)
+  const { catalogReady, setCatalogReady } = useCafeStreamBootstrap(cafeStream, retryKey, setLoadState)
   const [items, setItems] = useState<CafeCountableItem[]>([])
   const [entries, setEntries] = useState<Record<string, CountEntry>>({})
   // Today's submitted lines of this stream by item, as floor-safe states.
@@ -156,19 +157,6 @@ export function CafeCountPage() {
   const [submitError, setSubmitError] = useState(false)
   const isOnline = !useIsOffline()
   const requestGeneration = useRef(0)
-
-  useEffect(() => {
-    let active = true
-    setCatalogReady(false)
-    void resolve().then(catalog => {
-      if (!active) return
-      adopt(catalog)
-      setCatalogReady(true)
-    }).catch(() => {
-      if (active) setLoadState('error')
-    })
-    return () => { active = false }
-  }, [adopt, resolve, retryKey])
 
   useEffect(() => {
     if (!catalogReady) return

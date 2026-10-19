@@ -6,6 +6,7 @@ import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { useKitchenItemTable } from '@/lib/kitchen-item-list'
 import type { CafeStreamCatalog } from '@/lib/use-cafe-stream'
+import { useCafeStreamBootstrap } from '@/lib/use-cafe-stream-bootstrap'
 
 export type CafeItemCaptureLoad = 'loading' | 'ready' | 'error'
 
@@ -39,25 +40,12 @@ export function useCafeItemCapture({
   category: string
 }) {
   const t = useT()
-  const [catalogReady, setCatalogReady] = useState(false)
   const [loadState, setLoadState] = useState<CafeItemCaptureLoad>('loading')
   const [retryKey, setRetryKey] = useState(0)
+  const { catalogReady } = useCafeStreamBootstrap({ resolve, adopt }, retryKey, setLoadState)
   const [items, setItems] = useState<CafeReceivableItem[]>([])
   const [entries, setEntries] = useState<Record<string, CafeItemQuantityEntry>>({})
   const generation = useRef(0)
-
-  useEffect(() => {
-    let active = true
-    setCatalogReady(false)
-    void resolve().then(catalog => {
-      if (!active) return
-      adopt(catalog)
-      setCatalogReady(true)
-    }).catch(() => {
-      if (active) setLoadState('error')
-    })
-    return () => { active = false }
-  }, [adopt, resolve, retryKey])
 
   useEffect(() => {
     if (!catalogReady) return

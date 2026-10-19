@@ -97,18 +97,22 @@
 }
 .cafe-receive__damage-flag { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height); font: var(--mos-type-body); }
 
+.cafe-review-card,
 .cafe-receive__counted,
 .cafe-receive__recent {
-  display: grid;
-  gap: 12px;
-  width: 100%;
-  max-width: var(--cafe-capture-content-measure, 48.25rem);
   box-sizing: border-box;
   margin: 0 0 var(--mos-gutter);
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--background);
+}
+.cafe-receive__counted,
+.cafe-receive__recent {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  max-width: var(--cafe-capture-content-measure, 48.25rem);
 }
 .cafe-receive__counted h2,
 .cafe-receive__recent h2 { margin: 0; color: var(--foreground); font-size: var(--mos-size-3); font-weight: 600; }
