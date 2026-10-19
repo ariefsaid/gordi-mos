@@ -184,11 +184,102 @@ describe('Café Records page', () => {
     expect(screen.getAllByRole('link', { name: 'Back to Café' }).length).toBeGreaterThan(0)
   })
 
-  it('shows No records, with a way to change the period, when a complete source is empty', async () => {
+  it('keeps a failed source distinct from an empty answer and offers its retry', async () => {
+    reads.logs.mockRejectedValue(new Error('network unavailable'))
+    renderPage('?question=made&reading=summary')
+
+    expect(await screen.findByText(/Could not load production, transfer and waste records/)).toBeInTheDocument()
+    expect(screen.queryByText('No production, transfer and waste records in this period')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+  })
+
+  it('focuses Question when opening the full scope editor', async () => {
+    renderPage()
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Change scope' }))
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Question' })).toHaveFocus())
+  })
+
+  it('keeps the scoped answer and dates in the empty state; Change period opens the editor on Period', async () => {
     reads.logs.mockImplementation(page([]))
     renderPage('?question=made&reading=summary')
     expect(await screen.findByText('No production, transfer and waste records in this period')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Change period' })).toBeInTheDocument()
+    expect(screen.getByText(/No records match “What was produced\?” in Gordi HQ · Bar for/)).toBeInTheDocument()
+    const changePeriod = screen.getByRole('button', { name: 'Change period' })
+    await userEvent.setup().click(changePeriod)
+    const period = screen.getByRole('combobox', { name: 'Period' })
+    await waitFor(() => expect(period).toHaveFocus())
+    expect(screen.getByRole('button', { name: 'Change scope' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('updates both the open editor and collapsed scope summary when Back changes the URL', async () => {
+    const seen: string[] = []
+    renderPage('?question=made&period=today&reading=summary', seen)
+    await screen.findByRole('heading', { level: 1, name: 'Records' })
+    const changeScope = screen.getByRole('button', { name: 'Change scope' })
+    expect(screen.queryByRole('combobox', { name: 'Question' })).toBeNull()
+    const scopeSummary = within(screen.getByRole('region', { name: 'Scope of the records' }))
+    expect(scopeSummary.getByText('What was produced?')).toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(changeScope)
+    const question = screen.getByRole('combobox', { name: 'Question' })
+    await user.click(question)
+    await user.click(screen.getByRole('option', { name: 'How much was wasted?' }))
+    await waitFor(() => expect(new URLSearchParams(seen.at(-1)).get('question')).toBe('wasted'))
+    expect(question).toHaveTextContent('How much was wasted?')
+    expect(scopeSummary.getByText('How much was wasted?')).toBeInTheDocument()
+
+    ;(window as unknown as { __nav: (n: number) => void }).__nav(-1)
+    await waitFor(() => expect(question).toHaveTextContent('What was produced?'))
+    expect(scopeSummary.getByText('What was produced?')).toBeInTheDocument()
+    await user.click(changeScope)
+    expect(screen.queryByRole('combobox', { name: 'Question' })).toBeNull()
+    expect(scopeSummary.getByText('What was produced?')).toBeInTheDocument()
+  })
+
+  it('restores an edited exact question, stream, and date range after a route remount', async () => {
+    const exactUrl = `?question=made&period=custom&from=2026-10-10&to=2026-10-14&stream=${encodeURIComponent(`${B1}:bar`)}&reading=entries`
+    const seen: string[] = []
+    const first = renderPage(exactUrl, seen)
+    await screen.findByRole('heading', { level: 1, name: 'Records' })
+
+    const scope = () => within(screen.getByRole('region', { name: 'Scope of the records' }))
+    expect(scope().getByText('What was produced?')).toBeInTheDocument()
+    expect(scope().getByText('Gordi HQ · Bar')).toBeInTheDocument()
+    expect(scope().getByText(`${formatDayMonthYear('2026-10-10')} to ${formatDayMonthYear('2026-10-14')}`)).toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Change scope' }))
+    const question = screen.getByRole('combobox', { name: 'Question' })
+    await user.click(question)
+    await user.click(screen.getByRole('option', { name: 'How much was wasted?' }))
+    await user.clear(screen.getByRole('textbox', { name: 'From' }))
+    await user.type(screen.getByRole('textbox', { name: 'From' }), '11/10/2026')
+    await user.clear(screen.getByRole('textbox', { name: 'To' }))
+    await user.type(screen.getByRole('textbox', { name: 'To' }), '13/10/2026')
+    await user.click(screen.getByRole('button', { name: 'Apply range' }))
+    await user.click(screen.getByRole('combobox', { name: 'Production stream' }))
+    await user.click(screen.getByRole('option', { name: 'All readable streams' }))
+    await waitFor(() => {
+      const params = new URLSearchParams(seen.at(-1))
+      expect(params.get('question')).toBe('wasted')
+      expect(params.get('from')).toBe('2026-10-11')
+      expect(params.get('to')).toBe('2026-10-13')
+      expect(params.get('stream')).toBe('all')
+    })
+    const editedUrl = new URLSearchParams(seen.at(-1))
+    expect(editedUrl.get('period')).toBe('custom')
+    expect(editedUrl.get('from')).toBe('2026-10-11')
+    expect(editedUrl.get('to')).toBe('2026-10-13')
+    expect(editedUrl.get('stream')).toBe('all')
+    expect(editedUrl.get('reading')).toBe('entries')
+    first.unmount()
+
+    renderPage(seen.at(-1) ?? exactUrl)
+    await screen.findByRole('heading', { level: 1, name: 'Records' })
+    expect(scope().getByText('How much was wasted?')).toBeInTheDocument()
+    expect(scope().getByText('All readable streams')).toBeInTheDocument()
+    expect(scope().getByText(`${formatDayMonthYear('2026-10-11')} to ${formatDayMonthYear('2026-10-13')}`)).toBeInTheDocument()
   })
 
   it('lets a phone reader change period and stream from the empty state and shows the effective dates', async () => {
@@ -223,7 +314,53 @@ describe('Café Records page', () => {
     renderPage('?question=made&reading=entries', seen)
     await waitFor(() => expect(within(screen.getByLabelText('Search and filter the records')).getByRole('status')).toHaveTextContent('Newest first'))
     const user = userEvent.setup()
-    await user.click(screen.getByText('Filters'))
+    await user.click(screen.getByText('Filters & sort'))
+    await user.click(screen.getByRole('combobox', { name: 'Sort' }))
+    await user.click(await screen.findByRole('option', { name: 'Item A to Z' }))
+    await waitFor(() => {
+      const params = new URLSearchParams(seen.at(-1))
+      expect(params.get('sort')).toBe('item')
+      expect(params.has('dir')).toBe(false)
+    })
+
+    ;(window as unknown as { __nav: (n: number) => void }).__nav(-1)
+    await waitFor(() => expect(new URLSearchParams(seen.at(-1)).has('sort')).toBe(false))
+    expect(new URLSearchParams(seen.at(-1)).get('reading')).toBe('entries')
+  })
+
+  it('lets a phone reader change period and stream from the empty state and shows the effective dates', async () => {
+    usePhoneViewport()
+    reads.logs.mockImplementation(page([]))
+    const seen: string[] = []
+    renderPage('?question=made&reading=summary', seen)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Change period' }))
+
+    const period = screen.getByRole('combobox', { name: 'Period' })
+    expect(period).toHaveFocus()
+    await user.click(period)
+    await user.click(await screen.findByRole('option', { name: 'Last month' }))
+    const range = resolvePreset('last-month', wibToday())
+    await waitFor(() => {
+      const params = new URLSearchParams(seen.at(-1))
+      expect(params.get('period')).toBe('last-month')
+      expect(params.get('from')).toBe(range.from)
+      expect(params.get('to')).toBe(range.to)
+    })
+    expect(screen.getByText(`${formatDayMonthYear(range.from)} to ${formatDayMonthYear(range.to)}`)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('combobox', { name: 'Production stream' }))
+    await user.click(await screen.findByRole('option', { name: 'All readable streams' }))
+    await waitFor(() => expect(new URLSearchParams(seen.at(-1)).get('stream')).toBe('all'))
+  })
+
+  it('changes Records sort from the phone Filters panel with one URL history step', async () => {
+    usePhoneViewport()
+    const seen: string[] = []
+    renderPage('?question=made&reading=entries', seen)
+    await waitFor(() => expect(within(screen.getByLabelText('Search and filter the records')).getByRole('status')).toHaveTextContent('Newest first'))
+    const user = userEvent.setup()
+    await user.click(screen.getByText('Filters & sort'))
     await user.click(screen.getByRole('combobox', { name: 'Sort' }))
     await user.click(await screen.findByRole('option', { name: 'Item A to Z' }))
     await waitFor(() => {

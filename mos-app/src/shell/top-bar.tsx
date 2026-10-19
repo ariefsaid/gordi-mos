@@ -9,7 +9,10 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useUnreadCount } from '@/hooks/useUnreadCount'
 import { useIsDesktop } from './use-is-desktop'
 import { useOptionalOverlayHost } from './overlay-host'
-import { InboxTriageConnected } from '@/components/inbox/inbox-triage-connected'
+import { Suspense } from 'react'
+import { lazyPage } from '@/lib/lazy-page'
+import { LoadingShell } from '@/components/ui/state-kit'
+import { ContentErrorBoundary } from './content-error-boundary'
 import { setTopBarBackSlot } from './top-bar-back-slot'
 import './top-bar.css'
 
@@ -25,6 +28,10 @@ type TopBarProps = {
    */
   onOpenDrawer?: () => void
 }
+
+const InboxTriageConnected = lazyPage(() =>
+  import('@/components/inbox/inbox-triage-connected').then((m) => ({ default: m.InboxTriageConnected })),
+)
 
 // Bell icon — 16px, stroke-2, aria-hidden (notification stub, ADR-0013 D1)
 function BellIcon() {
@@ -159,7 +166,11 @@ function NotificationBell() {
         actions: <Link to="/inbox" className="btn btn-outline">{t('shell.openInbox')}</Link>,
         content: (
           <div className="top-bar__quick-inbox">
-            <InboxTriageConnected mode="quick" />
+            <ContentErrorBoundary>
+              <Suspense fallback={<LoadingShell />}>
+                <InboxTriageConnected mode="quick" />
+              </Suspense>
+            </ContentErrorBoundary>
           </div>
         ),
       },
@@ -190,7 +201,7 @@ function NotificationBell() {
 // grid-area: topbar — spans full width (set by AppShell grid; no inline style needed here).
 export function TopBar({ onOpenSearch, searchTriggerRef }: TopBarProps) {
   const t = useT()
-  // The brand cell is as wide as the nav's first column: the whole 240px sidebar, or the 64px rail (mark only),
+  // The brand cell is as wide as the nav's first column: the whole 240px sidebar or the 104px labelled rail,
   // so the header divider lands on the nav boundary.
   const { isNarrow, brandWide } = useNavLayout()
   const { isOn } = useModuleAvailability()
@@ -204,9 +215,8 @@ export function TopBar({ onOpenSearch, searchTriggerRef }: TopBarProps) {
       {/* Phone back control: PageBackLink portals the page's back button here below 768px. */}
       <div className="top-bar__back" ref={setTopBarBackSlot} />
 
-      {/* Brand lockup — width = --rail-w so the right divider coincides with the rail boundary (ADR-0013 D1).
-          At <920px the rail is gone (drawer-nav), so the brand shrinks to content width (no 224px reserve)
-          and drops the divider — otherwise it forces horizontal overflow on phones. */}
+      {/* Brand lockup — width follows the rail token so the divider coincides with the rail boundary (ADR-0013 D1).
+          Below 768px the rail is gone (phone tabs/More), so the brand shrinks to content width and drops the divider. */}
       <div
         className={`top-bar__brand${isNarrow ? ' top-bar__brand--narrow' : ''}${!brandWide && !isNarrow ? ' top-bar__brand--compact' : ''}`}
       >
@@ -219,7 +229,7 @@ export function TopBar({ onOpenSearch, searchTriggerRef }: TopBarProps) {
       </div>
 
       {/* Breadcrumb track — min-w-0 so a long crumb ellipsizes and cannot shove the brand (AC-S02/S03).
-          v4 shell rebuild (Task 2): now ALSO rendered at <920px, in the space freed by deleting
+          v4 shell rebuild (Task 2): now ALSO rendered on phone, in the space freed by deleting
           the hamburger — it's the phone's only current-location signal once the page's own H1
           scrolls out of view, and it lives in this fixed header row so it survives scrolling. */}
       <div className="top-bar__breadcrumb-track">
@@ -233,7 +243,7 @@ export function TopBar({ onOpenSearch, searchTriggerRef }: TopBarProps) {
 
       {/* One utility track follows the location track; the breadcrumb takes remaining width. */}
       <div className="top-bar__utilities">
-        {/* ⌘K search trigger — opens the command menu (AC-K02). Below 920px it shrinks to an
+        {/* ⌘K search trigger — opens the command menu (AC-K02). On phone it shrinks to an
             icon-only button (DESIGN.md Navigation·Mobile: "cmdk shrinks to an icon") so the header
             fits a phone width without horizontal overflow. */}
         {isNarrow ? (

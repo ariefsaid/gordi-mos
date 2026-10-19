@@ -1,14 +1,10 @@
 import type { ReactNode } from 'react'
 import type { HomeRegion } from './home-regions'
 
-/** Shared contract for the three v4 arrangements. The data model stays identical; only shape changes. */
+/** Shared data projection and role-gated context for the three Home arrangements. */
 export interface HomeLayoutProps {
   regions: HomeRegion[]
-  nextAction: ReactNode
+  cafeDoor?: ReactNode
   objectives?: ReactNode
-  /** The bounded Signals preview; shares the aside column with Objectives. */
   feed?: ReactNode
-  liftedRegionId?: HomeRegion['id']
-  /** Persona-specific opening content, such as the member Café door. */
-  leading?: ReactNode
 }

@@ -1,5 +1,5 @@
 // Compose a Task's shared record anatomy; the adapter owns fields, rights and actions.
-import type { ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { Toast } from '@/components/admin/toast'
 import { useToast } from '@/components/admin/use-toast'
 import { copyCanonicalLink } from '@/lib/copy-canonical-link'
@@ -7,7 +7,7 @@ import { useT } from '@/i18n/use-t'
 import { RecordField } from '@/components/records/record-field'
 import type { RecordFieldSpec, RecordValue, RecordViewerAdapter } from '@/components/records/record-viewer.types'
 import { RecordPageHeader, type RecordFact, type RecordFactTone } from '@/components/record/record-page-header'
-import { RecordAbout, RecordPageLayout, RecordSection } from '@/components/record/record-page-layout'
+import { RecordAbout, RecordDisclosure, RecordPageLayout, RecordSection } from '@/components/record/record-page-layout'
 import type { RecordMenuItem } from '@/components/record/record-menu'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { dueStatus } from '@/lib/due-status'
@@ -69,6 +69,7 @@ export function TaskRecordDocument({
 }: TaskRecordDocumentProps) {
   const t = useT()
   const offline = useIsOffline()
+  const aboutHeadingRef = useRef<HTMLHeadingElement>(null)
   const { toast, showToast, clearToast } = useToast()
   const { runtime, openPanel } = useAgentRuntime()
   const editable = !adapter.permission.readOnly
@@ -82,16 +83,10 @@ export function TaskRecordDocument({
   const due = spec('dueDate')
   if (!titleSpec || !statusSpec || !pic || !supervisor || !due) return null
 
-  // ── Header facts: status · PIC · Supervisor · Due · Project/Process · Objective ──────────────
+  // Decision state, due date and task ownership stay visible in the header at every width.
   const facts: RecordFact[] = []
-  if (archived) facts.push({ type: 'state', key: 'status', label: t('tasks.archivedLabel'), tone: 'neutral' })
-  else if (editable) facts.push({ type: 'field', key: 'status', field: statusSpec })
-  else facts.push({ type: 'state', key: 'status', label: statusSpec.displayValue, tone: STATUS_TONE[task.status] })
-  facts.push({ type: 'person', key: 'pic', role: 'neutral', field: pic })
-  facts.push({
-    type: 'person', key: 'supervisor', role: 'neutral', hint: supervisor.subline,
-    field: { ...supervisor, subline: undefined },
-  })
+  if (editable) facts.push({ type: 'field', key: 'status', field: statusSpec })
+  else facts.push({ type: 'state', key: 'status', label: statusSpec.displayValue, tone: archived ? 'neutral' : STATUS_TONE[task.status] })
 
   const open = !archived && task.status !== 'Done'
   const dueKind = open ? dueStatus(task.due_date, now) : 'none'
@@ -102,7 +97,11 @@ export function TaskRecordDocument({
     })
   } else if (editable) {
     facts.push({ type: 'field', key: 'dueDate', field: { ...due, displayValue: t('tasks.due.set') } })
+  } else {
+    facts.push({ type: 'field', key: 'dueDate', field: due })
   }
+  facts.push({ type: 'field', key: 'pic', field: pic })
+  facts.push({ type: 'field', key: 'supervisor', field: supervisor })
 
   // A link whose name has not resolved yet (href unset) is held back, never shown as "Ad hoc".
   const link = (key: 'projectProcess' | 'objective'): RecordFieldSpec | null => {
@@ -111,10 +110,6 @@ export function TaskRecordDocument({
     if (field.value === null) return field
     return field.href ? field : null
   }
-  const context = [link('projectProcess'), link('objective')]
-    .filter((field): field is RecordFieldSpec => field !== null)
-  if (context.length > 0) facts.push({ type: 'group', key: 'context', fields: context })
-
   // ── Primary: the one lifecycle action, quiet while the task is not ready to complete ──────────
   const lifecycle = adapter.actions.find((action) => action.id === 'complete' || action.id === 'reopen')
   const primary = lifecycle
@@ -165,13 +160,41 @@ export function TaskRecordDocument({
       commitsFrozen={fieldCommitsFrozen}
     />
   )
-  const aboutItems = ['team', 'businessUnit', 'createdBy', 'generatedFrom', 'completedAt']
+  const aboutFields = [link('projectProcess'), link('objective'), spec('team'), spec('businessUnit')]
+    .filter((fieldSpec): fieldSpec is RecordFieldSpec => fieldSpec !== undefined && fieldSpec !== null)
+  const detailsFields = ['createdBy', 'generatedFrom', 'completedAt']
     .map((key) => spec(key))
-    .filter((fieldSpec): fieldSpec is RecordFieldSpec => fieldSpec !== undefined)
-    .map((fieldSpec) => ({
-      key: fieldSpec.key, label: fieldSpec.label,
-      value: <span className="rp-about__field">{field(fieldSpec)}</span>,
-    }))
+    .filter((fieldSpec): fieldSpec is RecordFieldSpec => fieldSpec !== undefined && fieldSpec !== null)
+  const aboutItems = aboutFields.map((fieldSpec) => ({
+    key: fieldSpec.key, label: fieldSpec.label,
+    value: <span className="rp-about__field">{field(fieldSpec)}</span>,
+  }))
+  const detailsItems = detailsFields.map((fieldSpec) => ({
+    key: fieldSpec.key, label: fieldSpec.label,
+    value: <span className="rp-about__field">{field(fieldSpec)}</span>,
+  }))
+  const aboutTitle = t('workbench.task.about')
+  const companion = (
+    <>
+      <RecordSection id="task-about" title={aboutTitle} headingTabIndex={-1} headingRef={aboutHeadingRef}>
+        <RecordAbout items={aboutItems} />
+      </RecordSection>
+      {detailsItems.length > 0 ? (
+        <RecordDisclosure title={t('workbench.record.details')}>
+          <RecordAbout items={detailsItems} />
+        </RecordDisclosure>
+      ) : null}
+      {events.length > 0 ? (
+        <RecordDisclosure
+          title={t('tasks.history.title')}
+          count={eventsHasMore ? `${events.length}+` : events.length}
+        >
+          <ActivityCard events={events} people={people} now={now} hasMore={eventsHasMore}
+            loadingMore={eventsLoadingMore} moreError={eventsMoreError} onLoadMore={onLoadMoreEvents} />
+        </RecordDisclosure>
+      ) : null}
+    </>
+  )
 
   return (
     <>
@@ -185,6 +208,14 @@ export function TaskRecordDocument({
           title={titleSpec}
           headingLevel={headingLevel}
           facts={facts}
+          factsAction={(
+            <button type="button" className="rp-link-btn" onClick={() => aboutHeadingRef.current?.focus()}>
+              {aboutTitle}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 5v14M19 12l-7 7-7-7" />
+              </svg>
+            </button>
+          )}
           primary={primary}
           menu={menu}
           menuLabel={t('record.moreActions')}
@@ -197,14 +228,30 @@ export function TaskRecordDocument({
         />
       )}
       notice={<>{editable ? <OfflineNotice /> : null}{notice}</>}
-      about={{ title: t('record.page.about'), node: <RecordAbout items={aboutItems} /> }}
-      history={events.length > 0 ? {
-        title: t('tasks.history.title'),
-        count: eventsHasMore ? `${events.length}+` : events.length,
-        node: <ActivityCard events={events} people={people} now={now} hasMore={eventsHasMore}
-          loadingMore={eventsLoadingMore} moreError={eventsMoreError} onLoadMore={onLoadMoreEvents} />,
-      } : undefined}
+      companion={companion}
+      discussion={showComments ? (
+        <RecordSection id="comments" title={t('tasks.commentsTitle')} count={comments.length > 0 ? comments.length : undefined}>
+          <CommentThread
+            variant="record"
+            comments={comments}
+            people={people}
+            canPost={editable && !offline}
+            onPost={onPostComment}
+            draftValue={commentDraft}
+            onDraftChange={onCommentDraftChange}
+            emptyLabel={null}
+            onDirtyChange={onCommentDirtyChange}
+          />
+        </RecordSection>
+      ) : undefined}
     >
+      {showDescription ? (
+        <RecordSection id="description" title={t('tasks.description.title')}>
+          <div className="task-description">
+            {field(hasDescription ? description : { ...description, displayValue: t('tasks.description.add') })}
+          </div>
+        </RecordSection>
+      ) : null}
       {showChecklist ? (
         <RecordSection
           id="checklist"
@@ -219,28 +266,6 @@ export function TaskRecordDocument({
             onReorder={onReorderChecklist}
             onDelete={onDeleteChecklist}
             saveError={checklistError ? { message: t('record.field.saveError'), onRetry: checklistError } : null}
-          />
-        </RecordSection>
-      ) : null}
-      {showDescription ? (
-        <RecordSection id="description" title={t('tasks.description.title')}>
-          <div className="task-description">
-            {field(hasDescription ? description : { ...description, displayValue: t('tasks.description.add') })}
-          </div>
-        </RecordSection>
-      ) : null}
-      {showComments ? (
-        <RecordSection id="comments" title={t('tasks.commentsTitle')} count={comments.length > 0 ? comments.length : undefined}>
-          <CommentThread
-            variant="record"
-            comments={comments}
-            people={people}
-            canPost={editable && !offline}
-            onPost={onPostComment}
-            draftValue={commentDraft}
-            onDraftChange={onCommentDraftChange}
-            emptyLabel={null}
-            onDirtyChange={onCommentDirtyChange}
           />
         </RecordSection>
       ) : null}

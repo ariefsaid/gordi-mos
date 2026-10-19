@@ -203,16 +203,9 @@
   font-size: var(--mos-size-3);
 }
 .kl-capture-draft-details { flex: 1 1 auto; min-width: 0; }
-.kl-capture-draft-details > summary { min-height: var(--mos-control-height); cursor: pointer; }
-.kl-capture-draft-details > summary::marker { color: var(--muted-foreground); vertical-align: top; }
-.kl-capture-draft-details > summary > strong {
-  display: inline-block;
-  max-width: calc(100% - 1.5em);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+.kl-capture-draft-details .rp-disclosure { align-items: flex-start; min-height: var(--mos-control-height); padding-block: var(--mos-space-2); font: var(--mos-type-body); }
+.kl-capture-draft-details .rp-disclosure > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
+.kl-capture-draft-details .rp-disclosure__caret { margin-top: 2px; }
 .kl-capture-draft-details__body { min-width: 0; padding: 0 0 8px 14px; }
 .kl-capture-draft-notice ul { display: grid; gap: var(--mos-label-gap); margin: 0 0 var(--mos-inline-gap); padding: 0; list-style: none; }
 .kl-capture-draft-notice li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--mos-label-gap) var(--mos-row-gap); min-width: 0; }

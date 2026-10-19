@@ -52,6 +52,7 @@ export type RecordPageHeaderProps = {
   title: RecordFieldSpec
   headingLevel: 1 | 2
   facts: readonly RecordFact[]
+  factsAction?: ReactNode
   primary?: RecordPrimaryAction
   menu?: readonly RecordMenuItem[]
   menuLabel: string
@@ -80,7 +81,7 @@ function personLead(name: string): ReactNode {
 }
 
 export function RecordPageHeader({
-  title, headingLevel, facts, primary, menu = [], menuLabel, menuMinItems, factsLabel, note,
+  title, headingLevel, facts, factsAction, primary, menu = [], menuLabel, menuMinItems, factsLabel, note,
   onCommitField, onDirtyChange, fieldCommitsFrozen = false,
 }: RecordPageHeaderProps) {
   // On a phone page the primary rides the bar below the page; in a panel it stays in the header.
@@ -148,6 +149,7 @@ export function RecordPageHeader({
             </li>
           )
         })}
+        {factsAction ? <li className="rp-fact rp-fact--action">{factsAction}</li> : null}
       </ul>
       {note ? <p className="rp-readonly" role="note">{note}</p> : null}
     </header>

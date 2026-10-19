@@ -47,6 +47,18 @@ beforeEach(() => {
 afterEach(() => { cleanup(); resetModuleAvailability() })
 
 describe('Admin › Modules', () => {
+  it('shows the turn-off consequence only for a proposed change, not an already-off module', async () => {
+    const user = userEvent.setup()
+    stubs.fns.listOrgModuleSettings.mockResolvedValue(rows().map(row => row.module_id === 'assistant' ? { ...row, enabled: false } : row))
+    renderPage()
+    expect(await screen.findByRole('combobox', { name: 'Assistant: Org availability' })).toHaveTextContent('Off')
+    expect(screen.queryByText(/Turning this off would hide/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('combobox', { name: 'Money: Org availability' }))
+    await user.click(screen.getByRole('option', { name: 'Off' }))
+    expect(screen.getAllByText(/Turning this off would hide/)).toHaveLength(1)
+    expect(stubs.fns.saveOrgModuleSettings).not.toHaveBeenCalled()
+  })
+
   it('loads the six settings in Admin order, including Work and Assistant', async () => {
     renderPage()
     const table = await screen.findByRole('table', { name: 'Module availability for the Org' })
