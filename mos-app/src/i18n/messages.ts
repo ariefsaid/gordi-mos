@@ -1769,6 +1769,7 @@ export const messages = {
     // The log's plan reads 0 for the same reason on this same screen — say the reason once,
     // beside the door action that resolves it.
     'cafe.opening.planLoadsAfterStart': "Today's plan loads once the opening starts.",
+    'cafe.capture.openingNotStarted': "Today's opening hasn't started, so there is no plan yet. An ops lead starts it from Café Today. Until then you can log without a note.",
     'cafe.opening.start': "Start today's opening",
     // issue 457: the panel is TEAM-scoped, and its caption sat directly under the head's
     // "Choose stream…" where a stream name is expected — a bare team name there reads as
@@ -5481,6 +5482,7 @@ export const messages = {
     'cafe.opening.notStartedLead': 'Belum dimulai.',
     'cafe.opening.notStartedMember': 'Belum dimulai — belum ada yang memulai pembukaan hari ini.',
     'cafe.opening.planLoadsAfterStart': 'Rencana hari ini dimuat setelah pembukaan dimulai.',
+    'cafe.capture.openingNotStarted': 'Pembukaan hari ini belum dimulai, jadi belum ada rencana. Ops lead memulainya dari Café Hari Ini. Sampai saat itu Anda bisa mencatat tanpa catatan.',
     'cafe.opening.start': 'Mulai pembukaan hari ini',
     'cafe.opening.teamCaption': 'Pembukaan · ${team}',
     'cafe.opening.viewTasks': 'Lihat tugas pembukaan',

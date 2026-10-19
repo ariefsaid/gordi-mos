@@ -56,7 +56,12 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
 vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
 // #781 coordinator follow-up: useCafeStream now also reads current Team memberships for
 // "Your Team" tagging (myStreamKeys) — empty by default here; tests that care override it.
-vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn().mockResolvedValue([]) }))
+vi.mock('@/lib/db/cafe-opening', () => ({
+  listCafeViewerTeams: vi.fn().mockResolvedValue([]),
+  getCafeOpeningProcessId: vi.fn().mockResolvedValue(null),
+  getCafeOpeningTeamId: vi.fn().mockResolvedValue(null),
+  getTodayOpeningForTeam: vi.fn(),
+}))
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 // Missing-item reports now use their stream-scoped Café settings queue data layer.
 vi.mock('@/lib/db/cafe-missing-item-reports', () => ({ reportMissingCafeItem: vi.fn() }))
@@ -77,7 +82,7 @@ import {
   listStreamItemIds,
 } from '@/lib/db/kitchen-logs'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
-import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
+import { listCafeViewerTeams, getCafeOpeningProcessId, getCafeOpeningTeamId, getTodayOpeningForTeam } from '@/lib/db/cafe-opening'
 import { listActiveBranches } from '@/lib/db/branches'
 import type {
   ActualUnitTotal,
@@ -768,6 +773,35 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
       expect(screen.getByText(/differs from plan — add a note/i)).toBeInTheDocument()
     })
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+  })
+
+  // #937: before today's opening starts there is no plan — tell once, ask for no per-item note.
+  async function stageAyamBeforeOpening(started: boolean) {
+    vi.mocked(getCafeOpeningProcessId).mockResolvedValue('proc-1')
+    vi.mocked(getCafeOpeningTeamId).mockResolvedValue('team-1')
+    vi.mocked(getTodayOpeningForTeam).mockResolvedValue({ started, runId: started ? 'run-1' : null, rollup: null })
+    mockFetchPlanMap.mockResolvedValue({})
+    await renderPage()
+    await screen.findAllByText('Ayam Bakar')
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    await act(async () => {
+      fireEvent.change(qtyInput, { target: { value: '1' } })
+      fireEvent.blur(qtyInput)
+      await Promise.resolve()
+    })
+  }
+
+  it('opening not started: before the opening starts, says once who starts it and asks for no note', async () => {
+    await stageAyamBeforeOpening(false)
+    expect(await screen.findByText(/opening hasn't started.*ops lead starts it/i)).toBeInTheDocument()
+    expect(screen.queryByText(/differs from plan — add a note/i)).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /^submit/i })[0]).toBeEnabled()
+  })
+
+  it('opening not started: once the opening has started, an off-plan item still needs its note', async () => {
+    await stageAyamBeforeOpening(true)
+    expect(await screen.findByText(/differs from plan — add a note/i)).toBeInTheDocument()
+    expect(screen.queryByText(/opening hasn't started/i)).not.toBeInTheDocument()
   })
 })
 
