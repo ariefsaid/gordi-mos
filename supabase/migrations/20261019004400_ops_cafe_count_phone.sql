@@ -5,7 +5,7 @@
 --   1. drop function ops.cafe_count_excluded_items(uuid, text);
 --      drop function ops.submit_cafe_counts(uuid, text, jsonb, date);
 --   2. Restore ops.submit_cafe_counts(uuid, text, jsonb) from 20261016000400_ops_cafe_locations.sql
---      and ops._guard_cafe_count_line() from 20261019003200_ops_cafe_count_review_decisions.sql.
+--      and ops._guard_cafe_count_line() from 20261019004300_ops_cafe_count_review_decisions.sql.
 --   3. revoke select (entry_quantity, entry_unit_factor) on ops.cafe_count_lines from authenticated;
 --      alter table ops.cafe_count_lines drop constraint cafe_count_lines_entry_unit_ck,
 --        drop column entry_quantity, drop column entry_unit_factor;
@@ -21,7 +21,7 @@ comment on column ops.cafe_count_lines.entry_quantity is
   'Quantity typed in a manager-defined multiple of the default unit; counted_quantity stays the default-unit quantity. Null when typed in the default unit.';
 comment on column ops.cafe_count_lines.entry_unit_factor is
   'Snapshot of the picked multiple: how many default units one typed unit is.';
--- The browser role reads Count lines column by column (20261019003100); the typed multiple is readable.
+-- The browser role reads Count lines column by column (20261019004200); the typed multiple is readable.
 grant select (entry_quantity, entry_unit_factor) on ops.cafe_count_lines to authenticated;
 
 create or replace function ops._guard_cafe_count_line()
