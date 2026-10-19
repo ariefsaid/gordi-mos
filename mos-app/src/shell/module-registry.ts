@@ -174,7 +174,7 @@ export function moneyDestinationForViewer(accessRoles: string[]): Destination | 
 function admit(module: Destination, accessRoles: string[], isOn: (moduleId: ModuleId) => boolean): Destination | null {
   if (!isOn(module.id as ModuleId)) return null
   if (module.id === 'money') return moneyDestinationForViewer(accessRoles)
-  return isLive(module, accessRoles) ? module : null
+  return isLive(module, accessRoles, isOn) ? module : null
 }
 
 /**
