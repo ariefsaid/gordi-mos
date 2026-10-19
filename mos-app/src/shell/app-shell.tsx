@@ -1,4 +1,4 @@
-import { Suspense, useState, useRef, useMemo, type ReactNode } from 'react'
+import { Component, Suspense, useState, useRef, useMemo, type ErrorInfo, type ReactNode, type RefObject } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { SideNav } from './side-nav'
 import { TopBar } from './top-bar'
@@ -9,12 +9,16 @@ import { useNavLayout, useRememberModule } from './use-nav'
 import { CafeWaitingProvider } from '@/components/cafe/cafe-waiting-provider'
 import { useIsOffline } from './use-is-offline'
 import { ContentErrorBoundary } from './content-error-boundary'
-import { CommandMenu } from '@/components/command/command-menu'
 import { useCommandMenu } from '@/components/command/use-command-menu'
 import { BreadcrumbTitleProvider } from './breadcrumb-title'
 import { SHOW_ASSISTANT } from '@/config/features'
 import { AgentRuntimeProvider, useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { lazyPage } from '@/lib/lazy-page'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { Button } from '@/components/ui/button'
+import { ModalShell } from '@/components/ui/modal-shell'
+import { reportError } from '@/lib/telemetry'
+import { useEscapeLayer } from '@/lib/use-escape-layer'
 import { OverlayHostProvider, OverlayHostSlot, useOptionalOverlayHost, type OverlayHistoryDriver } from './overlay-host'
 import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
 import { createRecordDeepLinkResolver, RECORD_KINDS } from './record-deep-link-resolver'
@@ -125,6 +129,72 @@ const AssistantPanel = lazyPage(() =>
   import('@/components/assistant/AssistantPanel').then((m) => ({ default: m.AssistantPanel })),
 )
 
+const CommandMenu = lazyPage(() =>
+  import('@/components/command/command-menu').then((m) => ({ default: m.CommandMenu })),
+)
+
+type CommandMenuBoundaryProps = {
+  children: ReactNode
+  ariaLabel: string
+  errorMessage: string
+  closeLabel: string
+  onClose: () => void
+  returnFocusRef: RefObject<HTMLElement | null>
+}
+
+class CommandMenuErrorBoundary extends Component<CommandMenuBoundaryProps, { error: unknown }> {
+  state = { error: null as unknown }
+
+  static getDerivedStateFromError(error: unknown) {
+    return { error }
+  }
+
+  componentDidCatch(error: unknown, info: ErrorInfo): void {
+    reportError(error, { location: 'CommandMenuErrorBoundary', componentStack: info.componentStack })
+  }
+
+  render(): ReactNode {
+    if (this.state.error !== null) {
+      const { ariaLabel, errorMessage, closeLabel, onClose, returnFocusRef } = this.props
+      return (
+        <ModalShell open onClose={onClose} ariaLabel={ariaLabel} returnFocusRef={returnFocusRef}>
+          <Button onClick={onClose}>{closeLabel}</Button>
+          <ErrorState message={errorMessage} onRetry={() => window.location.reload()} />
+        </ModalShell>
+      )
+    }
+    return this.props.children
+  }
+}
+
+function CommandMenuLoadingFallback({
+  ariaLabel,
+  loadingLabel,
+  closeLabel,
+  onClose,
+  returnFocusRef,
+}: {
+  ariaLabel: string
+  loadingLabel: string
+  closeLabel: string
+  onClose: () => void
+  returnFocusRef: RefObject<HTMLElement | null>
+}) {
+  return (
+    <ModalShell
+      open
+      onClose={onClose}
+      ariaLabel={ariaLabel}
+      closeOnBackdrop
+      closeOnEscape
+      returnFocusRef={returnFocusRef}
+    >
+      <Button onClick={onClose}>{closeLabel}</Button>
+      <LoadingShell label={loadingLabel} />
+    </ModalShell>
+  )
+}
+
 function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
   // One decision seam for the shell's navigation (use-nav.ts): the admitted module count picks sidebar or
   // rail + pages panel, the viewport (and the viewer's own fold-away choice) picks full or 64px rail. The top
@@ -145,6 +215,11 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
   const { open: openSignalComposer, canPost } = useSignalComposer()
   const focusMoreRef = useRef<(() => void) | undefined>(undefined)
   const searchTriggerRef = useRef<HTMLButtonElement>(null)
+  const commandMenuLayerRef = useRef<HTMLDivElement>(null)
+  useEscapeLayer(searchOpen, commandMenuLayerRef, () => {
+    if (document.activeElement === document.body) searchTriggerRef.current?.focus()
+    setSearchOpen(false)
+  }, {}, 'primary')
 
   // Lane B2 — reconcile the Deputy companion with any shell-owner overlay. Both consume the shell's
   // right-edge surface track, so at most one may be open. Mounted here because ShellContent sits
@@ -193,8 +268,8 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
             ? 'minmax(0, 1fr)'
             : `${columnWidth} minmax(0, 1fr)`,
           gridTemplateRows: isNarrow
-            ? `var(--mos-topbar-height)${isOffline ? ' auto' : ''} minmax(0, 1fr) var(--mos-tabbar-height)`
-            : `var(--mos-topbar-height)${isOffline ? ' auto' : ''} minmax(0, 1fr)`,
+            ? `minmax(var(--mos-topbar-height), auto)${isOffline ? ' auto' : ''} minmax(0, 1fr) minmax(var(--mos-tabbar-height), auto)`
+            : `minmax(var(--mos-topbar-height), auto)${isOffline ? ' auto' : ''} minmax(0, 1fr)`,
           gridTemplateAreas: isNarrow
             ? `"topbar"${isOffline ? ' "offline"' : ''} "main" "tabbar"`
             : `"topbar topbar"${isOffline ? ' "offline offline"' : ''} "rail main"`,
@@ -301,15 +376,40 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
         focusOpener={() => focusMoreRef.current?.()}
       />
 
-      {/* Command palette (⌘K) — mounted outside the grid as an overlay (ADR-0013 D4). */}
-      <CommandMenu
-        open={searchOpen}
-        mode={searchMode}
-        onClose={() => setSearchOpen(false)}
-        returnFocusRef={searchTriggerRef}
-        onShareSignal={openSignalComposer}
-        canShareSignal={canPost !== false}
-      />
+      {/* Command palette (⌘K) — load its content only after the viewer opens it. The lower-priority
+          shell layer can dismiss while its chunk is pending; once loaded, ModalShell owns Escape. */}
+      {searchOpen && (
+        <div ref={commandMenuLayerRef} style={{ display: 'contents' }}>
+          <CommandMenuErrorBoundary
+            ariaLabel={searchMode === 'search' ? t('topBar.search') : t('commandMenu.group.actions')}
+            errorMessage={t('commandMenu.error.searchRecords')}
+            closeLabel={t('record.close')}
+            onClose={() => setSearchOpen(false)}
+            returnFocusRef={searchTriggerRef}
+          >
+            <Suspense
+              fallback={(
+                <CommandMenuLoadingFallback
+                  ariaLabel={searchMode === 'search' ? t('topBar.search') : t('commandMenu.group.actions')}
+                  loadingLabel={t('common.loading')}
+                  closeLabel={t('record.close')}
+                  onClose={() => setSearchOpen(false)}
+                  returnFocusRef={searchTriggerRef}
+                />
+              )}
+            >
+              <CommandMenu
+                open
+                mode={searchMode}
+                onClose={() => setSearchOpen(false)}
+                returnFocusRef={searchTriggerRef}
+                onShareSignal={openSignalComposer}
+                canShareSignal={canPost !== false}
+              />
+            </Suspense>
+          </CommandMenuErrorBoundary>
+        </div>
+      )}
 
       {/* Deputy assistant (ADR-0018 P2) — the state/content owner is mounted once at the shell root,
           behind SHOW_ASSISTANT; OverlayCompanionSlot/RecordPanelHost own its physical chrome. The launcher is a neutral

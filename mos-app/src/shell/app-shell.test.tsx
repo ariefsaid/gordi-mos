@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import type { ReactNode } from 'react'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import type { ComponentProps, ReactNode } from 'react'
+import { render, screen, fireEvent, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, Link, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -37,8 +37,24 @@ vi.mock('@/lib/db/signals', () => ({
 
 vi.mock('../auth/use-auth')
 const moduleAvailability = vi.hoisted(() => ({ isOn: vi.fn((moduleId: string) => moduleId.length > 0) }))
+const commandMenuChunk = vi.hoisted(() => ({
+  gate: null as Promise<void> | null,
+  shouldThrow: false,
+}))
 vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ status: 'ready', isOn: moduleAvailability.isOn, retry: vi.fn() }) }))
 vi.mock('@/components/assistant/AssistantPanel', () => ({ AssistantPanel: () => <div>assistant panel mounted</div> }))
+vi.mock('@/components/command/command-menu', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/command/command-menu')>()
+  const gate = commandMenuChunk.gate
+  if (gate) await gate
+  return {
+    ...actual,
+    CommandMenu: (props: ComponentProps<typeof actual.CommandMenu>) => {
+      if (commandMenuChunk.shouldThrow) throw new Error('command palette render failed')
+      return <actual.CommandMenu {...props} />
+    },
+  }
+})
 import { useAuth } from '@/auth/use-auth'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 
@@ -69,6 +85,8 @@ function setNarrow(matches: boolean) {
 afterEach(() => {
   setNarrow(false)
   moduleAvailability.isOn.mockImplementation(() => true)
+  commandMenuChunk.gate = null
+  commandMenuChunk.shouldThrow = false
 })
 function shellTree(path = '/', locale: Locale = 'en', content: ReactNode = <div role="main">page</div>) {
   return (
@@ -229,23 +247,63 @@ describe('AC-K02: AppShell mounts the command menu', () => {
     expect(screen.queryByRole('dialog', { name: 'Command menu' })).toBeNull()
   })
 
-  it('AC-K02: clicking the Search trigger opens the command menu', () => {
+  it('keeps a pending palette inside a dismissible Search dialog and returns focus on Escape', async () => {
+    let releaseChunk!: () => void
+    const gate = new Promise<void>((resolve) => { releaseChunk = resolve })
+    commandMenuChunk.gate = gate
+    const user = userEvent.setup()
     renderShell()
-    fireEvent.click(screen.getByRole('button', { name: /Search/i }))
-    expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
+    const trigger = screen.getByRole('button', { name: /Search/i })
+
+    try {
+      await user.click(trigger)
+      const dialog = await screen.findByRole('dialog', { name: 'Search' })
+      expect(within(dialog).getByRole('status')).toHaveAttribute('aria-busy', 'true')
+      expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument()
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog', { name: 'Search' })).not.toBeInTheDocument()
+      expect(trigger).toHaveFocus()
+    } finally {
+      await act(async () => {
+        releaseChunk()
+        await gate
+      })
+    }
   })
 
-  it('AC-K02: ⌘K opens the command menu globally', () => {
+  it('AC-K02: clicking the Search trigger opens the command menu and focuses search after loading', async () => {
+    renderShell()
+    fireEvent.click(screen.getByRole('button', { name: /Search/i }))
+    expect(await screen.findByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox')).toHaveFocus()
+  })
+
+  it('lets the viewer dismiss a palette load failure and returns focus to Search', async () => {
+    commandMenuChunk.shouldThrow = true
+    const user = userEvent.setup()
+    renderShell()
+    const trigger = screen.getByRole('button', { name: /Search/i })
+
+    await user.click(trigger)
+    const dialog = await screen.findByRole('dialog', { name: 'Search' })
+    expect(within(dialog).getByRole('alert')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Search' })).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('AC-K02: ⌘K opens the command menu globally', async () => {
     renderShell()
     fireEvent.keyDown(document, { key: 'k', metaKey: true })
-    expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
   })
 
   it('Esc on a palette opened by ⌘K from nowhere returns focus to the Search trigger (#979)', async () => {
     renderShell()
     expect(document.activeElement).toBe(document.body)
     fireEvent.keyDown(document, { key: 'k', metaKey: true })
-    expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Command menu' })).toBeNull()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: /Search/i }))
@@ -256,6 +314,7 @@ describe('AC-K02: AppShell mounts the command menu', () => {
     const trigger = screen.getByRole('button', { name: /Search/i })
     trigger.focus()
     fireEvent.click(trigger)
+    await screen.findByRole('dialog', { name: 'Command menu' })
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Command menu' })).toBeNull()
     expect(document.activeElement).toBe(trigger)

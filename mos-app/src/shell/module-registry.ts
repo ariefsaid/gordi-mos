@@ -18,9 +18,8 @@ import {
  * Desktop sidebar and rail, the collapsed rail's flyouts, the pages panel, ⌘K "Go to", the phone tab bar
  * and the More drawer all draw from the three zones below; nothing keeps a parallel list of its own.
  *
- *  - `WORKSPACE`       — Home, Work, Inbox. Home is fixed at the top; Work follows its org switch; Inbox has
- *                        no menu row (it lives on the top-bar bell) but stays here as the owner of `/inbox`,
- *                        and as a row in More and in ⌘K.
+ *  - `WORKSPACE`       — Home, Work and Inbox route owners. `globalNavigationDestinations` merges these with
+ *                        admitted modules in the shared shell order; Inbox also remains a top-bar door.
  *  - `MODULE_REGISTRY` — the modules, in registry order (Money, Café, then future Shift, Events, then
  *                        Roastery, Ecommerce). Each entry carries what a module owns: its ship gate (the
  *                        landing path asked of `lib/ship-gate.ts`), admission roles (`anyOf`, Money resolves
@@ -47,7 +46,7 @@ type DestinationZone = 'workspace' | 'modules' | 'utility'
 export interface Destination {
   id: DestinationId
   labelKey: MessageKey
-  /** The short name under the icon on the 64px rail; defaults to `labelKey`. */
+  /** The rail label; defaults to `labelKey`. */
   railLabelKey?: MessageKey
   Icon: React.FC
   /** live links under this destination; [] = destination not yet rolled in */
@@ -94,7 +93,7 @@ const WORKSPACE: Destination[] = [
   {
     id: 'inbox',
     zone: 'workspace',
-    labelKey: 'dest.inbox',
+    labelKey: 'nav.inbox',
     Icon: InboxIcon,
     primaryPath: '/inbox',
     links: [{ path: '/inbox', label: 'Inbox', labelKey: 'nav.inbox', Icon: InboxIcon }],
@@ -187,6 +186,23 @@ export function admittedModules(accessRoles: string[], isOn: (moduleId: ModuleId
     .map((module) => admit(module, accessRoles, isOn))
     .filter((module): module is Destination => module !== null)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+}
+
+/** The one ordered root list shared by desktop, More and ⌘K; admission still comes from this registry. */
+export function globalNavigationDestinations(accessRoles: string[], isOn: (moduleId: ModuleId) => boolean = () => true): Destination[] {
+  const home = WORKSPACE.find((destination) => destination.id === 'home')!
+  const work = WORKSPACE.find((destination) => destination.id === 'work')!
+  const inbox = WORKSPACE.find((destination) => destination.id === 'inbox')!
+  const modules = admittedModules(accessRoles, isOn)
+  const live = (destination: Destination) => isLive(destination, accessRoles, isOn)
+  return [
+    ...(live(home) ? [home] : []),
+    ...(live(work) ? [work] : []),
+    ...modules.filter((destination) => destination.id === 'money'),
+    ...(live(inbox) ? [inbox] : []),
+    ...modules.filter((destination) => destination.id === 'cafe'),
+    ...modules.filter((destination) => destination.id !== 'money' && destination.id !== 'cafe'),
+  ]
 }
 
 /**
@@ -360,7 +376,6 @@ const ALL_DESTINATIONS: Destination[] = [
 
 /** Home and Work workspace destinations; Work visibility also follows its org switch. */
 export const FIXED_AREAS: readonly Destination[] = WORKSPACE.filter((d) => d.id === 'home' || d.id === 'work')
-export const INBOX_AREA: Destination = WORKSPACE.find((d) => d.id === 'inbox')!
 
 /** One row of ⌘K "Go to": an area, a page of it, or a Review queue, with the trail that names where it lives. */
 export interface GoToEntry {
@@ -381,8 +396,7 @@ export interface GoToEntry {
  */
 export function goToEntries(accessRoles: string[], isOn: (moduleId: ModuleId) => boolean = () => true): GoToEntry[] {
   const roots: Destination[] = [
-    ...WORKSPACE.filter((destination) => isLive(destination, accessRoles, isOn)),
-    ...admittedModules(accessRoles, isOn),
+    ...globalNavigationDestinations(accessRoles, isOn),
     ...UTILITY.filter((d) => isLive(d, accessRoles)),
   ]
   const queues = reviewQueuesFor(accessRoles)

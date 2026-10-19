@@ -1,5 +1,4 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import { isShipGated } from '@/lib/ship-gate'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
@@ -9,7 +8,7 @@ import { UserChip } from './user-chip'
 import { CountBadge } from './count-badge'
 import { AreaLink, Disclosure, NavRow, PageLinks } from './nav-parts'
 import {
-  FIXED_AREAS, admittedModules, currentPagePath, footerAreas, pageCount, pageGroupsFor, rowState,
+  currentPagePath, footerAreas, globalNavigationDestinations, pageCount, pageGroupsFor, rowState,
   type Destination, type PageGroup,
 } from './module-registry'
 import { useNavBadges, useNavLayout, type NavBadge, type NavLayout } from './use-nav'
@@ -21,8 +20,8 @@ import './nav.css'
 /**
  * The desktop navigation. ONE module registry feeds every form of it (module-registry.tsx):
  *
- *  - ONE available page-bearing area → `Sidebar`: the labelled sidebar (Home, Work, modules, and footer utilities).
- *  - TWO OR MORE                     → `Rail` (64px, labelled icons) + `PagesPanel` (240px, the selected area's pages).
+ *  - ONE page-bearing destination → `Sidebar`: one labelled sidebar with registry-ordered destinations and utilities.
+ *  - TWO OR MORE                  → `Rail` (104px, whole-word labels) + a contextual pages panel.
  *  - under 1280px, or folded by the viewer → the same `Rail` alone, each area with pages opening a grouped flyout.
  *
  * The pages are `PageLinks` over `pageGroupsFor` in every form, so the panel, the sidebar branch and the
@@ -31,13 +30,9 @@ import './nav.css'
 interface NavData {
   layout: NavLayout
   pathname: string
-  modules: Destination[]
   footer: Destination[]
   badges: ReturnType<typeof useNavBadges>
 }
-
-const HOME = FIXED_AREAS[0]
-const WORK = FIXED_AREAS[1]
 
 function pagesOf(destination: Destination, roles: string[], isOn: NavLayout['isOn']): PageGroup[] {
   return pageGroupsFor(destination, roles, isOn)
@@ -82,8 +77,10 @@ function CollapseToggle({ compact }: { compact: boolean }) {
 
 function Sidebar({ data }: { data: NavData }) {
   const t = useT()
-  const { layout, pathname, modules, footer, badges } = data
+  const { layout, pathname, footer, badges } = data
   const { roles, area } = layout
+  const destinations = globalNavigationDestinations(roles, layout.isOn)
+  const modules = destinations.filter((destination) => destination.zone === 'modules')
   const defaultModule = (): string | null =>
     area?.zone === 'modules' ? area.id
       : modules.length === 1 && area?.id !== 'work' && area?.id !== 'admin' ? modules[0].id : null
@@ -97,8 +94,6 @@ function Sidebar({ data }: { data: NavData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-derived from the route only
   }, [pathname])
 
-  const workGroups = branchGroups(WORK, roles, layout.isOn)
-  const workCurrent = currentPagePath(workGroups, pathname)
   const admin = footer.find((d) => d.id === 'admin')
   const profile = footer.find((d) => d.id === 'profile')
   const adminGroups = admin ? pagesOf(admin, roles, layout.isOn) : []
@@ -107,36 +102,25 @@ function Sidebar({ data }: { data: NavData }) {
     <aside aria-label={t('nav.sidebar')} className="shell-nav shell-nav--sidebar">
       {layout.collapsible && <div className="nav-collapse-row"><CollapseToggle compact={false} /></div>}
       <nav id="rail-primary-nav" aria-label={t('nav.primary')} className="nav-primary">
-        <div className="nav-fixed nav-list">
-          {!isShipGated('/') && <AreaLink destination={HOME} to="/" state={rowState(pathname, '/', '/', undefined)} />}
-          {!isShipGated('/work') && layout.isOn('work') && <div>
-            <AreaLink
-              destination={WORK}
-              to={landingOf(WORK)}
-              state={rowState(pathname, landingOf(WORK), '/work', workCurrent)}
-              trailing={workGroups.length > 0 ? <Disclosure id="nav-children-work" label={t(WORK.labelKey)} expanded={workOpen} onToggle={() => setWorkOpen((open) => !open)} /> : undefined}
-            />
-            <div id="nav-children-work" hidden={!workOpen} className="nav-children">
-              <PageLinks groups={workGroups} pathname={pathname} forPath={badges.forPath} />
-            </div>
-          </div>}
-        </div>
         <div className="nav-scroll">
-          {modules.length > 0 && <div className="nav-group-heading nav-group-heading--top">{t('shell.nav.modules')}</div>}
           <div className="nav-list">
-            {modules.map((module) => {
-              const groups = branchGroups(module, roles, layout.isOn)
-              const open = openModule === module.id
+            {destinations.map((destination) => {
+              const groups = destination.id === 'work' || destination.zone === 'modules'
+                ? branchGroups(destination, roles, layout.isOn) : []
+              const open = destination.id === 'work' ? workOpen : openModule === destination.id
               const current = currentPagePath(groups, pathname)
-              const id = `nav-children-${module.id}`
+              const id = `nav-children-${destination.id}`
+              const toggle = destination.id === 'work'
+                ? () => setWorkOpen((wasOpen) => !wasOpen)
+                : () => setOpenModule(open ? null : destination.id)
               return (
-                <div key={module.id}>
+                <div key={destination.id}>
                   <AreaLink
-                    destination={module}
-                    to={landingOf(module)}
-                    state={rowState(pathname, landingOf(module), rootOf(module), current)}
-                    badge={open ? undefined : badges.forDestination(module.id)}
-                    trailing={groups.length > 0 ? <Disclosure id={id} label={t(module.labelKey)} expanded={open} onToggle={() => setOpenModule(open ? null : module.id)} /> : undefined}
+                    destination={destination}
+                    to={landingOf(destination)}
+                    state={rowState(pathname, landingOf(destination), rootOf(destination), current)}
+                    badge={open ? undefined : badges.forDestination(destination.id)}
+                    trailing={groups.length > 0 ? <Disclosure id={id} label={t(destination.labelKey)} expanded={open} onToggle={toggle} /> : undefined}
                   />
                   {groups.length > 0 && (
                     <div id={id} hidden={!open} className="nav-children">
@@ -182,37 +166,58 @@ function RailFlyout({ destination, groups, pathname, forPath, anchor, onClose }:
   const [place, setPlace] = useState<{ top: number; left: number; maxHeight: number } | null>(null)
   const landing = landingOf(destination)
   const landingListed = groups.some((group) => group.items.some((item) => item.path === landing))
+  const positioned = place !== null
 
   // Beside the rail: utilities align to the trigger's bottom, others to its top; clamp below the top bar and inside the window.
   useLayoutEffect(() => {
     const node = ref.current
     if (!node) return
-    const rect = anchor.getBoundingClientRect()
-    const gap = 8
-    const topBar = (document.querySelector('header')?.getBoundingClientRect().bottom ?? 0) + gap
-    const room = window.innerHeight - topBar - gap
-    const height = Math.min(node.scrollHeight, room)
-    const preferredTop = destination.zone === 'utility' ? rect.bottom - height : rect.top
-    const top = Math.max(topBar, Math.min(preferredTop, window.innerHeight - gap - height))
-    setPlace({ top, left: rect.right + gap, maxHeight: window.innerHeight - top - gap })
-  }, [anchor, destination.zone, groups])
+    const update = () => {
+      const panel = ref.current
+      if (!panel) return
+      const rect = anchor.getBoundingClientRect()
+      const gap = 8
+      const topBar = (document.querySelector('header')?.getBoundingClientRect().bottom ?? 0) + gap
+      const room = Math.max(0, window.innerHeight - topBar - gap)
+      const height = Math.min(panel.scrollHeight, room)
+      const width = panel.getBoundingClientRect().width || 280
+      const preferredTop = destination.id === 'admin' ? rect.bottom - height : rect.top
+      const top = Math.max(topBar, Math.min(preferredTop, window.innerHeight - gap - height))
+      const left = Math.max(gap, Math.min(rect.right + gap, window.innerWidth - width - gap))
+      setPlace({ top, left, maxHeight: window.innerHeight - top - gap })
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [anchor, destination.id, groups])
 
   useEffect(() => {
-    const first = ref.current?.querySelector<HTMLElement>('a[aria-current="page"], a')
+    if (!positioned) return
+    const first = ref.current?.querySelector<HTMLElement>('a[aria-current="page"]')
+      ?? ref.current?.querySelector<HTMLElement>('a')
     first?.focus()
-  }, [place])
+  }, [anchor, positioned])
 
   useEffect(() => {
     const onPress = (event: PointerEvent) => {
       const target = event.target as Node
-      if (!ref.current?.contains(target) && !anchor.contains(target)) onClose()
+      if (!ref.current?.contains(target) && !anchor.contains(target)) {
+        onClose()
+        window.requestAnimationFrame(() => {
+          if (anchor.isConnected) anchor.focus()
+        })
+      }
     }
     document.addEventListener('pointerdown', onPress)
     return () => document.removeEventListener('pointerdown', onPress)
   }, [anchor, onClose])
 
   const onKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Escape') { event.preventDefault(); onClose(); anchor.focus(); return }
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(); anchor.focus(); return }
     const links = Array.from(ref.current?.querySelectorAll<HTMLElement>('a') ?? [])
     const index = links.indexOf(document.activeElement as HTMLElement)
     const move = (next: number) => { event.preventDefault(); links[(next + links.length) % links.length]?.focus() }
@@ -253,7 +258,7 @@ function RailFlyout({ destination, groups, pathname, forPath, anchor, onClose }:
   )
 }
 
-/** One labelled icon on the 64px rail: a link, or — in the folded rail — a button that opens the area's flyout. */
+/** One whole-word destination on the 104px rail: a link, or a button that opens the area's flyout. */
 function RailItem({ destination, to, state, groups, flyouts, badge, pathname, forPath, openId, onOpen }: {
   destination: Destination
   to: string
@@ -313,8 +318,9 @@ function RailItem({ destination, to, state, groups, flyouts, badge, pathname, fo
 
 function Rail({ data, hasPanel }: { data: NavData; hasPanel: boolean }) {
   const t = useT()
-  const { layout, pathname, modules, footer, badges } = data
+  const { layout, pathname, footer, badges } = data
   const { roles, isOn, compact } = layout
+  const destinations = globalNavigationDestinations(roles, isOn)
   const [openId, setOpenId] = useState<string | null>(null)
   useEffect(() => { setOpenId(null) }, [pathname])
 
@@ -332,7 +338,7 @@ function Rail({ data, hasPanel }: { data: NavData; hasPanel: boolean }) {
         to={landing}
         state={state}
         groups={groups}
-        flyouts={compact}
+        flyouts={compact || destination.id === 'admin'}
         badge={badges.forDestination(destination.id)}
         pathname={pathname}
         forPath={badges.forPath}
@@ -347,18 +353,13 @@ function Rail({ data, hasPanel }: { data: NavData; hasPanel: boolean }) {
       {compact && layout.collapsible && <div className="nav-collapse-row nav-collapse-row--compact"><CollapseToggle compact /></div>}
       <nav id="rail-primary-nav" aria-label={t('nav.primary')} className="rail-nav">
         <div className="rail-scroll nav-scroll">
-          {!isShipGated('/') && item(HOME)}
-          {!isShipGated('/work') && isOn('work') && item(WORK)}
-          {modules.map(item)}
+          {destinations.map(item)}
         </div>
         <div className="rail-foot-links">
           {footer.map(item)}
         </div>
       </nav>
-      <div className="rail-foot">
-        <UserChip variant="rail" compact />
-        <ReleaseStamp variant="rail" />
-      </div>
+      <div className="rail-foot"><UserChip variant="rail" compact /><ReleaseStamp variant="rail" /></div>
     </aside>
   )
 }
@@ -389,7 +390,6 @@ export function SideNav() {
   const badges = useNavBadges()
   const rootRef = useRef<HTMLDivElement>(null)
   const roles = layout.roles
-  const modules = admittedModules(roles, layout.isOn)
   const footer = footerAreas(roles)
 
   // NV1: the active page is always visible. A long menu (Café's grouped pages) scrolls inside its own region,
@@ -410,7 +410,7 @@ export function SideNav() {
   }, [pathname, layout.panelArea])
 
   if (auth.status !== 'authenticated' || layout.isNarrow) return null
-  const data: NavData = { layout, pathname, modules, footer, badges }
+  const data: NavData = { layout, pathname, footer, badges }
 
   if (!layout.compact && layout.mode === 'sidebar') {
     return <div ref={rootRef} className="shell-nav-host"><Sidebar data={data} /></div>

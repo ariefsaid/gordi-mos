@@ -9,9 +9,7 @@ export interface HomeLayoutPickerProps {
   onChange: (next: HomeLayout) => void
 }
 
-// CSS-drawn thumbnails keep the chooser asset-free and make the structural difference visible in
-// every theme. The right-hand strip is intentionally present in every preview: Signals survives
-// every arrangement and is never implied to be a fourth selectable region.
+// CSS thumbnails show the queue and the placement of its supporting context in each arrangement.
 const FEED_STRIP = (
   <span className="hlp-side">
     <span className="hlp-post"><i className="hlp-l hlp-l--tiny" /><i className="hlp-l" /><i className="hlp-l hlp-l--short" /></span>
@@ -23,13 +21,17 @@ const FEED_STRIP = (
 const THUMBS: Record<HomeLayout, JSX.Element> = {
   focused: (
     <span className="hlp-main">
-      <span className="hlp-tabs"><i /><i /><i /><i /></span>
-      <i className="hlp-l" /><i className="hlp-l" /><i className="hlp-l hlp-l--short" /><i className="hlp-l" />
+      <i className="hlp-l hlp-l--tiny" />
+      <span className="hlp-pair"><i className="hlp-l hlp-l--tiny" /><i className="hlp-l" /></span>
+      <span className="hlp-pair"><i className="hlp-l hlp-l--tiny" /><i className="hlp-l" /></span>
+      <span className="hlp-pair"><i className="hlp-l hlp-l--tiny" /><i className="hlp-l hlp-l--short" /></span>
     </span>
   ),
   overview: (
     <span className="hlp-main">
-      <span className="hlp-grid"><i className="hlp-box hlp-box--wide" /><i className="hlp-box" /><i className="hlp-box" /></span>
+      <i className="hlp-l hlp-l--tiny" />
+      <span className="hlp-pair"><i className="hlp-l hlp-l--tiny" /><i className="hlp-l" /></span>
+      <span className="hlp-pair"><i className="hlp-l hlp-l--tiny" /><i className="hlp-l" /></span>
     </span>
   ),
   list: (
@@ -75,7 +77,11 @@ export function HomeLayoutPicker({ value, onChange }: HomeLayoutPickerProps) {
               aria-label={`${t(LAYOUT_NAME[id])} — ${t(LAYOUT_DESC[id])}`}
             />
             <span className="hlp-card">
-              <span className="hlp-thumb">{THUMBS[id]}{FEED_STRIP}</span>
+              <span className={`hlp-thumb hlp-thumb--${id}`} aria-hidden="true">
+                {THUMBS[id]}
+                {id === 'overview' && <span className="hlp-other"><i className="hlp-l hlp-l--tiny" /><i className="hlp-l" /><i className="hlp-l hlp-l--short" /></span>}
+                {FEED_STRIP}
+              </span>
               <span className="hlp-name">
                 {t(LAYOUT_NAME[id])}
                 {id === 'focused' && <span className="hlp-badge">{t('profile.homeLayout.default')}</span>}

@@ -103,15 +103,16 @@ describe('Work and Café navigation', () => {
     expect(screen.getByLabelText('Current route')).toHaveTextContent('/cafe/records')
   })
 
-  it('keeps Admin and Profile in the rail footer and Admin pages in their separate pages navigation', async () => {
+  it('opens Admin pages through its utility menu and keeps Profile reachable', async () => {
     setViewer(['admin'])
     renderNavigation('/cafe/records')
 
     const primary = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(primary).getByRole('link', { name: 'Admin settings' })).toBeInTheDocument()
+    expect(within(primary).getByRole('button', { name: 'Admin settings' })).toBeInTheDocument()
     expect(within(primary).getByRole('link', { name: 'Personal profile' })).toBeInTheDocument()
 
-    fireEvent.click(within(primary).getByRole('link', { name: 'Admin settings' }))
+    fireEvent.click(within(primary).getByRole('button', { name: 'Admin settings' }))
+    fireEvent.click(await screen.findByRole('link', { name: 'People' }))
     expect(screen.getByLabelText('Current route')).toHaveTextContent('/admin/people')
     const adminPages = await screen.findByRole('navigation', { name: 'Admin settings pages' })
     fireEvent.click(within(adminPages).getByRole('link', { name: 'People' }))

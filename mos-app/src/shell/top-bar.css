@@ -1,6 +1,6 @@
 /* Top bar: surface fill, line below, 64px desktop / 56px phone. Brand over the rail width, breadcrumb/back
    at left, search + inbox + assistant at right, 8px gaps. */
-.top-bar { position: sticky; z-index: var(--z-sticky); top: 0; display: flex; align-items: stretch; flex: none; height: var(--mos-topbar-height); background: var(--mos-surface); border-bottom: 1px solid var(--mos-line); }
+.top-bar { position: sticky; top: 0; display: flex; align-items: stretch; flex: none; min-height: var(--mos-topbar-height); height: auto; background: var(--mos-surface); border-bottom: 1px solid var(--mos-line); }
 .top-bar__back { display: flex; flex: none; align-items: center; }
 .top-bar__back:empty { display: none; }
 .top-bar__back .page-back-link--bar { margin-inline-start: var(--mos-space-1); }
@@ -48,8 +48,8 @@
   .top-bar:has(.top-bar__back > *) .top-bar__brand { display: none; }
   /* The bar is a fixed 56px. The title's FIRST line is centred on the bar (where the back, search, inbox and
      deputy icons sit); the sample-data meta line hangs below it and is clipped when a long title takes two lines. */
-  .top-bar__breadcrumb-track { align-items: flex-start; }
-  .top-bar__location { display: block; align-self: stretch; max-height: 100%; overflow: hidden; font: var(--mos-type-subnav); line-height: 1.3; padding-top: calc(var(--mos-topbar-height) / 2 - 0.65em); }
+  .top-bar__breadcrumb-track { align-items: center; }
+  .top-bar__location { display: block; align-self: center; font: var(--mos-type-subnav); line-height: 1.3; padding-block: var(--mos-space-2); }
   .top-bar__location .top-bar__breadcrumb { font: inherit; }
   .top-bar__location .shell-environment-notice { line-height: var(--mos-space-4); }
   .top-bar__breadcrumb-track { padding-inline: var(--mos-space-2); }

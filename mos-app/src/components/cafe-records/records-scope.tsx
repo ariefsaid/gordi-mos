@@ -1,6 +1,6 @@
 // The scope of a Records view, in the spec's order: Question → Period → Production stream, then the exact
 // days (and the custom range form). All three are the shared Select; no job tabs.
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { DateField } from '@/components/ui/date-field'
 import { Select } from '@/components/ui/select'
@@ -22,7 +22,7 @@ const PERIOD_LABEL: Record<PeriodKey, MessageKey> = {
 
 export interface StreamChoice { value: string; label: string }
 
-export function RecordsScope({ t, question, onQuestion, period, onPeriod, from, to, today, streamValue, streams, onStream, draftFrom, draftTo, onDraft, onApply, periodRef, trailing }: {
+export function RecordsScope({ t, question, onQuestion, period, onPeriod, from, to, today, streamValue, streams, onStream, draftFrom, draftTo, onDraft, onApply, periodRef, trailing, open, onOpenChange }: {
   t: Translate
   question: Question
   onQuestion: (question: Question) => void
@@ -40,10 +40,24 @@ export function RecordsScope({ t, question, onQuestion, period, onPeriod, from, 
   onDraft: (field: 'from' | 'to', value: string) => void
   onApply: (from: string, to: string) => void
   periodRef?: React.Ref<HTMLButtonElement>
-  /** After the exact days: the refresh control and its offline reason. */
+  /** The collapsed editor follows page-level state so empty results can open directly to Period. */
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  /** Adjacent action that remains available while the editor is collapsed. */
   trailing?: React.ReactNode
 }) {
   const [showError, setShowError] = useState(false)
+  const panelId = useId()
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const editorRef = useRef<HTMLDivElement>(null)
+  const focusEditorRequested = useRef(false)
+  useEffect(() => {
+    if (!open || !focusEditorRequested.current) return
+    focusEditorRequested.current = false
+    const question = editorRef.current?.querySelector<HTMLElement>('[role="combobox"]')
+    question?.scrollIntoView?.({ block: 'center' })
+    question?.focus({ preventScroll: true })
+  }, [open])
   // A date field holding text that is not a real day says so itself; Apply must refuse it too.
   const [typedInvalid, setTypedInvalid] = useState({ from: false, to: false })
   // The form's own copy is the truth while typing (the URL copy follows it); an outside change to the URL (Back, a link) replaces it.
@@ -57,34 +71,51 @@ export function RecordsScope({ t, question, onQuestion, period, onPeriod, from, 
   useEffect(() => { setShowError(false) }, [dFrom, dTo, period])
   const errorText = error === 'future' ? t('records.range.future') : error === 'order' ? t('records.range.order') : error === 'invalid' ? t('records.range.invalid') : null
   const exact = from === to ? formatDayMonthYear(from) : t('records.range.exact', { from: formatDayMonthYear(from), to: formatDayMonthYear(to) })
+  const streamName = streams.find(choice => choice.value === streamValue)?.label ?? t('records.stream.all')
+  const onEditorKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Escape' || !open) return
+    event.preventDefault()
+    event.stopPropagation()
+    onOpenChange(false)
+    triggerRef.current?.focus()
+  }
   return (
-    <section className="rec-scope" aria-label={t('records.scope.label')}>
-      <div className="rec-scope__row">
-        <Select label={t('records.question.label')} value={question} fullWidth onChange={event => onQuestion(event.target.value as Question)} className="rec-scope__question">
-          {QUESTIONS.map(value => <option key={value} value={value}>{t(QUESTION_LABEL[value])}</option>)}
-        </Select>
-        <Select label={t('records.period.label')} value={period} fullWidth ref={periodRef} onChange={event => onPeriod(event.target.value as PeriodKey)} className="rec-scope__period">
-          {[...PRESET_PERIOD_KEYS, 'custom' as const].map(value => <option key={value} value={value}>{t(PERIOD_LABEL[value])}</option>)}
-        </Select>
-        <Select label={t('records.stream.label')} value={streamValue} fullWidth onChange={event => onStream(event.target.value)} className="rec-scope__stream">
-          {streams.map(choice => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
-        </Select>
+    <>
+      <section className={`rec-scope${open ? ' rec-scope--editing' : ''}`} aria-label={t('records.scope.label')}>
+        <div className="rec-scope__summary">
+          <div className="rec-scope__summary-copy">
+            <div className="rec-scope__summary-question"><span>{t(QUESTION_LABEL[question])}</span><span aria-hidden="true">·</span><span>{t(PERIOD_LABEL[period])}</span></div>
+            <div className="rec-scope__summary-context"><span>{streamName}</span><span aria-hidden="true">·</span><span className="tabular">{exact}</span>{isUnfinished(period, { from, to }, today) && <span className="rec-range-line__through">{t('records.range.throughToday')}</span>}</div>
+          </div>
+          <Button ref={triggerRef} type="button" variant="outline" className="rec-scope__toggle" aria-expanded={open} aria-controls={panelId} onClick={() => { focusEditorRequested.current = !open; onOpenChange(!open) }}>
+            {t('records.scope.change')}
+          </Button>
+          {trailing ? <div className="rec-scope__summary-trailing">{trailing}</div> : null}
+        </div>
+      </section>
+      <div ref={editorRef} id={panelId} className="rec-scope__editor" hidden={!open} onKeyDown={onEditorKeyDown}>
+        {open ? <>
+          <div className="rec-scope__row">
+            <Select label={t('records.question.label')} value={question} fullWidth onChange={event => onQuestion(event.target.value as Question)} className="rec-scope__question">
+              {QUESTIONS.map(value => <option key={value} value={value}>{t(QUESTION_LABEL[value])}</option>)}
+            </Select>
+            <Select label={t('records.period.label')} value={period} fullWidth ref={periodRef} onChange={event => onPeriod(event.target.value as PeriodKey)} className="rec-scope__period">
+              {[...PRESET_PERIOD_KEYS, 'custom' as const].map(value => <option key={value} value={value}>{t(PERIOD_LABEL[value])}</option>)}
+            </Select>
+            <Select label={t('records.stream.label')} value={streamValue} fullWidth onChange={event => onStream(event.target.value)} className="rec-scope__stream">
+              {streams.map(choice => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
+            </Select>
+          </div>
+          {period === 'custom' && (
+            <form className="rec-range" noValidate onSubmit={event => { event.preventDefault(); if (error) { setShowError(true); return } onApply(dFrom, dTo) }}>
+              <DateField label={t('records.range.from')} value={dFrom} max={today} fullWidth onChange={value => { if (value) { setLocal(current => ({ ...current, from: value })); onDraft('from', value) } }} onValidityChange={invalid => setTypedInvalid(current => (current.from === invalid ? current : { ...current, from: invalid }))} />
+              <DateField label={t('records.range.to')} value={dTo} max={today} fullWidth onChange={value => { if (value) { setLocal(current => ({ ...current, to: value })); onDraft('to', value) } }} onValidityChange={invalid => setTypedInvalid(current => (current.to === invalid ? current : { ...current, to: invalid }))} />
+              <Button type="submit" variant="primary" className="rec-range__apply">{t('records.range.apply')}</Button>
+              {showError && errorText && <p className="rec-range__error" role="alert">{errorText}</p>}
+            </form>
+          )}
+        </> : null}
       </div>
-      {period === 'custom' && (
-        <form className="rec-range" noValidate onSubmit={event => { event.preventDefault(); if (error) { setShowError(true); return } onApply(dFrom, dTo) }}>
-          <DateField label={t('records.range.from')} value={dFrom} max={today} fullWidth onChange={value => { if (value) { setLocal(current => ({ ...current, from: value })); onDraft('from', value) } }} onValidityChange={invalid => setTypedInvalid(current => (current.from === invalid ? current : { ...current, from: invalid }))} />
-          <DateField label={t('records.range.to')} value={dTo} max={today} fullWidth onChange={value => { if (value) { setLocal(current => ({ ...current, to: value })); onDraft('to', value) } }} onValidityChange={invalid => setTypedInvalid(current => (current.to === invalid ? current : { ...current, to: invalid }))} />
-          <Button type="submit" variant="primary" className="rec-range__apply">{t('records.range.apply')}</Button>
-          {showError && errorText && <p className="rec-range__error" role="alert">{errorText}</p>}
-        </form>
-      )}
-      <div className="rec-range-line">
-        <span className="rec-range-line__main">
-          <span className="rec-range-line__dates tabular">{exact}</span>
-          {isUnfinished(period, { from, to }, today) && <span className="rec-range-line__through">{t('records.range.throughToday')}</span>}
-        </span>
-        {trailing}
-      </div>
-    </section>
+    </>
   )
 }
