@@ -6,11 +6,11 @@
 --
 -- DOWN (manual; drops reject notes, so check none are relied on first):
 --   0. Recreate ops.cafe_count_review_figures(uuid[]) and trigger record_history_cafe_count_lines as in
---      20261019003100_ops_cafe_count_recount.sql.
+--      20261019004200_ops_cafe_count_recount.sql.
 --   1. drop function ops.confirm_cafe_count_lines(jsonb);
 --      drop function ops.reject_cafe_count_line(uuid, integer, text);
 --   2. Restore ops.confirm_cafe_count_line(uuid, integer) and ops._guard_cafe_count_line() from
---      20261019003100_ops_cafe_count_recount.sql.
+--      20261019004200_ops_cafe_count_recount.sql.
 --   3. alter table ops.cafe_count_lines drop constraint cafe_count_lines_review_note_ck, drop column review_note;
 
 alter table ops.cafe_count_lines
@@ -335,7 +335,7 @@ revoke execute on function ops.reject_cafe_count_line(uuid, integer, text) from 
 grant execute on function ops.reject_cafe_count_line(uuid, integer, text) to authenticated;
 
 -- ── The reject note is readable only by reviewers ──────────────────────────────────────────
--- review_note is not in the browser role's column grant (20261019003100); reviewers read it here.
+-- review_note is not in the browser role's column grant (20261019004200); reviewers read it here.
 drop function ops.cafe_count_review_figures(uuid[]);
 create function ops.cafe_count_review_figures(p_line_ids uuid[])
 returns table (id uuid, expected_balance numeric, variance numeric, review_note text)
