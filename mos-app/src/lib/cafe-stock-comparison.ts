@@ -239,6 +239,7 @@ export interface CountLine {
   item_unit_id: string | null
   unit_name: string | null
   counted_quantity: number | string
+  recounted_quantity?: number | string | null
   count_date: string
   submitted_at: string
   status: 'Submitted' | 'Confirmed' | 'Rejected'
@@ -246,7 +247,8 @@ export interface CountLine {
 
 export function observationOf(line: CountLine): CountObservation | null {
   if (line.status === 'Rejected') return null
-  const quantity = parseDecimal(line.counted_quantity)
+  // The final counted quantity: the Recount when there is one, else the first count.
+  const quantity = parseDecimal(line.recounted_quantity ?? line.counted_quantity)
   if (quantity === null) return null
   return {
     id: line.id, quantity, unitId: line.item_unit_id ?? '', unitName: line.unit_name, countDate: line.count_date,

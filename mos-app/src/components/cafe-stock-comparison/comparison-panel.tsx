@@ -46,7 +46,7 @@ function useCountHistory(options: { row: ComparisonRow; stream: PanelStream | nu
   const toLines = useCallback((rows: Awaited<ReturnType<typeof listCafeRecordCounts>>['rows']): HistoryLine[] => rows
     .filter((count) => (count.item_unit_id ?? '') === row.unitId)
     .flatMap((count) => {
-      const quantity = parseDecimal(count.counted_quantity)
+      const quantity = parseDecimal(count.recounted_quantity ?? count.counted_quantity)
       return quantity === null ? [] : [{ id: count.id, countDate: count.count_date, submittedAt: count.submitted_at, status: count.status, quantity, unitName: count.unit_name }]
     }), [row.unitId])
 

@@ -1,7 +1,7 @@
 -- #1368 — Recount and reason only for Counts that differ; confirm preconditions; held with posting off.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(32);
+select plan(33);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -100,6 +100,14 @@ select ok((select counted_quantity = 3 and recounted_quantity = 3.5
   'AC-016 first count unchanged, recounter and time stored, Variance recomputed against the same snapshot');
 select throws_ok($$select ops.record_cafe_count_recount(current_setting('app.b')::uuid, 4)$$,
   'P0018', 'CAFE_COUNT_RECOUNT_ALREADY_RECORDED', 'AC-016 a line takes one recount');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
+reset role;
+select is((select counted_quantity from ops._stock_comparison_rows('00000000-0000-0000-0000-0000000000a1',
+             '00000000-0000-0000-0000-00000000bf01', 'kitchen', null)
+            where count_id = current_setting('app.b')::uuid),
+  3.5::numeric, 'FR-018 the stock comparison reads the final counted quantity, the recount');
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 reset role;
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role","org_id":"00000000-0000-0000-0000-0000000000a1"}';
