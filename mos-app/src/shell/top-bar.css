@@ -1,6 +1,6 @@
 /* Top bar: surface fill, line below, 64px desktop / 56px phone. Brand over the rail width, breadcrumb/back
    at left, search + inbox + assistant at right, 8px gaps. */
-.top-bar { position: sticky; top: 0; display: flex; align-items: stretch; flex: none; height: var(--mos-topbar-height); background: var(--mos-surface); border-bottom: 1px solid var(--mos-line); }
+.top-bar { position: sticky; z-index: var(--z-sticky); top: 0; display: flex; align-items: stretch; flex: none; height: var(--mos-topbar-height); background: var(--mos-surface); border-bottom: 1px solid var(--mos-line); }
 .top-bar__back { display: flex; flex: none; align-items: center; }
 .top-bar__back:empty { display: none; }
 .top-bar__back .page-back-link--bar { margin-inline-start: var(--mos-space-1); }

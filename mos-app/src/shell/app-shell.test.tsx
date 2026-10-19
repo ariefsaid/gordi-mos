@@ -70,6 +70,20 @@ afterEach(() => {
   setNarrow(false)
   moduleAvailability.isOn.mockImplementation(() => true)
 })
+function shellTree(path = '/', locale: Locale = 'en', content: ReactNode = <div role="main">page</div>) {
+  return (
+    <I18nProvider initialLocale={locale}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={content} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </I18nProvider>
+  )
+}
+
 function renderShell(path = '/', locale: Locale = 'en', content: ReactNode = <div role="main">page</div>) {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
@@ -93,17 +107,7 @@ function renderShell(path = '/', locale: Locale = 'en', content: ReactNode = <di
     signOut: vi.fn(),
   })
 
-  return render(
-    <I18nProvider initialLocale={locale}>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route index element={content} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
-    </I18nProvider>,
-  )
+  return render(shellTree(path, locale, content))
 }
 
 function AgentRuntimeProbe() {
@@ -118,6 +122,18 @@ describe('assistant org switch', () => {
     expect(screen.getByLabelText('Agent runtime')).toHaveTextContent('absent')
     expect(screen.queryByRole('button', { name: /Open deputy/i })).toBeNull()
     expect(screen.queryByText('assistant panel mounted')).toBeNull()
+  })
+
+  it('keeps an open command menu mounted when Assistant availability loads', () => {
+    moduleAvailability.isOn.mockImplementation((moduleId) => moduleId !== 'assistant')
+    const { rerender } = renderShell()
+    fireEvent.click(screen.getByRole('button', { name: /Search/i }))
+    expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
+
+    moduleAvailability.isOn.mockReturnValue(true)
+    act(() => rerender(shellTree()))
+
+    expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
   })
 })
 

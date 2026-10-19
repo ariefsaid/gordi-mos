@@ -17,7 +17,7 @@
 .nav-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .nav-foot-links { position: sticky; bottom: 0; flex: none; background: var(--mos-band); padding-block: var(--mos-space-2); border-top: 1px solid var(--mos-line); }
 .nav-admin-pages { margin-top: var(--mos-space-2); }
-.rail-foot { position: sticky; bottom: 0; flex: none; background: var(--mos-band); padding: var(--mos-row-pad-y); border-top: 1px solid var(--mos-line); }
+.rail-foot { position: sticky; z-index: var(--z-sticky); bottom: 0; flex: none; background: var(--mos-band); padding: var(--mos-row-pad-y); border-top: 1px solid var(--mos-line); }
 .nav-list { display: flex; flex-direction: column; gap: 0; }
 .nav-children[hidden] { display: none; }
 

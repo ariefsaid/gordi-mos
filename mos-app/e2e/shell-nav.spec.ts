@@ -45,7 +45,9 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
 
   // --- Work → Tasks ---
   await nav.getByRole('link', { name: 'Work', exact: true }).click()
-  await nav.getByRole('link', { name: /^Tasks\b/ }).click()
+  // In the two-level shell, Work's pages live in their own navigation beside the primary rail.
+  const workPages = page.getByRole('navigation', { name: 'Work pages' })
+  await workPages.getByRole('link', { name: /^Tasks\b/ }).click()
   await expect(page).toHaveURL(/\/work\/tasks$/, { timeout: 5_000 })
   await expect(page).toHaveTitle('Tasks — Gordi MOS')
   // The Tasks collection exposes its ownership choices as the "Task views" picker. It is present
@@ -61,15 +63,15 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // no link to click: what the rail owes at a gated path is nothing at all. The walk continues to
   // Signals, which ships. Un-gate /work/objectives and the original leg belongs back here.
   if (isShipGated('/work/objectives')) {
-    await expect(nav.getByRole('link', { name: 'Objectives' })).toHaveCount(0)
+    await expect(workPages.getByRole('link', { name: 'Objectives' })).toHaveCount(0)
   } else {
-    await nav.getByRole('link', { name: 'Objectives' }).click()
+    await workPages.getByRole('link', { name: 'Objectives' }).click()
     await expect(page).toHaveURL(/\/work\/objectives$/, { timeout: 5_000 })
-    await expect(nav.getByRole('link', { name: 'Objectives' })).toHaveAttribute('aria-current', 'page')
+    await expect(workPages.getByRole('link', { name: 'Objectives' })).toHaveAttribute('aria-current', 'page')
   }
 
   // --- Work → Signals ---
-  await nav.getByRole('link', { name: 'Signals', exact: true }).click()
+  await workPages.getByRole('link', { name: 'Signals', exact: true }).click()
   // OD-V4-1 / use-record-collection.ts:108-118: synced Signals layout may settle as ?layout=feed.
   await expect(page).toHaveURL(/\/work\/signals(\?layout=feed)?$/, { timeout: 5_000 })
   // The Signals archive has now ported (#267) and this destination serves it, so the
@@ -83,7 +85,7 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await page.reload()
   // OD-V4-1: cold-load canonicalization retains the synced ?layout=feed presentation.
   await expect(page).toHaveURL(/\/work\/signals\?layout=feed$/, { timeout: 5_000 })
-  await expect(nav.getByRole('link', { name: 'Signals', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(workPages.getByRole('link', { name: 'Signals', exact: true })).toHaveAttribute('aria-current', 'page')
 
   // --- A retired bookmark still works, in one hop, with its query intact (FR-015/FR-016) ---
   await page.goto('tasks?view=mine')

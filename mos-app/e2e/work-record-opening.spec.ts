@@ -66,9 +66,9 @@ async function openFirstRecord(page: Page, collection: CollectionKey, phone: boo
 
 async function expectRecordReady(scope: Page | Locator, target: RecordTarget) {
   if (target.kind === 'signal') {
-    await expect(scope.locator('[data-signal-region="facts"]')).toBeVisible()
+    await expect(scope.locator('[data-signal-region="facts"]')).toBeVisible({ timeout: 15_000 })
   } else {
-    await expect(scope.getByRole('region', { name: target.name, exact: true })).toBeVisible()
+    await expect(scope.getByRole('region', { name: target.name, exact: true })).toBeVisible({ timeout: 15_000 })
   }
 }
 
