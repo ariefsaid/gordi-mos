@@ -17,6 +17,8 @@ import { goToEntries } from './module-registry'
 import { flattenRoutes, isRedirect, redirectProps, leafInThisTable } from '@/test/route-table'
 import { messages } from '@/i18n/messages'
 
+const allModulesOn = () => true
+
 vi.mock('@/auth/use-auth')
 vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ status: 'ready', isOn: () => true, retry: vi.fn() }) }))
 vi.mock('./use-is-narrow')
@@ -210,7 +212,7 @@ describe.runIf(APP_RELEASE_PROFILE === 'cafe')('Cafe profile reachability', () =
 
   it('offers no Work or Home entry to any role, and every offered path resolves in the route table', () => {
     for (const [name, roles] of Object.entries(VIEWERS)) {
-      const visible = goToEntries([...roles]).map((entry) => entry.path)
+      const visible = goToEntries([...roles], allModulesOn).map((entry) => entry.path)
       expect(visible.length, name).toBeGreaterThan(1)
       expect(outsideProfile(visible), `${name} is offered a path outside the profile`).toEqual([])
       expect(visible, name).not.toContain('/')
@@ -221,12 +223,12 @@ describe.runIf(APP_RELEASE_PROFILE === 'cafe')('Cafe profile reachability', () =
         if (isRedirect(leaf?.route.element)) expect(isProfilePathAvailable(redirectProps(leaf?.route.element).to, 'cafe'), `${name}: ${path} is redirected out of the profile`).toBe(true)
       }
     }
-    const director = goToEntries([...VIEWERS.director]).map((entry) => entry.path)
+    const director = goToEntries([...VIEWERS.director], allModulesOn).map((entry) => entry.path)
     expect(director).toEqual(expect.arrayContaining(['/cafe', '/inbox', '/admin/people']))
   })
 
   it('shows each viewer only the destinations their roles are admitted to', () => {
-    const paths = (roles: readonly string[]) => goToEntries([...roles]).map((entry) => entry.path)
+    const paths = (roles: readonly string[]) => goToEntries([...roles], allModulesOn).map((entry) => entry.path)
     expect(paths(VIEWERS.member)).not.toContain('/admin/people')
     expect(paths(VIEWERS.supervisor)).not.toContain('/admin/people')
     expect(paths(VIEWERS.director)).toContain('/admin/people')

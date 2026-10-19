@@ -9,6 +9,9 @@
  * `/admin/people`, `/work/projects`, and `/money` for viewers outside its revenue-view roles.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { ModuleAccessCheck } from '@/lib/module-availability'
+
+const allModulesOn: ModuleAccessCheck = (_moduleId, roleAdmitted = true) => roleAdmitted
 
 // Route admission is REAL by default. One test overrides it to simulate the registry drifting —
 // a destination whose landing route stops admitting a viewer its child link still reaches.
@@ -19,8 +22,8 @@ vi.mock('./module-registry', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./module-registry')>()
   return {
     ...actual,
-    viewerAdmittedToRoute: (path: string, accessRoles: string[]) =>
-      admission.override ? admission.override(path, accessRoles) : actual.viewerAdmittedToRoute(path, accessRoles),
+    viewerAdmittedToRoute: (path: string, accessRoles: string[], isOn: ModuleAccessCheck) =>
+      admission.override ? admission.override(path, accessRoles) : actual.viewerAdmittedToRoute(path, accessRoles, isOn),
   }
 })
 
@@ -35,7 +38,7 @@ import { isValidElement, type ReactNode } from 'react'
 vi.mock('@/auth/use-auth')
 vi.mock('@/lib/db/module-settings', () => ({
   getViewerModuleAvailability: vi.fn().mockResolvedValue(['work', 'money', 'cafe', 'roastery', 'ecommerce', 'assistant'].map((module_id) => ({
-    module_id, enabled: true, revision: 'test-revision',
+    module_id, enabled: true, person_override: 'inherit', revision: 'test-revision',
   }))),
 }))
 import { useAuth } from '@/auth/use-auth'
@@ -212,18 +215,18 @@ describe('access boundary', () => {
     // those sweeps read, so this file fails if the boundary is ever mistaken for a reason to
     // widen a nav surface.
     it('member and admin-only viewers are not offered Money, while a manager is admitted', () => {
-      const offersMoney = (roles: string[]) => admittedModules(roles).some((m) => m.id === 'money')
+      const offersMoney = (roles: string[]) => admittedModules(roles, allModulesOn).some((m) => m.id === 'money')
       const offersAdmin = (roles: string[]) => footerAreas(roles).some((u) => u.id === 'admin')
       expect(offersMoney(['member'])).toBe(false)
       expect(offersMoney(['admin'])).toBe(false)
       expect(offersMoney(['manager'])).toBe(true)
       expect(offersMoney(['finance'])).toBe(true)
       expect(offersAdmin(['member'])).toBe(false)
-      expect(viewerAdmittedToRoute('/money', ['member'])).toBe(false)
-      expect(viewerAdmittedToRoute('/money', ['admin'])).toBe(false)
-      expect(viewerAdmittedToRoute('/money', ['manager'])).toBe(true)
-      expect(viewerAdmittedToRoute('/money', ['finance'])).toBe(true)
-      expect(viewerAdmittedToRoute('/admin/people', ['member'])).toBe(false)
+      expect(viewerAdmittedToRoute('/money', ['member'], allModulesOn)).toBe(false)
+      expect(viewerAdmittedToRoute('/money', ['admin'], allModulesOn)).toBe(false)
+      expect(viewerAdmittedToRoute('/money', ['manager'], allModulesOn)).toBe(true)
+      expect(viewerAdmittedToRoute('/money', ['finance'], allModulesOn)).toBe(true)
+      expect(viewerAdmittedToRoute('/admin/people', ['member'], allModulesOn)).toBe(false)
       // Not vacuous: the same authorities DO open the Admin door for an admin.
       expect(offersAdmin(['admin'])).toBe(true)
     })

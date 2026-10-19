@@ -72,7 +72,8 @@ async function visibleSurfaceHrefs(page: Page): Promise<Set<string>> {
 function expectedAreaHrefs(width: number): string[] {
   const areas = new Set(ADMIN_VISIBLE_ROOT_ROUTES.map((route) => (route.startsWith('/work/') ? '/work' : route)))
   areas.add('/profile')
-  if (width >= 920) areas.delete('/inbox')
+  // The desktop rail lists Inbox as an area and opens Admin from a flyout button, not a link.
+  if (width >= 920) areas.delete('/admin/people')
   if (process.env.VITE_SHOW_PLAN_BUDGET === 'true') areas.add('/money/budget')
   return [...areas].sort()
 }
@@ -135,12 +136,14 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
       await page.goto('')
       await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible({ timeout: 15_000 })
 
-      const hrefs = await visibleSurfaceHrefs(page)
       // The same roots are exposed at every width. Admin lacks Money's revenue-view role, so its
-      // visible set excludes that role-gated root while the catalog retains it.
-      expect([...hrefs].sort(), 'route catalog parity from the rendered visible-root selector').toEqual(
-        expectedAreaHrefs(width),
-      )
+      // visible set excludes that role-gated root while the catalog retains it. Module-gated roots
+      // appear once the org's module settings load.
+      await expect.poll(
+        async () => [...(await visibleSurfaceHrefs(page))].sort(),
+        { message: 'route catalog parity from the rendered visible-root selector', timeout: 15_000 },
+      ).toEqual(expectedAreaHrefs(width))
+      if (width >= 920) await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Admin settings', exact: true })).toBeVisible()
 
       // Every Work collection in the catalog is reachable from the Work page.
       await page.goto('work')

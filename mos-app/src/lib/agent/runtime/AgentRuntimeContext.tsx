@@ -71,19 +71,21 @@ function readPersistedOpen(): boolean {
   }
 }
 
-interface ProviderProps {
+type ProviderProps = {
   children: ReactNode
+  /** Whether this org has enabled Assistant. The provider stays mounted while this resolves. */
+  enabled?: boolean
   /** Test seam: inject a fake runtime. When omitted, the provider constructs a MosNativeRuntime
    *  if SHOW_ASSISTANT=true, else null. */
   runtime?: AgentRuntime | null
 }
 
-export function AgentRuntimeProvider({ children, runtime }: ProviderProps) {
+export function AgentRuntimeProvider({ children, enabled = true, runtime }: ProviderProps) {
   // The in-app runtime: constructed once when the flag is on (and no test override supplied).
   // Lazy import guard: supabase auth.getSession is only ever called when subscribe runs, which only
   // happens when the panel is live (flag on) — so construction is safe.
   const realRuntime = useMemo<AgentRuntime | null>(() => {
-    if (!SHOW_ASSISTANT) return null
+    if (!SHOW_ASSISTANT || !enabled) return null
     const url = import.meta.env.VITE_SUPABASE_URL
     return new MosNativeRuntime({
       endpoint: `${url}/functions/v1/agent-chat`,
@@ -92,9 +94,10 @@ export function AgentRuntimeProvider({ children, runtime }: ProviderProps) {
         return data.session?.access_token ?? null
       },
     })
-  }, [])
+  }, [enabled])
 
   const resolvedRuntime = runtime === undefined ? realRuntime : runtime
+  const active = enabled && (SHOW_ASSISTANT || runtime !== undefined)
 
   const [open, setOpen] = useState<boolean>(readPersistedOpen)
   // Reloading a persisted-open panel must not pull keyboard focus out of the page.
@@ -104,12 +107,13 @@ export function AgentRuntimeProvider({ children, runtime }: ProviderProps) {
   const [pendingDraft, setPendingDraft] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!active) return
     try {
       window.localStorage.setItem(STORAGE_KEY, String(open))
     } catch {
       /* storage full / denied — in-memory state still applies */
     }
-  }, [open])
+  }, [active, open])
 
   const openPanel = useCallback((initialDraft?: string | ReactMouseEvent) => {
     // Guard against non-string args: `onClick={openPanel}` hands us a MouseEvent, which must not
@@ -133,7 +137,7 @@ export function AgentRuntimeProvider({ children, runtime }: ProviderProps) {
     [resolvedRuntime, open, focusOnOpen, openPanel, closePanel, togglePanel, pendingDraft, consumePendingDraft],
   )
 
-  return <AgentRuntimeContext.Provider value={value}>{children}</AgentRuntimeContext.Provider>
+  return <AgentRuntimeContext.Provider value={active ? value : DEFAULT_VALUE}>{children}</AgentRuntimeContext.Provider>
 }
 
 export function useAgentRuntime(): AgentRuntimeContextValue {

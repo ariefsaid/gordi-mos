@@ -38,9 +38,9 @@ describe('preview is allowed only on a flagged dev server at localhost:4400', ()
 })
 
 describe('ship states', () => {
-  it('keeps person-module overrides preview-only while org module settings are released', () => {
+  it('releases the existing person page where its Modules card now lives', () => {
     for (const path of ['/admin/people/modules', '/admin/people/modules/person-1']) {
-      expect(shipStateInProfile(path, 'full')).toBe('preview')
+      expect(shipStateInProfile(path, 'full')).toBe('released')
     }
     for (const path of ['/admin/modules', '/admin/modules?q=cafe', '/admin/modules#x', '/admin/access/modules', '/admin/access/modules?view=people']) {
       expect(shipStateInProfile(path, 'full')).toBe('released')
@@ -75,8 +75,8 @@ describe('ship states', () => {
     expect(shipStateInProfile('/work/tasks', 'full')).toBe('released')
   })
 
-  it('treats a preview path as gated everywhere while preview is not allowed', () => {
-    expect(isShipGated('/admin/people/modules')).toBe(true)
+  it('does not hide the released person Modules card behind a preview gate', () => {
+    expect(isShipGated('/admin/people/modules')).toBe(false)
     expect(isShipGated('/admin/modules')).toBe(false)
     expect(isShipGated('/admin/access/modules')).toBe(false)
     expect(shipStateInProfile('/cafe/locations', 'full')).toBe('released')

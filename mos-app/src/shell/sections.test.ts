@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import type { ModuleId } from '@/lib/db/module-settings'
 import { CAFE_ROUTE_SECTIONS, CAFE_SECTIONS, sectionForPath, visibleSections } from './sections'
+
+const allModulesOn = (_moduleId: ModuleId, roleAdmitted = true) => roleAdmitted
 
 describe('Café navigation registry', () => {
   it('has one route record per path and preserves the four ordered job groups', () => {
@@ -27,13 +30,17 @@ describe('Café navigation registry', () => {
     expect(CAFE_SECTIONS.some(section => section.path === '/cafe/receive/review' || section.path === '/cafe/request/review')).toBe(false)
   })
 
+  it('omits all pages of a switched-off module, including pages with no role gate', () => {
+    expect(visibleSections(CAFE_SECTIONS, ['ops_lead'], () => false)).toEqual([])
+  })
+
   it('keeps the admission gates: Issues for everyone, Review for leads and supervisors, Sent to ESB for leads', () => {
-    const nested = (roles: string[]) => visibleSections(CAFE_SECTIONS, roles).filter(section => section.parentPath).map(section => section.path)
+    const nested = (roles: string[]) => visibleSections(CAFE_SECTIONS, roles, allModulesOn).filter(section => section.parentPath).map(section => section.path)
     expect(nested([])).toEqual(['/cafe/receive/issues'])
     expect(nested(['supervisor'])).toEqual(['/cafe/receive/issues'])
     expect(nested(['ops_lead'])).toEqual(['/cafe/receive/issues'])
-    expect(visibleSections(CAFE_SECTIONS, []).some(section => section.path === '/cafe/review' || section.path === '/cafe/pushes')).toBe(false)
-    expect(visibleSections(CAFE_SECTIONS, ['supervisor']).some(section => section.path === '/cafe/review')).toBe(true)
-    expect(visibleSections(CAFE_SECTIONS, ['supervisor']).some(section => section.path === '/cafe/pushes')).toBe(false)
+    expect(visibleSections(CAFE_SECTIONS, [], allModulesOn).some(section => section.path === '/cafe/review' || section.path === '/cafe/pushes')).toBe(false)
+    expect(visibleSections(CAFE_SECTIONS, ['supervisor'], allModulesOn).some(section => section.path === '/cafe/review')).toBe(true)
+    expect(visibleSections(CAFE_SECTIONS, ['supervisor'], allModulesOn).some(section => section.path === '/cafe/pushes')).toBe(false)
   })
 })

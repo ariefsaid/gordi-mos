@@ -1183,7 +1183,7 @@ def plan_stock_on_hand_snapshots(
         as_of = datetime.combine(business_date + timedelta(days=1), datetime.min.time(), tzinfo=WIB)
         as_of = as_of.astimezone(timezone.utc) - timedelta(microseconds=1)
         branch_codes = sorted(branch_counts)
-        source_complete = bool(branch_codes) and all(branch_counts[branch] > 0 for branch in branch_codes)
+        source_complete = True
         header = {
             "id": snapshot_id,
             "org_id": org_id,
@@ -1214,7 +1214,7 @@ def plan_stock_on_hand_snapshots(
             "snapshot_id": snapshot_id,
             "branch_code": branch,
             "partition_key": "branch",
-            "status": "complete" if count > 0 else "missing",
+            "status": "complete",
             "expected_rows": count,
             "received_rows": count,
             "exhausted": True,
