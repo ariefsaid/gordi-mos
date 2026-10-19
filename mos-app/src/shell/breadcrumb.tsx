@@ -52,16 +52,14 @@ export function Breadcrumb() {
     const tabIds = new Set(['home', ...(layout.isOn('work') ? ['work'] : []), ...(promoted ? [promoted.id] : [])])
     leafCarriesCurrent = !tabIds.has(destination.id)
   } else {
-    // Desktop: the nav marks the current PAGE with aria-current="page" wherever it lists that page. The breadcrumb
-    // leaf takes it for what the nav does not list: Inbox (it is the bell, with no menu row), a module the viewer
-    // is not admitted to, and — in the folded 64px rail, where pages sit behind a closed flyout — any area
-    // that has pages.
+    // Desktop: the nav marks the current PAGE with aria-current="page" wherever it lists that page, Inbox
+    // included. The breadcrumb leaf takes it for what the nav does not list: a module the viewer is not
+    // admitted to, and — in the folded 64px rail, where pages sit behind a closed flyout — any area that has pages.
     const roles = viewer?.accessRoles ?? []
     const landing = destination.primaryPath ?? destination.links[0].path
     const hasPages = pageCount(pageGroupsFor(destination, roles, layout.isOn)) >= 2 || destination.id === 'work'
     // The area's own row is the page when its landing is open; any deeper route has no row of its own to hold "page".
     leafCarriesCurrent =
-      destination.id === 'inbox' ||
       (destination.id === 'profile' && pathname !== landing) ||
       (destination.id === 'work' && !layout.isOn('work')) ||
       (destination.zone === 'modules' && !layout.isOn(destination.id as ModuleId)) ||
