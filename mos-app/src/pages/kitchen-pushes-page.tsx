@@ -24,7 +24,7 @@
 
 import { StatusBadge, STATUS_MAP } from '@/components/ui/status-badge'
 import { ENV_TAG, PUSH_STATUS, formatPushDate as formatDate, formatPushTime as formatTime } from '@/lib/kitchen-push-display'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useSearchParamState } from '@/lib/use-search-param-state'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
@@ -99,13 +99,7 @@ export function KitchenPushesPage() {
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const [selectedParam, setSelectedParam] = useSearchParamState('push', '')
-  const selectedId = selectedParam || null
-  const selectedIdRef = useRef(selectedId)
-  selectedIdRef.current = selectedId
-  const setSelectedId = useCallback((next: string | null) => {
-    selectedIdRef.current = next
-    setSelectedParam(next ?? '')
-  }, [setSelectedParam])
+  const setSelectedId = useCallback((next: string | null) => setSelectedParam(next ?? ''), [setSelectedParam])
 
   const fetchPushes = useCallback(async () => {
     setLoad({ kind: 'loading' })
@@ -126,13 +120,6 @@ export function KitchenPushesPage() {
     if (auth.status !== 'authenticated' || !allowed) return
     fetchPushes()
   }, [auth.status, allowed, fetchPushes, retryKey])
-  useEffect(() => {
-    if (load.kind !== 'ready') return
-    const currentSelection = selectedIdRef.current
-    if (currentSelection && rows.some(row => row.id === currentSelection)) return
-    const defaultSelection = isDesktop ? rows[0]?.id ?? null : null
-    if (currentSelection !== defaultSelection) setSelectedId(defaultSelection)
-  }, [isDesktop, load.kind, rows, selectedId, setSelectedId])
 
   // ── Auth loading ────────────────────────────────────────────────────────────
   if (auth.status === 'loading') {
@@ -169,6 +156,8 @@ export function KitchenPushesPage() {
 
   // #422: the page head answers "what is stuck", not only "how many" — the counts a
   // lead triages by, rendered only when non-zero so a healthy outbox head stays quiet.
+  // The default selection is derived, never written to the URL: a late default write could overwrite a click.
+  const selectedId = rows.some(row => row.id === selectedParam) ? selectedParam : (isDesktop ? rows[0]?.id ?? null : null)
   const selected = rows.find(row => row.id === selectedId) ?? null
   const problems = rows.filter(row => row.status === 'dead_letter' || row.status === 'failed')
   const healthy = rows.filter(row => row.status !== 'dead_letter' && row.status !== 'failed')
