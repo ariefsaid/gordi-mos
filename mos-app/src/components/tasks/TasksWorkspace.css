@@ -788,8 +788,6 @@ tr.grp td { padding: 0; }
 .tasks-count-line { display: inline-flex; flex-wrap: wrap; gap: var(--mos-label-gap) var(--mos-inline-gap); }
 .tasks-count-line strong { color: var(--mos-ink); font-weight: var(--mos-weight-semibold); }
 
-/* Quick filters ("9 overdue", "2 blocked") start on the toolbar's left edge; their 8px hover inset is outdented. */
-.tasks-attention-actions { margin-inline-start: -8px; }
 
 /* The status trigger can wrap its badge in a narrow split column without adding page overflow. */
 
