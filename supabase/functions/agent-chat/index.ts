@@ -28,7 +28,7 @@ import { ChatCompletionsClient } from '../_shared/chatCompletionsClient.ts'
 import { resolveDefaultModel } from '../_shared/modelResolution.ts'
 import { logStructuredError } from '../_shared/errorLog.ts'
 import { requireVerifiedClaims } from '../_shared/claims.ts'
-import { checkAssistantAvailability } from '../_shared/assistantAvailability.ts'
+import { assistantRefusalResponse, checkAssistantAvailability } from '../_shared/assistantAvailability.ts'
 import { appOrigins, corsHeaders as corsHeadersFor } from '../_shared/cors.ts'
 import { encodeSse } from '../../../mos-app/src/lib/agent/runtime/transport.ts'
 import type { AgentChatRequest } from '../../../mos-app/src/lib/agent/runtime/transport.ts'
@@ -56,18 +56,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const { jwt, userId, orgId, personId, accessRoles } = verdict.claims
   const serviceRoleClient = createClient(supabaseUrl, serviceRoleKey)
   const assistantAvailability = await checkAssistantAvailability(serviceRoleClient, orgId, 'agent-chat')
-  if (!assistantAvailability.allowed && assistantAvailability.reason === 'unavailable') {
-    return new Response(
-      JSON.stringify({ status: 503, error: 'MODULE_AVAILABILITY_UNAVAILABLE' }),
-      { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
-  }
-  if (!assistantAvailability.allowed) {
-    return new Response(
-      JSON.stringify({ status: 403, error: 'MODULE_OFF', detail: 'assistant is switched off for this org' }),
-      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
-  }
+  const assistantRefusal = assistantRefusalResponse(assistantAvailability, corsHeaders)
+  if (assistantRefusal) return assistantRefusal
 
   // ── 3. Build the caller-JWT Supabase client (deputy auth — D2/D3) ────────────
   // Business actions and reads use callerClient; service_role reads switches and writes approvals.

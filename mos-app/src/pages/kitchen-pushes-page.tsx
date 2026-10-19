@@ -86,6 +86,9 @@ type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
+
+// Outbox posting is org-wide: every state of this page shows the all-streams bar.
+const ALL_STREAMS_BAR = { options: [], stream: null, allStreams: true }
 export function KitchenPushesPage() {
   const t = useT()
   const auth = useAuth()
@@ -124,7 +127,7 @@ export function KitchenPushesPage() {
   // ── Auth loading ────────────────────────────────────────────────────────────
   if (auth.status === 'loading') {
     return (
-      <CafePageFrame page="pushes" streamBar={{ options: [], stream: null, allStreams: true }} state="loading">
+      <CafePageFrame page="pushes" streamBar={ALL_STREAMS_BAR} state="loading">
         <LoadingShell count={3} />
       </CafePageFrame>
     )
@@ -132,7 +135,7 @@ export function KitchenPushesPage() {
 
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <CafePageFrame page="pushes" streamBar={{ options: [], stream: null, allStreams: true }} state="permission">
+      <CafePageFrame page="pushes" streamBar={ALL_STREAMS_BAR} state="permission">
         <div className="kpu-block kpu-forbidden">
           <p className="kpu-forbidden-msg">{t('kitchen.pushes.signInMsg')}</p>
           <Link to="/login" className="btn btn-primary">{t('common.signIn')}</Link>
@@ -144,7 +147,7 @@ export function KitchenPushesPage() {
   // ── Forbidden (non-lead) — intent is clear, NOT an empty table ─────────────
   if (!allowed) {
     return (
-      <CafePageFrame page="pushes" streamBar={{ options: [], stream: null, allStreams: true }} state="permission">
+      <CafePageFrame page="pushes" streamBar={ALL_STREAMS_BAR} state="permission">
         <div className="kpu-block kpu-forbidden" role="region" aria-label={t('kitchen.pushes.restrictedAria')}>
           <p className="kpu-forbidden-title">{t('kitchen.pushes.leadsOnly')}</p>
           <p className="kpu-forbidden-msg">{t('kitchen.pushes.leadsOnlyMsg')}</p>
@@ -176,7 +179,7 @@ export function KitchenPushesPage() {
   return (
     <CafePageFrame
       page="pushes"
-      streamBar={{ options: [], stream: null, allStreams: true }}
+      streamBar={ALL_STREAMS_BAR}
       meta={headMeta}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >

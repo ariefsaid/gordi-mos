@@ -41,3 +41,18 @@ export async function checkAssistantAvailability(
     return { allowed: false, reason: 'unavailable' }
   }
 }
+
+/** The refusal for a caller whose org has the assistant off (403) or unreadable (503); null when allowed. */
+export function assistantRefusalResponse(
+  availability: AssistantAvailability,
+  corsHeaders: Record<string, string>,
+): Response | null {
+  if (availability.allowed) return null
+  const body = availability.reason === 'unavailable'
+    ? { status: 503, error: 'MODULE_AVAILABILITY_UNAVAILABLE' }
+    : { status: 403, error: 'MODULE_OFF', detail: 'assistant is switched off for this org' }
+  return new Response(JSON.stringify(body), {
+    status: body.status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+}
