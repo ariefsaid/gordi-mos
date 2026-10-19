@@ -158,7 +158,7 @@ select ok((select org_id = '00000000-0000-0000-0000-0000000000a1'
                   and submitted_by = '00000000-0000-0000-0000-0000000000d2'
                   and source = 'mos' and status = 'Submitted'
                   and count_date = (submitted_at at time zone 'Asia/Jakarta')::date
-                  and expected_status = 'waiting' and expected_balance is null
+                  and expected_status = 'waiting' and (select f.expected_balance from ops.cafe_count_review_figures(array[cafe_count_lines.id]) f) is null
                   and posting_status = 'not_posted' and row_version = 1
              from ops.cafe_count_lines where id = current_setting('app.count_raw_line_id')::uuid),
           'NFR-001 org, submitter, WIB date, source, status, Expected balance and posting state are server-stamped');
@@ -232,7 +232,7 @@ set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select is((select row_version from ops.cafe_count_lines where id = current_setting('app.count_raw_line_id')::uuid),
           2, 'AC-021 Expected balance refresh increments the optimistic version');
-select ok((select expected_status = 'ready' and expected_balance = 0 and variance = 0
+select ok((select expected_status = 'ready' and (select f.expected_balance from ops.cafe_count_review_figures(array[cafe_count_lines.id]) f) = 0 and (select f.variance from ops.cafe_count_review_figures(array[cafe_count_lines.id]) f) = 0
              from ops.cafe_count_lines where id = current_setting('app.count_raw_line_id')::uuid),
           'AC-015 server-stored zero Variance is exact');
 
@@ -254,12 +254,12 @@ select is(current_setting('app.count_confirm_result')::jsonb ->> 'status', 'Conf
 select is(current_setting('app.count_confirm_result')::jsonb ->> 'posting_status', 'not_needed',
           'AC-028 zero Variance closes as not needed with the switch off');
 select ok((select status = 'Confirmed' and reviewed_by = '00000000-0000-0000-0000-0000000000d2'
-                  and reviewed_at is not null and row_version = 4 and variance = 0
+                  and reviewed_at is not null and row_version = 4 and (select f.variance from ops.cafe_count_review_figures(array[cafe_count_lines.id]) f) = 0
              from ops.cafe_count_lines where id = current_setting('app.count_raw_line_id')::uuid),
           'AC-019 reviewer, time, immutable facts and new version are stored');
 select throws_ok($$select ops.confirm_cafe_count_line(current_setting('app.count_wip_line_id')::uuid, 2)$$,
   'P0020', null, 'AC-028 non-zero Variance cannot be confirmed yet');
-select ok((select status = 'Submitted' and variance = 1.25 and posting_status = 'not_posted'
+select ok((select status = 'Submitted' and (select f.variance from ops.cafe_count_review_figures(array[cafe_count_lines.id]) f) = 1.25 and posting_status = 'not_posted'
              from ops.cafe_count_lines where id = current_setting('app.count_wip_line_id')::uuid),
           'AC-028 non-zero line remains Submitted and no ERP document is claimed');
 

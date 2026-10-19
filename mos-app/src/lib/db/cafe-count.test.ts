@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { supabase } from '@/lib/supabase'
 import type { ProductionStream } from './kitchen-logs.types'
 import {
-  cafeCountFloorState,
   confirmCafeCountLine,
   listCafeCountFloorLines,
   listCafeCountableItems,
@@ -118,7 +117,7 @@ describe('Cafe Count domain adapter', () => {
   it('reads all Submitted dates oldest first without sending an org or a submitter', async () => {
     const query = makeQuery({ data: [], error: null })
     const from = vi.fn(() => query)
-    schemaMock.mockReturnValue({ from } as never)
+    schemaMock.mockReturnValue({ from, rpc: vi.fn().mockResolvedValue({ data: [], error: null }) } as never)
 
     await expect(listCafeCountLines()).resolves.toEqual([])
     expect(schemaMock).toHaveBeenCalledWith('ops')
@@ -131,24 +130,31 @@ describe('Cafe Count domain adapter', () => {
     expect(query.select).toHaveBeenCalledWith(expect.not.stringContaining('submitted_by'))
   })
 
-  it('AC-017 reduces a stream\'s lines to floor states, so no Expected figure or Variance reaches the Count page', async () => {
-    const base = { status: 'Submitted', posting_status: 'not_posted', expected_status: 'ready', recounted_quantity: null, reason: null, row_version: 2 }
-    const query = makeQuery({ data: [
-      { ...base, id: 'l1', wip_item_id: 'i1', variance: '-2.5000' },
-      { ...base, id: 'l2', wip_item_id: 'i2', variance: '0.0000' },
-      { ...base, id: 'l3', wip_item_id: 'i3', variance: '1.0000', recounted_quantity: '3.0000' },
-      { ...base, id: 'l4', wip_item_id: 'i4', expected_status: 'waiting', variance: null },
-      { ...base, id: 'l5', wip_item_id: 'i5', status: 'Confirmed', posting_status: 'held', variance: '1.0000', recounted_quantity: '3', reason: 'spilled' },
+  it('AC-017 the floor reads only state words from the server, so no Expected figure or Variance reaches the Count page', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [
+      { id: 'l1', wip_item_id: 'i1', state: 'needs_recount', row_version: 2 },
+      { id: 'l5', wip_item_id: 'i5', state: 'held', row_version: 6 },
     ], error: null })
-    schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
+    const from = vi.fn()
+    schemaMock.mockReturnValue({ rpc, from } as never)
 
     const lines = await listCafeCountFloorLines(STREAM, '2026-10-06')
-    expect(lines.map(line => line.state)).toEqual(['needs_recount', 'with_reviewer', 'needs_reason', 'waiting', 'held'])
-    expect(JSON.stringify(lines)).not.toMatch(/variance|expected|-2\.5|counted/i)
-    expect(query.eq).toHaveBeenCalledWith('branch_id', 'branch-1')
-    expect(query.eq).toHaveBeenCalledWith('activity', 'kitchen')
-    expect(query.eq).toHaveBeenCalledWith('count_date', '2026-10-06')
-    expect(cafeCountFloorState({ ...base, status: 'Confirmed', posting_status: 'not_needed', expected_status: 'ready', variance: '0' } as never)).toBe('confirmed')
+    expect(lines).toEqual([
+      { id: 'l1', itemId: 'i1', state: 'needs_recount', rowVersion: 2 },
+      { id: 'l5', itemId: 'i5', state: 'held', rowVersion: 6 },
+    ])
+    expect(rpc).toHaveBeenCalledWith('cafe_count_floor_lines', { p_branch_id: 'branch-1', p_activity: 'kitchen', p_count_date: '2026-10-06' })
+    expect(from).not.toHaveBeenCalled()
+  })
+
+  it('the review list never selects the figures from the table; it reads them through the reviewer-only function', async () => {
+    const query = makeQuery({ data: [{ id: 'l1', activity: 'kitchen', expected_status: 'ready', status: 'Submitted', counted_quantity: 5 }], error: null })
+    const rpc = vi.fn().mockResolvedValue({ data: [{ id: 'l1', expected_balance: 4, variance: 1 }], error: null })
+    schemaMock.mockReturnValue({ from: vi.fn(() => query), rpc } as never)
+    const [line] = await listCafeCountLines()
+    expect(query.select).toHaveBeenCalledWith(expect.not.stringMatching(/variance|expected_balance/))
+    expect(rpc).toHaveBeenCalledWith('cafe_count_review_figures', { p_line_ids: ['l1'] })
+    expect(line).toMatchObject({ expected_balance: '4', variance: '1' })
   })
 
   it('records a recount and a trimmed reason through the floor functions', async () => {

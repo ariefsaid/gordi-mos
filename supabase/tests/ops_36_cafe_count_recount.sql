@@ -92,12 +92,14 @@ select is(current_setting('app.b_recount')::jsonb ->> 'reason_required', 'true',
   'AC-016 a recount that still differs asks for a reason');
 select ok(not (current_setting('app.b_recount')::jsonb ? 'variance') and not (current_setting('app.b_recount')::jsonb ? 'expected_balance'),
   'AC-017 the recount response carries no Expected figure, Variance or direction');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 select ok((select counted_quantity = 3 and recounted_quantity = 3.5
                   and recounted_by = '00000000-0000-0000-0000-0000000000d5' and recounted_at is not null
-                  and expected_balance = 3.0001 and expected_recorded_at::text = current_setting('app.b_expected_at')
-                  and variance = 0.4999 and row_version = 3
+                  and (select f.expected_balance from ops.cafe_count_review_figures(array[cafe_count_lines.id]) f) = 3.0001 and expected_recorded_at::text = current_setting('app.b_expected_at')
+                  and (select f.variance from ops.cafe_count_review_figures(array[cafe_count_lines.id]) f) = 0.4999 and row_version = 3
              from ops.cafe_count_lines where id = current_setting('app.b')::uuid),
   'AC-016 first count unchanged, recounter and time stored, Variance recomputed against the same snapshot');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 select throws_ok($$select ops.record_cafe_count_recount(current_setting('app.b')::uuid, 4)$$,
   'P0018', 'CAFE_COUNT_RECOUNT_ALREADY_RECORDED', 'AC-016 a line takes one recount');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
@@ -154,7 +156,7 @@ select throws_ok($$select ops.record_cafe_count_reason(current_setting('app.c'):
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 select is(ops.confirm_cafe_count_line(current_setting('app.c')::uuid, 3) ->> 'posting_status', 'not_needed',
   'AC-018 a recount on Expected confirms without a reason and closes not needed');
-select ok((select counted_quantity = 2 and recounted_quantity = 4 and variance = 0
+select ok((select counted_quantity = 2 and recounted_quantity = 4 and (select f.variance from ops.cafe_count_review_figures(array[cafe_count_lines.id]) f) = 0
              from ops.cafe_count_lines where id = current_setting('app.c')::uuid),
   'AC-018 the first count stays beside the recount');
 

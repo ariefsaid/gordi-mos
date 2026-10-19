@@ -1,7 +1,17 @@
 -- #1368 — the floor recounts and explains only Counts that differ; a complete non-zero Count confirms held.
 -- Posting stays off: a confirmed non-zero line is held and no outbox row is written (the outbox path is #1373).
 --
+-- Count figures become readable only by reviewers: the floor reads its line states through
+-- ops.cafe_count_floor_lines and never the Expected balance or Variance; reviewers read those through
+-- ops.cafe_count_review_figures; record history keeps only that they changed.
+--
 -- DOWN (manual; drops recount and reason facts, so check none are relied on first):
+--   0. drop function ops.cafe_count_floor_lines(uuid, text, date);
+--      drop function ops.cafe_count_review_figures(uuid[]);
+--      drop function ops._is_count_stream_member(uuid, text);
+--      revoke select on ops.cafe_count_lines from authenticated; grant select on ops.cafe_count_lines to authenticated;
+--      recreate trigger record_history_cafe_count_lines with ('-updated_at') only (the redacted history
+--      values stay redacted; they are not recoverable).
 --   1. Restore ops._guard_cafe_count_line(), ops.record_cafe_count_expected_balance(uuid, numeric) and
 --      ops.confirm_cafe_count_line(uuid, integer) from 20261006002200_ops_cafe_count_tracer.sql.
 --   2. drop function ops.record_cafe_count_recount(uuid, numeric);
@@ -223,6 +233,32 @@ comment on function ops.record_cafe_count_expected_balance(uuid, numeric) is
 revoke execute on function ops.record_cafe_count_expected_balance(uuid, numeric) from public, anon, authenticated;
 grant execute on function ops.record_cafe_count_expected_balance(uuid, numeric) to service_role;
 
+-- The line's own stream: a current member of its (branch, activity) Team.
+create or replace function ops._is_count_stream_member(p_branch_id uuid, p_activity text)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select exists (
+    select 1
+      from shared.team_memberships m
+      join shared.teams t on t.id = m.team_id and t.org_id = m.org_id
+     where m.org_id = shared.current_org_id()
+       and m.person_id = shared.current_person_id()
+       and t.branch_id = p_branch_id
+       and t.activity = p_activity
+       and t.archived_at is null
+       and m.effective_from <= current_date
+       and (m.effective_to is null or m.effective_to >= current_date)
+  )
+$$;
+comment on function ops._is_count_stream_member(uuid, text) is
+  'True when the caller is a current member of the stream Team for this branch and activity. Gates the floor''s recount and reason on a Count line.';
+revoke execute on function ops._is_count_stream_member(uuid, text) from public, anon;
+grant execute on function ops._is_count_stream_member(uuid, text) to authenticated;
+
 create or replace function ops.record_cafe_count_recount(p_line_id uuid, p_recounted_quantity numeric)
 returns jsonb
 language plpgsql
@@ -248,6 +284,10 @@ begin
   if not found or v_line.status <> 'Submitted' then
     raise exception 'CAFE_COUNT_LINE_NOT_SUBMITTED' using errcode = 'P0018';
   end if;
+  if not (ops._is_count_stream_member(v_line.branch_id, v_line.activity)
+          or shared.has_access_role('ops_lead') or shared.has_access_role('admin')) then
+    raise exception 'CAFE_COUNT_STREAM_FORBIDDEN' using errcode = '42501';
+  end if;
   if v_line.expected_status <> 'ready' then
     raise exception 'CAFE_COUNT_EXPECTED_BALANCE_NOT_READY' using errcode = 'P0018';
   end if;
@@ -271,7 +311,7 @@ begin
 end;
 $$;
 comment on function ops.record_cafe_count_recount(uuid, numeric) is
-  'Floor Recount for a Submitted line whose first count differs from its ready Expected snapshot. Once per line; keeps the first count and snapshot; returns only whether a reason is needed, never the Expected figure or the direction.';
+  'Floor Recount, by a member of the line''s stream (or ops lead/admin), for a Submitted line whose first count differs from its ready Expected snapshot. Once per line; keeps the first count and snapshot; returns only whether a reason is needed, never the Expected figure or the direction.';
 revoke execute on function ops.record_cafe_count_recount(uuid, numeric) from public, anon;
 grant execute on function ops.record_cafe_count_recount(uuid, numeric) to authenticated;
 
@@ -299,6 +339,10 @@ begin
   if not found or v_line.status <> 'Submitted' then
     raise exception 'CAFE_COUNT_LINE_NOT_SUBMITTED' using errcode = 'P0018';
   end if;
+  if not (ops._is_count_stream_member(v_line.branch_id, v_line.activity)
+          or shared.has_access_role('ops_lead') or shared.has_access_role('admin')) then
+    raise exception 'CAFE_COUNT_STREAM_FORBIDDEN' using errcode = '42501';
+  end if;
   if v_line.recounted_quantity is null then
     raise exception 'CAFE_COUNT_RECOUNT_REQUIRED' using errcode = 'P0018';
   end if;
@@ -318,7 +362,7 @@ begin
 end;
 $$;
 comment on function ops.record_cafe_count_reason(uuid, text) is
-  'Floor reason for a recounted line whose final Variance is still non-zero. Whitespace-trimmed, 1-500 characters; stamps who and when; separate from recount and review.';
+  'Floor reason, by a member of the line''s stream (or ops lead/admin), for a recounted line whose final Variance is still non-zero. Whitespace-trimmed, 1-500 characters; stamps who and when; separate from recount and review.';
 revoke execute on function ops.record_cafe_count_reason(uuid, text) from public, anon;
 grant execute on function ops.record_cafe_count_reason(uuid, text) to authenticated;
 
@@ -638,3 +682,87 @@ as $$
     from reasoned
 $$;
 revoke execute on function ops._stock_comparison_rows(uuid, uuid, text, uuid) from public, anon, authenticated, service_role;
+
+-- ── Count figures are readable only by reviewers ────────────────────────────────────────────
+-- The browser role reads every column except the Expected balance and Variance. Columns added later
+-- are not readable until granted here explicitly.
+revoke select on ops.cafe_count_lines from authenticated;
+grant select (
+  id, org_id, branch_id, activity, count_date, wip_item_id, item_name, item_category, item_kind,
+  item_unit_id, unit_name, storage_location_id, counted_quantity, recounted_quantity, recounted_by,
+  recounted_at, reason, reason_entered_by, reason_entered_at, expected_status, expected_recorded_at,
+  client_key, source, status, posting_status, submitted_by, submitted_at, reviewed_by, reviewed_at,
+  row_version, updated_at
+) on ops.cafe_count_lines to authenticated;
+comment on policy cafe_count_lines_select_org on ops.cafe_count_lines is
+  'Current-org members read Count lines like Café logs; the Expected balance and Variance columns are not granted to the browser role and are read only through ops.cafe_count_review_figures.';
+
+create or replace function ops.cafe_count_review_figures(p_line_ids uuid[])
+returns table (id uuid, expected_balance numeric, variance numeric)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select line.id, line.expected_balance, line.variance
+    from ops.cafe_count_lines line
+   where shared.current_org_id() is not null
+     and shared.current_person_id() is not null
+     and coalesce(cardinality(p_line_ids), 0) <= 500
+     and line.org_id = shared.current_org_id()
+     and line.id = any (p_line_ids)
+     and ops.can_review_stream(line.branch_id, line.activity)
+$$;
+comment on function ops.cafe_count_review_figures(uuid[]) is
+  'Reviewer-only read of the Expected balance and Variance for up to 500 Count lines: returns a line only to its stream reviewer, ops lead or admin.';
+revoke execute on function ops.cafe_count_review_figures(uuid[]) from public, anon, service_role;
+grant execute on function ops.cafe_count_review_figures(uuid[]) to authenticated;
+
+create or replace function ops.cafe_count_floor_lines(p_branch_id uuid, p_activity text, p_count_date date)
+returns table (id uuid, wip_item_id uuid, state text, row_version integer)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if shared.current_org_id() is null or shared.current_person_id() is null
+     or not (shared.is_cafe_affiliated() or shared.has_access_role('ops_lead') or shared.has_access_role('admin')) then
+    raise exception 'CAFE_COUNT_FORBIDDEN' using errcode = '42501';
+  end if;
+  return query
+  select line.id, line.wip_item_id,
+         case
+           when line.status = 'Confirmed' then case when line.posting_status = 'held' then 'held' else 'confirmed' end
+           when line.expected_status <> 'ready' or line.variance is null then 'waiting'
+           when line.counted_quantity <> line.expected_balance and line.recounted_quantity is null then 'needs_recount'
+           when line.variance <> 0 and line.reason is null then 'needs_reason'
+           else 'with_reviewer'
+         end,
+         line.row_version
+    from ops.cafe_count_lines line
+   where line.org_id = shared.current_org_id()
+     and line.branch_id = p_branch_id
+     and line.activity = p_activity
+     and line.count_date = p_count_date
+     and line.status in ('Submitted', 'Confirmed');
+end;
+$$;
+comment on function ops.cafe_count_floor_lines(uuid, text, date) is
+  'The floor''s view of a stream''s Count lines for a date: a state word per line (waiting, needs_recount, needs_reason, with_reviewer, confirmed, held), never the Expected balance, Variance or direction.';
+revoke execute on function ops.cafe_count_floor_lines(uuid, text, date) from public, anon, service_role;
+grant execute on function ops.cafe_count_floor_lines(uuid, text, date) to authenticated;
+
+-- Record history keeps that the figures changed, never their values; earlier values are cleared.
+drop trigger record_history_cafe_count_lines on ops.cafe_count_lines;
+create trigger record_history_cafe_count_lines
+  after insert or update or delete on ops.cafe_count_lines
+  for each row execute function shared._record_history_write('-updated_at', '~expected_balance', '~variance');
+update shared.record_history
+   set old_value = null, new_value = null
+ where schema_name = 'ops' and table_name = 'cafe_count_lines'
+   and field_name in ('expected_balance', 'variance');
+update shared.record_history
+   set old_row_snapshot = old_row_snapshot - 'expected_balance' - 'variance'
+ where schema_name = 'ops' and table_name = 'cafe_count_lines'
+   and old_row_snapshot is not null;
