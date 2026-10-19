@@ -127,19 +127,17 @@
   gap: 0 var(--mos-row-gap);
 }
 .stream-row-body > .stream-row-title { flex: 0 0 100%; }
+.stream-row--attention .stream-row-body { display: flex; flex-direction: column; align-items: flex-start; gap: var(--mos-stack-gap); }
+.stream-row-priority { display: flex; align-items: center; flex-wrap: wrap; gap: var(--mos-row-gap); }
+.stream-row--featured .stream-row-title { font-size: var(--mos-size-4); font-weight: 700; }
+.stream-row-open-icon { flex: none; width: var(--mos-icon-sm); height: var(--mos-icon-sm); color: var(--text-on-accent-tint); }
 .stream-row-title {
+  min-width: 0;
   font-size: var(--mos-size-3);
   font-weight: 600;
   color: var(--foreground);
-  /* DO-16(c) (census home F5): 2-line clamp instead of single-line nowrap — the Urgent
-     Signal's identity truncated to uselessness at 768/1024. Two lines keep the row
-     rhythm bounded while the title stays legible. (≤480 already wraps fully via the
-     phone column reflow below.) */
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  overflow: visible;
+  overflow-wrap: anywhere;
 }
 
 /* Decision-context subline: PIC name · owning Team/BU · due date. */
@@ -257,15 +255,14 @@
   .stream-row-meta { order: 0; flex: 0 0 100%; }
   .stream-row-body > .stream-row-reason-line { order: 1; flex: 0 1 auto; }
   .stream-row-tail { order: 2; margin-inline-start: auto; }
-  .stream-row-title {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-    /* Phone keeps the FULL wrap (Luna P0-1(b)) — undo the ≥481 2-line clamp (DO-16(c)). */
-    display: block;
-    -webkit-line-clamp: none;
-    line-clamp: none;
-  }
+  .stream-row-title { white-space: normal; overflow: visible; text-overflow: clip; display: block; }
+  .stream-row--attention .stream-row-link { display: flex; flex-direction: column; align-items: stretch; }
+  .stream-row--attention .stream-row-body { display: flex; flex-direction: column; align-items: stretch; order: 0; gap: var(--mos-label-gap); }
+  .stream-row--attention .stream-row-priority { order: 0; }
+  .stream-row--attention .stream-row-title { order: 1; }
+  .stream-row--attention .stream-row-meta { order: 2; }
+  .stream-row--attention .stream-row-tail { order: 1; align-self: flex-end; margin-inline-start: 0; }
+  .stream-row--attention .stream-row-action { min-height: var(--mos-control-height); }
   .stream-row-tail {
     flex-wrap: wrap;
     row-gap: var(--mos-label-gap);

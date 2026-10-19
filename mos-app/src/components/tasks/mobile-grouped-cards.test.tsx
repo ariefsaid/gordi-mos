@@ -66,6 +66,14 @@ function renderCards(props: Partial<MobileGroupedCardsProps> = {}) {
 }
 
 describe('MobileGroupedCards', () => {
+  it('names both the PIC and Supervisor when scanning a phone task', () => {
+    renderCards({
+      personMap: new Map([['person-1', 'Arden Sample'], ['supervisor-1', 'Robin Sample']]),
+      groups: [{ key: '__flat__', label: 'Tasks', rows: [makeTask({ accountable_person_id: 'supervisor-1' })], overdue: 0, prefillParam: '' }],
+    })
+    expect(screen.getByRole('link', { name: /PIC: Arden Sample.*Supervisor: Robin Sample/ })).toBeInTheDocument()
+  })
+
   it('opens an ordinary card on plain click but preserves modified-click navigation', () => {
     const onOpenTask = vi.fn()
     renderCards({

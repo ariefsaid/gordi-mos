@@ -10,7 +10,6 @@ describe('buildHomeRegions (FR-929, FR-930)', () => {
   it('returns every region even when empty, each with its count', () => {
     const regions = buildHomeRegions({
       overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true,
-      myWorkFullCount: 0,
     })
     expect(regions.map((r) => r.id)).toEqual(['needs-you', 'failed-checks', 'my-work'])
     expect(regions.every((r) => r.count === 0)).toBe(true)
@@ -70,12 +69,12 @@ describe('buildHomeRegions carries per-region async state (DIV-G5) — a failed 
 // skeleton read `0` too. A count the viewer cannot trace is worse than no count — the page states a
 // falsehood with full confidence. A count exists only when the read behind it SUCCEEDED.
 describe('DIV-G5: a region has no count until its read succeeded (never a confident 0)', () => {
-  it('my-work has NO heading count when no full count has been reported — never the capped list length', () => {
+  it('Other open tasks counts its successful candidate projection, not the shared My-open total', () => {
     const regions = buildHomeRegions({
       overdue: [], dueToday: [], blocked: [],
       myWork: [item('a'), item('b')], failedChecks: [], failedChecksAdmitted: true,
     })
-    expect(regions.find((r) => r.id === 'my-work')!.count).toBeNull()
+    expect(regions.find((r) => r.id === 'my-work')!.count).toBe(2)
   })
 
   it('needs-you and my-work have NO count while the shared tasks read is loading', () => {
@@ -107,18 +106,15 @@ describe('DIV-G5: a region has no count until its read succeeded (never a confid
   })
 })
 
-// DD-COUNT-1 (#1194): a region heading states its FULL scope, never the capped list length —
-// my-work renders at most MY_WORK_CAP rows, so its heading count is the viewer's whole open-task
-// figure the caller reports (the same number the rail badge shows). The capped subset is named
-// by the list itself ("N shown"), never by the heading.
-describe('DD-COUNT-1: my-work states the full open-task count, never the capped list length', () => {
-  it('my-work count is the caller-reported full count, not the rendered rows', () => {
+// DD-COUNT-1 (#1194): the shared My-open total is a distinct scope from Other open tasks.
+// This section counts its candidates; the complete shared count has its own Home-head link.
+describe('Home counts keep My open tasks separate from Other open tasks', () => {
+  it('Other open tasks count is its candidate total, not the shared full open-task count', () => {
     const regions = buildHomeRegions({
       overdue: [], dueToday: [], blocked: [],
       myWork: [item('a'), item('b')], failedChecks: [], failedChecksAdmitted: true,
-      myWorkFullCount: 9,
     })
-    expect(regions.find((r) => r.id === 'my-work')!.count).toBe(9)
+    expect(regions.find((r) => r.id === 'my-work')!.count).toBe(2)
   })
 })
 
@@ -141,17 +137,13 @@ describe('every region carries a way through (Nielsen #3 — a named remainder m
     })
   })
 
-  it('a region states a full count ONLY where it has an honest one — my-work, from the caller', () => {
+  it('the collection drill link does not relabel the full shared count as an Other-task remainder', () => {
     const regions = buildHomeRegions({
       overdue: [], dueToday: [], blocked: [], myWork: [item('a')], failedChecks: [], failedChecksAdmitted: true,
-      myWorkFullCount: 12,
     })
     expect(regions.find((r) => r.id === 'my-work')!.drillTo).toEqual({
-      route: '/work/tasks?view=my-work', count: 12,
+      route: '/work/tasks?view=my-work',
     })
-    // The other regions have a destination but no full-scope count to advertise, so they must not
-    // invent one (DIV-G5 — the same rule as the region counts).
-    for (const r of regions) if (r.id !== 'my-work') expect(r.drillTo!.count).toBeUndefined()
   })
 
   it('my-work keeps its route but states no count when the caller reports none (still loading)', () => {

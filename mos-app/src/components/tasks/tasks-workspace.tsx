@@ -959,7 +959,10 @@ export function TasksWorkspace({
       onAttentionOverdue={() => setQuery({ overdueOnly: true, status: null })}
       onAttentionBlocked={() => setQuery({ overdueOnly: false, status: 'Blocked' })}
       viewerOrgWide={viewerOrgWide}
-      resultSummary={<span className="tasks-count-line" data-testid="tasks-count-line">{stats === null ? '—' : `${t((projection?.visibleRecords.length ?? 0) === 1 ? 'tasks.meta.taskCount.one' : 'tasks.meta.taskCount.other', { count: projection?.visibleRecords.length ?? 0 })} · ${t('tasks.meta.openCount', { count: stats.open })}`}</span>}
+      resultSummary={<span className="tasks-count-line" data-testid="tasks-result-summary">
+        <strong>{stats === null ? '—' : t('tasks.meta.openCount', { count: stats.open })}</strong>
+        <span>{t(isDesktop ? 'tasks.meta.windowScope' : 'tasks.meta.compactWindowScope')}</span>
+      </span>}
       onClearFilters={onClearFilters}
       buOptions={buOptions}
       personOptions={personOptions}
@@ -1047,9 +1050,9 @@ export function TasksWorkspace({
       title={t(draftTask ? 'tasks.capture.title' : 'tasks.title')}
       // #958: the sentence above is desktop-only (page-head.css hides it under 768px), so the
       // HelpTip repeats it ahead of the glossary — phone gets purpose + terms from one glyph.
-      titleHelp={<HelpTip label={`${t('job.tasks')} ${t('job.tasksHelp')}`} />}
+      titleHelp={<HelpTip label={`${t('job.tasks')} ${t('job.tasksHelp')} ${t('tasks.meta.windowScope')}`} />}
       headClassName="tasks-page-head"
-      subtitle={draftTask ? undefined : t('tasks.meta.windowScope')}
+      count={draftTask || stats === null ? null : t(visibleTaskCount === 1 ? 'tasks.meta.taskCount.one' : 'tasks.meta.taskCount.other', { count: visibleTaskCount })}
       phoneActionBar
       state={frameState}
       action={showNewTask && !draftTask ? (
