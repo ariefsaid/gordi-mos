@@ -245,7 +245,8 @@ export function TasksToolbar({
   return (
     <CollectionToolbar
       className="tasks-decision-toolbar"
-      optionsLabel={t('workbench.records.options')}
+      // Desktop shows Sort in the bar, so its door holds filters and fields, not sort.
+      optionsLabel={isDesktop ? undefined : t('workbench.records.options')}
       exposedFilterIds={isDesktop ? ['sort', 'group'] : []}
       resultSummary={resultSummary || (!isDesktop && selectedSortLabel) ? <>
         {resultSummary}

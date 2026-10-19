@@ -684,7 +684,7 @@ function chooseFilterOption(trigger: HTMLElement, label: string) {
 // Opens the Filters & sort door when it is closed and returns the whole toolbar: the bar
 // (search, view, Sort, Group on desktop) plus the door's panel (Business Unit, Status, Person, ...).
 function ensureFiltersOpen() {
-  const trigger = screen.queryByRole('button', { name: /^filters & sort|^filter & urutan/i })
+  const trigger = screen.queryByRole('button', { name: /^filters & (sort|options)|^filter & (urutan|opsi)/i })
   if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
   return screen.getByTestId('record-collection-toolbar')
 }

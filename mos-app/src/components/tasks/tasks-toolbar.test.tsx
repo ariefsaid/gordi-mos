@@ -45,7 +45,7 @@ function renderToolbar(props: TasksToolbarProps = makeProps(), locale: 'en' | 'i
 // The desktop long tail lives behind the surface's own door. "Reachable" is the contract these
 // tests assert, so they open it the way a reader would rather than reaching past it.
 function openFilters() {
-  const trigger = screen.queryByRole('button', { name: /^filters & sort|^filter & urutan/i })
+  const trigger = screen.queryByRole('button', { name: /^filters & (sort|options)|^filter & (urutan|opsi)/i })
   if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
   return trigger
 }
@@ -123,7 +123,7 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Status' }))
     expect(props.onQueryChange).toHaveBeenLastCalledWith({ groupBy: 'status' })
 
-    openFilters()
+    expect(openFilters()).toHaveTextContent(/^Filters & options$/)
     expect(screen.getByRole('combobox', { name: /business unit/i })).toHaveTextContent('All units')
     expect(screen.getByRole('combobox', { name: /^status$/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /^person$/i })).toBeInTheDocument()

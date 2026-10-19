@@ -22,7 +22,7 @@
   display: inline-flex;
   align-items: center;
   min-height: var(--mos-control-height);
-  font-size: var(--mos-size-1);
+  font-size: var(--mos-size-2);
   color: var(--text-on-accent-tint);
   text-decoration: none;
   white-space: nowrap;
