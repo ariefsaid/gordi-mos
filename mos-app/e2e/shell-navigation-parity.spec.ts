@@ -78,7 +78,8 @@ for (const actor of personas) {
       await expect(nav.getByRole('link', { name: new RegExp(`^${label}(,|\\s|$)`) }).first()).toBeVisible()
     }
     await expect(nav.getByRole('link', { name: 'Money', exact: true })).toHaveCount(money ? 1 : 0)
-    await expect(nav.getByRole('link', { name: 'Admin settings', exact: true })).toHaveCount(['admin', 'director'].includes(actor.name) ? 1 : 0)
+    // Admin opens from a flyout button on the desktop rail.
+    await expect(nav.getByRole('button', { name: 'Admin settings', exact: true })).toHaveCount(['admin', 'director'].includes(actor.name) ? 1 : 0)
     await nav.getByRole('link', { name: 'Café', exact: true }).first().click()
     await expect(page).toHaveURL(/\/cafe$/)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()

@@ -111,6 +111,6 @@ test('AC-013: management scope reaches Objectives; ordinary members get their ow
 
   await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
   await expect(page).toHaveTitle('Home — Gordi MOS', { timeout: 10_000 })
-  await expect(page.getByRole('region', { name: 'Next task', exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: /^Needs you now/ })).toBeVisible()
   await expect(objectives).toHaveCount(0)
 })
