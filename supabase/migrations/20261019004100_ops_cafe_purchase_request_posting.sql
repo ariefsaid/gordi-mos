@@ -11,7 +11,7 @@
 -- The outbox, its claim and transition guard, the posting stage and the sample-org guard are the
 -- existing ones; this migration only admits the purchase-request family into them.
 --
--- DOWN: supabase/rollbacks/20261019000800_ops_cafe_purchase_request_posting.sql.
+-- DOWN: supabase/rollbacks/20261019004100_ops_cafe_purchase_request_posting.sql.
 
 -- ── Outbox: the purchase-request family ─────────────────────────────────────────────────────
 alter table integrations.esb_push drop constraint esb_push_source_module_check;

@@ -1,4 +1,4 @@
--- Rollback for 20261019000800_ops_cafe_purchase_request_posting.sql (#1432). Removes the
+-- Rollback for 20261019004100_ops_cafe_purchase_request_posting.sql (#1432). Removes the
 -- request-posting switch, the approval enqueue and the posting read, deletes any purchase-request
 -- outbox rows, and restores the outbox CHECKs and comments to their previous text.
 begin;
