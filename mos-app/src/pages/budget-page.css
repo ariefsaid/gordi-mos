@@ -96,7 +96,7 @@
 .bp-ing-name, .bp-ing-code { display: block; }
 .bp-ing-name { overflow-wrap: anywhere; }
 .bp-ing-code { color: var(--muted-foreground); font-size: var(--mos-size-1); font-weight: 400; }
-.bp-cost-link { display: inline-flex; align-items: center; min-height: var(--mos-control-height); color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+.bp-cost-link { display: inline-flex; align-items: center; min-height: var(--mos-control-height); color: var(--text-on-accent-tint); text-decoration: underline; text-underline-offset: 3px; }
 .bp-scenarios { scroll-margin-top: 20px; }
 .bp-costlines-toggle {
   display: flex;

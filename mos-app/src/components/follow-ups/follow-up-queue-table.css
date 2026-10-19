@@ -15,7 +15,7 @@
   cursor: pointer;
 }
 .follow-up-queue-table__open-record:hover,
-.follow-up-queue-card__identity:hover { color: var(--primary); }
+.follow-up-queue-card__identity:hover { color: var(--text-on-accent-tint); }
 .follow-up-queue-table__open-record:focus-visible,
 .follow-up-queue-card__identity:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 .follow-up-queue-card__top span { color: var(--foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }

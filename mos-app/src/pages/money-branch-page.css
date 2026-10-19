@@ -30,7 +30,7 @@
   align-items: center;
   min-height: var(--mos-control-height);
   padding: var(--mos-row-pad-y) 0;
-  color: var(--primary);
+  color: var(--text-on-accent-tint);
   font-size: var(--mos-size-3);
   text-decoration: none;
 }
@@ -113,7 +113,7 @@
 .money-branch__day-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 2px 0 0; color: var(--muted-foreground); font-size: var(--mos-size-2); line-height: 1.5; }
 
 .money-branch__link {
-  color: var(--primary);
+  color: var(--text-on-accent-tint);
   font-weight: 500;
   text-decoration: none;
 }

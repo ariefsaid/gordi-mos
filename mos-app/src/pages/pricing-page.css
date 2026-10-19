@@ -13,7 +13,7 @@
 .pp-basis-values > div > span { color: var(--muted-foreground); font-size: var(--mos-size-1); }
 .pp-basis-values strong { color: var(--foreground); font-size: var(--mos-size-3); }
 .pp-basis-trace { margin: 8px 0 0; color: var(--muted-foreground); font-size: var(--mos-size-1); overflow-wrap: anywhere; }
-.pp-budget-link { display: inline-flex; align-items: center; min-height: var(--mos-control-height); color: var(--primary); text-underline-offset: 3px; }
+.pp-budget-link { display: inline-flex; align-items: center; min-height: var(--mos-control-height); color: var(--text-on-accent-tint); text-underline-offset: 3px; }
 .pp-warn {
   max-width: 72ch;
   margin: 12px 0 0;
