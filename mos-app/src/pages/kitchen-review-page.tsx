@@ -1203,6 +1203,8 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
           reviewableStreamKeys={myStreamKeys}
           viewerId={viewerId}
           refreshKey={retryKey}
+          canManagePosting={accessRoles.includes('admin')}
+          canReleasePosting={isLeadOrAdmin}
         /></div>
         </div>
       </div>
