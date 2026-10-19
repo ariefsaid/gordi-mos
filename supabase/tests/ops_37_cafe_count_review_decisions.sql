@@ -1,7 +1,7 @@
 -- #1369 — Count review decisions: self-approval rule, stream scope, reject with a note, bulk confirm.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(32);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -13,7 +13,8 @@ select ops.refresh_cafe_item_references($source$[
   {"esb_product_id":"SYNTH-ERP-P-1369-B","esb_product_detail_id":"SYNTH-ERP-PD-1369-B","name":"Review item B","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},
   {"esb_product_id":"SYNTH-ERP-P-1369-C","esb_product_detail_id":"SYNTH-ERP-PD-1369-C","name":"Review item C","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},
   {"esb_product_id":"SYNTH-ERP-P-1369-D","esb_product_detail_id":"SYNTH-ERP-PD-1369-D","name":"Review item D","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},
-  {"esb_product_id":"SYNTH-ERP-P-1369-E","esb_product_detail_id":"SYNTH-ERP-PD-1369-E","name":"Review item E","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true}
+  {"esb_product_id":"SYNTH-ERP-P-1369-E","esb_product_detail_id":"SYNTH-ERP-PD-1369-E","name":"Review item E","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},
+  {"esb_product_id":"SYNTH-ERP-P-1369-F","esb_product_detail_id":"SYNTH-ERP-PD-1369-F","name":"Review item F","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true}
 ]$source$::jsonb);
 select set_config('app.allow_test_seeds', 'off', true);
 update ops.item_units set confirmed_at = now() where esb_product_id like 'SYNTH-ERP-P-1369-%';
@@ -43,12 +44,13 @@ select ops.save_cafe_item_settings('00000000-0000-0000-0000-00000000bf01', 'kitc
  where w.esb_product_id like 'SYNTH-ERP-P-1369-%';
 
 -- A: counted by the kitchen supervisor. B: counted by the member, recounted by the supervisor.
--- C: counted by the ops lead. D and E: counted by the member, zero Variance.
+-- C: counted by the ops lead. D and E: counted by the member, zero Variance. F: counted by the supervisor.
 select set_config('app.a', pg_temp.submit_as('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}', 'A', 'f1369000-0000-0000-0000-00000000000a', '2')::text, true);
 select set_config('app.b', pg_temp.submit_as('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}', 'B', 'f1369000-0000-0000-0000-00000000000b', '3')::text, true);
 select set_config('app.c', pg_temp.submit_as('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}', 'C', 'f1369000-0000-0000-0000-00000000000c', '4')::text, true);
 select set_config('app.d', pg_temp.submit_as('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}', 'D', 'f1369000-0000-0000-0000-00000000000d', '5')::text, true);
 select set_config('app.e', pg_temp.submit_as('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}', 'E', 'f1369000-0000-0000-0000-00000000000e', '6')::text, true);
+select set_config('app.f', pg_temp.submit_as('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}', 'F', 'f1369000-0000-0000-0000-00000000000f', '7')::text, true);
 
 reset role;
 set local role service_role;
@@ -114,13 +116,38 @@ select throws_ok($$select ops.reject_cafe_count_line(current_setting('app.e')::u
   'P0019', 'CAFE_COUNT_VERSION_STALE', 'AC-024 a reject needs the current version');
 select is(ops.reject_cafe_count_line(current_setting('app.e')::uuid, 2, '  Typed 6, the shelf holds 60 ') ->> 'status', 'Rejected',
   'AC-024 a reject with a note is stored');
-select ok((select status = 'Rejected' and review_note = 'Typed 6, the shelf holds 60' and counted_quantity = 6
+select ok((select status = 'Rejected' and counted_quantity = 6
                   and reviewed_by = '00000000-0000-0000-0000-0000000000d4' and posting_status = 'not_posted'
-             from ops.cafe_count_lines where id = current_setting('app.e')::uuid),
-  'AC-024 the note and reviewer are stored and no figure changes');
+             from ops.cafe_count_lines where id = current_setting('app.e')::uuid)
+          and (select review_note = 'Typed 6, the shelf holds 60'
+                 from ops.cafe_count_review_figures(array[current_setting('app.e')::uuid])),
+  'AC-024 the note and reviewer are stored, the reviewer reads the note, and no figure changes');
+select throws_ok($$select ops.reject_cafe_count_line(current_setting('app.f')::uuid, 1, 'I typed it wrong')$$,
+  '42501', 'CAFE_COUNT_SELF_REJECT', 'AC-024 a reviewer cannot reject the line they counted');
+select ok((select status = 'Submitted' from ops.cafe_count_lines where id = current_setting('app.f')::uuid),
+  'AC-024 the refused self-reject leaves the line Submitted');
+
+-- The reject note is readable only by reviewers: not by the floor, not by another stream, not in history.
+select ok(not has_column_privilege('authenticated', 'ops.cafe_count_lines', 'review_note', 'SELECT'),
+  'blind: the browser role cannot read the reject note column');
+select is((select count(*)::int from shared.record_history
+            where schema_name = 'ops' and table_name = 'cafe_count_lines' and record_key = current_setting('app.e')
+              and field_name = 'review_note' and (old_value is not null or new_value is not null)), 0,
+  'blind: record history holds no reject note value');
+select ok(exists (select 1 from shared.record_history
+                   where schema_name = 'ops' and table_name = 'cafe_count_lines' and record_key = current_setting('app.e')
+                     and field_name = 'review_note'),
+  'blind: record history still says the reject note changed');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member","supervisor"]}');
+select throws_ok($$select review_note from ops.cafe_count_lines$$, '42501', null,
+  'blind: a supervisor of another stream cannot select the reject note');
+select is((select count(*)::int from ops.cafe_count_review_figures(array[current_setting('app.e')::uuid])), 0,
+  'blind: the reviewer read returns no reject note to a supervisor of another stream');
 select throws_ok($$select ops.confirm_cafe_count_line(current_setting('app.e')::uuid, 3)$$,
   'P0018', 'CAFE_COUNT_NOT_SUBMITTED', 'AC-024 a Rejected line is frozen against review');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
+select throws_ok($$select review_note from ops.cafe_count_lines$$, '42501', null,
+  'blind: a floor member cannot select the reject note');
 select throws_ok($$select ops.record_cafe_count_reason(current_setting('app.e')::uuid, 'late')$$,
   'P0018', 'CAFE_COUNT_LINE_NOT_SUBMITTED', 'AC-024 a Rejected line is frozen against the floor');
 select is(ops.submit_cafe_counts('00000000-0000-0000-0000-00000000bf01', 'kitchen', jsonb_build_array(jsonb_build_object(

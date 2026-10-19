@@ -305,12 +305,12 @@ function CountReviewDetail({ line, streamCatalog, online, busy, own, names, onCo
       </div>
     </div>}
     <div className="cafe-count-review__decision">
-      {line.status !== 'Submitted' ? <span role="status">{t(countStateKey(line))}</span> : <>
+      {line.status !== 'Submitted' ? <span role="status">{t(countStateKey(line))}</span>
+        : own ? <span role="status">{t('cafe.count.review.own')}</span> : <>
         {!rejecting && <button type="button" className="btn btn-outline" disabled={!online || busy} onClick={() => setRejecting(true)}>{t('cafe.count.review.reject')}</button>}
         {line.expected_status !== 'ready' ? <span role="status">{t('cafe.count.review.expectedWaiting')}</span>
           : !varianceMatches ? <span role="status">{t('cafe.count.review.varianceWaiting')}</span>
           : missing ? <span role="status">{t(missing === 'recount' ? 'cafe.count.review.missingRecount' : 'cafe.count.review.missingReason')}</span>
-          : own ? <span role="status">{t('cafe.count.review.own')}</span>
           : !rejecting && <button type="button" className="btn btn-primary" disabled={!online || busy} onClick={onConfirm}>{busyId === line.id ? t('common.working') : t('cafe.count.review.confirm')}</button>}
       </>}
     </div>
