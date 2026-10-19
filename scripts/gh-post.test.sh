@@ -42,6 +42,7 @@ cat > "$tmp/repo/docs/gh-denylist.txt" <<'EOF'
 # test policy
 secretword
 missing (auth|rls)
+vulnerab
 EOF
 printf 'dev\n' > "$tmp/default-branch"
 
@@ -148,6 +149,29 @@ check "equals-form --field=body=@file scanned" 1 no api repos/x/y/issues --field
 echo '{"body":"has secretword"}' > "$tmp/repo/payload.json"
 check "gh api --input file scanned" 1 no api repos/x/y/issues --input "$tmp/repo/payload.json"
 check "gh api --input - refused" 1 no api repos/x/y/issues --input -
+
+# ── Private advisory drafts skip the public-text scan; nothing else does, and none may set state.
+cat > "$tmp/repo/advisory.json" <<'EOF'
+{"summary":"s","description":"d","vulnerabilities":[{"package":{"ecosystem":"npm","name":"p"}}]}
+EOF
+check "advisory draft --input carrying vulnerabilities passes" 0 yes api repos/x/y/security-advisories --input "$tmp/repo/advisory.json"
+check "advisory draft -f fields carrying vulnerabilities pass" 0 yes api /repos/x/y/security-advisories --method post -f summary=s -f 'vulnerabilities[][package][ecosystem]=npm'
+check "the same text to an issue comment is refused" 1 no issue comment 5 --body "vulnerabilities"
+check "the same text to a REST issue comment is refused" 1 no api repos/x/y/issues/17/comments -f body=vulnerabilities
+check_message "advisory create with a state field is refused" 1 no "drafts only" api repos/x/y/security-advisories -f summary=s -f state=published
+printf '{"summary":"s","vulnerabilities":[{"x":{"st\\u0061te":"published"}}]}\n' > "$tmp/repo/advisory-state.json"
+check_message "advisory create with state in --input JSON is refused" 1 no "drafts only" api repos/x/y/security-advisories --input "$tmp/repo/advisory-state.json"
+printf '{"state":"published"}\n{}\n' > "$tmp/repo/advisory-multi.json"
+check_message "advisory --input holding several JSON values is refused" 1 no "drafts only" api repos/x/y/security-advisories --input "$tmp/repo/advisory-multi.json"
+echo 'not json vulnerabilities' > "$tmp/repo/advisory-bad.json"
+check_message "advisory create with a non-JSON --input is refused" 1 no "drafts only" api repos/x/y/security-advisories --input "$tmp/repo/advisory-bad.json"
+check "PATCH to an advisory with denylisted text is refused" 1 no api repos/x/y/security-advisories/GHSA-1 -X PATCH -f description=vulnerabilities
+check "another repo's advisory path is refused" 1 no api repos/other/elsewhere/security-advisories -f summary=vulnerabilities
+check "advisory path with a suffix is scanned" 1 no api repos/x/y/security-advisories/GHSA-1 -X POST -f summary=vulnerabilities
+check "advisory path with a query is scanned" 1 no api 'repos/x/y/security-advisories?x=1' -f summary=vulnerabilities
+check "advisory path with a trailing slash is scanned" 1 no api repos/x/y/security-advisories/ -f summary=vulnerabilities
+check "advisory create with a header is scanned" 1 no api repos/x/y/security-advisories -H 'X-A: b' -f summary=vulnerabilities
+check "advisory create with an explicit PUT is scanned" 1 no api repos/x/y/security-advisories -X PUT -f summary=vulnerabilities
 
 mv "$tmp/repo/docs/gh-denylist.txt" "$tmp/repo/docs/gone.txt"
 check "missing policy file = fail closed" 1 no issue comment 5 --body "anything"
@@ -323,7 +347,7 @@ check "issue PATCH without labels is allowlisted" 0 yes api repos/x/y/issues/17 
 check "contents GET remains allowed" 0 yes api /repos/x/y/contents/README.md --method get
 check "contents GET with no method or fields remains allowed" 0 yes api repos/x/y/contents/README.md
 check "api --input implies POST on a non-allowlisted path" 1 no api repos/x/y/contents/README.md --input "$tmp/repo/body.md"
-check "api --input implies POST on an allowlisted write path" 0 yes api repos/x/y/security-advisories --input "$tmp/repo/body.md"
+check "api --input implies POST on an allowlisted write path" 0 yes api repos/x/y/security-advisories --input "$tmp/repo/advisory.json"
 check_message "REST PR with --input follows POST stamp checks" 1 no "REST PR create must pass base/head as -f fields" api repos/x/y/pulls --input "$tmp/repo/body.md"
 check "api -F alone implies POST" 1 no api repos/x/y/issues -F title=t
 check "api glued -F implies POST" 1 no api repos/x/y/issues -Ftitle=t
