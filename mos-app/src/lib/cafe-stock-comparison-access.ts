@@ -1,7 +1,6 @@
 // Who may open Stock comparison. It reuses the app's existing Count-review authority and widens nothing:
-// ops_lead and admin review every stream; a stream supervisor reviews the streams of her own Teams (the same
-// `myStreamKeys` the Review page uses); everyone else (members, finance, managers, a Team lead without those
-// roles) has no entry and a deep link shows the no-access state. Preview grants no permission.
+// ops_lead and admin review every stream; a stream supervisor reviews her own Teams (the Review page's same
+// `myStreamKeys`); everyone else has no entry and a deep link shows the no-access state.
 import { useAuth } from '@/auth/use-auth'
 import { isShipGated } from '@/lib/ship-gate'
 import { streamKey } from '@/lib/kitchen-action-label'
@@ -30,17 +29,17 @@ export function comparableStreams(audience: ComparisonAudience, myStreamKeys: Re
   return options.filter((option) => mayCompareStream(audience, myStreamKeys, option))
 }
 
-/** Is the whole preview on for this launch? Same ship authority as the route and the menu entry. */
-const useStockComparisonPreview = () => !isShipGated(STOCK_COMPARISON_PATH)
+/** Is the route released for this build profile? The same ship authority as the route and menu entry. */
+const useStockComparisonReleased = () => !isShipGated(STOCK_COMPARISON_PATH)
 
 /**
- * The "View stock comparison" link under Count scope and Available to transfer: present only with the preview on,
+ * The "View stock comparison" link under Count scope and Available to transfer: present only when released,
  * for a viewer the comparison admits for THIS stream; otherwise undefined and the page is exactly what it was.
  */
 export function useStockComparisonLink(stream: ProductionStream | null, myStreamKeys: ReadonlySet<string>): string | undefined {
   const auth = useAuth()
-  const on = useStockComparisonPreview()
-  if (!on || !stream || auth.status !== 'authenticated') return undefined
+  const released = useStockComparisonReleased()
+  if (!released || !stream || auth.status !== 'authenticated') return undefined
   const audience = audienceOf(auth.viewer.accessRoles)
   if (!mayCompareStream(audience, myStreamKeys, stream)) return undefined
   return stockComparisonHref({ stream: { branchId: stream.branch.id, activity: stream.activity } })

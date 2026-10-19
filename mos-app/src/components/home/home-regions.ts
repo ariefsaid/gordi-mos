@@ -9,12 +9,8 @@ import type { MessageKey } from '@/i18n/messages'
 export type HomeRegionId = 'needs-you' | 'failed-checks' | 'my-work'
 
 interface HomeRegionDrillTo {
-  /** Where this region's FULL scope lives in the app. */
+  /** Where this region's full scope lives in the app. */
   route: string
-  /** The count at that destination — present only where the region has an honest full-scope
-   *  figure to advertise (my-work's open-task count). Absent is not zero: a region with a
-   *  destination but no traceable total must not invent one (DIV-G5). */
-  count?: number
 }
 
 /**
@@ -43,13 +39,7 @@ export interface HomeRegion {
   items: StreamItem[]
   /** Total available rows before a deliberate Home display cap (e.g. My Work's seven-row slice). */
   totalItemCount?: number
-  /** How many items this region holds — `null` whenever the figure behind it has NOT been
-   *  reported (DIV-G5, spec §7 + NFR-924). For needs-you and failed-checks the count is the
-   *  items themselves (no cap). my-work's items are a capped slice, so its count is instead the
-   *  caller-reported FULL open-task figure (DD-COUNT-1, #1194) — the same number the rail badge
-   *  shows — and is `null` while that has not resolved. A count the viewer cannot
-   *  trace is worse than no count: the page stated a falsehood with full confidence. Absent, not
-   *  zero — the arrangements render it as an em-dash. */
+  /** Count of this region's full candidate scope, null until its own source succeeds (DIV-G5). */
   count: number | null
   /** State of the read(s) behind this region (DIV-G5, `docs/specs/home-layout-preference.spec.md`
    *  §7): a still-loading or failed read must render distinguishably from a genuinely empty
@@ -58,9 +48,7 @@ export interface HomeRegion {
   state: StreamBandState
   /** Retries the read(s) behind this region. Set whenever `state` can become 'error'. */
   onRetry?: () => void
-  /** This region's full-scope destination (`REGION_ROUTE`) — every region has one, because a
-   *  region that names a remainder must be able to show it. `count` rides along only where the
-   *  region has an honest full-scope figure (my-work's "My open tasks · N →"). */
+  /** The region's destination; its link never carries a count from a different scope. */
   drillTo?: HomeRegionDrillTo
 }
 
@@ -79,11 +67,6 @@ export interface HomeRegionInput {
   /** failed-checks reads its own independent DAL. */
   failedChecksState?: StreamBandState
   onRetryFailedChecks?: () => void
-  /** The viewer's FULL open-task count (all owned, non-Done tasks — the SAME number the rail
-   *  badge shows, from the shared store, DD-COUNT-1 #1194). It is my-work's heading count and
-   *  its drill-link figure; the capped list itself is named by "N shown". Absent (no heading
-   *  count, unnumbered link) when the caller has no honest count to report yet. */
-  myWorkFullCount?: number
   /** My Work rows available before its deliberate seven-row display cap. */
   myWorkTotalItemCount?: number
 }
@@ -93,8 +76,7 @@ export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
   const taskState = input.taskState ?? 'ready'
   const needsYouState: StreamBandState = taskState
   const retryNeedsYou = input.onRetryTasks
-  const drillTo = (id: HomeRegionId, count?: number): HomeRegionDrillTo =>
-    count != null ? { route: REGION_ROUTE[id], count } : { route: REGION_ROUTE[id] }
+  const drillTo = (id: HomeRegionId): HomeRegionDrillTo => ({ route: REGION_ROUTE[id] })
 
   const failedChecksState = input.failedChecksState ?? 'ready'
   // A count exists only where the read behind it SUCCEEDED (DIV-G5). One helper, applied to every
@@ -105,6 +87,7 @@ export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
   return [
     {
       id: 'needs-you', labelKey: 'home.region.needsYou', items: needsYouItems,
+      totalItemCount: needsYouState === 'ready' ? needsYouItems.length : undefined,
       count: countOf(needsYouItems, needsYouState),
       state: needsYouState, onRetry: retryNeedsYou,
       drillTo: drillTo('needs-you'),
@@ -117,12 +100,13 @@ export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
       drillTo: drillTo('failed-checks'),
     }] : []),
     {
-      id: 'my-work', labelKey: 'home.stream.band.myWork', items: input.myWork,
-      totalItemCount: input.myWorkTotalItemCount ?? input.myWork.length,
-      // The heading states the FULL scope (the badge's number), never the capped list length;
-      // `null` while the shared count has not resolved. The list itself says what it shows.
-      count: input.myWorkFullCount ?? null, state: taskState, onRetry: input.onRetryTasks,
-      drillTo: drillTo('my-work', input.myWorkFullCount),
+      id: 'my-work', labelKey: 'workbench.home.otherOpen', items: input.myWork,
+      totalItemCount: taskState === 'ready' ? input.myWorkTotalItemCount ?? input.myWork.length : undefined,
+      // This count belongs to the Other open tasks projection, not the separate shared My-open
+      // count shown in Home's head.
+      count: taskState === 'ready' ? input.myWorkTotalItemCount ?? input.myWork.length : null,
+      state: taskState, onRetry: input.onRetryTasks,
+      drillTo: drillTo('my-work'),
     },
   ]
 }

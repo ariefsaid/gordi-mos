@@ -2,6 +2,7 @@ import { GroupHeader } from '@/components/ui/group-header'
 import { Tag } from '@/components/ui/tag'
 import { useT } from '@/i18n/use-t'
 import { ObjectiveHint } from './objective-hint'
+import { occurrenceRollupSummaryKey } from './occurrence-rollup-summary'
 
 type GroupHeaderRowProps = {
   /** The group label (status name, person name, BU name, or work-line name). */
@@ -97,6 +98,8 @@ export function GroupHeaderRow({
   onAssignPending,
 }: GroupHeaderRowProps) {
   const t = useT()
+  const pendingUnresolved = occurrenceRollup?.pendingUnresolved ?? 0
+  const hasPendingAssignment = pendingUnresolved > 0 && Boolean(onAssignPending)
   return (
     <tr className="grp">
       <td colSpan={colSpan}>
@@ -110,23 +113,19 @@ export function GroupHeaderRow({
           </>}
           count={occurrenceRollup
               ? t(
-                occurrenceRollup.pendingUnresolved === 0
-                  ? 'processes.rollup.summary'
-                  : onAssignPending
-                    ? 'processes.rollup.summaryNoAssign'
-                    : 'processes.rollup.summaryUnassigned',
+                occurrenceRollupSummaryKey(pendingUnresolved, hasPendingAssignment),
                 {
                   done: occurrenceRollup.done, total: occurrenceRollup.total,
-                  overdue: occurrenceRollup.overdue, pending: occurrenceRollup.pendingUnresolved,
+                  overdue: occurrenceRollup.overdue, pending: pendingUnresolved,
                 },
               )
               : count}
           open={!collapsed}
           onToggle={onToggle}
           trailing={<>
-            {occurrenceRollup && occurrenceRollup.pendingUnresolved > 0 && onAssignPending && (
+            {occurrenceRollup && hasPendingAssignment && onAssignPending && (
               <button type="button" className="gsub gsub-pending" onClick={onAssignPending}>
-                {t('processes.pending.assignCount', { count: occurrenceRollup.pendingUnresolved })}
+                {t('processes.pending.assignCount', { count: pendingUnresolved })}
               </button>
             )}
             {!occurrenceRollup && overdue > 0 && (

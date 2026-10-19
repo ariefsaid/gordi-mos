@@ -502,6 +502,15 @@ function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> 
   if (input.action === 'waste' && input.destination_branch_id !== null) {
     throw new Error('a waste log carries no destination branch')
   }
+  if (input.action === 'produce' && input.from_storage_location_id != null) {
+    throw new Error('from_storage_location_id is not valid for produce')
+  }
+  if (input.action === 'transfer' && input.production_location_id != null) {
+    throw new Error('production_location_id is not valid for transfer')
+  }
+  if (input.action === 'waste' && (input.production_location_id != null || input.to_storage_location_id != null)) {
+    throw new Error('production_location_id and to_storage_location_id are not valid for waste')
+  }
   return {
     client_request_id: input.client_request_id,
     business_unit_id: input.business_unit_id,
@@ -520,6 +529,9 @@ function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> 
       entry_unit_factor: input.entry_unit_factor,
     }),
     notes: input.notes ?? null,
+    ...(input.production_location_id === undefined ? {} : { production_location_id: input.production_location_id }),
+    ...(input.from_storage_location_id === undefined ? {} : { from_storage_location_id: input.from_storage_location_id }),
+    ...(input.to_storage_location_id === undefined ? {} : { to_storage_location_id: input.to_storage_location_id }),
     // The RPC chooses Submitted vs Draft from action; status is never client-controlled.
     // source NOT sent — DB defaults to 'mos'
     // org_id NOT sent — server-stamped by current_org_id()

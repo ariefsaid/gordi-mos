@@ -87,6 +87,10 @@ export interface CollectionToolbarProps<TPresentation extends string, TView exte
   onClearAll?: () => void
   /** Quick exception filters ("9 overdue"), shown in the line under the bar. */
   scopeActions?: ReactNode
+  /** Quick actions that belong inside the disclosed panel at narrow widths. */
+  panelActions?: ReactNode
+  /** A page-specific label for the disclosure door; collections retain the shared default. */
+  optionsLabel?: string
   /** The result count: the right end of the line under the bar. */
   resultSummary?: ReactNode
   /** Where the presentation choice (Feed/Table) sits: in the bar, or behind the Filters door on a phone. */
@@ -112,7 +116,9 @@ export function CollectionToolbar<TPresentation extends string, TView extends st
   chips = [],
   onClearAll,
   scopeActions,
+  panelActions,
   resultSummary,
+  optionsLabel,
   presentationIn = 'bar',
   className,
 }: CollectionToolbarProps<TPresentation, TView>) {
@@ -180,7 +186,7 @@ export function CollectionToolbar<TPresentation extends string, TView extends st
             if (value.startsWith('saved:')) void savedViews?.onApply(value.slice(6))
             else views.onChange(value as TView)
           }}
-          className="collection-toolbar__field"
+          className="collection-toolbar__field collection-toolbar__view"
         />
         {exposed.map((filter) => (
           <Picker
@@ -202,7 +208,7 @@ export function CollectionToolbar<TPresentation extends string, TView extends st
             aria-controls={panelId}
             onClick={() => setPanelOpen((open) => !open)}
           >
-            {t('common.filtersAndOptions')}
+            {optionsLabel ?? t('common.filtersAndOptions')}
             {chips.length > 0 ? <span className="collection-toolbar__door-count tabular-nums">{chips.length}</span> : null}
             <svg className="collection-toolbar__door-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="m6 9 6 6 6-6" />
@@ -216,9 +222,10 @@ export function CollectionToolbar<TPresentation extends string, TView extends st
           id={panelId}
           className="collection-toolbar__panel"
           role="group"
-          aria-label={t('common.filtersAndOptions')}
+          aria-label={optionsLabel ?? t('common.filtersAndOptions')}
           onKeyDown={(event) => {
             if (event.key !== 'Escape') return
+            event.preventDefault()
             event.stopPropagation()
             closePanel()
           }}
@@ -227,6 +234,7 @@ export function CollectionToolbar<TPresentation extends string, TView extends st
           {inPanel.map((filter) => (
             <Picker key={filter.id} label={filter.label} value={filter.value} options={filter.options} onChange={filter.onChange} className="collection-toolbar__field" />
           ))}
+          {panelActions ? <div className="collection-toolbar__panel-actions">{panelActions}</div> : null}
           {checks.map((check) => (
             <label key={check.key} className="collection-toolbar__check">
               <input type="checkbox" checked={check.checked} onChange={(event) => check.onChange(event.target.checked)} />

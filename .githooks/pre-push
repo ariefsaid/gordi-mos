@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pre-push gate — refuse to push a feature branch that does not contain origin/dev.
+# Pre-push gate — refuse stale feature branches and release tags outside origin/main.
 #
 # Incident class: two green sibling PRs, no textual conflict, dev broken — one deleted
 # a symbol the other imported. The fix is structural: every push re-checks against the
@@ -10,13 +10,40 @@
 set -uo pipefail
 
 # Fresh clone before first fetch: nothing to compare against.
-base="$(git rev-parse --verify -q origin/dev)" || exit 0
+base="$(git rev-parse --verify -q origin/dev 2>/dev/null || true)"
+semver_re='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
 
 while read -r _local_ref local_sha remote_ref _remote_sha; do
+  case "$remote_ref" in
+    refs/tags/*)
+      tag="${remote_ref#refs/tags/}"
+      if ! [[ "$tag" =~ $semver_re ]]; then
+        printf "✗ pre-push: tag '%s' is not a v-prefixed semantic version.\n" "$tag" >&2
+        exit 1
+      fi
+      case "$local_sha" in *[!0]*) ;; *) printf "✗ pre-push: deleting release tags is refused.\n" >&2; exit 1 ;; esac
+      main="$(git rev-parse --verify -q origin/main 2>/dev/null)" || {
+        printf "✗ pre-push: cannot verify tag '%s' without origin/main.\n" "$tag" >&2
+        exit 1
+      }
+      tagged_commit="$(git rev-parse --verify -q "$local_sha^{commit}" 2>/dev/null)" || {
+        printf "✗ pre-push: tag '%s' does not resolve to a commit.\n" "$tag" >&2
+        exit 1
+      }
+      if ! git merge-base --is-ancestor "$tagged_commit" "$main"; then
+        printf "✗ pre-push: tag '%s' points to a commit outside origin/main.\n" "$tag" >&2
+        exit 1
+      fi
+      continue
+      ;;
+  esac
+
   # Branch deletions push the null sha — nothing to check.
   case "$local_sha" in *[!0]*) ;; *) continue ;; esac
   # dev/main/staging promote by merge on the forge, not by rebase.
   case "$remote_ref" in refs/heads/dev|refs/heads/main|refs/heads/staging) continue ;; esac
+  # A fresh clone with no base ref has nothing to compare against.
+  [ -n "$base" ] || continue
 
   if ! git merge-base --is-ancestor "$base" "$local_sha"; then
     branch="${remote_ref#refs/heads/}"

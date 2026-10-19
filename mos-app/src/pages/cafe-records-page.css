@@ -6,9 +6,28 @@
 .rec-split { min-width: 0; }
 .rec-main { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); min-width: 0; }
 .rec-content { min-width: 0; }
+.rec-empty-answer { display: grid; justify-items: start; gap: var(--mos-inline-gap); padding-block: var(--mos-section-gap); }
+.rec-empty-answer h2 { margin: 0; color: var(--mos-ink); font: var(--mos-type-group); }
+.rec-empty-answer p { max-width: 65ch; margin: 0; color: var(--mos-muted); font: var(--mos-type-body); }
+.rec-empty-answer .btn { min-height: var(--mos-control-height); }
 
-/* ── Scope: Question → Period → Production stream, then the exact days ── */
-.rec-scope { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); min-width: 0; }
+/* ── Scope: the current answer stays visible; its URL-backed editor opens on request ── */
+.rec-scope { position: sticky; top: 0; z-index: var(--z-sticky); min-width: 0; background: var(--mos-canvas); }
+.rec-scope--editing { position: static; }
+.rec-scope__summary {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center;
+  gap: var(--mos-inline-gap) var(--mos-row-gap); min-width: 0; padding-block: var(--mos-label-gap);
+  border-bottom: 1px solid var(--mos-line); background: var(--mos-canvas);
+}
+.rec-scope__editor { min-width: 0; }
+.rec-scope__summary-copy { display: flex; flex-direction: column; gap: var(--mos-label-gap); min-width: 0; color: var(--mos-ink); font: var(--mos-type-body); }
+.rec-scope__summary-question, .rec-scope__summary-context { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--mos-inline-gap); min-width: 0; overflow-wrap: anywhere; }
+.rec-scope__summary-question { font-weight: var(--mos-weight-semibold); }
+.rec-scope__summary-context { color: var(--mos-muted); }
+.rec-scope__toggle { min-height: var(--mos-control-height); white-space: nowrap; }
+.rec-scope__summary-trailing { display: flex; justify-content: flex-end; min-width: 0; }
+.rec-scope__editor { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); min-width: 0; }
+.rec-scope__editor[hidden] { display: none; }
 .rec-scope__row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--mos-toolbar-gap); align-items: start; }
 .rec-scope__row > * { min-width: 0; }
 .rec-range { display: grid; justify-content: start; grid-template-columns: repeat(2, minmax(0, 12rem)) auto; gap: var(--mos-toolbar-gap); align-items: end; }
@@ -76,6 +95,7 @@
 
 .rec-about { margin-top: var(--mos-section-gap); }
 .rec-about p { max-width: 72ch; margin: 0 0 var(--mos-field-gap); color: var(--mos-ink); font: var(--mos-type-body); }
+.rec-about .rp-disclosure-wrap { margin-top: 0; }
 
 /* ── Record panel body (item history, entry) ── */
 .rec-panel__body { display: flex; flex-direction: column; gap: var(--mos-toolbar-gap); padding: var(--mos-gutter); overflow-wrap: anywhere; }
@@ -113,7 +133,21 @@
 
 /* ── Phone ── */
 @media (max-width: 767.98px) {
-  .rec-scope__row { grid-template-columns: minmax(0, 1fr); }
+  /* The scope reads on full-width lines so its separators stay between words; the actions sit below. */
+  .rec-scope__summary { grid-template-columns: auto minmax(0, 1fr); }
+  .rec-scope__summary-copy { grid-column: 1 / -1; grid-row: 1; }
+  .rec-scope__toggle { grid-column: 1; grid-row: 2; min-height: 44px; }
+  .rec-scope__summary-trailing { grid-column: 2; grid-row: 2; justify-content: flex-end; }
+  .rec-scope__row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rec-scope__question { grid-column: 1 / -1; }
+  .rec-scope__period .mk-select__field > span:first-child,
+  .rec-scope__stream .mk-select__field > span:first-child {
+    display: block;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+  }
   .rec-range { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rec-range__apply { grid-column: 1 / -1; width: 100%; }
   .rec-range-line { flex-wrap: nowrap; align-items: flex-start; }

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import '@/pages/home-page.css'
 
@@ -16,10 +17,10 @@ export function HomeHeadCounts({ tally }: { tally: HomeDayTally | null }) {
   const t = useT()
   if (!tally) return null
   return (
-    <span className="home-head-counts tabular-nums">
+    <Link to="/work/tasks?view=my-work" className="home-head-counts tabular-nums">
       {tally.done == null
         ? t('home.day.left', { left: tally.left })
         : t('home.day.counts', { done: tally.done, left: tally.left })}
-    </span>
+    </Link>
   )
 }

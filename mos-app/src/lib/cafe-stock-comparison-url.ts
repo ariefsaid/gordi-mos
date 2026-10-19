@@ -21,14 +21,13 @@ export interface ComparisonUrl {
   sort: SortKey
   dir: SortDir
   page: number
+  cursor: string
   item: string
   unit: string
   /** The item panel's Count history range; always set. */
   from: string
   to: string
   datesInUrl: boolean
-  /** The labelled in-memory sample (never real data). */
-  sample: boolean
 }
 
 export function parseStream(value: string | null): { branchId: string; activity: ProductionActivity } | null {
@@ -67,6 +66,11 @@ export function parseComparisonUrl(params: URLSearchParams, today: string): { st
   const rawPage = get('page')
   if (rawPage) { const n = Number(rawPage); if (Number.isInteger(n) && n >= 1 && n <= 100000) page = n; else invalid.push('page') }
 
+  const rawCursor = get('cursor') ?? ''
+  const cursor = rawCursor.length <= 8192 && /^[A-Za-z0-9+/_=-]*$/.test(rawCursor) ? rawCursor : ''
+  if (rawCursor !== cursor) invalid.push('cursor')
+  if (get('layout') !== null) invalid.push('layout')
+
   const rawItem = get('item') ?? ''
   const rawUnit = get('unit') ?? ''
   let item = ''
@@ -85,15 +89,14 @@ export function parseComparisonUrl(params: URLSearchParams, today: string): { st
 
   return {
     state: {
-      stream, q: (get('q') ?? '').slice(0, 200), kind, category, differences: rawDifferences === '1', sort, dir, page, item, unit, from, to, datesInUrl,
-      sample: get('layout') === 'preview',
+      stream, q: (get('q') ?? '').slice(0, 200), kind, category, differences: rawDifferences === '1', sort, dir, page, cursor, item, unit, from, to, datesInUrl,
     },
     invalid,
   }
 }
 
 /** The keys this page owns; everything else belongs to the shell. */
-const COMPARISON_KEYS = ['stream', 'q', 'kind', 'category', 'differences', 'sort', 'dir', 'page', 'item', 'unit', 'from', 'to', 'layout'] as const
+const COMPARISON_KEYS = ['stream', 'q', 'kind', 'category', 'differences', 'sort', 'dir', 'page', 'cursor', 'item', 'unit', 'from', 'to', 'layout'] as const
 
 /** Write a state back onto existing params, omitting defaults so a reset URL stays clean. */
 export function writeComparisonUrl(existing: URLSearchParams, state: ComparisonUrl): URLSearchParams {
@@ -107,10 +110,10 @@ export function writeComparisonUrl(existing: URLSearchParams, state: ComparisonU
   if (state.sort !== 'gap') next.set('sort', state.sort)
   if (state.dir !== DEFAULT_DIR[state.sort]) next.set('dir', state.dir)
   if (state.page > 1) next.set('page', String(state.page))
+  if (state.cursor) next.set('cursor', state.cursor)
   if (state.item) next.set('item', state.item)
   if (state.unit) next.set('unit', state.unit)
   if (state.datesInUrl) { next.set('from', state.from); next.set('to', state.to) }
-  if (state.sample) next.set('layout', 'preview')
   return next
 }
 
@@ -122,8 +125,12 @@ export function applyPatch(state: ComparisonUrl, patch: Partial<ComparisonUrl>):
   const keys = Object.keys(patch) as (keyof ComparisonUrl)[]
   if (keys.some((key) => DATA_KEYS.has(key))) {
     next.page = 1
+    next.cursor = ''
     if (!('item' in patch)) { next.item = ''; next.unit = '' }
-  } else if ((keys.includes('sort') || keys.includes('dir')) && !('page' in patch)) next.page = 1
+  } else if ((keys.includes('sort') || keys.includes('dir')) && !('page' in patch)) {
+    next.page = 1
+    next.cursor = ''
+  }
   if (patch.sort && patch.sort !== state.sort && !('dir' in patch)) next.dir = DEFAULT_DIR[patch.sort]
   if (patch.item === '') next.unit = ''
   return next

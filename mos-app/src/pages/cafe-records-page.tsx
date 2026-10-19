@@ -9,11 +9,11 @@ import { useAuth } from '@/auth/use-auth'
 import { CafeNoMatch } from '@/components/kitchen/cafe-no-match'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
-import { Panel } from '@/components/cafe/redesign/worksheet'
+import { RecordDisclosure } from '@/components/record/record-page-layout'
 import { RecordsPager } from '@/components/cafe-records/records-pager'
 import { EntryPanel, ItemHistoryPanel } from '@/components/cafe-records/records-panel'
 import { DayReading, EntriesReading, ReadingSkeleton, SummaryReading, type RecordsText } from '@/components/cafe-records/records-readings'
-import { QUESTION_SOURCE, SOURCE_LABEL } from '@/components/cafe-records/records-labels'
+import { QUESTION_LABEL, QUESTION_SOURCE, SOURCE_LABEL } from '@/components/cafe-records/records-labels'
 import { RecordsScope, type StreamChoice } from '@/components/cafe-records/records-scope'
 import { LocationRecordsFilter } from '@/components/preview/location-preview-fields'
 import { Button } from '@/components/ui/button'
@@ -155,7 +155,7 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
     const personById = (id: string) => lookups.personName(id) ?? t('records.person.unavailable')
     return {
       t, stream, destination, personById,
-      person: entry => entry.source === 'count' ? t('records.who.notAvailable') : entry.personId ? personById(entry.personId) : t('records.who.notAvailable'),
+      person: entry => entry.personId ? personById(entry.personId) : t('records.who.notAvailable'),
     }
   }, [t, streamByKey, branches, lookups])
 
@@ -207,6 +207,17 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
 
   // ── Handlers ─────────────────────────────────────────────────────────────────────────────────────
   const periodRef = useRef<HTMLButtonElement>(null)
+  const [scopeOpen, setScopeOpen] = useState(false)
+  const [focusPeriodOnOpen, setFocusPeriodOnOpen] = useState(false)
+  useEffect(() => {
+    if (!scopeOpen || !focusPeriodOnOpen) return
+    periodRef.current?.focus()
+    setFocusPeriodOnOpen(false)
+  }, [scopeOpen, focusPeriodOnOpen])
+  const openScopeAtPeriod = () => {
+    setFocusPeriodOnOpen(true)
+    setScopeOpen(true)
+  }
   const setPeriod = (period: PeriodKey) => {
     if (period === 'custom') update({ period: 'custom', from: state.from, to: state.to, datesInUrl: true, draftFrom: state.from, draftTo: state.to })
     else update({ period, ...resolvePreset(period, today), datesInUrl: true, draftFrom: '', draftTo: '' })
@@ -237,8 +248,10 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
   // ── Sort control (phone) ─────────────────────────────────────────────────────────────────────────
   const sortOptions: SortKey[] = READING_SORTS[reading].filter(key => key !== 'destination' || showDestination)
   const sortValues = sortOptions.flatMap(key => key === 'item' || key === 'date' || key === 'quantity' ? [`${key}:asc`, `${key}:desc`] : [`${key}:${DEFAULT_DIR[key]}`])
+  const selectedSortValue = `${state.sort}:${state.dir}`
+  const selectedSortLabel = t(SORT_LABEL[selectedSortValue])
   const sortControl = (
-    <Select label={t('records.sort.label')} fullWidth value={`${state.sort}:${state.dir}`} onChange={event => { const [sort, dir] = event.target.value.split(':'); setSort(sort as SortKey, dir as SortDir) }}>
+    <Select label={t('records.sort.label')} fullWidth value={selectedSortValue} onChange={event => { const [sort, dir] = event.target.value.split(':'); setSort(sort as SortKey, dir as SortDir) }}>
       {sortValues.map(value => <option key={value} value={value}>{t(SORT_LABEL[value])}</option>)}
     </Select>
   )
@@ -289,13 +302,11 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
     body = <CafeNoMatch onClear={clearFilters} />
   } else if (noRows && failed.length === 0) {
     body = (
-      <EmptyState
-        variant="blank"
-        title={singleSource ? t('records.empty.title', { source: sourceName(singleSource) }) : t('records.empty.everything')}
-        copy={t('records.empty.body')}
-      >
-        <Button variant="outline" className="btn-touch" onClick={() => periodRef.current?.focus()}>{t('records.empty.changePeriod')}</Button>
-      </EmptyState>
+      <section className="rec-empty-answer" aria-live="polite">
+        <h2>{singleSource ? t('records.empty.title', { source: sourceName(singleSource) }) : t('records.empty.everything')}</h2>
+        <p>{t('records.empty.scopedBody', { question: t(QUESTION_LABEL[state.question]), stream: streamText, range: rangeText })}</p>
+        <Button variant="outline" className="btn-touch" onClick={openScopeAtPeriod}>{t('records.empty.changePeriod')}</Button>
+      </section>
     )
   } else if (reading === 'summary') {
     body = <SummaryReading text={text} question={state.question} incomplete={incompleteMovements} groups={summaryPage.groups} sort={state.sort} dir={state.dir} onSort={setSort}
@@ -331,7 +342,7 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
         <RecordsScope
           t={t} question={state.question} onQuestion={question => update({ question })} period={state.period} onPeriod={setPeriod} from={state.from} to={state.to} today={today}
           streamValue={knownStream ? streamValue : ALL_STREAMS_PARAM} streams={streamChoices} onStream={setStream} periodRef={periodRef}
-          draftFrom={state.draftFrom} draftTo={state.draftTo}
+          draftFrom={state.draftFrom} draftTo={state.draftTo} open={scopeOpen} onOpenChange={setScopeOpen}
           onDraft={(field, value) => update(current => field === 'from' ? { draftFrom: value, draftTo: current.draftTo || current.to } : { draftTo: value, draftFrom: current.draftFrom || current.from }, 'replace')}
           onApply={(from, to) => update({ period: 'custom', from, to, datesInUrl: true, draftFrom: '', draftTo: '' })}
           trailing={<span className="rec-refresh">
@@ -339,14 +350,17 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
             {!online && <span id="rec-refresh-reason" className="rec-refresh__reason">{t('records.offline.refreshDisabled')}</span>}
           </span>}
         />
+        <ViewTabs tabs={tabs} active={reading} onChange={id => update({ reading: id as Reading })} ariaLabel={t('records.reading.label')} idPrefix="rec-tab" panelId="rec-panel" />
         <KitchenToolbar
           search={searchText}
           onSearchChange={onSearch}
           searchPlaceholder={t('kitchen.log.searchPlaceholder')}
           ariaLabel={t('records.toolbar.aria')}
-          filtersPanel={{ label: t('records.filters.label'), summary: [state.item && itemChoices.find(([k]) => k === state.item)?.[1], state.destination && destinationChoices.find(([k]) => k === state.destination)?.[1]].filter(Boolean).join(' · ') }}
+          filtersPanel={{ label: t('workbench.records.options'), summary: [state.item && itemChoices.find(([k]) => k === state.item)?.[1], state.destination && destinationChoices.find(([k]) => k === state.destination)?.[1]].filter(Boolean).join(' · ') }}
           countLabel={!loading && !denied && !dayNeedsNote ? t(total === 1 ? 'records.count.one' : 'records.count.other', { count: total }) : undefined}
+          sortLabel={selectedSortLabel}
           sortControl={sortControl}
+          sortControlIn="panel"
           trailing={<>
             <Select label={t('kitchen.log.col.item')} value={state.item} onChange={event => update({ item: event.target.value })} className="ktb-category">
               <option value="">{t('records.item.all')}</option>
@@ -368,21 +382,22 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
         />
         <div className={`rec-split${split && panelOpen && panel ? ' record-split has-record' : ''}`}>
           <div className="rec-main">
-            <ViewTabs tabs={tabs} active={reading} onChange={id => update({ reading: id as Reading })} ariaLabel={t('records.reading.label')} idPrefix="rec-tab" panelId="rec-panel" />
             {showCached && <Notice tone="info">{t('records.offline.lastLoaded', { time: formatWibShortDateTime(new Date(lastLoaded)) })}</Notice>}
             {scopeNotice && <Notice tone="info">{t('records.scope.notice')}</Notice>}
-            {reading === 'day' && !dayNeedsNote && <Notice tone="info">{t('records.day.basis')}</Notice>}
             {failureNotices}
             <div id="rec-panel" role="tabpanel" aria-labelledby={`rec-tab-${reading}`} className="rec-content">{body}</div>
             {!loading && !denied && !dayNeedsNote && !noRows && (
               <RecordsPager t={t} page={pageInfo.page} pages={pageInfo.pages} start={pageInfo.start} shown={pageInfo.shown} total={total} onPage={page => update({ page })} />
             )}
-            <Panel title={t('records.about.title')} className="rec-about">
-              <p>{t('records.about.dates')}</p>
-              <p>{t('records.about.units')}</p>
-              <p>{t('records.about.posting')}</p>
-              <p>{t('records.about.limits')}</p>
-            </Panel>
+            <div className="rec-about">
+              <RecordDisclosure title={t('records.about.title')}>
+                <p>{t('records.about.dates')}</p>
+                <p>{t('records.day.basis')}</p>
+                <p>{t('records.about.units')}</p>
+                <p>{t('records.about.posting')}</p>
+                <p>{t('records.about.limits')}</p>
+              </RecordDisclosure>
+            </div>
           </div>
           {panel}
         </div>

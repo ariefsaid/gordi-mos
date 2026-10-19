@@ -13,11 +13,13 @@ export type CafeReceiveDraftEntry = {
   quantity: string
   unitId: string
   damagedWrong: boolean
+  storageLocationOverride?: string | null
 }
 
 export type CafeReceiveDraftContent = {
   clientKey: string
   entries: Record<string, CafeReceiveDraftEntry>
+  storageLocationId?: string | null
 }
 
 type StoredDraft = CafeReceiveDraftScope & CafeReceiveDraftContent & { version: 2; savedAt: number }
@@ -56,8 +58,12 @@ function parseEntries(value: unknown): Record<string, CafeReceiveDraftEntry> | n
     if (!itemId || raw === null || typeof raw !== 'object' || Array.isArray(raw)) return null
     const entry = raw as Record<string, unknown>
     if (typeof entry.name !== 'string' || typeof entry.quantity !== 'string' || typeof entry.unitId !== 'string'
-      || typeof entry.damagedWrong !== 'boolean') return null
-    entries[itemId] = { name: entry.name, quantity: entry.quantity, unitId: entry.unitId, damagedWrong: entry.damagedWrong }
+      || typeof entry.damagedWrong !== 'boolean'
+      || ('storageLocationOverride' in entry && entry.storageLocationOverride !== null && typeof entry.storageLocationOverride !== 'string')) return null
+    entries[itemId] = {
+      name: entry.name, quantity: entry.quantity, unitId: entry.unitId, damagedWrong: entry.damagedWrong,
+      ...('storageLocationOverride' in entry ? { storageLocationOverride: entry.storageLocationOverride as string | null } : {}),
+    }
   }
   return entries
 }
@@ -71,9 +77,13 @@ export function loadCafeReceiveDraft(scope: CafeReceiveDraftScope): CafeReceiveD
     const value: unknown = JSON.parse(raw)
     if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
     const stored = value as Record<string, unknown>
-    if (stored.version !== 2 || !isScope(stored, scope) || typeof stored.clientKey !== 'string' || !stored.clientKey) return null
+    if (stored.version !== 2 || !isScope(stored, scope) || typeof stored.clientKey !== 'string' || !stored.clientKey
+      || ('storageLocationId' in stored && stored.storageLocationId !== null && typeof stored.storageLocationId !== 'string')) return null
     const entries = parseEntries(stored.entries)
-    return entries ? { clientKey: stored.clientKey, entries } : null
+    return entries ? {
+      clientKey: stored.clientKey, entries,
+      ...('storageLocationId' in stored ? { storageLocationId: stored.storageLocationId as string | null } : {}),
+    } : null
   } catch {
     return null
   }
@@ -85,7 +95,8 @@ export function saveCafeReceiveDraft(
   now = Date.now(),
 ): boolean {
   const store = localStore()
-  if (!store || !draft.clientKey || !parseEntries(draft.entries)) return false
+  if (!store || !draft.clientKey || !parseEntries(draft.entries)
+    || ('storageLocationId' in draft && draft.storageLocationId !== null && typeof draft.storageLocationId !== 'string')) return false
   const value: StoredDraft = { version: 2, savedAt: now, ...scope, ...draft }
   try {
     store.setItem(storageKey(scope), JSON.stringify(value))

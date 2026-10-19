@@ -35,6 +35,8 @@ vi.mock('./use-auth', async () => {
   return { useAuth: () => useSyncExternalStore(authStub.subscribe, authStub.read) }
 })
 
+vi.mock('@/lib/db/module-settings', () => ({ getViewerModuleAvailability: vi.fn().mockResolvedValue([]) }))
+
 vi.mock('@/lib/supabase', () => ({
   getGoogleProviderEnabled: vi.fn(() => new Promise<boolean>(() => {})),
   supabase: {

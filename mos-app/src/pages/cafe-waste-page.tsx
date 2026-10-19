@@ -42,6 +42,7 @@ import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { LocationLineField } from '@/components/preview/location-preview-fields'
+import { availableCafeLocationDefault, useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
 import { WastePhotoCapture } from '@/components/kitchen/waste-photo-capture'
 import { CafeTransactionWorkspace } from '@/components/cafe/redesign/cafe-transaction-workspace'
 import { Worksheet } from '@/components/cafe/redesign/worksheet'
@@ -77,6 +78,7 @@ type WasteEntry = {
   preparing: boolean
   unitNotShown: boolean
   submitted: boolean
+  storage_location_id?: string | null
   photos: KitchenWastePhoto[]
   error?: string
 }
@@ -87,7 +89,7 @@ const WASTE_KIND_OPTIONS: readonly KitchenItemKindFilter[] = ['All', 'WIP', 'RAW
 
 type StoredWasteEntry = Pick<WasteEntry,
   'client_request_id' | 'client_attempted' | 'quantity' | 'unitId' | 'unitFactor' | 'unitBasisKnown'
-  | 'logId' | 'capturedUnitName' | 'capturedLogDate'>
+  | 'logId' | 'capturedUnitName' | 'capturedLogDate' | 'storage_location_id'>
 
 type StoredWasteCaptureDraft = {
   branch_id: string
@@ -143,6 +145,13 @@ function displayUnit(unit: CafeLogItem['units'][number], t: ReturnType<typeof us
     : t('cafe.items.unitDisambiguated', { name: unit.name, number: unit.labelOrdinal })
 }
 
+// The default unit's option names the marker once, even when the unit's own name already says it.
+function defaultUnitOptionLabel(unit: CafeLogItem['units'][number], t: ReturnType<typeof useT>): string {
+  const label = displayUnit(unit, t)
+  const tag = t('cafe.items.defaultTag')
+  return label.toLowerCase().includes(tag.toLowerCase()) ? label : `${label} · ${tag}`
+}
+
 function wasteEntryUnitLabel(item: CafeLogItem, entry: WasteEntry, t: ReturnType<typeof useT>): string {
   if (entry.unitFactor !== 1) {
     return formatUnitMultiple(entry.unitFactor, item.defaultUnit.name, document.documentElement.lang || undefined)
@@ -192,6 +201,11 @@ export function CafeWastePage() {
     affiliated: auth.viewer.affiliated,
     accessRoles: auth.viewer.accessRoles,
   })
+  const locationChoices = useCafeLocationChoices(canCapture ? stream : null)
+  const storageLocations = locationChoices.locations.filter(location => location.use === 'storage' || location.use === 'both')
+  const defaultStorageLocationId = locationChoices.status === 'ready'
+    ? availableCafeLocationDefault(locationChoices.locations, locationChoices.defaults?.storage_location_id, 'storage')
+    : null
   const personId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
   const orgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : ''
   const { resolve, adopt, setStream } = cafeStream
@@ -348,6 +362,8 @@ export function CafeWastePage() {
           logId: serverDraft?.logId,
           capturedUnitName: serverDraft?.entryUnitName ?? saved.capturedUnitName ?? initial.capturedUnitName,
           capturedLogDate: serverDraft?.logDate ?? saved.capturedLogDate,
+          storage_location_id: typeof saved.storage_location_id === 'string' || saved.storage_location_id === null
+            ? saved.storage_location_id : undefined,
           photoReady: Boolean(serverDraft?.photos.length),
           photoWindowExpired: Boolean(serverDraft && serverDraft.photos.length === 0 && isWastePhotoWindowExpired(serverDraft.createdAt)),
           preparing: false,
@@ -437,6 +453,7 @@ export function CafeWastePage() {
         logId: entry.logId,
         capturedUnitName: entry.capturedUnitName,
         capturedLogDate: entry.capturedLogDate,
+        storage_location_id: entry.storage_location_id,
       } satisfies StoredWasteEntry]]
     }))
     if (Object.keys(unsent).length === 0) {
@@ -576,6 +593,9 @@ export function CafeWastePage() {
         qty_porsi: toDefaultUnitQuantity(quantity, entry.unitFactor ?? 1),
         entry_quantity: quantity,
         entry_unit_factor: entry.unitFactor ?? 1,
+        ...(locationChoices.status === 'ready' ? {
+          from_storage_location_id: entry.storage_location_id === undefined ? defaultStorageLocationId : entry.storage_location_id,
+        } : {}),
       })
       patchEntry(item.id, { logId, capturedLogDate: logDate, preparing: false })
     } catch (cause) {
@@ -803,7 +823,21 @@ export function CafeWastePage() {
       {renderQuantityError(item)}
       <WasteRowNotes {...wasteRowProps(item)} />
       {/* Which storage the waste came out of is decided on its own line, once the line has an amount (preview only). */}
-      {canCapture && Boolean(entries[item.id]?.quantity?.trim()) && <LocationLineField kind="waste" />}
+      {canCapture && Boolean(entries[item.id]?.quantity?.trim()) && <LocationLineField
+        kind="waste"
+        locations={storageLocations}
+        value={entries[item.id]?.storage_location_id === undefined ? defaultStorageLocationId : entries[item.id]?.storage_location_id}
+        onChange={value => {
+          const entry = entries[item.id]
+          patchEntry(item.id, {
+            storage_location_id: value,
+            ...(entry?.client_attempted && !entry.logId ? { client_request_id: crypto.randomUUID(), client_attempted: false } : {}),
+          })
+        }}
+        loadState={locationChoices.status === 'idle' ? 'loading' : locationChoices.status}
+        onRetry={locationChoices.retry}
+        disabled={submitting || Boolean(entries[item.id]?.logId)}
+      />}
     </>
   )
 
@@ -1191,7 +1225,7 @@ function WasteQuantityControl(props: WasteRowViewProps & {
               onChange={event => onUnitChange(event.target.value)}
             >
               {historicalUnit && <option value={current.unitId}>{entry?.capturedUnitName}</option>}
-              <option value={item.defaultUnit.id}>{displayUnit(selectedUnit, t)} · {t('cafe.items.defaultTag')}</option>
+              <option value={item.defaultUnit.id}>{defaultUnitOptionLabel(selectedUnit, t)}</option>
               {item.multiples.map(factor => (
                 <option key={`multiple:${factor}`} value={`multiple:${String(factor)}`}>
                   {formatUnitMultiple(factor, item.defaultUnit.name, document.documentElement.lang || undefined)}

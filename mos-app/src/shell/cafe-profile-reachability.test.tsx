@@ -18,6 +18,7 @@ import { flattenRoutes, isRedirect, redirectProps, leafInThisTable } from '@/tes
 import { messages } from '@/i18n/messages'
 
 vi.mock('@/auth/use-auth')
+vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ status: 'ready', isOn: () => true, retry: vi.fn() }) }))
 vi.mock('./use-is-narrow')
 vi.mock('./use-nav', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./use-nav')>()),

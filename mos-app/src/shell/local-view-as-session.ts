@@ -9,7 +9,7 @@ const PEOPLE_KEY = 'mos.local-view-as.people'
 
 type ViewAsPerson = { id: string; full_name: string; email: string; primaryRole: string | null; accessRole: string | null }
 type OriginalAccount = { email: string; full_name: string }
-type Viewer = { person: { id: string; full_name: string } } | null
+type Viewer = { person: { id: string; full_name: string }; accessRoles: string[] } | null
 type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string
 
 function readSessionValue(key: string): string | null {
@@ -64,6 +64,7 @@ export function useLocalViewAs(open: boolean, viewer: Viewer, password: string |
   const [peopleStatus, setPeopleStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
   const [switching, setSwitching] = useState(false)
   const [switchError, setSwitchError] = useState(false)
+  const canLoadPeople = viewer?.accessRoles.includes('admin') ?? false
 
   useEffect(() => {
     if (!open || !password) return
@@ -71,6 +72,13 @@ export function useLocalViewAs(open: boolean, viewer: Viewer, password: string |
     const cached = readCachedPeople()
     if (cached) {
       setPeople(cached)
+      setPeopleStatus('loaded')
+      return
+    }
+    // Keep an already-cached local session usable, but do not call the admin-only list RPC
+    // for a viewer without the admin access role. The empty state stays neutral in the menu.
+    if (!canLoadPeople) {
+      setPeople([])
       setPeopleStatus('loaded')
       return
     }
@@ -88,7 +96,7 @@ export function useLocalViewAs(open: boolean, viewer: Viewer, password: string |
       if (active) setPeopleStatus('error')
     })
     return () => { active = false }
-  }, [open, password])
+  }, [open, password, canLoadPeople])
 
   const originalAccount = readOriginalAccount()
   const roleLabel = (person: ViewAsPerson) => person.primaryRole

@@ -1,7 +1,7 @@
 // Café Records model: normalises the four sources (logs, Counts, receipt lines, request lines) into one
 // entry shape and derives the three readings from it. Pure: no IO, no React. Every rule here is a
 // "truthful quantity" rule from the spec — units never convert, unlike units never add, a missing
-// Count is not zero, a rejected quantity never joins an accepted total, names never become ids.
+// Count is not zero, a rejected quantity never joins an accepted total, and names never substitute for ids.
 import type { ProductionActivity } from '@/lib/db/kitchen-logs.types'
 import type { CafeRecordCount, CafeRecordLog } from '@/lib/db/cafe-records'
 import type { CafeReceipt, CafeReceiptLine } from '@/lib/db/cafe-receipts'
@@ -128,9 +128,7 @@ function fromCount(count: CafeRecordCount, ctx: BuildContext): RecordEntry {
     streamKey, branchId: count.branch_id, activity: count.activity, destinationBranchId: null,
     status: count.status === 'Confirmed' ? 'confirmed' : count.status === 'Rejected' ? 'rejected' : 'pending',
     rawStatus: count.status, date: count.count_date, at: count.submitted_at,
-    // No submitter column is evidenced for Counts: Who stays unavailable, never guessed from the reviewer.
-    // HANDOVER: R/handover/records-gaps.md §5. Count submitter identity (stored submitted_by, null for legacy rows).
-    personId: null, qty: parseDecimal(count.counted_quantity),
+    personId: count.submitted_by, qty: parseDecimal(count.counted_quantity),
     unit: unitId
       ? { key: unitId, name: count.unit_name?.trim() || ctx.unitName(unitId), unsummable: false }
       : { key: `unknown:${count.id}`, name: count.unit_name?.trim() || null, unsummable: !count.unit_name },
@@ -162,19 +160,22 @@ function fromReceiptLine(receipt: CafeReceipt, line: CafeReceiptLine, ctx: Build
 }
 
 function fromRequestLine(request: CafePurchaseRequest, line: CafePurchaseRequestLine, ctx: BuildContext): RecordEntry {
-  // HANDOVER: R/handover/records-gaps.md §4. Request → PO fulfilment — request lines carry names only, no PO link or fulfilled quantity.
   const streamKey = streamKeyOf(request.branch_id, request.activity)
+  const itemId = line.wip_item_id ?? null
+  const unitId = line.item_unit_id ?? null
   const name = line.item_name ?? ''
-  const unit = line.unit_name?.trim() || null
+  const unit = line.unit_name?.trim() || (unitId ? ctx.unitName(unitId) : null)
   return {
     key: `request:${line.id}`, source: 'request', parentId: request.id, movement: 'requested',
-    // Names are exact-name groups. They are never joined to item ids, even when a name matches one.
-    itemKey: `request-name:${name}`, itemName: name,
+    // Link only with the identity stored on the request line; a matching name is not an item id.
+    itemKey: itemId ?? `request-name:${name}`, itemName: itemId ? ctx.itemName(itemId, streamKey) ?? name : name,
     streamKey, branchId: request.branch_id, activity: request.activity, destinationBranchId: null,
     status: request.status === 'Approved' ? 'approved' : request.status === 'Rejected' ? 'rejected' : 'pending',
     rawStatus: request.status, date: ctx.wibDateOf(request.requested_at), at: request.requested_at,
     personId: request.requested_by, qty: parseDecimal(line.quantity),
-    unit: unit ? { key: `name:${unit}`, name: unit, unsummable: false } : { key: `unknown:${line.id}`, name: null, unsummable: true },
+    unit: unitId
+      ? { key: unitId, name: unit, unsummable: false }
+      : unit ? { key: `name:${unit}`, name: unit, unsummable: false } : { key: `unknown:${line.id}`, name: null, unsummable: true },
     entered: null, raw: { source: 'request', request, line },
   }
 }
@@ -279,6 +280,12 @@ function compareObservation(a: RecordEntry, b: RecordEntry): number {
 
 const byText = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })
 
+/** Unlike units never compare: unit groups stay in a fixed (A–Z) order and the quantity sort works inside each. */
+function byUnitThenQty(a: Pick<RecordEntry, 'unit' | 'qty'>, b: Pick<RecordEntry, 'unit' | 'qty'>, sign: number): number {
+  const unit = byText(a.unit.name ?? '￿', b.unit.name ?? '￿') || a.unit.key.localeCompare(b.unit.key)
+  return unit !== 0 ? unit : sign * compareDec(a.qty ?? ZERO, b.qty ?? ZERO)
+}
+
 export interface SortContext { streamLabel: (key: string) => string; destinationLabel: (streamKey: string, branchId: string | null) => string }
 
 export function sortSummaryRows(rows: readonly SummaryRow[], sort: SortKey, dir: SortDir, ctx: SortContext): SummaryRow[] {
@@ -288,12 +295,7 @@ export function sortSummaryRows(rows: readonly SummaryRow[], sort: SortKey, dir:
     switch (sort) {
       case 'stream': return sign * byText(ctx.streamLabel(a.streamKey), ctx.streamLabel(b.streamKey)) || tie(a, b)
       case 'destination': return sign * byText(ctx.destinationLabel(a.streamKey, a.destinationBranchId), ctx.destinationLabel(b.streamKey, b.destinationBranchId)) || tie(a, b)
-      case 'quantity': {
-        // Unlike units never compare: unit groups stay in a fixed (A–Z) order and the sort works inside each.
-        const unit = byText(a.unit.name ?? '￿', b.unit.name ?? '￿') || a.unit.key.localeCompare(b.unit.key)
-        if (unit !== 0) return unit
-        return sign * compareDec(a.qty ?? ZERO, b.qty ?? ZERO) || tie(a, b)
-      }
+      case 'quantity': return byUnitThenQty(a, b, sign) || tie(a, b)
       case 'entries': return sign * (a.entries - b.entries) || tie(a, b)
       default: return sign * byText(a.itemName, b.itemName) || a.id.localeCompare(b.id)
     }
@@ -306,11 +308,7 @@ export function sortEntries(entries: readonly RecordEntry[], sort: SortKey, dir:
   return [...entries].sort((a, b) => {
     switch (sort) {
       case 'item': return sign * byText(a.itemName, b.itemName) || dateDesc(a, b)
-      case 'quantity': {
-        const unit = byText(a.unit.name ?? '￿', b.unit.name ?? '￿') || a.unit.key.localeCompare(b.unit.key)
-        if (unit !== 0) return unit
-        return sign * compareDec(a.qty ?? ZERO, b.qty ?? ZERO) || dateDesc(a, b)
-      }
+      case 'quantity': return byUnitThenQty(a, b, sign) || dateDesc(a, b)
       default: return sign * (a.date.localeCompare(b.date) || a.at.localeCompare(b.at)) || a.key.localeCompare(b.key)
     }
   })

@@ -6,6 +6,11 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
+const locationMocks = vi.hoisted(() => ({ choices: vi.fn() }))
+vi.mock('@/lib/use-cafe-location-choices', async importActual => {
+  const actual = await importActual<typeof import('@/lib/use-cafe-location-choices')>()
+  return { ...actual, useCafeLocationChoices: locationMocks.choices }
+})
 const cafeStreamMock = vi.hoisted(() => ({ produces: true }))
 vi.mock('@/lib/use-cafe-stream', () => {
   const branch = { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' }
@@ -175,6 +180,7 @@ beforeEach(() => {
   setPhoneMatchMedia()
   mockUseAuth.mockReturnValue(VIEWER)
   mockListCafeItemSettings.mockResolvedValue(ITEM_SETTINGS)
+  locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], defaults: null, retry: vi.fn() })
   mockResolveKitchenBuId.mockResolvedValue('bu-kitchen')
   let draft = 0
   mockInsertKitchenLog.mockImplementation(async () => `waste-${++draft}`)
@@ -733,6 +739,35 @@ describe('CafeWastePage', () => {
     expect(addPhoto).toBeEnabled()
     expect(addPhoto).toHaveAttribute('aria-describedby', 'cafe-waste-photo-guidance')
     expect(document.getElementById('cafe-waste-photo-guidance')).toHaveTextContent(help)
+  })
+
+  it('sends the selected per-line storage location when it creates a waste Draft', async () => {
+    locationMocks.choices.mockReturnValue({
+      status: 'ready',
+      locations: [{ id: 'chiller-1', name: 'Chiller', use: 'storage', parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null }],
+      defaults: null,
+      retry: vi.fn(),
+    })
+    renderPage()
+    fireEvent.change(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'Storage location' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Chiller' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)
+    await waitFor(() => expect(mockInsertKitchenLog).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'waste', from_storage_location_id: 'chiller-1',
+    })))
+  })
+
+  it.each(['cup', 'cup · Default'])('names the default marker once on the unit chip for a unit called %s', async (unitName) => {
+    mockListCafeItemSettings.mockResolvedValue([{
+      ...ITEM_SETTINGS[0]!,
+      units: [{ ...ITEM_SETTINGS[0]!.units[0]!, name: unitName }],
+      unitMultiples: [3],
+    }])
+    renderPage()
+
+    const chip = await screen.findByRole('combobox', { name: 'Waste unit for Oat Latte' })
+    expect(chip.textContent?.match(/Default/g)).toHaveLength(1)
   })
 
   it('keeps 2 unchanged through a 3× unit round trip with no quantity error', async () => {

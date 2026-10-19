@@ -6,6 +6,8 @@ import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
 vi.mock('@/lib/supabase', () => ({ supabase: { schema: vi.fn() } }))
+const locationMocks = vi.hoisted(() => ({ choices: vi.fn() }))
+vi.mock('@/lib/use-cafe-location-choices', () => ({ useCafeLocationChoices: locationMocks.choices }))
 vi.mock('@/lib/db/cafe-item-settings', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/db/cafe-item-settings')>()
   return { ...actual, listCafeItemSettings: vi.fn(), canManageCafeItemSettings: vi.fn() }
@@ -81,6 +83,7 @@ beforeEach(() => {
   countMocks.key = 0
   mockUseAuth.mockReturnValue(VIEWER)
   mockListItems.mockResolvedValue(ITEMS)
+  locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], defaults: null, retry: vi.fn() })
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
 })
 
@@ -159,6 +162,25 @@ describe('CafeCountPage', () => {
     expect(entry).not.toContain('variance')
     expect(entry).not.toContain('stock')
     expect(entry).not.toContain('plan')
+  })
+
+  it('submits the selected storage location for the counted line', async () => {
+    locationMocks.choices.mockReturnValue({
+      status: 'ready',
+      locations: [{ id: 'chiller-1', name: 'Chiller', use: 'storage', parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null }],
+      defaults: null,
+      retry: vi.fn(),
+    })
+    mockSubmit.mockResolvedValue([{ client_key: 'client-1', outcome: 'submitted', line_id: 'line-1' }])
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Raw flour, counted, kg' }), { target: { value: '2' } })
+    fireEvent.click(screen.getAllByRole('combobox', { name: 'Storage location' })[0]!)
+    fireEvent.click(screen.getByRole('option', { name: 'Chiller' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit stock count' }))
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
+    expect(mockSubmit.mock.calls[0][1]).toContainEqual(expect.objectContaining({
+      item_id: 'raw-1', quantity: '2', storage_location_id: 'chiller-1',
+    }))
   })
 
   it('AC-011 an invalid row does not block another valid Count from submitting', async () => {

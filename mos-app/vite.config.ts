@@ -110,16 +110,11 @@ function serviceWorkerBuildId(): Plugin {
   }
 }
 
-function previewBuildIdentity(): Plugin {
-  let identity: ReturnType<typeof createBuildIdentity> | undefined
+function previewBuildIdentity(identity: ReturnType<typeof createBuildIdentity>): Plugin {
   return {
     name: 'preview-build-identity',
     apply: 'build',
-    buildStart() {
-      identity = createBuildIdentity(resolveReleaseSha(), new Date())
-    },
     closeBundle() {
-      if (!identity) throw new Error('build identity was not created')
       writeFileSync(resolve(__dir, 'dist/mos-build-identity.json'), JSON.stringify(identity))
     },
   }
@@ -130,11 +125,17 @@ export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, __dir, ''), ...process.env }
   const { basePath } = resolveBuildSettings(env)
   const releaseSha = resolveReleaseSha()
+  const releaseVersion = (JSON.parse(readFileSync(resolve(__dir, 'package.json'), 'utf8')) as { version: string }).version
+  const buildIdentity = createBuildIdentity(releaseVersion, releaseSha, new Date())
   return {
   // node_modules is shared (symlinked) across worktrees; a per-checkout dep cache keeps parallel dev
   // servers from overwriting each other's pre-bundles (duplicate React → "reading 'useState'" crashes).
   cacheDir: resolve(__dir, '.vite-cache'),
-  define: { 'import.meta.env.VITE_RELEASE_SHA': JSON.stringify(releaseSha) },
+  define: {
+    'import.meta.env.VITE_RELEASE_VERSION': JSON.stringify(releaseVersion),
+    'import.meta.env.VITE_RELEASE_SHA': JSON.stringify(releaseSha),
+    'import.meta.env.VITE_RELEASE_BUILT_AT': JSON.stringify(buildIdentity.builtAt),
+  },
   base: basePath,
   plugins: [
     redirectToBase(basePath),
@@ -143,7 +144,7 @@ export default defineConfig(({ mode }) => {
     localViewAsBuildGuard(),
     buildSettingsArtifactsPlugin(basePath),
     serviceWorkerBuildId(),
-    previewBuildIdentity(),
+    previewBuildIdentity(buildIdentity),
     react(),
     tailwindcss(),
   ],
@@ -163,6 +164,9 @@ export default defineConfig(({ mode }) => {
           // The write-up editor's stack loads only with the Write-up tab: its own chunk keeps it out of
           // every eager vendor chunk.
           if (/@blocknote|@ariakit|@tiptap|prosemirror|emoji-mart|linkifyjs|orderedmap|rope-sequence|w3c-keyname|crelt/.test(id)) return 'vendor-editor'
+          // Chart dependencies are reached through Money's lazy route; shared React and
+          // use-sync-external-store keep their existing chunks.
+          if (/node_modules\/(?:recharts|victory-vendor|d3(?:-[^/]+)?|@reduxjs\/toolkit|redux(?:-thunk)?|react-redux|reselect|immer|clsx|decimal\.js-light|es-toolkit|eventemitter3|tiny-invariant|internmap|@standard-schema\/(?:spec|utils))\//.test(id)) return 'vendor-charts'
           // Anchored to the package directory: a substring match also catches @floating-ui/react-dom,
           // whose @floating-ui/dom dependency sits in `vendor`, making vendor and vendor-react import each other.
           if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'vendor-react'
@@ -206,6 +210,9 @@ export default defineConfig(({ mode }) => {
     env: {
       VITE_SUPABASE_URL: 'http://127.0.0.1:44321',
       VITE_SUPABASE_ANON_KEY: 'test-anon-key',
+      VITE_RELEASE_VERSION: '0.11.0',
+      VITE_RELEASE_SHA: 'abcdef0123456789abcdef0123456789abcdef01',
+      VITE_RELEASE_BUILT_AT: '2026-10-19T12:00:00.000Z',
     },
     // Match jsdom's origin path to Vite's BASE_URL so browser-path helpers use the same build setting.
     environmentOptions: {
@@ -235,7 +242,7 @@ export default defineConfig(({ mode }) => {
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html'],
+      reporter: ['text', 'html', 'json'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         '**/*.test.{ts,tsx}',

@@ -3,7 +3,7 @@ import {
   Suspense,
   type ReactNode,
 } from 'react'
-import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet, type RouteObject } from 'react-router-dom'
 import {
   SHOW_USER_VIEWS,
   SHOW_FOLLOWUPS,
@@ -16,6 +16,7 @@ import { RedirectIfAuthed } from './auth/redirect-if-authed'
 import { REVENUE_VIEW_ROLES } from './lib/capabilities'
 import { isShipGatedInProfile } from './lib/ship-gate'
 import { AppShell } from './shell/app-shell'
+import { ModuleBoundary } from './shell/module-boundary'
 import { MatchedRouteContextRow } from './shell/matched-route-context-row'
 import { CafeOccurrenceTaskRoute, CafeProfileFallbackRoute } from './shell/cafe-profile-route-guards'
 import { RouteRedirect } from './shell/route-redirect'
@@ -211,7 +212,7 @@ const routeTable: RouteObject[] = [
         // errorElement, and its PARENT (AppShell) still renders — rail + header + context row stay
         // mounted. The outer boundary at ProtectedRoute stays for render exceptions above the
         // shell. See lib/network-error.ts.
-        children: withShellErrorBoundary([
+        children: withModuleBoundaries(withShellErrorBoundary([
           // Home (#191, PORT-023 — the one entry this PR changes). HomePage is now v4's ported
           // design: the region/attention model (needs-you, failed checks, my work today) in
           // whichever of Focused/Overview/List the viewer has chosen.
@@ -570,7 +571,7 @@ const routeTable: RouteObject[] = [
                 element: withSuspense(<AdminAccessPage />),
                 handle: pageHandle('management'),
               },
-              // Preview ship state: the transform below swaps this for a forward unless the dev launch opted in.
+              // Organization module switches are live here; person overrides remain preview-only.
               {
                 path: ROUTE_PATHS.adminModules,
                 element: withSuspense(<AdminModulesPage />),
@@ -608,7 +609,7 @@ const routeTable: RouteObject[] = [
           // Not-found sits INSIDE the AppShell layout route (AC-021), so a mistyped path keeps
           // the rail and the header and the viewer can navigate out of it.
           { path: '*', element: withSuspense(<NotFoundPage />), handle: infrastructureHandle('not-found') },
-        ]),
+        ])),
       },
     ],
   },
@@ -627,6 +628,38 @@ function withShellErrorBoundary(routes: RouteObject[]): RouteObject[] {
       errorElement: route.errorElement ?? <RouteErrorBoundary />,
     }),
   )
+}
+
+function pathsInRoute(route: RouteObject, parent = ''): string[] {
+  const path = route.path === undefined ? parent : joinRoutePath(parent, route.path)
+  return [
+    ...(route.index ? [parent || '/'] : route.path ? [path] : []),
+    ...(route.children ?? []).flatMap((child) => pathsInRoute(child, path)),
+  ]
+}
+
+function withModuleBoundaries(routes: RouteObject[]): RouteObject[] {
+  const moduleRoots = [
+    { moduleId: 'work', root: '/work' },
+    { moduleId: 'money', root: '/money' },
+    { moduleId: 'cafe', root: '/cafe' },
+    { moduleId: 'roastery', root: '/roastery' },
+    { moduleId: 'ecommerce', root: '/ecommerce' },
+  ] as const
+  let remaining = routes
+  const layouts: RouteObject[] = []
+  for (const { moduleId, root } of moduleRoots) {
+    const matching = remaining.filter((route) => pathsInRoute(route).some((path) => path === root || path.startsWith(`${root}/`)))
+    if (!matching.length) continue
+    remaining = remaining.filter((route) => !matching.includes(route))
+    layouts.push({
+      element: <ModuleBoundary moduleId={moduleId}><Outlet /></ModuleBoundary>,
+      errorElement: <RouteErrorBoundary />,
+      handle: infrastructureHandle('layout'),
+      children: matching,
+    })
+  }
+  return [...remaining, ...layouts]
 }
 
 // ── The ship gate, applied (#444) ────────────────────────────────────────────────────────────

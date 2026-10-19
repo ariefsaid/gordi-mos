@@ -40,7 +40,7 @@
   display: block;
   padding: var(--mos-row-pad-y) var(--mos-row-pad-x);
   border-radius: var(--radius-sm);
-  color: var(--primary);
+  color: var(--text-on-accent-tint);
   text-decoration: none;
   font-size: var(--mos-size-3);
 }

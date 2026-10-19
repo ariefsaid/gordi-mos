@@ -1,19 +1,17 @@
-// The source strip above the table: what each side of the comparison is and how complete it is.
-// ESB side: as-of, last successful sync, coverage (all "Not connected" until the read model exists, or the sample's made-up values).
-// Count side: how many listed items have a Count, and how far back the Counts were read. Refresh reloads the reads; it is not a sync trigger.
+// The source strip: EOD freshness, source coverage and Count coverage for the authorized scope.
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useT } from '@/i18n/use-t'
-import { formatDayMonthYear } from '@/lib/format/date'
 import type { Locale } from '@/i18n/messages'
 import type { CoverageCounts } from '@/lib/cafe-stock-comparison'
-import type { SampleSource } from '@/lib/cafe-stock-comparison-sample'
+import type { SourceState } from '@/lib/db/cafe-stock-comparison'
+import { formatDayMonthYear } from '@/lib/format/date'
 import { wibInstant } from './comparison-labels'
 
 export interface ComparisonSourceProps {
   locale: Locale
+  source: SourceState | null
   coverage: CoverageCounts
-  sample: SampleSource | null
   /** The Counts read reached the first Count ever recorded. */
   countsComplete: boolean
   /** The oldest Count date read (null before any). */
@@ -28,20 +26,22 @@ export interface ComparisonSourceProps {
   loading: boolean
 }
 
-export function ComparisonSource({ locale, coverage, sample, countsComplete, countsOldest, readingOlder, onReadOlder, onRefresh, refreshDisabled, refreshReason, canOpenCount, loading }: ComparisonSourceProps) {
+export function ComparisonSource({ locale, source, coverage, countsComplete, countsOldest, readingOlder, onReadOlder, onRefresh, refreshDisabled, refreshReason, canOpenCount, loading }: ComparisonSourceProps) {
   const t = useT()
   const notConnected = t('cafe.cmp.source.notConnected')
+  const esbAsOf = source?.connection === 'connected' && source.as_of ? wibInstant(source.as_of, locale) : notConnected
+  const lastSync = source?.connection === 'connected' && source.synced_at ? wibInstant(source.synced_at, locale) : '–'
+  const esbCoverage = source?.connection !== 'connected' ? notConnected
+    : source.complete ? t('cafe.cmp.source.complete') : t('cafe.cmp.source.incomplete')
   return (
     <section className="scmp-source" aria-label={t('cafe.cmp.source.label')}>
       <dl className="scmp-source__list">
-        <div><dt>{t('cafe.cmp.source.esbAsOf')}</dt><dd>{sample ? wibInstant(sample.asOf, locale) : notConnected}</dd></div>
-        <div><dt>{t('cafe.cmp.source.lastSync')}</dt><dd>{sample ? wibInstant(sample.syncedAt, locale) : '–'}</dd></div>
-        <div><dt>{t('cafe.cmp.source.coverage')}</dt><dd>{sample ? t('cafe.cmp.source.sampleCoverage', { partial: sample.partialItems, unmapped: sample.unmappedItems }) : notConnected}</dd></div>
+        <div><dt>{t('cafe.cmp.source.esbAsOf')}</dt><dd>{esbAsOf}</dd></div>
+        <div><dt>{t('cafe.cmp.source.lastSync')}</dt><dd>{lastSync}</dd></div>
+        <div><dt>{t('cafe.cmp.source.coverage')}</dt><dd>{esbCoverage}</dd></div>
         <div>
           <dt>{t('cafe.cmp.source.counts')}</dt>
-          <dd>
-            {loading ? '…' : t('cafe.cmp.source.counted', { counted: coverage.counted, total: coverage.total })}
-          </dd>
+          <dd>{loading ? '…' : t('cafe.cmp.source.counted', { counted: coverage.counted, total: coverage.total })}</dd>
         </div>
       </dl>
       <div className="scmp-source__actions">
@@ -49,7 +49,7 @@ export function ComparisonSource({ locale, coverage, sample, countsComplete, cou
         <Button variant="ghost" onClick={onRefresh} disabled={refreshDisabled} aria-describedby={refreshReason ? 'scmp-refresh-reason' : undefined}>{t('records.refresh')}</Button>
         {refreshReason && <span id="scmp-refresh-reason" className="scmp-source__reason">{refreshReason}</span>}
       </div>
-      {!sample && !loading && !countsComplete && countsOldest && (
+      {!loading && !countsComplete && countsOldest && (
         <p className="scmp-source__older">
           <span>{t('cafe.cmp.source.readBack', { date: formatDayMonthYear(countsOldest, locale) })}</span>
           <Button variant="outline" onClick={onReadOlder} disabled={readingOlder || refreshDisabled}>{readingOlder ? t('cafe.cmp.source.readingOlder') : t('cafe.cmp.source.readOlder')}</Button>

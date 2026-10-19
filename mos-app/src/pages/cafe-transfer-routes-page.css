@@ -1,4 +1,4 @@
-/* Transfer routes (preview): scope, toolbar, list, built-in movements, record panel. Tokens only. */
+/* Transfer routes: scope, toolbar, list, built-in movements, record panel. Tokens only. */
 .cafe-routes { display: grid; gap: var(--mos-field-gap); min-width: 0; align-content: start; }
 .cafe-routes__scope { max-width: 24rem; }
 .cafe-routes__toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--mos-inline-gap) var(--mos-field-gap); }
@@ -60,6 +60,6 @@
   .cafe-routes__panel { padding: 0; background: transparent; border: 0; }
   .cafe-routes__scope { max-width: none; }
   .cafe-routes__toolbar .search-field { max-width: none; flex-basis: 100%; }
-  .cafe-routes__preview { width: 100%; }
+  .cafe-routes__add { width: 100%; }
   .cafe-routes__count { margin-inline-start: 0; }
 }

@@ -3,7 +3,7 @@
    Specificity note: the record field primitive ships its own label/value-row rules in
    record-viewer.css; every override here is scoped under `.rp` so it wins without !important. */
 
-.rp { display: flex; flex-direction: column; min-width: 0; padding: var(--mos-gutter); color: var(--foreground); }
+.rp { container: rp-layout / inline-size; display: flex; flex-direction: column; min-width: 0; padding: var(--mos-gutter); color: var(--foreground); }
 .rp--page { box-sizing: border-box; width: 100%; padding: 0 0 48px; }
 
 /* ── Header ──────────────────────────────────────────────────────────── */
@@ -29,7 +29,7 @@
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
 }
 .rp .rp-title .record-field__heading > .record-field__edit > .record-field__value { display: -webkit-box; font: inherit; }
-.rp--panel { container: rp-panel / inline-size; }
+.rp--panel { container-name: rp-panel rp-layout; }
 /* A panel narrower than ~600px cannot hold the title beside Mark complete + menu without wrapping
    the title, so the title takes the full row and the actions sit under the facts. */
 @container rp-panel (max-width: 599.98px) {
@@ -146,6 +146,16 @@
   .rp--page .rp-body:has(> .rp-aside) { grid-template-columns: minmax(0, 1fr) 300px; }
 }
 .rp-main { min-width: 0; }
+
+/* Task companion and discussion remain mounted in one document tree; available record width
+   controls only whether context sits beside the work or stacks before comments. */
+.rp-companion { min-width: 0; padding-top: 0; }
+.rp-discussion { min-width: 0; }
+@container rp-layout (min-width: 960px) {
+  .rp-body:has(> .rp-companion) { grid-template-columns: minmax(0, 1fr) 248px; }
+  .rp-body:has(> .rp-companion) > .rp-companion { grid-column: 2; grid-row: 1 / span 2; }
+  .rp-body:has(> .rp-companion) > .rp-discussion { grid-column: 1; grid-row: 2; }
+}
 
 /* Get started: one tinted region, not a card. */
 .rp-setup { margin-top: var(--mos-gutter); padding: var(--mos-panel-pad); border-radius: var(--radius-lg); background: var(--secondary); }

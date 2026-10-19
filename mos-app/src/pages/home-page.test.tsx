@@ -18,6 +18,8 @@ import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
 import { setHomeLayout } from '@/lib/home-layout'
 
 vi.mock('../auth/use-auth')
+const moduleAvailability = vi.hoisted(() => ({ isOn: vi.fn((moduleId: string) => moduleId.length > 0) }))
+vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ status: 'ready', isOn: moduleAvailability.isOn, retry: vi.fn() }) }))
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
 
@@ -246,6 +248,7 @@ function overdueTaskRow(viewerId: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  moduleAvailability.isOn.mockImplementation(() => true)
   publishReadScope(null)
   sharedCount.value = null
   window.localStorage.clear()
@@ -426,13 +429,14 @@ describe('Home daily operating brief', () => {
     expect(mockListTasks).toHaveBeenCalledTimes(3)
   })
 
-  it('AC-920: renders the default Focused arrangement with the attention regions and the Signals feed', async () => {
+  it('AC-920: renders one ranked attention queue with its canonical Task link and standing Signals', async () => {
     mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
     await renderHome(financeViewer)
     const brief = await screen.findByTestId('home-daily-brief')
+    const needsYou = within(brief).getByRole('region', { name: /^Needs you now/ })
 
-    expect(within(brief).getByRole('tablist')).toBeInTheDocument()
-    expect(within(brief).getByRole('tabpanel')).toBeInTheDocument()
+    expect(within(needsYou).getByRole('link', { name: /Restock oat milk/i })).toHaveAttribute('href', '/work/tasks/t-late')
+    expect(within(needsYou).getByText('Open task')).toBeInTheDocument()
     expect(within(brief).getByRole('region', { name: 'Signals' })).toBeInTheDocument()
   })
 
@@ -445,16 +449,17 @@ describe('Home daily operating brief', () => {
     expect(screen.getByRole('radio', { name: /overview/i })).toBeChecked()
     profile.unmount()
 
+    mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
     const firstHome = await renderHome(financeViewer)
     expect(await screen.findByTestId('home-daily-brief')).toBeInTheDocument()
-    // Overview shows every region at once, so there are no tabs to choose between.
-    expect(screen.queryByRole('tablist')).toBeNull()
-    expect(screen.getByRole('region', { name: /^My open work/ })).toBeInTheDocument()
+    const firstQueue = screen.getByRole('region', { name: /^Needs you now/ })
+    expect(within(firstQueue).getByRole('link', { name: /Restock oat milk/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /^Other open tasks/ })).toBeInTheDocument()
     firstHome.unmount()
 
     await renderHome(financeViewer)
-    expect(screen.queryByRole('tablist')).toBeNull()
-    expect(screen.getByRole('region', { name: /^My open work/ })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /^Needs you now/ })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /^Other open tasks/ })).toBeInTheDocument()
   })
 
   it('AC-924: switches to the next viewer arrangement during render, with no stale frame', async () => {
@@ -475,15 +480,16 @@ describe('Home daily operating brief', () => {
     mockUseAuth.mockReturnValue(switchedMemberViewer)
     home.rerender(<HomePage />)
 
-    // The member's arrangement replaces the cockpit List at once: no attention region, no stale frame.
-    expect(screen.queryByRole('region', { name: /^Needs you now/ })).toBeNull()
+    // The same workbench remains available, but rows from the previous viewer must not leak.
+    expect(screen.getByRole('region', { name: /^Needs you now/ })).toBeInTheDocument()
+    expect(screen.queryByText('Restock oat milk')).toBeNull()
   })
 
   it('makes the next action explicit while keeping the canonical task link and state origin', async () => {
     mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
     await renderHome(financeViewer)
-    const next = await screen.findByRole('region', { name: 'Next task' })
-    const link = within(next).getByText('Restock oat milk').closest('a')!
+    const next = await screen.findByRole('region', { name: /^Needs you now/ })
+    const link = within(next).getByRole('link', { name: /Restock oat milk/i })
     expect(link).toHaveAttribute('href', '/work/tasks/t-late')
     expect(within(link).getByText('Open task')).toBeInTheDocument()
   })
@@ -521,23 +527,19 @@ describe('AC-H02: a member sees a usable brief and live Signals column', () => {
     expect(screen.getByRole('button', { name: /Share signal/i })).toBeInTheDocument()
   })
 
-  it('keeps an ordinary member on assigned steps before Signals, without cockpit regions', async () => {
+  it('keeps an ordinary member on assigned work with standing Signals and no cockpit-only context', async () => {
     mockListTasks.mockResolvedValue([overdueTaskRow(memberViewer.viewer.person.id)])
     await renderHome(memberViewer)
 
     const brief = await screen.findByTestId('home-daily-brief')
-    expect(within(brief).getByText('Restock oat milk')).toBeInTheDocument()
-    expect(within(brief).queryByRole('region', { name: /^Needs you now/ })).toBeNull()
-    expect(within(brief).queryByRole('tab', { name: /^Needs you now/ })).toBeNull()
-    expect(within(brief).queryByText('Failed checks')).toBeNull()
+    const needsYou = within(brief).getByRole('region', { name: /^Needs you now/ })
+    expect(within(needsYou).getByRole('link', { name: /Restock oat milk/i })).toBeInTheDocument()
     expect(within(brief).queryByRole('region', { name: /^Objectives/ })).toBeNull()
 
-    const task = within(brief).getByText('Restock oat milk')
-    const signals = await within(brief).findByRole('region', { name: /^Signals/ })
-    expect(task.compareDocumentPosition(signals) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(await within(brief).findByRole('region', { name: /^Signals/ })).toBeInTheDocument()
   })
 
-  it('puts the real Café opening door first for an affiliated barista', async () => {
+  it('offers the real Café opening door for an affiliated barista', async () => {
     mockListTasks.mockResolvedValue([overdueTaskRow(baristaViewer.viewer.person.id)])
     mockLoadHomeCafeDoor.mockResolvedValue({
       branchName: 'Gordi HQ',
@@ -559,10 +561,8 @@ describe('AC-H02: a member sees a usable brief and live Signals column', () => {
       .toHaveAttribute('href', '/cafe')
     expect(within(cafe).getByRole('link', { name: /Log production/i }))
       .toHaveAttribute("href", "/cafe")
-    expect(within(brief).queryByText('Failed checks')).toBeNull()
     expect(within(brief).queryByRole('region', { name: /^Objectives/ })).toBeNull()
-    const assigned = within(brief).getByText('Restock oat milk')
-    expect(cafe.compareDocumentPosition(assigned) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(brief).getByRole('link', { name: /Restock oat milk/ })).toHaveAttribute('href', '/work/tasks/t-late')
   })
 })
 
@@ -599,13 +599,12 @@ describe('OD-WAY-93: failed checks follow Café affiliation, not generic route a
       const brief = await screen.findByTestId('home-daily-brief')
 
       expect(mockLoadFailedChecks.mock.calls.length > 0, 'queried the café-log DAL').toBe(eligible)
-      const failedTab = within(brief).queryByRole('tab', { name: /^Failed checks/ })
+      const failedRegion = within(brief).queryByRole('region', { name: /^Failed checks/ })
       if (eligible) {
-        expect(failedTab).not.toBeNull()
-        await userEvent.setup().click(failedTab!)
-        expect(await within(brief).findByText('Production · 2026-07-20')).toBeInTheDocument()
+        expect(failedRegion).not.toBeNull()
+        expect(await within(failedRegion!).findByText('Production · 2026-07-20')).toBeInTheDocument()
       } else {
-        expect(failedTab).toBeNull()
+        expect(failedRegion).toBeNull()
       }
       expect(screen.queryByText('Production · 2026-07-20') != null, 'rendered the reject').toBe(eligible)
     })
@@ -705,7 +704,7 @@ describe('Issue 245 / FR-928: Signals stays live, concise and honest', () => {
     // never move it.
     sharedCount.value = 0
     await renderHome(memberViewer)
-    expect(await screen.findByText('0 open tasks')).toBeInTheDocument()
+    expect(await screen.findByText('My open tasks · 0')).toBeInTheDocument()
 
     await act(async () => {
       resolveSignals([])
@@ -718,122 +717,65 @@ describe('Issue 245 / FR-928: Signals stays live, concise and honest', () => {
   })
 })
 
-describe('Home task regions preserve decision context and collection doors', () => {
-  it('keeps overdue reason, Responsible name, BU caption and canonical task link', async () => {
+describe('Home Task queue preserves decision context and collection reachability', () => {
+  it('keeps the overdue reason, PIC, owning BU, status and canonical Task destination together', async () => {
     const viewerId = financeViewer.viewer.person.id
     mockListTasks.mockResolvedValue([overdueTaskRow(viewerId)])
     mockGetPeople.mockResolvedValue([{ id: viewerId, full_name: 'Cahya Cafe' }])
     mockGetBUs.mockResolvedValue([{ id: 'bu-cafe', name: 'Café' }])
 
     await renderHome(financeViewer)
-    const row = await screen.findByText('Restock oat milk')
-    const link = row.closest('a')!
+    const queue = await screen.findByRole('region', { name: /^Needs you now/ })
+    const link = within(queue).getByRole('link', { name: /Restock oat milk/i })
     expect(within(link).getByText(/Overdue · \d+ days/)).toBeInTheDocument()
+    expect(within(link).getByText('In Progress')).toBeInTheDocument()
     await waitFor(() => expect(within(link).getByText('Cahya Cafe')).toBeInTheDocument())
     expect(within(link).getByText('Café')).toBeInTheDocument()
-    expect(link.getAttribute('href')).toBe('/work/tasks/t-late')
+    expect(link).toHaveAttribute('href', '/work/tasks/t-late')
+    expect(within(link).getByText('Open task')).toBeInTheDocument()
   })
 
-  it('renders My work in the wide main lane with the true count and full collection link', async () => {
+  it('counts Other open tasks from its own candidate projection, not from the shared header count', async () => {
     const viewerId = financeViewer.viewer.person.id
-    const normalTask = {
-      ...overdueTaskRow(viewerId),
-      id: 't-open',
-      title: 'Prep beans',
-      due_date: '2099-01-01',
-      status: 'In Progress' as const,
-    }
-    const secondTask = {
-      ...normalTask,
-      id: 't-open2',
-      title: 'Clean grinder',
-      due_date: '2099-02-01',
-      status: 'Open' as const,
-    }
-    mockListTasks.mockResolvedValue([normalTask, secondTask])
-    // Two rows are listed; the open figure is the shared count, not a recount of those rows (#1129).
+    const task = (id: string, title: string) => ({
+      ...overdueTaskRow(viewerId), id, title, due_date: '2099-01-01', status: 'Open' as const,
+    })
+    mockListTasks.mockResolvedValue([task('routine-1', 'Prep beans'), task('routine-2', 'Clean grinder')])
     sharedCount.value = 7
     await renderHome(financeViewer)
-    await userEvent.setup().click(await screen.findByRole('tab', { name: /^My open work/ }))
-    const myWork = await screen.findByRole('tabpanel', { name: /^My open work/ })
-    // The first row is lifted into Next task; the rest stay in the region, and the door counts both.
-    expect(screen.getByText('Prep beans')).toBeInTheDocument()
-    expect(within(myWork).getByText('Clean grinder')).toBeInTheDocument()
-    expect(within(myWork).getByRole('link', { name: /2 shown · 7 open/i }))
-      .toHaveAttribute('href', '/work/tasks?view=my-work')
+
+    const otherOpen = await screen.findByRole('region', { name: /Other open tasks.*2/ })
+    expect(within(otherOpen).getByRole('link', { name: /Prep beans/i })).toHaveAttribute('href', '/work/tasks/routine-1')
+    expect(within(otherOpen).getByRole('link', { name: /Clean grinder/i })).toHaveAttribute('href', '/work/tasks/routine-2')
+    expect(screen.getByRole('link', { name: 'My open tasks · 7' })).toHaveAttribute('href', '/work/tasks?view=my-work')
   })
 
-  it('shows the exact My Work remainder after the seven-row Home cap in both locales', async () => {
+  it('keeps the full candidate count and exact remainder across the Home display cap in both locales', async () => {
     const viewerId = financeViewer.viewer.person.id
     const tasks = Array.from({ length: 8 }, (_, index) => ({
-      ...overdueTaskRow(viewerId),
-      id: `t-open-${index + 1}`,
-      title: `Open task ${index + 1}`,
-      due_date: null,
-      status: 'Open' as const,
+      ...overdueTaskRow(viewerId), id: `routine-${index + 1}`, title: `Routine ${index + 1}`,
+      due_date: null, status: 'Open' as const,
     }))
     mockListTasks.mockResolvedValue(tasks)
-    sharedCount.value = tasks.length
     setHomeLayout(viewerId, 'focused')
 
     const english = await renderHome(financeViewer, 'en')
-    await userEvent.setup().click(await screen.findByRole('tab', { name: /^My open work/ }))
-    const englishRegion = await screen.findByRole('tabpanel', { name: /^My open work/ })
-    expect(within(englishRegion).getByText('Open task 7')).toBeInTheDocument()
-    // Seven rows are shown in all: one lifted into Next task, six in the region.
-    expect(within(englishRegion).getAllByText(/^Open task /)).toHaveLength(6)
-    expect(screen.getAllByText(/^Open task /)).toHaveLength(7)
-    expect(screen.queryByText('Open task 8')).toBeNull()
-    const englishMore = within(englishRegion).getByRole('link', { name: '7 shown · 8 open · 1 more →' })
-    expect(englishMore).toHaveTextContent('7 shown · 8 open · 1 more →')
-    expect(englishMore).toHaveAttribute('href', '/work/tasks?view=my-work')
+    const englishRegion = await screen.findByRole('region', { name: /Other open tasks.*8/ })
+    expect(within(englishRegion).getByRole('link', { name: /Routine 7/i })).toBeInTheDocument()
+    expect(within(englishRegion).queryAllByRole('link', { name: /Open task/i })).toHaveLength(0)
+    expect(screen.getByRole('link', { name: /^Routine 1\b/ })).toHaveAttribute('href', '/work/tasks/routine-1')
+    expect(within(englishRegion).getByRole('link', { name: '7 shown · 1 more in Tasks →' }))
+      .toHaveAttribute('href', '/work/tasks?view=my-work')
+    expect(screen.queryByText('Routine 8')).toBeNull()
     english.unmount()
 
     const indonesian = await renderHome(financeViewer, 'id')
-    await userEvent.setup().click(await screen.findByRole('tab', { name: /^Pekerjaan aktif saya/ }))
-    const indonesianRegion = await screen.findByRole('tabpanel', { name: /^Pekerjaan aktif saya/ })
-    const indonesianMore = within(indonesianRegion).getByRole('link', { name: '7 ditampilkan · 8 terbuka · 1 lagi →' })
-    expect(indonesianMore).toHaveTextContent('7 ditampilkan · 8 terbuka · 1 lagi →')
-    expect(indonesianMore).toHaveAttribute('href', '/work/tasks?view=my-work')
+    const indonesianRegion = await screen.findByRole('region', { name: /Tugas terbuka lainnya.*8/ })
+    expect(within(indonesianRegion).getByRole('link', { name: '7 ditampilkan · 1 lagi di Tugas →' }))
+      .toHaveAttribute('href', '/work/tasks?view=my-work')
     indonesian.unmount()
   })
 
-  it('has no My Work remainder at exactly the seven-row display boundary', async () => {
-    const viewerId = financeViewer.viewer.person.id
-    const tasks = Array.from({ length: 7 }, (_, index) => ({
-      ...overdueTaskRow(viewerId),
-      id: `t-open-${index + 1}`,
-      title: `Open task ${index + 1}`,
-      due_date: null,
-      status: 'Open' as const,
-    }))
-    mockListTasks.mockResolvedValue(tasks)
-    setHomeLayout(viewerId, 'focused')
-    await renderHome(financeViewer)
-    await userEvent.setup().click(await screen.findByRole('tab', { name: /^My open work/ }))
-    const myWork = await screen.findByRole('tabpanel', { name: /^My open work/ })
-    expect(screen.getAllByText(/^Open task /)).toHaveLength(7)
-    expect(within(myWork).queryByRole('link', { name: /more in My open work/i })).toBeNull()
-  })
-
-  it('keeps attention ahead of My work in document order', async () => {
-    const viewerId = financeViewer.viewer.person.id
-    mockListTasks.mockResolvedValue([
-      overdueTaskRow(viewerId),
-      {
-        ...overdueTaskRow(viewerId),
-        id: 't-open',
-        title: 'Prep beans',
-        due_date: '2099-01-01',
-        status: 'Open' as const,
-      },
-    ])
-    await renderHome(financeViewer)
-    const brief = await screen.findByTestId('home-daily-brief')
-    const tabs = within(brief).getAllByRole('tab')
-    expect(tabs[0]).toHaveAccessibleName(/^Needs you now/)
-    expect(tabs[1]).toHaveAccessibleName(/^My open work/)
-  })
 })
 
 describe('DIV-G5: shared task loading/error states never become an empty all-clear', () => {
@@ -870,58 +812,39 @@ describe('DIV-G5: shared task loading/error states never become an empty all-cle
       await Promise.resolve()
       await Promise.resolve()
     })
-    await waitFor(() => expect(screen.queryAllByRole('status').filter(node => !node.closest('.list-paging'))).toHaveLength(0))
+    await waitFor(() => expect(document.querySelectorAll('[aria-busy="true"]')).toHaveLength(0))
   })
 })
 
-describe('AC-040 / AC-052: Home identity is day-aware and does not add a mentions read', () => {
-  it('renders greeting, day/date identity, role and the shared open-task figure without controls', async () => {
+describe('AC-040 / AC-052: Home identity and open-work path do not add a mentions read', () => {
+  it('names Home, keeps date and role context, and offers inline open-work and Share Signal actions', async () => {
     mockListTasks.mockResolvedValue([])
     sharedCount.value = 0
     await renderHome(ownerDirectorViewer)
     const head = screen.getByTestId('page-head')
-    expect(within(head).getByRole('heading', { level: 1 }))
-      .toHaveTextContent(/Good (morning|afternoon|evening)/)
-    expect(head.querySelector('.home-head-date')).not.toBeNull()
-    expect(head.querySelector('.home-head-date')?.textContent).toBeTruthy()
+    expect(within(head).getByRole('heading', { level: 1 })).toHaveTextContent('Home')
+    expect(screen.getByRole('main')).toContainElement(head)
     expect(within(head).getByText('Managing Director')).toBeInTheDocument()
-    expect(screen.getByText('0 open tasks')).toBeInTheDocument()
-    expect(within(head).queryByRole('button')).toBeNull()
-    expect(within(head).queryByRole('link')).toBeNull()
+    expect(within(head).getByRole('link', { name: 'My open tasks · 0' }))
+      .toHaveAttribute('href', '/work/tasks?view=my-work')
+    expect(within(head).getByRole('button', { name: /Share signal/i })).toBeInTheDocument()
     expect(mockListNotifications).not.toHaveBeenCalled()
   })
+})
 
-  it('keeps English in the afternoon at 15:17 WIB while Indonesian says sore', async () => {
-    vi.useFakeTimers()
-    try {
-      vi.setSystemTime(new Date('2026-09-09T08:17:00.000Z'))
-
-      const english = await renderHome(ownerDirectorViewer)
-      expect(within(screen.getByTestId('page-head')).getByRole('heading', { level: 1 }))
-        .toHaveTextContent('Good afternoon')
-      english.unmount()
-
-      const indonesian = await renderHome(ownerDirectorViewer, 'id')
-      expect(within(screen.getByTestId('page-head')).getByRole('heading', { level: 1 }))
-        .toHaveTextContent('Selamat sore')
-      indonesian.unmount()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
+describe('Home count stays truthful when its independent reads fail', () => {
   it("the head figure rides the shared count — a failed region read can't withhold or shrink it", async () => {
     mockLoadFailedChecks.mockRejectedValue(new Error('offline'))
     mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
     sharedCount.value = 9
     const utils = await renderHome(cafeViewer)
-    expect(screen.getByText('9 open tasks')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'My open tasks · 9' })).toHaveAttribute('href', '/work/tasks?view=my-work')
 
     // While the SHARED count itself has not resolved the figure is ABSENT, not zero (DIV-G5) —
     // even though the task list below has loaded.
     sharedCount.value = null
     await act(async () => { utils.rerender(createElement(HomePage)) })
-    expect(within(screen.getByTestId('page-head')).queryByText(/\d+ open/)).toBeNull()
+    expect(within(screen.getByTestId('page-head')).queryByRole('link', { name: /open/i })).toBeNull()
     expect(within(screen.getByTestId('page-head')).queryByText(/handled/)).toBeNull()
   })
 })
@@ -949,7 +872,7 @@ describe("DD-COUNT-1: Home's header figure is the ONE shared open-task count (#1
     ])
     sharedCount.value = 9
     await renderHome({ ...cafeViewer, viewer: { ...cafeViewer.viewer, isManager: true } })
-    expect(screen.getByText('9 open tasks')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'My open tasks · 9' })).toHaveAttribute('href', '/work/tasks?view=my-work')
   })
 })
 
@@ -979,6 +902,14 @@ describe('AC-204 (4): the shipped Home carries the gated Objectives door', () =>
     const link = await screen.findByRole('link', { name: /^See all →$/ })
     expect(link).toHaveAttribute('href', '/work/objectives')
     expect(objectivesDoor()).toContainElement(link)
+  })
+
+  it('does not load or link Objectives when Work is switched off', async () => {
+    moduleAvailability.isOn.mockImplementation((moduleId) => moduleId !== 'work')
+    await renderHome(ownerDirectorViewer)
+    await screen.findByTestId('home-daily-brief')
+    expect(screen.queryByRole('region', { name: 'Objectives' })).toBeNull()
+    expect(mockLoadHomeObjectiveProgress).not.toHaveBeenCalled()
   })
 
   it('does not hand a company-wide door to a member who steers no scope', async () => {

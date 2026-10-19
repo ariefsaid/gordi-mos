@@ -26,6 +26,7 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'cafe.cmp.panel.scope', // ${stream} · ${unit} — pure interpolation
   'cafe.cmp.panel.worked', // ${count} − ${expected} = ${difference} ${unit} — pure interpolation
   'common.docTitle', // ${page} — Gordi MOS
+  'releaseStamp.web', // web — the build-surface label reads the same in both languages
   'admin.modules.scope.org', // Org — the tenant term is the same in both languages (module-switches spec)
   'cafe.routes.col.status', // Status
   'cafe.recipes.type.menu', // Menu — the same word in Indonesian, and ESB's own term

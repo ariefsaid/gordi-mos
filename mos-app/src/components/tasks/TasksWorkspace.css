@@ -489,28 +489,20 @@
 .mgc-group > [role='listitem'] + [role='listitem'] {
   border-top: 1px solid var(--row-divider);
 }
-.task-card-link { display: block; padding: var(--mos-row-pad-y) 0; text-decoration: none; color: inherit; min-height: var(--mos-row-min); }
-.task-card-link:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); } /* item #6: normalized to +2 (card has gap room) */
-/* The status pill holds the trailing edge; the title owns the rest of the row and wraps
-   inside its own column. As wrap-siblings the pill flowed after the last word, so it sat
-   beside a short title and dropped onto a line of its own after a long one — the same card
-   anatomy read as two different layouts down a single list. */
-.task-card-head { display: flex; align-items: flex-start; gap: var(--mos-inline-gap); margin-bottom: var(--mos-stack-gap); }
-.task-card-head > .task-name,
-.task-card-head > .task-title-input { flex: 1 1 auto; min-width: 0; }
-/* Wrapping inside its own column, not ellipsised. Giving the title a bounded column made the
-   collection's one-line ellipsis bite, which trades a wrapped title for a clipped one — the
-   identity is the thing a reader is scanning for and it stays whole. */
-.task-card-head > .task-name {
+.task-card-link { display: grid; gap: var(--mos-stack-gap); padding: var(--mos-row-pad-y) 0; text-decoration: none; color: inherit; min-height: var(--mos-row-min); }
+.task-card-link:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+/* Phone scan order: status/due first, full task title second, explicitly named RACI last. */
+.task-card-state-line { display: flex; align-items: center; flex-wrap: wrap; gap: var(--mos-label-gap) var(--mos-row-gap); min-width: 0; }
+.task-card-state-line > .task-card-due { margin: 0 0 0 auto; }
+.task-card-link > .task-name {
+  min-width: 0;
   white-space: normal;
   overflow-wrap: anywhere;
   overflow: visible;
   text-overflow: clip;
 }
-.task-card-head > .status-pill { flex: none; }
-/* Phone card: title + status, one muted meta line, then the due line (red when overdue). */
-.task-card-meta-line { margin: var(--mos-stack-gap) 0 0; font-size: var(--mos-size-3); color: var(--muted-foreground); overflow-wrap: anywhere; }
-.task-card-due { margin: var(--mos-stack-gap) 0 0; font-size: var(--mos-size-3); }
+.task-card-meta-line { display: flex; flex-wrap: wrap; gap: 0 0.25em; margin: 0; font-size: var(--mos-size-3); color: var(--muted-foreground); overflow-wrap: anywhere; }
+.task-card-due { font-size: var(--mos-size-2); }
 /* The draft card renders the shared TaskCreateForm (task-create-form.css `.tcf-*`), not a
    dl-based create-fields/derived-bu/actions/PIC-lock layout of its own. */
 
@@ -744,21 +736,66 @@ tr.grp td { padding: 0; }
   .task-card-meta-pair--supervisor .owner > .ownav {
     display: none;
   }
+
+  /* Intrinsic widths let the controls stack before a localized label gets squeezed. */
+  .tasks-decision-toolbar .collection-toolbar__bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--mos-inline-gap);
+    align-items: end;
+  }
+  .tasks-decision-toolbar .collection-toolbar__bar > .search-field {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    flex: none;
+  }
+  .tasks-decision-toolbar .collection-toolbar__view {
+    min-width: min(100%, 10em);
+    width: auto;
+    flex: 1 1 10em;
+  }
+  .tasks-decision-toolbar .collection-toolbar__door {
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 max-content;
+    align-self: end;
+    height: auto;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .tasks-decision-toolbar .collection-toolbar__door-chevron { flex: none; }
+  .tasks-decision-toolbar .collection-toolbar__panel-actions {
+    flex: 1 1 100%;
+  }
 }
 
-/* A status pill is never cut: the trigger that wraps it does not ellipsize — the fixed
-   .th-status/.td-status floor above already fits the longest label at every width. */
-.tasks-table td.td-status .inline-cell-trigger { overflow: visible; text-overflow: clip; }
+/* Long localized statuses stay intact: narrow table cells grow the row instead of clipping a badge. */
+.tasks-table td.td-status .inline-cell-trigger {
+  height: auto;
+  min-height: var(--mos-control-height);
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+.tasks-table td.td-status .status-pill { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 
 /* Editable cells: the trigger's own 4px inset is outdented so cell text and badges sit on the header's left edge. */
 .tasks-table td .inline-cell-trigger { margin-inline-start: -4px; width: calc(100% + 4px); max-width: none; min-height: var(--mos-row-content); }
 
-/* Quick filters ("9 overdue", "2 blocked") start on the toolbar's left edge; their 8px hover inset is outdented. */
-.tasks-attention-actions { margin-inline-start: -8px; }
+.tasks-decision-toolbar .collection-toolbar__count { white-space: normal; }
+.tasks-count-line { display: inline-flex; flex-wrap: wrap; gap: var(--mos-label-gap) var(--mos-inline-gap); }
+.tasks-count-line strong { color: var(--mos-ink); font-weight: var(--mos-weight-semibold); }
 
-/* The status track is sized to the longest word in either language, so a badge stays on one line. Only
-   the narrow track beside an open record lets it wrap inside the badge, as the badge spec allows. */
-.tasks-table td.td-status .status-pill { max-width: 100%; white-space: nowrap; }
-@container work-list (max-width: 809.98px) {
-  .split:not(.nodrawer) .tasks-table td.td-status .status-pill { white-space: normal; }
+
+/* The status trigger can wrap its badge in a narrow split column without adding page overflow. */
+
+@media (max-width: 767.98px) {
+  .tasks-decision-toolbar { --mos-toolbar-gap: 8px; }
+  .tasks-decision-toolbar .collection-toolbar__bar > .search-field { flex: 1 1 100%; }
+  .tasks-decision-toolbar .collection-toolbar__line { gap: var(--mos-inline-gap); }
+  .tasks-decision-toolbar .collection-toolbar__count { font-size: var(--mos-size-2); }
+  .task-card-state-line { gap: var(--mos-label-gap) var(--mos-inline-gap); }
+  .task-card-link { gap: var(--mos-label-gap); }
 }

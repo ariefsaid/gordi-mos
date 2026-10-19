@@ -45,7 +45,7 @@ function renderToolbar(props: TasksToolbarProps = makeProps(), locale: 'en' | 'i
 // The desktop long tail lives behind the surface's own door. "Reachable" is the contract these
 // tests assert, so they open it the way a reader would rather than reaching past it.
 function openFilters() {
-  const trigger = screen.queryByRole('button', { name: /^filters & options|^filter & opsi/i })
+  const trigger = screen.queryByRole('button', { name: /^filters & (sort|options)|^filter & (urutan|opsi)/i })
   if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
   return trigger
 }
@@ -107,20 +107,23 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
     expect(props.savedViews!.onApply).toHaveBeenCalledWith('view-1')
   })
 
-  // The desktop long tail sits behind one door; search, the view list, Sort and Group stay in the
-  // bar. Every control stays reachable.
-  it('puts the desktop long tail behind one door and keeps search, view, sort and group exposed', () => {
-    renderToolbar(makeProps({ savedViews: savedViewItems() }))
+  it('lets desktop users search, change views and sorting, and reach the rest through Filters & options', () => {
+    const props = makeProps({ savedViews: savedViewItems() })
+    renderToolbar(props)
 
-    expect(screen.getByTestId('record-collection-toolbar')).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Task views' })).toBeInTheDocument()
-    expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /^sort$/i })).toHaveTextContent('Due soonest')
-    expect(screen.getByRole('combobox', { name: /^group$/i })).toHaveTextContent('None')
-    // The rest is reachable through the door, never dropped.
-    expect(screen.queryByRole('combobox', { name: /business unit/i })).toBeNull()
-    openFilters()
-    expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('searchbox', { name: /search tasks/i }), { target: { value: 'beans' } })
+    expect(props.onQueryChange).toHaveBeenCalledWith({ q: 'beans' })
+    fireEvent.click(screen.getByRole('combobox', { name: 'Task views' }))
+    fireEvent.click(screen.getByRole('option', { name: 'My work' }))
+    expect(props.onViewChange).toHaveBeenCalledWith('my-work')
+    fireEvent.click(screen.getByRole('combobox', { name: /^sort$/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'Due latest' }))
+    expect(props.onQueryChange).toHaveBeenLastCalledWith({ sort: 'due', direction: 'descending' })
+    fireEvent.click(screen.getByRole('combobox', { name: /^group$/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'Status' }))
+    expect(props.onQueryChange).toHaveBeenLastCalledWith({ groupBy: 'status' })
+
+    expect(openFilters()).toHaveTextContent(/^Filters & options$/)
     expect(screen.getByRole('combobox', { name: /business unit/i })).toHaveTextContent('All units')
     expect(screen.getByRole('combobox', { name: /^status$/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /^person$/i })).toBeInTheDocument()
@@ -129,14 +132,32 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
     expect(screen.getByRole('button', { name: /^save view$/i })).toBeInTheDocument()
   })
 
-  it('on a phone only Sort stays in the bar; Group and the field list move behind the door', () => {
+  it('keeps phone search and views immediate, with sort and group changes in the door in EN and ID', () => {
     matchMedia(false)
-    renderToolbar(makeProps())
-    expect(screen.getByRole('combobox', { name: /^sort$/i })).toBeInTheDocument()
-    expect(screen.queryByRole('combobox', { name: /^group$/i })).toBeNull()
-    openFilters()
-    expect(screen.getByRole('combobox', { name: /^group$/i })).toBeInTheDocument()
-    expect(screen.queryByRole('group', { name: /^fields$/i })).toBeNull()
+    const locales = [
+      { locale: 'en' as const, viewLabel: 'Task views', viewOption: 'My work', sortLabel: 'Sort', sortOption: 'Due latest', groupLabel: 'Group', groupOption: 'Status', door: /^filters & sort/i, sortSummary: 'Sort: Due soonest' },
+      { locale: 'id' as const, viewLabel: 'Tampilan tugas', viewOption: 'Pekerjaan saya', sortLabel: 'Urutkan', sortOption: 'Jatuh tempo terjauh', groupLabel: 'Kelompok', groupOption: 'Status', door: /^filter & urutan/i, sortSummary: 'Urutkan: Jatuh tempo terdekat' },
+    ]
+
+    for (const locale of locales) {
+      const props = makeProps({ resultSummary: '10 tasks' })
+      const view = renderToolbar(props, locale.locale)
+      expect(screen.getByRole('status')).toHaveTextContent(`10 tasks · ${locale.sortSummary}`)
+      fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'beans' } })
+      expect(props.onQueryChange).toHaveBeenCalledWith({ q: 'beans' })
+      fireEvent.click(screen.getByRole('combobox', { name: locale.viewLabel }))
+      fireEvent.click(screen.getByRole('option', { name: locale.viewOption }))
+      expect(props.onViewChange).toHaveBeenCalledWith('my-work')
+
+      fireEvent.click(screen.getByRole('button', { name: locale.door }))
+      fireEvent.click(screen.getByRole('combobox', { name: locale.sortLabel }))
+      fireEvent.click(screen.getByRole('option', { name: locale.sortOption }))
+      expect(props.onQueryChange).toHaveBeenLastCalledWith({ sort: 'due', direction: 'descending' })
+      fireEvent.click(screen.getByRole('combobox', { name: locale.groupLabel }))
+      fireEvent.click(screen.getByRole('option', { name: locale.groupOption }))
+      expect(props.onQueryChange).toHaveBeenLastCalledWith({ groupBy: 'status' })
+      view.unmount()
+    }
   })
 
   it('shows an attention shortcut per exception and applies it', () => {
@@ -207,7 +228,7 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
 
   // #1030: an opened control that shows only its value ("Anyone", "All units", "Due soonest") is
   // unlabeled for a sighted reader; every dropdown in the door names what it filters or orders.
-  it('names every control in the Filters & options door, in both locales', () => {
+  it('names every control in the Filters & sort door, in both locales', () => {
     const expected = {
       en: { businessUnit: 'Business Unit', person: 'Person', sort: 'Sort', status: 'Status', group: 'Group' },
       id: { businessUnit: 'Unit Bisnis', person: 'Orang', sort: 'Urutkan', status: 'Status', group: 'Kelompok' },

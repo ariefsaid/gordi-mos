@@ -1,4 +1,4 @@
-/* Location fields embedded in released pages (preview only). Tokens only. */
+/* Optional physical-location selectors embedded in Café capture surfaces. Tokens only. */
 .loc-fields { display: grid; gap: var(--mos-field-gap); min-width: 0; }
 details.loc-fields { gap: 0; }
 details.loc-fields > summary {
@@ -13,7 +13,8 @@ details.loc-fields > summary::after {
 details.loc-fields[open] > summary::after { transform: rotate(180deg); }
 details.loc-fields > summary:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
 .loc-fields__note { max-width: 60ch; margin: 0; color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
-.loc-fields__link { display: inline-flex; align-items: center; min-height: var(--mos-control-height); color: var(--mos-accent); font: var(--mos-type-control); }
+.loc-fields__link, .loc-fields__retry { display: inline-flex; align-items: center; min-height: var(--mos-control-height); color: var(--mos-accent); font: var(--mos-type-control); }
+.loc-fields__retry { padding: 0; border: 0; background: transparent; cursor: pointer; text-decoration: underline; }
 .loc-fields--inline { max-width: 14rem; }
 /* In the summary panel beside Submit: stacked fields, a rule above to separate the decision from the lines. */
 .loc-fields--panel { grid-template-columns: repeat(auto-fit, minmax(14rem, 20rem)); padding-top: var(--mos-field-gap); border-top: 1px solid var(--mos-line); }
