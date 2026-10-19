@@ -3,17 +3,26 @@ import { render, screen } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { HomeHeadCounts } from './home-day-header'
 
-const draw = (tally: { left: number; done?: number } | null) => render(
-  <I18nProvider><HomeHeadCounts tally={tally} /></I18nProvider>,
+const draw = (tally: { left: number; done?: number } | null, locale: 'en' | 'id' = 'en') => render(
+  <I18nProvider initialLocale={locale}><HomeHeadCounts tally={tally} /></I18nProvider>,
 )
 
 // AC-042 — the tally's two grammars, and the absent one. The wrap/one-line half of the day
 // header lives at the page + CSS layers (home-page.test.tsx, guard-home-day-header.css.test.ts).
-describe('AC-042 — HomeHeadCounts: N handled only with a real source; otherwise N left', () => {
-  it('no handled source → the tally is `N left` alone', () => {
-    draw({ left: 11 })
-    expect(screen.getByText('11 open tasks')).toBeInTheDocument()
+describe('AC-042 — HomeHeadCounts: handled stays separate; open work names its personal scope', () => {
+  it('no handled source → personal open-task copy is truthful in EN and ID, including zero', () => {
+    const en = draw({ left: 11 })
+    expect(screen.getByText('My open tasks · 11')).toBeInTheDocument()
     expect(screen.queryByText(/handled/)).toBeNull()
+    en.unmount()
+
+    const id = draw({ left: 11 }, 'id')
+    expect(screen.getByText('Tugas terbuka saya · 11')).toBeInTheDocument()
+    id.unmount()
+
+    const zero = draw({ left: 0 })
+    expect(screen.getByText('My open tasks · 0')).toBeInTheDocument()
+    zero.unmount()
   })
 
   it('a handled source supplied → `N handled · N left`', () => {

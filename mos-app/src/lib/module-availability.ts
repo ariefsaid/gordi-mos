@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { getViewerModuleAvailability, type ModuleId } from '@/lib/db/module-settings'
+import { defaultModuleEnabled } from '@/lib/module-defaults'
 
 type ModuleAvailabilityStatus = 'idle' | 'loading' | 'ready' | 'error'
 type ModuleAvailabilitySnapshot = {
@@ -97,7 +98,7 @@ export function loadModuleAvailability({ force = false }: LoadOptions = {}): Pro
 
 function availabilityIsOn(status: ModuleAvailabilityStatus, enabled: Partial<Record<ModuleId, boolean>>, moduleId: ModuleId): boolean {
   if (!isModuleId(moduleId)) return true
-  if (status === 'ready') return enabled[moduleId] ?? true
+  if (status === 'ready') return enabled[moduleId] ?? defaultModuleEnabled(moduleId)
   if (status === 'error') return enabled[moduleId] ?? false
   return false
 }

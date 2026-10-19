@@ -113,7 +113,18 @@
 
 /* ── Phone ── */
 @media (max-width: 767.98px) {
-  .rec-scope__row { grid-template-columns: minmax(0, 1fr); }
+  .rec-scope__row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rec-scope__question { grid-column: 1 / -1; }
+  .rec-scope__period { grid-column: 1; }
+  .rec-scope__stream { grid-column: 2; }
+  .rec-scope__period .mk-select__field > span:first-child,
+  .rec-scope__stream .mk-select__field > span:first-child {
+    display: block;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+  }
   .rec-range { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rec-range__apply { grid-column: 1 / -1; width: 100%; }
   .rec-range-line { flex-wrap: nowrap; align-items: flex-start; }

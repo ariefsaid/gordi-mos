@@ -7,8 +7,8 @@
  * Responsibilities of this wrapper:
  *   1. CORS for the configured app origins (_shared/cors.ts).
  *   2. requireVerifiedClaims (_shared/claims.ts): Bearer token, agent tokens refused, JWT verified
- *      by the service-role client (D3 — service_role ONLY for auth.getUser(jwt), never business
- *      data), then org_id + person_id read from it (D1 — no profiles lookup); 401 otherwise.
+ *      by the service-role client, then org_id + person_id read from it (D1 — no profiles lookup);
+ *      401 otherwise. Service role also reads Assistant availability for the verified org.
  *   3. Read AGENT_MODEL_API_KEY / AGENT_MODEL_BASE_URL / AGENT_MODEL_DEFAULT (or
  *      AGENT_MODEL_COMPOSE) from Deno.env (function secrets). Unset/empty model id →
  *      fail loud with 502 MODEL_NOT_CONFIGURED (D4 — no hardcoded default).
@@ -27,6 +27,7 @@ import { ChatCompletionsClient } from '../_shared/chatCompletionsClient.ts'
 import { resolveComposeModel } from '../_shared/modelResolution.ts'
 import { logStructuredError } from '../_shared/errorLog.ts'
 import { requireVerifiedClaims } from '../_shared/claims.ts'
+import { assistantRefusalResponse, checkAssistantAvailability } from '../_shared/assistantAvailability.ts'
 import { appOrigins, corsHeaders as corsHeadersFor } from '../_shared/cors.ts'
 import type { ComposeViewRequest } from './types.ts'
 
@@ -51,6 +52,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     )
   }
   const { userId, orgId, personId } = verdict.claims
+  const serviceRoleClient = createClient(supabaseUrl, serviceRoleKey)
+  const assistantAvailability = await checkAssistantAvailability(serviceRoleClient, orgId, 'compose-view')
+  const assistantRefusal = assistantRefusalResponse(assistantAvailability, corsHeaders)
+  if (assistantRefusal) return assistantRefusal
 
   // ── 3. Read the model config from function secrets (D4) ────────────────────
   const apiKey = Deno.env.get('AGENT_MODEL_API_KEY')

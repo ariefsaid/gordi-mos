@@ -9,6 +9,7 @@ import { clearRecordsLookupCache } from '@/lib/cafe-records/use-records-lookups'
 import type { CafeRecordCount, CafeRecordLog } from '@/lib/db/cafe-records'
 import type { CafePurchaseRequest } from '@/lib/db/cafe-purchase-requests'
 import { formatDayMonthYear, wibToday } from '@/lib/format/date'
+import { resolvePreset } from '@/lib/cafe-records/period'
 
 const B1 = '2d63ab19-142c-5ecb-9f88-6b512eebe581'
 const auth = vi.hoisted(() => ({ viewer: 'p1' }))
@@ -71,6 +72,16 @@ function renderPage(search = '', seen: string[] = []) {
   return render(<MemoryRouter initialEntries={[`/cafe/records${search}`]}><Spy seen={seen} /><CafeRecordsPage /></MemoryRouter>)
 }
 
+const defaultMatchMedia = window.matchMedia
+
+function usePhoneViewport() {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: (media: string) => ({ matches: false, media, onchange: null, addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false }),
+  })
+}
+
 beforeEach(() => {
   clearRecordsCache(); clearRecordsLookupCache()
   reads.logs.mockImplementation(page([log()]))
@@ -78,7 +89,7 @@ beforeEach(() => {
   reads.receipts.mockImplementation(page([]))
   reads.requests.mockImplementation(page([]))
 })
-afterEach(() => { cleanup(); vi.clearAllMocks(); auth.viewer = 'p1' })
+afterEach(() => { cleanup(); vi.clearAllMocks(); window.matchMedia = defaultMatchMedia; auth.viewer = 'p1' })
 
 describe('which sources a view must read', () => {
   it('reads only what the question needs, and everything while an item history is open', () => {
@@ -178,6 +189,52 @@ describe('Café Records page', () => {
     renderPage('?question=made&reading=summary')
     expect(await screen.findByText('No production, transfer and waste records in this period')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Change period' })).toBeInTheDocument()
+  })
+
+  it('lets a phone reader change period and stream from the empty state and shows the effective dates', async () => {
+    usePhoneViewport()
+    reads.logs.mockImplementation(page([]))
+    const seen: string[] = []
+    renderPage('?question=made&reading=summary', seen)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Change period' }))
+
+    const period = screen.getByRole('combobox', { name: 'Period' })
+    expect(period).toHaveFocus()
+    await user.click(period)
+    await user.click(await screen.findByRole('option', { name: 'Last month' }))
+    const range = resolvePreset('last-month', wibToday())
+    await waitFor(() => {
+      const params = new URLSearchParams(seen.at(-1))
+      expect(params.get('period')).toBe('last-month')
+      expect(params.get('from')).toBe(range.from)
+      expect(params.get('to')).toBe(range.to)
+    })
+    expect(screen.getByText(`${formatDayMonthYear(range.from)} to ${formatDayMonthYear(range.to)}`)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('combobox', { name: 'Production stream' }))
+    await user.click(await screen.findByRole('option', { name: 'All readable streams' }))
+    await waitFor(() => expect(new URLSearchParams(seen.at(-1)).get('stream')).toBe('all'))
+  })
+
+  it('changes Records sort from the phone Filters panel with one URL history step', async () => {
+    usePhoneViewport()
+    const seen: string[] = []
+    renderPage('?question=made&reading=entries', seen)
+    await waitFor(() => expect(within(screen.getByLabelText('Search and filter the records')).getByRole('status')).toHaveTextContent('Newest first'))
+    const user = userEvent.setup()
+    await user.click(screen.getByText('Filters'))
+    await user.click(screen.getByRole('combobox', { name: 'Sort' }))
+    await user.click(await screen.findByRole('option', { name: 'Item A to Z' }))
+    await waitFor(() => {
+      const params = new URLSearchParams(seen.at(-1))
+      expect(params.get('sort')).toBe('item')
+      expect(params.has('dir')).toBe(false)
+    })
+
+    ;(window as unknown as { __nav: (n: number) => void }).__nav(-1)
+    await waitFor(() => expect(new URLSearchParams(seen.at(-1)).has('sort')).toBe(false))
+    expect(new URLSearchParams(seen.at(-1)).get('reading')).toBe('entries')
   })
 
   it('does not carry one account\'s rows to another: switching the viewer starts from nothing', async () => {

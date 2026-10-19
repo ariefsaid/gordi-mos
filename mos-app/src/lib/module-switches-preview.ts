@@ -3,6 +3,7 @@
 // Effective availability = released AND Org on AND person not blocked AND the access level admits.
 import type { MessageKey } from '@/i18n/messages'
 import type { ModuleId, PersonModuleOverride } from '@/lib/db/module-settings'
+import { defaultModuleEnabled } from '@/lib/module-defaults'
 import { SHOW_ASSISTANT } from '@/config/features'
 import { isShipGated } from '@/lib/ship-gate'
 import { admittedModules, MODULE_REGISTRY } from '@/shell/module-registry'
@@ -62,14 +63,14 @@ export function admittedTo(moduleId: ModuleId, accessRoles: string[]): boolean {
   return admittedModules(accessRoles).some((module) => module.id === moduleId)
 }
 
-/** The isolated, in-memory preview model: proposed migration defaults (Org On, people Inherit). */
+/** The isolated, in-memory preview model: module defaults (Assistant Off, others On; people Inherit). */
 export interface PreviewModel {
   org: Record<string, boolean>
   people: Record<string, Record<string, PersonModuleOverride>>
 }
 
 export const emptyPreviewModel = (): PreviewModel => ({ org: {}, people: {} })
-export const previewOrgEnabled = (model: PreviewModel, id: ModuleId) => model.org[id] ?? true
+export const previewOrgEnabled = (model: PreviewModel, id: ModuleId) => model.org[id] ?? defaultModuleEnabled(id)
 export const previewOverride = (model: PreviewModel, personId: string, id: ModuleId): PersonModuleOverride => model.people[personId]?.[id] ?? 'inherit'
 /** How many people carry a personal Allow or Block for this module, inside the preview. */
 export const previewPeopleWithOverride = (model: PreviewModel, id: ModuleId) =>

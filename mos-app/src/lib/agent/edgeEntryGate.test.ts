@@ -133,3 +133,82 @@ describe.each(GATED)('%s entry point', (_name, load) => {
     expect((await preflight('https://evil.example')).headers.get('Access-Control-Allow-Origin')).toBeNull()
   })
 })
+
+const agentChatLoad = entries['../../../../supabase/functions/agent-chat/index.ts']!
+const composeViewLoad = entries['../../../../supabase/functions/compose-view/index.ts']!
+
+type AssistantSettingResult = { data: { enabled: boolean } | null; error: unknown | null }
+
+const ASSISTANT_GATED = [['agent-chat', agentChatLoad], ['compose-view', composeViewLoad]] as const
+
+function mockAssistantClients(setting: AssistantSettingResult, thrown?: Error) {
+  const getUser = vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null }))
+  const verifier = { auth: { getUser } }
+  const query = {
+    select: vi.fn(() => query),
+    eq: vi.fn(() => query),
+    maybeSingle: thrown ? vi.fn().mockRejectedValue(thrown) : vi.fn().mockResolvedValue(setting),
+  }
+  const serviceRole = { schema: vi.fn(() => ({ from: vi.fn(() => query) })) }
+  createClient.mockReturnValueOnce(verifier as never)
+    .mockReturnValueOnce(serviceRole as never)
+    .mockReturnValue({} as never)
+  return { getUser, query }
+}
+
+async function postAssistantEntry(serve: Serve, body = JSON.stringify({ org_id: 'spoof-org' })) {
+  const jwt = makeJwt({ org_id: 'org-1', person_id: 'person-1', access_roles: ['admin'] })
+  return serve(new Request('http://localhost/fn', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+    body,
+  }))
+}
+
+describe.each(ASSISTANT_GATED)('%s org Assistant gate', (_name, load) => {
+  beforeEach(() => { createClient.mockReset() })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it.each([
+    ['no setting row', { data: null, error: null }, undefined, 403],
+    ['explicitly off', { data: { enabled: false }, error: null }, undefined, 403],
+    ['setting read failure', { data: null, error: new Error('read failed') }, undefined, 503],
+    ['thrown setting read failure', { data: null, error: null }, new Error('read threw'), 503],
+  ] as const)('refuses %s before model configuration using verified org claims', async (_case, setting, thrown, status) => {
+    const { query } = mockAssistantClients(setting, thrown)
+    const serve = await loadServe(load)
+
+    const response = await postAssistantEntry(serve)
+    expect(response.status).toBe(status)
+    expect(await response.json()).toMatchObject({ error: status === 403 ? 'MODULE_OFF' : 'MODULE_AVAILABILITY_UNAVAILABLE' })
+    expect(createClient).toHaveBeenCalledTimes(2)
+    expect(query.eq).toHaveBeenNthCalledWith(1, 'org_id', 'org-1')
+    expect(query.eq).toHaveBeenNthCalledWith(2, 'module_id', 'assistant')
+  })
+
+  it('reaches model configuration validation only when explicitly enabled', async () => {
+    mockAssistantClients({ data: { enabled: true }, error: null })
+    const serve = await loadServe(load)
+
+    const response = await postAssistantEntry(serve)
+    expect(response.status).toBe(502)
+    expect(await response.json()).toMatchObject({ error: 'MODEL_NOT_CONFIGURED' })
+    expect(createClient).toHaveBeenCalledTimes(_name === 'agent-chat' ? 3 : 2)
+  })
+})
+
+describe('compose-view Assistant gate ordering', () => {
+  beforeEach(() => { createClient.mockReset() })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('refuses before parsing malformed request JSON', async () => {
+    mockAssistantClients({ data: { enabled: false }, error: null })
+    const serve = await loadServe(composeViewLoad, {
+      AGENT_MODEL_DEFAULT: 'm', AGENT_MODEL_API_KEY: 'k', AGENT_MODEL_BASE_URL: 'http://model',
+    })
+
+    const response = await postAssistantEntry(serve, '{')
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({ error: 'MODULE_OFF' })
+  })
+})

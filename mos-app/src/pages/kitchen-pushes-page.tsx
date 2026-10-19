@@ -86,6 +86,9 @@ type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
+
+// Outbox posting is org-wide: every state of this page shows the all-streams bar.
+const ALL_STREAMS_BAR = { options: [], stream: null, allStreams: true }
 export function KitchenPushesPage() {
   const t = useT()
   const auth = useAuth()
@@ -99,7 +102,6 @@ export function KitchenPushesPage() {
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const [selectedParam, setSelectedParam] = useSearchParamState('push', '')
-  const selectedId = selectedParam || null
   const setSelectedId = useCallback((next: string | null) => setSelectedParam(next ?? ''), [setSelectedParam])
 
   const fetchPushes = useCallback(async () => {
@@ -121,16 +123,11 @@ export function KitchenPushesPage() {
     if (auth.status !== 'authenticated' || !allowed) return
     fetchPushes()
   }, [auth.status, allowed, fetchPushes, retryKey])
-  useEffect(() => {
-    if (load.kind !== 'ready') return
-    if (selectedId && rows.some(row => row.id === selectedId)) return
-    setSelectedId(isDesktop ? rows[0]?.id ?? null : null)
-  }, [isDesktop, load.kind, rows, selectedId, setSelectedId])
 
   // ── Auth loading ────────────────────────────────────────────────────────────
   if (auth.status === 'loading') {
     return (
-      <CafePageFrame page="pushes" streamBar={{ options: [], stream: null, allStreams: true }} state="loading">
+      <CafePageFrame page="pushes" streamBar={ALL_STREAMS_BAR} state="loading">
         <LoadingShell count={3} />
       </CafePageFrame>
     )
@@ -138,7 +135,7 @@ export function KitchenPushesPage() {
 
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <CafePageFrame page="pushes" streamBar={{ options: [], stream: null, allStreams: true }} state="permission">
+      <CafePageFrame page="pushes" streamBar={ALL_STREAMS_BAR} state="permission">
         <div className="kpu-block kpu-forbidden">
           <p className="kpu-forbidden-msg">{t('kitchen.pushes.signInMsg')}</p>
           <Link to="/login" className="btn btn-primary">{t('common.signIn')}</Link>
@@ -150,7 +147,7 @@ export function KitchenPushesPage() {
   // ── Forbidden (non-lead) — intent is clear, NOT an empty table ─────────────
   if (!allowed) {
     return (
-      <CafePageFrame page="pushes" streamBar={{ options: [], stream: null, allStreams: true }} state="permission">
+      <CafePageFrame page="pushes" streamBar={ALL_STREAMS_BAR} state="permission">
         <div className="kpu-block kpu-forbidden" role="region" aria-label={t('kitchen.pushes.restrictedAria')}>
           <p className="kpu-forbidden-title">{t('kitchen.pushes.leadsOnly')}</p>
           <p className="kpu-forbidden-msg">{t('kitchen.pushes.leadsOnlyMsg')}</p>
@@ -162,6 +159,8 @@ export function KitchenPushesPage() {
 
   // #422: the page head answers "what is stuck", not only "how many" — the counts a
   // lead triages by, rendered only when non-zero so a healthy outbox head stays quiet.
+  // The default selection is derived, never written to the URL: a late default write could overwrite a click.
+  const selectedId = rows.some(row => row.id === selectedParam) ? selectedParam : (isDesktop ? rows[0]?.id ?? null : null)
   const selected = rows.find(row => row.id === selectedId) ?? null
   const problems = rows.filter(row => row.status === 'dead_letter' || row.status === 'failed')
   const healthy = rows.filter(row => row.status !== 'dead_letter' && row.status !== 'failed')
@@ -180,7 +179,7 @@ export function KitchenPushesPage() {
   return (
     <CafePageFrame
       page="pushes"
-      streamBar={{ options: [], stream: null, allStreams: true }}
+      streamBar={ALL_STREAMS_BAR}
       meta={headMeta}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >

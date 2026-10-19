@@ -15,9 +15,9 @@ const viewerState: AuthState = {
   signOut: vi.fn(),
 }
 
-function Probe({ name, onIsOn }: { name: string; onIsOn?: (enabled: boolean) => void }) {
+function Probe({ name, moduleId = 'money', onIsOn }: { name: string; moduleId?: 'money' | 'assistant'; onIsOn?: (enabled: boolean) => void }) {
   const availability = useModuleAvailability()
-  const enabled = availability.isOn('money')
+  const enabled = availability.isOn(moduleId)
   onIsOn?.(enabled)
   return <output aria-label={name}>{`${availability.status}:${enabled}`}</output>
 }
@@ -26,7 +26,7 @@ function renderProbes() {
   return render(<AuthContext.Provider value={viewerState}><Probe name="first" /><Probe name="second" /></AuthContext.Provider>)
 }
 
-const row = (module_id: 'work' | 'money', enabled: boolean) => ({ module_id, enabled, revision: 'rev-1' })
+const row = (module_id: 'work' | 'money' | 'assistant', enabled: boolean) => ({ module_id, enabled, revision: 'rev-1' })
 
 beforeEach(() => {
   resetModuleAvailability()
@@ -47,10 +47,25 @@ describe('module availability store', () => {
     await waitFor(() => expect(screen.getByLabelText('first')).toHaveTextContent('ready:true'))
   })
 
-  it('defaults modules missing from a successful availability response to enabled', async () => {
+  it('keeps other missing modules on but defaults a missing Assistant setting to off', async () => {
     dataLayer.getViewerModuleAvailability.mockResolvedValue([row('work', true)])
-    renderProbes()
-    await waitFor(() => expect(screen.getByLabelText('first')).toHaveTextContent('ready:true'))
+    render(<AuthContext.Provider value={viewerState}>
+      <Probe name="money" />
+      <Probe name="assistant" moduleId="assistant" />
+    </AuthContext.Provider>)
+    await waitFor(() => expect(screen.getByLabelText('money')).toHaveTextContent('ready:true'))
+    expect(screen.getByLabelText('assistant')).toHaveTextContent('ready:false')
+  })
+
+  it('uses an explicit Assistant setting and removes availability when it is off', async () => {
+    dataLayer.getViewerModuleAvailability
+      .mockResolvedValueOnce([row('assistant', true)])
+      .mockResolvedValueOnce([row('assistant', false)])
+    render(<AuthContext.Provider value={viewerState}><Probe name="assistant" moduleId="assistant" /></AuthContext.Provider>)
+    const output = await screen.findByLabelText('assistant')
+    await waitFor(() => expect(output).toHaveTextContent('ready:true'))
+    await act(async () => { await loadModuleAvailability({ force: true }) })
+    await waitFor(() => expect(output).toHaveTextContent('ready:false'))
   })
 
   it('fails closed on the first render after the authenticated session changes', async () => {

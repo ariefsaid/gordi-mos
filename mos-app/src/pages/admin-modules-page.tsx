@@ -12,6 +12,7 @@ import { Select } from '@/components/ui/select'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { ContractError } from '@/lib/db/contract'
+import { defaultModuleEnabled } from '@/lib/module-defaults'
 import {
   listOrgModuleSettings,
   saveOrgModuleSettings,
@@ -78,11 +79,11 @@ export function AdminModulesPage() {
     setParams(next, { replace: true })
   }
   const settings = new Map(rows.map((row) => [row.module_id, row]))
-  const enabledFor = (fact: ModuleFact) => fact.released && (draft[fact.id] ?? settings.get(fact.id)?.enabled ?? true)
+  const enabledFor = (fact: ModuleFact) => fact.released && (draft[fact.id] ?? settings.get(fact.id)?.enabled ?? defaultModuleEnabled(fact.id))
   const changedRows: ModuleSettingInput[] = facts.flatMap((fact) => {
     const setting = settings.get(fact.id)
     const enabled = enabledFor(fact)
-    if (!fact.released || enabled === (setting?.enabled ?? true)) return []
+    if (!fact.released || enabled === (setting?.enabled ?? defaultModuleEnabled(fact.id))) return []
     return [{ module_id: fact.id, enabled, expected_version: setting?.row_version ?? 0 }]
   })
 

@@ -10,6 +10,7 @@
 //   a11y: semantic table, tabular numbers on counts/dates, status as text not color-only
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { useLayoutEffect } from 'react'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -131,10 +132,38 @@ function renderPage() {
   return render(<MemoryRouter><KitchenPushesPage /></MemoryRouter>)
 }
 
+/** Make the user's choice in the first DOM turn where a loaded batch is available. */
+function renderPageChoosingAsSoonAsAvailable(ref: string, onChoose: () => void) {
+  function ChooseBatchOnAppearance() {
+    useLayoutEffect(() => {
+      const observer = new MutationObserver(() => {
+        const batch = screen.queryByRole('button', { name: new RegExp(ref) })
+        if (!batch) return
+        observer.disconnect()
+        onChoose()
+        fireEvent.click(batch)
+      })
+      observer.observe(document.body, { childList: true, subtree: true })
+      return () => observer.disconnect()
+    }, [])
+    return <MemoryRouter><KitchenPushesPage /></MemoryRouter>
+  }
+
+  return render(<ChooseBatchOnAppearance />)
+}
+
 /** Choose a batch in the list; its posting details open beside (or over) it. */
 async function openPush(ref: string) {
-  fireEvent.click(await screen.findByRole('button', { name: new RegExp(ref) }))
-  return screen.findByRole('region', { name: 'Diagnostic details' })
+  // Find the batch once: a by-name role query on every poll recomputes every button's accessible
+  // name and can spend the whole wait budget on a loaded CI runner.
+  const batch = await screen.findByRole('button', { name: new RegExp(ref) })
+  fireEvent.click(batch)
+  await waitFor(() => {
+    expect(batch).toHaveAttribute('aria-pressed', 'true')
+    const currentDetails = screen.getByRole('region', { name: 'Diagnostic details' })
+    expect(within(currentDetails).getByText(ref)).toBeInTheDocument()
+  })
+  return screen.getByRole('region', { name: 'Diagnostic details' })
 }
 
 beforeEach(() => {
@@ -563,6 +592,19 @@ describe('KitchenPushesPage — #402 AC-3: rows needing attention sort above hea
 
 // ── #422: stuck batches are counted in the page head ─────────────────────────
 describe('KitchenPushesPage — phone (#422)', () => {
+  it('keeps a batch chosen as soon as the loaded list makes it available', async () => {
+    setViewport(false)
+    mockListPushes.mockResolvedValue([DEAD_LETTER_ROW, POSTED_ROW])
+    const choose = vi.fn()
+    renderPageChoosingAsSoonAsAvailable(POSTED_ROW.source_ref, choose)
+
+    const row = await screen.findByRole('button', { name: new RegExp(POSTED_ROW.source_ref) })
+    expect(choose).toHaveBeenCalledOnce()
+    await waitFor(() => expect(row).toHaveAttribute('aria-pressed', 'true'))
+    const details = screen.getByRole('region', { name: 'Diagnostic details' })
+    expect(within(details).getByText(POSTED_ROW.source_ref)).toBeInTheDocument()
+  })
+
   it('a dead-letter batch shows the error + escalate hint when chosen; the page head counts it', async () => {
     setViewport(false)
     mockListPushes.mockResolvedValue([

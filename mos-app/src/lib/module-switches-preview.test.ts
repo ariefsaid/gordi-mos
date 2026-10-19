@@ -47,11 +47,13 @@ describe('registry facts', () => {
 })
 
 describe('preview model', () => {
-  it('starts at the proposed defaults: Org On, people Inherit, clean', () => {
+  it('starts with Assistant Off, other modules On, and people Inherit', () => {
     const model = emptyPreviewModel()
+    expect(previewOrgEnabled(model, 'assistant')).toBe(false)
     expect(previewOrgEnabled(model, 'cafe')).toBe(true)
     expect(previewOverride(model, 'p1', 'cafe')).toBe('inherit')
     expect(previewPeopleWithOverride(model, 'cafe')).toBe(0)
+    expect(previewOrgEnabled({ ...model, org: { assistant: true } }, 'assistant')).toBe(true)
   })
 
   it('counts only real overrides, per person and per module', () => {
