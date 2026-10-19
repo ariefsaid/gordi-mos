@@ -3,6 +3,7 @@ import type { MessageKey } from '@/i18n/messages'
 import { REVENUE_VIEW_ROLES } from '@/lib/capabilities'
 import { SHOW_FOLLOWUPS, SHOW_PLAN_BUDGET } from '@/config/features'
 import { isShipGated } from '@/lib/ship-gate'
+import type { ModuleId } from '@/lib/db/module-settings'
 import { reviewQueuePath, reviewQueuesFor } from '@/lib/cafe-review-queues'
 import { ADMIN_SECTIONS, CAFE_ROUTE_SECTIONS, CAFE_SECTIONS, MONEY_SECTIONS, sectionForPath, visibleSections, type Section } from './sections'
 import {
@@ -17,9 +18,8 @@ import {
  * Desktop sidebar and rail, the collapsed rail's flyouts, the pages panel, ⌘K "Go to", the phone tab bar
  * and the More drawer all draw from the three zones below; nothing keeps a parallel list of its own.
  *
- *  - `WORKSPACE`       — Home, Work, Inbox. Home and Work are fixed at the top of every surface; Inbox has
- *                        no menu row (it lives on the top-bar bell) but stays here as the owner of `/inbox`,
- *                        and as a row in More and in ⌘K.
+ *  - `WORKSPACE`       — Home, Work and Inbox route owners. `globalNavigationDestinations` merges these with
+ *                        admitted modules in the shared shell order; Inbox also remains a top-bar door.
  *  - `MODULE_REGISTRY` — the modules, in registry order (Money, Café, then future Shift, Events, then
  *                        Roastery, Ecommerce). Each entry carries what a module owns: its ship gate (the
  *                        landing path asked of `lib/ship-gate.ts`), admission roles (`anyOf`, Money resolves
@@ -33,8 +33,8 @@ import {
  * Projects & Processes · Objectives · Events. Events is ship-gated (#348), so four of the five render.
  * Admin is anyOf-gated (admin): absent, not disabled, when unauthorized.
  *
- * Adaptive shell: a viewer admitted to ONE module gets the single labelled sidebar; TWO OR MORE get the
- * module rail plus the pages panel (`navModeFor`). The pages themselves (`pageGroupsFor`) are identical in both.
+ * Adaptive shell: one available page-bearing area gets the single labelled sidebar; two or more get the
+ * module rail plus the pages panel (`navModeFor`). Work counts when its route and module are available; Home and footer utilities do not.
  */
 export type DestinationId =
   | 'home' | 'work' | 'money' | 'inbox'
@@ -46,7 +46,7 @@ type DestinationZone = 'workspace' | 'modules' | 'utility'
 export interface Destination {
   id: DestinationId
   labelKey: MessageKey
-  /** The short name under the icon on the 64px rail; defaults to `labelKey`. */
+  /** The rail label; defaults to `labelKey`. */
   railLabelKey?: MessageKey
   Icon: React.FC
   /** live links under this destination; [] = destination not yet rolled in */
@@ -93,7 +93,7 @@ const WORKSPACE: Destination[] = [
   {
     id: 'inbox',
     zone: 'workspace',
-    labelKey: 'dest.inbox',
+    labelKey: 'nav.inbox',
     Icon: InboxIcon,
     primaryPath: '/inbox',
     links: [{ path: '/inbox', label: 'Inbox', labelKey: 'nav.inbox', Icon: InboxIcon }],
@@ -171,29 +171,49 @@ export function moneyDestinationForViewer(accessRoles: string[]): Destination | 
 }
 
 /** A module as THIS viewer meets it: ship gate, then admission; Money resolves its landing and pages per role. */
-function admit(module: Destination, accessRoles: string[]): Destination | null {
+function admit(module: Destination, accessRoles: string[], isOn: (moduleId: ModuleId) => boolean): Destination | null {
+  if (!isOn(module.id as ModuleId)) return null
   if (module.id === 'money') return moneyDestinationForViewer(accessRoles)
   return isLive(module, accessRoles) ? module : null
 }
 
 /**
- * Every module the viewer's ROUTES admit, in registry order. The module count decides the shell
- * (`navModeFor`); the list feeds the sidebar, the rail, the flyouts, ⌘K, the phone tab and More.
+ * Every module the viewer's ROUTES admit and module settings enable, in registry order. The list feeds the sidebar,
+ * rail, flyouts, ⌘K, phone tab and More; `navModeFor` also counts the fixed Work area when it is live and enabled.
  */
-export function admittedModules(accessRoles: string[]): Destination[] {
+export function admittedModules(accessRoles: string[], isOn: (moduleId: ModuleId) => boolean = () => true): Destination[] {
   return MODULE_REGISTRY
-    .map((module) => admit(module, accessRoles))
+    .map((module) => admit(module, accessRoles, isOn))
     .filter((module): module is Destination => module !== null)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 }
 
+/** The one ordered root list shared by desktop, More and ⌘K; admission still comes from this registry. */
+export function globalNavigationDestinations(accessRoles: string[], isOn: (moduleId: ModuleId) => boolean = () => true): Destination[] {
+  const home = WORKSPACE.find((destination) => destination.id === 'home')!
+  const work = WORKSPACE.find((destination) => destination.id === 'work')!
+  const inbox = WORKSPACE.find((destination) => destination.id === 'inbox')!
+  const modules = admittedModules(accessRoles, isOn)
+  const live = (destination: Destination) => isLive(destination, accessRoles, isOn)
+  return [
+    ...(live(home) ? [home] : []),
+    ...(live(work) ? [work] : []),
+    ...modules.filter((destination) => destination.id === 'money'),
+    ...(live(inbox) ? [inbox] : []),
+    ...modules.filter((destination) => destination.id === 'cafe'),
+    ...modules.filter((destination) => destination.id !== 'money' && destination.id !== 'cafe'),
+  ]
+}
+
 /**
- * The shell by admitted module count, never by role: ONE module → the single labelled sidebar,
- * TWO OR MORE → the module rail with the selected module's pages panel beside it.
+ * The shell by available page-bearing areas, never by role: one → the single labelled sidebar,
+ * two or more → the module rail with the selected area's pages panel beside it. Work counts only when live and enabled; Home and utilities do not.
  */
 export type NavMode = 'sidebar' | 'panel'
-export function navModeFor(accessRoles: string[]): NavMode {
-  return admittedModules(accessRoles).length >= 2 ? 'panel' : 'sidebar'
+export function navModeFor(accessRoles: string[], isOn: (moduleId: ModuleId) => boolean = () => true): NavMode {
+  const work = WORKSPACE.find((destination) => destination.id === 'work')!
+  const availableAreas = admittedModules(accessRoles, isOn).length + Number(isOn('work') && isLive(work, accessRoles))
+  return availableAreas >= 2 ? 'panel' : 'sidebar'
 }
 
 /**
@@ -201,8 +221,8 @@ export function navModeFor(accessRoles: string[]): NavMode {
  * registry over the viewer's affiliation payload (#744): the first admitted module whose id the payload
  * names. Returns null rather than guessing: promoting a module nobody asked for is a guess presented as a preference.
  */
-export function primaryModuleForViewer(affiliated: string[], accessRoles: string[]): Destination | null {
-  return admittedModules(accessRoles).find((m) => affiliated.includes(m.id)) ?? null
+export function primaryModuleForViewer(affiliated: string[], accessRoles: string[], isOn: (moduleId: ModuleId) => boolean = () => true): Destination | null {
+  return admittedModules(accessRoles, isOn).find((m) => affiliated.includes(m.id)) ?? null
 }
 
 const LAST_MODULE_KEY = 'mos.nav.lastModule'
@@ -220,13 +240,13 @@ function lastModuleId(): string | null {
  * The phone bar's module slot. The module whose page is open wins; elsewhere the last module the viewer
  * explicitly visited; then the affiliation default. With none of the three the slot is omitted, never made up.
  */
-export function phoneModuleForViewer(affiliated: string[], accessRoles: string[], pathname: string): Destination | null {
-  const modules = admittedModules(accessRoles)
+export function phoneModuleForViewer(affiliated: string[], accessRoles: string[], pathname: string, isOn: (moduleId: ModuleId) => boolean = () => true): Destination | null {
+  const modules = admittedModules(accessRoles, isOn)
   const current = destinationForPath(pathname)
   return (
     modules.find((m) => m.id === current?.id) ??
     modules.find((m) => m.id === lastModuleId()) ??
-    primaryModuleForViewer(affiliated, accessRoles)
+    primaryModuleForViewer(affiliated, accessRoles, isOn)
   )
 }
 
@@ -245,7 +265,8 @@ const CAFE_GROUPS = ['cafe.nav.today', 'cafe.nav.stock', 'cafe.nav.close', 'cafe
  * Café: its home row, then Today / Stock / Close / Setup, empty groups omitted, a nested page (Receipt issues
  * under Receive) directly after its parent.
  */
-export function pageGroupsFor(destination: Destination, accessRoles: string[]): PageGroup[] {
+export function pageGroupsFor(destination: Destination, accessRoles: string[], isOn: (moduleId: ModuleId) => boolean = () => true): PageGroup[] {
+  if ((destination.id === 'work' || destination.zone === 'modules') && !isOn(destination.id as ModuleId)) return []
   if (destination.id === 'money') return [{ key: 'money', items: moneySectionsForViewer(accessRoles) }]
   if (destination.id === 'cafe') {
     const visible = visibleSections(destination.children ?? [], accessRoles)
@@ -353,9 +374,8 @@ const ALL_DESTINATIONS: Destination[] = [
   ...UTILITY,
 ]
 
-/** Home and Work: fixed at the top of every surface. */
+/** Home and Work workspace destinations; Work visibility also follows its org switch. */
 export const FIXED_AREAS: readonly Destination[] = WORKSPACE.filter((d) => d.id === 'home' || d.id === 'work')
-export const INBOX_AREA: Destination = WORKSPACE.find((d) => d.id === 'inbox')!
 
 /** One row of ⌘K "Go to": an area, a page of it, or a Review queue, with the trail that names where it lives. */
 export interface GoToEntry {
@@ -374,17 +394,16 @@ export interface GoToEntry {
  * questions as the menus ask, nothing else: the ship gate and admission for the area, `visibleSections`
  * for its pages, the viewer's roles for Review's queues. Search is acceleration, never the only way in.
  */
-export function goToEntries(accessRoles: string[]): GoToEntry[] {
+export function goToEntries(accessRoles: string[], isOn: (moduleId: ModuleId) => boolean = () => true): GoToEntry[] {
   const roots: Destination[] = [
-    ...WORKSPACE.filter((d) => isLive(d, accessRoles)),
-    ...admittedModules(accessRoles),
+    ...globalNavigationDestinations(accessRoles, isOn),
     ...UTILITY.filter((d) => isLive(d, accessRoles)),
   ]
   const queues = reviewQueuesFor(accessRoles)
   return roots.flatMap((destination) => {
     const rootId = `n-${destination.id}`
     const root: GoToEntry = { id: rootId, labelKey: destination.labelKey, Icon: destination.Icon, path: destination.primaryPath ?? destination.links[0].path, trail: [] }
-    const pages = destination.id === 'inbox' || destination.id === 'profile' || destination.id === 'home' ? [] : pageGroupsFor(destination, accessRoles)
+    const pages = destination.id === 'inbox' || destination.id === 'profile' || destination.id === 'home' ? [] : pageGroupsFor(destination, accessRoles, isOn)
     const rows = pages.flatMap((group) => group.items.flatMap<GoToEntry>((item) => {
       const trail: MessageKey[] = [destination.labelKey, ...(group.headingKey ? [group.headingKey] : [])]
       const row: GoToEntry = { id: `n-child${item.path.replace(/\//g, '-')}`, labelKey: item.labelKey ?? 'nav.home', Icon: item.Icon, path: item.path, trail, parentId: rootId }
@@ -408,7 +427,9 @@ export function goToEntries(accessRoles: string[]): GoToEntry[] {
  * every viewer regardless of what they hold, and the router closes the same path from the same
  * array. Money is not ship-gated; its `REVENUE_VIEW_ROLES` gate controls its visibility.
  */
-function isLive(d: Destination, accessRoles: string[]): boolean {
+function isLive(d: Destination, accessRoles: string[], isOn: (moduleId: ModuleId) => boolean = () => true): boolean {
+  if (d.id === 'work' && !isOn('work')) return false
+  if (d.zone === 'modules' && !isOn(d.id as ModuleId)) return false
   if (d.id === 'money') return moneyDestinationForViewer(accessRoles) !== null
   const entry = d.primaryPath ?? d.links[0]?.path
   if (entry !== undefined && isShipGated(entry)) return false

@@ -20,6 +20,7 @@ describe('AC-014: auth chrome names a role', () => {
   it('the shell footer reads Contact your admin', () => {
     render(<AuthShell><div /></AuthShell>)
     expect(screen.getByText(/Trouble signing in\? Contact your admin\./)).toBeInTheDocument()
+    expect(screen.getByText(/^v0\.11\.0 · web/)).toBeInTheDocument()
   })
 
   it('the orphan screen body reads Contact your admin', () => {

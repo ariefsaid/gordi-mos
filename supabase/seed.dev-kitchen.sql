@@ -14,22 +14,19 @@
 -- reshaped `ops` schema. The adaptations, so nobody re-derives them wrongly:
 --   * action_type is GONE (DD-WAY-13). Every row now carries the (branch, activity)
 --     production stream (OD-WAY-28) plus `action ∈ {produce, transfer}` and a
---     destination branch for transfers. The incumbent's "Transfer to Bungur" is a
---     transfer whose destination equals its origin (Rumah Rames — 'Bungur' is a UI
---     label, never stored); "Transfer to Radiant" is an inter-branch transfer.
---   * Streams are SPREAD across the enumerable stream catalog ({GHQ, RRS, Radiant} x
---     {kitchen, bar}, OD-WAY-42) rather than everything landing on one branch —
---     each item has a home stream in the maps below.
---   * An intra-branch transfer has NO ERP counterpart (endpoint 'noop', FR-053
---     permanent): its log is never marked posted, and no outbox row is seeded for
---     it (see step 6 — the pgTAP held-row sweep counts the whole outbox).
+--     destination branch for transfers. A kitchen stream transfers only to another
+--     branch on its allowed destinations (ops.allowed_kitchen_destinations), so
+--     Rumah Rames kitchen sends to Cikal and Radiant.
+--   * Streams are SPREAD across the producing streams (Gordi HQ and Rumah Rames
+--     kitchen + bar, Radiant bar; Radiant kitchen is receive-only, DD-MVP-9) —
+--     each item has one home stream, listed in step 0b and the maps below.
 --   * integrations.esb_push carries the AC-012 enqueue refusal (a trigger): an
 --     outbox row cannot be inserted for a batch already marked posted. So logs are
 --     inserted UNPOSTED, outbox rows are inserted, and only then are the posted
 --     flags stamped onto the logs (step 7).
---   * ops.kitchen_logs.item_unit_id binds automatically to each item's confirmed
---     default unit (#234's bind trigger; seed.sql confirms a 'porsi' default for
---     all 32 items), so seeded rows pass the no-coordinates-no-row gate.
+--   * Capture needs each item on its stream's item list with an active WIP setting
+--     and a shown default unit: step 0b lists every item on its home stream and
+--     configures it through ops._test_configure_cafe_items, as seed.sql does.
 --   * target_env is uniformly 'dry_run': the local stack posts nowhere real.
 --
 -- LOAD (local ephemeral stack ONLY — NEVER cloud staging, hard rule):
@@ -81,6 +78,35 @@ delete from ops.kitchen_logs      where org_id = '10000000-0000-0000-0000-000000
 delete from ops.kitchen_plans     where org_id = '10000000-0000-0000-0000-000000000001';
 delete from ops.kitchen_batch_seq where org_id = '10000000-0000-0000-0000-000000000001';
 
+-- ── 0b. Each item on its home stream's item list, active WIP with its porsi default ──
+insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
+select '10000000-0000-0000-0000-000000000001', h.branch_id, h.activity,
+       ('a1100000-0000-0000-0000-0000000000' || h.sfx)::uuid, 'manual'
+from (values
+  ('01','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'), ('02','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'),
+  ('03','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'), ('04','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'),
+  ('05','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'), ('06','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'),
+  ('07','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'), ('08','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'),
+  ('09','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'), ('0a','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'),
+  ('0e','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'), ('0f','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'),
+  ('19','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'), ('1a','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'),
+  ('0b','25000000-0000-0000-0000-000000000001'::uuid,'kitchen'), ('0c','25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
+  ('0d','25000000-0000-0000-0000-000000000001'::uuid,'kitchen'), ('10','25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
+  ('11','25000000-0000-0000-0000-000000000001'::uuid,'kitchen'), ('12','25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
+  ('13','25000000-0000-0000-0000-000000000001'::uuid,'kitchen'), ('14','25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
+  ('15','25000000-0000-0000-0000-000000000001'::uuid,'kitchen'), ('16','25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
+  ('17','25000000-0000-0000-0000-000000000001'::uuid,'bar'),     ('18','25000000-0000-0000-0000-000000000001'::uuid,'bar'),
+  ('1e','25000000-0000-0000-0000-000000000001'::uuid,'bar'),     ('1b','25000000-0000-0000-0000-000000000002'::uuid,'bar'),
+  ('1c','25000000-0000-0000-0000-000000000002'::uuid,'bar'),     ('1f','25000000-0000-0000-0000-000000000002'::uuid,'bar'),
+  ('1d','25000000-0000-0000-0000-000000000003'::uuid,'bar'),     ('20','25000000-0000-0000-0000-000000000003'::uuid,'bar')
+) as h(sfx, branch_id, activity)
+on conflict (org_id, branch_id, activity, wip_item_id) do nothing;
+select set_config('app.allow_test_seeds', 'on', true);
+select ops._test_configure_cafe_items(array(
+  select w.id from ops.wip_items w
+   where w.org_id = '10000000-0000-0000-0000-000000000001' and w.id::text like 'a1100000-%'));
+select set_config('app.allow_test_seeds', 'off', true);
+
 -- ── 1. Plans — today-13 .. today+13 (feeds the lead Editor @ today AND the member
 --       14-day forward horizon). ~22 produced dishes/day with day-to-day drift + a
 --       few gaps, spread across the enumerable stream catalog, plus standing transfer
@@ -108,10 +134,10 @@ planned(sfx, base, branch_id, activity) as (values
   ('0c',22,'25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
   ('0d',28,'25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
   ('10',24,'25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
-  -- (Radiant, kitchen)
-  ('12',24,'25000000-0000-0000-0000-000000000003'::uuid,'kitchen'),
-  ('14',26,'25000000-0000-0000-0000-000000000003'::uuid,'kitchen'),
-  ('15',20,'25000000-0000-0000-0000-000000000003'::uuid,'kitchen'),
+  -- (Gordi HQ, kitchen) — Radiant kitchen is receive-only (DD-MVP-9)
+  ('12',24,'25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
+  ('14',26,'25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
+  ('15',20,'25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
   -- (Gordi HQ, bar)
   ('17',18,'25000000-0000-0000-0000-000000000001'::uuid,'bar'),
   ('18',22,'25000000-0000-0000-0000-000000000001'::uuid,'bar'),
@@ -137,19 +163,18 @@ where (abs(hashtext(d::text || sfx || 'plangap')) % 13) <> 0
 on conflict (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id)
   do nothing;
 
--- A few standing transfer plans out of the (Rumah Rames, kitchen) stream: some
--- intra-branch (destination = origin, the held 'noop' movement), some to Radiant.
+-- A few standing transfer plans out of the (Rumah Rames, kitchen) stream, to Cikal or Radiant.
 insert into ops.kitchen_plans
   (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi, plan_by)
 with days as (
   select generate_series((now() at time zone 'Asia/Jakarta')::date - 13, (now() at time zone 'Asia/Jakarta')::date + 13, interval '1 day')::date as d
 ),
 tf(sfx, dest) as (values
-  ('01','25000000-0000-0000-0000-000000000002'::uuid),  -- intra-branch (held)
+  ('01','25000000-0000-0000-0000-000000000005'::uuid),  -- to Cikal
   ('02','25000000-0000-0000-0000-000000000003'::uuid),  -- to Radiant
-  ('07','25000000-0000-0000-0000-000000000002'::uuid),  -- intra-branch (held)
+  ('07','25000000-0000-0000-0000-000000000005'::uuid),  -- to Cikal
   ('0a','25000000-0000-0000-0000-000000000003'::uuid),  -- to Radiant
-  ('06','25000000-0000-0000-0000-000000000002'::uuid)   -- intra-branch (held)
+  ('06','25000000-0000-0000-0000-000000000005'::uuid)   -- to Cikal
 )
 select
   '10000000-0000-0000-0000-000000000001',
@@ -194,9 +219,9 @@ planned(sfx, base, branch_id, activity) as (values
   ('0c',22,'25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
   ('0d',28,'25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
   ('10',24,'25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
-  ('12',24,'25000000-0000-0000-0000-000000000003'::uuid,'kitchen'),
-  ('14',26,'25000000-0000-0000-0000-000000000003'::uuid,'kitchen'),
-  ('15',20,'25000000-0000-0000-0000-000000000003'::uuid,'kitchen'),
+  ('12',24,'25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
+  ('14',26,'25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
+  ('15',20,'25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
   ('17',18,'25000000-0000-0000-0000-000000000001'::uuid,'bar'),
   ('18',22,'25000000-0000-0000-0000-000000000001'::uuid,'bar'),
   ('1b',20,'25000000-0000-0000-0000-000000000002'::uuid,'bar'),
@@ -209,7 +234,7 @@ offplan(sfx, branch_id, activity) as (values
   ('0f','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'),
   ('11','25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
   ('13','25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
-  ('16','25000000-0000-0000-0000-000000000003'::uuid,'kitchen'),
+  ('16','25000000-0000-0000-0000-000000000001'::uuid,'kitchen'),
   ('19','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'),
   ('1a','25000000-0000-0000-0000-000000000002'::uuid,'kitchen'),
   ('1e','25000000-0000-0000-0000-000000000001'::uuid,'bar'),
@@ -242,7 +267,7 @@ prod_offplan as (
   from days cross join offplan
   where (abs(hashtext(d::text || sfx || 'oppick')) % 4) = 0
 ),
--- Scattered transfers out of the (Rumah Rames, kitchen) stream: intra-branch or to Radiant.
+-- Scattered transfers out of the (Rumah Rames, kitchen) stream: to Cikal or to Radiant.
 transfers as (
   select
     d,
@@ -251,7 +276,7 @@ transfers as (
     'kitchen'::text as activity,
     'transfer'::text as action,
     (case when (abs(hashtext(d::text || sfx)) % 2) = 0
-       then '25000000-0000-0000-0000-000000000002'   -- intra-branch (held, no ERP doc)
+       then '25000000-0000-0000-0000-000000000005'   -- to Cikal (simple-transfer)
        else '25000000-0000-0000-0000-000000000003'   -- to Radiant (simple-transfer)
      end)::uuid as dest,
     (3 + (abs(hashtext(d::text || sfx || 'tfqty')) % 9))::numeric(12,2) as qty,
@@ -356,10 +381,10 @@ from (values
   ('05','25000000-0000-0000-0000-000000000002','kitchen','produce',null,               20::numeric, null,                               3),
   ('0a','25000000-0000-0000-0000-000000000002','kitchen','produce',null,               36::numeric, 'Batch tambahan untuk pesanan',     4),
   ('0d','25000000-0000-0000-0000-000000000001','kitchen','produce',null,               30::numeric, null,                               5),
-  ('12','25000000-0000-0000-0000-000000000003','kitchen','produce',null,               24::numeric, null,                               6),
-  ('16','25000000-0000-0000-0000-000000000003','kitchen','produce',null,               14::numeric, 'Off-plan — ada sisa bahan',        7),
+  ('12','25000000-0000-0000-0000-000000000001','kitchen','produce',null,               24::numeric, null,                               6),
+  ('16','25000000-0000-0000-0000-000000000001','kitchen','produce',null,               14::numeric, 'Off-plan — ada sisa bahan',        7),
   ('1a','25000000-0000-0000-0000-000000000002','kitchen','produce',null,               10::numeric, 'Off-plan produksi',                8),
-  ('01','25000000-0000-0000-0000-000000000002','kitchen','transfer','25000000-0000-0000-0000-000000000002', 8::numeric, 'Kirim internal sesuai pesanan', 9),
+  ('01','25000000-0000-0000-0000-000000000002','kitchen','transfer','25000000-0000-0000-0000-000000000005', 8::numeric, 'Kirim ke Cikal', 9),
   ('02','25000000-0000-0000-0000-000000000002','kitchen','transfer','25000000-0000-0000-0000-000000000003', 6::numeric, 'Kirim ke Radiant',             10)
 ) as v(sfx, branch_id, activity, action, dest, qty, note, n);
 
@@ -382,7 +407,7 @@ select
   ((now() at time zone 'Asia/Jakarta')::date + time '09:10')::timestamptz
 from (values
   ('08','25000000-0000-0000-0000-000000000002', 25::numeric, 'Produksi pagi', 'Qty tidak sesuai plan — mohon cek ulang'),
-  ('14','25000000-0000-0000-0000-000000000003', 40::numeric, null,            'Duplikat — sudah dicatat di batch lain')
+  ('14','25000000-0000-0000-0000-000000000001', 40::numeric, null,            'Duplikat — sudah dicatat di batch lain')
 ) as v(sfx, branch_id, qty, note, rnote);
 
 -- ── 4. Batch counters — consistent with EVERY seeded batch id, per (prefix, date),
@@ -414,20 +439,43 @@ group by log_date, wip_item_id, branch_id, activity
 on conflict (org_id, log_date, wip_item_id, branch_id, activity)
   do update set usable_qty = excluded.usable_qty;
 
--- ── 6. ESB push outbox — one row per POSTABLE approved batch in the last 4 days
+-- ── 6. ESB push outbox — one row per postable approved batch in the last 4 days
 --       (the monitoring window), endpoint derived from the movement (FR-071):
 --       produce → assembly-actual, inter-branch transfer → simple-transfer.
---       Intra-branch (noop/held, FR-053) batches are deliberately NOT seeded here:
---       the pgTAP sweep integrations_02_approval_enqueue #45 counts noop rows
---       across the WHOLE outbox to prove no held row ever carries an ERP document,
---       and seeded held rows would turn `supabase test db` red on a hand-loaded
---       dev DB. The held movements stay fully visible as unposted TB logs + stock.
---       Postable rows: mostly posted, a few pending (no dispatch worker runs
---       locally, so pending is honest). Logs are still unposted here, so the
---       AC-012 enqueue refusal admits every row. ─────────────────────────────────
+--       Mostly posted, a few pending (no dispatch worker runs locally, so pending
+--       is honest), and the newest two would-be-posted rows seeded as one failed and
+--       one dead-letter for the demo: the outbox only reaches those states from
+--       in_flight, so they are inserted in them rather than updated. Logs are still
+--       unposted here, so the AC-012 enqueue refusal admits every row. ────────────
 insert into integrations.esb_push (
   org_id, source_module, source_ref, endpoint, payload, target_env, dedup_key,
   status, retry_count, last_error, esb_doc_num, created_at, posted_at
+)
+with postable as (
+  select l.*,
+    case
+      when log_date = (now() at time zone 'Asia/Jakarta')::date and (abs(hashtext(batch_id)) % 3) = 0 then 'pending'
+      when log_date < (now() at time zone 'Asia/Jakarta')::date and (abs(hashtext(batch_id)) % 4) = 0 then 'pending'
+      else 'posted'
+    end as base_status
+  from ops.kitchen_logs l
+  where org_id = '10000000-0000-0000-0000-000000000001'
+    and status = 'Approved'
+    and batch_id is not null
+    and log_date >= (now() at time zone 'Asia/Jakarta')::date - 3
+    and ops.esb_endpoint_for(action, branch_id, destination_branch_id) <> 'noop'
+),
+ranked as (
+  select p.*,
+    case when base_status = 'posted'
+         then row_number() over (partition by base_status = 'posted' order by created_at desc, batch_id desc)
+    end as posted_rank
+  from postable p
+),
+outbox as (
+  select r.*,
+    case posted_rank when 1 then 'failed' when 2 then 'dead_letter' else base_status end as push_status
+  from ranked r
 )
 select
   '10000000-0000-0000-0000-000000000001',
@@ -440,35 +488,25 @@ select
     'branch_id', branch_id, 'destination_branch_id', destination_branch_id),
   'dry_run',
   'kitchen|' || batch_id || '|dry_run',
-  case
-    when log_date = (now() at time zone 'Asia/Jakarta')::date and (abs(hashtext(batch_id)) % 3) = 0 then 'pending'
-    when log_date < (now() at time zone 'Asia/Jakarta')::date and (abs(hashtext(batch_id)) % 4) = 0 then 'pending'
-    else 'posted'
+  push_status,
+  case push_status when 'failed' then 2 when 'dead_letter' then 5 else 0 end,
+  case push_status
+    when 'failed' then 'HTTP 502 from ESB assembly-actual endpoint (upstream timeout)'
+    when 'dead_letter' then 'ESB rejected: product mapping missing (esb_product_id is null) — needs platform fix'
   end,
-  0,
-  null,
-  case
-    when log_date = (now() at time zone 'Asia/Jakarta')::date and (abs(hashtext(batch_id)) % 3) = 0 then null
-    when log_date < (now() at time zone 'Asia/Jakarta')::date and (abs(hashtext(batch_id)) % 4) = 0 then null
-    else 'ESB-' || to_char(log_date, 'YYMMDD') || '-' || split_part(batch_id, '-', 3)
-  end,
+  case when push_status = 'posted'
+       then 'ESB-' || to_char(log_date, 'YYMMDD') || '-' || split_part(batch_id, '-', 3) end,
   created_at + interval '90 minutes',
   case
-    when log_date = (now() at time zone 'Asia/Jakarta')::date and (abs(hashtext(batch_id)) % 3) = 0 then null
-    when log_date < (now() at time zone 'Asia/Jakarta')::date and (abs(hashtext(batch_id)) % 4) = 0 then null
+    when push_status <> 'posted' then null
     when log_date = (now() at time zone 'Asia/Jakarta')::date then ((now() at time zone 'Asia/Jakarta')::date + time '08:40')::timestamptz
     else (log_date + time '17:05')::timestamptz
   end
-from ops.kitchen_logs
-where org_id = '10000000-0000-0000-0000-000000000001'
-  and status = 'Approved'
-  and batch_id is not null
-  and log_date >= (now() at time zone 'Asia/Jakarta')::date - 3
-  and ops.esb_endpoint_for(action, branch_id, destination_branch_id) <> 'noop';
+from outbox;
 
 -- ── 7. NOW stamp the posted flags onto the logs (same predicate as step 6, plus
---       every posted history day outside the outbox window). Intra-branch (noop)
---       batches are never marked posted: no ERP document exists for them. ────────
+--       every posted history day outside the outbox window), except the batches
+--       whose outbox row is failed or dead-letter. ─────────────────────────────────
 update ops.kitchen_logs
    set posted_to_esb = true,
        esb_doc_num   = 'ESB-' || to_char(log_date, 'YYMMDD') || '-' || split_part(batch_id, '-', 3),
@@ -481,34 +519,8 @@ update ops.kitchen_logs
    and ops.esb_endpoint_for(action, branch_id, destination_branch_id) <> 'noop'
    and case when log_date = (now() at time zone 'Asia/Jakarta')::date
             then (abs(hashtext(batch_id)) % 3) <> 0
-            else (abs(hashtext(batch_id)) % 4) <> 0 end;
-
--- ── 8. Guarantee one failed + one dead-letter row for the demo (newest two posted
---       postable rows), and un-post their logs so log + outbox agree. ─────────────
-update integrations.esb_push
-   set status = 'failed', retry_count = 2, posted_at = null, esb_doc_num = null,
-       last_error = 'HTTP 502 from ESB assembly-actual endpoint (upstream timeout)'
- where id = (
-   select id from integrations.esb_push
-    where org_id = '10000000-0000-0000-0000-000000000001'
-      and source_module = 'kitchen' and status = 'posted' and esb_doc_num is not null
-    order by created_at desc limit 1
- );
-
-update integrations.esb_push
-   set status = 'dead_letter', retry_count = 5, posted_at = null, esb_doc_num = null,
-       last_error = 'ESB rejected: product mapping missing (esb_product_id is null) — needs platform fix'
- where id = (
-   select id from integrations.esb_push
-    where org_id = '10000000-0000-0000-0000-000000000001'
-      and source_module = 'kitchen' and status = 'posted' and esb_doc_num is not null
-    order by created_at desc offset 1 limit 1
- );
-
-update ops.kitchen_logs
-   set posted_to_esb = false, esb_doc_num = null, posted_at = null
- where org_id = '10000000-0000-0000-0000-000000000001'
-   and batch_id in (
+            else (abs(hashtext(batch_id)) % 4) <> 0 end
+   and batch_id not in (
      select source_ref from integrations.esb_push
       where org_id = '10000000-0000-0000-0000-000000000001'
         and source_module = 'kitchen' and status in ('failed','dead_letter'));

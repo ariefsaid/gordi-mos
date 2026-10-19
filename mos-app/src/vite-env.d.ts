@@ -11,7 +11,9 @@ interface ImportMetaEnv {
   readonly VITE_FUTURE_PREVIEW?: string
   /** Side-server port for the preview opt-in (gate runs); defaults to 4400. */
   readonly VITE_FUTURE_PREVIEW_PORT?: string
+  readonly VITE_RELEASE_VERSION: string
   readonly VITE_RELEASE_SHA: string
+  readonly VITE_RELEASE_BUILT_AT: string
 }
 
 interface ImportMeta {

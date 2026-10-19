@@ -44,6 +44,7 @@ else printf 'argv supabase-safe\n' >> "$ARGVLOG"; fi
 # The token on argv is logged verbatim, so the "never reached argv log" checks can fail.
 if [ -n "${FAKE_ACCESS_TOKEN:-}" ] && [[ "$*" == *"$FAKE_ACCESS_TOKEN"* ]]; then printf 'argv supabase-token %s\n' "$FAKE_ACCESS_TOKEN" >> "$ARGVLOG"; fi
 if [ -n "${PGPASSWORD:-}" ]; then printf 'pgpw-set\n' >> "$ARGVLOG"; else printf 'pgpw-empty\n' >> "$ARGVLOG"; fi
+case "$*" in *--db-url*) a="$*"; u="${a#*--db-url }"; u="${u%% *}"; h="${u#*@}"; printf 'db-url-host %s\n' "${h%%[:/]*}" >> "$ARGVLOG" ;; esac
 if [ -n "${FAKE_FUNCTION_SECRET_VALUE:-}" ] && [[ "$*" == *"$FAKE_FUNCTION_SECRET_VALUE"* ]]; then printf 'argv function-secret\n' >> "$ARGVLOG"; fi
 case "$*" in
   *"secrets list"*)
@@ -76,7 +77,7 @@ case "$*" in
     ;;
   *--dry-run*) printf 'supabase dry-run\n' >> "$CALLS"
     echo "Connecting to $FAKE_URL"
-    if [ "${FAKE_DRY_RC:-0}" != 0 ]; then echo "failed to connect to host=$FAKE_HOST user=deployer" >&2; exit "$FAKE_DRY_RC"; fi
+    if [ "${FAKE_DRY_RC:-0}" != 0 ]; then echo "failed to connect to host=${h:-$FAKE_HOST} user=deployer" >&2; exit "$FAKE_DRY_RC"; fi
     printf '%s\n' "${FAKE_DRY_OUT}" ;;
   *"db push"*) printf 'supabase push\n' >> "$CALLS"; echo "Finished supabase db push."; exit "${FAKE_PUSH_RC:-0}" ;;
   *"functions deploy"*)
@@ -147,6 +148,12 @@ else printf 'argv psql-safe\n' >> "$ARGVLOG"; fi
 if [ -n "${PGPASSWORD:-}" ]; then printf 'pgpw-set\n' >> "$ARGVLOG"; else printf 'pgpw-empty\n' >> "$ARGVLOG"; fi
 sql="$*"; stdin=""; case "$sql" in *" -c "*) ;; *) stdin="$(cat)" ;; esac
 case "$sql$stdin" in
+  *"insert into shared.deployment_stamp"*)
+    printf 'psql deployment-stamp\n' >> "$CALLS"
+    if [[ "$sql" == *"${FAKE_ORIGIN_MAIN:-aaaa}"* ]]; then
+      printf 'psql deployment-stamp-sha %s\n' "${FAKE_ORIGIN_MAIN:-aaaa}" >> "$CALLS"
+    fi
+    [ "${FAKE_STAMP_RC:-0}" = 0 ] || { echo "deployment stamp write refused" >&2; exit "${FAKE_STAMP_RC:-1}"; } ;;
   *zz_preflight_probe*"create policy"*|*"create policy"*zz_preflight_probe*) printf 'psql probe\n' >> "$CALLS"
     [ "${FAKE_PROBE_RC:-0}" = 0 ] || { echo "permission denied for $FAKE_HOST" >&2; exit 3; } ;;
   *"count(*) from pg_policies"*) echo "${FAKE_LEFT:-0}" ;;
@@ -239,6 +246,8 @@ expect "op-get called with the local coordinates" "op-get fake-item fake-vault F
 expect "dry run called" "supabase dry-run"
 expect "probe ran (migration alters authenticator)" "psql probe"
 expect "push called" "supabase push"
+expect "deployment stamp is written after a successful database deploy" "psql deployment-stamp"
+if before "supabase push" "psql deployment-stamp"; then ok "deployment stamp follows the successful database push"; else bad "deployment stamp precedes the database push"; fi
 expect "promotion pushes the deployed origin/main sha to staging" "git-push push origin aaaa:refs/heads/staging"
 expect "remote staging is confirmed after the push" "git ls-remote --exit-code origin refs/heads/staging"
 expect_not "promotion never opens a PR" "gh-post"
@@ -405,6 +414,8 @@ expect "handler receives unauthenticated requests" "supabase no-verify-jwt"
 expect "deploy carries the project ref derived from the smoke host" "supabase project-ref-ok"
 expect "deploy cannot read the caller's stdin" "supabase deploy-stdin-closed"
 expect "unauthenticated POST smoke check ran" "curl POST"
+expect "backend stamp follows a successful function deploy and smoke checks" "psql deployment-stamp"
+if before "supabase functions-deploy agent-chat" "psql deployment-stamp"; then ok "deployment stamp follows the successful function deploy"; else bad "deployment stamp precedes the function deploy"; fi
 if before "supabase push" "supabase functions-deploy agent-chat"; then ok "edge deploy follows a successful migration push"; else bad "edge deploy follows a successful migration push"; fi
 expected_origins="$(grep '^const DEFAULT_APP_ORIGINS' supabase/functions/_shared/cors.ts | tr -cd "'" | wc -c | awk '{print int($1 / 2)}' | tr -d ' ')"
 actual_preflights="$(grep -c '^curl OPTIONS$' "$calls" || true)"
@@ -423,6 +434,7 @@ hasnt "deployment diagnostics hide the host" "$SECRET_HOST"
 hasnt "deployment diagnostics hide the project ref" "$SECRET_PROJECT_REF"
 hasnt "deployment diagnostics hide the token" "$FAKE_ACCESS_TOKEN"
 expect_not "no smoke check after failed deploy" "curl POST"
+expect_not "no deployment stamp after a failed function deploy" "psql deployment-stamp"
 run "a gateway 401 with its gateway code fails handler auth" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_POST_HANDLER=0 -- --yes --no-pr
 has "gateway 401 is not mistaken for handler auth" "unauthenticated POST smoke check failed"
 run "an unauthenticated POST returning 200 fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_POST_STATUS=200 -- --yes --no-pr
@@ -430,6 +442,7 @@ has "200 smoke failure is clear" "unauthenticated POST smoke check failed"
 expect_not "no promotion push after a failed smoke check" "git-push"
 run "a preflight that fails to echo the origin fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_CORS_MISMATCH=1 -- --yes --no-pr
 has "preflight echo failure is clear" "CORS preflight smoke check failed"
+expect_not "no deployment stamp after a failed function smoke check" "psql deployment-stamp"
 run "dry-run never deploys changed functions" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --dry-run
 expect_not "dry-run never deploys a function" "supabase functions-deploy"
 expect_not "dry-run never smoke-checks a function" "curl POST"
@@ -449,6 +462,13 @@ run "invalid function host is rejected before migration push" 1 "" FAKE_URL="pos
 expect_not "no migration push when the function host cannot provide a project ref" "supabase push"
 run "unreadable app origins are rejected before migration push" 1 "" FAKE_NO_ORIGINS=1 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
 expect_not "no migration push when app origins cannot be read" "supabase push"
+full_main_sha=abcdef0123456789abcdef0123456789abcdef01
+run "stamp records the full origin/main SHA" 0 "" FAKE_HEAD="$full_main_sha" FAKE_ORIGIN_MAIN="$full_main_sha" -- --yes --no-promote
+expect "deployment stamp uses the full main commit SHA" "psql deployment-stamp-sha $full_main_sha"
+run "deployment stamp write failure stops promotion" 1 "" FAKE_STAMP_RC=1 -- --yes
+has "stamp write failure is explained" "could not update the backend deployment stamp"
+expect_not "no promotion after a stamp write failure" "git-push"
+
 run "function-only deployment needs confirmation" 1 "" FAKE_DRY_OUT="Remote database is up to date." FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --no-pr
 has "function-only change is included in confirmation" "Deploy 0 migration(s) and 1 edge function(s) to staging?"
 expect_not "function-only change does not deploy without confirmation" "supabase functions-deploy"
@@ -482,10 +502,42 @@ expect_not "dry-run never pushes" "supabase push"
 run "push failure identifies the recovery backup" 1 "" FAKE_PUSH_RC=1 -- --yes --no-pr
 has "push failure names the backup path" "pre-push dump is at $tmp/dumps/pre-deploy-"
 expect "failed push was attempted" "supabase push"
+expect_not "no deployment stamp after a failed database push" "psql deployment-stamp"
 run "database, edge and direct-promotion order" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes
 order="$(grep -E '^(pg_dump|pg_restore-list|supabase push|supabase functions-deploy agent-chat|git-push)' "$calls" | tr '\n' ' ')"
 case "$order" in pg_dump\ pg_restore-list\ supabase\ push\ supabase\ functions-deploy\ agent-chat\ git-push\ push\ origin\ aaaa:refs/heads/staging*) ok "order: backup, database push, edge deploy, direct promotion" ;; *) bad "unexpected DB/edge/promotion order: $order" ;; esac
 if grep -q 'rehearse-migrations\.sh' "$SCRIPT"; then bad "removed migration helper is still called"; else ok "no removed migration helper call remains"; fi
+
+echo "pooler url file"
+printf 'postgresql://postgres.abcdefghijklmnopqrst@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres\n' > "$tmp/pooler-url"
+run "pooler file routes the database commands through the pooler host" 0 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url" -- --dry-run
+has "pooler path announced" "Database host: session pooler (IPv4)"
+if grep -qx 'db-url-host aws-0-ap-southeast-1.pooler.supabase.com' "$ARGVLOG"; then ok "db push used the pooler host"; else bad "db push did not use the pooler host"; fi
+if grep -qx 'db-url-host aws-0-ap-southeast-1.pooler.supabase.com' "$ARGVLOG" && ! grep -q "^db-url-host $SECRET_HOST" <(tail -n 3 "$ARGVLOG"); then ok "direct host not used on the pooler run"; else bad "direct host still used on the pooler run"; fi
+printf 'postgresql://postgres.abcdefghijklmnopqrst:leak@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres\n' > "$tmp/pooler-url-pw"
+run "pooler file with a password is refused" 1 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url-pw" -- --dry-run
+has "refusal names the rule" "pooler URL file must be this project's Supabase session pooler"
+expect_not "no dry run after a refused pooler file" "supabase dry-run"
+printf 'postgresql://postgres.abcdefghijklmnopqrst@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?Password=leak\n' > "$tmp/pooler-url-qs"
+run "pooler file with a password in the query string is refused" 1 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url-qs" -- --dry-run
+has "query-string refusal names the rule" "pooler URL file must be this project's Supabase session pooler"
+expect_not "no dry run after a refused query-string pooler file" "supabase dry-run"
+run "pooler host is masked on a failed dry run" 1 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url" FAKE_DRY_RC=7 -- --dry-run
+hasnt "failed dry run output hides the pooler host" "aws-0-ap-southeast-1.pooler.supabase.com"
+for bad_url in \
+  'postgresql://postgres.abcdefghijklmnopqrst@attacker.example:5432/postgres' \
+  'postgresql://postgres.otherprojectref0000@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres' \
+  'postgresql://postgres.abcdefghijklmnopqrst@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=disable' \
+  'postgresql://postgres.abcdefghijklmnopqrst@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres' \
+  'postgresql://postgres.abcdefghijklmnopqrst@aws-0-ap-southeast-1.pooler.supabase.com.attacker.example:5432/postgres'; do
+  printf '%s\n' "$bad_url" > "$tmp/pooler-url-bad"
+  : > "$ARGVLOG"
+  run "pooler file outside this project's session pooler is refused" 1 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url-bad" -- --dry-run
+  has "unbound pooler refusal names the rule" "pooler URL file must be this project's Supabase session pooler"
+  if [ -s "$ARGVLOG" ]; then bad "a database client ran for an unbound pooler destination"; else ok "no database client ran for an unbound pooler destination"; fi
+done
+run "absent pooler file keeps the direct host" 0 "" STAGING_POOLER_URL_FILE="$tmp/no-such-file" -- --dry-run
+hasnt "no pooler announcement without the file" "session pooler"
 
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

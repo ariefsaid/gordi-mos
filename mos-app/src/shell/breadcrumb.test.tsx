@@ -7,6 +7,24 @@ import { BreadcrumbTitleProvider, useSetBreadcrumbTitle, useSetCollectionLeaf } 
 import { Breadcrumb } from './breadcrumb'
 import { isShipGated } from '@/lib/ship-gate'
 import { useT } from '@/i18n/use-t'
+import { AuthContext, type AuthState } from '@/auth/context'
+
+const moduleSwitches = vi.hoisted(() => ({ disabledModule: null as string | null }))
+vi.mock('@/lib/module-availability', () => ({
+  useModuleAvailability: () => ({ isOn: (moduleId: string) => moduleId !== moduleSwitches.disabledModule }),
+}))
+
+const financeViewer: AuthState = {
+  status: 'authenticated',
+  viewer: {
+    person: { id: 'person-id', org_id: 'org-id', user_id: 'user-id', full_name: 'Test', must_change_password: false },
+    roles: [],
+    isManager: false,
+    accessRoles: ['finance'],
+    affiliated: ['money'],
+  },
+  signOut: async () => {},
+}
 
 function TestCollectionChrome() {
   const { search } = useLocation()
@@ -22,18 +40,20 @@ function TestCollectionChrome() {
 }
 
 // Breadcrumb reads useBreadcrumbTitle for the dynamic task title (AC-019).
-function renderBC(path: string, locale: 'en' | 'id' = 'en') {
+function renderBC(path: string, locale: 'en' | 'id' = 'en', authState: AuthState = { status: 'loading' }) {
   return render(
-    <I18nProvider initialLocale={locale}>
-      <BreadcrumbTitleProvider>
-        <MemoryRouter initialEntries={[path]}>
-          <TestCollectionChrome />
-          <Routes>
-            <Route path="*" element={<nav aria-label="Breadcrumb"><Breadcrumb /></nav>} />
-          </Routes>
-        </MemoryRouter>
-      </BreadcrumbTitleProvider>
-    </I18nProvider>,
+    <AuthContext.Provider value={authState}>
+      <I18nProvider initialLocale={locale}>
+        <BreadcrumbTitleProvider>
+          <MemoryRouter initialEntries={[path]}>
+            <TestCollectionChrome />
+            <Routes>
+              <Route path="*" element={<nav aria-label="Breadcrumb"><Breadcrumb /></nav>} />
+            </Routes>
+          </MemoryRouter>
+        </BreadcrumbTitleProvider>
+      </I18nProvider>
+    </AuthContext.Provider>,
   )
 }
 
@@ -47,6 +67,7 @@ function crumbText() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  moduleSwitches.disabledModule = null
 })
 
 // AC-018: · separator, last segment bold, no brand prefix (§9 table).
@@ -64,6 +85,18 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
   it('/work/tasks?view=mine → "Work · Tasks · My work"', () => {
     renderBC('/work/tasks?view=mine')
     expect(crumbText()).toBe('Work · Tasks · My work')
+  })
+
+  it('marks the breadcrumb current when Work is switched off and absent from navigation', () => {
+    moduleSwitches.disabledModule = 'work'
+    renderBC('/work/tasks', 'en', financeViewer)
+    expect(screen.getAllByText('Tasks').at(-1)).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('marks the breadcrumb current when its module is switched off and absent from navigation', () => {
+    moduleSwitches.disabledModule = 'money'
+    renderBC('/money', 'en', financeViewer)
+    expect(screen.getByText('Money')).toHaveAttribute('aria-current', 'page')
   })
 
   it('/work/signals → "Work · Signals"', () => {
@@ -128,10 +161,9 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
     expect(crumbText()).toBe('Personal profile')
   })
 
-  it('desktop: the leaf owns Inbox, which has no menu row, while Profile, Admin and Work leaves do not', () => {
-    // Rule 5: exactly one element carries aria-current. Admin settings and Personal profile are rows at the nav
-    // foot and Work is a nav row, so the nav owns them; Inbox is the bell, so its leaf is the one that says where
-    // the viewer is.
+  it('desktop: the nav owns Inbox, Profile, Admin and Work, so their leaves do not carry the current page', () => {
+    // Rule 5: exactly one element carries aria-current. Inbox and Work are nav rows and Admin settings and
+    // Personal profile sit at the nav foot, so the nav owns them all.
     // The full labelled nav (>=1280px), not the folded rail whose pages sit behind a flyout.
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
@@ -142,7 +174,7 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
       }),
     })
     renderBC('/inbox')
-    expect(screen.getByText('Inbox')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByText('Inbox')).not.toHaveAttribute('aria-current')
     renderBC('/profile')
     expect(screen.getByText('Personal profile')).not.toHaveAttribute('aria-current')
     renderBC('/admin/people')

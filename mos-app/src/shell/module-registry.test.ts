@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  admittedModules, currentPagePath, destinationForPath, footerAreas, goToEntries, navModeFor, pageCount, pageGroupsFor,
+  admittedModules, currentPagePath, destinationForPath, FIXED_AREAS, footerAreas, globalNavigationDestinations, goToEntries, navModeFor, pageCount, pageGroupsFor,
   phoneModuleForViewer, rememberModule, rowState,
 } from './module-registry'
 
@@ -14,18 +14,30 @@ describe('the module registry feeds every navigation surface', () => {
     expect(admittedModules(['admin']).map((m) => m.id)).not.toContain('roastery')
   })
 
-  it('picks the shell by admitted module count, never by role', () => {
-    expect(navModeFor([])).toBe('sidebar')
-    expect(navModeFor(['ops_lead'])).toBe('sidebar')
-    expect(navModeFor(['finance'])).toBe('panel')
-    expect(navModeFor(['supervisor'])).toBe('panel')
+
+  it('keeps every admitted root available through the shared global navigation list', () => {
+    const paths = globalNavigationDestinations(['finance']).map((destination) => destination.primaryPath ?? destination.links[0].path)
+    for (const path of ['/', '/work', '/money', '/inbox', '/cafe']) expect(paths).toContain(path)
+    expect(globalNavigationDestinations(['admin']).map((destination) => destination.id)).not.toContain('money')
+  })
+
+  it('counts only enabled modules and removes disabled Work and module pages', () => {
+    const cafeOnly = (moduleId: string) => moduleId === 'cafe'
+    expect(admittedModules(['finance'], cafeOnly).map((module) => module.id)).toEqual(['cafe'])
+    expect(navModeFor(['finance'], cafeOnly)).toBe('sidebar')
+    expect(pageGroupsFor(FIXED_AREAS[1], ['ops_lead'], () => false)).toEqual([])
+    const paths = goToEntries(['finance'], (moduleId) => moduleId !== 'money').map((entry) => entry.path)
+    expect(paths).not.toContain('/money')
+    expect(paths).not.toContain('/money/pending-bills')
+    expect(paths).toContain('/')
+    expect(paths).toContain('/inbox')
   })
 
   it('groups Café as home, Today, Stock, Close, Setup with Receipt issues straight after Receive', () => {
     const groups = pageGroupsFor(cafe(['ops_lead']), ['ops_lead'])
     expect(groups.map((group) => group.headingKey)).toEqual([undefined, 'cafe.nav.today', 'cafe.nav.stock', 'cafe.nav.close', 'cafe.nav.setup'])
     expect(groups[1].items.map((item) => item.path)).toEqual(['/cafe/records', '/cafe/plan', '/cafe/production', '/cafe/transfer', '/cafe/waste'])
-    expect(groups[2].items.map((item) => item.path)).toEqual(['/cafe/count', '/cafe/receive', '/cafe/receive/issues', '/cafe/request', '/cafe/stock'])
+    expect(groups[2].items.map((item) => item.path)).toEqual(['/cafe/count', '/cafe/stock-comparison', '/cafe/receive', '/cafe/receive/issues', '/cafe/request', '/cafe/stock'])
     expect(groups[3].items.map((item) => item.path)).toEqual(['/cafe/review', '/cafe/pushes'])
   })
 
@@ -79,7 +91,7 @@ describe('⌘K Go to reads the same registry', () => {
 
   it('offers every root, page and Review queue the viewer may open', () => {
     const paths = ids(['ops_lead'])
-    for (const path of ['/', '/work', '/inbox', '/cafe', '/cafe/records', '/cafe/receive/issues', '/cafe/review', '/cafe/review?queue=receipts', '/cafe/review?queue=requests', '/cafe/review?queue=failed-sends', '/cafe/pushes', '/profile']) {
+    for (const path of ['/', '/work', '/inbox', '/cafe', '/cafe/records', '/cafe/stock-comparison', '/cafe/receive/issues', '/cafe/review', '/cafe/review?queue=receipts', '/cafe/review?queue=requests', '/cafe/review?queue=failed-sends', '/cafe/pushes', '/profile']) {
       expect(paths).toContain(path)
     }
   })
@@ -110,6 +122,11 @@ describe('the phone module tab', () => {
     expect(phoneModuleForViewer(['cafe'], ['finance'], '/')?.id).toBe('cafe')
     rememberModule('money')
     expect(phoneModuleForViewer(['cafe'], ['finance'], '/work/tasks')?.id).toBe('money')
+  })
+
+  it('does not restore a switched-off module through last-visit or affiliation fallback', () => {
+    rememberModule('money')
+    expect(phoneModuleForViewer(['money'], ['finance'], '/', (moduleId) => moduleId !== 'money')).toBeNull()
   })
 
   it('omits the slot when there is nothing to name, rather than making a module up', () => {

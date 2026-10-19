@@ -8,8 +8,8 @@
  *   1. CORS preflight handling for the configured app origins (_shared/cors.ts).
  *   2. requireVerifiedClaims (_shared/claims.ts): Bearer token, agent tokens refused, JWT verified,
  *      then org_id/person_id/access_roles read from it (D1 — no profiles lookup); 401 otherwise.
- *   3. Build the caller-JWT client for business actions and reads (deputy auth — D2/D3) and the
- *      service-role writer that creates owner-bound approval rows (the trusted edge path).
+ *   3. Use the service-role client to enforce the org assistant switch, then build the caller-JWT
+ *      client for business actions and reads and the trusted approval-row writer.
  *   4. Read AGENT_MODEL_API_KEY / AGENT_MODEL_BASE_URL / AGENT_MODEL_DEFAULT from function
  *      secrets — fail loud (502 MODEL_NOT_CONFIGURED) if the model id is unset (D4, FR-CF-001).
  *   5. Cap the JSON body size, then parse into AgentChatRequest.
@@ -28,6 +28,7 @@ import { ChatCompletionsClient } from '../_shared/chatCompletionsClient.ts'
 import { resolveDefaultModel } from '../_shared/modelResolution.ts'
 import { logStructuredError } from '../_shared/errorLog.ts'
 import { requireVerifiedClaims } from '../_shared/claims.ts'
+import { assistantRefusalResponse, checkAssistantAvailability } from '../_shared/assistantAvailability.ts'
 import { appOrigins, corsHeaders as corsHeadersFor } from '../_shared/cors.ts'
 import { encodeSse } from '../../../mos-app/src/lib/agent/runtime/transport.ts'
 import type { AgentChatRequest } from '../../../mos-app/src/lib/agent/runtime/transport.ts'
@@ -53,10 +54,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     )
   }
   const { jwt, userId, orgId, personId, accessRoles } = verdict.claims
+  const serviceRoleClient = createClient(supabaseUrl, serviceRoleKey)
+  const assistantAvailability = await checkAssistantAvailability(serviceRoleClient, orgId, 'agent-chat')
+  const assistantRefusal = assistantRefusalResponse(assistantAvailability, corsHeaders)
+  if (assistantRefusal) return assistantRefusal
 
   // ── 3. Build the caller-JWT Supabase client (deputy auth — D2/D3) ────────────
-  // Business actions and reads use callerClient; service_role inserts only authenticated approvals.
-  const serviceRoleClient = createClient(supabaseUrl, serviceRoleKey)
+  // Business actions and reads use callerClient; service_role reads switches and writes approvals.
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
   const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: `Bearer ${jwt}` } },

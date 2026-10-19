@@ -1,12 +1,15 @@
 // Context files intentionally mix a Provider component with a reader hook —
 // the react-refresh rule is suppressed per the established pattern (breadcrumb-title.tsx).
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Suspense, createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { getSignalPostAuthority, loadMentionRosters, type MentionRosters } from '@/lib/db/signals'
 import type { StagedMention } from '@/lib/db/signals.types'
-import { SignalComposer } from '@/components/signals/signal-composer'
+import type { SignalComposerProps } from '@/components/signals/signal-composer'
+import { lazyPage } from '@/lib/lazy-page'
+import { LoadingShell } from '@/components/ui/state-kit'
+import { ContentErrorBoundary } from './content-error-boundary'
 import { IconButton } from '@/components/ui/icon-button'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -53,6 +56,19 @@ export function useOptionalSignalComposer(): SignalComposerContextValue | null {
 }
 
 const EMPTY_ROSTERS: MentionRosters = { teamMembers: {}, buMembers: {} }
+
+const LazySignalComposer = lazyPage(() =>
+  import('@/components/signals/signal-composer').then((m) => ({ default: m.SignalComposer })),
+)
+
+function SignalComposerContent(props: SignalComposerProps) {
+  // ModalShell opens before the lazy content exists, so its initial-focus pass can only target
+  // the dialog. Focus again once the textarea has mounted with the loaded composer.
+  useEffect(() => {
+    props.textareaRef?.current?.focus()
+  }, [props.textareaRef])
+  return <LazySignalComposer {...props} />
+}
 
 export function SignalComposerHost({ children }: { children: ReactNode }) {
   const auth = useAuth()
@@ -153,18 +169,22 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
                 <CloseIcon />
               </IconButton>
             </div>
-            <SignalComposer
-              authorId={viewer.person.id}
-              authorName={viewer.person.full_name}
-              canTag={canTag}
-              canMentionBu={canMentionBu}
-              teamMembers={rosters.teamMembers}
-              buMembers={rosters.buMembers}
-              onShared={handleShared}
-              onDirtyChange={handleDirtyChange}
-              textareaRef={composerTextareaRef}
-              prefill={prefill}
-            />
+            <ContentErrorBoundary>
+              <Suspense fallback={<LoadingShell />}>
+                <SignalComposerContent
+                  authorId={viewer.person.id}
+                  authorName={viewer.person.full_name}
+                  canTag={canTag}
+                  canMentionBu={canMentionBu}
+                  teamMembers={rosters.teamMembers}
+                  buMembers={rosters.buMembers}
+                  onShared={handleShared}
+                  onDirtyChange={handleDirtyChange}
+                  textareaRef={composerTextareaRef}
+                  prefill={prefill}
+                />
+              </Suspense>
+            </ContentErrorBoundary>
           </div>
         </ModalShell>
       )}

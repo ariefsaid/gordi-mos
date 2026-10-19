@@ -72,8 +72,9 @@ interface KitchenToolbarProps {
   sortLabel?: string
   /** Replaces the "N items" text of the result count (a list of rows or entries, not items). */
   countLabel?: string
-  /** Phone only: a sort control that stays on the toolbar beside the folded Filters, not inside them. */
+  /** Phone only: a sort control; placement defaults to its own row, or may join the folded Filters panel. */
   sortControl?: ReactNode
+  sortControlIn?: 'toolbar' | 'panel'
   /** Page-specific active filters shown as removable chips beside the built-in ones. */
   extraChips?: readonly { key: string; label: string; clear: () => void }[]
   /** Display text for a non-default kind (chip label); defaults to the raw value. */
@@ -114,6 +115,7 @@ export function KitchenToolbar({
   sortLabel,
   countLabel,
   sortControl,
+  sortControlIn = 'toolbar',
   extraChips,
   kindLabel,
   clearAllLabel,
@@ -122,6 +124,7 @@ export function KitchenToolbar({
   const t = useT()
   const desktop = useIsDesktop()
   const folded = Boolean(filtersPanel) && !desktop
+  const sortInPanel = folded && sortControlIn === 'panel'
   const placeholder = searchPlaceholder ?? t('kitchen.log.searchPlaceholder')
   const searchName = searchAriaLabel ?? t('cafe.toolbar.searchLabel')
   const compactSetupFilters = !folded && Boolean(
@@ -232,7 +235,7 @@ export function KitchenToolbar({
   // Phone, no leading scope band: the count shares the search label's line (PA4: one row less above the first entry).
   const countOnLabel = !desktop && !children && countNode !== null
   return (
-    <div className="ktb" aria-label={ariaLabel}>
+    <div className="ktb" role="group" aria-label={ariaLabel}>
       {children && (
         <div className={filtersBand ? 'ktb-children ktb-children--band' : 'ktb-children'}>
           {children}
@@ -246,10 +249,10 @@ export function KitchenToolbar({
         {!folded && trailing}
         {folded && filtersPanel && <details className="ktb-panel">
           <summary><span>{filtersPanel.label}</span><span className="ktb-panel__summary">{filtersPanel.summary}</span></summary>
-          <div className="ktb-panel__body">{selectsBlock}{trailing}</div>
+          <div className="ktb-panel__body">{selectsBlock}{trailing}{sortInPanel ? sortControl : null}</div>
         </details>}
       </div>
-      {sortControl && !desktop && <div className="ktb-sort">{sortControl}</div>}
+      {sortControl && !desktop && !sortInPanel && <div className="ktb-sort">{sortControl}</div>}
       {!countOnLabel && countNode}
       {chips.length > 0 && (
         <div className="ktb-chips" role="group" aria-label={t('cafe.toolbar.activeFilters')}>

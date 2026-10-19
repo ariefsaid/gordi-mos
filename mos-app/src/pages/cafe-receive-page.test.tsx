@@ -6,6 +6,11 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
+const locationMocks = vi.hoisted(() => ({ choices: vi.fn() }))
+vi.mock('@/lib/use-cafe-location-choices', async importActual => {
+  const actual = await importActual<typeof import('@/lib/use-cafe-location-choices')>()
+  return { ...actual, useCafeLocationChoices: locationMocks.choices }
+})
 const itemSettingsMocks = vi.hoisted(() => ({ list: vi.fn(), canManage: vi.fn() }))
 vi.mock('@/lib/db/cafe-item-settings', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/db/cafe-item-settings')>()
@@ -214,6 +219,7 @@ beforeEach(() => {
   localStorage.clear()
   mockUseAuth.mockReturnValue(viewer(['member']))
   mockItems.mockResolvedValue(ITEMS)
+  locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], defaults: null, retry: vi.fn() })
   poMocks.list.mockReset().mockResolvedValue(EMPTY_PO_CACHE as never)
   vi.mocked(listCafeReceipts).mockResolvedValue([])
   vi.mocked(canManageCafeReceiptIssues).mockResolvedValue(false)
@@ -613,6 +619,38 @@ describe('CafeReceivePage', () => {
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
     expect(mockSubmit.mock.calls[0][3]).toEqual([
       { item_unit_id: 'unit-kg', quantity: '2.5', damaged_wrong: true },
+    ])
+  })
+
+  it('applies the delivery storage default and persists a per-line location override into the receipt payload', async () => {
+    mockSubmit.mockResolvedValue(submitResult('receipt-1', []))
+    locationMocks.choices.mockReturnValue({
+      status: 'ready',
+      locations: [
+        { id: 'cold-1', name: 'Cold room', use: 'storage', parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
+        { id: 'pantry-1', name: 'Pantry', use: 'storage', parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
+      ],
+      defaults: { branch_id: 'branch-1', activity: 'kitchen', production_location_id: null, storage_location_id: 'cold-1' },
+      retry: vi.fn(),
+    })
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '3' } })
+    fireEvent.click(screen.getByText(/Accepted lines/))
+
+    const deliveryLocation = screen.getAllByRole('combobox', { name: 'Store in' })[2]!
+    expect(deliveryLocation).toHaveTextContent('Cold room')
+    await userEvent.click(deliveryLocation)
+    await userEvent.click(await screen.findByRole('option', { name: 'Pantry' }))
+    fireEvent.click(screen.getAllByText('Store this line somewhere else')[0]!)
+    await userEvent.click(screen.getAllByRole('combobox', { name: 'Store in' })[0]!)
+    await userEvent.click(await screen.findByRole('option', { name: 'Cold room' }))
+
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock quantities' }))
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
+    expect(mockSubmit.mock.calls[0][3]).toEqual([
+      { item_unit_id: 'unit-kg', quantity: '2', damaged_wrong: false, to_storage_location_id: 'cold-1' },
+      { item_unit_id: 'unit-l', quantity: '3', damaged_wrong: false, to_storage_location_id: 'pantry-1' },
     ])
   })
 

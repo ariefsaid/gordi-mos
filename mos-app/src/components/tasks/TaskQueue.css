@@ -58,6 +58,11 @@
 }
 
 @media (max-width: 767.98px) {
+  .tasks-decision-toolbar .collection-toolbar__count {
+    min-width: 0;
+    white-space: normal;
+  }
+
   .tasks-work-queue .task-card.collection-grammar-card .task-card-link {
     min-height: var(--mos-control-height);
     padding: var(--mos-row-pad-y) var(--mos-row-pad-x);

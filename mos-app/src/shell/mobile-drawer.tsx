@@ -1,18 +1,19 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { isShipGated } from '@/lib/ship-gate'
 import { useLocation } from 'react-router-dom'
 import { UserChip } from './user-chip'
 import { CloseIcon } from './icons'
 import { AreaLink, PageLinks } from './nav-parts'
 import {
-  FIXED_AREAS, INBOX_AREA, admittedModules, currentPagePath, footerAreas, pageCount, pageGroupsFor, destinationForPath, rowState,
+  currentPagePath, footerAreas, globalNavigationDestinations, pageCount, pageGroupsFor, destinationForPath, rowState,
   type Destination,
 } from './module-registry'
 import { useNavBadges } from './use-nav'
 import { useAuth } from '@/auth/use-auth'
+import { useModuleAvailability } from '@/lib/module-availability'
 import { useT } from '@/i18n/use-t'
 import { focusableWithin } from '@/lib/focusable'
 import { OverlayPortal } from '@/components/ui/overlay-portal'
+import { ReleaseStamp } from '@/components/release-stamp'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { useInertAppRoot } from '@/components/ui/use-inert-app-root'
 import './mobile-drawer.css'
@@ -27,9 +28,6 @@ interface MobileDrawerProps {
   focusOpener?: () => void
 }
 
-const HOME = FIXED_AREAS[0]
-const WORK = FIXED_AREAS[1]
-
 function landingOf(destination: Destination): string {
   return destination.primaryPath ?? destination.links[0].path
 }
@@ -40,9 +38,9 @@ function rootOf(destination: Destination): string {
 
 /**
  * MobileDrawer — the phone's More: a drawer, not a page. It is derived from the SAME module registry as the
- * desktop nav: Home, Work, Inbox, the admitted Modules (only the module you are in expands, with its grouped
- * pages), then Admin settings, Personal profile and the account chip (language, appearance, sign out) in a
- * foot that stays on screen while the navigation scrolls. Every close path — Esc, backdrop click, the ✕, and
+ * desktop nav: Home, Work, admitted destinations in the registry's shared order (only the current area's pages expand),
+ * then Admin settings, Personal profile and the account chip (language, appearance, sign out) in a foot that stays on
+ * screen while the navigation scrolls. Every close path — Esc, backdrop click, the ✕, and
  * selecting a destination — routes through the SAME `closeAndReturn` so focus always returns to the opener
  * (interaction-contract I2), never left dangling on a link about to unmount.
  */
@@ -57,6 +55,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   const t = useT()
   const badges = useNavBadges()
   const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const { isOn } = useModuleAvailability()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
 
   const closeAndReturn = useCallback(() => {
@@ -89,14 +88,11 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   if (!open) return null
 
   const area = destinationForPath(pathname)
-  const modules = admittedModules(accessRoles)
+  const destinations = globalNavigationDestinations(accessRoles, isOn)
   const footer = footerAreas(accessRoles)
   const admin = footer.find((d) => d.id === 'admin')
   const profile = footer.find((d) => d.id === 'profile')
-  const workGroups = pageGroupsFor(WORK, accessRoles)
   const adminGroups = admin ? pageGroupsFor(admin, accessRoles) : []
-  const state = (destination: Destination, groups: ReturnType<typeof pageGroupsFor>) =>
-    rowState(pathname, landingOf(destination), destination.id === 'home' ? '/' : rootOf(destination), currentPagePath(groups, pathname))
 
   return (
     <OverlayPortal>
@@ -124,40 +120,31 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
 
         <nav aria-label={t('nav.moreDestinations')} className="mobile-drawer-nav">
           <div className="nav-list">
-            {!isShipGated('/') && <AreaLink destination={HOME} to="/" state={state(HOME, [])} onNavigate={closeAndReturn} />}
-            {!isShipGated('/work') && <div>
-              <AreaLink destination={WORK} to={landingOf(WORK)} state={state(WORK, workGroups)} onNavigate={closeAndReturn} />
-              {area?.id === 'work' && (
-                <div className="nav-children">
-                  <PageLinks groups={workGroups} pathname={pathname} forPath={badges.forPath} onNavigate={closeAndReturn} />
-                </div>
-              )}
-            </div>}
-            {/* Inbox has no desktop menu row (it is the bell); on a phone the bell is on the top bar and here. */}
-            <AreaLink destination={INBOX_AREA} to={landingOf(INBOX_AREA)} state={state(INBOX_AREA, [])} onNavigate={closeAndReturn} />
-          </div>
-
-          {modules.length > 0 && (
-            <>
-              <div className="nav-group-heading nav-group-heading--top">{t('shell.nav.modules')}</div>
-              <div className="nav-list">
-                {modules.map((module) => {
-                  const groups = pageGroupsFor(module, accessRoles)
-                  const here = area?.id === module.id && pageCount(groups) >= 2
-                  return (
-                    <div key={module.id}>
-                      <AreaLink destination={module} to={landingOf(module)} state={state(module, here ? groups : [])} onNavigate={closeAndReturn} badge={here ? undefined : badges.forDestination(module.id)} />
-                      {here && (
-                        <div className="nav-children">
-                          <PageLinks groups={groups} pathname={pathname} forPath={badges.forPath} onNavigate={closeAndReturn} />
-                        </div>
-                      )}
+            {destinations.map((destination) => {
+              const groups = destination.id === 'work' || destination.zone === 'modules'
+                ? pageGroupsFor(destination, accessRoles, isOn) : []
+              const hasPages = pageCount(groups) >= 2
+              const expanded = area?.id === destination.id && hasPages
+              const activeGroups = destination.id === 'work' || area?.id === destination.id ? groups : []
+              const state = rowState(pathname, landingOf(destination), rootOf(destination), currentPagePath(activeGroups, pathname))
+              return (
+                <div key={destination.id}>
+                  <AreaLink
+                    destination={destination}
+                    to={landingOf(destination)}
+                    state={state}
+                    onNavigate={closeAndReturn}
+                    badge={expanded ? undefined : badges.forDestination(destination.id)}
+                  />
+                  {expanded && (
+                    <div className="nav-children">
+                      <PageLinks groups={groups} pathname={pathname} forPath={badges.forPath} onNavigate={closeAndReturn} />
                     </div>
-                  )
-                })}
-              </div>
-            </>
-          )}
+                  )}
+                </div>
+              )
+            })}
+          </div>
 
           {area?.id === 'admin' && adminGroups.length > 0 && (
             <>
@@ -170,10 +157,11 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
         {/* Foot: Admin settings and Personal profile, then the account (language, appearance, sign out). */}
         <div className="mobile-drawer-foot">
           <div className="nav-list">
-            {admin && <AreaLink destination={admin} to={landingOf(admin)} state={state(admin, adminGroups)} onNavigate={closeAndReturn} />}
+            {admin && <AreaLink destination={admin} to={landingOf(admin)} state={rowState(pathname, landingOf(admin), rootOf(admin), currentPagePath(adminGroups, pathname))} onNavigate={closeAndReturn} />}
             {profile && <AreaLink destination={profile} to="/profile" state={rowState(pathname, '/profile', '/profile', undefined)} onNavigate={closeAndReturn} />}
           </div>
           {viewer && <UserChip variant="drawer" />}
+          <ReleaseStamp />
         </div>
       </div>
       </>

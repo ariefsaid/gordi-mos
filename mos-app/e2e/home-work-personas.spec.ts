@@ -271,7 +271,8 @@ for(const width of [390,1920]) test(`Task Objective relation and absent Project 
   await page.setViewportSize({width,height:width===390?900:1080})
   await loginAs(page,'dewi.dev@example.test',DEMO_PASSWORD)
   await page.goto('work/tasks')
-  await page.getByRole('link',{name:/^AC204 Sign the lease/}).click()
+  // A phone row's name leads with its status and due date, so match the title anywhere in it.
+  await page.getByRole('link',{name:/AC204 Sign the lease/}).click()
   const task=page.getByRole('region',{name:'AC204 Sign the lease',exact:true})
   await expect(task).toBeVisible()
   await task.getByRole('link',{name:'AC204 Grow revenue',exact:true}).first().click()

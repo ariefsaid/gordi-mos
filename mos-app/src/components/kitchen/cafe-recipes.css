@@ -127,7 +127,7 @@
   .cafe-recipes__back { min-height: var(--mos-control-height); }
 }
 
-/* "Show hidden": the preview checkbox beside the filters; the label is the 44px phone target. */
+/* "Show hidden" stays beside the filters and keeps a 44px phone target. */
 .cafe-recipes__show-hidden {
   display: inline-flex;
   align-items: center;
@@ -139,7 +139,7 @@
   cursor: pointer;
 }
 
-/* Hide in MOS (preview): state word beside the switch, the preview mark, then the disabled Save with its reason. */
+/* Keep the organization-scoped visibility control alongside the recipe facts. */
 .cafe-recipe-visibility {
   display: grid;
   gap: var(--mos-inline-gap);

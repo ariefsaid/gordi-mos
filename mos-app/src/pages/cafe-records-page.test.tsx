@@ -6,8 +6,10 @@ import { CafeRecordsPage } from './cafe-records-page'
 import { requiredSources } from '@/lib/cafe-records/sources'
 import { clearRecordsCache } from '@/lib/cafe-records/use-records-sources'
 import { clearRecordsLookupCache } from '@/lib/cafe-records/use-records-lookups'
-import type { CafeRecordLog } from '@/lib/db/cafe-records'
+import type { CafeRecordCount, CafeRecordLog } from '@/lib/db/cafe-records'
+import type { CafePurchaseRequest } from '@/lib/db/cafe-purchase-requests'
 import { formatDayMonthYear, wibToday } from '@/lib/format/date'
+import { resolvePreset } from '@/lib/cafe-records/period'
 
 const B1 = '2d63ab19-142c-5ecb-9f88-6b512eebe581'
 const auth = vi.hoisted(() => ({ viewer: 'p1' }))
@@ -46,6 +48,16 @@ const log = (over: Partial<CafeRecordLog> = {}): CafeRecordLog => ({
   submitted_by: 'p9', created_at: '2026-10-14T03:00:00+00:00', updated_at: 'x', reviewed_by: null, reviewed_at: null, review_note: null, posted_to_esb: false,
   posted_at: null, esb_doc_num: null, superseded_by: null, item_name: 'Pickled onion', ...over,
 })
+const count = (): CafeRecordCount => ({
+  id: 'c1', branch_id: B1, activity: 'bar', count_date: '2026-10-14', wip_item_id: 'i1', item_name: 'Pickled onion', item_category: null,
+  item_kind: 'WIP', item_unit_id: 'u1', unit_name: 'Batch', counted_quantity: 4, status: 'Confirmed', posting_status: 'not_needed', submitted_by: 'p-count',
+  submitted_at: '2026-10-14T05:00:00Z', reviewed_at: null, row_version: 1,
+})
+const request = (): CafePurchaseRequest => ({
+  id: 'r1', branch_id: B1, activity: 'bar', required_by: '2026-10-20', note: null, status: 'Submitted', requested_by: 'p1',
+  requested_at: '2026-10-14T01:00:00Z', reviewed_by: null, reviewed_at: null, review_note: null, row_version: 1,
+  lines: [{ id: 'rl1', wip_item_id: 'i1', item_unit_id: 'u1', item_name: 'Pickled onion', item_category: null, unit_name: 'Batch', quantity: '2' }],
+})
 const page = (rows: unknown[]) => async (read: { after?: readonly string[] | null }) => (read.after ? { rows: [], next: null } : { rows, next: rows.length ? ['2026-10-14', 't', 'l'] : null })
 
 function Spy({ seen }: { seen: string[] }) {
@@ -60,6 +72,16 @@ function renderPage(search = '', seen: string[] = []) {
   return render(<MemoryRouter initialEntries={[`/cafe/records${search}`]}><Spy seen={seen} /><CafeRecordsPage /></MemoryRouter>)
 }
 
+const defaultMatchMedia = window.matchMedia
+
+function usePhoneViewport() {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: (media: string) => ({ matches: false, media, onchange: null, addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false }),
+  })
+}
+
 beforeEach(() => {
   clearRecordsCache(); clearRecordsLookupCache()
   reads.logs.mockImplementation(page([log()]))
@@ -67,7 +89,7 @@ beforeEach(() => {
   reads.receipts.mockImplementation(page([]))
   reads.requests.mockImplementation(page([]))
 })
-afterEach(() => { cleanup(); vi.clearAllMocks(); auth.viewer = 'p1' })
+afterEach(() => { cleanup(); vi.clearAllMocks(); window.matchMedia = defaultMatchMedia; auth.viewer = 'p1' })
 
 describe('which sources a view must read', () => {
   it('reads only what the question needs, and everything while an item history is open', () => {
@@ -86,6 +108,27 @@ describe('Café Records page', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Records' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Day summary', selected: true })).toBeInTheDocument()
     expect(screen.getByText(formatDayMonthYear(wibToday()))).toBeInTheDocument()
+  })
+
+  it('shows the stored Count submitter in Entries and the entry detail', async () => {
+    reads.counts.mockImplementation(page([count()]))
+    renderPage('?question=counted&reading=entries')
+    expect(await screen.findByText(/Bayu Barista/)).toBeInTheDocument()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /Opens the entry/ }))
+    expect(await screen.findByRole('heading', { level: 2, name: 'Pickled onion' })).toBeInTheDocument()
+    expect(screen.getByText('Bayu Barista')).toBeInTheDocument()
+    expect(reads.counts).toHaveBeenCalled()
+  })
+
+  it('opens item history for a request line through its stored item identity', async () => {
+    reads.requests.mockImplementation(page([request()]))
+    renderPage('?question=requested&reading=entries')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Open history of Pickled onion' }))
+    expect(await screen.findByRole('heading', { level: 2, name: 'Pickled onion' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Requested/ })).toBeInTheDocument()
+    expect(screen.queryByText(/no stored item link/i)).toBeNull()
   })
 
   it('shows the item and its day row once the sources settle', async () => {
@@ -141,11 +184,194 @@ describe('Café Records page', () => {
     expect(screen.getAllByRole('link', { name: 'Back to Café' }).length).toBeGreaterThan(0)
   })
 
-  it('shows No records, with a way to change the period, when a complete source is empty', async () => {
+  it('keeps a failed source distinct from an empty answer and offers its retry', async () => {
+    reads.logs.mockRejectedValue(new Error('network unavailable'))
+    renderPage('?question=made&reading=summary')
+
+    expect(await screen.findByText(/Could not load production, transfer and waste records/)).toBeInTheDocument()
+    expect(screen.queryByText('No production, transfer and waste records in this period')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+  })
+
+  it('focuses Question when opening the full scope editor', async () => {
+    renderPage()
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Change scope' }))
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Question' })).toHaveFocus())
+  })
+
+  it('keeps the scoped answer and dates in the empty state; Change period opens the editor on Period', async () => {
     reads.logs.mockImplementation(page([]))
     renderPage('?question=made&reading=summary')
     expect(await screen.findByText('No production, transfer and waste records in this period')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Change period' })).toBeInTheDocument()
+    expect(screen.getByText(/No records match “What was produced\?” in Gordi HQ · Bar for/)).toBeInTheDocument()
+    const changePeriod = screen.getByRole('button', { name: 'Change period' })
+    await userEvent.setup().click(changePeriod)
+    const period = screen.getByRole('combobox', { name: 'Period' })
+    await waitFor(() => expect(period).toHaveFocus())
+    expect(screen.getByRole('button', { name: 'Change scope' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('updates both the open editor and collapsed scope summary when Back changes the URL', async () => {
+    const seen: string[] = []
+    renderPage('?question=made&period=today&reading=summary', seen)
+    await screen.findByRole('heading', { level: 1, name: 'Records' })
+    const changeScope = screen.getByRole('button', { name: 'Change scope' })
+    expect(screen.queryByRole('combobox', { name: 'Question' })).toBeNull()
+    const scopeSummary = within(screen.getByRole('region', { name: 'Scope of the records' }))
+    expect(scopeSummary.getByText('What was produced?')).toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(changeScope)
+    const question = screen.getByRole('combobox', { name: 'Question' })
+    await user.click(question)
+    await user.click(screen.getByRole('option', { name: 'How much was wasted?' }))
+    await waitFor(() => expect(new URLSearchParams(seen.at(-1)).get('question')).toBe('wasted'))
+    expect(question).toHaveTextContent('How much was wasted?')
+    expect(scopeSummary.getByText('How much was wasted?')).toBeInTheDocument()
+
+    ;(window as unknown as { __nav: (n: number) => void }).__nav(-1)
+    await waitFor(() => expect(question).toHaveTextContent('What was produced?'))
+    expect(scopeSummary.getByText('What was produced?')).toBeInTheDocument()
+    await user.click(changeScope)
+    expect(screen.queryByRole('combobox', { name: 'Question' })).toBeNull()
+    expect(scopeSummary.getByText('What was produced?')).toBeInTheDocument()
+  })
+
+  it('restores an edited exact question, stream, and date range after a route remount', async () => {
+    const exactUrl = `?question=made&period=custom&from=2026-10-10&to=2026-10-14&stream=${encodeURIComponent(`${B1}:bar`)}&reading=entries`
+    const seen: string[] = []
+    const first = renderPage(exactUrl, seen)
+    await screen.findByRole('heading', { level: 1, name: 'Records' })
+
+    const scope = () => within(screen.getByRole('region', { name: 'Scope of the records' }))
+    expect(scope().getByText('What was produced?')).toBeInTheDocument()
+    expect(scope().getByText('Gordi HQ · Bar')).toBeInTheDocument()
+    expect(scope().getByText(`${formatDayMonthYear('2026-10-10')} to ${formatDayMonthYear('2026-10-14')}`)).toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Change scope' }))
+    const question = screen.getByRole('combobox', { name: 'Question' })
+    await user.click(question)
+    await user.click(screen.getByRole('option', { name: 'How much was wasted?' }))
+    await user.clear(screen.getByRole('textbox', { name: 'From' }))
+    await user.type(screen.getByRole('textbox', { name: 'From' }), '11/10/2026')
+    await user.clear(screen.getByRole('textbox', { name: 'To' }))
+    await user.type(screen.getByRole('textbox', { name: 'To' }), '13/10/2026')
+    await user.click(screen.getByRole('button', { name: 'Apply range' }))
+    await user.click(screen.getByRole('combobox', { name: 'Production stream' }))
+    await user.click(screen.getByRole('option', { name: 'All readable streams' }))
+    await waitFor(() => {
+      const params = new URLSearchParams(seen.at(-1))
+      expect(params.get('question')).toBe('wasted')
+      expect(params.get('from')).toBe('2026-10-11')
+      expect(params.get('to')).toBe('2026-10-13')
+      expect(params.get('stream')).toBe('all')
+    })
+    const editedUrl = new URLSearchParams(seen.at(-1))
+    expect(editedUrl.get('period')).toBe('custom')
+    expect(editedUrl.get('from')).toBe('2026-10-11')
+    expect(editedUrl.get('to')).toBe('2026-10-13')
+    expect(editedUrl.get('stream')).toBe('all')
+    expect(editedUrl.get('reading')).toBe('entries')
+    first.unmount()
+
+    renderPage(seen.at(-1) ?? exactUrl)
+    await screen.findByRole('heading', { level: 1, name: 'Records' })
+    expect(scope().getByText('How much was wasted?')).toBeInTheDocument()
+    expect(scope().getByText('All readable streams')).toBeInTheDocument()
+    expect(scope().getByText(`${formatDayMonthYear('2026-10-11')} to ${formatDayMonthYear('2026-10-13')}`)).toBeInTheDocument()
+  })
+
+  it('lets a phone reader change period and stream from the empty state and shows the effective dates', async () => {
+    usePhoneViewport()
+    reads.logs.mockImplementation(page([]))
+    const seen: string[] = []
+    renderPage('?question=made&reading=summary', seen)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Change period' }))
+
+    const period = screen.getByRole('combobox', { name: 'Period' })
+    expect(period).toHaveFocus()
+    await user.click(period)
+    await user.click(await screen.findByRole('option', { name: 'Last month' }))
+    const range = resolvePreset('last-month', wibToday())
+    await waitFor(() => {
+      const params = new URLSearchParams(seen.at(-1))
+      expect(params.get('period')).toBe('last-month')
+      expect(params.get('from')).toBe(range.from)
+      expect(params.get('to')).toBe(range.to)
+    })
+    expect(screen.getByText(`${formatDayMonthYear(range.from)} to ${formatDayMonthYear(range.to)}`)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('combobox', { name: 'Production stream' }))
+    await user.click(await screen.findByRole('option', { name: 'All readable streams' }))
+    await waitFor(() => expect(new URLSearchParams(seen.at(-1)).get('stream')).toBe('all'))
+  })
+
+  it('changes Records sort from the phone Filters panel with one URL history step', async () => {
+    usePhoneViewport()
+    const seen: string[] = []
+    renderPage('?question=made&reading=entries', seen)
+    await waitFor(() => expect(within(screen.getByLabelText('Search and filter the records')).getByRole('status')).toHaveTextContent('Newest first'))
+    const user = userEvent.setup()
+    await user.click(screen.getByText('Filters & sort'))
+    await user.click(screen.getByRole('combobox', { name: 'Sort' }))
+    await user.click(await screen.findByRole('option', { name: 'Item A to Z' }))
+    await waitFor(() => {
+      const params = new URLSearchParams(seen.at(-1))
+      expect(params.get('sort')).toBe('item')
+      expect(params.has('dir')).toBe(false)
+    })
+
+    ;(window as unknown as { __nav: (n: number) => void }).__nav(-1)
+    await waitFor(() => expect(new URLSearchParams(seen.at(-1)).has('sort')).toBe(false))
+    expect(new URLSearchParams(seen.at(-1)).get('reading')).toBe('entries')
+  })
+
+  it('lets a phone reader change period and stream from the empty state and shows the effective dates', async () => {
+    usePhoneViewport()
+    reads.logs.mockImplementation(page([]))
+    const seen: string[] = []
+    renderPage('?question=made&reading=summary', seen)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Change period' }))
+
+    const period = screen.getByRole('combobox', { name: 'Period' })
+    expect(period).toHaveFocus()
+    await user.click(period)
+    await user.click(await screen.findByRole('option', { name: 'Last month' }))
+    const range = resolvePreset('last-month', wibToday())
+    await waitFor(() => {
+      const params = new URLSearchParams(seen.at(-1))
+      expect(params.get('period')).toBe('last-month')
+      expect(params.get('from')).toBe(range.from)
+      expect(params.get('to')).toBe(range.to)
+    })
+    expect(screen.getByText(`${formatDayMonthYear(range.from)} to ${formatDayMonthYear(range.to)}`)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('combobox', { name: 'Production stream' }))
+    await user.click(await screen.findByRole('option', { name: 'All readable streams' }))
+    await waitFor(() => expect(new URLSearchParams(seen.at(-1)).get('stream')).toBe('all'))
+  })
+
+  it('changes Records sort from the phone Filters panel with one URL history step', async () => {
+    usePhoneViewport()
+    const seen: string[] = []
+    renderPage('?question=made&reading=entries', seen)
+    await waitFor(() => expect(within(screen.getByLabelText('Search and filter the records')).getByRole('status')).toHaveTextContent('Newest first'))
+    const user = userEvent.setup()
+    await user.click(screen.getByText('Filters & sort'))
+    await user.click(screen.getByRole('combobox', { name: 'Sort' }))
+    await user.click(await screen.findByRole('option', { name: 'Item A to Z' }))
+    await waitFor(() => {
+      const params = new URLSearchParams(seen.at(-1))
+      expect(params.get('sort')).toBe('item')
+      expect(params.has('dir')).toBe(false)
+    })
+
+    ;(window as unknown as { __nav: (n: number) => void }).__nav(-1)
+    await waitFor(() => expect(new URLSearchParams(seen.at(-1)).has('sort')).toBe(false))
+    expect(new URLSearchParams(seen.at(-1)).get('reading')).toBe('entries')
   })
 
   it('does not carry one account\'s rows to another: switching the viewer starts from nothing', async () => {

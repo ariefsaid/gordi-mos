@@ -34,6 +34,8 @@ g "$tmp/repo" commit -qm init --allow-empty
 # A real local origin behind the GitHub URL, so the gate's base fetch is exercised, not faked.
 git init -q --bare "$tmp/origin.git"
 git -C "$tmp/repo" config "url.$tmp/origin.git.insteadOf" https://github.com/x/y.git
+# Any other GitHub URL resolves to a path that does not exist: this test can never reach the real forge.
+git -C "$tmp/repo" config "url.$tmp/no-network.git.insteadOf" https://github.com/
 g "$tmp/repo" push -q origin HEAD:refs/heads/dev
 mkdir -p "$tmp/repo/docs"
 cat > "$tmp/repo/docs/gh-denylist.txt" <<'EOF'
@@ -256,6 +258,7 @@ check "concatenated -Rother/repo refused" 1 no pr create -Rother/repo --title t 
 check "concatenated -Hother refused" 1 no pr create -Hother --title t --body "Reused: x"
 check "--hostname on pr create refused" 1 no pr create --hostname ghe.example --title t --body "Reused: x"
 check "alias 'pr new' refused (allowlist)" 1 no pr new --title t --body "clean"
+check "pr ready is allowlisted (takes a PR out of draft)" 0 yes pr ready 17
 echo "contains secretword" > "$tmp/repo/notes.md"
 check "release create refused (allowlist)" 1 no release create v1 -F "$tmp/repo/notes.md"
 check "gist create refused (allowlist)" 1 no gist create "$tmp/repo/notes.md"
@@ -296,7 +299,7 @@ check "short-flag cluster hiding -F refused" 1 no api repos/x/y/issues -iFbody=@
 check "stray positional after the endpoint refused" 1 no api repos/x/y/issues extra -f title=x
 check "end-of-flags marker refused" 1 no api repos/x/y/issues -- -f title=x
 check "value-taking flag at the end refused" 1 no api repos/x/y/issues -f
-api_allowlist="Allowed API writes: POST repos/x/y/security-advisories; POST repos/x/y/pulls (REST PR stamps required); POST repos/x/y/issues/<number>/comments; PATCH repos/x/y/issues/<number> without labels."
+api_allowlist="Allowed API writes: POST repos/x/y/security-advisories; POST repos/x/y/pulls (REST PR stamps required); POST repos/x/y/releases (existing v<semver> tag on main); POST repos/x/y/issues/<number>/comments; PATCH repos/x/y/issues/<number> without labels."
 check_message "contents PUT is refused with the API write allowlist" 1 no "$api_allowlist" api repos/x/y/contents/README.md -X PUT -f message=edit
 check "contents DELETE is refused" 1 no api repos/x/y/contents/README.md -X DELETE -f message=delete
 check "merge-upstream is refused" 1 no api repos/x/y/merge-upstream -X POST -f branch=main
@@ -306,6 +309,15 @@ check "REST branch merge (POST merges) refuses" 1 no api repos/x/y/merges --meth
 check "REST ref update refuses" 1 no api repos/x/y/git/refs/heads/main --method POST -f ref=refs/heads/main -f sha=abc
 check "REST branch rename variant is refused" 1 no api repos/x/y/branches/x/rename --method PATCH -f new_name=y
 check "security advisory creation is allowlisted" 0 yes api repos/x/y/security-advisories --method POST -f summary=report
+g "$tmp/repo" tag v0.11.0 && g "$tmp/repo" push -q origin HEAD:refs/heads/main refs/tags/v0.11.0
+g "$tmp/repo" commit -q --allow-empty -m "off main" && g "$tmp/repo" tag v0.12.0 && g "$tmp/repo" push -q origin refs/tags/v0.12.0 && g "$tmp/repo" reset -q --hard HEAD~1
+check "release for a v-tag on main is allowlisted" 0 yes api repos/x/y/releases --method POST -f tag_name=v0.11.0
+check "release for a v-tag off main is refused" 1 no api repos/x/y/releases --method POST -f tag_name=v0.12.0
+check "release for a tag not on origin is refused" 1 no api repos/x/y/releases --method POST -f tag_name=v9.9.9
+check "release for a non-v tag is refused" 1 no api repos/x/y/releases --method POST -f tag_name=nightly
+check "release with target_commitish is refused" 1 no api repos/x/y/releases --method POST -f tag_name=v0.11.0 -f target_commitish=dev
+check "release via --input is refused" 1 no api repos/x/y/releases --method POST --input "$tmp/repo/notes.md"
+check "release on another repository is refused" 1 no api repos/other/repo/releases --method POST -f tag_name=v0.11.0
 check "issue comment creation is allowlisted" 0 yes api repos/x/y/issues/17/comments -f body=comment
 check "issue PATCH without labels is allowlisted" 0 yes api repos/x/y/issues/17 --method PATCH -f state=closed
 check "contents GET remains allowed" 0 yes api /repos/x/y/contents/README.md --method get

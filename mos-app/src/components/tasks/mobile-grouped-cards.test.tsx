@@ -12,6 +12,8 @@ import type { MobileGroupedCardsProps } from './mobile-grouped-cards'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { isShipGated } from '@/lib/ship-gate'
 
+vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ isOn: () => true }) }))
+
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   return {
     id: 'task-1', org_id: 'org', title: 'Test task',
@@ -64,6 +66,14 @@ function renderCards(props: Partial<MobileGroupedCardsProps> = {}) {
 }
 
 describe('MobileGroupedCards', () => {
+  it('names both the PIC and Supervisor when scanning a phone task', () => {
+    renderCards({
+      personMap: new Map([['person-1', 'Arden Sample'], ['supervisor-1', 'Robin Sample']]),
+      groups: [{ key: '__flat__', label: 'Tasks', rows: [makeTask({ accountable_person_id: 'supervisor-1' })], overdue: 0, prefillParam: '' }],
+    })
+    expect(screen.getByRole('link', { name: /PIC: Arden Sample.*Supervisor: Robin Sample/ })).toBeInTheDocument()
+  })
+
   it('opens an ordinary card on plain click but preserves modified-click navigation', () => {
     const onOpenTask = vi.fn()
     renderCards({
@@ -238,6 +248,7 @@ describe('MobileGroupedCards', () => {
       const zeroGroup = { ...OCC_GROUP, occurrenceRollup: { ...OCC_GROUP.occurrenceRollup, pendingUnresolved: 0 } }
       renderCards({ groups: [zeroGroup], onAssignPending: vi.fn() })
       expect(screen.queryByRole('button', { name: /^\d+ to assign$/ })).not.toBeInTheDocument()
+      expect(screen.queryByText(/to assign/i)).not.toBeInTheDocument()
     })
 
     it('a non-occurrence group is unaffected (plain count grammar, no assign affordance)', () => {

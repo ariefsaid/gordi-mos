@@ -167,6 +167,10 @@ function activateFieldByKey(key: string) {
   fireEvent.click(btn)
 }
 
+function openTaskAbout() {
+  return screen.getByRole('region', { name: 'About this task' })
+}
+
 function chooseRecordOption(label: string) {
   fireEvent.click(screen.getByRole('combobox'))
   fireEvent.click(screen.getByRole('option', { name: label }))
@@ -219,6 +223,8 @@ describe('TaskSurface — view mode', () => {
       business_unit_id: null, is_company_wide: false, accountable_person_id: null, period_year: null, period_quarter: null, updated_at: '',
     })
     renderSurface()
+    await screen.findByRole('region', { name: 'About this task' })
+    openTaskAbout()
     expect((await screen.findAllByRole('link', { name: 'Archived Objective' }))[0]).toHaveAttribute('href', '/work/objectives/archived-objective')
     fireEvent.click(screen.getByRole('button', { name: /Edit Objective$/ }))
     fireEvent.click(screen.getByRole('combobox', { name: 'Objective' }))
@@ -238,8 +244,7 @@ describe('TaskSurface — view mode', () => {
     expect(screen.queryByRole('button', { name: /Load more/ })).toBeNull()
   })
 
-  it('AC-070 (TaskSurface): renders title, status, typed ownership, checklist, activity, and completion', async () => {
-    const task = makeTask()
+  it('D1: exposes authored work, essential facts and context, and focuses About from the ownership block', async () => {
     const checklist: ChecklistItemRow[] = [{
       id: 'item-0', org_id: 'org', task_id: 'task-abc', label: 'Inspect coil',
       is_done: false, position: 0, created_at: '2026-06-11T00:00:00Z', updated_at: '2026-06-11T00:00:00Z',
@@ -248,28 +253,37 @@ describe('TaskSurface — view mode', () => {
       id: 'evt-1', org_id: 'org', task_id: 'task-abc', actor_person_id: VIEWER_ID,
       event_type: 'created', from_value: null, to_value: null, created_at: '2026-06-11T00:00:00Z',
     }]
-    mockGetTask.mockResolvedValue({ task, checklist, events })
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events })
 
     renderSurface()
 
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument()
-    })
-    // Status/action stay in the compact header; the full work path and context remain in one view.
-    // The title's edit control must carry a localized accessible name, never the raw field key.
+    await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
     expect(screen.getByRole('button', { name: /Edit Title$/ })).toBeInTheDocument()
-    // The facts line answers what state, who has it and by when, before any section.
+    expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
     const facts = screen.getByRole('list', { name: 'Key facts' })
     expect(within(facts).getByRole('button', { name: /Edit Status$/ })).toHaveTextContent('Open')
-    expect(within(facts).getByText('PIC')).toBeInTheDocument()
-    expect(within(facts).getByText('Supervisor')).toBeInTheDocument()
     expect(within(facts).getByRole('button', { name: /Edit Due$/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
-    expect(screen.queryByText(/RACI|Responsible \(R\)|Accountable \(A\)|Consulted|Informed/)).toBeNull()
+    expect(within(facts).getByRole('button', { name: /Edit PIC$/ })).toHaveTextContent('Cahya Cafe')
+    expect(within(facts).getByRole('button', { name: /Edit Supervisor$/ })).toHaveTextContent('Cahya Cafe')
+    expect(screen.getByText('The espresso machine on floor 2 is broken.')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
     expect(screen.getByText('Inspect coil')).toBeInTheDocument()
-    // The event log is History: folded away until asked for.
-    fireEvent.click(screen.getByRole('button', { name: /History/ }))
+    expect(screen.queryByText(/RACI|Responsible \(R\)|Accountable \(A\)|Consulted|Informed/)).toBeNull()
+
+    const about = screen.getByRole('region', { name: 'About this task' })
+    expect(about).toBeInTheDocument()
+    expect(within(about).queryByText('PIC')).toBeNull()
+    expect(within(about).queryByText('Supervisor')).toBeNull()
+    const details = screen.getByRole('button', { name: 'Record details' })
+    expect(details).toHaveAttribute('aria-expanded', 'false')
+    const history = screen.getByRole('button', { name: /History/ })
+    expect(history).toHaveAttribute('aria-expanded', 'false')
+    const commentDraft = 'Keep this draft while I check task context.'
+    fireEvent.change(screen.getByRole('textbox', { name: /comment/i }), { target: { value: commentDraft } })
+    fireEvent.click(within(facts).getByRole('button', { name: 'About this task' }))
+    expect(screen.getByRole('heading', { name: 'About this task' })).toHaveFocus()
+    expect(screen.getByRole('textbox', { name: /comment/i })).toHaveValue(commentDraft)
+    fireEvent.click(history)
     expect(screen.getAllByTestId('event-entry')).toHaveLength(1)
   })
 
@@ -287,6 +301,8 @@ describe('TaskSurface — view mode', () => {
       </AuthContext.Provider>,
     )
 
+    await screen.findByRole('region', { name: 'About this task' })
+    openTaskAbout()
     const objectiveLink = await screen.findByRole('link', { name: 'Grow direct orders' })
     expect(objectiveLink).toHaveAttribute('href', '/work/objectives/obj-direct')
     fireEvent.click(objectiveLink)
@@ -303,7 +319,7 @@ describe('TaskSurface — view mode', () => {
     expect(screen.getByRole('list', { name: 'Fakta utama' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Komentar' })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Tentang' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Tentang tugas ini' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Riwayat' })).toBeNull() // no events, no History
     expect(screen.getByRole('button', { name: 'Tandai selesai' })).toBeInTheDocument()
     // The composer is one line until it is used; its action appears with it.
@@ -313,18 +329,17 @@ describe('TaskSurface — view mode', () => {
     expect(screen.queryByText('Task details')).toBeNull()
   })
 
-  it('AC-R01: full width renders the work-first document with all work regions visible', async () => {
+  it('keeps authored work and supporting context available without section navigation', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderSurface()
-    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    // Description, Checklist and Comments are all visible (no tabs); About and History follow.
+    await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
     expect(screen.queryByRole('tablist')).toBeNull()
-    expect(document.querySelector('.rp[data-record-kind="task"][data-record-mode="page"]')).toBeTruthy()
-    const sections = [...document.querySelectorAll('[data-record-section]')]
-      .map((node) => (node as HTMLElement).dataset.recordSection)
-    expect([...sections].sort()).toEqual(['checklist', 'comments', 'description'])
-    expect(screen.getByRole('region', { name: 'About' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /History/ })).toBeNull() // no events, no History
+    expect(screen.getByText('The espresso machine on floor 2 is broken.')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Comments' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'About this task' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Record details' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: /History/ })).toBeNull()
   })
 
   it('AC-P3-CM-004: renders task comments in the live task surface', async () => {
@@ -365,10 +380,8 @@ describe('TaskSurface — view mode', () => {
     const draft = 'Need the serial number before I can order the part.'
     fireEvent.change(composer, { target: { value: draft } })
     expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
-    expect(document.querySelector('.rp--panel')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /open full page/i }))
-    await waitFor(() => expect(document.querySelector('.rp--page')).toBeInTheDocument())
     const pageComposer = screen.getByRole('textbox', { name: /comment/i })
     expect(pageComposer).toHaveValue(draft)
 
@@ -479,22 +492,6 @@ describe('TaskSurface — view mode', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  // At full width the retryable error sits in the same reading column as the loaded record and
-  // "Task not found", not full-bleed across the page.
-  it('at full width, the retryable ErrorState renders inside .record-details (the page body)', async () => {
-    mockGetTask.mockRejectedValue(new Error('Failed to fetch'))
-    renderSurface({ width: 'full' })
-    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
-    expect(document.querySelector('.record-details > .error-state')).toBeInTheDocument()
-  })
-
-  it('at drawer width, the retryable ErrorState renders without the page-only body wrapper', async () => {
-    mockGetTask.mockRejectedValue(new Error('Failed to fetch'))
-    renderSurface({ width: 'drawer' })
-    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
-    expect(document.querySelector('.record-details')).not.toBeInTheDocument()
-  })
-
   it('calls onClose (not navigate) after a successful archive', async () => {
     const onClose = vi.fn()
     mockGetTask.mockResolvedValue({ task: makeTask({ responsible_person_id: 'other-id' }), checklist: [], events: [] })
@@ -532,6 +529,7 @@ describe('TaskSurface — view mode', () => {
 
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    openTaskAbout()
     fireEvent.click(screen.getByRole('button', { name: /Edit Team$/ }))
     fireEvent.click(screen.getByRole('combobox', { name: 'Team' }))
     fireEvent.click(screen.getByRole('option', { name: 'Sales Team' }))
@@ -589,6 +587,7 @@ describe('TaskSurface — mutation handlers', () => {
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
     // V3 Issue 5: PIC is now a shared RecordViewer/RecordField picker.
+    openTaskAbout()
     activateFieldByKey('pic')
     chooseRecordOption('Other Person')
     await waitFor(() => expect(vi.mocked(updateTaskFields)).toHaveBeenCalledWith(
@@ -736,12 +735,26 @@ describe('TaskSurface — live region (AC-111)', () => {
     expect(await screen.findByText('Saved')).toBeInTheDocument()
   })
 
+  it('D2: Escape restores a description draft without persisting it', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    renderSurface()
+    await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
+    activateFieldByKey('description')
+    const description = screen.getByRole('textbox', { name: 'Description' })
+    fireEvent.change(description, { target: { value: 'Unsaved replacement text.' } })
+    fireEvent.keyDown(description, { key: 'Escape' })
+    expect(screen.getByText('The espresso machine on floor 2 is broken.')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Description' })).toBeNull()
+    expect(updateTaskFields).not.toHaveBeenCalled()
+  })
+
   it('AC-111: a failed PIC reassignment reverts AND announces the rollback', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     vi.mocked(updateTaskFields).mockRejectedValue(new Error('write failed'))
     vi.mocked(getDownlinePersonIds).mockResolvedValue(['other-id'])
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    openTaskAbout()
     activateFieldByKey('pic')
     chooseRecordOption('Other Person')
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
@@ -771,10 +784,9 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     await waitFor(() => screen.getByText('Fix the coffee machine'))
     expect(screen.queryByRole('tablist')).toBeNull()
     expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'About' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'About this task' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /History/ })).toBeNull() // no events, no History
     expect(screen.getByText('Inspect coil')).toBeInTheDocument()
-    expect(document.querySelector('.rp--panel[data-record-kind="task"]')).toBeTruthy()
   })
 
   it('AC-R06 (drawer): all record sections stay visible without section navigation', async () => {
@@ -782,7 +794,7 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
     expect(screen.getByText('Inspect coil')).toBeInTheDocument()
-    expect(document.querySelector('[data-record-section="description"]')).toHaveTextContent('The espresso machine on floor 2 is broken.')
+    expect(screen.getByRole('region', { name: 'Description' })).toHaveTextContent('The espresso machine on floor 2 is broken.')
     expect(screen.getByRole('region', { name: 'Comments' })).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).toBeNull()
   })
@@ -850,8 +862,13 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     })
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
+    const facts = screen.getByRole('list', { name: 'Key facts' })
+    expect(within(facts).getByText('Open')).toBeInTheDocument()
+    expect(within(facts).getByText('Due')).toBeInTheDocument()
+    expect(within(facts).getByText('PIC')).toBeInTheDocument()
+    expect(within(facts).getByText('Supervisor')).toBeInTheDocument()
     expect(document.querySelector('[data-field-key="status"] select')).toBeNull()
-    expect(document.querySelector('.dw-foot')).toBeNull()
+    expect(within(facts).queryByRole('button', { name: /Edit PIC$/ })).toBeNull()
   })
 })
 

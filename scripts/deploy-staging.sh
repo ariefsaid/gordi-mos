@@ -134,6 +134,25 @@ fi
 URL="$(op-get.sh "$OP_ITEM" "$OP_VAULT" "$OP_FIELD" 2>/dev/null </dev/null)" || die "op-get.sh could not read the staging connection (is 1Password signed in?)"
 [ -n "$URL" ] || die "the staging connection string is empty"
 ops_conn_from_url "$URL"
+# The direct host is IPv6-only. When a pooler URL file exists (session pooler, port 5432, IPv4;
+# written by the staging repair runbook), connect through it; it must carry no password.
+POOLER_URL_FILE="${STAGING_POOLER_URL_FILE:-$ROOT/supabase/.temp/pooler-url}"
+if [ -s "$POOLER_URL_FILE" ]; then
+  pooler="$(tr -d '[:space:]' < "$POOLER_URL_FILE")"
+  [ -n "$PGPASSWORD" ] || die "pooler connection needs the password from the secret store"
+  # The secret-store connection is the trusted coordinate: the pooler must be this project's own Supabase
+  # session pooler, or the secret-store password would go to whatever destination the file names.
+  trusted_host="${URL#*@}"; trusted_host="${trusted_host%%[:/?]*}"
+  case "$trusted_host" in db.*.supabase.co) project="${trusted_host#db.}"; project="${project%.supabase.co}" ;; *) die "the staging connection is not a Supabase database host; refusing the pooler route" ;; esac
+  [[ "$project" =~ ^[a-z0-9]+$ ]] || die "could not read the project from the staging connection"
+  [[ "$pooler" =~ ^postgres(ql)?://postgres\.${project}@aws-[0-9]+-[a-z0-9-]+\.pooler\.supabase\.com:5432/postgres(\?sslmode=require)?$ ]] \
+    || die "pooler URL file must be this project's Supabase session pooler: postgresql://postgres.<project>@aws-<n>-<region>.pooler.supabase.com:5432/postgres, no password and no other options"
+  pooler="${pooler%%\?*}?sslmode=require"
+  pooler_host="${pooler#*@}"; pooler_host="${pooler_host%%[:/?]*}"
+  pooler_user="${pooler#*://}"; pooler_user="${pooler_user%%@*}"
+  CONN="$pooler"; SECRETS+=("$pooler" "${pooler#*@}" "$pooler_host" "$pooler_user")
+  say "Database host: session pooler (IPv4) from $(basename "$POOLER_URL_FILE")"
+fi
 
 # ── 3. Dry run: the pending migration list (file names only).
 set +e; out="$(supabase --workdir "$ROOT" db push --dry-run --db-url "$CONN" 2>&1 </dev/null)"; rc=$?; set -e
@@ -350,6 +369,11 @@ if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
   done
   unset EDGE_ACCESS_TOKEN
 fi
+
+# ── 8. Record origin/main only after the database and every changed function have succeeded.
+sqlq "insert into shared.deployment_stamp (id, backend_sha, deployed_at) values (true, '$om', now()) on conflict (id) do update set backend_sha = excluded.backend_sha, deployed_at = excluded.deployed_at" \
+  || die "could not update the backend deployment stamp"
+say "Updated backend deployment stamp."
 
 # ── 9. Promote the deployed origin/main commit with a fast-forward-only push.
 if [ "$PROMOTE" = 1 ]; then

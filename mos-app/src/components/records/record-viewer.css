@@ -156,6 +156,14 @@
 /* Status pill: the shared Pill shell (ui/Pill.css); this only aligns its text on the value-column line. */
 .record-field__pill { margin-inline-start: -9px; font-size: var(--rec-kv-value-size); }
 
+/* Status labels wrap at spaces, not mid-word, when a RecordField sits in inline facts. Keep the
+   general `anywhere` wrapping for long titles and person names elsewhere. */
+.record-field__edit--status,
+.record-field__value:has(> .record-field__pill) {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 .record-field__inline-pill {
   display: inline-flex;
   align-items: center;

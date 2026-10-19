@@ -41,6 +41,8 @@ interface WipItemEntryProps {
   onQuantityErrorVisibilityChange?: (visible: boolean) => void
   /** The page renders the field's error in the row's detail line (QuantityFieldError, same id). */
   quantityErrorId?: string
+  /** Explicitly resets the field's local raw draft when the page discards capture state. */
+  resetKey?: number
 }
 
 interface WipItemDetailProps {
@@ -88,6 +90,7 @@ export function WipItemEntry({
   onInvalidQuantityDraft,
   onQuantityErrorVisibilityChange,
   quantityErrorId,
+  resetKey,
 }: WipItemEntryProps) {
   const t = useT()
   const { qty_porsi } = line
@@ -192,6 +195,7 @@ export function WipItemEntry({
       hideError
       errorMessageId={quantityErrorId}
       initialDraft={invalidDraft}
+      resetKey={resetKey}
       suffix={unitSuffix}
       suffixPosition="inline"
       placeholder="0"

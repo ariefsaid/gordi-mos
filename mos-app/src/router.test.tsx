@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from 'vitest'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { isValidElement } from 'react'
+import { MemoryRouter, Routes, Route, Navigate, useLocation, type RouteObject } from 'react-router-dom'
 
 vi.mock('./auth/use-auth')
 import { useAuth } from './auth/use-auth'
@@ -40,6 +41,7 @@ import { ProtectedRoute } from './auth/protected-route'
 import { isShipGatedInProfile } from './lib/ship-gate'
 import { CAFE_SECTIONS, sectionForPath } from './shell/sections'
 import { AppShell } from './shell/app-shell'
+import { ModuleBoundary } from './shell/module-boundary'
 import { TasksLayout } from './pages/tasks-layout'
 import { KitchenLogPage } from './pages/kitchen-log-page'
 import { NotFoundPage } from './pages/not-found-page'
@@ -59,14 +61,29 @@ describe('Café Opening is hidden', () => {
 })
 
 /** The AppShell layout route's children — the canonical route table. */
+function routeWithShell(routes: RouteObject[]): RouteObject | undefined {
+  for (const route of routes) {
+    if (isValidElement(route.element) && route.element.type === AppShell) return route
+    const nested = route.children ? routeWithShell(route.children) : undefined
+    if (nested) return nested
+  }
+  return undefined
+}
+
+function flattenModuleBoundaries(routes: RouteObject[]): RouteObject[] {
+  return routes.flatMap((route) => {
+    if (route.index === true) return [route]
+    if (isValidElement(route.element) && route.element.type === ModuleBoundary) {
+      return flattenModuleBoundaries(route.children ?? [])
+    }
+    return [{ ...route, children: route.children ? flattenModuleBoundaries(route.children) : undefined }]
+  })
+}
+
 function shellChildren() {
-  const protectedRoute = routeConfig.find(
-    (r) =>
-      Array.isArray(r.children) &&
-      r.children.some((c) => Array.isArray(c.children) && c.children.some((cc) => cc.path === 'work/tasks')),
-  )!
-  const shell = protectedRoute.children!.find((c) => Array.isArray(c.children))!
-  return shell.children!
+  const shell = routeWithShell(routeConfig)
+  if (!shell) throw new Error('The route table must retain the AppShell layout')
+  return flattenModuleBoundaries(shell.children ?? [])
 }
 
 /** A concrete URL for a route path, so `/tasks/:taskId` can actually be visited. */

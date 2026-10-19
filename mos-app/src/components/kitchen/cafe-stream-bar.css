@@ -38,7 +38,7 @@
   padding: 0;
   border: none;
   background: none;
-  color: var(--primary);
+  color: var(--text-on-accent-tint);
   font: inherit;
   font-size: var(--mos-size-3);
   font-weight: 500;

@@ -14,10 +14,12 @@ Resolution rules (the ruling's "keyed by ERP identifier, never by name"):
   * items resolve through the canonical catalog by esb_bom_id (fallback
     esb_product_detail_id_porsi), org-scoped, requiring EXACTLY ONE match — zero or
     ambiguous rows are REPORTED, never guessed;
-  * branches resolve in SQL by shared.branches.code (rumah_rames / radiant); the
+  * branches resolve in SQL by shared.branches.code (rumah_rames / radiant / cikal); the
     incumbent's labels map structurally (DD-WAY-13: labels are presentation):
     Production → produce; "Transfer to Bungur"/"Transfer to RRS" → transfer to
     rumah_rames (the no-op); "Transfer to Radiant"/"Transfer to GGS" → radiant;
+    "Transfer to Cikal" → cikal. A transfer whose destination the current books refuse
+    (ops.allowed_kitchen_destinations — today the Rumah Rames no-op) is REPORTED, never loaded;
   * people columns (submitted_by / reviewed_by / plan_by) land NULL — people carry
     no ERP identifier and name-matching is what the ruling forbids (AC-011);
   * batch_id lands NULL on every imported log — Teable's shared batch ids cannot
@@ -75,6 +77,7 @@ ACTION_MAP = {
     "Transfer to Radiant": ("transfer", "radiant"),
     "Transfer to RRS": ("transfer", "rumah_rames"),
     "Transfer to GGS": ("transfer", "radiant"),
+    "Transfer to Cikal": ("transfer", "cikal"),
 }
 
 
@@ -326,8 +329,15 @@ $json$) as (kind text, src_id text, det_id uuid, log_date date, wip_link_id text
 -- retired item, and the catalog never hard-deletes.
 create temp table _imp_resolved on commit drop as
 select p.*, w.id as wip_item_id,
-       count(w.id) over (partition by p.kind, p.src_id)::int as n_matches
+       count(w.id) over (partition by p.kind, p.src_id)::int as n_matches,
+       dest.id as dest_branch_id,
+       (p.action <> 'transfer' or exists (
+          select 1 from ops.allowed_kitchen_destinations(
+            (select org_id from _imp_env), (select br_rr from _imp_env), 'kitchen') allowed
+           where allowed.destination_branch_id = dest.id)) as dest_allowed
   from _imp_payload p
+  left join shared.branches dest
+    on dest.org_id = (select org_id from _imp_env) and dest.code = p.dest_code
   left join ops.wip_items w
     on w.org_id = (select org_id from _imp_env)
    and (    p.esb_bom_id  is not null and p.esb_bom_id  = w.esb_bom_id
@@ -347,12 +357,12 @@ with ins_logs as (
      submitted_by, reviewed_by, reviewed_at, batch_id, posted_to_esb, esb_doc_num,
      posted_at, created_at)
   select r.det_id, e.org_id, e.bu_id, r.log_date, e.br_rr, 'kitchen', r.action,
-         case r.dest_code when 'radiant' then e.br_rad when 'rumah_rames' then e.br_rr end,
+         r.dest_branch_id,
          r.wip_item_id, r.qty, r.notes, 'Approved', 'teable_import',
          null, null, r.reviewed_at, null, coalesce(r.posted_to_esb, false),
          r.esb_doc_num, r.posted_at, coalesce(r.created_at, now())
     from _imp_resolved r, _imp_env e
-   where r.kind = 'log' and r.n_matches = 1
+   where r.kind = 'log' and r.n_matches = 1 and r.dest_allowed
   on conflict do nothing
   returning 1
 ), ins_plans as (
@@ -360,10 +370,10 @@ with ins_logs as (
     (id, org_id, log_date, wip_item_id, branch_id, activity, action,
      destination_branch_id, qty_porsi, notes, source, plan_by, created_at)
   select r.det_id, e.org_id, r.log_date, r.wip_item_id, e.br_rr, 'kitchen', r.action,
-         case r.dest_code when 'radiant' then e.br_rad when 'rumah_rames' then e.br_rr end,
+         r.dest_branch_id,
          r.qty, r.notes, 'teable_import', null, coalesce(r.created_at, now())
     from _imp_resolved r, _imp_env e
-   where r.kind = 'plan' and r.n_matches = 1
+   where r.kind = 'plan' and r.n_matches = 1 and r.dest_allowed
   on conflict do nothing
   returning 1
 )
@@ -373,8 +383,9 @@ select jsonb_build_object(
   'unresolved', coalesce((select jsonb_agg(jsonb_build_object(
       'src_id', src_id, 'kind', kind,
       'reason', case when n_matches = 0 then 'wip_item_not_in_catalog'
-                     else 'wip_item_ambiguous' end)
-    order by src_id) from _imp_resolved where n_matches <> 1), '[]'::jsonb));
+                     when n_matches > 1 then 'wip_item_ambiguous'
+                     else 'destination_not_allowed' end)
+    order by src_id) from _imp_resolved where n_matches <> 1 or not dest_allowed), '[]'::jsonb));
 commit;
 """
 

@@ -7,6 +7,7 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { Locale } from '@/i18n/messages'
 
 vi.mock('@/auth/use-auth')
+vi.mock('@/lib/db/module-settings', () => ({ getViewerModuleAvailability: vi.fn().mockResolvedValue([]) }))
 import { useAuth } from '@/auth/use-auth'
 import { routeConfig } from '@/router'
 import { AppShell } from './app-shell'

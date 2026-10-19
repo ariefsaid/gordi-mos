@@ -8,6 +8,8 @@ import { render, screen, within, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
+const moduleSwitches = vi.hoisted(() => ({ isOn: vi.fn((moduleId: string) => moduleId.length > 0) }))
+vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ status: 'ready', isOn: moduleSwitches.isOn, retry: vi.fn() }) }))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
@@ -65,6 +67,7 @@ function renderTabBar(initialPath = '/', {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  moduleSwitches.isOn.mockImplementation(() => true)
   localStorage.clear()
   setAuthAs([])
 })
@@ -103,6 +106,21 @@ describe('AC-021 / OD-REDESIGN-68: phone bottom-nav is Home · Work · <role mod
     expect(within(nav).queryByRole('link', { name: /Roastery/ })).toBeNull()
   })
 
+  it('hides Work when its org switch is off', () => {
+    moduleSwitches.isOn.mockImplementation((moduleId) => moduleId !== 'work')
+    renderTabBar('/')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).queryByRole('link', { name: 'Work' })).toBeNull()
+  })
+
+  it('hides the Money module tab when its org switch is off', () => {
+    setAuthAs(['finance'], [], ['money'])
+    moduleSwitches.isOn.mockImplementation((moduleId) => moduleId !== 'money')
+    renderTabBar('/money')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).queryByRole('link', { name: 'Money' })).toBeNull()
+  })
+
   it('primary tabs link to /, /work/tasks, /cafe (café viewer)', () => {
     setCafeViewer()
     renderTabBar('/')
@@ -128,9 +146,9 @@ describe('AC-021 / OD-REDESIGN-68: phone bottom-nav is Home · Work · <role mod
     expect(more).toHaveFocus()
   })
 
-  it('the persistent phone plus launcher opens the approved action launcher', () => {
+  it('the phone plus launcher remains available on unrelated support pages', () => {
     const onOpenActionLauncher = vi.fn()
-    renderTabBar('/', { onOpenActionLauncher })
+    renderTabBar('/cafe/items', { onOpenActionLauncher })
     const launcher = screen.getByRole('button', { name: /^actions$/i })
     expect(launcher).toHaveAttribute('aria-haspopup', 'dialog')
     fireEvent.click(launcher)
@@ -168,6 +186,17 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
     setCafeViewer()
     renderTabBar(path)
     expect(screen.queryByRole('button', { name: /^actions$/i })).not.toBeInTheDocument()
+  })
+
+  it.each(['/', '/work/tasks', '/work/tasks/task-123', '/cafe/records', '/cafe/production'])('core working route %s leaves the content free of quick-create', (path) => {
+    renderTabBar(path)
+    expect(screen.queryByRole('button', { name: /^actions$/i })).not.toBeInTheDocument()
+  })
+
+  it.each(['/cafe/records', '/cafe/records/', '/profile'])('reading and preferences route %s leaves the content free of quick-create', (path) => {
+    renderTabBar(path)
+    expect(screen.queryByRole('button', { name: /^actions$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /More/i })).toBeInTheDocument()
   })
 
   it.each(['/cafe/items', '/cafe/pushes', '/cafe/items/'])('support route %s keeps the quick-capture launcher', (path) => {
@@ -274,11 +303,19 @@ describe('a11y: every tab icon is aria-hidden', () => {
 })
 
 describe('issue 1032: one create entry on phone', () => {
-  it.each(['/', '/work/projects', '/work/objectives', '/work/tasks/abc-123', '/inbox'])(
-    '%s has no in-page create, so the + launcher stays',
+  it.each(['/work/projects', '/work/objectives', '/inbox'])(
+    '%s keeps the launcher because the page has no reserved create action',
     (path) => {
       renderTabBar(path)
       expect(screen.getByRole('button', { name: /^actions$/i })).toBeInTheDocument()
+    },
+  )
+
+  it.each(['/', '/work/tasks/abc-123'])(
+    '%s omits the launcher when the core surface owns its action',
+    (path) => {
+      renderTabBar(path)
+      expect(screen.queryByRole('button', { name: /^actions$/i })).not.toBeInTheDocument()
     },
   )
 })
