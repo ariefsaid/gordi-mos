@@ -115,7 +115,7 @@ describe('Cafe Count domain adapter', () => {
     }])).resolves.toEqual([{ client_key: 'key-1', outcome: 'existing', line_id: 'original-line' }])
   })
 
-  it('reads all Submitted dates oldest first without sending an org or a submitter', async () => {
+  it('reads all Submitted dates oldest first without sending an org', async () => {
     const query = makeQuery({ data: [], error: null })
     const from = vi.fn(() => query)
     schemaMock.mockReturnValue({ from } as never)
@@ -128,7 +128,7 @@ describe('Cafe Count domain adapter', () => {
     expect(query.order).toHaveBeenNthCalledWith(1, 'count_date', { ascending: true })
     expect(query.order).toHaveBeenNthCalledWith(2, 'submitted_at', { ascending: true })
     expect(query.select).toHaveBeenCalledWith(expect.not.stringContaining('org_id'))
-    expect(query.select).toHaveBeenCalledWith(expect.not.stringContaining('submitted_by'))
+    expect(query.select).toHaveBeenCalledWith(expect.stringContaining('submitted_by'))
   })
 
   it('AC-017 reduces a stream\'s lines to floor states, so no Expected figure or Variance reaches the Count page', async () => {

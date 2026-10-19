@@ -71,7 +71,10 @@ import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 
 vi.mock('@/lib/db/cafe-count', () => ({
   listCafeCountLines: vi.fn().mockResolvedValue([]),
+  listCafeCountNotCounted: vi.fn().mockResolvedValue([]),
   confirmCafeCountLine: vi.fn(),
+  confirmCafeCountLines: vi.fn(),
+  rejectCafeCountLine: vi.fn(),
 }))
 import { listCafeCountLines } from '@/lib/db/cafe-count'
 

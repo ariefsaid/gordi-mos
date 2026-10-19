@@ -1201,6 +1201,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
           streamCatalog={streamCatalog}
           canReviewAll={isLeadOrAdmin}
           reviewableStreamKeys={myStreamKeys}
+          viewerId={viewerId}
           refreshKey={retryKey}
         /></div>
         </div>

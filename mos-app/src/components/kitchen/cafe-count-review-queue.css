@@ -2,3 +2,11 @@
 @media(max-width:767.98px){.cafe-count-review{padding:14px}.cafe-count-review__facts{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:12px}.cafe-count-review__decision{justify-content:stretch}.cafe-count-review__decision .btn{width:100%}}
 /* Empty (also on a phone): no card of its own around the shared empty state. */
 .cafe-count-review.cafe-count-review--empty { padding: 0; }
+.cafe-count-review__bulk { display: flex; flex-wrap: wrap; gap: 8px; }
+.cafe-count-review__bulk .btn { min-height: var(--mos-control-height); white-space: normal; text-align: left; }
+.cafe-count-review__choosable { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: stretch; }
+.cafe-count-review__choose { display: grid; place-items: center; min-height: 44px; border-bottom: 1px solid var(--border); }
+.cafe-count-review__not-counted ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.cafe-count-review__not-counted li span { color: var(--muted-foreground); font-size: var(--mos-size-1); }
+.cafe-count-review__not-counted p { margin: 0; color: var(--muted-foreground); }
+@media (max-width: 767.98px) { .cafe-count-review__bulk .btn { width: 100%; } }
