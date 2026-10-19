@@ -12,7 +12,6 @@ import { useAuth } from '@/auth/use-auth'
 import { routeConfig } from '@/router'
 import { AppShell } from './app-shell'
 import { MatchedRouteContextRow } from './matched-route-context-row'
-vi.mock('@/lib/db/deployment-stamp', () => ({ readDeploymentStamp: async () => null }))
 
 vi.mock('@/lib/db/notifications', () => ({
   countUnread: vi.fn().mockResolvedValue(0),

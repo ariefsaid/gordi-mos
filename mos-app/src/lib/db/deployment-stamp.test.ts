@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.unmock('./deployment-stamp')
+
 const mockFrom = vi.hoisted(() => vi.fn())
 const mockSchema = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/supabase', () => ({ supabase: { schema: mockSchema } }))

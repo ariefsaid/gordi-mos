@@ -46,7 +46,6 @@ const mockUseAuth = vi.mocked(useAuth)
 
 import { AppShell } from './app-shell'
 import { useSignalComposer } from './signal-composer-host'
-vi.mock('@/lib/db/deployment-stamp', () => ({ readDeploymentStamp: async () => null }))
 
 // AC-T01/T03 (plan §4.4): the shell renders a tabbar grid row + <BottomTabBar/>
 // only at narrow viewport. Real matchMedia-backed useIsNarrow is exercised by
