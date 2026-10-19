@@ -240,7 +240,7 @@ export function CafeCountReviewQueue({
               /></span>}
               <button type="button" className="cafe-count-review__master-row" aria-pressed={line.id === selectedId} onClick={() => setSelectedId(line.id)}>
                 <strong>{line.item_name}</strong><span>{formatWeekdayDayMonth(line.count_date)} · {t(countStateKey(line))}</span>
-                <small>{formatCafeCountDecimal(line.counted_quantity, document.documentElement.lang || 'en')} {line.unit_name} · {streamLabel(t, streamCatalog.find(s => s.branch.id === line.branch_id && s.activity === line.activity) ?? null)}</small>
+                <small>{formatCafeCountDecimal(line.recounted_quantity ?? line.counted_quantity, document.documentElement.lang || 'en')} {line.unit_name} · {streamLabel(t, streamCatalog.find(s => s.branch.id === line.branch_id && s.activity === line.activity) ?? null)}</small>
               </button>
             </li>
           ))}</ul>}
@@ -288,7 +288,7 @@ function CountReviewDetail({ line, streamCatalog, online, busy, own, names, onCo
         {fact(t('cafe.count.review.recount'), line.recounted_quantity === null ? t('cafe.count.review.none') : <>{formatCafeCountDecimal(line.recounted_quantity, document.documentElement.lang || 'en')} <span>{line.unit_name}</span></>)}
         {fact(t('cafe.count.review.finalCount'), <>{formatCafeCountDecimal(line.recounted_quantity ?? line.counted_quantity, document.documentElement.lang || 'en')} <span>{line.unit_name}</span></>)}
         {fact(t('cafe.count.review.expected'), line.expected_status === 'ready' && line.expected_balance !== null && expectedAt ? <>{formatCafeCountDecimal(line.expected_balance, document.documentElement.lang || 'en')} <span>{line.unit_name} · {t('cafe.count.review.asOf', { time: expectedAt })}</span></> : t('cafe.count.review.expectedWaiting'))}
-        {fact(t('cafe.count.review.variance'), varianceMatches && calculatedVariance !== null ? <>{formatCafeCountDecimal(calculatedVariance, document.documentElement.lang || 'en')} <span>{line.unit_name}</span></> : t('cafe.count.review.varianceWaiting'))}
+        {fact(t('cafe.count.review.variance'), varianceMatches && calculatedVariance !== null ? <><span className={calculatedVariance.startsWith('-') ? 'cafe-count-review__negative' : undefined}>{formatCafeCountDecimal(calculatedVariance, document.documentElement.lang || 'en')}</span> <span>{line.unit_name}</span></> : t('cafe.count.review.varianceWaiting'))}
         {fact(t('cafe.count.review.reason'), line.reason ?? t('cafe.count.review.none'))}
         {fact(t('cafe.count.review.countedBy'), person(line.submitted_by))}
         {fact(t('cafe.count.review.recountedBy'), person(line.recounted_by))}

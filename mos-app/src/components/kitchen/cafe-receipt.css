@@ -77,6 +77,26 @@
 
 /* The reject note and the receiver's line reason are one kind of field. */
 .cafe-receipt-review__reject textarea,
+/* The reason field, shared by Receive line explanations and the Count reason. */
+.cafe-receive__reason {
+  display: grid;
+  gap: var(--mos-inline-gap);
+  min-width: 0;
+}
+
+.cafe-receive__reason > label { font: var(--mos-type-label); color: var(--mos-ink);  }
+
+.cafe-receive__reason-meta > :last-child { flex: 0 0 auto; white-space: nowrap; }
+
+.cafe-receive__reason-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted-foreground);
+  font-size: var(--mos-size-1);
+  line-height: 1.4;
+}
+
 .cafe-receive__reason textarea {
   width: 100%;
   min-width: 0;

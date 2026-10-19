@@ -369,7 +369,7 @@ export function CafeCountPage() {
                       {t(invalidCount === 1 ? 'quantityField.fixing.one' : 'quantityField.fixing.other', { count: invalidCount })}
                     </span>}
                     {hasUnsubmittedInput && <span className="cafe-count__bar-status" role="status">{t('cafe.count.streamLocked')}</span>}
-                    {enteredCount === 0 && !submitting && isOnline && <span className="cafe-count__bar-status" role="status">{t('cafe.count.needsEntry')}</span>}
+                    {enteredCount === 0 && !submitting && isOnline && items.some(item => !floorLines[item.id]) && <span className="cafe-count__bar-status" role="status">{t('cafe.count.needsEntry')}</span>}
                   </>}
                   primary={<button type="button" className="btn btn-primary cafe-count__submit"
                     disabled={!canCapture || !isOnline || submitting || entered.length === 0}
