@@ -118,13 +118,12 @@ export const CAFE_ROUTE_SECTIONS: Section[] = CAFE_SECTIONS
 export function visibleSections(
   sections: readonly Section[],
   accessRoles: readonly string[],
-  isOn: ModuleAccessCheck = (_moduleId, roleAdmitted = true) => roleAdmitted,
+  isOn: ModuleAccessCheck,
 ): Section[] {
   return sections.filter((section) => {
     if (isShipGated(section.path)) return false
     if (section.capability && !can(accessRoles, section.capability)) return false
-    if (!section.anyOf) return true
-    const roleAdmitted = section.anyOf.some((role) => accessRoles.includes(role))
+    const roleAdmitted = !section.anyOf || section.anyOf.some((role) => accessRoles.includes(role))
     const moduleId = moduleForPath(section.path)
     return moduleId ? isOn(moduleId, roleAdmitted) : roleAdmitted
   })

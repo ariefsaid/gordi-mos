@@ -29,7 +29,8 @@ export function moduleFacts(): ModuleFact[] {
 
 export function roleAdmittedTo(moduleId: ModuleId, accessRoles: string[]): boolean {
   if (moduleId === 'work' || moduleId === 'assistant') return true
-  return admittedModules(accessRoles).some((module) => module.id === moduleId)
+  // Admin's role-only comparison is independent of org settings and personal overrides.
+  return admittedModules(accessRoles, (_id, roleAdmitted = true) => roleAdmitted).some((module) => module.id === moduleId)
 }
 
 export const peopleWithOverridesPath = (id: ModuleId) => `/admin/people?overrides=${id}`

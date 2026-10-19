@@ -4,6 +4,7 @@ import { Navigate, type RouteObject } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { applyShipGate, ungatedRouteTable } from '@/router'
 import { isShipGated } from '@/lib/ship-gate'
+import type { ModuleId } from '@/lib/db/module-settings'
 import { admittedModules, destinationForPath, goToEntries, pageGroupsFor } from './module-registry'
 import { ADMIN_SECTIONS, sectionForPath, visibleSections } from './sections'
 
@@ -19,9 +20,11 @@ function findRoute(routes: RouteObject[], target: string, parent = ''): RouteObj
   return undefined
 }
 const closed = (route: RouteObject | undefined) => isValidElement(route?.element) && route.element.type === Navigate
+const allModulesOn = (_moduleId: ModuleId, roleAdmitted = true) => roleAdmitted
+const goToPaths = (roles: string[]) => goToEntries(roles, allModulesOn).map((entry) => entry.path)
 
 const cafePaths = (roles: string[]) =>
-  pageGroupsFor(admittedModules(roles).find((m) => m.id === 'cafe')!, roles).flatMap((group) => group.items.map((item) => item.path))
+  pageGroupsFor(admittedModules(roles, allModulesOn).find((m) => m.id === 'cafe')!, roles, allModulesOn).flatMap((group) => group.items.map((item) => item.path))
 
 afterEach(() => vi.unstubAllEnvs())
 
@@ -33,15 +36,15 @@ describe('released person Modules card', () => {
   it('keeps released module navigation available and resolves Admin routes', () => {
     expect(cafePaths(['admin'])).toContain('/cafe/transfer-routes')
     expect(cafePaths(['admin'])).toContain('/cafe/locations')
-    expect(goToEntries(['admin']).map((entry) => entry.path)).toContain('/cafe/locations')
+    expect(goToPaths(['admin'])).toContain('/cafe/locations')
     expect(sectionForPath('/cafe/locations')?.labelKey).toBe('nav.cafe.locations')
-    expect(goToEntries(['admin']).map((entry) => entry.path)).toContain('/cafe/transfer-routes')
+    expect(goToPaths(['admin'])).toContain('/cafe/transfer-routes')
     expect(sectionForPath('/cafe/transfer-routes')?.labelKey).toBe('nav.cafe.transferRoutes')
     expect(isShipGated('/admin/people/modules')).toBe(false)
     expect(isShipGated('/admin/modules')).toBe(false)
     expect(isShipGated('/admin/access/modules')).toBe(false)
     expect(destinationForPath('/admin/modules')?.id).toBe('admin')
-    expect(visibleSections(ADMIN_SECTIONS, ['admin']).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/access', '/admin/modules', '/admin/agents'])
+    expect(visibleSections(ADMIN_SECTIONS, ['admin'], allModulesOn).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/access', '/admin/modules', '/admin/agents'])
   })
 
   it('keeps the released Locations route available without the local preview opt-in', () => {
@@ -50,7 +53,7 @@ describe('released person Modules card', () => {
     }
     expect(findRoute(ungatedRouteTable, '/cafe/locations')).toBeDefined()
     expect(closed(findRoute(applyShipGate(ungatedRouteTable), '/cafe/locations'))).toBe(false)
-    expect(goToEntries(['member']).map((entry) => entry.path)).toContain('/cafe/locations')
+    expect(goToPaths(['member'])).toContain('/cafe/locations')
   })
 
   it('keeps the old Access › Modules redirect released with the Modules page', () => {
@@ -75,7 +78,7 @@ describe('released stock comparison', () => {
     expect(closed(findRoute(applyShipGate(ungatedRouteTable), '/cafe/stock-comparison'))).toBe(false)
     for (const reviewer of ['ops_lead', 'admin', 'supervisor']) {
       expect(cafePaths([reviewer])).toContain('/cafe/stock-comparison')
-      expect(goToEntries([reviewer]).map((entry) => entry.path)).toContain('/cafe/stock-comparison')
+      expect(goToPaths([reviewer])).toContain('/cafe/stock-comparison')
     }
     for (const other of ['member', 'finance', 'manager']) {
       expect(cafePaths([other])).not.toContain('/cafe/stock-comparison')
@@ -99,24 +102,24 @@ describe('local preview opt-in does not gate released surfaces', () => {
     const paths = cafePaths(['member'])
     expect(paths.indexOf('/cafe/transfer-routes')).toBe(paths.indexOf('/cafe/recipes') + 1)
     expect(paths.indexOf('/cafe/locations')).toBe(paths.indexOf('/cafe/transfer-routes') + 1)
-    expect(goToEntries(['member']).map((entry) => entry.path)).toContain('/cafe/locations')
+    expect(goToPaths(['member'])).toContain('/cafe/locations')
     expect(sectionForPath('/cafe/locations')?.labelKey).toBe('nav.cafe.locations')
-    expect(goToEntries(['member']).map((entry) => entry.path)).toContain('/cafe/transfer-routes')
+    expect(goToPaths(['member'])).toContain('/cafe/transfer-routes')
     expect(sectionForPath('/cafe/transfer-routes')?.labelKey).toBe('nav.cafe.transferRoutes')
     expect(destinationForPath('/admin/modules')?.id).toBe('admin')
     expect(isShipGated('/admin/people/modules')).toBe(false)
-    expect(visibleSections(ADMIN_SECTIONS, ['admin']).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/access', '/admin/modules', '/admin/agents'])
+    expect(visibleSections(ADMIN_SECTIONS, ['admin'], allModulesOn).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/access', '/admin/modules', '/admin/agents'])
   })
 
   it('shows Stock comparison right after Count for Count reviewers only', () => {
     for (const reviewer of ['ops_lead', 'admin', 'supervisor']) {
       const paths = cafePaths([reviewer])
       expect(paths.indexOf('/cafe/stock-comparison')).toBe(paths.indexOf('/cafe/count') + 1)
-      expect(goToEntries([reviewer]).map((entry) => entry.path)).toContain('/cafe/stock-comparison')
+      expect(goToPaths([reviewer])).toContain('/cafe/stock-comparison')
     }
     for (const other of ['member', 'finance', 'manager']) {
       expect(cafePaths([other])).not.toContain('/cafe/stock-comparison')
-      expect(goToEntries([other]).map((entry) => entry.path)).not.toContain('/cafe/stock-comparison')
+      expect(goToPaths([other])).not.toContain('/cafe/stock-comparison')
     }
     expect(sectionForPath('/cafe/stock-comparison')?.labelKey).toBe('nav.cafe.stockComparison')
   })

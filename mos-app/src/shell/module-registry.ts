@@ -151,11 +151,9 @@ export const MODULE_REGISTRY: readonly Destination[] = [
  * clutter. If a surface's audience really should be narrower, the fix is to narrow the ROUTE —
  * never to hide the link while leaving the route open.
  */
-const DEFAULT_MODULE_ACCESS: ModuleAccessCheck = (_id, roleAdmitted = true) => roleAdmitted
-
 export function moneySectionsForViewer(
   accessRoles: string[],
-  isOn: ModuleAccessCheck = DEFAULT_MODULE_ACCESS,
+  isOn: ModuleAccessCheck,
 ): Section[] {
   return visibleSections(MONEY_SECTIONS.filter((section) => {
     if (section.path === '/money') return true
@@ -168,7 +166,7 @@ export function moneySectionsForViewer(
 
 export function moneyDestinationForViewer(
   accessRoles: string[],
-  isOn: ModuleAccessCheck = DEFAULT_MODULE_ACCESS,
+  isOn: ModuleAccessCheck,
 ): Destination | null {
   const sections = moneySectionsForViewer(accessRoles, isOn)
   if (!sections.length) return null
@@ -179,6 +177,7 @@ export function moneyDestinationForViewer(
 
 /** A module as THIS viewer meets it: ship gate, then admission; Money resolves its landing and pages per role. */
 function admit(module: Destination, accessRoles: string[], isOn: ModuleAccessCheck): Destination | null {
+  if (!isOn(module.id as ModuleId)) return null
   if (module.id === 'money') return moneyDestinationForViewer(accessRoles, isOn)
   return isLive(module, accessRoles, isOn) ? module : null
 }
@@ -187,7 +186,7 @@ function admit(module: Destination, accessRoles: string[], isOn: ModuleAccessChe
  * Every module the viewer's ROUTES admit and module settings enable, in registry order. The list feeds the sidebar,
  * rail, flyouts, ⌘K, phone tab and More; `navModeFor` also counts the fixed Work area when it is live and enabled.
  */
-export function admittedModules(accessRoles: string[], isOn: ModuleAccessCheck = DEFAULT_MODULE_ACCESS): Destination[] {
+export function admittedModules(accessRoles: string[], isOn: ModuleAccessCheck): Destination[] {
   return MODULE_REGISTRY
     .map((module) => admit(module, accessRoles, isOn))
     .filter((module): module is Destination => module !== null)
@@ -195,7 +194,7 @@ export function admittedModules(accessRoles: string[], isOn: ModuleAccessCheck =
 }
 
 /** The one ordered root list shared by desktop, More and ⌘K; admission still comes from this registry. */
-export function globalNavigationDestinations(accessRoles: string[], isOn: ModuleAccessCheck = DEFAULT_MODULE_ACCESS): Destination[] {
+export function globalNavigationDestinations(accessRoles: string[], isOn: ModuleAccessCheck): Destination[] {
   const home = WORKSPACE.find((destination) => destination.id === 'home')!
   const work = WORKSPACE.find((destination) => destination.id === 'work')!
   const inbox = WORKSPACE.find((destination) => destination.id === 'inbox')!
@@ -216,9 +215,9 @@ export function globalNavigationDestinations(accessRoles: string[], isOn: Module
  * two or more → the module rail with the selected area's pages panel beside it. Work counts only when live and enabled; Home and utilities do not.
  */
 export type NavMode = 'sidebar' | 'panel'
-export function navModeFor(accessRoles: string[], isOn: ModuleAccessCheck = DEFAULT_MODULE_ACCESS): NavMode {
+export function navModeFor(accessRoles: string[], isOn: ModuleAccessCheck): NavMode {
   const work = WORKSPACE.find((destination) => destination.id === 'work')!
-  const availableAreas = admittedModules(accessRoles, isOn).length + Number(isOn('work') && isLive(work, accessRoles))
+  const availableAreas = admittedModules(accessRoles, isOn).length + Number(isOn('work') && isLive(work, accessRoles, isOn))
   return availableAreas >= 2 ? 'panel' : 'sidebar'
 }
 
@@ -227,7 +226,7 @@ export function navModeFor(accessRoles: string[], isOn: ModuleAccessCheck = DEFA
  * registry over the viewer's affiliation payload (#744): the first admitted module whose id the payload
  * names. Returns null rather than guessing: promoting a module nobody asked for is a guess presented as a preference.
  */
-export function primaryModuleForViewer(affiliated: string[], accessRoles: string[], isOn: ModuleAccessCheck = DEFAULT_MODULE_ACCESS): Destination | null {
+export function primaryModuleForViewer(affiliated: string[], accessRoles: string[], isOn: ModuleAccessCheck): Destination | null {
   return admittedModules(accessRoles, isOn).find((m) => affiliated.includes(m.id)) ?? null
 }
 
@@ -246,7 +245,7 @@ function lastModuleId(): string | null {
  * The phone bar's module slot. The module whose page is open wins; elsewhere the last module the viewer
  * explicitly visited; then the affiliation default. With none of the three the slot is omitted, never made up.
  */
-export function phoneModuleForViewer(affiliated: string[], accessRoles: string[], pathname: string, isOn: ModuleAccessCheck = DEFAULT_MODULE_ACCESS): Destination | null {
+export function phoneModuleForViewer(affiliated: string[], accessRoles: string[], pathname: string, isOn: ModuleAccessCheck): Destination | null {
   const modules = admittedModules(accessRoles, isOn)
   const current = destinationForPath(pathname)
   return (
@@ -271,7 +270,7 @@ const CAFE_GROUPS = ['cafe.nav.today', 'cafe.nav.stock', 'cafe.nav.close', 'cafe
  * Café: its home row, then Today / Stock / Close / Setup, empty groups omitted, a nested page (Receipt issues
  * under Receive) directly after its parent.
  */
-export function pageGroupsFor(destination: Destination, accessRoles: string[], isOn: ModuleAccessCheck = DEFAULT_MODULE_ACCESS): PageGroup[] {
+export function pageGroupsFor(destination: Destination, accessRoles: string[], isOn: ModuleAccessCheck): PageGroup[] {
   if ((destination.id === 'work' || destination.zone === 'modules') && !isOn(destination.id as ModuleId)) return []
   if (destination.id === 'money') return [{ key: 'money', items: moneySectionsForViewer(accessRoles, isOn) }]
   if (destination.id === 'cafe') {
@@ -289,8 +288,8 @@ export function pageGroupsFor(destination: Destination, accessRoles: string[], i
     }
     return groups
   }
-  if (destination.id === 'admin') return [{ key: 'admin', items: visibleSections(ADMIN_SECTIONS, accessRoles) }]
-  const items = visibleSections(destination.children ?? [], accessRoles)
+  if (destination.id === 'admin') return [{ key: 'admin', items: visibleSections(ADMIN_SECTIONS, accessRoles, isOn) }]
+  const items = visibleSections(destination.children ?? [], accessRoles, isOn)
   return items.length ? [{ key: destination.id, items }] : []
 }
 
@@ -336,7 +335,7 @@ export function currentPagePath(groups: readonly PageGroup[], pathname: string):
 export function viewerAdmittedToRoute(
   path: string,
   accessRoles: string[],
-  isOn: ModuleAccessCheck = DEFAULT_MODULE_ACCESS,
+  isOn: ModuleAccessCheck,
 ): boolean {
   const destination = destinationForPath(path)
   if (!destination || !isLive(destination, accessRoles, isOn)) return false
@@ -373,7 +372,7 @@ const UTILITY: Destination[] = [
  * then Personal profile (a footer link everywhere; owner 2026-10-14).
  */
 export function footerAreas(accessRoles: string[]): Destination[] {
-  return UTILITY.filter((u) => isLive(u, accessRoles))
+  return UTILITY.filter((u) => isLive(u, accessRoles, () => true))
 }
 
 /** All destinations across the zones, in registry order (for resolution scans). */
@@ -403,10 +402,10 @@ export interface GoToEntry {
  * questions as the menus ask, nothing else: the ship gate and admission for the area, `visibleSections`
  * for its pages, the viewer's roles for Review's queues. Search is acceleration, never the only way in.
  */
-export function goToEntries(accessRoles: string[], isOn: ModuleAccessCheck = DEFAULT_MODULE_ACCESS): GoToEntry[] {
+export function goToEntries(accessRoles: string[], isOn: ModuleAccessCheck): GoToEntry[] {
   const roots: Destination[] = [
     ...globalNavigationDestinations(accessRoles, isOn),
-    ...UTILITY.filter((d) => isLive(d, accessRoles)),
+    ...UTILITY.filter((d) => isLive(d, accessRoles, isOn)),
   ]
   const queues = reviewQueuesFor(accessRoles)
   return roots.flatMap((destination) => {
@@ -436,7 +435,7 @@ export function goToEntries(accessRoles: string[], isOn: ModuleAccessCheck = DEF
  * every viewer regardless of what they hold, and the router closes the same path from the same
  * array. Money is not ship-gated; its `REVENUE_VIEW_ROLES` gate controls its visibility.
  */
-function isLive(d: Destination, accessRoles: string[], isOn: ModuleAccessCheck = DEFAULT_MODULE_ACCESS): boolean {
+function isLive(d: Destination, accessRoles: string[], isOn: ModuleAccessCheck): boolean {
   const entry = d.primaryPath ?? d.links[0]?.path
   if (entry !== undefined && isShipGated(entry)) return false
   if (d.links.every((link) => isShipGated(link.path))) return false
