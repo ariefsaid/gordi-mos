@@ -30,7 +30,7 @@ check "current above baseline refuses" 1 \
 
 # (c) baseline higher than the current numbers → green plus the tighten hint.
 check "current below baseline prints tighten hint" 0 \
-  "{\"jscpdPercent\": 1.0, \"knipIssues\": $((knip - 1)), \"stylelintColourViolations\": 0}" \
+  "{\"jscpdPercent\": 0, \"knipIssues\": $((knip - 1)), \"stylelintColourViolations\": 0}" \
   "tighten by lowering mos-app/.quality-baseline.json"
 
 # (d) the committed baseline may not exceed dev's: a raised number refuses even when current is under it.

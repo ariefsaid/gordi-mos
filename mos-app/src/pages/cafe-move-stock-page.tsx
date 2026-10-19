@@ -12,6 +12,7 @@ import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { compareDec, formatDec, parseDecimal } from '@/lib/cafe-records/decimal'
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { useCafeStreamBootstrap } from '@/lib/use-cafe-stream-bootstrap'
 import { listCafeCountableItems, type CafeCountableItem } from '@/lib/db/cafe-count'
 import { fetchCafeLocationBalances, listCafeLocations, moveCafeStock, type CafeLocation, type LocationBalances } from '@/lib/db/cafe-locations'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
@@ -29,11 +30,11 @@ export function CafeMoveStockPage() {
   const auth = useAuth()
   const offline = useIsOffline()
   const cafe = useCafeStream()
-  const { options, stream, homeStream, myStreamKeys, resolve, adopt, setStream } = cafe
+  const { options, stream, homeStream, myStreamKeys, setStream } = cafe
   const canMove = auth.status === 'authenticated' && canCaptureCafe({ affiliated: auth.viewer.affiliated, accessRoles: auth.viewer.accessRoles })
-  const [catalogReady, setCatalogReady] = useState(false)
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [retry, setRetry] = useState(0)
+  const { catalogReady } = useCafeStreamBootstrap(cafe, retry, setLoadState)
   const [data, setData] = useState<MoveData | null>(null)
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -45,17 +46,6 @@ export function CafeMoveStockPage() {
   const [message, setMessage] = useState<{ key: 'saved' | 'error'; role: 'status' | 'alert' } | null>(null)
   const requestRef = useRef<{ signature: string; id: string } | null>(null)
   const generation = useRef(0)
-
-  useEffect(() => {
-    let active = true
-    setCatalogReady(false)
-    void resolve().then((catalog) => {
-      if (!active) return
-      adopt(catalog)
-      setCatalogReady(true)
-    }).catch(() => { if (active) setLoadState('error') })
-    return () => { active = false }
-  }, [adopt, resolve, retry])
 
   useEffect(() => {
     if (!catalogReady) return

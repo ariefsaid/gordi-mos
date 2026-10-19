@@ -1,4 +1,4 @@
-export type CafeCaptureForm = 'production' | 'transfer' | 'waste'
+export type CafeCaptureForm = 'production' | 'transfer' | 'waste' | 'count'
 
 export const CAFE_CAPTURE_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -42,7 +42,7 @@ function isScope(value: unknown): value is CafeCaptureDraftScope {
   const scope = value as Partial<CafeCaptureDraftScope>
   return typeof scope.orgId === 'string' && scope.orgId.length > 0
     && typeof scope.personId === 'string' && scope.personId.length > 0
-    && (scope.form === 'production' || scope.form === 'transfer' || scope.form === 'waste')
+    && (scope.form === 'production' || scope.form === 'transfer' || scope.form === 'waste' || scope.form === 'count')
     && typeof scope.branchId === 'string' && scope.branchId.length > 0
     && (scope.activity === 'kitchen' || scope.activity === 'bar')
     && typeof scope.logDate === 'string' && isDate(scope.logDate)

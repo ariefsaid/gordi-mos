@@ -402,13 +402,13 @@ select is(
 -- that the two seeded rows were deliberately chosen to respect.
 insert into integrations.esb_push
   (id, org_id, source_module, source_ref, endpoint, target_env, dedup_key, status, retry_count, posted_at) values
-  ('00000000-0000-0000-0000-00000000ba02','00000000-0000-0000-0000-0000000000a1','kitchen', 'PR-POSTURE-A-INFLIGHT','simple-transfer','goo',    'kitchen|PR-POSTURE-A-INFLIGHT|goo',    'in_flight',   1, null),
+  ('00000000-0000-0000-0000-00000000ba02','00000000-0000-0000-0000-0000000000a1','cafe_purchase_request','PR-POSTURE-A-INFLIGHT','simple-transfer','goo','cafe_purchase_request|PR-POSTURE-A-INFLIGHT|goo',    'in_flight',   1, null),
   ('00000000-0000-0000-0000-00000000ba03','00000000-0000-0000-0000-0000000000a1','kitchen', 'PR-POSTURE-A-POSTED',  'noop',           'gkid',   'kitchen|PR-POSTURE-A-POSTED|gkid',     'posted',      0, now()),
-  ('00000000-0000-0000-0000-00000000ba04','00000000-0000-0000-0000-0000000000a1','roastery','PR-POSTURE-A-FAILED',  'assembly-actual','goo',    'roastery|PR-POSTURE-A-FAILED|goo',     'failed',      3, null),
+  ('00000000-0000-0000-0000-00000000ba04','00000000-0000-0000-0000-0000000000a1','roastery','PR-POSTURE-A-FAILED',  'purchase-request','goo',    'roastery|PR-POSTURE-A-FAILED|goo',     'failed',      3, null),
   ('00000000-0000-0000-0000-00000000ba05','00000000-0000-0000-0000-0000000000a1','cafe_receipt','PR-POSTURE-A-DEAD','goods-receipt',  'dry_run','cafe_receipt|PR-POSTURE-A-DEAD|dry_run',    'dead_letter', 7, null),
-  ('00000000-0000-0000-0000-00000000ba0a','00000000-0000-0000-0000-0000000000b1','kitchen', 'PR-POSTURE-B-INFLIGHT','simple-transfer','goo',    'kitchen|PR-POSTURE-B-INFLIGHT|goo',    'in_flight',   1, null),
+  ('00000000-0000-0000-0000-00000000ba0a','00000000-0000-0000-0000-0000000000b1','cafe_purchase_request','PR-POSTURE-B-INFLIGHT','simple-transfer','goo','cafe_purchase_request|PR-POSTURE-B-INFLIGHT|goo',    'in_flight',   1, null),
   ('00000000-0000-0000-0000-00000000ba0b','00000000-0000-0000-0000-0000000000b1','kitchen', 'PR-POSTURE-B-POSTED',  'noop',           'gkid',   'kitchen|PR-POSTURE-B-POSTED|gkid',     'posted',      0, now()),
-  ('00000000-0000-0000-0000-00000000ba0c','00000000-0000-0000-0000-0000000000b1','roastery','PR-POSTURE-B-FAILED',  'assembly-actual','goo',    'roastery|PR-POSTURE-B-FAILED|goo',     'failed',      3, null),
+  ('00000000-0000-0000-0000-00000000ba0c','00000000-0000-0000-0000-0000000000b1','roastery','PR-POSTURE-B-FAILED',  'purchase-request','goo',    'roastery|PR-POSTURE-B-FAILED|goo',     'failed',      3, null),
   ('00000000-0000-0000-0000-00000000ba0d','00000000-0000-0000-0000-0000000000b1','cafe_receipt','PR-POSTURE-B-DEAD','goods-receipt',  'dry_run','cafe_receipt|PR-POSTURE-B-DEAD|dry_run',    'dead_letter', 7, null);
 
 -- The fixture is only worth its numbers if it really covers the state space, so that is asserted

@@ -141,6 +141,26 @@ describe('RecordField', () => {
     expect(screen.getByRole('textbox', { name: 'Title' })).toBeInTheDocument()
   })
 
+  it('clears the Saved confirmation after a brief interval', async () => {
+    vi.useFakeTimers()
+    try {
+      renderField(textSpec)
+      activate('Title')
+      const input = screen.getByLabelText('Title') as HTMLInputElement
+      fireEvent.change(input, { target: { value: 'Restock oat milk cartons' } })
+      await act(async () => {
+        fireEvent.keyDown(input, { key: 'Enter' })
+        await Promise.resolve()
+      })
+
+      expect(screen.getByRole('status')).toHaveTextContent('Saved')
+      await act(async () => { await vi.advanceTimersByTimeAsync(4000) })
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('AC-V3-008: pressing Enter commits a text field and reports Saving then Saved', async () => {
     let resolveCommit!: () => void
     const onCommit = vi.fn(

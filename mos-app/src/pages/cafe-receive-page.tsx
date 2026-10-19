@@ -73,6 +73,7 @@ import { cafeItemLabel } from '@/lib/cafe-item-label'
 import { streamLabel } from '@/lib/kitchen-action-label'
 import { useKitchenItemTable } from '@/lib/kitchen-item-list'
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { useCafeStreamBootstrap } from '@/lib/use-cafe-stream-bootstrap'
 import { recordsHref } from '@/lib/cafe-records/url-state'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { useIsDesktop } from '@/shell/use-is-desktop'
@@ -198,7 +199,8 @@ export function CafeReceivePage() {
   const t = useT()
   const { locale } = useI18n()
   const auth = useAuth()
-  const { options: streamOptions, stream, homeStream, myStreamKeys, resolve, adopt, setStream, branchId } = useCafeStream()
+  const cafeStream = useCafeStream()
+  const { options: streamOptions, stream, homeStream, myStreamKeys, setStream, branchId } = cafeStream
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const canCapture = auth.status === 'authenticated' && canCaptureCafe({
@@ -219,9 +221,9 @@ export function CafeReceivePage() {
   const isDesktop = useIsDesktop()
   const today = useMemo(() => wibToday(), [])
   const dateBounds = cafeReceiptArrivalDateBounds(today, canBackdate)
-  const [catalogReady, setCatalogReady] = useState(false)
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [retryKey, setRetryKey] = useState(0)
+  const { catalogReady, setCatalogReady } = useCafeStreamBootstrap(cafeStream, retryKey, setLoadState)
   const [openPoRetryKey, setOpenPoRetryKey] = useState(0)
   // The list waits behind its toggle: listed on open, its cards push the first capture row past DESIGN's 300px.
   const [openPoPickerExpanded, setOpenPoPickerExpanded] = useState(false)
@@ -271,19 +273,6 @@ export function CafeReceivePage() {
   const draftScopeKey = draftScope
     ? JSON.stringify([draftScope.personId, draftScope.branchId, draftScope.activity, draftScope.arrivalDate])
     : null
-
-  useEffect(() => {
-    let active = true
-    setCatalogReady(false)
-    void resolve().then(catalog => {
-      if (!active) return
-      adopt(catalog)
-      setCatalogReady(true)
-    }).catch(() => {
-      if (active) setLoadState('error')
-    })
-    return () => { active = false }
-  }, [adopt, resolve, retryKey])
 
   useEffect(() => {
     const branchId = stream?.branch.id

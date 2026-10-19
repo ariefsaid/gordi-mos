@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCafeReviewQueueState } from '@/components/kitchen/use-cafe-review-queue-state'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { CafeQueueEmpty } from '@/components/cafe/redesign/cafe-queue-empty'
 import { useT } from '@/i18n/use-t'
@@ -33,16 +34,24 @@ export function CafeDecisionQueue<Row extends CafeDecisionRecord>({
 }) {
   const t = useT()
   const desktop = useIsDesktop()
-  const [rows, setRows] = useState<Row[]>([])
+  const {
+    rows,
+    setRows,
+    loading,
+    setLoading,
+    loadError,
+    setLoadError,
+    actionError,
+    setActionError,
+    busyId,
+    setBusyId,
+    retry,
+    setRetry,
+  } = useCafeReviewQueueState<Row>()
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map())
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(false)
-  const [actionError, setActionError] = useState(false)
-  const [busyId, setBusyId] = useState<string | null>(null)
   const [rejecting, setRejecting] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [note, setNote] = useState('')
-  const [retry, setRetry] = useState(0)
   const online = !useIsOffline()
   const noteRef = useRef<HTMLTextAreaElement>(null)
   const workbenchTitleRef = useRef<HTMLHeadingElement>(null)
@@ -61,7 +70,7 @@ export function CafeDecisionQueue<Row extends CafeDecisionRecord>({
       setLoading(false)
     }).catch(() => { if (active) { setLoadError(true); setLoading(false) } })
     return () => { active = false }
-  }, [load, retry, desktop])
+  }, [desktop, load, retry, setActionError, setLoadError, setLoading, setRows])
 
   const visibleRows = useMemo(() => rows.filter(row => streamFilter === ALL_STREAMS || streamKey(row.branch_id, row.activity) === streamFilter), [rows, streamFilter])
   const selected = visibleRows.find(row => row.id === selectedId) ?? null

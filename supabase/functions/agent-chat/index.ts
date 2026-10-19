@@ -55,7 +55,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
   const { jwt, userId, orgId, personId, accessRoles } = verdict.claims
   const serviceRoleClient = createClient(supabaseUrl, serviceRoleKey)
-  const assistantAvailability = await checkAssistantAvailability(serviceRoleClient, orgId, 'agent-chat')
+  const assistantAvailability = await checkAssistantAvailability(serviceRoleClient, orgId, personId, 'agent-chat')
   const assistantRefusal = assistantRefusalResponse(assistantAvailability, corsHeaders)
   if (assistantRefusal) return assistantRefusal
 

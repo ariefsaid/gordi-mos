@@ -282,3 +282,13 @@ describe('sorting and filtering the whole scope', () => {
     expect(second.map((s) => [s.bucket, s.rows.length, s.continued])).toEqual([['gap', 2, true], ['unknown', 2, false], ['zero', 1, false]])
   })
 })
+
+describe('observationOf', () => {
+  it('FR-018 compares the final counted quantity: the recount when the floor recounted, else the first count', async () => {
+    const { observationOf } = await import('@/lib/cafe-stock-comparison')
+    const line = { id: 'l1', wip_item_id: 'i1', item_name: 'Beans', item_category: null, item_kind: 'RAW' as const, item_unit_id: 'u', unit_name: 'kg',
+      counted_quantity: '5.0000', count_date: '2026-10-06', submitted_at: '2026-10-06T03:00:00Z', status: 'Submitted' as const }
+    expect(formatDec(observationOf({ ...line, recounted_quantity: '4.5000' })!.quantity)).toBe(formatDec(parseDecimal('4.5')!))
+    expect(formatDec(observationOf(line)!.quantity)).toBe(formatDec(parseDecimal('5')!))
+  })
+})

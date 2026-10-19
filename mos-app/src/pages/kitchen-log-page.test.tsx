@@ -2578,7 +2578,8 @@ describe('OD-K-5: sticky-footer tally', () => {
     expect(entries).toHaveTextContent('Local entries, not submitted')
     expect(entries).toHaveTextContent('17 botol')
     expect(entries).toHaveTextContent('12 porsi')
-    expect(entries).not.toHaveTextContent('29')
+    // No summed tally (17 + 12); the saved-at time may itself contain 29.
+    expect(entries).not.toHaveTextContent(/\b29 (botol|porsi)\b/)
     expect(within(entries).queryByRole('button', { name: /submit/i })).toBeNull()
     const submit = screen.getByRole('button', { name: /^submit/i })
     expect(screen.getAllByRole('button', { name: /^submit/i })).toHaveLength(1)

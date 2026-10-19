@@ -137,7 +137,7 @@ function parseLog(row: Record<string, unknown>): CafeRecordLog {
 // ── Counts ────────────────────────────────────────────────────────────────────────────────────────
 
 // Expected balance and variance are deliberately NOT selected: Records never shows them.
-const COUNT_COLUMNS = 'id,branch_id,activity,count_date,wip_item_id,item_name,item_category,item_kind,item_unit_id,unit_name,counted_quantity,status,posting_status,submitted_by,submitted_at,reviewed_at,row_version'
+const COUNT_COLUMNS = 'id,branch_id,activity,count_date,wip_item_id,item_name,item_category,item_kind,item_unit_id,unit_name,counted_quantity,recounted_quantity,status,posting_status,submitted_by,submitted_at,reviewed_at,row_version'
 const COUNT_KEY = ['count_date', 'submitted_at', 'id'] as const
 const COUNT_STATUSES: readonly CafeCountStatus[] = ['Submitted', 'Confirmed', 'Rejected']
 
@@ -153,6 +153,8 @@ export interface CafeRecordCount {
   item_unit_id: string | null
   unit_name: string | null
   counted_quantity: number | string
+  /** The floor's Recount, when the first count differed; the final counted quantity is this one. */
+  recounted_quantity?: number | string | null
   status: CafeCountStatus
   posting_status: CafeCountPostingStatus
   submitted_by: string | null
