@@ -1,7 +1,7 @@
 -- Per-person module settings are identity-scoped presentation overrides with admin-only audited writes.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(102);
+select plan(107);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -112,6 +112,16 @@ select is((select after ->> 'override' from mos.person_module_settings_audit
   where client_request_id = current_setting('test.request')::uuid), 'block',
   'the audit stores the complete after-row override');
 
+select throws_ok($$select * from mos.save_person_module_settings(
+  current_setting('test.member')::uuid, '{}'::jsonb, gen_random_uuid())$$,
+  '22023', null, 'a non-array save batch is rejected');
+select throws_ok($$select * from mos.save_person_module_settings(
+  current_setting('test.member')::uuid, '[null]'::jsonb, gen_random_uuid())$$,
+  '22023', null, 'a non-object row is rejected');
+select throws_ok($$select * from mos.save_person_module_settings(
+  current_setting('test.member')::uuid,
+  '[{"module_id":"cafe","override":null,"expected_version":1}]'::jsonb, gen_random_uuid())$$,
+  '22023', null, 'a null override cannot become an implicit Allow');
 select throws_ok($$select * from mos.save_person_module_settings(
   current_setting('test.member')::uuid, '[]'::jsonb, gen_random_uuid())$$,
   '22023', null, 'an empty save batch is rejected');
@@ -231,6 +241,13 @@ select is((select row_version from mos.save_person_module_settings(
   '[{"module_id":"money","override":"allow","expected_version":0}]'::jsonb,
   current_setting('test.same_request')::uuid) where module_id = 'money'), 1::bigint,
   'the same request id is independently scoped to another person');
+select throws_ok($$select * from mos.save_person_module_settings(
+  current_setting('test.member')::uuid,
+  '[{"module_id":"money","override":"block","expected_version":0}]'::jsonb, gen_random_uuid())$$,
+  '40001', 'module settings changed, reload', 'a second writer with an absent-row version cannot replace the first insert');
+select is((select count(*)::int from mos.person_module_settings_audit
+  where person_id = current_setting('test.member')::uuid and module_id = 'money'), 1,
+  'the losing absent-row writer adds no audit or version');
 select is((select row_version from mos.save_person_module_settings(
   current_setting('test.other_a')::uuid,
   '[{"module_id":"money","override":"allow","expected_version":0}]'::jsonb,

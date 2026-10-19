@@ -1,6 +1,6 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { ModuleId, PersonModuleSetting } from '@/lib/db/module-settings'
@@ -132,10 +132,24 @@ describe("a person's module settings", () => {
     await chooseModuleSetting(user, 'Café: setting for this person', 'Block')
     await user.click(screen.getByRole('button', { name: 'Save modules' }))
     expect(await screen.findByText('Settings changed elsewhere. Reload.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save modules' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'Café: setting for this person' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Reload' }))
     expect(await screen.findByText('Allow · Available')).toBeInTheDocument()
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
     expect(stubs.fns.savePersonModuleSettings).toHaveBeenCalledOnce()
+  })
+
+  it.each(['failed', 'incomplete'])('offers reload instead of fabricated choices after a %s load', async (failure) => {
+    const user = userEvent.setup()
+    if (failure === 'failed') stubs.fns.listPersonModuleSettings.mockRejectedValueOnce(new Error('offline'))
+    else stubs.fns.listPersonModuleSettings.mockResolvedValueOnce(makeRows('p1').slice(1))
+    renderCard(person('p1'))
+    expect(await screen.findByText("Couldn't load module settings. Try again.")).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Change' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Inherit ·/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitForModuleStatus('Café', /Inherit.*Available/)
   })
 
   it('keeps Org Off precedence when drafting Allow', async () => {
@@ -160,6 +174,43 @@ describe("a person's module settings", () => {
     await waitFor(() => finishOld?.(makeRows('p1', { cafe: { override: 'allow' } })))
     expect(screen.queryByText('Allow · Available')).not.toBeInTheDocument()
     expect(stubs.fns.listPersonModuleSettings).toHaveBeenCalledWith('p2')
+  })
+
+  it('guards dirty navigation to another person and keeps the draft on Escape', async () => {
+    const user = userEvent.setup()
+    const router = createMemoryRouter([
+      { path: '/admin/people/p1', element: <PersonModulesCard person={person('p1')} /> },
+      { path: '/admin/people/p2', element: <PersonModulesCard person={person('p2')} /> },
+    ], { initialEntries: ['/admin/people/p1'] })
+    render(<I18nProvider><RouterProvider router={router} /></I18nProvider>)
+    await waitForModuleStatus('Café', /Inherit.*Available/)
+    await user.click(screen.getByRole('button', { name: 'Change' }))
+    await chooseModuleSetting(user, 'Café: setting for this person', 'Block')
+    await act(async () => { void router.navigate('/admin/people/p2') })
+    expect(await screen.findByRole('heading', { name: 'Leave without saving?' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(router.state.location.pathname).toBe('/admin/people/p1')
+    expect(screen.getByRole('combobox', { name: 'Café: setting for this person' })).toHaveTextContent('Block')
+    expect(stubs.fns.savePersonModuleSettings).not.toHaveBeenCalled()
+  })
+
+  it('freezes controls during one save and ignores its success after changing person', async () => {
+    const user = userEvent.setup()
+    let finishSave!: (rows: PersonModuleSetting[]) => void
+    stubs.fns.savePersonModuleSettings.mockReturnValue(new Promise((resolve) => { finishSave = resolve }))
+    const view = renderCard(person('p1'))
+    await waitForModuleStatus('Café', /Inherit.*Available/)
+    await user.click(screen.getByRole('button', { name: 'Change' }))
+    await chooseModuleSetting(user, 'Café: setting for this person', 'Block')
+    await user.dblClick(screen.getByRole('button', { name: 'Save modules' }))
+    expect(stubs.fns.savePersonModuleSettings).toHaveBeenCalledOnce()
+    expect(screen.getByRole('combobox', { name: 'Café: setting for this person' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    view.rerender(<I18nProvider><MemoryRouter><PersonModulesCard person={person('p2')} /></MemoryRouter></I18nProvider>)
+    await waitForModuleStatus('Café', /Inherit.*Available/)
+    await act(async () => finishSave(makeRows('p1', { cafe: { override: 'block', row_version: 1 } })))
+    expect(screen.queryByText('Module settings saved.')).not.toBeInTheDocument()
+    await waitForModuleStatus('Café', /Inherit.*Available/)
   })
 
   it('supports keyboard selection and translated controls', async () => {

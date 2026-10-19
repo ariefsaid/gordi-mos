@@ -104,6 +104,26 @@ describe('module availability store', () => {
     expect(dataLayer.getViewerModuleAvailability).toHaveBeenCalledTimes(2)
   })
 
+  it('does not carry a queued refresh or late Allow into the next person session', async () => {
+    let finishOld!: (rows: ViewerModuleAvailability[]) => void
+    dataLayer.getViewerModuleAvailability
+      .mockReturnValueOnce(new Promise((resolve) => { finishOld = resolve }))
+      .mockResolvedValueOnce(availabilityRows({ money: { person_override: 'block' } }))
+    const view = renderProbes()
+    const queued = loadModuleAvailability({ force: true })
+    const nextViewer: AuthState = { ...viewerState, viewer: {
+      ...viewerState.viewer, person: { ...viewerState.viewer.person, id: 'person-2' },
+    } }
+    view.rerender(<AuthContext.Provider value={nextViewer}><Probe name="first" /></AuthContext.Provider>)
+    await waitFor(() => expect(screen.getByLabelText('first')).toHaveTextContent('ready:false'))
+    await act(async () => {
+      finishOld(availabilityRows({ money: { person_override: 'allow' } }))
+      await queued
+    })
+    expect(screen.getByLabelText('first')).toHaveTextContent('ready:false')
+    expect(dataLayer.getViewerModuleAvailability).toHaveBeenCalledTimes(2)
+  })
+
   it('clears prior person and org facts when the signed-in session ends', async () => {
     dataLayer.getViewerModuleAvailability.mockResolvedValue(availabilityRows({ money: { enabled: false } }))
     const view = renderProbes()

@@ -79,7 +79,9 @@ export function loadModuleAvailability({ force = false }: LoadOptions = {}): Pro
     if (!force) return pending
     if (queuedRefresh) return queuedRefresh
     const currentRequest = pending
+    const refreshGeneration = generation
     const refresh = currentRequest.then(() => {
+      if (refreshGeneration !== generation) return
       queuedRefresh = null
       return loadModuleAvailability({ force: true })
     })

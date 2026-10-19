@@ -1,5 +1,6 @@
-/* A person's Modules: the shared person-card rows, plus the preview Select and the disabled Save. Tokens only. */
+/* A person's Modules uses the shared person-card rows and controls. */
 .person-modules__row { flex-wrap: wrap; }
+.person-modules .person-card__meaning { max-width: 72ch; }
 .person-modules__select { flex: 0 1 12rem; margin-inline-start: auto; }
 .person-modules__badge { margin: 0 0 var(--mos-space-2); }
 .person-modules__org-link { margin-top: var(--mos-space-1); min-height: var(--mos-control-height); }

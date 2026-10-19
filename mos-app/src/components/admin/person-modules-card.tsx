@@ -58,7 +58,7 @@ export function PersonModulesCard({ person }: { person: AdminPersonRow }) {
 
   const load = useCallback(async () => {
     const sequence = ++loadSequence.current
-    setLoadedFor(null)
+    setLoadedFor(person.id)
     setState('loading')
     try {
       const rows = await listPersonModuleSettings(person.id)
@@ -118,7 +118,7 @@ export function PersonModulesCard({ person }: { person: AdminPersonRow }) {
   }
 
   async function save() {
-    if (!dirty || offline || saving) return
+    if (!dirty || offline || saving || conflict) return
     const sequence = loadSequence.current
     const clientRequestId = requestId ?? crypto.randomUUID()
     setRequestId(clientRequestId)
@@ -194,7 +194,7 @@ export function PersonModulesCard({ person }: { person: AdminPersonRow }) {
                     aria-label={t('admin.modules.overrideOf', { module: t(fact.labelKey) })}
                     value={override}
                     fullWidth
-                    disabled={offline || saving}
+                    disabled={offline || saving || conflict}
                     onChange={(event) => changeOverride(fact.id, event.target.value as PersonModuleOverride)}
                   >
                     <option value="inherit">{t('admin.modules.inherit')}</option>
@@ -215,7 +215,7 @@ export function PersonModulesCard({ person }: { person: AdminPersonRow }) {
           <ActionBar
             className="person-modules__actions"
             secondary={<Button variant="outline" disabled={saving} onClick={cancelEditing}>{t('common.cancel')}</Button>}
-            primary={<Button variant="primary" disabled={!dirty || offline || saving} onClick={() => void save()}>{saving ? t('common.saving') : t('admin.modules.savePerson')}</Button>}
+            primary={<Button variant="primary" disabled={!dirty || offline || saving || conflict} onClick={() => void save()}>{saving ? t('common.saving') : t('admin.modules.savePerson')}</Button>}
           />
         </>
       )}

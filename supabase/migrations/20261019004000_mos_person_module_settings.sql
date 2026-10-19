@@ -1,5 +1,5 @@
 -- Per-person module presentation overrides. Explicit Inherit rows are versioned tombstones.
--- DOWN: run supabase/rollbacks/20261019000200_mos_person_module_settings.sql.
+-- DOWN: run supabase/rollbacks/20261019004000_mos_person_module_settings.sql.
 -- Export person settings and audit first if they must be recoverable; DOWN removes both.
 begin;
 

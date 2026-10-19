@@ -442,10 +442,9 @@ function isLive(d: Destination, accessRoles: string[], isOn: ModuleAccessCheck =
   if (d.links.every((link) => isShipGated(link.path))) return false
   if (d.id === 'money') return moneyDestinationForViewer(accessRoles, isOn) !== null
   const roleAdmitted = !d.anyOf || d.anyOf.some((role) => accessRoles.includes(role))
-  if (d.id === 'work' && !isOn('work', roleAdmitted)) return false
-  if (d.zone === 'modules' && !isOn(d.id as ModuleId, roleAdmitted)) return false
-  if (d.anyOf && !roleAdmitted) return false
-  return true
+  if (d.id === 'work') return isOn('work', roleAdmitted)
+  if (d.zone === 'modules') return isOn(d.id as ModuleId, roleAdmitted)
+  return roleAdmitted
 }
 
 /**

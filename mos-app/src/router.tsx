@@ -640,7 +640,7 @@ function pathsInRoute(route: RouteObject, parent = ''): string[] {
 
 function withModuleBoundaries(routes: RouteObject[]): RouteObject[] {
   const moduleRoots = [
-    { moduleId: 'work', roots: ['/work', '/objectives', '/tasks', '/updates'] },
+    { moduleId: 'work', roots: ['/work', '/objectives', '/tasks', '/updates', '/projects-processes'] },
     { moduleId: 'money', roots: ['/money', '/sales', '/dashboard', '/plan/budget', '/plan/pricing'] },
     { moduleId: 'cafe', roots: ['/cafe', '/kitchen'] },
     { moduleId: 'roastery', roots: ['/roastery'] },

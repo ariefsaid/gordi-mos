@@ -1,6 +1,18 @@
 -- Remove per-person module settings after deploying the pre-feature app and edge functions.
--- Export personal settings and audit first if they must be recoverable.
+-- Export personal settings and audit before acknowledging destructive DOWN with:
+-- SET mos.allow_person_module_settings_down = 'on';
 begin;
+
+do $$
+begin
+  if (exists (select 1 from mos.person_module_settings)
+      or exists (select 1 from mos.person_module_settings_audit))
+     and current_setting('mos.allow_person_module_settings_down', true) is distinct from 'on' then
+    raise exception 'personal module settings rollback requires export and explicit acknowledgement'
+      using errcode = '55000';
+  end if;
+end;
+$$;
 
 drop function mos.save_person_module_settings(uuid, jsonb, uuid);
 drop function mos.list_person_module_settings(uuid);
