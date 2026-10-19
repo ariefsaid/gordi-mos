@@ -91,7 +91,7 @@ if [ "$(cat "$gitdir/independent-review-spec-ok" 2>/dev/null)" = "$spec_stamp_be
   pass=$((pass+1)); printf '  ok    other exact-HEAD lens stamps remain unchanged after security DNM\n'
 else fail=$((fail+1)); printf '  FAIL  security DNM changed another lens stamp\n'; fi
 
-# Release candidates need Opus; migration branches accept Opus or an exact-prefix Luna id.
+# Release candidates need Opus or Sol; migration branches accept Opus or an exact-prefix Luna id.
 git init -q "$tmp/rel-repo"
 gr() { git -C "$tmp/rel-repo" -c user.email=t@t -c user.name=t "$@"; }
 gr commit -qm init --allow-empty
@@ -125,6 +125,8 @@ relcheck "renamed migration on a feature branch accepts Luna" 0 gpt-6-luna
 gr checkout -q -b release/x HEAD; gr commit -q --allow-empty -m "fix on top"
 git -C "$tmp/rel-repo" update-ref refs/remotes/origin/dev HEAD~1
 relcheck "release candidate with a migration: gpt-6-luna refused" 1 gpt-6-luna
+relcheck "release candidate: openai-codex/gpt-6.1-sol security accepted" 0 openai-codex/gpt-6.1-sol
+relcheck "release candidate: fable security refused" 1 claude-fable-5-1
 
 gr checkout -qb feature/explicit-main "$(gr rev-parse origin/dev)"
 gr commit -q --allow-empty -m "ordinary work"
