@@ -60,7 +60,7 @@ export function effectiveAvailability(input: AvailabilityInput): { available: bo
 export function admittedTo(moduleId: ModuleId, accessRoles: string[]): boolean {
   if (moduleId === 'work') return !isShipGated('/work')
   if (moduleId === 'assistant') return SHOW_ASSISTANT
-  return admittedModules(accessRoles).some((module) => module.id === moduleId)
+  return admittedModules(accessRoles, () => true).some((module) => module.id === moduleId)
 }
 
 /** The isolated, in-memory preview model: module defaults (Assistant Off, others On; people Inherit). */
