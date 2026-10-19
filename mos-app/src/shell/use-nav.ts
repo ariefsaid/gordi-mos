@@ -11,7 +11,7 @@ import {
 import { useIsNarrow } from './use-is-narrow'
 import { useRailCollapsePref } from './use-rail-collapse-pref'
 import { useModuleAvailability } from '@/lib/module-availability'
-import type { ModuleId } from '@/lib/db/module-settings'
+import type { ModuleAccessCheck } from '@/lib/module-availability'
 
 /** The 104px whole-word global rail remains visible; below 1280px contextual pages move into flyouts. */
 const FULL_NAV_QUERY = '(min-width: 1280px)'
@@ -31,7 +31,7 @@ export interface NavLayout {
   /** Below 768px there is no desktop nav at all: tabs and the More drawer are the nav. */
   isNarrow: boolean
   roles: string[]
-  isOn: (moduleId: ModuleId) => boolean
+  isOn: ModuleAccessCheck
   /** One page-bearing destination → labelled sidebar; Work plus an admitted module → rail with contextual panel. */
   mode: NavMode
   /** The 104px labelled rail with flyouts: viewport under 1280px or the viewer folded the contextual panel away. */

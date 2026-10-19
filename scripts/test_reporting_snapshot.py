@@ -1268,8 +1268,10 @@ class StockOnHandSnapshotTests(unittest.TestCase):
         self.assertEqual(newest["basis"], "end_of_day")
         self.assertEqual(newest["business_date"], date(2026, 10, 15))
         self.assertEqual(newest["as_of"], datetime(2026, 10, 15, 16, 59, 59, 999999, tzinfo=timezone.utc))
-        self.assertEqual({row["branch_code"] for row in coverage_rows if row["snapshot_id"] == newest["id"]}, {"RRS", "GHQ"})
-        self.assertEqual({row["received_rows"] for row in coverage_rows if row["snapshot_id"] == newest["id"]}, {1})
+        newest_coverage = [row for row in coverage_rows if row["snapshot_id"] == newest["id"]]
+        self.assertEqual({row["branch_code"] for row in newest_coverage}, {"RRS", "GHQ"})
+        self.assertEqual({row["status"] for row in newest_coverage}, {"complete"})
+        self.assertEqual({row["received_rows"] for row in newest_coverage}, {1})
         self.assertEqual({row["location"] for row in on_hand_rows}, {"Main", "Cold"})
         current_rows = [row for row in on_hand_rows if row["snapshot_id"] == newest["id"]]
         self.assertEqual(next(row for row in current_rows if row["product_detail_code"] == "PD-001")["quantity"], Decimal("-2.5000"))

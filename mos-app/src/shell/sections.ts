@@ -2,6 +2,8 @@ import type React from 'react'
 import type { MessageKey } from '@/i18n/messages'
 import { can } from '@/lib/capabilities'
 import { isShipGated } from '@/lib/ship-gate'
+import type { ModuleAccessCheck } from '@/lib/module-availability'
+import type { ModuleId } from '@/lib/db/module-settings'
 import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
   MoneyIcon, PendingBillIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
@@ -113,13 +115,25 @@ export const CAFE_ROUTE_SECTIONS: Section[] = CAFE_SECTIONS
  * rather than beside them — and why the same array closes the route in `router.tsx`, so a link can
  * never survive a path that stopped routing.
  */
-export function visibleSections(sections: readonly Section[], accessRoles: readonly string[]): Section[] {
-  return sections.filter(
-    (s) =>
-      !isShipGated(s.path) &&
-      (!s.capability || can(accessRoles, s.capability)) &&
-      (!s.anyOf || s.anyOf.some((r) => accessRoles.includes(r))),
-  )
+export function visibleSections(
+  sections: readonly Section[],
+  accessRoles: readonly string[],
+  isOn: ModuleAccessCheck,
+): Section[] {
+  return sections.filter((section) => {
+    if (isShipGated(section.path)) return false
+    if (section.capability && !can(accessRoles, section.capability)) return false
+    const roleAdmitted = !section.anyOf || section.anyOf.some((role) => accessRoles.includes(role))
+    const moduleId = moduleForPath(section.path)
+    return moduleId ? isOn(moduleId, roleAdmitted) : roleAdmitted
+  })
+}
+
+function moduleForPath(path: string): ModuleId | null {
+  if (path === '/work' || path.startsWith('/work/')) return 'work'
+  if (path === '/money' || path.startsWith('/money/')) return 'money'
+  if (path === '/cafe' || path.startsWith('/cafe/')) return 'cafe'
+  return null
 }
 
 /** Admin module sections — admin-only; rendered conditionally in the rail. */

@@ -116,6 +116,11 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
   const t = useT()
   const { openPanel } = useAgentRuntime()
   const { isOn } = useModuleAvailability()
+  const workModuleOn = isOn('work')
+  const moneyModuleOn = isOn('money')
+  const cafeModuleOn = isOn('cafe')
+  const moduleVisibility = useRef({ work: workModuleOn, money: moneyModuleOn })
+  moduleVisibility.current = { work: workModuleOn, money: moneyModuleOn }
   // AC-032 uses the shell width seam: narrow palettes stay search-only, with an empty-state prompt
   // at rest and record results after typing beside the phone's existing navigation and launcher.
   const isNarrow = useIsNarrow()
@@ -154,14 +159,14 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
   const actionItems = useMemo<CommandItem[]>(
     () => {
       const items: CommandItem[] = [
-        ...(SHOW_WORK_COLLECTIONS && canShareSignal ? [{ id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action' as const, run: onShareSignal }] : []),
-        ...(SHOW_WORK_COLLECTIONS
+        ...(SHOW_WORK_COLLECTIONS && workModuleOn && canShareSignal ? [{ id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action' as const, run: onShareSignal }] : []),
+        ...(SHOW_WORK_COLLECTIONS && workModuleOn
           ? [{ id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action' as const, to: '/work/tasks?create=1' }]
           : []),
-        ...(SHOW_WORK_COLLECTIONS && canCreateForScope('objective', scopes)
+        ...(SHOW_WORK_COLLECTIONS && workModuleOn && canCreateForScope('objective', scopes)
           ? [{ id: 'a-objective', label: t('catalog.objectives.add'), Icon: ObjectiveIcon, kind: 'action' as const, to: '/work/objectives?create=1' }]
           : []),
-        ...(SHOW_WORK_COLLECTIONS && canCreateForScope('work-line', scopes)
+        ...(SHOW_WORK_COLLECTIONS && workModuleOn && canCreateForScope('work-line', scopes)
           ? [{ id: 'a-work-line', label: t('catalog.projects.add'), Icon: WorkLineIcon, kind: 'action' as const, to: '/work/projects?create=1' }]
           : []),
       ]
@@ -170,7 +175,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
       })
       return items
     },
-    [canShareSignal, isOn, openPanel, onShareSignal, scopes, t],
+    [canShareSignal, isOn, openPanel, onShareSignal, scopes, t, workModuleOn],
   )
 
   // On a catalog collection route (not its record pages) the page's own create action leads the
@@ -184,12 +189,12 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
       return [
         ...(lead ? [lead] : []),
         ...actionItems.filter((i) => i !== lead),
-        ...(cafeCaptureAdmitted
+        ...(cafeCaptureAdmitted && cafeModuleOn
           ? [{ id: 'a-cafe-log', label: t('commandMenu.action.logCafe'), Icon: CafeIcon, kind: 'action' as const, to: CAFE_LOG_ROUTE }]
           : []),
       ]
     },
-    [actionItems, cafeCaptureAdmitted, pageCreateId, t],
+    [actionItems, cafeCaptureAdmitted, cafeModuleOn, pageCreateId, t],
   )
 
   // Go to is the module registry (`goToEntries`): every root, page and Review queue the viewer can open, each page
@@ -239,27 +244,27 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     let cancelled = false
     const timer = setTimeout(() => {
       Promise.all([
-        SHOW_WORK_COLLECTIONS
+        SHOW_WORK_COLLECTIONS && workModuleOn
           ? searchTasksByTitle(trimmed).then((rows) =>
               rows.map<RecordHit>((r) => ({ id: r.id, title: r.title, kind: 'task' })),
             )
           : Promise.resolve<RecordHit[]>([]),
-        SHOW_WORK_COLLECTIONS
+        SHOW_WORK_COLLECTIONS && workModuleOn
           ? searchSignalsByBody(trimmed).then((rows) =>
               rows.map<RecordHit>((r) => ({ id: r.id, title: firstLine(r.body), kind: 'signal' })),
             )
           : Promise.resolve<RecordHit[]>([]),
-        SHOW_FOLLOWUPS
+        SHOW_FOLLOWUPS && moneyModuleOn
           ? searchFollowUpsByCounterparty(trimmed).then((rows) =>
               rows.map<RecordHit>((r) => ({ id: r.id, title: r.counterparty, kind: 'follow-up' })),
             )
           : Promise.resolve<RecordHit[]>([]),
-        SHOW_WORK_COLLECTIONS
+        SHOW_WORK_COLLECTIONS && workModuleOn
           ? searchWorkLinesByName(trimmed).then((rows) =>
               rows.map<RecordHit>((r) => ({ id: r.id, title: r.name, kind: r.type })),
             )
           : Promise.resolve<RecordHit[]>([]),
-        SHOW_WORK_COLLECTIONS
+        SHOW_WORK_COLLECTIONS && workModuleOn
           ? searchObjectivesByName(trimmed).then((rows) =>
               rows.map<RecordHit>((r) => ({ id: r.id, title: r.name, kind: 'objective' })),
             )
@@ -269,12 +274,16 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
         ),
       ])
         .then(([tasks, signals, followUps, workLines, objectives, people]) => {
-          if (!cancelled) setRecords({ status: 'ready', rows: [...tasks, ...signals, ...followUps, ...workLines, ...objectives, ...people] })
+          if (!cancelled && moduleVisibility.current.work === workModuleOn && moduleVisibility.current.money === moneyModuleOn) {
+            setRecords({ status: 'ready', rows: [...tasks, ...signals, ...followUps, ...workLines, ...objectives, ...people] })
+          }
         })
-        .catch(() => { if (!cancelled) setRecords({ status: 'error' }) })
+        .catch(() => {
+          if (!cancelled && moduleVisibility.current.work === workModuleOn && moduleVisibility.current.money === moneyModuleOn) setRecords({ status: 'error' })
+        })
     }, 150)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [open, trimmed, isSearching])
+  }, [open, trimmed, isSearching, workModuleOn, moneyModuleOn])
 
   // ── Group model ──────────────────────────────────────────────────────────────
   const groups = useMemo<ItemGroup[]>(() => {
@@ -288,7 +297,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
         return out
       }
       if (isNarrow) return out
-      const recent = readRecentTasks().map<CommandItem>((r) => ({
+      const recent = (workModuleOn ? readRecentTasks() : []).map<CommandItem>((r) => ({
         id: `recent-${r.id}`, label: r.title, Icon: TasksIcon, kind: 'record',
         to: `/work/tasks/${r.id}`, record: { id: r.id, title: r.title },
       }))
@@ -299,7 +308,11 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
       return out
     }
     const actions = launcherActions.filter((i) => matches(i.label, trimmed))
-    const recordRows = records.status === 'ready' ? records.rows : []
+    const recordRows = records.status === 'ready' ? records.rows.filter((record) => {
+      if (record.kind === 'follow-up') return moneyModuleOn
+      if (record.kind === 'person') return true
+      return workModuleOn
+    }) : []
     const itemsByKind = new Map<RecordKind, CommandItem[]>()
     for (const r of recordRows) {
       const cfg = RECORD_KIND_CONFIG[r.kind]
@@ -362,7 +375,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     if (nav.length) out.push({ key: 'navigate', label: t('commandMenu.group.goTo'), items: nav })
     if (actions.length) out.push({ key: 'actions', label: t('commandMenu.group.act'), items: actions })
     return out
-  }, [isSearching, trimmed, records, expandedKinds, actionItems, launcherActions, navigateItems, t, mode, isNarrow])
+  }, [isSearching, trimmed, records, expandedKinds, actionItems, launcherActions, navigateItems, t, mode, isNarrow, moneyModuleOn, workModuleOn])
 
   // The ship gate (#444), applied at the ONE seam every palette row passes through, rather than
   // as a flag per entry. The palette is a navigation surface like the rail, and OD-WAY-51

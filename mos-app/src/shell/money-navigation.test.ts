@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { SHOW_FOLLOWUPS, SHOW_PLAN_BUDGET } from '@/config/features'
+import type { ModuleId } from '@/lib/db/module-settings'
 import { moneyDestinationForViewer, moneySectionsForViewer } from './module-registry'
 
-const paths = (roles: string[]) => moneySectionsForViewer(roles).map(({ path }) => path)
+const allModulesOn = (_moduleId: ModuleId, roleAdmitted = true) => roleAdmitted
+const paths = (roles: string[]) => moneySectionsForViewer(roles, allModulesOn).map(({ path }) => path)
 
 describe('Money sibling navigation mirrors admitted routes', () => {
   it('keeps the revenue view available to manager and supervisor without finance destinations', () => {
     for (const role of ['manager', 'supervisor']) {
       expect(paths([role])).toEqual(['/money'])
-      expect(moneyDestinationForViewer([role])?.primaryPath).toBe('/money')
+      expect(moneyDestinationForViewer([role], allModulesOn)?.primaryPath).toBe('/money')
     }
   })
 
@@ -26,7 +28,7 @@ describe('Money sibling navigation mirrors admitted routes', () => {
   })
 
   it('chooses a reachable parent route for admin-only viewers without granting overview access', () => {
-    const destination = moneyDestinationForViewer(['admin'])
+    const destination = moneyDestinationForViewer(['admin'], allModulesOn)
     if (SHOW_PLAN_BUDGET) expect(destination?.primaryPath).toBe('/money/budget')
     else if (SHOW_FOLLOWUPS) expect(destination?.primaryPath).toBe('/money/follow-ups')
     else expect(destination).toBeNull()

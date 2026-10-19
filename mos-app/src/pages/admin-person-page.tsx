@@ -2,7 +2,7 @@
 //
 // Header: who they are (name, email, login, Home team) and their account actions — the likely next
 // one as a button, the rest under More. Body: what they have (Teams, Position, Access level, Revenue
-// scope while Supervisor (access) is on, Modules (preview), Receipt issues), each with one Change; beside it, what that
+// scope while Supervisor (access) is on, Modules, Receipt issues), each with one Change; beside it, what that
 // adds up to. The People list's filters ride along in this page's URL so Back returns to the same list.
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
@@ -24,7 +24,6 @@ import {
   AccessCard, CanDoCard, PositionCard, ReceiptIssuesCard, ScopeCard, TeamsCard, type PersonAuthoritySource,
 } from '@/components/admin/person-cards'
 import { PersonModulesCard } from '@/components/admin/person-modules-card'
-import { isShipGated } from '@/lib/ship-gate'
 import { LIST_PARAMS, isLastActiveAdmin } from '@/components/admin/people-filter'
 import { listRoleAuthority, listTeamLeadAssignments } from '@/lib/db/admin-access'
 import { getBusinessUnits, getRoles } from '@/lib/db/directory'
@@ -118,8 +117,7 @@ export function AdminPersonPage() {
           />
           <AccessCard person={person} people={data.people} refresh={data.refresh} />
           {person.access_roles.includes('supervisor') && <ScopeCard person={person} options={data.scopeOptions} refresh={data.refresh} />}
-          {/* Preview ship state: a person's Modules exist only where the Modules page does. */}
-          {!isShipGated('/admin/people/modules') && <PersonModulesCard person={person} />}
+          <PersonModulesCard person={person} />
           <ReceiptIssuesCard person={person} />
         </div>
         <div className="person-page__column">

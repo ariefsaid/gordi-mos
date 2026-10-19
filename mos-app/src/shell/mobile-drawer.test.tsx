@@ -12,7 +12,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ThemeProvider } from '@/theme/theme-provider'
 
-const moduleSwitches = vi.hoisted(() => ({ isOn: vi.fn((moduleId: string) => moduleId.length > 0) }))
+const moduleSwitches = vi.hoisted(() => ({ isOn: vi.fn((_moduleId: string, roleAdmitted = true) => roleAdmitted) }))
 vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ status: 'ready', isOn: moduleSwitches.isOn, retry: vi.fn() }) }))
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -61,7 +61,7 @@ function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'],
 
 beforeEach(() => {
   vi.clearAllMocks()
-  moduleSwitches.isOn.mockImplementation(() => true)
+  moduleSwitches.isOn.mockImplementation((_moduleId, roleAdmitted = true) => roleAdmitted)
   localStorage.clear()
 })
 
@@ -109,7 +109,9 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
   })
 
   it('hides Work and Money when their org switches are off', () => {
-    moduleSwitches.isOn.mockImplementation((moduleId) => moduleId !== 'work' && moduleId !== 'money')
+    moduleSwitches.isOn.mockImplementation((moduleId, roleAdmitted = true) =>
+      roleAdmitted && moduleId !== 'work' && moduleId !== 'money',
+    )
     renderDrawer({ accessRoles: ['finance'] })
     expect(screen.queryByRole('link', { name: /^Work$/ })).toBeNull()
     expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
