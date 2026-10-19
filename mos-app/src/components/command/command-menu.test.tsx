@@ -62,7 +62,7 @@ function setAuth(accessRoles: string[] = ['admin']) {
 // What the Go to group offers `accessRoles`, read from the module registry the rail, the drawer and
 // the palette all share (and the English catalog) — never from the palette itself.
 function railLabels(accessRoles: string[]): string[] {
-  return goToEntries(accessRoles).map((entry) => messages.en[entry.labelKey])
+  return goToEntries(accessRoles, () => true).map((entry) => messages.en[entry.labelKey])
 }
 
 // Each option reads "<label>" or "<label><trail>" (a page names where it lives), so compare by prefix.
@@ -250,7 +250,7 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search-only palette', 
   it('AC-030: Go to labels come from the catalog in Indonesian too', () => {
     renderMenu(vi.fn(), 'id')
     const goTo = within(screen.getByRole('group', { name: 'Buka' }))
-    const labels = goToEntries(['admin']).map((entry) => messages.id[entry.labelKey])
+    const labels = goToEntries(['admin'], () => true).map((entry) => messages.id[entry.labelKey])
     expectGoToLabels(goTo.getAllByRole('option'), labels)
     expect(goTo.getByRole('option', { name: /^Tujuan/ })).toBeInTheDocument()
   })

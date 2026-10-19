@@ -212,7 +212,7 @@ describe('access boundary', () => {
     // those sweeps read, so this file fails if the boundary is ever mistaken for a reason to
     // widen a nav surface.
     it('member and admin-only viewers are not offered Money, while a manager is admitted', () => {
-      const offersMoney = (roles: string[]) => admittedModules(roles).some((m) => m.id === 'money')
+      const offersMoney = (roles: string[]) => admittedModules(roles, () => true).some((m) => m.id === 'money')
       const offersAdmin = (roles: string[]) => footerAreas(roles).some((u) => u.id === 'admin')
       expect(offersMoney(['member'])).toBe(false)
       expect(offersMoney(['admin'])).toBe(false)

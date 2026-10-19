@@ -19,9 +19,11 @@ function findRoute(routes: RouteObject[], target: string, parent = ''): RouteObj
   return undefined
 }
 const closed = (route: RouteObject | undefined) => isValidElement(route?.element) && route.element.type === Navigate
+const allModulesOn = () => true
+const goToPaths = (roles: string[]) => goToEntries(roles, allModulesOn).map((entry) => entry.path)
 
 const cafePaths = (roles: string[]) =>
-  pageGroupsFor(admittedModules(roles).find((m) => m.id === 'cafe')!, roles).flatMap((group) => group.items.map((item) => item.path))
+  pageGroupsFor(admittedModules(roles, allModulesOn).find((m) => m.id === 'cafe')!, roles, allModulesOn).flatMap((group) => group.items.map((item) => item.path))
 
 afterEach(() => vi.unstubAllEnvs())
 
@@ -33,9 +35,9 @@ describe('preview ship state without the local opt-in (the default, and every pr
   it('keeps the preview out of the Café menu, the command menu and the route owner lookup', () => {
     expect(cafePaths(['admin'])).toContain('/cafe/transfer-routes')
     expect(cafePaths(['admin'])).toContain('/cafe/locations')
-    expect(goToEntries(['admin']).map((entry) => entry.path)).toContain('/cafe/locations')
+    expect(goToPaths(['admin'])).toContain('/cafe/locations')
     expect(sectionForPath('/cafe/locations')?.labelKey).toBe('nav.cafe.locations')
-    expect(goToEntries(['admin']).map((entry) => entry.path)).toContain('/cafe/transfer-routes')
+    expect(goToPaths(['admin'])).toContain('/cafe/transfer-routes')
     expect(sectionForPath('/cafe/transfer-routes')?.labelKey).toBe('nav.cafe.transferRoutes')
     expect(isShipGated('/admin/people/modules')).toBe(true)
     expect(isShipGated('/admin/modules')).toBe(false)
@@ -50,7 +52,7 @@ describe('preview ship state without the local opt-in (the default, and every pr
     }
     expect(findRoute(ungatedRouteTable, '/cafe/locations')).toBeDefined()
     expect(closed(findRoute(applyShipGate(ungatedRouteTable), '/cafe/locations'))).toBe(false)
-    expect(goToEntries(['member']).map((entry) => entry.path)).toContain('/cafe/locations')
+    expect(goToPaths(['member'])).toContain('/cafe/locations')
   })
 
   it('keeps the old Access › Modules redirect released with the Modules page', () => {
@@ -75,7 +77,7 @@ describe('released stock comparison', () => {
     expect(closed(findRoute(applyShipGate(ungatedRouteTable), '/cafe/stock-comparison'))).toBe(false)
     for (const reviewer of ['ops_lead', 'admin', 'supervisor']) {
       expect(cafePaths([reviewer])).toContain('/cafe/stock-comparison')
-      expect(goToEntries([reviewer]).map((entry) => entry.path)).toContain('/cafe/stock-comparison')
+      expect(goToPaths([reviewer])).toContain('/cafe/stock-comparison')
     }
     for (const other of ['member', 'finance', 'manager']) {
       expect(cafePaths([other])).not.toContain('/cafe/stock-comparison')
@@ -100,9 +102,9 @@ describe('preview ship state with the full local opt-in', () => {
     const paths = cafePaths(['member'])
     expect(paths.indexOf('/cafe/transfer-routes')).toBe(paths.indexOf('/cafe/recipes') + 1)
     expect(paths.indexOf('/cafe/locations')).toBe(paths.indexOf('/cafe/transfer-routes') + 1)
-    expect(goToEntries(['member']).map((entry) => entry.path)).toContain('/cafe/locations')
+    expect(goToPaths(['member'])).toContain('/cafe/locations')
     expect(sectionForPath('/cafe/locations')?.labelKey).toBe('nav.cafe.locations')
-    expect(goToEntries(['member']).map((entry) => entry.path)).toContain('/cafe/transfer-routes')
+    expect(goToPaths(['member'])).toContain('/cafe/transfer-routes')
     expect(sectionForPath('/cafe/transfer-routes')?.labelKey).toBe('nav.cafe.transferRoutes')
     expect(destinationForPath('/admin/modules')?.id).toBe('admin')
     expect(isShipGated('/admin/people/modules')).toBe(false)
@@ -113,11 +115,11 @@ describe('preview ship state with the full local opt-in', () => {
     for (const reviewer of ['ops_lead', 'admin', 'supervisor']) {
       const paths = cafePaths([reviewer])
       expect(paths.indexOf('/cafe/stock-comparison')).toBe(paths.indexOf('/cafe/count') + 1)
-      expect(goToEntries([reviewer]).map((entry) => entry.path)).toContain('/cafe/stock-comparison')
+      expect(goToPaths([reviewer])).toContain('/cafe/stock-comparison')
     }
     for (const other of ['member', 'finance', 'manager']) {
       expect(cafePaths([other])).not.toContain('/cafe/stock-comparison')
-      expect(goToEntries([other]).map((entry) => entry.path)).not.toContain('/cafe/stock-comparison')
+      expect(goToPaths([other])).not.toContain('/cafe/stock-comparison')
     }
     expect(sectionForPath('/cafe/stock-comparison')?.labelKey).toBe('nav.cafe.stockComparison')
   })
