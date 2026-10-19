@@ -10,3 +10,4 @@
 .cafe-count-review__not-counted li span { color: var(--muted-foreground); font-size: var(--mos-size-1); }
 .cafe-count-review__not-counted p { margin: 0; color: var(--muted-foreground); }
 @media (max-width: 767.98px) { .cafe-count-review__bulk .btn { width: 100%; } }
+.cafe-count-review__facts dd .cafe-count-review__negative { display: inline; color: var(--status-lost-text); font-size: var(--mos-size-3); font-variant-numeric: tabular-nums; }

@@ -397,6 +397,11 @@ export function CafeCountPage() {
                   ariaLabel={t('kitchen.log.toolbarAria')}
                   resultCount={{ shown: shownCount, total: items.length }}
                   sortLabel={t('cafe.toolbar.sorted.az')}
+                  filtersPanel={{ label: t('cafe.toolbar.filters'), summary: [
+                    kindFilter === 'All' ? t('kitchen.filter.kind.all') : kindFilter,
+                    category === 'All' ? t('kitchen.filter.all') : kitchenCategoryLabel(t, category),
+                    notCountedOnly ? t('cafe.count.filter.notCounted') : t('cafe.count.filter.all'),
+                  ].join(' · ') }}
                   kinds={KIND_FILTERS}
                   kind={kindFilter}
                   kindId="cafe-count-kind"
@@ -505,7 +510,7 @@ export function CafeCountPage() {
                       {t(invalidCount === 1 ? 'quantityField.fixing.one' : 'quantityField.fixing.other', { count: invalidCount })}
                     </span>}
                     {hasUnsubmittedInput && <span className="cafe-count__bar-status" role="status">{t('cafe.count.draftSaved')}</span>}
-                    {enteredCount === 0 && !submitting && isOnline && <span className="cafe-count__bar-status" role="status">{t('cafe.count.needsEntry')}</span>}
+                    {enteredCount === 0 && !submitting && isOnline && items.some(item => !floorLines[item.id] && !elsewhere[item.id]) && <span className="cafe-count__bar-status" role="status">{t('cafe.count.needsEntry')}</span>}
                   </>}
                   secondary={hasUnsubmittedInput && !submitting ? <button type="button" className="btn btn-outline" onClick={discardEntries}>{t('cafe.count.discard')}</button> : undefined}
                   primary={<button type="button" className="btn btn-primary cafe-count__submit"
