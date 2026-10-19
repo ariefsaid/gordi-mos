@@ -62,6 +62,12 @@ describe('desktop navigation follows org module settings', () => {
     expect(screen.getByRole('link', { name: 'Money' })).toBeInTheDocument()
   })
 
+  it.each(['sidebar', 'panel'] as const)('keeps the release label available in the %s footer', (mode) => {
+    runtime.mode = mode
+    renderNav()
+    expect(screen.getByText(/^v0\.11\.0 · web/)).toBeInTheDocument()
+  })
+
   it('hides Work and Money when their switches are off', () => {
     runtime.isOn.mockImplementation((moduleId) => moduleId !== 'work' && moduleId !== 'money')
     renderNav()

@@ -960,7 +960,8 @@ export function TasksWorkspace({
       onAttentionBlocked={() => setQuery({ overdueOnly: false, status: 'Blocked' })}
       viewerOrgWide={viewerOrgWide}
       resultSummary={<span className="tasks-count-line" data-testid="tasks-result-summary">
-        {t(isDesktop ? 'tasks.meta.windowScope' : 'tasks.meta.compactWindowScope')}
+        <strong>{stats === null ? '—' : t('tasks.meta.openCount', { count: stats.open })}</strong>
+        <span>{t(isDesktop ? 'tasks.meta.windowScope' : 'tasks.meta.compactWindowScope')}</span>
       </span>}
       onClearFilters={onClearFilters}
       buOptions={buOptions}
@@ -1052,7 +1053,6 @@ export function TasksWorkspace({
       titleHelp={<HelpTip label={`${t('job.tasks')} ${t('job.tasksHelp')} ${t('tasks.meta.windowScope')}`} />}
       headClassName="tasks-page-head"
       count={draftTask || stats === null ? null : t(visibleTaskCount === 1 ? 'tasks.meta.taskCount.one' : 'tasks.meta.taskCount.other', { count: visibleTaskCount })}
-      meta={draftTask || stats === null ? undefined : <span>{t('workbench.tasks.summary', { view: activeView.label, count: stats.open })}</span>}
       phoneActionBar
       state={frameState}
       action={showNewTask && !draftTask ? (

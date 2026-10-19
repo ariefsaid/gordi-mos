@@ -3,7 +3,7 @@
  * small marker to the icon corner (the number lives in the accessible name). With a `label` the badge is
  * exposed to assistive technology under that name; without one it is a hidden, redundant cue.
  */
-export function CountBadge({ count, bounded = false, unavailable = false, label, compact = false, displayText }: { count?: number; bounded?: boolean; unavailable?: boolean; label?: string; compact?: boolean; displayText?: string }) {
+export function CountBadge({ count, bounded = false, unavailable = false, label, displayText, compact = false }: { count?: number; bounded?: boolean; unavailable?: boolean; label?: string; displayText?: string; compact?: boolean }) {
   // An unknown count is a dash with a name that says so, never a zero.
   if (!unavailable && (count === undefined || count <= 0)) return null
   return (
@@ -12,7 +12,7 @@ export function CountBadge({ count, bounded = false, unavailable = false, label,
       aria-label={label}
       aria-hidden={label ? undefined : 'true'}
     >
-      {compact ? null : unavailable ? '—' : displayText ?? (bounded ? `${count}+` : count)}
+      {compact ? null : displayText ?? (unavailable ? '—' : bounded ? `${count}+` : count)}
     </span>
   )
 }

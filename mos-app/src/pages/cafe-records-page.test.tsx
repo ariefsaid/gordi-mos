@@ -328,6 +328,52 @@ describe('Café Records page', () => {
     expect(new URLSearchParams(seen.at(-1)).get('reading')).toBe('entries')
   })
 
+  it('lets a phone reader change period and stream from the empty state and shows the effective dates', async () => {
+    usePhoneViewport()
+    reads.logs.mockImplementation(page([]))
+    const seen: string[] = []
+    renderPage('?question=made&reading=summary', seen)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Change period' }))
+
+    const period = screen.getByRole('combobox', { name: 'Period' })
+    expect(period).toHaveFocus()
+    await user.click(period)
+    await user.click(await screen.findByRole('option', { name: 'Last month' }))
+    const range = resolvePreset('last-month', wibToday())
+    await waitFor(() => {
+      const params = new URLSearchParams(seen.at(-1))
+      expect(params.get('period')).toBe('last-month')
+      expect(params.get('from')).toBe(range.from)
+      expect(params.get('to')).toBe(range.to)
+    })
+    expect(screen.getByText(`${formatDayMonthYear(range.from)} to ${formatDayMonthYear(range.to)}`)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('combobox', { name: 'Production stream' }))
+    await user.click(await screen.findByRole('option', { name: 'All readable streams' }))
+    await waitFor(() => expect(new URLSearchParams(seen.at(-1)).get('stream')).toBe('all'))
+  })
+
+  it('changes Records sort from the phone Filters panel with one URL history step', async () => {
+    usePhoneViewport()
+    const seen: string[] = []
+    renderPage('?question=made&reading=entries', seen)
+    await waitFor(() => expect(within(screen.getByLabelText('Search and filter the records')).getByRole('status')).toHaveTextContent('Newest first'))
+    const user = userEvent.setup()
+    await user.click(screen.getByText('Filters & sort'))
+    await user.click(screen.getByRole('combobox', { name: 'Sort' }))
+    await user.click(await screen.findByRole('option', { name: 'Item A to Z' }))
+    await waitFor(() => {
+      const params = new URLSearchParams(seen.at(-1))
+      expect(params.get('sort')).toBe('item')
+      expect(params.has('dir')).toBe(false)
+    })
+
+    ;(window as unknown as { __nav: (n: number) => void }).__nav(-1)
+    await waitFor(() => expect(new URLSearchParams(seen.at(-1)).has('sort')).toBe(false))
+    expect(new URLSearchParams(seen.at(-1)).get('reading')).toBe('entries')
+  })
+
   it('does not carry one account\'s rows to another: switching the viewer starts from nothing', async () => {
     const view = renderPage('?question=made&reading=summary')
     expect(await screen.findByRole('button', { name: /Pickled onion.*Opens the item history/ })).toBeInTheDocument()

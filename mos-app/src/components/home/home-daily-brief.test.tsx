@@ -3,6 +3,7 @@ import { act, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { HomeDailyBrief } from './home-daily-brief'
+import { HomeRegionCollection } from './home-region-collection'
 import { buildHomeRegions } from './home-regions'
 import type { StreamItem } from '@/lib/home-stream'
 
@@ -87,22 +88,40 @@ describe('HomeDailyBrief work queue', () => {
     expect(screen.getByRole('region', { name: 'Signals' })).toBeInTheDocument()
   })
 
-  it.each([
-    { locale: 'en' as const, noAttention: 'No tasks need your attention', noFailed: 'No failed checks' },
-    { locale: 'id' as const, noAttention: 'Tidak ada tugas yang perlu perhatian Anda', noFailed: 'Tidak ada pemeriksaan gagal' },
-  ])('does not make a false all-clear when the sole urgent Task is visible in $locale', async ({ locale, noAttention, noFailed }) => {
-    const task = item('sole', 'Fix the espresso grinder')
-    await renderBrief({
-      overdue: [task], dueToday: [], blocked: [], myWork: [], myWorkTotalItemCount: 0,
-      failedChecks: [],
-    }, { locale })
+  it.each(['en', 'id'] as const)('distinguishes an empty brief from a failed or pending read in %s', async (locale) => {
+    await renderBrief({ overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [] }, { locale })
+    expect(await screen.findByText(locale === 'en' ? "You're all caught up" : 'Semua beres')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: locale === 'en' ? 'View tasks →' : 'Lihat tugas →' })).toHaveAttribute('href', '/work/tasks?view=my-work')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
 
-    const urgent = await screen.findByRole('region', { name: /Needs you now|Perlu Anda sekarang/ })
-    expect(urgent).toHaveAccessibleName(/(?:Needs you now|Perlu Anda sekarang).*1/)
-    expect(within(urgent).getByRole('link', { name: /Fix the espresso grinder/i })).toBeInTheDocument()
-    expect(screen.queryByText(noAttention)).toBeNull()
+  it.each(['en', 'id'] as const)('does not announce an all-clear when a featured task is lifted out of its collection in %s', async (locale) => {
+    const region = buildHomeRegions({ overdue: [item('sole')], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: false })[0]
+    render(<I18nProvider initialLocale={locale}><MemoryRouter><HomeRegionCollection region={region} items={[]} liftedCount={1} /></MemoryRouter></I18nProvider>)
+    expect(await screen.findByText(locale === 'en' ? 'No other tasks need your attention' : 'Tidak ada tugas lain yang perlu Anda perhatikan.')).toBeInTheDocument()
     expect(screen.queryByText(/caught up|semua beres/i)).toBeNull()
-    expect(await screen.findByText(noFailed)).toBeInTheDocument()
+  })
+
+  it.each(['overdue', 'blocked'] as const)('does not make a false all-clear when the sole %s Task is visible in every layout and language', async (kind) => {
+    for (const locale of ['en', 'id'] as const) {
+      for (const layout of ['focused', 'overview', 'list'] as const) {
+        const noAttention = locale === 'en' ? 'No tasks need your attention' : 'Tidak ada tugas yang perlu perhatian Anda'
+        const noFailed = locale === 'en' ? 'No failed checks' : 'Tidak ada pemeriksaan gagal'
+        const task = item('sole', 'Fix the espresso grinder')
+        const view = await renderBrief({
+          overdue: kind === 'overdue' ? [task] : [], dueToday: [], blocked: kind === 'blocked' ? [task] : [],
+          myWork: [], myWorkTotalItemCount: 0, failedChecks: [],
+        }, { locale, layout })
+
+        const urgent = await screen.findByRole('region', { name: /Needs you now|Perlu Anda sekarang/ })
+        expect(urgent).toHaveAccessibleName(/(?:Needs you now|Perlu Anda sekarang).*1/)
+        expect(within(urgent).getByRole('link', { name: /Fix the espresso grinder/i })).toBeInTheDocument()
+        expect(screen.queryByText(noAttention)).toBeNull()
+        expect(screen.queryByText(/caught up|semua beres/i)).toBeNull()
+        expect(await screen.findByText(noFailed)).toBeInTheDocument()
+        view.unmount()
+      }
+    }
   })
 
   it('caps rendered queue rows without subtracting the first row twice or using the shared count as a remainder', async () => {

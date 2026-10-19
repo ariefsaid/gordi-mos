@@ -11,7 +11,6 @@ import type { ShellRedesignMessageKey } from './shell-redesign'
 export const messages = {
   en: {
     "workbench.home.otherOpen": "Other open tasks",
-    "workbench.tasks.summary": "${view} · ${count} open",
     "workbench.tasks.noGrouping": "No grouping",
     "workbench.task.about": "About this task",
     "workbench.record.details": "Record details",
@@ -319,6 +318,8 @@ export const messages = {
     'home.brief.reviewChecks': 'Review logs →',
     'home.brief.review': 'Review',
     'signals.feed.title': 'Signals',
+    'home.attention.allClear': "You're all caught up",
+    'home.attention.noOtherTasks': 'No other tasks need your attention',
     'home.attention.laneError': "Couldn't load this list. Retry.",
     'home.region.needsYou': 'Needs you now',
     'home.stream.band.failedChecks': 'Failed checks',
@@ -3412,6 +3413,11 @@ export const messages = {
     // the other end changes, and a name in the chrome is an identity a signed-out stranger can
     // read off the login screen.
     'auth.footer': 'Trouble signing in? Contact your admin.',
+    'releaseStamp.version': 'Version ${version}',
+    'releaseStamp.web': 'web',
+    'releaseStamp.db': 'db',
+    'releaseStamp.built': 'built ${builtAt}',
+    'releaseStamp.deployed': 'deployed ${deployedAt}',
     'consent.title': 'Connect an agent',
     'consent.loading': 'Loading the request',
     'consent.heading': 'Allow ${agent} to connect?',
@@ -3768,7 +3774,6 @@ export const messages = {
   },
   id: {
     "workbench.home.otherOpen": "Tugas terbuka lainnya",
-    "workbench.tasks.summary": "${view} · ${count} terbuka",
     "workbench.tasks.noGrouping": "Tanpa pengelompokan",
     "workbench.task.about": "Tentang tugas ini",
     "workbench.record.details": "Detail catatan",
@@ -4078,6 +4083,8 @@ export const messages = {
     'home.brief.reviewChecks': 'Tinjau log →',
     'home.brief.review': 'Tinjau',
     'signals.feed.title': 'Sinyal',
+    'home.attention.allClear': 'Semua beres',
+    'home.attention.noOtherTasks': 'Tidak ada tugas lain yang perlu Anda perhatikan.',
     'home.attention.laneError': 'Gagal memuat. Coba lagi.',
     'home.region.needsYou': 'Perlu Anda sekarang',
     'home.stream.band.failedChecks': 'Pemeriksaan gagal',
@@ -7044,6 +7051,11 @@ export const messages = {
     'chart.empty': 'Tidak ada data untuk irisan ini.',
     // Permukaan auth — footer dan badan orphan menyebut PERAN, bukan orang.
     'auth.footer': 'Ada kendala masuk? Hubungi admin kamu.',
+    'releaseStamp.version': 'Versi ${version}',
+    'releaseStamp.web': 'web',
+    'releaseStamp.db': 'basis data',
+    'releaseStamp.built': 'dibangun ${builtAt}',
+    'releaseStamp.deployed': 'diterapkan ${deployedAt}',
     'consent.title': 'Hubungkan agen',
     'consent.loading': 'Memuat permintaan',
     'consent.heading': 'Izinkan ${agent} terhubung?',

@@ -154,10 +154,12 @@ function renderPageChoosingAsSoonAsAvailable(ref: string, onChoose: () => void) 
 
 /** Choose a batch in the list; its posting details open beside (or over) it. */
 async function openPush(ref: string) {
-  fireEvent.click(await screen.findByRole('button', { name: new RegExp(ref) }))
+  // Find the batch once: a by-name role query on every poll recomputes every button's accessible
+  // name and can spend the whole wait budget on a loaded CI runner.
+  const batch = await screen.findByRole('button', { name: new RegExp(ref) })
+  fireEvent.click(batch)
   await waitFor(() => {
-    const selectedBatch = screen.getByRole('button', { name: new RegExp(ref) })
-    expect(selectedBatch).toHaveAttribute('aria-pressed', 'true')
+    expect(batch).toHaveAttribute('aria-pressed', 'true')
     const currentDetails = screen.getByRole('region', { name: 'Diagnostic details' })
     expect(within(currentDetails).getByText(ref)).toBeInTheDocument()
   })

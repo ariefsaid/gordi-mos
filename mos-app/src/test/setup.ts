@@ -1,9 +1,13 @@
 import '@testing-library/jest-dom/vitest'
 import { transferableAbortController } from 'node:util'
 import { createElement } from 'react'
-import { afterEach, beforeEach, expect } from 'vitest'
+import { afterEach, beforeEach, expect, vi } from 'vitest'
 import { cleanup, configure, render } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
+
+// The footer release label reads the deployment stamp on every shell mount; tests get no stamp unless a file mocks it.
+// The reader's own test opts out with vi.unmock.
+vi.mock('@/lib/db/deployment-stamp', () => ({ readDeploymentStamp: async () => null }))
 
 let shellTestActive = false
 let shellNetworkAttempts: string[] = []

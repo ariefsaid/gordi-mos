@@ -21,6 +21,7 @@ const mockUseAuth = vi.mocked(useAuth)
 vi.mock('./use-nav', () => ({
   useNavBadges: () => ({ forPath: () => undefined, forDestination: () => undefined }),
 }))
+vi.mock('@/lib/db/deployment-stamp', () => ({ readDeploymentStamp: vi.fn().mockResolvedValue(null) }))
 
 import { MobileDrawer } from './mobile-drawer'
 
@@ -73,6 +74,7 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
     renderDrawer({ accessRoles: ['admin'] })
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveAttribute('aria-modal', 'true')
+    expect(screen.getByText(/^v0\.11\.0 · web/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^Work$/ })).toHaveAttribute('href', '/work')
     expect(screen.getByRole('link', { name: /Admin settings/i })).toHaveAttribute('href', '/admin/people')
     expect(screen.getByRole('link', { name: /Personal profile/i })).toHaveAttribute('href', '/profile')

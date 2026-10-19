@@ -27,7 +27,7 @@ import { ChatCompletionsClient } from '../_shared/chatCompletionsClient.ts'
 import { resolveComposeModel } from '../_shared/modelResolution.ts'
 import { logStructuredError } from '../_shared/errorLog.ts'
 import { requireVerifiedClaims } from '../_shared/claims.ts'
-import { checkAssistantAvailability } from '../_shared/assistantAvailability.ts'
+import { assistantRefusalResponse, checkAssistantAvailability } from '../_shared/assistantAvailability.ts'
 import { appOrigins, corsHeaders as corsHeadersFor } from '../_shared/cors.ts'
 import type { ComposeViewRequest } from './types.ts'
 
@@ -54,18 +54,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const { userId, orgId, personId } = verdict.claims
   const serviceRoleClient = createClient(supabaseUrl, serviceRoleKey)
   const assistantAvailability = await checkAssistantAvailability(serviceRoleClient, orgId, 'compose-view')
-  if (!assistantAvailability.allowed && assistantAvailability.reason === 'unavailable') {
-    return new Response(
-      JSON.stringify({ status: 503, error: 'MODULE_AVAILABILITY_UNAVAILABLE' }),
-      { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
-  }
-  if (!assistantAvailability.allowed) {
-    return new Response(
-      JSON.stringify({ status: 403, error: 'MODULE_OFF', detail: 'assistant is switched off for this org' }),
-      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
-  }
+  const assistantRefusal = assistantRefusalResponse(assistantAvailability, corsHeaders)
+  if (assistantRefusal) return assistantRefusal
 
   // ── 3. Read the model config from function secrets (D4) ────────────────────
   const apiKey = Deno.env.get('AGENT_MODEL_API_KEY')

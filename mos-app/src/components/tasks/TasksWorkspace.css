@@ -737,7 +737,7 @@ tr.grp td { padding: 0; }
     display: none;
   }
 
-  /* Search gets a full row; View and Filters share one aligned 44px action row. */
+  /* Intrinsic widths let the controls stack before a localized label gets squeezed. */
   .tasks-decision-toolbar .collection-toolbar__bar {
     display: flex;
     flex-wrap: wrap;
@@ -757,11 +757,15 @@ tr.grp td { padding: 0; }
   }
   .tasks-decision-toolbar .collection-toolbar__door {
     width: auto;
-    min-width: min-content;
+    min-width: 0;
     max-width: 100%;
-    flex: 1 1 auto;
+    flex: 1 1 max-content;
     align-self: end;
+    height: auto;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
+  .tasks-decision-toolbar .collection-toolbar__door-chevron { flex: none; }
   .tasks-decision-toolbar .collection-toolbar__panel-actions {
     flex: 1 1 100%;
   }
@@ -779,6 +783,10 @@ tr.grp td { padding: 0; }
 
 /* Editable cells: the trigger's own 4px inset is outdented so cell text and badges sit on the header's left edge. */
 .tasks-table td .inline-cell-trigger { margin-inline-start: -4px; width: calc(100% + 4px); max-width: none; min-height: var(--mos-row-content); }
+
+.tasks-decision-toolbar .collection-toolbar__count { white-space: normal; }
+.tasks-count-line { display: inline-flex; flex-wrap: wrap; gap: var(--mos-label-gap) var(--mos-inline-gap); }
+.tasks-count-line strong { color: var(--mos-ink); font-weight: var(--mos-weight-semibold); }
 
 /* Quick filters ("9 overdue", "2 blocked") start on the toolbar's left edge; their 8px hover inset is outdented. */
 .tasks-attention-actions { margin-inline-start: -8px; }

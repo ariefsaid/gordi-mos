@@ -64,9 +64,9 @@ Security and correctness findings get more scrutiny before dismissal, never less
   A weakness that is itself sensitive (see disclosure rules above) is described to the Director
   only, never quoted into the report verbatim if the report's destination is the tree/tracker.
 - Always: the one fact, its proof level and proof; the four buckets. On a release candidate the
-  lens runs twice on the same prompt, an Opus or Fable reviewer and a Luna reviewer; the artifact
-  adds an **Agreement** section (raised by both, by one, contradicted) and the Opus/Fable reviewer
-  stamps.
+  lens runs twice on the same prompt, an Opus or Sol reviewer and a reviewer from another model
+  family (Luna beside Opus; GLM or Argon beside Sol); the artifact adds an **Agreement** section
+  (raised by both, by one, contradicted) and the Opus/Sol reviewer stamps.
 Change nothing — findings route back to the builder; that is the only repair path.
 
 ## MOS bindings

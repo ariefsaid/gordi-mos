@@ -696,7 +696,7 @@ function chooseView(name: string) {
   fireEvent.click(screen.getByRole('option', { name }))
 }
 
-// The attention shortcuts ("N overdue", "N blocked") live in Filters & sort on phone.
+// Attention shortcuts stay available without opening Filters & sort.
 function openAttentionMenu() {
   ensureFiltersOpen()
   const trigger = screen.getByRole('group', { name: /tasks need attention/i })
@@ -715,6 +715,30 @@ function statusSelect() {
 // A member's first phone viewport must show work, not the configuration wall.
 // The options control should be the only toolbar affordance before the card list.
 describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () => {
+  it.each([
+    { locale: 'en' as const, open: '2 open in this view', overdue: '1 overdue', blocked: '1 blocked' },
+    { locale: 'id' as const, open: '2 terbuka di tampilan ini', overdue: '1 terlambat', blocked: '1 terblokir' },
+  ])('keeps the current open count and actionable urgency outside collapsed filters in $locale', async ({ locale, open, overdue, blocked }) => {
+    stubMatchMedia(false, false)
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'late', title: 'Late task', due_date: '2020-01-01' }),
+      makeTask({ id: 'blocked', title: 'Blocked task', status: 'Blocked' }),
+      makeTask({ id: 'done', title: 'Done task', status: 'Done', last_activity_at: new Date().toISOString() }),
+    ])
+    renderTable({}, authedState, undefined, locale)
+    expect(await screen.findByText(open)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^filters & sort|^filter & urutan/i })).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(screen.getByRole('button', { name: overdue }))
+    await waitFor(() => expect(screen.queryByText('Blocked task')).toBeNull())
+    expect(screen.getByText(locale === 'en' ? '1 open in this view' : '1 terbuka di tampilan ini')).toBeInTheDocument()
+    expect(screen.getByText('Late task')).toBeInTheDocument()
+    // Clear the removable overdue chip, then narrow through the other visible shortcut.
+    fireEvent.click(screen.getByRole('button', { name: locale === 'en' ? 'Remove filter: Overdue' : 'Hapus filter: Terlambat' }))
+    fireEvent.click(await screen.findByRole('button', { name: blocked }))
+    await waitFor(() => expect(screen.queryByText('Late task')).toBeNull())
+    expect(screen.getByText('Blocked task')).toBeInTheDocument()
+  })
+
   it('OD-WAY-89: phone keeps search and the view outside one Filters & sort door around the rest', async () => {
     stubMatchMedia(false, false)
     mockListTasks.mockResolvedValue([makeTask({ title: 'Phone toolbar item' })])
@@ -1111,8 +1135,8 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Window task' })])
     renderTable()
     await screen.findByText('1 task')
-    expect(screen.getByTestId('page-head')).toHaveTextContent('1 open')
-    expect(screen.getByTestId('page-head')).toHaveTextContent('Relevant')
+    expect(screen.getByText('1 open in this view')).toBeInTheDocument()
+    expect(viewPicker()).toHaveTextContent('Relevant')
     expect(screen.getByTestId('tasks-result-summary')).toHaveTextContent(/Active \+ Done in the last 30 days/)
   })
 
@@ -2332,7 +2356,7 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
 })
 
 // ── Tasks head meta states the visible window and its open subset ──
-describe('Tasks head meta names the list scope and open work', () => {
+describe('Tasks names the list scope and open work', () => {
   it('states the loaded total, the open subset, and the active/recent-Done window', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Open one', status: 'Open' }),
@@ -2345,7 +2369,7 @@ describe('Tasks head meta names the list scope and open work', () => {
     await waitFor(() => expect(screen.getByText('Resolved')).toBeInTheDocument())
     // Blocked still counts as open (not Done); only the Done task is excluded from open.
     await waitFor(() => expect(screen.getByTestId('page-head')).toHaveTextContent('3 tasks'))
-    expect(screen.getByTestId('page-head')).toHaveTextContent('2 open')
+    expect(screen.getByText('2 open in this view')).toBeInTheDocument()
     expect(screen.getByTestId('tasks-result-summary')).toHaveTextContent('Active + Done in the last 30 days')
   })
 })

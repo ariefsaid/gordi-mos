@@ -1,0 +1,8 @@
+.release-stamp {
+  min-width: 0;
+  margin: var(--mos-space-2) var(--mos-space-2) 0;
+  color: var(--mos-muted);
+  font: var(--mos-type-meta);
+  overflow-wrap: anywhere;
+}
+.release-stamp--rail { margin-inline: 0; text-align: center; }

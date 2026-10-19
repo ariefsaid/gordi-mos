@@ -35,6 +35,7 @@ const HIDE_PIC: Record<HomeRegionId, boolean> = {
 }
 
 const EMPTY_KEY = {
+  'needs-you': 'home.attention.allClear',
   'failed-checks': 'home.brief.failedChecksClear',
   'my-work': 'home.stream.myWorkEmpty',
 } as const
@@ -138,8 +139,10 @@ function homeRegionDescriptor(
   }
 }
 
-export interface HomeRegionCollectionProps {
+export type HomeRegionCollectionProps = {
   region: HomeRegion
+  items?: readonly StreamItem[]
+  liftedCount?: number
 }
 
 const DISPLAY_CAP: Partial<Record<HomeRegionId, number>> = { 'needs-you': 5, 'my-work': 7 }
@@ -149,13 +152,13 @@ function collectionKey(region: HomeRegion, items: readonly StreamItem[]) {
 }
 
 /** Each region uses the same RecordCollection data path and row renderer; only truthful display caps differ. */
-export function HomeRegionCollection({ region }: HomeRegionCollectionProps) {
+export function HomeRegionCollection({ region, items: suppliedItems, liftedCount = 0 }: HomeRegionCollectionProps) {
   const cap = DISPLAY_CAP[region.id]
-  const items = cap === undefined ? region.items : region.items.slice(0, cap)
-  return <HomeRegionCollectionInstance key={collectionKey(region, items)} region={region} items={items} />
+  const items = suppliedItems ?? (cap === undefined ? region.items : region.items.slice(0, cap))
+  return <HomeRegionCollectionInstance key={`${liftedCount}:${collectionKey(region, items)}`} region={region} items={items} liftedCount={liftedCount} />
 }
 
-function HomeRegionCollectionInstance({ region, items }: { region: HomeRegion; items: readonly StreamItem[] }) {
+function HomeRegionCollectionInstance({ region, items, liftedCount }: Required<HomeRegionCollectionProps>) {
   const t = useT()
   const descriptor = useMemo(() => homeRegionDescriptor(region, items), [region, items])
   const controller = useRecordCollection({
@@ -166,17 +169,21 @@ function HomeRegionCollectionInstance({ region, items }: { region: HomeRegion; i
     accessRoles: [],
   })
   const total = region.totalItemCount ?? region.items.length
-  const desktopMore = region.state === 'ready' ? Math.max(0, total - items.length) : 0
-  const phoneShown = region.id === 'needs-you' ? Math.min(3, total) : items.length
-  const phoneMore = region.state === 'ready' && region.id === 'needs-you' ? Math.max(0, total - phoneShown) : 0
-  const empty = region.state === 'ready' && region.items.length === 0
+  const desktopMore = region.state === 'ready' ? Math.max(0, total - items.length - liftedCount) : 0
+  const phoneShown = region.id === 'needs-you' ? Math.min(3, items.length) : items.length
+  const phoneMore = region.state === 'ready' && region.id === 'needs-you' ? Math.max(0, total - phoneShown - liftedCount) : 0
+  const empty = region.state === 'ready' && items.length === 0
+  const needsYouEmptyAfterLift = region.id === 'needs-you' && liftedCount > 0 && empty
 
   return (
     <div className={`home-region-collection home-region-collection--${region.id}`} data-home-region={region.id} data-testid={`home-region-collection-${region.id}`}>
-      {empty ? region.id === 'needs-you' ? null : <p className="home-region-empty" role="status">{t(EMPTY_KEY[region.id])}</p> : (
+      {empty ? <>
+        <p className="home-region-empty">{t(needsYouEmptyAfterLift ? 'home.attention.noOtherTasks' : EMPTY_KEY[region.id])}</p>
+        {region.id === 'needs-you' ? <RegionDrillLink region={region} shown={liftedCount} /> : null}
+      </> : (
         <RecordCollectionSurface
           controller={controller}
-          empty={{ title: region.id === 'needs-you' ? t('home.region.needsYou') : t(EMPTY_KEY[region.id]), className: 'stream-all-clear' }}
+          empty={{ title: t(needsYouEmptyAfterLift ? 'home.attention.noOtherTasks' : EMPTY_KEY[region.id]), className: 'stream-all-clear' }}
           filteredEmpty={{ items: t(region.labelKey).toLowerCase(), clear: () => {} }}
           error={{ message: t('home.attention.laneError'), retry: region.onRetry ?? (() => {}) }}
           loadingLabel={t(region.labelKey)}
