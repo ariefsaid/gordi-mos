@@ -11,7 +11,7 @@ select set_config('app.cafe_reference_test_org_id', '00000000-0000-0000-0000-000
 select ops.refresh_cafe_item_references($source$[
   {"esb_product_id":"SYNTH-ERP-P-1370-A","esb_product_detail_id":"SYNTH-ERP-PD-1370-A","name":"Phone item A","category":"KITCHEN","unit_name":"batch","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},
   {"esb_product_id":"SYNTH-ERP-P-1370-B","esb_product_detail_id":"SYNTH-ERP-PD-1370-B","name":"Phone item B","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},
-  {"esb_product_id":"SYNTH-ERP-P-1370-X","esb_product_detail_id":"SYNTH-ERP-PD-1370-X","name":"Phone non-stock item","category":"KITCHEN","unit_name":"case","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":false,"is_active":true}
+  {"esb_product_id":"SYNTH-ERP-P-1370-X","esb_product_detail_id":"SYNTH-ERP-PD-1370-X","name":"Phone non-stock item","category":"KITCHEN","unit_name":"case","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true}
 ]$source$::jsonb);
 select set_config('app.allow_test_seeds', 'off', true);
 update ops.item_units set confirmed_at = now() where esb_product_id like 'SYNTH-ERP-P-1370-%';
@@ -28,6 +28,8 @@ select ops.save_cafe_item_settings('00000000-0000-0000-0000-00000000bf01', 'kitc
   from ops.wip_items w join ops.item_units u on u.wip_item_id = w.id
  where w.esb_product_id like 'SYNTH-ERP-P-1370-%';
 reset role;
+-- The excluded item: its default unit is no longer a confirmed ERP stock unit, so Count does not offer it.
+update ops.item_units set confirmed_at = null where esb_product_id = 'SYNTH-ERP-P-1370-X';
 update ops.cafe_item_settings set unit_multiples = array[0.5]::numeric[]
  where wip_item_id = (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1370-A');
 set local role authenticated;
