@@ -44,9 +44,9 @@ for a in "$@"; do
 done
 case "$verb1 $verb2" in
   "issue create"|"issue comment"|"issue edit"|"issue close"|"issue reopen") ;;
-  "pr create"|"pr comment"|"pr edit"|"pr close"|"pr reopen"|"pr review") ;;
+  "pr create"|"pr comment"|"pr edit"|"pr close"|"pr reopen"|"pr review"|"pr ready") ;;
   "api "*) ;;
-  *) die "'$verb1 $verb2' is not in the allowlist — this door permits the writes the repo actually uses (issue/pr create·comment·edit·close·reopen·review, api). Canonical verbs only, no aliases. Extend scripts/gh-post.sh deliberately if this write is legitimate." ;;
+  *) die "'$verb1 $verb2' is not in the allowlist — this door permits the writes the repo actually uses (issue/pr create·comment·edit·close·reopen·review, pr ready, api). Canonical verbs only, no aliases. Extend scripts/gh-post.sh deliberately if this write is legitimate." ;;
 esac
 
 # ── api argv is parsed exactly as gh parses it, so the path, method and fields the door checks are
