@@ -6,7 +6,8 @@
 --      drop function ops.submit_cafe_counts(uuid, text, jsonb, date);
 --   2. Restore ops.submit_cafe_counts(uuid, text, jsonb) from 20261016000400_ops_cafe_locations.sql
 --      and ops._guard_cafe_count_line() from 20261019003200_ops_cafe_count_review_decisions.sql.
---   3. alter table ops.cafe_count_lines drop constraint cafe_count_lines_entry_unit_ck,
+--   3. revoke select (entry_quantity, entry_unit_factor) on ops.cafe_count_lines from authenticated;
+--      alter table ops.cafe_count_lines drop constraint cafe_count_lines_entry_unit_ck,
 --        drop column entry_quantity, drop column entry_unit_factor;
 
 alter table ops.cafe_count_lines
@@ -20,6 +21,8 @@ comment on column ops.cafe_count_lines.entry_quantity is
   'Quantity typed in a manager-defined multiple of the default unit; counted_quantity stays the default-unit quantity. Null when typed in the default unit.';
 comment on column ops.cafe_count_lines.entry_unit_factor is
   'Snapshot of the picked multiple: how many default units one typed unit is.';
+-- The browser role reads Count lines column by column (20261019003100); the typed multiple is readable.
+grant select (entry_quantity, entry_unit_factor) on ops.cafe_count_lines to authenticated;
 
 create or replace function ops._guard_cafe_count_line()
 returns trigger
@@ -56,12 +59,13 @@ begin
     if new.org_id is null or new.submitted_by is null then
       raise exception 'CAFE_COUNT_FORBIDDEN' using errcode = '42501';
     end if;
-    -- FR-002: today or yesterday (WIB); only an ops lead or admin counts an earlier date; never a future one.
+    -- FR-002: today or yesterday (WIB); only an ops lead or admin counts an earlier date, at most 7 days back;
+    -- never a future one.
     if new.count_date > v_today then
       raise exception 'CAFE_COUNT_DATE_FUTURE' using errcode = '23514';
     end if;
-    if new.count_date < v_today - 1
-       and not (shared.has_access_role('ops_lead') or shared.has_access_role('admin')) then
+    if new.count_date < v_today - 7 or (new.count_date < v_today - 1
+       and not (shared.has_access_role('ops_lead') or shared.has_access_role('admin'))) then
       raise exception 'CAFE_COUNT_DATE_TOO_OLD' using errcode = '23514';
     end if;
     if not exists (
@@ -164,6 +168,8 @@ begin
      and (new.reason, new.reason_entered_by, new.reason_entered_at)
          is not distinct from (old.reason, old.reason_entered_by, old.reason_entered_at)
      and new.reviewed_by = shared.current_person_id()
+     and new.reviewed_by is distinct from old.submitted_by
+     and new.reviewed_by is distinct from old.recounted_by
      and new.reviewed_at is not null
      and new.posting_status = (case
            when v_action = 'reject' then old.posting_status
@@ -178,7 +184,7 @@ begin
 end;
 $$;
 comment on function ops._guard_cafe_count_line() is
-  'Stamps browser-owned fields on insert, holds the count date to today or yesterday (earlier for ops lead and admin), keeps the first count and Expected snapshot, admits only the worker, recount, reason, confirm and reject actions each changing its own columns, and freezes decided lines. SECURITY INVOKER.';
+  'Stamps browser-owned fields on insert, holds the count date to today or yesterday (up to 7 days back for ops lead and admin), keeps the first count and Expected snapshot, admits only the worker, recount, reason, confirm and reject actions each changing its own columns, never lets the submitter or recounter decide the line, and freezes decided lines. SECURITY INVOKER.';
 revoke all on function ops._guard_cafe_count_line() from public, anon, authenticated;
 
 create or replace function ops.cafe_count_excluded_items(p_branch_id uuid, p_activity text)
@@ -237,7 +243,7 @@ begin
   if v_date > v_today then
     raise exception 'CAFE_COUNT_DATE_FUTURE' using errcode = '23514';
   end if;
-  if v_date < v_today - 1 and not (shared.has_access_role('ops_lead') or shared.has_access_role('admin')) then
+  if v_date < v_today - 7 or (v_date < v_today - 1 and not (shared.has_access_role('ops_lead') or shared.has_access_role('admin'))) then
     raise exception 'CAFE_COUNT_DATE_TOO_OLD' using errcode = '23514';
   end if;
   for v_line in select value from jsonb_array_elements(p_lines) as item(value) loop
@@ -323,6 +329,6 @@ begin
 end;
 $$;
 comment on function ops.submit_cafe_counts(uuid, text, jsonb, date) is
-  'Processes at most 150 Count lines independently for one count date (today or yesterday WIB; earlier for ops lead and admin; never future). Accepts only client key, item, typed quantity, optional manager multiple and storage location; stamps everything else; idempotent per organisation.';
+  'Processes at most 150 Count lines independently for one count date (today or yesterday WIB; up to 7 days back for ops lead and admin; never future). Accepts only client key, item, typed quantity, optional manager multiple and storage location; stamps everything else; idempotent per organisation.';
 revoke execute on function ops.submit_cafe_counts(uuid, text, jsonb, date) from public, anon;
 grant execute on function ops.submit_cafe_counts(uuid, text, jsonb, date) to authenticated;

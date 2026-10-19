@@ -1,7 +1,7 @@
 -- #1370 — Count date rule, a manager multiple stored in the default unit, and the excluded-items read.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(16);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -78,6 +78,12 @@ select is(ops.submit_cafe_counts('00000000-0000-0000-0000-00000000bf01', 'kitche
 select throws_ok($$select ops.submit_cafe_counts('00000000-0000-0000-0000-00000000bf01', 'kitchen',
   jsonb_build_array(pg_temp.line('f1370000-0000-0000-0000-000000000007', 'B', '2')), current_setting('app.today')::date + 1)$$,
   '23514', 'CAFE_COUNT_DATE_FUTURE', 'AC-002 not even an ops lead counts a future date');
+select throws_ok($$select ops.submit_cafe_counts('00000000-0000-0000-0000-00000000bf01', 'kitchen',
+  jsonb_build_array(pg_temp.line('f1370000-0000-0000-0000-000000000007', 'B', '2')), current_setting('app.today')::date - 8)$$,
+  '23514', 'CAFE_COUNT_DATE_TOO_OLD', 'AC-002 an ops lead counts at most 7 days back');
+select ok(has_column_privilege('authenticated', 'ops.cafe_count_lines', 'entry_quantity', 'SELECT')
+          and has_column_privilege('authenticated', 'ops.cafe_count_lines', 'entry_unit_factor', 'SELECT'),
+  'FR-008 the browser role reads the typed multiple');
 
 -- FR-005 the excluded items read: the stream reviewer sees them, a floor member and another stream do not.
 select ok(exists (select 1 from ops.cafe_count_excluded_items('00000000-0000-0000-0000-00000000bf01', 'kitchen') where item_name = 'Phone non-stock item')

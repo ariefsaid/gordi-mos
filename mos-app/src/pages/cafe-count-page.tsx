@@ -24,6 +24,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { DateField } from '@/components/ui/date-field'
 import { Select } from '@/components/ui/select'
 import { cafeReceiptArrivalDateBounds } from '@/lib/db/cafe-receipts'
+import { addDays } from '@/lib/cafe-records/period'
 import { listCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { clearCafeCaptureDraft, readCafeCaptureDraft, writeCafeCaptureDraft, type CafeCaptureDraftScope } from '@/lib/cafe-capture-storage'
 import { formatUnitMultiple, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
@@ -119,7 +120,8 @@ export function CafeCountPage() {
   const canBackdate = auth.status === 'authenticated'
     && (auth.viewer.accessRoles.includes('ops_lead') || auth.viewer.accessRoles.includes('admin'))
   const canSeeExcluded = auth.status === 'authenticated' && (canBackdate || auth.viewer.accessRoles.includes('supervisor'))
-  const dateBounds = cafeReceiptArrivalDateBounds(today, canBackdate)
+  // The server takes a back-dated count at most 7 days old.
+  const dateBounds = canBackdate ? { min: addDays(today, -7), max: today } : cafeReceiptArrivalDateBounds(today, false)
   const [logDate, setLogDate] = useState(today)
   const orgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : null
   const personId = auth.status === 'authenticated' ? auth.viewer.person.id : null
