@@ -24,6 +24,7 @@ function line(overrides: Partial<CafeCountLine> & Pick<CafeCountLine, 'id' | 'it
     wip_item_id: `item-${id}`, item_name, item_category: 'Pantry',
     item_kind: 'RAW', item_unit_id: `unit-${id}`, unit_name: 'kg',
     counted_quantity: '2.0000', variance: '0.0000', expected_balance: '2.0000',
+    recounted_quantity: null, recounted_at: null, reason: null,
     expected_status: 'ready', expected_recorded_at: '2026-10-06T04:00:00.000Z',
     status: 'Submitted', posting_status: 'not_posted', submitted_at: '2026-10-06T03:00:00.000Z',
     reviewed_at: null, row_version: 2,
@@ -67,7 +68,7 @@ describe('CafeCountReviewQueue', () => {
   it('shows Count, Expected balance and Variance, while only a ready zero Variance can be confirmed', async () => {
     renderQueue()
     await openRow(/Raw flour/)
-    expect(fact('Stock count')).toHaveTextContent('2 kg')
+    expect(fact('First count')).toHaveTextContent('2 kg')
     expect(fact('Expected balance')).toHaveTextContent('2 kg')
     expect(fact('Variance')).toHaveTextContent('0 kg')
     expect(screen.getByRole('heading', { name: 'Raw flour' }).closest('article')).toHaveTextContent('Pantry')
@@ -75,12 +76,12 @@ describe('CafeCountReviewQueue', () => {
     expect(screen.getAllByRole('button', { name: 'Confirm' })).toHaveLength(1)
 
     await openRow(/Dried beans/)
-    expect(screen.getByText('Non-zero Variance · remains Submitted')).toBeInTheDocument()
+    expect(screen.getAllByText('Waiting for the floor: recount').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument()
 
     await openRow(/Dried tomatoes/)
     expect(fact('Variance')).toHaveTextContent('-0.25 kg')
-    expect(screen.getByText('Non-zero Variance · remains Submitted')).toBeInTheDocument()
+    expect(screen.getAllByText('Waiting for the floor: recount').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument()
 
     await openRow(/Chickpeas/)
@@ -123,5 +124,29 @@ describe('CafeCountReviewQueue', () => {
 
     await waitFor(() => expect(mockConfirm).toHaveBeenCalledWith('zero', 2))
     expect(await screen.findByRole('status')).toHaveTextContent('Confirmed · Not needed')
+  })
+
+  it('shows the first count, recount, final counted and reason, says what the floor still owes, and confirms a complete line as held', async () => {
+    mockList.mockResolvedValue([
+      line({ id: 'explained', item_name: 'Dried beans', counted_quantity: '5.0000', recounted_quantity: '4.5000', expected_balance: '4.0000', variance: '0.5000', reason: 'Half a bag spilled' }),
+      line({ id: 'unexplained', item_name: 'Chickpeas', counted_quantity: '5.0000', recounted_quantity: '4.5000', expected_balance: '4.0000', variance: '0.5000' }),
+    ])
+    mockConfirm.mockResolvedValue({ line_id: 'explained', status: 'Confirmed', posting_status: 'held', row_version: 5, variance: '0.5' })
+    renderQueue()
+
+    await openRow(/Chickpeas/)
+    expect(fact('Reason')).toHaveTextContent('None')
+    expect(screen.getAllByText('Waiting for the floor: reason').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument()
+
+    await openRow(/Dried beans/)
+    expect(fact('First count')).toHaveTextContent('5 kg')
+    expect(fact('Recount')).toHaveTextContent('4.5 kg')
+    expect(fact('Final counted')).toHaveTextContent('4.5 kg')
+    expect(fact('Variance')).toHaveTextContent('0.5 kg')
+    expect(fact('Reason')).toHaveTextContent('Half a bag spilled')
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalledWith('explained', 2))
+    expect(await screen.findByRole('status')).toHaveTextContent('Confirmed, not posted')
   })
 })

@@ -29,6 +29,9 @@ export type CafeCountLine = {
   unit_name: string
   storage_location_id?: string | null
   counted_quantity: string
+  recounted_quantity: string | null
+  recounted_at: string | null
+  reason: string | null
   variance: string | null
   expected_balance: string | null
   expected_status: CafeCountExpectedStatus
@@ -54,10 +57,20 @@ export type CafeCountLineOutcome = {
   reason?: string
 }
 
+/** What the floor may know about its own line: a state word, never the Expected figure or Variance. */
+export type CafeCountFloorState = 'waiting' | 'needs_recount' | 'needs_reason' | 'with_reviewer' | 'confirmed' | 'held'
+
+export type CafeCountFloorLine = {
+  id: string
+  itemId: string
+  state: CafeCountFloorState
+  rowVersion: number
+}
+
 export type ConfirmCafeCountResult = {
   line_id: string
   status: 'Confirmed'
-  posting_status: 'not_needed'
+  posting_status: 'not_needed' | 'held'
   row_version: number
   variance: string
 }
@@ -73,7 +86,8 @@ type CountableItemRow = {
 
 const COUNT_LINE_FIELDS = [
   'id', 'branch_id', 'activity', 'count_date', 'wip_item_id', 'item_name', 'item_category', 'item_kind',
-  'item_unit_id', 'unit_name', 'storage_location_id', 'counted_quantity', 'variance', 'expected_balance', 'expected_status',
+  'item_unit_id', 'unit_name', 'storage_location_id', 'counted_quantity', 'recounted_quantity',
+  'recounted_at', 'reason', 'variance', 'expected_balance', 'expected_status',
   'expected_recorded_at', 'status', 'posting_status', 'submitted_at', 'reviewed_at', 'row_version',
 ].join(', ')
 
@@ -125,10 +139,72 @@ export async function listCafeCountLines(countDate?: string): Promise<CafeCountL
     return {
       ...row,
       counted_quantity: String(row.counted_quantity),
+      recounted_quantity: row.recounted_quantity == null ? null : String(row.recounted_quantity),
       variance: row.variance == null ? null : String(row.variance),
       expected_balance: row.expected_balance == null ? null : String(row.expected_balance),
     } as unknown as CafeCountLine
   })
+}
+
+/** Which follow-up a line needs from the floor; reads only whether the figures differ, never by how much. */
+export function cafeCountFloorState(line: Pick<CafeCountLine, 'status' | 'posting_status' | 'expected_status' | 'variance' | 'recounted_quantity' | 'reason'>): CafeCountFloorState {
+  if (line.status === 'Confirmed') return line.posting_status === 'held' ? 'held' : 'confirmed'
+  if (line.expected_status !== 'ready' || line.variance === null) return 'waiting'
+  if (!/^-?0+(\.0+)?$/.test(line.variance)) {
+    if (line.recounted_quantity === null) return 'needs_recount'
+    if (line.reason === null) return 'needs_reason'
+  }
+  return 'with_reviewer'
+}
+
+/** The stream's live lines for a date, reduced to floor-safe states before they leave this module. */
+export async function listCafeCountFloorLines(stream: ProductionStream, countDate: string): Promise<CafeCountFloorLine[]> {
+  const { data, error } = await supabase.schema('ops')
+    .from('cafe_count_lines')
+    .select('id, wip_item_id, status, posting_status, expected_status, variance, recounted_quantity, reason, row_version')
+    .eq('branch_id', stream.branch.id)
+    .eq('activity', stream.activity)
+    .eq('count_date', countDate)
+    .in('status', ['Submitted', 'Confirmed'])
+  if (error) throw new Error(`listCafeCountFloorLines failed: ${error.message}`)
+  return ((data ?? []) as Array<Record<string, unknown>>).map(row => ({
+    id: String(row.id),
+    itemId: String(row.wip_item_id),
+    state: cafeCountFloorState({
+      status: row.status as CafeCountStatus,
+      posting_status: row.posting_status as CafeCountPostingStatus,
+      expected_status: row.expected_status as CafeCountExpectedStatus,
+      variance: row.variance == null ? null : String(row.variance),
+      recounted_quantity: row.recounted_quantity == null ? null : String(row.recounted_quantity),
+      reason: row.reason == null ? null : String(row.reason),
+    }),
+    rowVersion: Number(row.row_version),
+  }))
+}
+
+/** Stores the floor's one recount; the answer says only whether a reason is still needed. */
+export async function recordCafeCountRecount(lineId: string, quantity: string): Promise<{ reasonRequired: boolean; rowVersion: number }> {
+  const { data, error } = await supabase.schema('ops').rpc('record_cafe_count_recount', {
+    p_line_id: lineId,
+    p_recounted_quantity: quantity,
+  })
+  if (error) throw new Error(`recordCafeCountRecount failed: ${error.message}`)
+  const row = data as Record<string, unknown> | null
+  if (!row || typeof row.reason_required !== 'boolean' || typeof row.row_version !== 'number') {
+    throw new Error('recordCafeCountRecount failed: invalid response')
+  }
+  return { reasonRequired: row.reason_required, rowVersion: row.row_version }
+}
+
+export async function recordCafeCountReason(lineId: string, reason: string): Promise<{ rowVersion: number }> {
+  const { data, error } = await supabase.schema('ops').rpc('record_cafe_count_reason', {
+    p_line_id: lineId,
+    p_reason: reason.trim(),
+  })
+  if (error) throw new Error(`recordCafeCountReason failed: ${error.message}`)
+  const row = data as Record<string, unknown> | null
+  if (!row || typeof row.row_version !== 'number') throw new Error('recordCafeCountReason failed: invalid response')
+  return { rowVersion: row.row_version }
 }
 
 /** Only the three permitted browser-owned fields cross the submit boundary. */
@@ -170,7 +246,7 @@ export async function confirmCafeCountLine(lineId: string, expectedVersion: numb
   })
   if (error) throw new Error(`confirmCafeCountLine failed: ${error.message}`)
   const row = data as Record<string, unknown> | null
-  if (!row || row.status !== 'Confirmed' || row.posting_status !== 'not_needed'
+  if (!row || row.status !== 'Confirmed' || (row.posting_status !== 'not_needed' && row.posting_status !== 'held')
     || typeof row.line_id !== 'string' || typeof row.row_version !== 'number'
     || (typeof row.variance !== 'number' && typeof row.variance !== 'string')) {
     throw new Error('confirmCafeCountLine failed: invalid review response')

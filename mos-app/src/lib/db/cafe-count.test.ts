@@ -2,8 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { supabase } from '@/lib/supabase'
 import type { ProductionStream } from './kitchen-logs.types'
 import {
+  cafeCountFloorState,
+  confirmCafeCountLine,
+  listCafeCountFloorLines,
   listCafeCountableItems,
   listCafeCountLines,
+  recordCafeCountReason,
+  recordCafeCountRecount,
   newCafeCountClientKey,
   normalizeCafeCountQuantity,
   parseCafeCountQuantity,
@@ -124,5 +129,38 @@ describe('Cafe Count domain adapter', () => {
     expect(query.order).toHaveBeenNthCalledWith(2, 'submitted_at', { ascending: true })
     expect(query.select).toHaveBeenCalledWith(expect.not.stringContaining('org_id'))
     expect(query.select).toHaveBeenCalledWith(expect.not.stringContaining('submitted_by'))
+  })
+
+  it('AC-017 reduces a stream\'s lines to floor states, so no Expected figure or Variance reaches the Count page', async () => {
+    const base = { status: 'Submitted', posting_status: 'not_posted', expected_status: 'ready', recounted_quantity: null, reason: null, row_version: 2 }
+    const query = makeQuery({ data: [
+      { ...base, id: 'l1', wip_item_id: 'i1', variance: '-2.5000' },
+      { ...base, id: 'l2', wip_item_id: 'i2', variance: '0.0000' },
+      { ...base, id: 'l3', wip_item_id: 'i3', variance: '1.0000', recounted_quantity: '3.0000' },
+      { ...base, id: 'l4', wip_item_id: 'i4', expected_status: 'waiting', variance: null },
+      { ...base, id: 'l5', wip_item_id: 'i5', status: 'Confirmed', posting_status: 'held', variance: '1.0000', recounted_quantity: '3', reason: 'spilled' },
+    ], error: null })
+    schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
+
+    const lines = await listCafeCountFloorLines(STREAM, '2026-10-06')
+    expect(lines.map(line => line.state)).toEqual(['needs_recount', 'with_reviewer', 'needs_reason', 'waiting', 'held'])
+    expect(JSON.stringify(lines)).not.toMatch(/variance|expected|-2\.5|counted/i)
+    expect(query.eq).toHaveBeenCalledWith('branch_id', 'branch-1')
+    expect(query.eq).toHaveBeenCalledWith('activity', 'kitchen')
+    expect(query.eq).toHaveBeenCalledWith('count_date', '2026-10-06')
+    expect(cafeCountFloorState({ ...base, status: 'Confirmed', posting_status: 'not_needed', expected_status: 'ready', variance: '0' } as never)).toBe('confirmed')
+  })
+
+  it('records a recount and a trimmed reason through the floor functions', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: { line_id: 'l1', row_version: 3, reason_required: true }, error: null })
+      .mockResolvedValueOnce({ data: { line_id: 'l1', row_version: 4, reason_recorded: true }, error: null })
+      .mockResolvedValueOnce({ data: { line_id: 'l1', status: 'Confirmed', posting_status: 'held', row_version: 5, variance: '1' }, error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+    await expect(recordCafeCountRecount('l1', '3')).resolves.toEqual({ reasonRequired: true, rowVersion: 3 })
+    await expect(recordCafeCountReason('l1', '  spilled ')).resolves.toEqual({ rowVersion: 4 })
+    await expect(confirmCafeCountLine('l1', 4)).resolves.toMatchObject({ posting_status: 'held' })
+    expect(rpc).toHaveBeenNthCalledWith(1, 'record_cafe_count_recount', { p_line_id: 'l1', p_recounted_quantity: '3' })
+    expect(rpc).toHaveBeenNthCalledWith(2, 'record_cafe_count_reason', { p_line_id: 'l1', p_reason: 'spilled' })
   })
 })

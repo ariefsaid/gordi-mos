@@ -19,13 +19,16 @@ import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
+import { CafeCountFollowUp } from '@/components/kitchen/cafe-count-followup'
 import {
+  listCafeCountFloorLines,
   listCafeCountableItems,
   newCafeCountClientKey,
   normalizeCafeCountQuantity,
   parseCafeCountQuantity,
   submitCafeCounts,
   type CafeCountableItem,
+  type CafeCountFloorLine,
 } from '@/lib/db/cafe-count'
 import { wibToday } from '@/lib/db/cafe-opening'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
@@ -62,6 +65,10 @@ function refusalText(reason: string | undefined, t: ReturnType<typeof useT>): st
   }
 }
 
+function byItem(lines: readonly CafeCountFloorLine[]): Record<string, CafeCountFloorLine> {
+  return Object.fromEntries(lines.map(line => [line.itemId, line]))
+}
+
 export function CafeCountPage() {
   const t = useT()
   const auth = useAuth()
@@ -90,6 +97,8 @@ export function CafeCountPage() {
   const [retryKey, setRetryKey] = useState(0)
   const [items, setItems] = useState<CafeCountableItem[]>([])
   const [entries, setEntries] = useState<Record<string, CountEntry>>({})
+  // Today's submitted lines of this stream by item, as floor-safe states.
+  const [floorLines, setFloorLines] = useState<Record<string, CafeCountFloorLine>>({})
   const [search, setSearch] = useSearchParamState('q', '')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(false)
@@ -115,27 +124,29 @@ export function CafeCountPage() {
     let active = true
     setItems([])
     setEntries({})
+    setFloorLines({})
     setSubmitError(false)
     setLoadState('loading')
     if (!stream || !canCapture) {
       setLoadState('ready')
       return () => { active = false }
     }
-    void listCafeCountableItems(stream).then(nextItems => {
+    void Promise.all([listCafeCountableItems(stream), listCafeCountFloorLines(stream, logDate)]).then(([nextItems, nextLines]) => {
       if (!active || generation !== requestGeneration.current) return
       setItems(nextItems)
       setEntries(makeEntries(nextItems))
+      setFloorLines(byItem(nextLines))
       setLoadState('ready')
     }).catch(() => {
       if (!active || generation !== requestGeneration.current) return
       setLoadState('error')
     })
     return () => { active = false }
-  }, [canCapture, catalogReady, retryKey, stream, stream?.activity, stream?.branch.id])
+  }, [canCapture, catalogReady, logDate, retryKey, stream, stream?.activity, stream?.branch.id])
 
   const entered = items.flatMap(item => {
     const entry = entries[item.id]
-    if (!entry || !entry.quantity.trim() || entry.outcome) return []
+    if (!entry || !entry.quantity.trim() || entry.outcome || floorLines[item.id]) return []
     const quantity = normalizeCafeCountQuantity(entry.quantity)
     return quantity === null ? [] : [{ item, entry, quantity }]
   })
@@ -221,6 +232,7 @@ export function CafeCountPage() {
         }
         return next
       })
+      void listCafeCountFloorLines(stream, logDate).then(lines => setFloorLines(byItem(lines))).catch(() => undefined)
     } catch {
       setSubmitError(true)
     } finally {
@@ -296,6 +308,7 @@ export function CafeCountPage() {
                     emptyLabel={<CafeNoMatch bare onClear={() => setSearch('')} />}
                     renderRow={item => {
                       const entry = entries[item.id]
+                      const line = floorLines[item.id]
                       const parsed = parseCafeCountQuantity(entry?.quantity ?? '')
                       const invalid = parsed.kind === 'invalid'
                       const errorId = `cafe-count-${item.id}-quantity-error`
@@ -308,17 +321,17 @@ export function CafeCountPage() {
                           id={`cafe-count-${item.id}`}
                           itemName={item.name}
                           quantityFor={t('cafe.count.quantityAccessibleName', { item: item.name, unit: item.unitName })}
-                          value={entry?.quantity ?? ''}
+                          value={line && !entry?.outcome ? '' : entry?.quantity ?? ''}
                           unitName={item.unitName}
                           invalid={invalid}
                           describedById={invalid ? errorId : undefined}
-                          disabled={submitting || Boolean(entry?.outcome)}
+                          disabled={submitting || Boolean(entry?.outcome) || Boolean(line)}
                           enterKeyHint="next"
                           onQuantityChange={value => patchQuantity(item.id, value)}
                         /> }]}
                         detail={<>
                           {/* Which storage was counted is decided on its own line, once the line has an amount (preview only). */}
-                          {Boolean(entry?.quantity?.trim()) && <LocationLineField
+                          {Boolean(entry?.quantity?.trim()) && !line && <LocationLineField
                             kind="count"
                             locations={storageLocations}
                             value={entry?.storage_location_id === undefined ? defaultStorageLocationId : entry.storage_location_id}
@@ -331,7 +344,9 @@ export function CafeCountPage() {
                             disabled={submitting || Boolean(entry?.outcome)}
                           />}
                           {invalid && <QuantityFieldError id={errorId} reason={parsed.reason} rawValue={entry?.quantity ?? ''} maxFractionDigits={2} className="cafe-count__field-error" />}
-                          {entry?.outcome && <p className="cafe-count__line-success" role="status">{t('cafe.count.lineSubmitted')}</p>}
+                          {line ? <CafeCountFollowUp line={line} itemName={item.name} unitName={item.unitName} online={isOnline}
+                            onSaved={next => setFloorLines(current => ({ ...current, [item.id]: next }))} />
+                            : entry?.outcome && <p className="cafe-count__line-success" role="status">{t('cafe.count.lineSubmitted')}</p>}
                           {entry?.refusal && <p className="cafe-count__field-error" role="alert">{refusalText(entry.refusal, t)}</p>}
                         </>}
                       />

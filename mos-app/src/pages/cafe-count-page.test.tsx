@@ -37,6 +37,9 @@ vi.mock('@/lib/db/cafe-count', async importOriginal => {
     ...actual,
     newCafeCountClientKey: () => `client-${++countMocks.key}`,
     listCafeCountableItems: vi.fn(),
+    listCafeCountFloorLines: vi.fn(),
+    recordCafeCountRecount: vi.fn(),
+    recordCafeCountReason: vi.fn(),
     submitCafeCounts: vi.fn(),
   }
 })
@@ -44,7 +47,7 @@ vi.mock('@/lib/db/cafe-count', async importOriginal => {
 import { useAuth } from '@/auth/use-auth'
 import { supabase } from '@/lib/supabase'
 import { canManageCafeItemSettings, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
-import { listCafeCountableItems, submitCafeCounts } from '@/lib/db/cafe-count'
+import { listCafeCountFloorLines, listCafeCountableItems, recordCafeCountReason, recordCafeCountRecount, submitCafeCounts } from '@/lib/db/cafe-count'
 import type { CafeCountableItem } from '@/lib/db/cafe-count'
 import { CafeCountPage } from './cafe-count-page'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
@@ -83,6 +86,7 @@ beforeEach(() => {
   countMocks.key = 0
   mockUseAuth.mockReturnValue(VIEWER)
   mockListItems.mockResolvedValue(ITEMS)
+  vi.mocked(listCafeCountFloorLines).mockResolvedValue([])
   locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], defaults: null, retry: vi.fn() })
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
 })
@@ -287,5 +291,44 @@ describe('CafeCountPage', () => {
     expect(await screen.findByText('Submitted')).toBeInTheDocument()
     expect(await screen.findByText('This item already has a stock count today.')).toBeInTheDocument()
     expect(screen.getAllByRole('alert')).toHaveLength(1)
+  })
+
+  it('AC-017 a line that differs asks only for a recount and a reason, with no expected figure, Variance or direction', async () => {
+    vi.mocked(listCafeCountFloorLines).mockResolvedValue([
+      { id: 'line-raw', itemId: 'raw-1', state: 'needs_recount', rowVersion: 2 },
+      { id: 'line-wip', itemId: 'wip-1', state: 'held', rowVersion: 5 },
+    ])
+    vi.mocked(recordCafeCountRecount).mockResolvedValue({ reasonRequired: true, rowVersion: 3 })
+    vi.mocked(recordCafeCountReason).mockResolvedValue({ rowVersion: 4 })
+    renderPage()
+
+    expect(await screen.findByText('This item differs. It needs a recount, and a reason if it still differs.')).toBeInTheDocument()
+    const sheet = screen.getByRole('table')
+    expect(sheet).not.toHaveTextContent(/expected|variance|surplus|shortage|more|less|[+-]\d/i)
+    expect(screen.getByText('Confirmed, not posted')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Raw flour, counted, kg' })).toBeDisabled()
+
+    const recount = screen.getByRole('textbox', { name: 'Recount for Raw flour, kg' })
+    expect(recount).toHaveValue('')
+    fireEvent.change(recount, { target: { value: '4,5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save recount' }))
+    await waitFor(() => expect(recordCafeCountRecount).toHaveBeenCalledWith('line-raw', '4.5'))
+
+    expect(await screen.findByText('It still differs. Say why, then it goes to the reviewer.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save reason' }))
+    expect(screen.getByText('Write a reason of up to 500 characters.')).toBeInTheDocument()
+    expect(recordCafeCountReason).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Reason for Raw flour' }), { target: { value: 'Half a bag spilled' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save reason' }))
+    await waitFor(() => expect(recordCafeCountReason).toHaveBeenCalledWith('line-raw', 'Half a bag spilled'))
+    expect(await screen.findByText('Counted · with the reviewer')).toBeInTheDocument()
+    expect(mockSubmit).not.toHaveBeenCalled()
+  })
+
+  it('shows the recount request in Indonesian', async () => {
+    vi.mocked(listCafeCountFloorLines).mockResolvedValue([{ id: 'line-raw', itemId: 'raw-1', state: 'needs_recount', rowVersion: 2 }])
+    renderPage('id')
+    expect(await screen.findByText('Item ini berbeda. Perlu dihitung ulang, dan diberi alasan jika masih berbeda.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Simpan hitung ulang' })).toBeInTheDocument()
   })
 })

@@ -67,6 +67,10 @@
 }
 .cafe-count__field-error { color: var(--field-error-text); }
 .cafe-count__line-success { color: var(--muted-foreground); }
+.cafe-count__followup { display: grid; gap: 8px; justify-items: start; max-width: 32rem; }
+.cafe-count__followup > label { font-weight: 600; }
+.cafe-count__followup .cafe-receive__reason { width: 100%; }
+.cafe-count__recount-prompt { margin: 0; color: var(--foreground); font-weight: 600; line-height: 1.4; }
 .cafe-count__fixing {
   margin: 0;
   color: var(--muted-foreground);
