@@ -256,6 +256,7 @@ check "concatenated -Rother/repo refused" 1 no pr create -Rother/repo --title t 
 check "concatenated -Hother refused" 1 no pr create -Hother --title t --body "Reused: x"
 check "--hostname on pr create refused" 1 no pr create --hostname ghe.example --title t --body "Reused: x"
 check "alias 'pr new' refused (allowlist)" 1 no pr new --title t --body "clean"
+check "pr ready is allowlisted (takes a PR out of draft)" 0 yes pr ready 17
 echo "contains secretword" > "$tmp/repo/notes.md"
 check "release create refused (allowlist)" 1 no release create v1 -F "$tmp/repo/notes.md"
 check "gist create refused (allowlist)" 1 no gist create "$tmp/repo/notes.md"
