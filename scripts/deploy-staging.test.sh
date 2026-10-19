@@ -509,21 +509,33 @@ case "$order" in pg_dump\ pg_restore-list\ supabase\ push\ supabase\ functions-d
 if grep -q 'rehearse-migrations\.sh' "$SCRIPT"; then bad "removed migration helper is still called"; else ok "no removed migration helper call remains"; fi
 
 echo "pooler url file"
-printf 'postgresql://postgres.ref@pooler.fake.invalid:5432/postgres\n' > "$tmp/pooler-url"
+printf 'postgresql://postgres.abcdefghijklmnopqrst@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres\n' > "$tmp/pooler-url"
 run "pooler file routes the database commands through the pooler host" 0 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url" -- --dry-run
 has "pooler path announced" "Database host: session pooler (IPv4)"
-if grep -qx 'db-url-host pooler.fake.invalid' "$ARGVLOG"; then ok "db push used the pooler host"; else bad "db push did not use the pooler host"; fi
-if grep -qx 'db-url-host pooler.fake.invalid' "$ARGVLOG" && ! grep -q "^db-url-host $SECRET_HOST" <(tail -n 3 "$ARGVLOG"); then ok "direct host not used on the pooler run"; else bad "direct host still used on the pooler run"; fi
-printf 'postgresql://postgres.ref:leak@pooler.fake.invalid:5432/postgres\n' > "$tmp/pooler-url-pw"
+if grep -qx 'db-url-host aws-0-ap-southeast-1.pooler.supabase.com' "$ARGVLOG"; then ok "db push used the pooler host"; else bad "db push did not use the pooler host"; fi
+if grep -qx 'db-url-host aws-0-ap-southeast-1.pooler.supabase.com' "$ARGVLOG" && ! grep -q "^db-url-host $SECRET_HOST" <(tail -n 3 "$ARGVLOG"); then ok "direct host not used on the pooler run"; else bad "direct host still used on the pooler run"; fi
+printf 'postgresql://postgres.abcdefghijklmnopqrst:leak@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres\n' > "$tmp/pooler-url-pw"
 run "pooler file with a password is refused" 1 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url-pw" -- --dry-run
-has "refusal names the rule" "pooler URL file must not carry a password"
+has "refusal names the rule" "pooler URL file must be this project's Supabase session pooler"
 expect_not "no dry run after a refused pooler file" "supabase dry-run"
-printf 'postgresql://postgres.ref@pooler.fake.invalid:5432/postgres?Password=leak\n' > "$tmp/pooler-url-qs"
+printf 'postgresql://postgres.abcdefghijklmnopqrst@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?Password=leak\n' > "$tmp/pooler-url-qs"
 run "pooler file with a password in the query string is refused" 1 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url-qs" -- --dry-run
-has "query-string refusal names the rule" "pooler URL file must not carry a password"
+has "query-string refusal names the rule" "pooler URL file must be this project's Supabase session pooler"
 expect_not "no dry run after a refused query-string pooler file" "supabase dry-run"
 run "pooler host is masked on a failed dry run" 1 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url" FAKE_DRY_RC=7 -- --dry-run
-hasnt "failed dry run output hides the pooler host" "pooler.fake.invalid"
+hasnt "failed dry run output hides the pooler host" "aws-0-ap-southeast-1.pooler.supabase.com"
+for bad_url in \
+  'postgresql://postgres.abcdefghijklmnopqrst@attacker.example:5432/postgres' \
+  'postgresql://postgres.otherprojectref0000@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres' \
+  'postgresql://postgres.abcdefghijklmnopqrst@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=disable' \
+  'postgresql://postgres.abcdefghijklmnopqrst@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres' \
+  'postgresql://postgres.abcdefghijklmnopqrst@aws-0-ap-southeast-1.pooler.supabase.com.attacker.example:5432/postgres'; do
+  printf '%s\n' "$bad_url" > "$tmp/pooler-url-bad"
+  : > "$ARGVLOG"
+  run "pooler file outside this project's session pooler is refused" 1 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url-bad" -- --dry-run
+  has "unbound pooler refusal names the rule" "pooler URL file must be this project's Supabase session pooler"
+  if [ -s "$ARGVLOG" ]; then bad "a database client ran for an unbound pooler destination"; else ok "no database client ran for an unbound pooler destination"; fi
+done
 run "absent pooler file keeps the direct host" 0 "" STAGING_POOLER_URL_FILE="$tmp/no-such-file" -- --dry-run
 hasnt "no pooler announcement without the file" "session pooler"
 
