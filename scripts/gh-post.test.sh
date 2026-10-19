@@ -296,7 +296,7 @@ check "short-flag cluster hiding -F refused" 1 no api repos/x/y/issues -iFbody=@
 check "stray positional after the endpoint refused" 1 no api repos/x/y/issues extra -f title=x
 check "end-of-flags marker refused" 1 no api repos/x/y/issues -- -f title=x
 check "value-taking flag at the end refused" 1 no api repos/x/y/issues -f
-api_allowlist="Allowed API writes: POST repos/x/y/security-advisories; POST repos/x/y/pulls (REST PR stamps required); POST repos/x/y/issues/<number>/comments; PATCH repos/x/y/issues/<number> without labels."
+api_allowlist="Allowed API writes: POST repos/x/y/security-advisories; POST repos/x/y/pulls (REST PR stamps required); POST repos/ariefsaid/gordi-mos/releases; POST repos/x/y/issues/<number>/comments; PATCH repos/x/y/issues/<number> without labels."
 check_message "contents PUT is refused with the API write allowlist" 1 no "$api_allowlist" api repos/x/y/contents/README.md -X PUT -f message=edit
 check "contents DELETE is refused" 1 no api repos/x/y/contents/README.md -X DELETE -f message=delete
 check "merge-upstream is refused" 1 no api repos/x/y/merge-upstream -X POST -f branch=main
@@ -306,6 +306,9 @@ check "REST branch merge (POST merges) refuses" 1 no api repos/x/y/merges --meth
 check "REST ref update refuses" 1 no api repos/x/y/git/refs/heads/main --method POST -f ref=refs/heads/main -f sha=abc
 check "REST branch rename variant is refused" 1 no api repos/x/y/branches/x/rename --method PATCH -f new_name=y
 check "security advisory creation is allowlisted" 0 yes api repos/x/y/security-advisories --method POST -f summary=report
+g "$tmp/repo" remote set-url origin https://github.com/ariefsaid/gordi-mos.git
+check "release creation is allowlisted for this repository" 0 yes api repos/ariefsaid/gordi-mos/releases --method POST -f tag_name=v0.11.0
+g "$tmp/repo" remote set-url origin https://github.com/x/y.git
 check "issue comment creation is allowlisted" 0 yes api repos/x/y/issues/17/comments -f body=comment
 check "issue PATCH without labels is allowlisted" 0 yes api repos/x/y/issues/17 --method PATCH -f state=closed
 check "contents GET remains allowed" 0 yes api /repos/x/y/contents/README.md --method get

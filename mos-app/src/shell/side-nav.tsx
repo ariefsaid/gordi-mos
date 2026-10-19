@@ -3,6 +3,7 @@ import { isShipGated } from '@/lib/ship-gate'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
+import { ReleaseStamp } from '@/components/release-stamp'
 import { Chevron } from './icons'
 import { UserChip } from './user-chip'
 import { CountBadge } from './count-badge'
@@ -156,6 +157,7 @@ function Sidebar({ data }: { data: NavData }) {
         <div className="nav-foot-links nav-list">
           {admin && <AreaLink destination={admin} to={landingOf(admin)} state={rowState(pathname, landingOf(admin), '/admin', currentPagePath(adminGroups, pathname))} />}
           {profile && <AreaLink destination={profile} to="/profile" state={rowState(pathname, '/profile', '/profile', undefined)} />}
+          <ReleaseStamp />
         </div>
       </nav>
       <div className="rail-foot"><UserChip variant="rail" /></div>
@@ -353,7 +355,10 @@ function Rail({ data, hasPanel }: { data: NavData; hasPanel: boolean }) {
           {footer.map(item)}
         </div>
       </nav>
-      <div className="rail-foot"><UserChip variant="rail" compact /></div>
+      <div className="rail-foot">
+        <UserChip variant="rail" compact />
+        <ReleaseStamp variant="rail" />
+      </div>
     </aside>
   )
 }

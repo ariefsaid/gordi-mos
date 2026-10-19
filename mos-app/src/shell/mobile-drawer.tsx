@@ -14,6 +14,7 @@ import { useModuleAvailability } from '@/lib/module-availability'
 import { useT } from '@/i18n/use-t'
 import { focusableWithin } from '@/lib/focusable'
 import { OverlayPortal } from '@/components/ui/overlay-portal'
+import { ReleaseStamp } from '@/components/release-stamp'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { useInertAppRoot } from '@/components/ui/use-inert-app-root'
 import './mobile-drawer.css'
@@ -176,6 +177,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
             {profile && <AreaLink destination={profile} to="/profile" state={rowState(pathname, '/profile', '/profile', undefined)} onNavigate={closeAndReturn} />}
           </div>
           {viewer && <UserChip variant="drawer" />}
+          <ReleaseStamp />
         </div>
       </div>
       </>

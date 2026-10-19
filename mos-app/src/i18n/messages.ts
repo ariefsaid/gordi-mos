@@ -3416,6 +3416,11 @@ export const messages = {
     // the other end changes, and a name in the chrome is an identity a signed-out stranger can
     // read off the login screen.
     'auth.footer': 'Trouble signing in? Contact your admin.',
+    'releaseStamp.version': 'Version ${version}',
+    'releaseStamp.web': 'web',
+    'releaseStamp.db': 'db',
+    'releaseStamp.built': 'built ${builtAt}',
+    'releaseStamp.deployed': 'deployed ${deployedAt}',
     'consent.title': 'Connect an agent',
     'consent.loading': 'Loading the request',
     'consent.heading': 'Allow ${agent} to connect?',
@@ -7052,6 +7057,11 @@ export const messages = {
     'chart.empty': 'Tidak ada data untuk irisan ini.',
     // Permukaan auth — footer dan badan orphan menyebut PERAN, bukan orang.
     'auth.footer': 'Ada kendala masuk? Hubungi admin kamu.',
+    'releaseStamp.version': 'Versi ${version}',
+    'releaseStamp.web': 'web',
+    'releaseStamp.db': 'basis data',
+    'releaseStamp.built': 'dibangun ${builtAt}',
+    'releaseStamp.deployed': 'diterapkan ${deployedAt}',
     'consent.title': 'Hubungkan agen',
     'consent.loading': 'Memuat permintaan',
     'consent.heading': 'Izinkan ${agent} terhubung?',

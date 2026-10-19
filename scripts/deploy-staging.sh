@@ -364,6 +364,11 @@ if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
   unset EDGE_ACCESS_TOKEN
 fi
 
+# ── 8. Record origin/main only after the database and every changed function have succeeded.
+sqlq "insert into shared.deployment_stamp (id, backend_sha, deployed_at) values (true, '$om', now()) on conflict (id) do update set backend_sha = excluded.backend_sha, deployed_at = excluded.deployed_at" \
+  || die "could not update the backend deployment stamp"
+say "Updated backend deployment stamp."
+
 # ── 9. Promote the deployed origin/main commit with a fast-forward-only push.
 if [ "$PROMOTE" = 1 ]; then
   staging_sha="$(git -C "$ROOT" rev-parse --verify -q refs/remotes/origin/staging)" || die "origin/staging not found"
