@@ -156,7 +156,7 @@ begin
 
   if v_action in ('confirm', 'reject')
      and old.status = 'Submitted'
-     and new.status = case v_action when 'confirm' then 'Confirmed' else 'Rejected' end
+     and new.status = (case v_action when 'confirm' then 'Confirmed' else 'Rejected' end)
      and (new.expected_balance, new.expected_status, new.expected_recorded_at)
          is not distinct from (old.expected_balance, old.expected_status, old.expected_recorded_at)
      and (new.recounted_quantity, new.recounted_by, new.recounted_at)
@@ -165,10 +165,10 @@ begin
          is not distinct from (old.reason, old.reason_entered_by, old.reason_entered_at)
      and new.reviewed_by = shared.current_person_id()
      and new.reviewed_at is not null
-     and new.posting_status = case
+     and new.posting_status = (case
            when v_action = 'reject' then old.posting_status
            when old.variance = 0 then 'not_needed'
-           else 'held' end
+           else 'held' end)
      and (v_action = 'reject') = (new.review_note is not null)
      and new.row_version = old.row_version + 1 then
     new.updated_at := clock_timestamp();
