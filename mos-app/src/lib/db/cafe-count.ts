@@ -50,6 +50,8 @@ export type CafeCountDraftLine = {
   client_key: string
   item_id: string
   quantity: string
+  /** A manager-defined multiple of the default unit the quantity was typed in; the server stores the default-unit amount. */
+  unit_factor?: number
   storage_location_id?: string | null
 }
 
@@ -187,6 +189,30 @@ export async function listCafeCountFloorLines(stream: ProductionStream, countDat
   }))
 }
 
+/** Items this branch already counted on the date from another of its streams, with which stream and when. */
+export async function listCafeCountCountedElsewhere(stream: ProductionStream, countDate: string): Promise<Record<string, { activity: ProductionActivity; submittedAt: string }>> {
+  const { data, error } = await supabase.schema('ops')
+    .from('cafe_count_lines')
+    .select('wip_item_id, activity, submitted_at')
+    .eq('branch_id', stream.branch.id)
+    .eq('count_date', countDate)
+    .neq('activity', stream.activity)
+    .in('status', ['Submitted', 'Confirmed'])
+  if (error) throw new Error(`listCafeCountCountedElsewhere failed: ${error.message}`)
+  return Object.fromEntries(((data ?? []) as Array<{ wip_item_id: string; activity: ProductionActivity; submitted_at: string }>)
+    .map(row => [row.wip_item_id, { activity: row.activity, submittedAt: row.submitted_at }]))
+}
+
+/** FR-005: stream items Count cannot offer (their unit is not the ERP stock unit); reviewers and ops leads only. */
+export async function listCafeCountExcludedItems(stream: ProductionStream): Promise<string[]> {
+  const { data, error } = await supabase.schema('ops').rpc('cafe_count_excluded_items', {
+    p_branch_id: stream.branch.id,
+    p_activity: stream.activity,
+  })
+  if (error) throw new Error(`listCafeCountExcludedItems failed: ${error.message}`)
+  return ((data ?? []) as Array<{ item_name: string }>).map(row => row.item_name)
+}
+
 /** Stores the floor's one recount; the answer says only whether a reason is still needed. */
 export async function recordCafeCountRecount(lineId: string, quantity: string): Promise<{ reasonRequired: boolean; rowVersion: number }> {
   const { data, error } = await supabase.schema('ops').rpc('record_cafe_count_recount', {
@@ -216,15 +242,18 @@ export async function recordCafeCountReason(lineId: string, reason: string): Pro
 export async function submitCafeCounts(
   stream: ProductionStream,
   lines: readonly CafeCountDraftLine[],
+  countDate?: string,
 ): Promise<CafeCountLineOutcome[]> {
-  const p_lines = lines.map(({ client_key, item_id, quantity, storage_location_id }) => ({
+  const p_lines = lines.map(({ client_key, item_id, quantity, unit_factor, storage_location_id }) => ({
     client_key, item_id, quantity,
+    ...(unit_factor === undefined ? {} : { unit_factor: String(unit_factor) }),
     ...(storage_location_id === undefined ? {} : { storage_location_id }),
   }))
   const { data, error } = await supabase.schema('ops').rpc('submit_cafe_counts', {
     p_branch_id: stream.branch.id,
     p_activity: stream.activity,
     p_lines,
+    ...(countDate ? { p_count_date: countDate } : {}),
   })
   if (error) throw new Error(`submitCafeCounts failed: ${error.message}`)
   if (!Array.isArray(data)) throw new Error('submitCafeCounts failed: invalid per-line response')

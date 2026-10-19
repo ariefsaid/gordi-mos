@@ -38,6 +38,8 @@ vi.mock('@/lib/db/cafe-count', async importOriginal => {
     newCafeCountClientKey: () => `client-${++countMocks.key}`,
     listCafeCountableItems: vi.fn(),
     listCafeCountFloorLines: vi.fn(),
+    listCafeCountCountedElsewhere: vi.fn(),
+    listCafeCountExcludedItems: vi.fn(),
     recordCafeCountRecount: vi.fn(),
     recordCafeCountReason: vi.fn(),
     submitCafeCounts: vi.fn(),
@@ -47,7 +49,7 @@ vi.mock('@/lib/db/cafe-count', async importOriginal => {
 import { useAuth } from '@/auth/use-auth'
 import { supabase } from '@/lib/supabase'
 import { canManageCafeItemSettings, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
-import { listCafeCountFloorLines, listCafeCountableItems, recordCafeCountReason, recordCafeCountRecount, submitCafeCounts } from '@/lib/db/cafe-count'
+import { listCafeCountCountedElsewhere, listCafeCountExcludedItems, listCafeCountFloorLines, listCafeCountableItems, recordCafeCountReason, recordCafeCountRecount, submitCafeCounts } from '@/lib/db/cafe-count'
 import type { CafeCountableItem } from '@/lib/db/cafe-count'
 import { CafeCountPage } from './cafe-count-page'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
@@ -87,6 +89,10 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(VIEWER)
   mockListItems.mockResolvedValue(ITEMS)
   vi.mocked(listCafeCountFloorLines).mockResolvedValue([])
+  vi.mocked(listCafeCountCountedElsewhere).mockResolvedValue({})
+  vi.mocked(listCafeCountExcludedItems).mockResolvedValue([])
+  vi.mocked(listCafeItemSettings).mockResolvedValue([])
+  window.localStorage.clear()
   locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], defaults: null, retry: vi.fn() })
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
 })
@@ -110,7 +116,7 @@ describe('CafeCountPage', () => {
     expect(empty).toHaveTextContent('default unit confirmed as an ESB stock unit')
     expect(empty).not.toHaveTextContent('not set up for this list')
     expect(empty).not.toHaveTextContent('Give it a kind')
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /counted/ })).not.toBeInTheDocument()
     expect(rpc).toHaveBeenCalledWith('cafe_countable_items', { p_branch_id: 'branch-1', p_activity: 'kitchen' })
     expect(listCafeItemSettings).toHaveBeenCalledWith(streamMocks.stream)
   })
@@ -153,9 +159,8 @@ describe('CafeCountPage', () => {
     const rawInput = await screen.findByRole('textbox', { name: 'Raw flour, counted, kg' })
     const wipInput = screen.getByRole('textbox', { name: 'Prepared sauce, counted, tray' })
 
-    expect(screen.getAllByRole('textbox')).toHaveLength(3)
+    expect(screen.getAllByRole('textbox', { name: /counted/ })).toHaveLength(3)
     expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
-    expect(listCafeItemSettings).not.toHaveBeenCalled()
     expect(rpc).toHaveBeenCalledWith('cafe_countable_items', { p_branch_id: 'branch-1', p_activity: 'kitchen' })
     expect(rawInput).toHaveValue('')
     expect(wipInput).toHaveValue('')
@@ -330,5 +335,94 @@ describe('CafeCountPage', () => {
     renderPage('id')
     expect(await screen.findByText('Item ini berbeda. Perlu dihitung ulang, dan diberi alasan jika masih berbeda.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Simpan hitung ulang' })).toBeInTheDocument()
+  })
+
+  it('AC-009 typed entries survive a reload for that person, stream and date, and clear after a successful submit', async () => {
+    const first = renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Raw flour, counted, kg' }), { target: { value: '2,5' } })
+    expect(screen.getByText('Saved on this phone until you submit or discard.')).toBeInTheDocument()
+    first.unmount()
+
+    const second = renderPage()
+    const restored = await screen.findByRole('textbox', { name: 'Raw flour, counted, kg' })
+    expect(restored).toHaveValue('2,5')
+    mockSubmit.mockResolvedValue([{ client_key: 'client-1', outcome: 'submitted', line_id: 'line-1' }])
+    fireEvent.click(screen.getByRole('button', { name: 'Submit stock count' }))
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledWith(streamMocks.stream, [expect.objectContaining({ client_key: 'client-1', quantity: '2.5' })], '2026-10-06'))
+    await screen.findByText('Submitted')
+    second.unmount()
+
+    renderPage()
+    expect(await screen.findByRole('textbox', { name: 'Raw flour, counted, kg' })).toHaveValue('')
+  })
+
+  it('AC-009 an explicit discard clears the entries, and switching stream with unsent entries asks first', async () => {
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Raw flour, counted, kg' }), { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Switch kitchen' }))
+    fireEvent.click(await screen.findByRole('option', { name: /Other Cafe · Bar/ }))
+    expect(await screen.findByRole('dialog', { name: 'Switch stream?' })).toBeInTheDocument()
+    expect(streamMocks.setStream).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard entries' }))
+    expect(screen.getByRole('textbox', { name: 'Raw flour, counted, kg' })).toHaveValue('')
+    expect(Object.keys(window.localStorage).filter(key => key.includes(':count:'))).toHaveLength(0)
+  })
+
+  it('AC-010 offline: typing continues, Submit is disabled with a message, and nothing is sent when the connection returns', async () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Raw flour, counted, kg' }), { target: { value: '1' } })
+    expect(screen.getByRole('button', { name: 'Submit stock count' })).toBeDisabled()
+    expect(screen.getByText('Reconnect to submit this stock count.')).toBeInTheDocument()
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
+    window.dispatchEvent(new Event('online'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit stock count' })).toBeEnabled())
+    expect(mockSubmit).not.toHaveBeenCalled()
+  })
+
+  it('AC-008 a count typed in a manager multiple shows its default-unit amount and sends the multiple; no multiples, no unit control', async () => {
+    vi.mocked(listCafeItemSettings).mockResolvedValue([{ id: 'raw-1', unitMultiples: [0.5] }] as never)
+    mockSubmit.mockResolvedValue([{ client_key: 'client-1', outcome: 'submitted', line_id: 'line-1' }])
+    renderPage()
+    const box = await screen.findByRole('textbox', { name: 'Raw flour, counted, kg' })
+    expect(screen.getAllByRole('button', { name: 'Change unit' })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Change unit' }))
+    fireEvent.click(screen.getByRole('radio', { name: /0[.,]5/ }))
+    fireEvent.change(box, { target: { value: '3' } })
+    expect(screen.getByText('= 1.5 kg')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit stock count' }))
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledWith(streamMocks.stream, [expect.objectContaining({ quantity: '3', unit_factor: 0.5 })], '2026-10-06'))
+  })
+
+  it('AC-005 a reviewer sees which stream items cannot be counted; a floor member is never asked', async () => {
+    vi.mocked(listCafeCountExcludedItems).mockResolvedValue(['Boxed tea', 'Paper cups'])
+    const floor = renderPage()
+    await screen.findByRole('textbox', { name: 'Raw flour, counted, kg' })
+    expect(listCafeCountExcludedItems).not.toHaveBeenCalled()
+    expect(screen.queryByText(/cannot be counted/)).not.toBeInTheDocument()
+    floor.unmount()
+
+    mockUseAuth.mockReturnValue({ ...VIEWER, viewer: { ...(VIEWER as Extract<AuthState, { status: 'authenticated' }>).viewer, accessRoles: ['member', 'supervisor'] } } as AuthState)
+    renderPage()
+    expect(await screen.findByText('2 items on this list cannot be counted because their unit is not the ESB stock unit: Boxed tea, Paper cups.')).toBeInTheDocument()
+  })
+
+  it('FR-006 an item another stream of the branch counted today shows where and takes no entry', async () => {
+    vi.mocked(listCafeCountCountedElsewhere).mockResolvedValue({ 'raw-1': { activity: 'bar', submittedAt: '2026-10-06T02:05:00.000Z' } })
+    renderPage()
+    expect(await screen.findByText(/^Already counted on Cafe Branch · Bar at 0?9[:.]05/)).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Raw flour, counted, kg' })).toBeDisabled()
+  })
+
+  it('FR-003 the kind and not-yet-counted filters narrow the list', async () => {
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Raw flour, counted, kg' }), { target: { value: '1' } })
+    fireEvent.click(screen.getByRole('combobox', { name: /Show/ }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Not yet counted' }))
+    expect(screen.queryByRole('textbox', { name: 'Raw flour, counted, kg' })).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Uncounted rice, counted, bag' })).toBeInTheDocument()
+    expect(screen.getByText('1 of 3 counted')).toBeInTheDocument()
   })
 })

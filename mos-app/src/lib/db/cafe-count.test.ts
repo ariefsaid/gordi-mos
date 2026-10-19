@@ -4,6 +4,7 @@ import type { ProductionStream } from './kitchen-logs.types'
 import {
   cafeCountFloorState,
   confirmCafeCountLine,
+  listCafeCountExcludedItems,
   listCafeCountFloorLines,
   listCafeCountableItems,
   listCafeCountLines,
@@ -163,4 +164,18 @@ describe('Cafe Count domain adapter', () => {
     expect(rpc).toHaveBeenNthCalledWith(1, 'record_cafe_count_recount', { p_line_id: 'l1', p_recounted_quantity: '3' })
     expect(rpc).toHaveBeenNthCalledWith(2, 'record_cafe_count_reason', { p_line_id: 'l1', p_reason: 'spilled' })
   })
+
+  it('sends the count date, the typed multiple and reads the reviewer-only excluded list', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: [{ client_key: 'k1', outcome: 'submitted', line_id: 'l1' }], error: null })
+      .mockResolvedValueOnce({ data: [{ item_id: 'x', item_name: 'Boxed tea' }], error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+    await submitCafeCounts(STREAM, [{ client_key: 'k1', item_id: 'i1', quantity: '3', unit_factor: 0.5 }], '2026-10-05')
+    expect(rpc).toHaveBeenNthCalledWith(1, 'submit_cafe_counts', {
+      p_branch_id: 'branch-1', p_activity: 'kitchen', p_count_date: '2026-10-05',
+      p_lines: [{ client_key: 'k1', item_id: 'i1', quantity: '3', unit_factor: '0.5' }],
+    })
+    await expect(listCafeCountExcludedItems(STREAM)).resolves.toEqual(['Boxed tea'])
+  })
 })
+

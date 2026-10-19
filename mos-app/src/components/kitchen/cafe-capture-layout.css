@@ -244,3 +244,5 @@
   .cafe-receive__recent { padding: 14px; }
 }
 
+.cafe-count__date { display: grid; gap: 4px; max-width: 16rem; margin-bottom: 12px; }
+.cafe-count__date > label { font-weight: 600; font-size: var(--mos-size-3); }
