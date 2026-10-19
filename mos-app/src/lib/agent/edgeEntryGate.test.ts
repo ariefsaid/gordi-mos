@@ -137,24 +137,37 @@ describe.each(GATED)('%s entry point', (_name, load) => {
 const agentChatLoad = entries['../../../../supabase/functions/agent-chat/index.ts']!
 const composeViewLoad = entries['../../../../supabase/functions/compose-view/index.ts']!
 
-type AssistantSettingResult = { data: { enabled: boolean } | null; error: unknown | null }
+type AssistantSettingResult = { data: unknown; error: unknown | null }
+type AssistantSettings = { org: AssistantSettingResult; person: AssistantSettingResult; thrown?: 'org' | 'person' }
 
 const ASSISTANT_GATED = [['agent-chat', agentChatLoad], ['compose-view', composeViewLoad]] as const
 
-function mockAssistantClients(setting: AssistantSettingResult, thrown?: Error) {
+function mockAssistantClients(settings: AssistantSettings) {
   const getUser = vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null }))
   const verifier = { auth: { getUser } }
-  const query = {
-    select: vi.fn(() => query),
-    eq: vi.fn(() => query),
-    maybeSingle: thrown ? vi.fn().mockRejectedValue(thrown) : vi.fn().mockResolvedValue(setting),
-  }
-  const serviceRole = { schema: vi.fn(() => ({ from: vi.fn(() => query) })) }
+  const queries = new Map<string, { eq: ReturnType<typeof vi.fn> }>()
+  const serviceRole = { schema: vi.fn(() => ({
+    from: vi.fn((table: string) => {
+      const result = table === 'org_module_settings' ? settings.org : settings.person
+      const query = {
+        select: vi.fn(() => query),
+        eq: vi.fn(() => query),
+        maybeSingle: settings.thrown === (table === 'org_module_settings' ? 'org' : 'person')
+          ? vi.fn().mockRejectedValue(new Error('read threw'))
+          : vi.fn().mockResolvedValue(result),
+      }
+      queries.set(table, query)
+      return query
+    }),
+  })) }
   createClient.mockReturnValueOnce(verifier as never)
     .mockReturnValueOnce(serviceRole as never)
     .mockReturnValue({} as never)
-  return { getUser, query }
+  return { getUser, queries }
 }
+
+const enabledOrg = { data: { enabled: true }, error: null }
+const inheritPerson = { data: null, error: null }
 
 async function postAssistantEntry(serve: Serve, body = JSON.stringify({ org_id: 'spoof-org' })) {
   const jwt = makeJwt({ org_id: 'org-1', person_id: 'person-1', access_roles: ['admin'] })
@@ -165,31 +178,42 @@ async function postAssistantEntry(serve: Serve, body = JSON.stringify({ org_id: 
   }))
 }
 
-describe.each(ASSISTANT_GATED)('%s org Assistant gate', (_name, load) => {
+describe.each(ASSISTANT_GATED)('%s per-person Assistant gate', (_name, load) => {
   beforeEach(() => { createClient.mockReset() })
   afterEach(() => { vi.unstubAllGlobals() })
 
   it.each([
-    ['no setting row', { data: null, error: null }, undefined, 403],
-    ['explicitly off', { data: { enabled: false }, error: null }, undefined, 403],
-    ['setting read failure', { data: null, error: new Error('read failed') }, undefined, 503],
-    ['thrown setting read failure', { data: null, error: null }, new Error('read threw'), 503],
-  ] as const)('refuses %s before model configuration using verified org claims', async (_case, setting, thrown, status) => {
-    const { query } = mockAssistantClients(setting, thrown)
+    ['missing org row stays default-off despite Allow', { org: { data: null, error: null }, person: { data: { override: 'allow' }, error: null } }, 403],
+    ['Org Off defeats personal Allow', { org: { data: { enabled: false }, error: null }, person: { data: { override: 'allow' }, error: null } }, 403],
+    ['personal Block refuses an enabled org', { org: enabledOrg, person: { data: { override: 'block' }, error: null } }, 403],
+    ['org read error fails closed', { org: { data: null, error: new Error('read failed') }, person: inheritPerson }, 503],
+    ['person read error fails closed', { org: enabledOrg, person: { data: null, error: new Error('read failed') } }, 503],
+    ['org read throw fails closed', { org: { data: null, error: null }, person: inheritPerson, thrown: 'org' }, 503],
+    ['person read throw fails closed', { org: enabledOrg, person: inheritPerson, thrown: 'person' }, 503],
+    ['malformed org row fails closed', { org: { data: { enabled: 'yes' }, error: null }, person: inheritPerson }, 503],
+    ['malformed person row fails closed', { org: enabledOrg, person: { data: { override: 'grant' }, error: null } }, 503],
+  ] as const)('%s before model work and scopes reads to verified claims', async (_case, settings, status) => {
+    const { queries } = mockAssistantClients(settings)
     const serve = await loadServe(load)
-
-    const response = await postAssistantEntry(serve)
+    const response = await postAssistantEntry(serve, '{')
     expect(response.status).toBe(status)
-    expect(await response.json()).toMatchObject({ error: status === 403 ? 'MODULE_OFF' : 'MODULE_AVAILABILITY_UNAVAILABLE' })
+    const responseBody = await response.json()
+    expect(responseBody).toMatchObject({ error: status === 403 ? 'MODULE_OFF' : 'MODULE_AVAILABILITY_UNAVAILABLE' })
     expect(createClient).toHaveBeenCalledTimes(2)
-    expect(query.eq).toHaveBeenNthCalledWith(1, 'org_id', 'org-1')
-    expect(query.eq).toHaveBeenNthCalledWith(2, 'module_id', 'assistant')
+    expect(queries.get('org_module_settings')?.eq.mock.calls).toEqual([
+      ['org_id', 'org-1'], ['module_id', 'assistant'],
+    ])
+    expect(queries.get('person_module_settings')?.eq.mock.calls).toEqual([
+      ['org_id', 'org-1'], ['person_id', 'person-1'], ['module_id', 'assistant'],
+    ])
+    if (status === 403) {
+      expect(responseBody).toMatchObject({ detail: 'assistant is not available for this person' })
+    }
   })
 
-  it('reaches model configuration validation only when explicitly enabled', async () => {
-    mockAssistantClients({ data: { enabled: true }, error: null })
+  it.each(['inherit', 'allow'] as const)('reaches model configuration for org On + personal %s', async (override) => {
+    mockAssistantClients({ org: enabledOrg, person: { data: { override }, error: null } })
     const serve = await loadServe(load)
-
     const response = await postAssistantEntry(serve)
     expect(response.status).toBe(502)
     expect(await response.json()).toMatchObject({ error: 'MODEL_NOT_CONFIGURED' })
@@ -201,8 +225,8 @@ describe('compose-view Assistant gate ordering', () => {
   beforeEach(() => { createClient.mockReset() })
   afterEach(() => { vi.unstubAllGlobals() })
 
-  it('refuses before parsing malformed request JSON', async () => {
-    mockAssistantClients({ data: { enabled: false }, error: null })
+  it('refuses before parsing malformed request JSON for a personal Block', async () => {
+    mockAssistantClients({ org: enabledOrg, person: { data: { override: 'block' }, error: null } })
     const serve = await loadServe(composeViewLoad, {
       AGENT_MODEL_DEFAULT: 'm', AGENT_MODEL_API_KEY: 'k', AGENT_MODEL_BASE_URL: 'http://model',
     })

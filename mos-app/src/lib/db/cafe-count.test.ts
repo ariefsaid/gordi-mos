@@ -2,8 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { supabase } from '@/lib/supabase'
 import type { ProductionStream } from './kitchen-logs.types'
 import {
+  confirmCafeCountLine,
+  listCafeCountExcludedItems,
+  listCafeCountFloorLines,
   listCafeCountableItems,
   listCafeCountLines,
+  recordCafeCountReason,
+  recordCafeCountRecount,
   newCafeCountClientKey,
   normalizeCafeCountQuantity,
   parseCafeCountQuantity,
@@ -110,10 +115,10 @@ describe('Cafe Count domain adapter', () => {
     }])).resolves.toEqual([{ client_key: 'key-1', outcome: 'existing', line_id: 'original-line' }])
   })
 
-  it('reads all Submitted dates oldest first without sending an org or a submitter', async () => {
+  it('reads all Submitted dates oldest first without sending an org', async () => {
     const query = makeQuery({ data: [], error: null })
     const from = vi.fn(() => query)
-    schemaMock.mockReturnValue({ from } as never)
+    schemaMock.mockReturnValue({ from, rpc: vi.fn().mockResolvedValue({ data: [], error: null }) } as never)
 
     await expect(listCafeCountLines()).resolves.toEqual([])
     expect(schemaMock).toHaveBeenCalledWith('ops')
@@ -123,6 +128,60 @@ describe('Cafe Count domain adapter', () => {
     expect(query.order).toHaveBeenNthCalledWith(1, 'count_date', { ascending: true })
     expect(query.order).toHaveBeenNthCalledWith(2, 'submitted_at', { ascending: true })
     expect(query.select).toHaveBeenCalledWith(expect.not.stringContaining('org_id'))
-    expect(query.select).toHaveBeenCalledWith(expect.not.stringContaining('submitted_by'))
+    expect(query.select).toHaveBeenCalledWith(expect.stringContaining('submitted_by'))
+  })
+
+  it('AC-017 the floor reads only state words from the server, so no Expected figure or Variance reaches the Count page', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [
+      { id: 'l1', wip_item_id: 'i1', state: 'needs_recount', row_version: 2 },
+      { id: 'l5', wip_item_id: 'i5', state: 'held', row_version: 6 },
+    ], error: null })
+    const from = vi.fn()
+    schemaMock.mockReturnValue({ rpc, from } as never)
+
+    const lines = await listCafeCountFloorLines(STREAM, '2026-10-06')
+    expect(lines).toEqual([
+      { id: 'l1', itemId: 'i1', state: 'needs_recount', rowVersion: 2 },
+      { id: 'l5', itemId: 'i5', state: 'held', rowVersion: 6 },
+    ])
+    expect(rpc).toHaveBeenCalledWith('cafe_count_floor_lines', { p_branch_id: 'branch-1', p_activity: 'kitchen', p_count_date: '2026-10-06' })
+    expect(from).not.toHaveBeenCalled()
+  })
+
+  it('the review list never selects the figures from the table; it reads them through the reviewer-only function', async () => {
+    const query = makeQuery({ data: [{ id: 'l1', activity: 'kitchen', expected_status: 'ready', status: 'Submitted', counted_quantity: 5 }], error: null })
+    const rpc = vi.fn().mockResolvedValue({ data: [{ id: 'l1', expected_balance: 4, variance: 1 }], error: null })
+    schemaMock.mockReturnValue({ from: vi.fn(() => query), rpc } as never)
+    const [line] = await listCafeCountLines()
+    expect(query.select).toHaveBeenCalledWith(expect.not.stringMatching(/variance|expected_balance/))
+    expect(rpc).toHaveBeenCalledWith('cafe_count_review_figures', { p_line_ids: ['l1'] })
+    expect(line).toMatchObject({ expected_balance: '4', variance: '1' })
+  })
+
+  it('records a recount and a trimmed reason through the floor functions', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: { line_id: 'l1', row_version: 3, reason_required: true }, error: null })
+      .mockResolvedValueOnce({ data: { line_id: 'l1', row_version: 4, reason_recorded: true }, error: null })
+      .mockResolvedValueOnce({ data: { line_id: 'l1', status: 'Confirmed', posting_status: 'held', row_version: 5, variance: '1' }, error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+    await expect(recordCafeCountRecount('l1', '3')).resolves.toEqual({ reasonRequired: true, rowVersion: 3 })
+    await expect(recordCafeCountReason('l1', '  spilled ')).resolves.toEqual({ rowVersion: 4 })
+    await expect(confirmCafeCountLine('l1', 4)).resolves.toMatchObject({ posting_status: 'held' })
+    expect(rpc).toHaveBeenNthCalledWith(1, 'record_cafe_count_recount', { p_line_id: 'l1', p_recounted_quantity: '3' })
+    expect(rpc).toHaveBeenNthCalledWith(2, 'record_cafe_count_reason', { p_line_id: 'l1', p_reason: 'spilled' })
+  })
+
+  it('sends the count date, the typed multiple and reads the reviewer-only excluded list', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: [{ client_key: 'k1', outcome: 'submitted', line_id: 'l1' }], error: null })
+      .mockResolvedValueOnce({ data: [{ item_id: 'x', item_name: 'Boxed tea' }], error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+    await submitCafeCounts(STREAM, [{ client_key: 'k1', item_id: 'i1', quantity: '3', unit_factor: 0.5 }], '2026-10-05')
+    expect(rpc).toHaveBeenNthCalledWith(1, 'submit_cafe_counts', {
+      p_branch_id: 'branch-1', p_activity: 'kitchen', p_count_date: '2026-10-05',
+      p_lines: [{ client_key: 'k1', item_id: 'i1', quantity: '3', unit_factor: '0.5' }],
+    })
+    await expect(listCafeCountExcludedItems(STREAM)).resolves.toEqual(['Boxed tea'])
   })
 })
+

@@ -92,7 +92,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   const footer = footerAreas(accessRoles)
   const admin = footer.find((d) => d.id === 'admin')
   const profile = footer.find((d) => d.id === 'profile')
-  const adminGroups = admin ? pageGroupsFor(admin, accessRoles) : []
+  const adminGroups = admin ? pageGroupsFor(admin, accessRoles, isOn) : []
 
   return (
     <OverlayPortal>

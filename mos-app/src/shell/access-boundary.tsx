@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/ui/state-kit'
 import { isShipGated } from '@/lib/ship-gate'
 import { useT } from '@/i18n/use-t'
 import { useAuth } from '@/auth/use-auth'
+import { useModuleAvailability } from '@/lib/module-availability'
 import './access-boundary.css'
 
 /**
@@ -44,6 +45,7 @@ export function AccessBoundary({ scope = 'area' }: AccessBoundaryProps = {}) {
   const { pathname } = useLocation()
   const t = useT()
   const auth = useAuth()
+  const { isOn } = useModuleAvailability()
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
 
   // The SHIP GATE wins before the boundary speaks (lib/ship-gate.ts). A gated area is closed to
@@ -76,7 +78,7 @@ export function AccessBoundary({ scope = 'area' }: AccessBoundaryProps = {}) {
 
   const backToOwner =
     owner !== null && ownerPath !== null && ownerPath !== pathname &&
-    viewerAdmittedToRoute(ownerPath, accessRoles)
+    viewerAdmittedToRoute(ownerPath, accessRoles, isOn)
 
   return (
     <PageFamilyFrame family={family} state="permission" title={headTitle}>

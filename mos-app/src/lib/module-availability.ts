@@ -1,19 +1,21 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { useAuth } from '@/auth/use-auth'
-import { getViewerModuleAvailability, type ModuleId } from '@/lib/db/module-settings'
-import { defaultModuleEnabled } from '@/lib/module-defaults'
+import { effectiveModuleAccess, type PersonModuleOverride } from '@/lib/module-access'
+import { getViewerModuleAvailability, type ModuleId, type ViewerModuleAvailability } from '@/lib/db/module-settings'
 
 type ModuleAvailabilityStatus = 'idle' | 'loading' | 'ready' | 'error'
 type ModuleAvailabilitySnapshot = {
   status: ModuleAvailabilityStatus
   enabled: Partial<Record<ModuleId, boolean>>
+  overrides: Partial<Record<ModuleId, PersonModuleOverride>>
   revision: string | null
 }
 type LoadOptions = { force?: boolean }
+export type ModuleAccessCheck = (moduleId: ModuleId, roleAdmitted?: boolean) => boolean
 
 const MODULE_IDS: readonly ModuleId[] = ['work', 'money', 'cafe', 'roastery', 'ecommerce', 'assistant']
 const REFRESH_AFTER_MS = 60_000
-const EMPTY_SNAPSHOT: ModuleAvailabilitySnapshot = { status: 'idle', enabled: {}, revision: null }
+const EMPTY_SNAPSHOT: ModuleAvailabilitySnapshot = { status: 'idle', enabled: {}, overrides: {}, revision: null }
 let snapshot = EMPTY_SNAPSHOT
 let signedInSession: string | null = null
 let attempted = false
@@ -33,6 +35,18 @@ const emit = () => listeners.forEach((listener) => listener())
 const publish = (next: ModuleAvailabilitySnapshot) => { snapshot = next; emit() }
 const getSnapshot = () => snapshot
 const isModuleId = (value: string): value is ModuleId => MODULE_IDS.includes(value as ModuleId)
+const isOverride = (value: unknown): value is PersonModuleOverride =>
+  value === 'inherit' || value === 'allow' || value === 'block'
+
+function isCompleteAvailability(rows: readonly ViewerModuleAvailability[]): boolean {
+  if (rows.length !== MODULE_IDS.length) return false
+  const revision = rows[0]?.revision
+  return typeof revision === 'string' && revision.length > 0 && rows.every((row) =>
+    isModuleId(row.module_id) && typeof row.enabled === 'boolean' && isOverride(row.person_override) &&
+    row.revision === revision,
+  ) && new Set(rows.map((row) => row.module_id)).size === MODULE_IDS.length &&
+    MODULE_IDS.every((moduleId) => rows.some((row) => row.module_id === moduleId))
+}
 
 function setSession(session: string): void {
   if (signedInSession === session) return
@@ -56,7 +70,7 @@ export function resetModuleAvailability(): void {
 }
 
 export function hasKnownModuleAvailability(moduleId: ModuleId): boolean {
-  return Object.hasOwn(snapshot.enabled, moduleId)
+  return Object.hasOwn(snapshot.enabled, moduleId) && Object.hasOwn(snapshot.overrides, moduleId)
 }
 
 export function loadModuleAvailability({ force = false }: LoadOptions = {}): Promise<void> {
@@ -65,7 +79,9 @@ export function loadModuleAvailability({ force = false }: LoadOptions = {}): Pro
     if (!force) return pending
     if (queuedRefresh) return queuedRefresh
     const currentRequest = pending
+    const refreshGeneration = generation
     const refresh = currentRequest.then(() => {
+      if (refreshGeneration !== generation) return
       queuedRefresh = null
       return loadModuleAvailability({ force: true })
     })
@@ -80,9 +96,14 @@ export function loadModuleAvailability({ force = false }: LoadOptions = {}): Pro
   const request = getViewerModuleAvailability()
     .then((rows) => {
       if (requestGeneration !== generation) return
+      if (!isCompleteAvailability(rows)) throw new Error('Module availability response is incomplete or invalid')
       const enabled: Partial<Record<ModuleId, boolean>> = {}
-      for (const row of rows) enabled[row.module_id] = row.enabled
-      publish({ status: 'ready', enabled, revision: rows[0]?.revision ?? null })
+      const overrides: Partial<Record<ModuleId, PersonModuleOverride>> = {}
+      for (const row of rows) {
+        enabled[row.module_id] = row.enabled
+        overrides[row.module_id] = row.person_override
+      }
+      publish({ status: 'ready', enabled, overrides, revision: rows[0].revision })
       lastLoadedAt = Date.now()
     })
     .catch(() => {
@@ -96,11 +117,19 @@ export function loadModuleAvailability({ force = false }: LoadOptions = {}): Pro
   return request
 }
 
-function availabilityIsOn(status: ModuleAvailabilityStatus, enabled: Partial<Record<ModuleId, boolean>>, moduleId: ModuleId): boolean {
-  if (!isModuleId(moduleId)) return true
-  if (status === 'ready') return enabled[moduleId] ?? defaultModuleEnabled(moduleId)
-  if (status === 'error') return enabled[moduleId] ?? false
-  return false
+function availabilityIsOn(
+  status: ModuleAvailabilityStatus,
+  enabled: Partial<Record<ModuleId, boolean>>,
+  overrides: Partial<Record<ModuleId, PersonModuleOverride>>,
+  moduleId: ModuleId,
+  roleAdmitted: boolean,
+): boolean {
+  if (!isModuleId(moduleId)) return false
+  if (status !== 'ready' && status !== 'error') return false
+  const orgEnabled = enabled[moduleId]
+  const override = overrides[moduleId]
+  if (typeof orgEnabled !== 'boolean' || !isOverride(override)) return false
+  return effectiveModuleAccess({ released: true, orgEnabled, override, roleAdmitted }).available
 }
 
 function retainFocusRefresh(): () => void {
@@ -147,7 +176,8 @@ export function useModuleAvailability() {
 
   return {
     status: visible.status,
-    isOn: (moduleId: ModuleId) => availabilityIsOn(visible.status, visible.enabled, moduleId),
+    isOn: (moduleId: ModuleId, roleAdmitted = true) =>
+      availabilityIsOn(visible.status, visible.enabled, visible.overrides, moduleId, roleAdmitted),
     retry: () => { void loadModuleAvailability({ force: true }) },
   }
 }

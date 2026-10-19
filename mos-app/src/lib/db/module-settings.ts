@@ -2,13 +2,16 @@ import { supabase } from '@/lib/supabase'
 import { ContractError, unavailable, type UUID, type WriteContext } from './contract'
 
 export type ModuleId = 'work' | 'money' | 'cafe' | 'roastery' | 'ecommerce' | 'assistant'
-export type PersonModuleOverride = 'inherit' | 'allow' | 'block'
+import type { PersonModuleOverride } from '@/lib/module-access'
+export type { PersonModuleOverride }
 export type OrgModuleSetting = { module_id: ModuleId; enabled: boolean; row_version: number; updated_at: string | null; updated_by: UUID | null }
 export type PersonModuleSetting = {
   person_id: UUID; module_id: ModuleId; override: PersonModuleOverride
-  row_version: number; updated_at: string | null; updated_by: UUID | null
+  row_version: number; updated_at: string | null; updated_by: UUID | null; org_enabled: boolean
 }
-export type ViewerModuleAvailability = { module_id: ModuleId; enabled: boolean; revision: string }
+export type ViewerModuleAvailability = {
+  module_id: ModuleId; enabled: boolean; revision: string; person_override: PersonModuleOverride
+}
 export type ModuleSettingInput = { module_id: ModuleId; enabled: boolean; expected_version: number }
 export type PersonSettingInput = { module_id: ModuleId; override: PersonModuleOverride; expected_version: number }
 
@@ -41,20 +44,22 @@ export async function saveOrgModuleSettings(rows: readonly ModuleSettingInput[],
   return (data ?? []) as OrgModuleSetting[]
 }
 
-// HANDOVER: R/handover/module-switches.md §Client — person overrides remain preview-only.
-export async function listPersonModuleSettings(_personId: UUID): Promise<PersonModuleSetting[]> {
-  void _personId
-  return unavailable('listPersonModuleSettings')
+export async function listPersonModuleSettings(personId: UUID): Promise<PersonModuleSetting[]> {
+  const { data, error } = await mos().rpc('list_person_module_settings', { p_person_id: personId })
+  if (error) throw fail('load person module settings', error)
+  return (data ?? []) as PersonModuleSetting[]
 }
 
-// HANDOVER: R/handover/module-switches.md §Client — person overrides remain preview-only.
 export async function savePersonModuleSettings(
-  _personId: UUID, _rows: readonly PersonSettingInput[], _ctx: WriteContext,
+  personId: UUID, rows: readonly PersonSettingInput[], ctx: WriteContext,
 ): Promise<PersonModuleSetting[]> {
-  void _personId
-  void _rows
-  void _ctx
-  return unavailable('savePersonModuleSettings')
+  const { data, error } = await mos().rpc('save_person_module_settings', {
+    p_person_id: personId,
+    p_rows: rows,
+    p_client_request_id: ctx.client_request_id,
+  })
+  if (error) throw fail('save person module settings', error)
+  return (data ?? []) as PersonModuleSetting[]
 }
 
 // HANDOVER: R/handover/module-switches.md §Client — impact counts are not connected.

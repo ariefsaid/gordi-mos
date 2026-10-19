@@ -41,10 +41,7 @@ const SHIP_GATED_PATHS: readonly string[] = [
  * Designed-but-not-connected screens (handover/README.md "preview ship-gate contract"). Each root
  * covers its descendants. Never gate the existing capture / Records / balance / Access routes here.
  */
-const SHIP_PREVIEW_PATHS: readonly string[] = [
-  // Personal module overrides are a preview; org-level Modules settings are released.
-  '/admin/people/modules',
-]
+const SHIP_PREVIEW_PATHS: readonly string[] = []
 
 export type ShipState = 'released' | 'hidden' | 'preview'
 

@@ -1591,5 +1591,291 @@ check("--plan prints the outstanding read, the create and the authorize, and cal
       f.calls == [] and f"GET {INIT_PATH}" in out.getvalue() and f"POST {CREATE_PATH}" in out.getvalue()
       and GR_KEY in out.getvalue(), out.getvalue())
 
+# ══════════════════════════════════════════════════════════════════════════════════════
+# Café purchase requests (#1432) — one ESB purchase request per approved MOS request
+# ══════════════════════════════════════════════════════════════════════════════════════
+# A scripted fake ESB answers the create, the authorize and the lookup by MOS key. Every
+# identifier, key and number is fabricated.
+PR_GROUP = "cccccccc-0000-0000-0000-000000001432"
+PR_REQUEST = "dddddddd-0000-0000-0000-000000001432"
+PR_KEY = "MOS-DDDDDDDD-CCCCCCCC"
+PR_PATH = "/purchase/purchase-request"
+pr_map = {"target_env": "goo",
+          "branches": {"rumah_rames": {"branch_id": 176, "location_id": 510}},
+          "items": {},
+          # A purchase request needs only the product detail, so these entries carry no product id.
+          "item_units": {GR_UNIT_A: {"product_detail_id": 9069}, GR_UNIT_B: {"product_detail_id": 9070}},
+          "request_process_id": 4}
+with open(os.path.join(TMP, "goo-pr.json"), "w", encoding="utf-8") as fh:
+    json.dump(pr_map, fh)
+with open(os.path.join(TMP, "goo-pr-noprocess.json"), "w", encoding="utf-8") as fh:
+    json.dump({k: v for k, v in pr_map.items() if k != "request_process_id"}, fh)
+with open(os.path.join(TMP, "goo-pr-badprocess.json"), "w", encoding="utf-8") as fh:
+    json.dump({**pr_map, "request_process_id": "ALL"}, fh)
+
+
+def pr_env(**over: str) -> dict[str, str]:
+    e = env("goo", ESB_WORKER_MAP_FILE=os.path.join(TMP, "goo-pr.json"), ESB_PUSH_ENABLED="1",
+            ESB_PURCHASE_REQUEST_ENABLED="1")
+    e.update(over)
+    return e
+
+
+def pr_cfg(**over: str):
+    return W.load_config(pr_env(**over), offline=False, drains=True)
+
+
+def pr_rows(**payload_over):
+    """Two lines of one approved request, as ops._enqueue_cafe_purchase_request writes them."""
+    rows = []
+    for n, (unit, qty) in enumerate(((GR_UNIT_A, 2.5), (GR_UNIT_B, 12)), start=1):
+        line = f"eeeeeeee-0000-0000-0000-00000000143{n}"
+        payload = {"request_id": PR_REQUEST, "line_id": line, "branch_code": "rumah_rames",
+                   "request_date": "2026-10-19", "required_date": "2026-10-24", "mos_key": PR_KEY,
+                   "item_unit_id": unit, "quantity": qty}
+        payload.update(payload_over)
+        rows.append({"id": f"bbbbbbbb-0000-0000-0000-0000000014{n}{n}", "org_id": ORG,
+                     "source_module": "cafe_purchase_request", "source_ref": line,
+                     "endpoint": "purchase-request", "target_env": "goo", "status": "pending",
+                     "retry_count": 0, "push_group_id": PR_GROUP, "payload": payload})
+    return rows
+
+
+P1, P2 = pr_rows()[0]["id"], pr_rows()[1]["id"]
+
+
+class FakePr:
+    def __init__(self, *, creates=None, authorizes=None, lookups=None) -> None:
+        self.creates = list(creates or [{"status": "ok", "result": {"purchaseRequestNum": "PR-0001"}}])
+        self.authorizes = list(authorizes or [{"status": "ok", "result": None}])
+        self.lookups = list(lookups or [])
+
+    def esb(self, fake, method, url, body):
+        path = urllib.parse.urlsplit(url).path
+        if path.endswith("/authorize"):
+            return FakeGr._next(self.authorizes, "authorize")
+        if method == "GET":
+            return FakeGr._next(self.lookups, "lookup")
+        return FakeGr._next(self.creates, "create")
+
+    def routes(self, **over):
+        routes = {"auth/login": _login_ok, "rpc/claim_esb_pushes": _claim_ok,
+                  "esb_push_groups": lambda *a: None, "esb_push": lambda *a: None,
+                  "purchase/purchase-request": self.esb,
+                  "rest/v1/item_units": lambda *a: [
+                      {"id": GR_UNIT_A, "esb_product_detail_id": "4069", "esb_product_id": None},
+                      {"id": GR_UNIT_B, "esb_product_detail_id": "4070", "esb_product_id": None}]}
+        routes.update(over)
+        return routes
+
+
+def pr_tick(esb: FakePr, *, meta=None, rows=None, cfg=None):
+    cfg = cfg or pr_cfg()
+    f = Fake(**esb.routes())
+    ob = W.Outbox(cfg)
+    ob._group_meta[PR_GROUP] = {"id": PR_GROUP, **(meta or {})}
+    rows = rows if rows is not None else pr_rows()
+    n, out = tick(cfg, rows, f, outbox=ob)
+    return n, out, f, rows
+
+
+# ── AC-1042 the body ─────────────────────────────────────────────────────────────────────
+pr_units = {GR_UNIT_A: {"product_id": None, "product_detail_id": 9069},
+            GR_UNIT_B: {"product_id": None, "product_detail_id": 9070}}
+req = W.compose_purchase_request(pr_cfg(), pr_rows(), pr_units)
+check("AC-1042 the body is the branch, request date, required date, template false, the MOS key in additional "
+      "info, and every line with the default request process and no purchase-versus-transfer choice",
+      req.path == PR_PATH and req.body == {
+          "branchID": 176, "purchaseRequestDate": "2026-10-19", "requiredDate": "2026-10-24",
+          "additionalInfo": PR_KEY, "isTemplate": False,
+          "purchaseRequestDetails": [{"productDetailID": 9069, "qty": 2.5, "requestProcessID": 4},
+                                     {"productDetailID": 9070, "qty": 12.0, "requestProcessID": 4}]},
+      json.dumps(req.body, indent=1))
+check_raises("AC-1042 an id map without the default request process is refused, never guessed", W.Permanent,
+             lambda: W.compose_purchase_request(
+                 pr_cfg(ESB_WORKER_MAP_FILE=os.path.join(TMP, "goo-pr-noprocess.json")), pr_rows(), pr_units),
+             needle="request_process_id")
+check_raises("AC-1042 a request process that is not an integer id is a config error", W.ConfigError,
+             lambda: pr_cfg(ESB_WORKER_MAP_FILE=os.path.join(TMP, "goo-pr-badprocess.json")),
+             needle="request_process_id")
+mixed = pr_rows()
+mixed[1]["payload"]["required_date"] = "2026-10-25"
+check_raises("FR-1054 one purchase request never spans two sets of dates", W.Permanent,
+             lambda: W.compose_purchase_request(pr_cfg(), mixed, pr_units), needle="one request")
+check_raises("FR-1054 a MOS key that is not ASCII is refused", W.Permanent,
+             lambda: W.compose_purchase_request(pr_cfg(), pr_rows(mos_key="MOS-É"), pr_units), needle="MOS key")
+check_raises("FR-1054 a request date that is not a date is refused", W.Permanent,
+             lambda: W.compose_purchase_request(pr_cfg(), pr_rows(request_date="today"), pr_units),
+             needle="request_date")
+check_raises("FR-1054 two lines on one ESB product detail are refused", W.Permanent,
+             lambda: W.compose_purchase_request(pr_cfg(), pr_rows(item_unit_id=GR_UNIT_A),
+                                                pr_units), needle="same ESB product detail")
+check_raises("FR-1054 a non-positive quantity is refused", W.Permanent,
+             lambda: W.compose_purchase_request(pr_cfg(), pr_rows(quantity=0), pr_units), needle="not positive")
+check_raises("FR-1054 an empty group is refused", W.Permanent,
+             lambda: W.compose_purchase_request(pr_cfg(), [], pr_units), needle="empty")
+
+# ── AC-1042 create, then authorize, records the returned number ──────────────────────────
+n, out, f, rows = pr_tick(FakePr())
+check("AC-1042 a clean request posts", n == 0, out)
+check("AC-1042 ESB sees one create, then the authorize of the returned number, and nothing else",
+      esb_calls(f) == [("POST", PR_PATH), ("PATCH", f"{PR_PATH}/PR-0001/authorize")], repr(esb_calls(f)))
+check("NFR-1006 the sandbox create carries the id map's product details and never reads the MOS catalog",
+      [d["productDetailID"] for d in f.bodies(PR_PATH)[0]["purchaseRequestDetails"]] == [9069, 9070]
+      and not f.to("rest/v1/item_units"), repr(f.bodies(PR_PATH)))
+closes = member_closes(f)
+check("AC-1042 every line records the returned request number and becomes posted",
+      {k: (v["status"], v["esb_doc_num"]) for k, v in closes.items()}
+      == {P1: ("posted", "PR-0001"), P2: ("posted", "PR-0001")}, repr(closes))
+stages = [p.get("posting_stage", "-") for p in group_patches(f)]
+check("FR-1054 the group records create sent, then created awaiting authorization, then posted",
+      stages == ["create_sent", "awaiting_authorization", None]
+      and group_patches(f)[1]["esb_doc_num"] == "PR-0001" and group_patches(f)[-1]["status"] == "posted",
+      repr(group_patches(f)))
+create_at = next(i for i, c in enumerate(f.calls) if c["method"] == "POST" and PR_PATH in c["url"])
+stage_at = next(i for i, c in enumerate(f.calls)
+                if "esb_push_groups" in c["url"] and (c["body"] or {}).get("posting_stage") == "create_sent")
+check("FR-1054 'create sent' is written before the create leaves", stage_at < create_at, repr(f.calls))
+
+n, out, f, rows = pr_tick(FakePr(creates=[{"status": "ok", "result": {}}]))
+check("FR-1054 no line is posted without a request number, and nothing is authorized",
+      not any(v.get("status") == "posted" for v in member_closes(f).values())
+      and not f.to("/authorize") and n == 2
+      and all(v["status"] == "failed" for v in member_closes(f).values()), repr(member_closes(f)) + out)
+
+refusal = http_refusal(400, "requiredDate must not be before purchaseRequestDate")
+n, out, f, rows = pr_tick(FakePr(creates=[refusal]))
+closes = member_closes(f)
+check("FR-1054 a create ESB refuses is a permanent failure with ESB's message and no authorize",
+      n == 2 and not f.to("/authorize") and len(closes) == 2
+      and all(v["status"] == "dead_letter" and refusal.body in v["last_error"]
+              and "person" not in v["last_error"] for v in closes.values()), repr(closes))
+check("FR-1054 ...and ESB's answer proves nothing was created, so 'create sent' is cleared",
+      {"posting_stage": None} in group_patches(f) and group_patches(f)[-1]["status"] == "dead_letter",
+      repr(group_patches(f)))
+
+n, out, f, rows = pr_tick(FakePr(authorizes=[http_refusal(400, "integration user may not authorize")]))
+closes = member_closes(f)
+check("FR-1054 an authorize ESB refuses halts the request for a person, with no second create",
+      n == 2 and len(f.to("/authorize")) == 1 and len([c for c in f.calls if c["method"] == "POST"
+                                                       and c["url"].endswith(PR_PATH)]) == 1
+      and all(v["status"] == "dead_letter" and "person" in v["last_error"] for v in closes.values()),
+      repr(esb_calls(f)) + repr(closes))
+n, out, f, rows = pr_tick(FakePr(authorizes=[W.Transient("authorize timed out", kind="timeout")]))
+check("FR-1054 an authorize that times out spends one retry and keeps the number awaiting authorization",
+      n == 2 and all(v["status"] == "failed" for v in member_closes(f).values())
+      and group_patches(f)[1] == {"status": "in_flight", "posting_stage": "awaiting_authorization",
+                                  "esb_doc_num": "PR-0001"} and group_patches(f)[-1]["status"] == "failed",
+      repr(group_patches(f)))
+
+# ── FR-1054 the same ambiguous-failure lookup by MOS key ─────────────────────────────────
+n, out, f, rows = pr_tick(FakePr(creates=[W.Transient("POST create timed out", kind="timeout")]))
+check("FR-1054 a create whose answer is lost spends a retry and leaves 'create sent' standing",
+      n == 2 and all(v["status"] == "failed" for v in member_closes(f).values())
+      and not any("posting_stage" in p and p["posting_stage"] != "create_sent" for p in group_patches(f)),
+      repr(group_patches(f)))
+pr_sent = {"posting_stage": "create_sent", "status": "failed"}
+pr_found = {"status": "ok", "result": {"count": 1, "data": [
+    {"purchaseRequestNum": "PR-0001", "additionalInfo": PR_KEY, "statusID": 3}]}}
+pr_found_new = {"status": "ok", "result": {"count": 1, "data": [
+    {"purchaseRequestNum": "PR-0001", "additionalInfo": PR_KEY, "statusID": 1}]}}
+n, out, f, rows = pr_tick(FakePr(lookups=[pr_found]), meta=pr_sent)
+check("FR-1054 found: the request number is adopted, with no second create",
+      n == 0 and esb_calls(f) == [("GET", PR_PATH)]
+      and all(v["esb_doc_num"] == "PR-0001" for v in member_closes(f).values()), repr(esb_calls(f)))
+lookup_q = urllib.parse.parse_qs(urllib.parse.urlsplit(f.to(PR_PATH)[0]["url"]).query)
+check("FR-1054 the lookup asks ESB by the MOS key in the additional information",
+      lookup_q.get("additionalInfo") == [PR_KEY], repr(lookup_q))
+n, out, f, rows = pr_tick(FakePr(lookups=[pr_found_new]), meta=pr_sent)
+check("FR-1054 found but not authorized: authorized once, no create",
+      n == 0 and esb_calls(f) == [("GET", PR_PATH), ("PATCH", f"{PR_PATH}/PR-0001/authorize")], repr(esb_calls(f)))
+n, out, f, rows = pr_tick(FakePr(lookups=[{"status": "ok", "result": {"count": 0, "data": []}}]), meta=pr_sent)
+check("FR-1054 provably absent: created once, then authorized",
+      n == 0 and esb_calls(f) == [("GET", PR_PATH), ("POST", PR_PATH), ("PATCH", f"{PR_PATH}/PR-0001/authorize")],
+      repr(esb_calls(f)))
+for label, lookup in (
+        ("two requests carry the key", {"status": "ok", "result": {"count": 2, "data": [
+            pr_found["result"]["data"][0], {**pr_found["result"]["data"][0], "purchaseRequestNum": "PR-0009"}]}}),
+        ("the list is not complete", {"status": "ok", "result": {"count": 40, "data": [
+            {"purchaseRequestNum": f"PR-1{i:03}", "additionalInfo": "MOS-OTHER", "statusID": 3} for i in range(20)]}}),
+        ("ESB refuses the lookup", http_refusal(400, "unknown filter"))):
+    n, out, f, rows = pr_tick(FakePr(lookups=[lookup]), meta=pr_sent)
+    closes = member_closes(f)
+    check(f"FR-1054 undecidable ({label}): the request halts for a person with no create",
+          esb_calls(f) == [("GET", PR_PATH)] and n == 2 and len(closes) == 2
+          and all(v["status"] == "dead_letter" and "person" in v["last_error"] for v in closes.values())
+          and group_patches(f)[-1]["status"] == "dead_letter", repr(esb_calls(f)) + out)
+pr_awaiting = {"esb_doc_num": "PR-0001", "posting_stage": "awaiting_authorization", "status": "failed"}
+n, out, f, rows = pr_tick(FakePr(lookups=[pr_found]), meta=pr_awaiting)
+check("FR-1054 a resumed request ESB already shows authorized posts with no second authorize or create",
+      n == 0 and esb_calls(f) == [("GET", PR_PATH)], repr(esb_calls(f)))
+n, out, f, rows = pr_tick(FakePr(lookups=[pr_found_new]), meta=pr_awaiting)
+check("FR-1054 ...and one still new is authorized once, never created again",
+      n == 0 and esb_calls(f) == [("GET", PR_PATH), ("PATCH", f"{PR_PATH}/PR-0001/authorize")], repr(esb_calls(f)))
+n, out, f, rows = pr_tick(FakePr(lookups=[{"status": "ok", "result": {"count": 0, "data": []}}]), meta=pr_awaiting)
+check("FR-1054 a created number ESB no longer shows halts for a person",
+      n == 2 and esb_calls(f) == [("GET", PR_PATH)]
+      and all("person" in v["last_error"] for v in member_closes(f).values()), repr(esb_calls(f)))
+n, out, f, rows = pr_tick(FakePr(), meta={"esb_doc_num": "PR-BY-HAND", "posting_stage": "operator_confirmed"},
+                          rows=pr_rows(item_unit_id="no-longer-mapped"))
+check("FR-1054 a hand-confirmed number is adopted without lookup, authorization or create",
+      n == 0 and esb_calls(f) == [] and all(v["esb_doc_num"] == "PR-BY-HAND" for v in member_closes(f).values()),
+      repr(f.calls) + out)
+
+# ── FR-1055 the id map lacks the branch ──────────────────────────────────────────────────
+n, out, f, rows = pr_tick(FakePr(), rows=pr_rows(branch_code="radiant"))
+closes = member_closes(f)
+check("FR-1055 a map without the branch is a permanent failure with a plain error",
+      n == 2 and len(closes) == 2 and all(v["status"] == "dead_letter" and "id map" in v["last_error"]
+                                          and "person" not in v["last_error"] for v in closes.values()),
+      repr(closes) + out)
+check("FR-1055 ...and nothing is sent to ESB, not even a login",
+      [c for c in f.calls if "erp.example.invalid" in c["url"]] == [], repr(f.calls))
+n, out, f, rows = pr_tick(FakePr(), meta=pr_sent, rows=pr_rows(branch_code="radiant"))
+check("FR-1055 a refusal while an earlier create may exist halts for a person instead",
+      n == 2 and all("person" in v["last_error"] for v in member_closes(f).values())
+      and [c for c in f.calls if "erp.example.invalid" in c["url"]] == [], repr(f.calls))
+check_raises("NFR-1006 a sandbox map unit without an entry is refused, never read from the catalog", W.Permanent,
+             lambda: run(lambda: W.goods_receipt_units(pr_cfg(), pr_rows(item_unit_id="99999999-0000-0000-0000-000000000000"),
+                                                       db=True, product=False), Fake()), needle="id map")
+gk_pr = W.load_config(env("gkid", ESB_WORKER_MAP_FILE=os.path.join(TMP, "gkid-gr.json"), ESB_PUSH_ENABLED="1",
+                          ESB_PURCHASE_REQUEST_ENABLED="1"), offline=False, drains=True)
+f = Fake(**FakePr().routes())
+gk_units = run(lambda: W.goods_receipt_units(gk_pr, [{**r, "target_env": "gkid"} for r in pr_rows()],
+                                             db=True, product=False), f)
+check("NFR-1006 on the ERP of record a request line's product detail comes from the MOS catalog, no product needed",
+      gk_units == {GR_UNIT_A: {"product_id": None, "product_detail_id": 4069},
+                   GR_UNIT_B: {"product_id": None, "product_detail_id": 4070}}, repr(gk_units))
+
+# ── every gate: purchase-request posting stays off by default ───────────────────────────
+n, out, f, rows = pr_tick(FakePr(), cfg=pr_cfg(ESB_PURCHASE_REQUEST_ENABLED=""))
+check("gate: with ESB_PURCHASE_REQUEST_ENABLED unset a request group sends nothing and writes nothing",
+      n == 0 and f.calls == [] and "ESB_PURCHASE_REQUEST_ENABLED" in out, repr(f.calls) + out)
+for gate_on, excluded_expected in ((False, True), (True, False)):
+    f = Fake(esb_push=lambda *a: [])
+    run(lambda: W.Outbox(pr_cfg(ESB_PURCHASE_REQUEST_ENABLED="1" if gate_on else "")).pending(), f)
+    query = urllib.parse.unquote(f.calls[0]["url"])
+    check(f"gate: the drain {'excludes' if excluded_expected else 'includes'} purchase-request rows when the "
+          f"switch is {'on' if gate_on else 'off'}",
+          ("endpoint.neq.purchase-request" in query) == excluded_expected, query)
+f = Fake(esb_push=lambda *a: [])
+run(lambda: W.Outbox(pr_cfg(ESB_PURCHASE_REQUEST_ENABLED="")).pending(), f)
+check("gate: with both families off the drain excludes both in one filter",
+      "and=(endpoint.neq.goods-receipt,endpoint.neq.purchase-request)" in urllib.parse.unquote(f.calls[0]["url"]),
+      f.calls[0]["url"])
+
+# ── --plan composes and sends nothing ───────────────────────────────────────────────────
+out = io.StringIO()
+f = Fake()
+run(lambda: W.run_tick(pr_cfg(), pr_rows(), outbox=None, plan_only=True, out=out), f)
+check("--plan prints the purchase-request create and authorize, and calls nothing",
+      f.calls == [] and f"POST {PR_PATH}" in out.getvalue() and PR_KEY in out.getvalue()
+      and "authorize" in out.getvalue(), out.getvalue())
+out = io.StringIO()
+run(lambda: W.run_tick(pr_cfg(ESB_WORKER_MAP_FILE=os.path.join(TMP, "goo-pr-noprocess.json")), pr_rows(),
+                       outbox=None, plan_only=True, out=out), f)
+check("--plan reports a refused request and calls nothing", f.calls == [] and "REFUSED" in out.getvalue(),
+      out.getvalue())
+
 print(f"{_pass} passed, {_fail} failed")
 sys.exit(1 if _fail else 0)
