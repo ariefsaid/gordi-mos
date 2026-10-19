@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# One-command staging deploy: preflight, verified backup, confirmation, database push, edge deploy, direct promotion.
+# One-command staging deploy: preflight, verified backup, confirmation, database push, edge deploy, server ops, direct promotion.
 #
 #   bash scripts/deploy-staging.sh [--dry-run] [--yes] [--no-promote]
 #
-#   --dry-run     list pending migrations and stop without a dump or push
+#   --dry-run     list pending migrations, functions and the server ops step; change nothing
 #   --yes         skip the y/N confirmation (default answer is No)
 #   --no-promote  do not push origin/main to staging (--no-pr is an alias)
 #
@@ -14,10 +14,11 @@
 # The connection string, function CLI token and function secrets are read from the secret store; values
 # are never printed, written to disk or put in the PR. Locations are read from gitignored
 # supabase/op.staging.env (template: supabase/op.staging.env.example).
-# Deploys origin/main only (refuses from any other checkout state).
-# Never runs `supabase config push` or touches trusted agent clients. Only changed allowlisted app
-# functions deploy after migrations succeed, with a handler-auth and CORS smoke check.
-# Secrets for changed functions are set before they deploy.
+# Deploys origin/main only (refuses from any other checkout state). Order, stopping at the first failure:
+# backup, migrations, edge functions changed since the stamped commit (with their importers; agent functions are held),
+# the server ops clone and one reporting snapshot when server ops scripts changed, then the stamp.
+# Never runs `supabase config push` or touches trusted agent clients. Each deployed function gets a
+# handler-auth and CORS smoke check; secrets for changed functions are set before they deploy.
 # Self-test: scripts/deploy-staging.test.sh
 { set +x; } 2>/dev/null   # a traced run must not echo the connection string
 set -euo pipefail
@@ -50,7 +51,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for t in op-get.sh supabase psql pg_dump pg_restore git curl; do command -v "$t" >/dev/null 2>&1 || die "$t not found on PATH"; done
+for t in op-get.sh supabase psql pg_dump pg_restore git curl ssh; do command -v "$t" >/dev/null 2>&1 || die "$t not found on PATH"; done
 
 # ── Where the connection string lives (names only; the values stay in the local file).
 envfile="${STAGING_OP_ENV_FILE:-}"
@@ -62,6 +63,7 @@ fi
 OP_ITEM="" OP_VAULT="" OP_FIELD=""
 FUNCTIONS_OP_ITEM="" FUNCTIONS_OP_VAULT="" FUNCTIONS_OP_FIELD=""
 FUNCTION_SECRET_NAMES=() FUNCTION_SECRET_LOCATIONS=()
+OPS_SSH_HOST="" OPS_REPO_DIR="" OPS_RUNNER="" OPS_LOCK=""
 while IFS='=' read -r k v || [ -n "$k" ]; do
   v="${v%\"}"; v="${v#\"}"; v="${v%\'}"; v="${v#\'}"
   case "$k" in
@@ -71,6 +73,10 @@ while IFS='=' read -r k v || [ -n "$k" ]; do
     STAGING_FUNCTIONS_OP_ITEM) FUNCTIONS_OP_ITEM="$v" ;;
     STAGING_FUNCTIONS_OP_VAULT) FUNCTIONS_OP_VAULT="$v" ;;
     STAGING_FUNCTIONS_OP_FIELD) FUNCTIONS_OP_FIELD="$v" ;;
+    STAGING_OPS_SSH_HOST) OPS_SSH_HOST="$v" ;;
+    STAGING_OPS_REPO_DIR) OPS_REPO_DIR="$v" ;;
+    STAGING_OPS_RUNNER) OPS_RUNNER="$v" ;;
+    STAGING_OPS_LOCK) OPS_LOCK="$v" ;;
     STAGING_FN_SECRET_*) FUNCTION_SECRET_NAMES+=("${k#STAGING_FN_SECRET_}"); FUNCTION_SECRET_LOCATIONS+=("$v") ;;
   esac
 done < "$envfile"
@@ -88,24 +94,93 @@ om="$(git -C "$ROOT" rev-parse --verify -q refs/remotes/origin/main)" || die "or
 [ "$(git -C "$ROOT" rev-parse HEAD)" = "$om" ] || die "main is not at origin/main — update it first"
 [ -z "$(git -C "$ROOT" status --porcelain -- supabase/migrations)" ] || die "supabase/migrations has uncommitted changes"
 
-# ── 2. Edge functions changed on main since staging: deploy only the app allowlist; hold the rest.
-changed="$(git -C "$ROOT" diff --name-only origin/staging origin/main -- supabase/functions mos-app/src/lib/agent mos-app/src/lib/viewspec | awk -F/ '
-  $1=="supabase" && $2=="functions" && $3=="_shared" {dep=1; next}
-  $1=="mos-app" && $2=="src" && $3=="lib" && ($4=="agent" || $4=="viewspec") {dep=1; next}
-  $1=="supabase" && $2=="functions" && NF>=3 && $3!="_shared" {print $3}
-  END {if (dep) print "agent-chat"}
-' | sort -u)"
-functions_to_deploy=() held_functions=() agent_held=()
-while IFS= read -r n; do
-  [ -n "$n" ] || continue
-  case "$n" in
-    agent-chat) functions_to_deploy+=("$n") ;;
-    compose-view|mcp) held_functions+=("$n"); agent_held+=("$n") ;;
-    *) held_functions+=("$n") ;;
+URL="$(op-get.sh "$OP_ITEM" "$OP_VAULT" "$OP_FIELD" 2>/dev/null </dev/null)" || die "op-get.sh could not read the staging connection (is 1Password signed in?)"
+[ -n "$URL" ] || die "the staging connection string is empty"
+ops_conn_from_url "$URL"
+# The direct host is IPv6-only. When a pooler URL file exists (session pooler, port 5432, IPv4;
+# written by the staging repair runbook), connect through it; it must carry no password.
+POOLER_URL_FILE="${STAGING_POOLER_URL_FILE:-$ROOT/supabase/.temp/pooler-url}"
+if [ -s "$POOLER_URL_FILE" ]; then
+  pooler="$(tr -d '[:space:]' < "$POOLER_URL_FILE")"
+  [ -n "$PGPASSWORD" ] || die "pooler connection needs the password from the secret store"
+  # The secret-store connection is the trusted coordinate: the pooler must be this project's own Supabase
+  # session pooler, or the secret-store password would go to whatever destination the file names.
+  trusted_host="${URL#*@}"; trusted_host="${trusted_host%%[:/?]*}"
+  case "$trusted_host" in db.*.supabase.co) project="${trusted_host#db.}"; project="${project%.supabase.co}" ;; *) die "the staging connection is not a Supabase database host; refusing the pooler route" ;; esac
+  [[ "$project" =~ ^[a-z0-9]+$ ]] || die "could not read the project from the staging connection"
+  [[ "$pooler" =~ ^postgres(ql)?://postgres\.${project}@aws-[0-9]+-[a-z0-9-]+\.pooler\.supabase\.com:5432/postgres(\?sslmode=require)?$ ]] \
+    || die "pooler URL file must be this project's Supabase session pooler: postgresql://postgres.<project>@aws-<n>-<region>.pooler.supabase.com:5432/postgres, no password and no other options"
+  pooler="${pooler%%\?*}?sslmode=require"
+  pooler_host="${pooler#*@}"; pooler_host="${pooler_host%%[:/?]*}"
+  pooler_user="${pooler#*://}"; pooler_user="${pooler_user%%@*}"
+  CONN="$pooler"; SECRETS+=("$pooler" "${pooler#*@}" "$pooler_host" "$pooler_user")
+  say "Database host: session pooler (IPv4) from $(basename "$POOLER_URL_FILE")"
+fi
+
+# ── 2. What changed since the commit stamped on staging (before the stamp exists: since origin/staging).
+has_stamp="$(sqlq "select to_regclass('shared.deployment_stamp') is not null")" || die "could not read the deployment stamp"
+stamped=""
+if [ "$has_stamp" = t ]; then stamped="$(sqlq "select backend_sha from shared.deployment_stamp where id")" || die "could not read the deployment stamp"; fi
+if [ -n "$stamped" ]; then
+  [[ "$stamped" =~ ^[0-9a-f]{40}$ ]] || die "the deployment stamp is not a commit SHA"
+  git -C "$ROOT" rev-parse --verify -q "$stamped^{commit}" >/dev/null || die "the stamped commit $stamped is not in this checkout — fetch it first"
+  base="$stamped"; say "Changes since the stamped commit ${stamped:0:9}."
+else
+  base="$(git -C "$ROOT" rev-parse --verify -q refs/remotes/origin/staging)" || die "origin/staging not found"
+  say "No deployment stamp yet: changes since origin/staging."
+fi
+changed_files="$(git -C "$ROOT" diff --name-only "$base" "$om" -- supabase/functions mos-app/src/lib/agent mos-app/src/lib/viewspec scripts)"
+
+# Edge functions: a changed function folder deploys that function; a changed shared module
+# (supabase/functions/_shared, mos-app/src/lib/agent, mos-app/src/lib/viewspec) deploys every function
+# importing it, directly or through other shared modules; a changed top-level deno.json or deno.lock
+# deploys every function. Held functions never deploy from here.
+HELD_FUNCTIONS=(compose-view mcp)
+all_functions=(); for d in "$ROOT"/supabase/functions/*/index.ts; do n="${d%/index.ts}"; all_functions+=("${n##*/}"); done
+selected=() queue=() seen=" "
+while IFS= read -r f; do
+  case "$f" in
+    supabase/functions/deno.json|supabase/functions/deno.lock) selected+=("${all_functions[@]}") ;;
+    supabase/functions/_shared/*|mos-app/src/lib/agent/*|mos-app/src/lib/viewspec/*) queue+=("$f"); seen+="$f " ;;
+    supabase/functions/*/*) n="${f#supabase/functions/}"; n="${n%%/*}"
+      if [ -f "$ROOT/supabase/functions/$n/index.ts" ]; then selected+=("$n"); else say "WARNING: $n has no index.ts on main; remove a deleted function from staging by hand."; fi ;;
   esac
-done <<< "$changed"
-[ "${#held_functions[@]}" -eq 0 ] || say "WARNING: changed edge functions held (not deployed): ${held_functions[*]}"
-[ "${#agent_held[@]}" -eq 0 ] || say "  ${agent_held[*]} remain held until agent switch-on."
+done <<< "$changed_files"
+while [ "${#queue[@]}" -gt 0 ]; do
+  f="${queue[0]}"; queue=("${queue[@]:1}")
+  stem="${f##*/}"; stem="${stem%.ts}"; stem="${stem%.tsx}"
+  [[ "$stem" =~ ^[A-Za-z0-9_.-]+$ ]] || die "unexpected shared module name in $f"
+  while IFS= read -r user; do
+    user="${user#"$ROOT"/}"
+    case "$user" in
+      supabase/functions/_shared/*|mos-app/*) case "$seen" in *" $user "*) ;; *) queue+=("$user"); seen+="$user " ;; esac ;;
+      supabase/functions/*/*) n="${user#supabase/functions/}"; selected+=("${n%%/*}") ;;
+    esac
+  done < <(grep -rlE --include='*.ts' --include='*.tsx' "['\"][^'\"]*/${stem//./\\.}(\\.tsx?)?['\"]" \
+    "$ROOT/supabase/functions" "$ROOT/mos-app/src/lib/agent" "$ROOT/mos-app/src/lib/viewspec" 2>/dev/null || true)
+done
+functions_to_deploy=() held_functions=()
+for n in $(printf '%s\n' "${selected[@]+"${selected[@]}"}" | sort -u); do
+  case " ${HELD_FUNCTIONS[*]} " in *" $n "*) held_functions+=("$n") ;; *) functions_to_deploy+=("$n") ;; esac
+done
+[ "${#held_functions[@]}" -eq 0 ] || say "WARNING: changed edge functions held (not deployed): ${held_functions[*]} — held until agent switch-on."
+
+# Server ops: the ERP-sync box runs these scripts from its own clone of main.
+OPS=0
+while IFS= read -r f; do
+  case "$f" in scripts/reporting_snapshot.py|scripts/reporting-snapshot-cron.sh|scripts/requirements-reporting.txt|scripts/db-backup.sh|scripts/ops-check.sh|scripts/lib/ops-common.sh) OPS=1 ;; esac
+done <<< "$changed_files"
+if [ "$OPS" = 1 ]; then
+  [ -n "$OPS_SSH_HOST" ] && [ -n "$OPS_REPO_DIR" ] && [ -n "$OPS_RUNNER" ] && [ -n "$OPS_LOCK" ] || \
+    die "server ops scripts changed: op.staging.env must set STAGING_OPS_SSH_HOST, STAGING_OPS_REPO_DIR, STAGING_OPS_RUNNER and STAGING_OPS_LOCK"
+  [[ "$OPS_SSH_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || die "STAGING_OPS_SSH_HOST must be a plain ssh host alias"
+  path_re="^(~/|/)[A-Za-z0-9_][A-Za-z0-9_./-]*\$"
+  for v in "$OPS_REPO_DIR" "$OPS_RUNNER" "$OPS_LOCK"; do
+    [[ "$v" =~ $path_re ]] && [[ "$v" != *..* ]] || die "STAGING_OPS_REPO_DIR, STAGING_OPS_RUNNER and STAGING_OPS_LOCK must be plain paths"
+  done
+  [[ "$om" =~ ^[0-9a-f]{40}$ ]] || die "origin/main is not a full commit SHA"
+  SECRETS+=("$OPS_SSH_HOST")
+fi
 
 function_secret_names=()
 if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
@@ -129,29 +204,6 @@ if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
       )
     done
   done
-fi
-
-URL="$(op-get.sh "$OP_ITEM" "$OP_VAULT" "$OP_FIELD" 2>/dev/null </dev/null)" || die "op-get.sh could not read the staging connection (is 1Password signed in?)"
-[ -n "$URL" ] || die "the staging connection string is empty"
-ops_conn_from_url "$URL"
-# The direct host is IPv6-only. When a pooler URL file exists (session pooler, port 5432, IPv4;
-# written by the staging repair runbook), connect through it; it must carry no password.
-POOLER_URL_FILE="${STAGING_POOLER_URL_FILE:-$ROOT/supabase/.temp/pooler-url}"
-if [ -s "$POOLER_URL_FILE" ]; then
-  pooler="$(tr -d '[:space:]' < "$POOLER_URL_FILE")"
-  [ -n "$PGPASSWORD" ] || die "pooler connection needs the password from the secret store"
-  # The secret-store connection is the trusted coordinate: the pooler must be this project's own Supabase
-  # session pooler, or the secret-store password would go to whatever destination the file names.
-  trusted_host="${URL#*@}"; trusted_host="${trusted_host%%[:/?]*}"
-  case "$trusted_host" in db.*.supabase.co) project="${trusted_host#db.}"; project="${project%.supabase.co}" ;; *) die "the staging connection is not a Supabase database host; refusing the pooler route" ;; esac
-  [[ "$project" =~ ^[a-z0-9]+$ ]] || die "could not read the project from the staging connection"
-  [[ "$pooler" =~ ^postgres(ql)?://postgres\.${project}@aws-[0-9]+-[a-z0-9-]+\.pooler\.supabase\.com:5432/postgres(\?sslmode=require)?$ ]] \
-    || die "pooler URL file must be this project's Supabase session pooler: postgresql://postgres.<project>@aws-<n>-<region>.pooler.supabase.com:5432/postgres, no password and no other options"
-  pooler="${pooler%%\?*}?sslmode=require"
-  pooler_host="${pooler#*@}"; pooler_host="${pooler_host%%[:/?]*}"
-  pooler_user="${pooler#*://}"; pooler_user="${pooler_user%%@*}"
-  CONN="$pooler"; SECRETS+=("$pooler" "${pooler#*@}" "$pooler_host" "$pooler_user")
-  say "Database host: session pooler (IPv4) from $(basename "$POOLER_URL_FILE")"
 fi
 
 # ── 3. Dry run: the pending migration list (file names only).
@@ -216,6 +268,8 @@ SQL
 fi
 
 if [ "$DRY" = 1 ]; then
+  if [ "${#functions_to_deploy[@]}" -gt 0 ]; then say "Dry run: edge functions to deploy: ${functions_to_deploy[*]}"; else say "Dry run: no edge functions to deploy."; fi
+  if [ "$OPS" = 1 ]; then say "Dry run: would update the server ops clone and run the reporting snapshot."; else say "Dry run: server ops scripts unchanged; no server update."; fi
   if [ "${#function_secret_names[@]}" -gt 0 ]; then
     say "Dry run: function secrets that may need setting: ${function_secret_names[*]}"
   fi
@@ -224,10 +278,11 @@ if [ "$DRY" = 1 ]; then
 fi
 
 # ── 5. Confirm, take and verify the recovery backup, then push migrations.
-if [ "${#pending[@]}" -gt 0 ] || [ "${#functions_to_deploy[@]}" -gt 0 ]; then
+if [ "${#pending[@]}" -gt 0 ] || [ "${#functions_to_deploy[@]}" -gt 0 ] || [ "$OPS" = 1 ]; then
   if [ "$YES" != 1 ]; then
-    printf 'Deploy %d migration(s) and %d edge function(s) to staging? [y/N] ' \
-      "${#pending[@]}" "${#functions_to_deploy[@]}" >&2
+    ops_note=""; [ "$OPS" = 0 ] || ops_note=", then update the server ops clone,"
+    printf 'Deploy %d migration(s) and %d edge function(s)%s to staging? [y/N] ' \
+      "${#pending[@]}" "${#functions_to_deploy[@]}" "$ops_note" >&2
     ans=""; read -r ans || true
     case "$ans" in y|Y|yes|YES) ;; *) die "not confirmed — nothing was pushed or deployed" ;; esac
   fi
@@ -370,12 +425,28 @@ if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
   unset EDGE_ACCESS_TOKEN
 fi
 
-# ── 8. Record origin/main only after the database and every changed function have succeeded.
+# ── 8. Server ops: move the box's clone to the deployed commit, then run the reporting snapshot once.
+if [ "$OPS" = 1 ]; then
+  set +e
+  out="$(ssh -o BatchMode=yes "$OPS_SSH_HOST" "cd $OPS_REPO_DIR && git fetch -q origin main && git merge-base --is-ancestor $om origin/main && git checkout -q -B main $om && test \"\$(git rev-parse HEAD)\" = $om" 2>&1 </dev/null)"; rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then printf '%s\n' "$out" | ops_redact >&2; die "could not move the server ops clone to the deployed commit (exit $rc)"; fi
+  say "Server ops clone is at the deployed commit."
+  say "Running the reporting snapshot on the server (takes a few minutes)..."
+  set +e
+  out="$(ssh -o BatchMode=yes "$OPS_SSH_HOST" "flock -n $OPS_LOCK $OPS_RUNNER reporting-snapshot-cron.sh" 2>&1 </dev/null)"; rc=$?
+  set -e
+  printf '%s\n' "$out" | ops_redact | tail -n 20
+  [ "$rc" -eq 0 ] || die "the server reporting snapshot failed (exit $rc; a held lock means a run is already in progress)"
+  say "Server reporting snapshot finished."
+fi
+
+# ── 9. Record origin/main only after the database, every changed function and the server ops step succeeded.
 sqlq "insert into shared.deployment_stamp (id, backend_sha, deployed_at) values (true, '$om', now()) on conflict (id) do update set backend_sha = excluded.backend_sha, deployed_at = excluded.deployed_at" \
   || die "could not update the backend deployment stamp"
 say "Updated backend deployment stamp."
 
-# ── 9. Promote the deployed origin/main commit with a fast-forward-only push.
+# ── 10. Promote the deployed origin/main commit with a fast-forward-only push.
 if [ "$PROMOTE" = 1 ]; then
   staging_sha="$(git -C "$ROOT" rev-parse --verify -q refs/remotes/origin/staging)" || die "origin/staging not found"
   if [ "$staging_sha" = "$om" ]; then
