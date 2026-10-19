@@ -6,11 +6,18 @@ import { MemoryRouter } from 'react-router-dom'
 
 vi.mock('../auth/use-auth')
 vi.mock('../theme/theme-provider')
+vi.mock('@/config/local-view-as', () => ({ localViewAsPassword: () => 'local-password' }))
+vi.mock('@/lib/db/admin-users', () => ({ listAdminPeople: vi.fn() }))
+vi.mock('@/lib/supabase', () => ({ supabase: { auth: { signInWithPassword: vi.fn() } } }))
 import { useAuth } from '@/auth/use-auth'
 import { useThemeContext } from '@/theme/theme-provider'
+import { listAdminPeople } from '@/lib/db/admin-users'
+import { supabase } from '@/lib/supabase'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockUseThemeContext = vi.mocked(useThemeContext)
+const mockListAdminPeople = vi.mocked(listAdminPeople)
+const mockSignInWithPassword = vi.mocked(supabase.auth.signInWithPassword)
 
 // We import after mock to get the mocked version
 import { UserChip } from './user-chip'
@@ -59,6 +66,9 @@ function makeRole(id: string, name: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  window.sessionStorage.clear()
+  mockListAdminPeople.mockResolvedValue([])
+  mockSignInWithPassword.mockResolvedValue({ data: { user: null, session: null }, error: null } as never)
   // Provide a default theme context so AppearanceControl renders without throwing
   mockUseThemeContext.mockReturnValue({
     theme: 'light',
@@ -283,5 +293,78 @@ describe('AC-138: Appearance control is in the account menu above Sign out', () 
     // Separator present (aria-hidden so not in the accessible tree; verify via DOM)
     const menu = screen.getByRole('menu')
     expect(menu.querySelector('[role="separator"]')).toBeInTheDocument()
+  })
+})
+
+describe('Local view-as session access', () => {
+  it('does not request admin people for a non-admin with no cached list', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [], accessRoles: ['member'] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    renderChip(<UserChip />)
+
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+
+    expect(mockListAdminPeople).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByText('No other people with a login.')).toBeInTheDocument()
+  })
+
+  it('still loads the people list for an admin', async () => {
+    mockListAdminPeople.mockResolvedValue([
+      {
+        id: baseViewer.person.id, full_name: 'Dina Pratiwi', email: 'dina@example.test',
+        archived_at: null, login: 'active', access_roles: ['admin'], jabatan: [], revenue_scope: [], teams: [],
+      },
+      {
+        id: 'person-budi', full_name: 'Budi Santoso', email: 'budi@example.test',
+        archived_at: null, login: 'active', access_roles: ['member'],
+        jabatan: [{ role_id: 'role-member', role_name: 'Member' }], revenue_scope: [], teams: [],
+      },
+    ])
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [], accessRoles: ['admin'] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    renderChip(<UserChip />)
+
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+
+    expect(await screen.findByRole('menuitem', { name: 'Budi Santoso — Member' })).toBeInTheDocument()
+    expect(mockListAdminPeople).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a valid cached switch and return-to-original path available to a non-admin', async () => {
+    window.sessionStorage.setItem('mos.local-view-as.people', JSON.stringify([
+      { id: baseViewer.person.id, full_name: 'Dina Pratiwi', email: 'dina@example.test', primaryRole: 'Member', accessRole: 'member' },
+      { id: 'person-budi', full_name: 'Budi Santoso', email: 'budi@example.test', primaryRole: 'Member', accessRole: 'member' },
+    ]))
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [], accessRoles: ['member'] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    renderChip(<UserChip />)
+
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    await user.click(await screen.findByRole('menuitem', { name: /budi santoso/i }))
+    await waitFor(() => expect(mockSignInWithPassword).toHaveBeenCalledWith({ email: 'budi@example.test', password: 'local-password' }))
+    expect(JSON.parse(window.sessionStorage.getItem('mos.local-view-as.original') ?? 'null')).toEqual({
+      email: 'dina@example.test', full_name: 'Dina Pratiwi',
+    })
+    expect(mockListAdminPeople).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Back to Dina Pratiwi' }))
+    await waitFor(() => expect(mockSignInWithPassword).toHaveBeenCalledWith({ email: 'dina@example.test', password: 'local-password' }))
+    expect(window.sessionStorage.getItem('mos.local-view-as.original')).toBeNull()
+    expect(mockSignInWithPassword).toHaveBeenCalledTimes(2)
   })
 })

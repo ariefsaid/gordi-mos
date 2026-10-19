@@ -15,8 +15,8 @@ function renderPicker(value: 'focused' | 'overview' | 'list' = 'focused', onChan
 
 // Each choice's accessible name carries what it does, in the person's language, not just its name.
 const DESCRIPTION_CLAUSES: Record<'en' | 'id', RegExp[]> = {
-  en: [/One section at a time/, /Every area at once/, /One continuous list/],
-  id: [/Satu bagian dalam satu waktu/, /Semua area sekaligus/, /Satu daftar berkelanjutan/],
+  en: [/Priority work in one column/, /Priority work first/, /One continuous list/],
+  id: [/Antrean prioritas/, /Pekerjaan prioritas di awal/, /Satu daftar berkelanjutan/],
 }
 
 describe('HomeLayoutPicker (OD-V4-9, FR-920)', () => {
