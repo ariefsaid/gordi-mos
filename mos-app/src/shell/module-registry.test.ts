@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import type { ModuleId } from '@/lib/db/module-settings'
+import { effectiveModuleAccess } from '@/lib/module-access'
 import {
   admittedModules, currentPagePath, destinationForPath, FIXED_AREAS, footerAreas, globalNavigationDestinations, goToEntries, navModeFor, pageCount, pageGroupsFor,
-  phoneModuleForViewer, rememberModule, rowState,
+  moneyDestinationForViewer, moneySectionsForViewer, phoneModuleForViewer, rememberModule, rowState, viewerAdmittedToRoute,
 } from './module-registry'
 
-const allModulesOn = () => true
+const allModulesOn = (_moduleId: ModuleId, roleAdmitted = true) => roleAdmitted
 const cafe = (roles: string[]) => admittedModules(roles, allModulesOn).find((m) => m.id === 'cafe')!
 const cafePaths = (roles: string[]) => pageGroupsFor(cafe(roles), roles, allModulesOn).flatMap((group) => group.items.map((item) => item.path))
 
@@ -32,6 +34,25 @@ describe('the module registry feeds every navigation surface', () => {
     expect(paths).not.toContain('/money/pending-bills')
     expect(paths).toContain('/')
     expect(paths).toContain('/inbox')
+  })
+
+  it('keeps org-off above personal Allow for Money pages and route admission', () => {
+    const isOn = (_moduleId: ModuleId, roleAdmitted = true) => effectiveModuleAccess({
+      released: true, orgEnabled: false, override: 'allow', roleAdmitted,
+    }).available
+    expect(moneySectionsForViewer(['finance'], isOn)).toEqual([])
+    expect(moneyDestinationForViewer(['finance'], isOn)).toBeNull()
+    expect(viewerAdmittedToRoute('/cafe/records', ['member'], isOn)).toBe(false)
+    expect(viewerAdmittedToRoute('/money', ['finance'], isOn)).toBe(false)
+  })
+
+  it('retains personal Allow and Block when explicit module checks resolve role admission', () => {
+    const allow = (_moduleId: ModuleId, roleAdmitted = true) => effectiveModuleAccess({
+      released: true, orgEnabled: true, override: 'allow', roleAdmitted,
+    }).available
+    expect(admittedModules(['member'], allow).map((module) => module.id)).toContain('money')
+    expect(viewerAdmittedToRoute('/money', ['member'], allow)).toBe(true)
+    expect(admittedModules(['finance'], () => false)).toEqual([])
   })
 
   it('groups Café as home, Today, Stock, Close, Setup with Receipt issues straight after Receive', () => {

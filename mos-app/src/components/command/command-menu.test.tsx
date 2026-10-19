@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, within, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -28,7 +28,7 @@ vi.mock('@/config/features', async (importOriginal) => ({
   get SHOW_ASSISTANT() { return features.SHOW_ASSISTANT },
 }))
 vi.mock('@/auth/use-auth')
-const moduleAvailability = vi.hoisted(() => ({ isOn: vi.fn((moduleId: string) => moduleId.length > 0) }))
+const moduleAvailability = vi.hoisted(() => ({ isOn: vi.fn((_moduleId: string, roleAdmitted = true) => roleAdmitted) }))
 vi.mock('@/lib/module-availability', () => ({ useModuleAvailability: () => ({ status: 'ready', isOn: moduleAvailability.isOn, retry: vi.fn() }) }))
 import { useAuth } from '@/auth/use-auth'
 import { searchTasksByTitle, type TaskTitleRef } from '@/lib/db/tasks'
@@ -62,7 +62,7 @@ function setAuth(accessRoles: string[] = ['admin']) {
 // What the Go to group offers `accessRoles`, read from the module registry the rail, the drawer and
 // the palette all share (and the English catalog) — never from the palette itself.
 function railLabels(accessRoles: string[]): string[] {
-  return goToEntries(accessRoles, () => true).map((entry) => messages.en[entry.labelKey])
+  return goToEntries(accessRoles, (_moduleId, roleAdmitted = true) => roleAdmitted).map((entry) => messages.en[entry.labelKey])
 }
 
 // Each option reads "<label>" or "<label><trail>" (a page names where it lives), so compare by prefix.
@@ -93,7 +93,7 @@ function renderMenu(onClose = vi.fn(), locale: 'en' | 'id' = 'en', onShareSignal
 beforeEach(() => {
   vi.clearAllMocks()
   features.SHOW_ASSISTANT = true
-  moduleAvailability.isOn.mockImplementation(() => true)
+  moduleAvailability.isOn.mockImplementation((_moduleId, roleAdmitted = true) => roleAdmitted)
   localStorage.clear()
   mockSearch.mockResolvedValue([])
   mockSearchSignals.mockResolvedValue([])
@@ -250,7 +250,7 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search-only palette', 
   it('AC-030: Go to labels come from the catalog in Indonesian too', () => {
     renderMenu(vi.fn(), 'id')
     const goTo = within(screen.getByRole('group', { name: 'Buka' }))
-    const labels = goToEntries(['admin'], () => true).map((entry) => messages.id[entry.labelKey])
+    const labels = goToEntries(['admin'], (_moduleId, roleAdmitted = true) => roleAdmitted).map((entry) => messages.id[entry.labelKey])
     expectGoToLabels(goTo.getAllByRole('option'), labels)
     expect(goTo.getByRole('option', { name: /^Tujuan/ })).toBeInTheDocument()
   })
@@ -375,6 +375,24 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search-only palette', 
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Log' } })
     expect(await screen.findByRole('option', { name: /Log Café production/i })).toBeInTheDocument()
   })
+
+  it('personal Café Block removes its Go to entry and capture action for an ops lead', async () => {
+    setAuth(['ops_lead'])
+    moduleAvailability.isOn.mockImplementation((moduleId, roleAdmitted = true) => moduleId !== 'cafe' && roleAdmitted)
+    renderMenu()
+    expect(screen.queryByRole('option', { name: /^Café$/i })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Log' } })
+    expect(screen.queryByRole('option', { name: /Log Café production/i })).not.toBeInTheDocument()
+  })
+
+  it('personal Café Block removes capture from the phone launcher', () => {
+    setAuth(['ops_lead'])
+    moduleAvailability.isOn.mockImplementation((moduleId, roleAdmitted = true) => moduleId !== 'cafe' && roleAdmitted)
+    render(<I18nProvider><MemoryRouter>
+      <CommandMenu open mode="launcher" onClose={vi.fn()} onShareSignal={vi.fn()} />
+    </MemoryRouter></I18nProvider>)
+    expect(screen.queryByRole('option', { name: /Log Café production/i })).not.toBeInTheDocument()
+  })
 })
 
 // ── AC-015: universal actions (verb+object, stable order; no bare Create/Add/New) ──
@@ -390,6 +408,14 @@ describe('AC-015: universal actions — Ask Deputy · Share Signal · Create Tas
   })
   it('hides Ask Deputy when the org Assistant switch is off without hiding other actions', () => {
     moduleAvailability.isOn.mockImplementation((moduleId) => moduleId !== 'assistant')
+    renderMenu()
+    expect(screen.queryByRole('option', { name: /Ask Deputy/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Share Signal/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Create Task/i })).toBeInTheDocument()
+  })
+
+  it('hides Ask Deputy for a personal Assistant Block without changing other actions', () => {
+    moduleAvailability.isOn.mockImplementation((moduleId, roleAdmitted = true) => moduleId !== 'assistant' && roleAdmitted)
     renderMenu()
     expect(screen.queryByRole('option', { name: /Ask Deputy/i })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Share Signal/i })).toBeInTheDocument()
@@ -570,6 +596,41 @@ describe('default groups (empty query): Recent + Actions + Navigate', () => {
   it('no Recent group when the buffer is empty', () => {
     renderMenu()
     expect(screen.queryByText('Recent')).toBeNull()
+  })
+
+  it('personal Work Block removes Recent, create, Go to, and Work record searches', async () => {
+    setAuth(['member'])
+    pushRecentTask({ id: 'blocked-recent', title: 'Blocked recent task' })
+    moduleAvailability.isOn.mockImplementation((moduleId, roleAdmitted = true) => moduleId !== 'work' && roleAdmitted)
+    renderMenu()
+
+    expect(screen.queryByText('Recent')).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Create Task/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /^Tasks$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Blocked recent task/i })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'blocked query' } })
+    await new Promise((resolve) => setTimeout(resolve, 180))
+    expect(mockSearch).not.toHaveBeenCalled()
+    expect(mockSearchSignals).not.toHaveBeenCalled()
+    expect(mockSearchObjectives).not.toHaveBeenCalled()
+    expect(mockSearchWorkLines).not.toHaveBeenCalled()
+  })
+
+  it('discards Work search results that resolve after the viewer is Blocked', async () => {
+    let finishSearch: ((rows: TaskTitleRef[]) => void) | undefined
+    mockSearch.mockReturnValue(new Promise((resolve) => { finishSearch = resolve }))
+    const { rerender, onClose, onShareSignal } = renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'late work result' } })
+    await waitFor(() => expect(mockSearch).toHaveBeenCalledOnce())
+
+    moduleAvailability.isOn.mockImplementation((moduleId, roleAdmitted = true) => moduleId !== 'work' && roleAdmitted)
+    rerender(<I18nProvider initialLocale="en"><MemoryRouter initialEntries={['/']}>
+      <LocationProbe />
+      <Routes><Route path="*" element={<CommandMenu open onClose={onClose} onShareSignal={onShareSignal} />} /></Routes>
+    </MemoryRouter></I18nProvider>)
+    await act(async () => finishSearch?.([{ id: 'late-task', title: 'Late work result', status: 'Open' }]))
+    expect(screen.queryByRole('option', { name: /Late work result/i })).not.toBeInTheDocument()
   })
 })
 
