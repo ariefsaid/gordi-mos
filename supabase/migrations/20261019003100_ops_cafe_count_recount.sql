@@ -8,7 +8,8 @@
 --      drop function ops.record_cafe_count_reason(uuid, text);
 --   3. alter table ops.cafe_count_lines alter column variance set expression as
 --        (case when expected_status = 'ready' then counted_quantity - expected_balance end);
---   4. alter table ops.cafe_count_lines drop constraint cafe_count_lines_recount_facts_ck,
+--   4. Restore ops._stock_comparison_rows(uuid, uuid, text, uuid) from 20261016000300_reporting_esb_stock_on_hand.sql.
+--   5. alter table ops.cafe_count_lines drop constraint cafe_count_lines_recount_facts_ck,
 --        drop constraint cafe_count_lines_reason_facts_ck,
 --        drop column recounted_quantity, drop column recounted_by, drop column recounted_at,
 --        drop column reason, drop column reason_entered_by, drop column reason_entered_at;
@@ -379,3 +380,261 @@ comment on function ops.confirm_cafe_count_line(uuid, integer) is
   'The sole confirm transition. Reuses ops.can_review_stream; requires Submitted, a ready Expected balance, the current version, a Recount where the first count differs and a reason where the final Variance is non-zero. Zero closes not_needed; non-zero confirms held with no outbox row.';
 revoke execute on function ops.confirm_cafe_count_line(uuid, integer) from public, anon, authenticated;
 grant execute on function ops.confirm_cafe_count_line(uuid, integer) to authenticated;
+
+-- The stock comparison reads the final counted quantity: the Recount when there is one, else the first count.
+create or replace function ops._stock_comparison_rows(
+  p_org_id uuid,
+  p_branch_id uuid,
+  p_activity text,
+  p_snapshot_id uuid
+)
+returns table (
+  item_id uuid,
+  item_name text,
+  item_kind text,
+  item_category text,
+  item_unit_id uuid,
+  item_unit_name text,
+  count_id uuid,
+  counted_quantity numeric,
+  count_date date,
+  submitted_at timestamptz,
+  count_status text,
+  expected_quantity numeric,
+  expected_unit_code text,
+  expected_as_of timestamptz,
+  expected_business_date date,
+  expected_basis text,
+  expected_snapshot_id uuid,
+  expected_row_complete boolean,
+  difference numeric,
+  difference_pct numeric,
+  missing text,
+  flags text[],
+  indicative boolean,
+  zero_expected boolean,
+  bucket text,
+  row_data jsonb
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with countable as (
+    select item.item_id, item.item_name, item.item_kind, item.item_category,
+           item.item_unit_id, item.unit_name as item_unit_name, true as is_current
+      from ops.cafe_countable_items(p_branch_id, p_activity) item
+      join ops.item_units unit
+        on unit.org_id = p_org_id and unit.id = item.item_unit_id
+      join ops.wip_items catalog
+        on catalog.org_id = p_org_id and catalog.id = item.item_id
+  ), latest_counts as (
+    select distinct on (line.wip_item_id, line.item_unit_id)
+           line.wip_item_id as item_id, line.item_name, line.item_kind,
+           line.item_category, line.item_unit_id, line.unit_name as item_unit_name,
+           line.id as count_id, coalesce(line.recounted_quantity, line.counted_quantity) as counted_quantity, line.count_date,
+           line.submitted_at, line.status as count_status
+      from ops.cafe_count_lines line
+     where line.org_id = p_org_id
+       and line.branch_id = p_branch_id
+       and line.activity = p_activity
+       and line.status in ('Submitted', 'Confirmed')
+     order by line.wip_item_id, line.item_unit_id,
+              line.count_date desc, line.submitted_at desc, line.id desc
+  ), candidates as (
+    select distinct on (candidate.item_id, candidate.item_unit_id)
+           candidate.item_id, candidate.item_name, candidate.item_kind,
+           candidate.item_category, candidate.item_unit_id, candidate.item_unit_name
+      from (
+        select current_item.item_id, current_item.item_name, current_item.item_kind,
+               current_item.item_category, current_item.item_unit_id,
+               current_item.item_unit_name, true as is_current
+          from countable current_item
+        union all
+        select history.item_id, history.item_name, history.item_kind,
+               history.item_category, history.item_unit_id,
+               history.item_unit_name, false as is_current
+          from latest_counts history
+      ) candidate
+     order by candidate.item_id, candidate.item_unit_id, candidate.is_current desc,
+              candidate.item_name
+  ), countable_with_history as (
+    select candidate.*, history.count_id, history.counted_quantity,
+           history.count_date, history.submitted_at, history.count_status
+      from candidates candidate
+      left join latest_counts history
+        on history.item_id = candidate.item_id
+       and history.item_unit_id = candidate.item_unit_id
+  ), scope_pool as (
+    select exists (
+      select 1
+        from shared.teams other_team
+       where other_team.org_id = p_org_id
+         and other_team.branch_id = p_branch_id
+         and other_team.activity in ('kitchen', 'bar')
+         and other_team.activity <> p_activity
+         and other_team.archived_at is null
+    ) as ambiguous_pool
+  ), coverage as (
+    select snap.id as snapshot_id, snap.as_of, snap.business_date, snap.basis,
+           coalesce(snap.source_complete and snap.ingestion_complete
+             and cover.status = 'complete' and cover.exhausted
+             and cover.source_evidence is not null, false) as source_complete
+      from reporting.esb_stock_snapshots snap
+      left join reporting.esb_stock_coverage cover
+        on cover.org_id = snap.org_id
+       and cover.snapshot_id = snap.id
+       and cover.branch_code = (select branch.code from shared.branches branch
+                                 where branch.org_id = p_org_id and branch.id = p_branch_id)
+       and cover.partition_key = 'branch'
+     where snap.org_id = p_org_id and snap.id = p_snapshot_id
+       and snap.state = 'published'
+  ), source_rows as (
+    select stock.product_detail_code, sum(stock.quantity) as quantity,
+           max(stock.unit_code) as unit_code,
+           bool_and(stock.row_complete) as row_complete,
+           count(distinct stock.unit_code) > 1 as unit_code_ambiguous
+      from reporting.esb_stock_on_hand stock
+     where stock.org_id = p_org_id
+       and stock.snapshot_id = p_snapshot_id
+       and stock.branch_code = (select branch.code from shared.branches branch
+                                 where branch.org_id = p_org_id and branch.id = p_branch_id)
+     group by stock.product_detail_code
+  ), enriched as (
+    select item.*,
+           source.quantity as expected_quantity,
+           source.unit_code as expected_unit_code,
+           source.row_complete as source_row_complete,
+           source.unit_code_ambiguous,
+           coverage.as_of as expected_as_of,
+           coverage.business_date as expected_business_date,
+           coverage.basis as expected_basis,
+           coverage.snapshot_id as expected_snapshot_id,
+           coverage.source_complete,
+           coalesce(unit_mapping.mappings, 0) as unit_mapping_count,
+           scope_pool.ambiguous_pool
+      from countable_with_history item
+      cross join scope_pool
+      left join coverage on true
+      left join source_rows source
+        on source.product_detail_code = (
+          select unit.esb_product_detail_id
+            from ops.item_units unit
+           where unit.org_id = p_org_id and unit.id = item.item_unit_id
+        )
+      left join lateral (
+        select count(*)::integer as mappings
+          from ops.item_units unit
+         where unit.org_id = p_org_id
+           and unit.esb_product_detail_id = (
+             select item_unit.esb_product_detail_id
+               from ops.item_units item_unit
+              where item_unit.org_id = p_org_id and item_unit.id = item.item_unit_id
+           )
+      ) unit_mapping on true
+  ), compared as (
+    select enriched.*,
+           case
+             when expected_snapshot_id is null then 'not_connected'
+             when ambiguous_pool then 'ambiguous_pool'
+             when not source_complete then 'partial'
+             when expected_quantity is null then 'mapping_needed'
+             when unit_mapping_count <> 1 or unit_code_ambiguous then 'unit_mismatch'
+             when count_id is null then 'not_counted'
+             else null
+           end as missing,
+           case
+             when expected_snapshot_id is not null and source_complete
+              and expected_quantity is not null and source_row_complete
+              and unit_mapping_count = 1 and not unit_code_ambiguous
+              and count_id is not null and not ambiguous_pool
+               then counted_quantity - expected_quantity
+             else null
+           end as difference,
+           (expected_quantity is not null and count_id is not null
+             and expected_business_date is distinct from count_date)
+             or (expected_quantity is not null and expected_basis = 'intraday') as indicative,
+           expected_snapshot_id is not null and expected_quantity = 0
+             and source_complete and source_row_complete and unit_mapping_count = 1
+             and not unit_code_ambiguous and count_id is not null
+             and not ambiguous_pool and counted_quantity <> 0 as zero_expected
+      from enriched
+  ), finalized as (
+    select compared.*,
+           case when difference is null then null
+                when expected_quantity = 0 then null
+                else case
+                  when trunc((difference / abs(expected_quantity)) * 100, 9) = 0 and difference <> 0
+                    then sign(difference) / 1000000000::numeric
+                  else trunc((difference / abs(expected_quantity)) * 100, 9)
+                end
+           end as difference_pct
+      from compared
+  ), reasoned as (
+    select finalized.*,
+           array_remove(array[
+             missing,
+             case when difference < 0 then 'shortage'
+                  when difference > 0 then 'surplus'
+                  when difference = 0 then 'no_difference' end,
+             case when count_status = 'Submitted' then 'pending_confirmation' end,
+             case when indicative then 'different_times' end,
+             case when expected_as_of is not null
+                    and statement_timestamp() - expected_as_of > interval '24 hours'
+                  then 'stale_esb' end,
+             case when count_date is not null
+                    and statement_timestamp() >
+                      ((count_date + 1)::timestamp at time zone 'Asia/Jakarta') + interval '24 hours'
+                  then 'old_count' end,
+             case when zero_expected then 'zero_expected' end
+           ]::text[], null) as flags,
+           case when difference is null then 'unknown'
+                when difference = 0 then 'zero' else 'gap' end as bucket
+      from finalized
+  )
+  select reasoned.item_id, reasoned.item_name, reasoned.item_kind, reasoned.item_category,
+         reasoned.item_unit_id, reasoned.item_unit_name, reasoned.count_id,
+         reasoned.counted_quantity, reasoned.count_date, reasoned.submitted_at,
+         reasoned.count_status, reasoned.expected_quantity, reasoned.expected_unit_code,
+         reasoned.expected_as_of, reasoned.expected_business_date, reasoned.expected_basis,
+         reasoned.expected_snapshot_id,
+         coalesce(reasoned.source_complete and reasoned.source_row_complete, false),
+         reasoned.difference, reasoned.difference_pct, reasoned.missing, reasoned.flags,
+         reasoned.indicative, reasoned.zero_expected, reasoned.bucket,
+         jsonb_build_object(
+           'key', reasoned.item_id::text || ':' || reasoned.item_unit_id::text,
+           'item_id', reasoned.item_id,
+           'item_name', reasoned.item_name,
+           'kind', reasoned.item_kind,
+           'category', reasoned.item_category,
+           'unit_id', reasoned.item_unit_id,
+           'unit_name', reasoned.item_unit_name,
+           'expected', case when reasoned.expected_quantity is null then null else jsonb_build_object(
+             'quantity', reasoned.expected_quantity::text,
+             'unit_code', reasoned.expected_unit_code,
+             'as_of', reasoned.expected_as_of,
+             'business_date', reasoned.expected_business_date,
+             'basis', reasoned.expected_basis,
+             'provenance', 'source_row',
+             'snapshot_id', reasoned.expected_snapshot_id,
+             'row_complete', coalesce(reasoned.source_complete and reasoned.source_row_complete, false)
+           ) end,
+           'count', case when reasoned.count_id is null then null else jsonb_build_object(
+             'id', reasoned.count_id,
+             'quantity', reasoned.counted_quantity::text,
+             'unit_id', reasoned.item_unit_id,
+             'unit_name', reasoned.item_unit_name,
+             'count_date', reasoned.count_date,
+             'submitted_at', reasoned.submitted_at,
+             'status', reasoned.count_status
+           ) end,
+           'difference', case when reasoned.difference is null then null else reasoned.difference::text end,
+           'difference_pct', case when reasoned.difference_pct is null then null else reasoned.difference_pct::text end,
+           'missing', reasoned.missing,
+           'flags', to_jsonb(reasoned.flags),
+           'indicative', reasoned.indicative
+         ) as row_data
+    from reasoned
+$$;
+revoke execute on function ops._stock_comparison_rows(uuid, uuid, text, uuid) from public, anon, authenticated, service_role;
