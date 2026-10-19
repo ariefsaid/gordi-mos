@@ -141,18 +141,6 @@ describe('assistant org switch', () => {
     expect(screen.queryByRole('button', { name: /Open deputy/i })).toBeNull()
     expect(screen.queryByText('assistant panel mounted')).toBeNull()
   })
-
-  it('keeps an open command menu mounted when Assistant availability loads', () => {
-    moduleAvailability.isOn.mockImplementation((moduleId) => moduleId !== 'assistant')
-    const { rerender } = renderShell()
-    fireEvent.click(screen.getByRole('button', { name: /Search/i }))
-    expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
-
-    moduleAvailability.isOn.mockReturnValue(true)
-    act(() => rerender(shellTree()))
-
-    expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
-  })
 })
 
 // RI-shell-1 / AC-S02: AppShell grid structure — topbar spans full width, rail+main are siblings
@@ -570,5 +558,20 @@ describe('AC-016: the shell is not remounted when the viewer changes destination
     // The SAME nodes, not merely nodes that still exist: a remount would have replaced them.
     expect(container.querySelector('aside')).toBe(railBefore)
     expect(container.querySelector('header')).toBe(headerBefore)
+  })
+})
+
+// Runs last: it loads the lazy command menu, which the pending-palette test must load first.
+describe('assistant availability and open shell interactions', () => {
+  it('keeps an open command menu mounted when Assistant availability loads', async () => {
+    moduleAvailability.isOn.mockImplementation((moduleId) => moduleId !== 'assistant')
+    const { rerender } = renderShell()
+    fireEvent.click(screen.getByRole('button', { name: /Search/i }))
+    expect(await screen.findByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
+
+    moduleAvailability.isOn.mockReturnValue(true)
+    act(() => rerender(shellTree()))
+
+    expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
   })
 })

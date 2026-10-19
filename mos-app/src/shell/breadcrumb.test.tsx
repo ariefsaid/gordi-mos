@@ -161,10 +161,9 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
     expect(crumbText()).toBe('Personal profile')
   })
 
-  it('desktop: the leaf owns Inbox, which has no menu row, while Profile, Admin and Work leaves do not', () => {
-    // Rule 5: exactly one element carries aria-current. Admin settings and Personal profile are rows at the nav
-    // foot and Work is a nav row, so the nav owns them; Inbox is the bell, so its leaf is the one that says where
-    // the viewer is.
+  it('desktop: the nav owns Inbox, Profile, Admin and Work, so their leaves do not carry the current page', () => {
+    // Rule 5: exactly one element carries aria-current. Inbox and Work are nav rows and Admin settings and
+    // Personal profile sit at the nav foot, so the nav owns them all.
     // The full labelled nav (>=1280px), not the folded rail whose pages sit behind a flyout.
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
@@ -175,7 +174,7 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
       }),
     })
     renderBC('/inbox')
-    expect(screen.getByText('Inbox')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByText('Inbox')).not.toHaveAttribute('aria-current')
     renderBC('/profile')
     expect(screen.getByText('Personal profile')).not.toHaveAttribute('aria-current')
     renderBC('/admin/people')

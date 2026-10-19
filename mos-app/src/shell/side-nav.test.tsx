@@ -62,6 +62,11 @@ describe('desktop navigation follows org module settings', () => {
     expect(screen.getByRole('link', { name: 'Money' })).toBeInTheDocument()
   })
 
+  it('marks Inbox as the current page on the rail when Inbox is open', () => {
+    renderNav('/inbox')
+    expect(screen.getByRole('link', { name: 'Inbox' })).toHaveAttribute('aria-current', 'page')
+  })
+
   it.each(['sidebar', 'panel'] as const)('keeps the release label available in the %s footer', (mode) => {
     runtime.mode = mode
     renderNav()
