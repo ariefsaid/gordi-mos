@@ -137,6 +137,12 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
     setStatus('idle')
   }, [spec.value])
 
+  useEffect(() => {
+    if (status !== 'saved') return
+    const timer = setTimeout(() => setStatus('idle'), 4000)
+    return () => clearTimeout(timer)
+  }, [status])
+
   // Return focus to the value activation control after a keyboard-driven exit from edit mode.
   useEffect(() => {
     if (!editing && returnFocusRef.current) {

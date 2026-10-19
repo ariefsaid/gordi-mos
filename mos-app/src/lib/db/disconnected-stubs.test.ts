@@ -5,12 +5,8 @@ import { ContractError } from './contract'
 import * as modules from './module-settings'
 import * as comparison from './cafe-stock-comparison'
 
-const ctx = { client_request_id: '00000000-0000-4000-8000-000000000000' }
-
 describe('unavailable backend stubs', () => {
   const calls: [string, () => Promise<unknown>][] = [
-    ['listPersonModuleSettings', () => modules.listPersonModuleSettings('p')],
-    ['savePersonModuleSettings', () => modules.savePersonModuleSettings('p', [], ctx)],
     ['countModuleDisableImpact', () => modules.countModuleDisableImpact('cafe')],
     ['listEsbStockMovements', () => comparison.listEsbStockMovements({ stream: { branch_id: 'a', activity: 'kitchen' }, item_id: 'i', unit_id: 'u', from: '2026-10-01', to: '2026-10-15' })],
   ]
@@ -27,14 +23,14 @@ describe('unavailable backend stubs', () => {
       expect(marks.length).toBeGreaterThan(exported.length)
     }
     const moduleSource = readFileSync(join(__dirname, 'module-settings.ts'), 'utf8')
-    const moduleStubs = moduleSource.match(/export async function (listPersonModuleSettings|savePersonModuleSettings|countModuleDisableImpact)/g) ?? []
+    const moduleStubs = moduleSource.match(/export async function countModuleDisableImpact/g) ?? []
     const moduleMarks = moduleSource.match(/\/\/ HANDOVER: R\/handover\/module-switches\.md §Client/g) ?? []
     expect(moduleMarks.length).toBeGreaterThanOrEqual(moduleStubs.length)
   })
 
   it('no screen or hook calls an unavailable endpoint (types only)', () => {
     const src = join(__dirname, '..', '..')
-    const stubFns = /\b(listPersonModuleSettings|savePersonModuleSettings|countModuleDisableImpactByIds)\b/
+    const stubFns = /\b(countModuleDisableImpact|countModuleDisableImpactByIds)\b/
     const walk = (dir: string): string[] => readdirSync(dir).flatMap((name) => {
       const full = join(dir, name)
       return statSync(full).isDirectory() ? walk(full) : /\.(ts|tsx)$/.test(name) ? [full] : []

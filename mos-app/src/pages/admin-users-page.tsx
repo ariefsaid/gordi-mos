@@ -14,7 +14,6 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { Button } from '@/components/ui/button'
 import { Notice } from '@/components/ui/notice'
-import { isShipGated } from '@/lib/ship-gate'
 import { moduleFacts } from '@/lib/module-switches-preview'
 import { ErrorState } from '@/components/ui/state-kit'
 import { OfflineNotice } from '@/components/ui/offline-notice'
@@ -42,10 +41,9 @@ export function AdminUsersPage() {
     return next
   }), [setSearchParams])
 
-  // Preview: "People with personal overrides" on the Modules page leads here (?overrides=<module>). Who holds a
-  // personal Allow/Block is not connected yet, so the list cannot be narrowed; it says so instead of faking a result.
+  // The cross-person override filter remains unavailable; keep its honest notice rather than implying a count.
   const overridesParam = searchParams.get('overrides')
-  const overridesModule = isShipGated('/admin/people/modules') ? undefined : moduleFacts().find((fact) => fact.id === overridesParam)
+  const overridesModule = moduleFacts().find((fact) => fact.id === overridesParam)
 
   const data = useAdminPeople()
   const actions = useAccountActions(data.refresh)

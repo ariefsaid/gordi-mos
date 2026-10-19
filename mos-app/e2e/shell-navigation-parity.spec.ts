@@ -60,6 +60,7 @@ for (const actor of personas) {
     // PERSONA-gated options, so it reaches the launcher from a non-capture surface instead.
     // Home owns its phone action bar; Inbox keeps the shared quick-action launcher available.
     await page.goto('inbox')
+    await expect(page.getByRole('heading', { name: 'Inbox', exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Actions', exact: true }).click()
     await expect(dialog.getByRole('option', { name: 'Create task', exact: true })).toBeVisible()
     await expect(dialog.getByRole('option', { name: 'Share signal', exact: true })).toBeVisible()
