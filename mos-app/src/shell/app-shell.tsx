@@ -426,9 +426,8 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
 
 export function AppShell({ contextRow }: { contextRow?: ReactNode }) {
   const { isOn } = useModuleAvailability()
-  // Wrap the shell in the runtime provider ONLY when the deputy capability is on (FR-P2-CF-003).
-  // Flag-off skips the provider entirely so no assistant context/state mounts.
-  //
+  // Keep the runtime provider in a stable position while org module settings resolve; wrapping the
+  // shell only after Assistant turns on would remount open shell interactions.
   // OverlayHostProvider sits INSIDE AgentRuntimeProvider, not outside it: overlay content is
   // ordinary app content and may reach for the runtime, and `useDeputyOverlayCoexistence` has to
   // see both controllers from one child. `SignalComposerHost` wraps the overlay root, matching
@@ -446,6 +445,5 @@ export function AppShell({ contextRow }: { contextRow?: ReactNode }) {
       </SignalComposerHost>
     </CreateDraftProvider>
   )
-  if (!SHOW_ASSISTANT || !isOn('assistant')) return shellWithOverlay
-  return <AgentRuntimeProvider>{shellWithOverlay}</AgentRuntimeProvider>
+  return <AgentRuntimeProvider enabled={isOn('assistant')}>{shellWithOverlay}</AgentRuntimeProvider>
 }
