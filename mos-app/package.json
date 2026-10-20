@@ -61,7 +61,7 @@
     "jscpd": "^5.4.0",
     "jsdom": "^26.0.0",
     "knip": "6.41.0",
-    "puppeteer": "24.9.0",
+    "puppeteer": "25.15.0",
     "stylelint": "^17.13.0",
     "tailwindcss": "^4.1.0",
     "typescript": "~5.8.0",
