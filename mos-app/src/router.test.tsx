@@ -331,6 +331,10 @@ describe('router — Money gates (dev security series preserved)', () => {
     )
   })
 
+  it('branch register admits ops leads without changing the revenue gate', () => {
+    expect(gatesOnPath('/money/branch/GHQ')).toEqual(['accessRole:finance|manager|ops_lead|supervisor'])
+  })
+
   it('I-2: the Money read gate consumes the REVENUE_VIEW_ROLES constant (identity, not value)', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money'),
@@ -369,7 +373,6 @@ describe('router — Money gates (dev security series preserved)', () => {
       'dashboard',
       'dashboard/detail',
       'money',
-      'money/branch/:code',
       'money/detail',
       'money/pending-bills',
       'sales',

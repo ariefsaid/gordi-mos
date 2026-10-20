@@ -110,7 +110,7 @@ export function MoneyPage() {
       </Select></label>
         </div>
       </details>
-      {data?.latestDate && windowFrom && <p className="money-scope__window">{formatWeekdayDayMonth(windowFrom, locale)} – {formatWeekdayDayMonth(data.latestDate, locale)}</p>}
+      {data?.latestDate && windowFrom && <p className="money-scope__window">{formatWeekdayDayMonth(windowFrom, locale)} – {formatWeekdayDayMonth(resultView.range?.to ?? data.latestDate, locale)}</p>}
     </div>
   </>
 

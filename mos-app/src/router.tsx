@@ -345,11 +345,15 @@ const routeTable: RouteObject[] = [
           // series that exists only on this line. Read admits the VIEW tiers; planning
           // (budget/pricing) stays finance|admin, and that split is why there are two gates.
           {
+            element: <RequireAccessRole anyOf={[...REVENUE_VIEW_ROLES, 'ops_lead']} moduleId="money" />,
+            handle: infrastructureHandle('capability'),
+            children: [{ path: 'money/branch/:code', element: withSuspense(<MoneyBranchPage />), handle: pageHandle('workspace') }],
+          },
+          {
             element: <RequireAccessRole anyOf={REVENUE_VIEW_ROLES} moduleId="money" />,
             handle: infrastructureHandle('capability'),
             children: [
               { path: 'money', element: withSuspense(<MoneyPage />), handle: pageHandle('workspace') },
-              { path: 'money/branch/:code', element: withSuspense(<MoneyBranchPage />), handle: pageHandle('workspace') },
               // Pending bills is Finance's alone (#1464): the other Money tiers meet the boundary
               // naming the link, and reporting.pending_bills' read policy refuses them the rows.
               {
