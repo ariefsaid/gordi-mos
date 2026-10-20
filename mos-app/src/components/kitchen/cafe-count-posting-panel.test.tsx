@@ -35,7 +35,7 @@ it('reviewers see text states, returned references and ERP messages without admi
     posting_error: status === 'failed' ? 'Period is closed' : null,
   })))
   render(panel())
-  for (const label of ['Confirmed · not posted', 'Queued', 'Created · awaiting authorization', 'Posted', 'Failed', 'ERP document IJ-TEST', 'Period is closed']) {
+  for (const label of ['Confirmed · not posted', 'Queued', 'Created · awaiting authorization', 'Posted', 'Failed', 'ESB document IJ-TEST', 'Period is closed']) {
     expect(await screen.findByText(label)).toBeInTheDocument()
   }
   expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
