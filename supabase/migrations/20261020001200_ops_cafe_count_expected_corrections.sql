@@ -59,6 +59,7 @@ returns boolean language sql stable security definer set search_path = '' as $$
     )
 $$;
 revoke all on function ops._cafe_count_movements_settled(uuid,uuid,date) from public,anon,authenticated,service_role;
+revoke execute on function ops._cafe_count_movements_settled(uuid,uuid,date) from public;
 
 create or replace function ops._cafe_count_correction_allowed(p_line_id uuid)
 returns boolean language sql stable security definer set search_path = '' as $$
@@ -76,6 +77,7 @@ returns boolean language sql stable security definer set search_path = '' as $$
   from ops.cafe_count_lines original where original.id = p_line_id
 $$;
 revoke all on function ops._cafe_count_correction_allowed(uuid) from public,anon,authenticated,service_role;
+revoke execute on function ops._cafe_count_correction_allowed(uuid) from public;
 
 create or replace function ops._guard_cafe_count_line()
 returns trigger language plpgsql security invoker set search_path = '' as $$
@@ -197,6 +199,7 @@ begin
 end;
 $$;
 revoke all on function ops.start_cafe_count_correction(uuid,numeric,uuid) from public,anon,service_role;
+revoke execute on function ops.start_cafe_count_correction(uuid,numeric,uuid) from public;
 grant execute on function ops.start_cafe_count_correction(uuid,numeric,uuid) to authenticated;
 
 -- Retain A1's fail-closed enqueue; corrections get their own linked group.
@@ -223,6 +226,7 @@ begin
 end;
 $$;
 revoke all on function ops._enqueue_cafe_count_line(uuid,uuid,text) from public,anon,authenticated,service_role;
+revoke execute on function ops._enqueue_cafe_count_line(uuid,uuid,text) from public;
 
 create function ops._cafe_count_expected_can_read(p_line_id uuid)
 returns boolean language sql stable security definer set search_path = '' as $$
@@ -234,6 +238,7 @@ returns boolean language sql stable security definer set search_path = '' as $$
   from ops.cafe_count_lines line where line.id = p_line_id
 $$;
 revoke all on function ops._cafe_count_expected_can_read(uuid) from public,anon,authenticated,service_role;
+revoke execute on function ops._cafe_count_expected_can_read(uuid) from public;
 
 create function ops.claim_cafe_count_expected(p_push_id uuid)
 returns boolean language plpgsql security definer set search_path = '' as $$
@@ -248,6 +253,7 @@ begin
 end;
 $$;
 revoke all on function ops.claim_cafe_count_expected(uuid) from public,anon,authenticated;
+revoke execute on function ops.claim_cafe_count_expected(uuid) from public;
 grant execute on function ops.claim_cafe_count_expected(uuid) to service_role;
 
 create function ops.cafe_count_expected_queue(p_target_env text,p_limit integer default 50)
@@ -274,6 +280,7 @@ begin
 end;
 $$;
 revoke all on function ops.cafe_count_expected_queue(text,integer) from public,anon,authenticated;
+revoke execute on function ops.cafe_count_expected_queue(text,integer) from public;
 grant execute on function ops.cafe_count_expected_queue(text,integer) to service_role;
 
 create function ops.complete_cafe_count_expected(p_push_id uuid,p_expected_version integer,p_balance numeric,
@@ -309,6 +316,7 @@ begin
 end;
 $$;
 revoke all on function ops.complete_cafe_count_expected(uuid,integer,numeric,timestamptz,text) from public,anon,authenticated;
+revoke execute on function ops.complete_cafe_count_expected(uuid,integer,numeric,timestamptz,text) from public;
 grant execute on function ops.complete_cafe_count_expected(uuid,integer,numeric,timestamptz,text) to service_role;
 
 create function ops.refresh_cafe_count_expected(p_line_id uuid)
@@ -327,6 +335,7 @@ begin
 end;
 $$;
 revoke all on function ops.refresh_cafe_count_expected(uuid) from public,anon,service_role;
+revoke execute on function ops.refresh_cafe_count_expected(uuid) from public;
 grant execute on function ops.refresh_cafe_count_expected(uuid) to authenticated;
 
 create function ops.cafe_count_review_metadata(p_line_ids uuid[])
@@ -343,6 +352,7 @@ language sql stable security definer set search_path = '' as $$
     and shared.current_person_id() is not null and ops.can_review_stream(line.branch_id,line.activity)
 $$;
 revoke all on function ops.cafe_count_review_metadata(uuid[]) from public,anon,service_role;
+revoke execute on function ops.cafe_count_review_metadata(uuid[]) from public;
 grant execute on function ops.cafe_count_review_metadata(uuid[]) to authenticated;
 
 drop function ops.cafe_count_review_figures(uuid[]);
@@ -356,6 +366,7 @@ language sql stable security definer set search_path = '' as $$
   where coalesce(cardinality(p_line_ids),0) <= 500
 $$;
 revoke all on function ops.cafe_count_review_figures(uuid[]) from public,anon,service_role;
+revoke execute on function ops.cafe_count_review_figures(uuid[]) from public;
 grant execute on function ops.cafe_count_review_figures(uuid[]) to authenticated;
 
 drop function ops.cafe_count_posting_queue();
@@ -384,6 +395,7 @@ language sql stable security definer set search_path = '' as $$
   order by (line.posting_status = 'posted'),line.count_date desc,branch.name,line.activity,line.item_name,line.id limit 2000
 $$;
 revoke all on function ops.cafe_count_posting_queue() from public,anon,service_role;
+revoke execute on function ops.cafe_count_posting_queue() from public;
 grant execute on function ops.cafe_count_posting_queue() to authenticated;
 
 -- Release skips originals with an open or confirmed correction, before counting held candidates.
@@ -425,6 +437,7 @@ begin
 end;
 $$;
 revoke all on function ops.release_cafe_count_posting(uuid) from public,anon,service_role;
+revoke execute on function ops.release_cafe_count_posting(uuid) from public;
 grant execute on function ops.release_cafe_count_posting(uuid) to authenticated;
 
 drop function ops.cafe_count_floor_lines(uuid,text,date);
@@ -449,6 +462,7 @@ begin
 end;
 $$;
 revoke all on function ops.cafe_count_floor_lines(uuid,text,date) from public,anon,service_role;
+revoke execute on function ops.cafe_count_floor_lines(uuid,text,date) from public;
 grant execute on function ops.cafe_count_floor_lines(uuid,text,date) to authenticated;
 
 commit;
