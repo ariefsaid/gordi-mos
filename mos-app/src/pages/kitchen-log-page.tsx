@@ -266,6 +266,17 @@ async function readLatestItemLogDates(stream: ProductionStream | null, itemIds: 
   }
 }
 
+const captureQuantityFormatters = new Map<string, Intl.NumberFormat>()
+
+function formatCaptureQuantity(quantity: number, locale: string): string {
+  let formatter = captureQuantityFormatters.get(locale)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 2 })
+    captureQuantityFormatters.set(locale, formatter)
+  }
+  return formatter.format(quantity)
+}
+
 export function KitchenLogPage({ mode = 'production', leading }: {
   mode?: KitchenLogMode
   leading?: ReactNode
@@ -1490,9 +1501,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
       unit,
     }]
   })
-  const formatCaptureQty = (quantity: number) => new Intl.NumberFormat(
-    document.documentElement.lang || 'en', { useGrouping: false, maximumFractionDigits: 2 },
-  ).format(quantity)
+  const formatCaptureQty = (quantity: number) => formatCaptureQuantity(quantity, document.documentElement.lang || 'en')
   // Stock and plan figures are in the item's default unit (the Stock page says the same); an item with
   // no unit yet says so instead of showing a bare number.
   const renderUnitValue = (value: ReactNode, item: CaptureFormItem, show = true) => {
@@ -1505,7 +1514,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
     )
   }
   // A stock figure the database has no row for is unknown, not zero.
-  const renderStockValue = (item: CaptureFormItem, value: number) => stockMap[item.id]
+  const renderStockValue = (item: CaptureFormItem, value: number) => stockMap[item.id]?.stok !== null && stockMap[item.id]?.stok !== undefined
     ? renderUnitValue(formatCaptureQty(value), item)
     : <span className="kl-unit-value" title={t('kitchen.log.stock.none')}><strong>—</strong></span>
   const defaultUnitOf = (item: CaptureFormItem) => (item.units.find(unit => unit.is_default) ?? item.units[0])?.name
@@ -1748,7 +1757,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   // A fact that is the same for every row is said once above the sheet, not repeated down a column.
   const noPlanForAll = visibleItems.every(item => !lines[item.id]?.plan_qty)
   const noRecordedForAll = visibleItems.every(item => (actualsMap[item.id]?.[movementKey(movement)] ?? []).length === 0)
-  const availableMatchesStock = visibleItems.every(item => lines[item.id]?.tersedia === lines[item.id]?.stok)
+  const availableMatchesStock = visibleItems.every(item => stockMap[item.id]?.stok != null && lines[item.id]?.tersedia === lines[item.id]?.stok)
   const productionWorksheet = mode === 'production' && canCapture && !streamNonProducing
   const transferWorksheet = mode === 'transfer' && canCapture && !streamNonProducing && transferDestinationChosen
   const logTableReadOnly = (
@@ -1771,13 +1780,15 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
     const quantity = lines[item.id]?.plan_qty ?? 0
     return { label: t('kitchen.log.col.plan'), value: quantity > 0 ? formatCaptureQty(quantity) : '–', unit: quantity > 0 ? unitOfItem(item) : null }
   }
-  const stockFigure = (item: CaptureFormItem, label: string, quantity: number): CaptureFigure => stockMap[item.id]
-    ? { label, value: formatCaptureQty(quantity), unit: unitOfItem(item) }
-    : { label, value: '—', unit: null }
+  const stockFigure = (item: CaptureFormItem, label: string, quantity: number): CaptureFigure => ({
+    label, value: formatCaptureQty(quantity), unit: unitOfItem(item),
+  })
+  const recordedStockFigure = (item: CaptureFormItem, label: string, quantity: number): CaptureFigure =>
+    stockMap[item.id]?.stok != null ? stockFigure(item, label, quantity) : { label, value: '—', unit: null }
   const figureSpecs: { label: string; of: (item: CaptureFormItem) => CaptureFigure }[] = [
     ...(noPlanForAll ? [] : [{ label: t('kitchen.log.col.plan'), of: planFigure }]),
     ...(transferWorksheet ? [{ label: t('kitchen.stock.col.tersedia'), of: (item: CaptureFormItem) => stockFigure(item, t('kitchen.stock.col.tersedia'), lines[item.id]?.tersedia ?? 0) }] : []),
-    ...(transferWorksheet && availableMatchesStock ? [] : [{ label: t('kitchen.log.col.stock'), of: (item: CaptureFormItem) => stockFigure(item, t('kitchen.log.col.stock'), lines[item.id]?.stok ?? 0) }]),
+    ...(transferWorksheet && availableMatchesStock ? [] : [{ label: t('kitchen.log.col.stock'), of: (item: CaptureFormItem) => recordedStockFigure(item, t('kitchen.log.col.stock'), lines[item.id]?.stok ?? 0) }]),
   ]
   const recordedLabel = transferWorksheet
     ? t('kitchen.transfer.col.quantity', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })

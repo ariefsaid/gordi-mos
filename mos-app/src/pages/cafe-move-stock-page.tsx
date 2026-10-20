@@ -11,6 +11,7 @@ import { Select } from '@/components/ui/select'
 import { TextInput } from '@/components/ui/text-input'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
+import { canPushCafe } from '@/lib/kitchen-gates'
 import { compareDec, formatDec, parseDecimal } from '@/lib/cafe-records/decimal'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { useCafeStreamBootstrap } from '@/lib/use-cafe-stream-bootstrap'
@@ -33,7 +34,7 @@ export function CafeMoveStockPage() {
   const cafe = useCafeStream()
   const { options, stream, homeStream, myStreamKeys, setStream } = cafe
   const canMove = auth.status === 'authenticated' && canCaptureCafe({ affiliated: auth.viewer.affiliated, accessRoles: auth.viewer.accessRoles })
-  const canPlace = auth.status === 'authenticated' && auth.viewer.accessRoles.some(role => role === 'ops_lead' || role === 'admin')
+  const canPlace = auth.status === 'authenticated' && canPushCafe(auth.viewer.accessRoles)
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [retry, setRetry] = useState(0)
   const { catalogReady } = useCafeStreamBootstrap(cafe, retry, setLoadState)

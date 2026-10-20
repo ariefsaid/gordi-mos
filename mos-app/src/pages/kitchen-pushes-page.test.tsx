@@ -370,6 +370,22 @@ describe('KitchenPushesPage — populated (FR-074)', () => {
     expect(await screen.findByText('3 pushes · 3 queued')).toBeInTheDocument()
   })
 
+  it('AC-061 ID: three queued pushes use the Indonesian tally', async () => {
+    mockListPushes.mockResolvedValue([
+      PENDING_ROW,
+      { ...PENDING_ROW, id: 'push-queued-2', source_ref: 'TR-20260621-002' },
+      { ...PENDING_ROW, id: 'push-queued-3', source_ref: 'TR-20260621-003' },
+    ])
+    render(
+      <MemoryRouter>
+        <I18nProvider initialLocale="id">
+          <KitchenPushesPage />
+        </I18nProvider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('3 push · 3 menunggu')).toBeInTheDocument()
+  })
+
   it('pluralizes each tally count independently', async () => {
     mockListPushes.mockResolvedValue([POSTED_ROW])
     renderPage()

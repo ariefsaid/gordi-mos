@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { readAccountLocale, saveAccountLocale } from '@/lib/db/account-locale'
 import { DEFAULT_LOCALE, useI18n } from './I18nProvider'
@@ -71,7 +71,9 @@ export function AccountLocaleProvider({ children }: { children: React.ReactNode 
   const status: AccountLocaleStatus =
     personId === null ? 'ready' : resolved?.personId === personId ? resolved.status : 'loading'
 
-  return <AccountLocaleContext.Provider value={{ status, save }}>{children}</AccountLocaleContext.Provider>
+  const value = useMemo(() => ({ status, save }), [status, save])
+
+  return <AccountLocaleContext.Provider value={value}>{children}</AccountLocaleContext.Provider>
 }
 
 export function useAccountLocale(): AccountLocaleValue {

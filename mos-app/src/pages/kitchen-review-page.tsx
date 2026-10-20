@@ -42,7 +42,7 @@ import { listActiveBranches } from '@/lib/db/branches'
 // only her primary — the same read useCafeStream already runs for "Your Team" tagging.
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import type { CafeViewerTeam } from '@/lib/db/cafe-opening'
-import { isReviewerEligibleTeam } from '@/lib/kitchen-gates'
+import { canAdminCafe, canPushCafe, canReviewCafe, isCafeSupervisor, isReviewerEligibleTeam } from '@/lib/kitchen-gates'
 import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 import { deriveActionLabel, movementKey, streamDateKey, streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import type { Translate } from '@/i18n/use-t'
@@ -96,10 +96,17 @@ function isOffPlan(log: ReviewLogRow, planQty: number): boolean {
   return log.qty_porsi !== planQty
 }
 
+const reviewQuantityFormatters = new Map<string, Intl.NumberFormat>()
+
 function formatLogEntryQuantity(log: ReviewLogRow): string {
   if (log.entry_quantity == null || log.entry_unit_name == null) return String(log.qty_porsi)
   const locale = document.documentElement.lang || 'en'
-  const format = (quantity: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 3 }).format(quantity)
+  let formatter = reviewQuantityFormatters.get(locale)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, { maximumFractionDigits: 3 })
+    reviewQuantityFormatters.set(locale, formatter)
+  }
+  const format = (quantity: number) => formatter.format(quantity)
   const factor = log.entry_unit_factor ?? 1
   const enteredUnit = factor === 1 ? log.entry_unit_name : formatUnitMultiple(factor, log.entry_unit_name, locale)
   const entered = factor === 1
@@ -406,9 +413,9 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
   // #236 (FR-040/041): stream supervisors join the review surface. The page-level split is
   // DISPLAY ONLY — the write contract (who may decide which stream's rows) is the server's
   // guard/policy (NFR-002); everything here merely mirrors it so refusals are rare, not possible.
-  const isLeadOrAdmin = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
-  const isSupervisor = accessRoles.includes('supervisor')
-  const allowed = isLeadOrAdmin || isSupervisor
+  const isLeadOrAdmin = canPushCafe(accessRoles)
+  const isSupervisor = isCafeSupervisor(accessRoles)
+  const allowed = canReviewCafe(accessRoles)
 
   // The date and the open log live in the URL (UX-STANDARD NV4): no date = every pending
   // date, oldest first, so an older backlog is never hidden behind today.
@@ -1212,7 +1219,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
           reviewableStreamKeys={myStreamKeys}
           viewerId={viewerId}
           refreshKey={retryKey}
-          canManagePosting={accessRoles.includes('admin')}
+          canManagePosting={canAdminCafe(accessRoles)}
           canReleasePosting={isLeadOrAdmin}
         /></div>
         </div>

@@ -65,7 +65,7 @@ import { listCafeItemSettings, type CafeItemSetting } from '@/lib/db/cafe-item-s
 
 import { KitchenStockPage } from './kitchen-stock-page'
 import { rememberStream } from '@/lib/cafe-stream'
-import { rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
+import { rememberCafeLocation, rememberCafeOpeningTeam } from '@/lib/cafe-opening-location'
 import { branchDisplayName } from '@/lib/kitchen-action-label'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
 
@@ -150,7 +150,8 @@ beforeEach(() => {
   // #440: the Café stream is remembered for the whole module, in sessionStorage — so a test
   // that switches streams would otherwise seed the NEXT test's default. Clear it per test.
   rememberStream(null)
-  resetCafeLocations()
+  rememberCafeLocation('p-1', null)
+  rememberCafeOpeningTeam('p-1', null)
   mockUseAuth.mockReturnValue(viewer(['member']))
   mockBranches.mockResolvedValue([BRANCH_GHQ, BRANCH_RAD, BRANCH_RR])
   mockStreamPairs.mockResolvedValue(STREAM_PAIRS)
@@ -443,6 +444,16 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
 })
 
 describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
+  it.each([
+    ['en', wrapper],
+    ['id', idWrapper],
+  ] as const)('shows an unrecorded stock amount as absent in %s', async (_locale, localeWrapper) => {
+    mockFetchStock.mockResolvedValue([{ ...STOCK_ROWS[0]!, stok: null, tersedia: 0 }])
+    render(<KitchenStockPage />, { wrapper: localeWrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(within(rowOf('Ayam Bakar')).getByText('—')).toBeInTheDocument()
+  })
+
   it('filters to negative balances with the toggle and back', async () => {
     setDesktop()
     mockFetchStock.mockResolvedValue(STOCK_ROWS)

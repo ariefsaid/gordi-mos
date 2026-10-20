@@ -4,6 +4,7 @@ import type { MessageKey } from '@/i18n/messages'
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 import type { SortDir } from './sort-button'
 import { matchesTokens } from '@/lib/token-search'
+import { hasAccessRole } from '@/lib/capabilities'
 
 // ── Segment filter types ──────────────────────────────────────────────────────
 
@@ -52,7 +53,7 @@ export function filterPeople(people: AdminPersonRow[], statusParam: string, quer
 
 /** True when this person is the only active, unarchived admin in the list. */
 export function isLastActiveAdmin(person: AdminPersonRow, people: readonly AdminPersonRow[]): boolean {
-  const isActiveAdmin = (p: AdminPersonRow) => p.access_roles.includes('admin') && p.login === 'active' && !p.archived_at
+  const isActiveAdmin = (p: AdminPersonRow) => hasAccessRole(p.access_roles, 'admin') && p.login === 'active' && !p.archived_at
   return isActiveAdmin(person) && people.filter(isActiveAdmin).length === 1
 }
 

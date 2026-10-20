@@ -48,6 +48,11 @@ git add -A && git commit -qm 'new migration has DOWN header'
 check 'accepts exact DOWN header' 0
 
 reset_case
+printf '%s\n' '-- DOWN (manual): drop the view.' 'select 2;' > supabase/migrations/20260101000001_paren.sql
+git add -A && git commit -qm 'new migration has a parenthesised DOWN header'
+check 'accepts parenthesised DOWN header' 0
+
+reset_case
 printf '%s\n' 'select 2;' > supabase/migrations/20260101000001_file.sql
 printf '%s\n' 'select 1;' > supabase/rollbacks/20260101000001_file.sql
 git add -A && git commit -qm 'new migration has rollback file'
@@ -68,4 +73,4 @@ printf '%s\n' 'select 2;' '-- DOWN: this is outside the header.' > supabase/migr
 git add -A && git commit -qm 'new migration has a non-header DOWN comment'
 check 'rejects non-header DOWN comment' 1
 
-printf '%s/6 passed\n' "$pass"
+printf '%s/7 passed\n' "$pass"

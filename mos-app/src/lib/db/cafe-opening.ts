@@ -133,10 +133,6 @@ export async function resolveCafeOpeningTeamsForTeamIds(
   }))
 }
 
-/** Resolve an authored/membership Team through its branch to the canonical Café Opening Team. */
-export async function resolveCafeOpeningTeamForTeam(teamId: string): Promise<CafeOpeningTeam | null> {
-  return (await resolveCafeOpeningTeamsForTeamIds([teamId])).get(teamId) ?? null
-}
 
 export interface TodayOpening {
   started: boolean

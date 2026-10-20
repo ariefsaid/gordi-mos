@@ -4,7 +4,6 @@ import {
   buildCascadeGroups,
   buildCatalogRelationProjection,
   cascadeGroupKey,
-  formatCountRollup,
   resolveTaskObjectiveId,
   NO_WORK_LINE_KEY,
   UNLINKED_OBJECTIVE_KEY,
@@ -56,7 +55,6 @@ describe('count roll-up', () => {
     })
     expect(result.objectives[0]).toMatchObject({ id: 'o1', done: 1, total: 2 })
     expect(result.workLines[0]).toMatchObject({ id: 'w1', done: 1, total: 2 })
-    expect(formatCountRollup(result.objectives[0])).toBe('1 / 2 done')
   })
 
   it('is a count roll-up only — no measure, no target, no percentage (OD-WAY-32)', () => {

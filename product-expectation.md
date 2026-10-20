@@ -38,7 +38,7 @@ Include:
 - UI architecture
 - Production-ready code
 
-Build it like a real startup. As minimum as viably possible to cater for 1 client but scalable to cater millions of user in mind. 
+Build it like a real startup. As minimum as viably possible to cater for 1 client but scalable to cater millions of user in mind.
 
 ## Existing Repo
 Since its an existing repo, reverse-engineer the architecture and understand the complete data flow.
@@ -60,7 +60,7 @@ Do not change functionality. Only upgrade the code quality, scalability, and mai
 
 ## Performance
 
-Keep in mind for performance optimization if not at start, at least aspirationally. 
+Keep in mind for performance optimization if not at start, at least aspirationally.
 
 Your goals for performance:
 - Maximum speed

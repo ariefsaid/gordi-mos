@@ -128,7 +128,7 @@ export function FollowUpsPage() {
       <dl>
         <div><dt>{tx('moneyB.followups.source')}</dt><dd>{selected.source_invoice_ref ?? selected.kind}</dd></div>
         <div><dt>{tx('moneyB.followups.originalAmount')}</dt><dd className="tabular">{formatIDR(selected.original_amount)}</dd></div>
-        <div><dt>{tx('moneyB.followups.balance')}</dt><dd className="tabular">{formatIDR(selected.running_balance)}</dd></div>
+        <div><dt>{tx('moneyB.followups.balance')}</dt><dd className="tabular">{selected.running_balance === null ? '—' : formatIDR(selected.running_balance)}</dd></div>
         <div><dt>{tx('moneyB.followups.due')}</dt><dd>{selected.due_date ?? '—'}{isOverdue(selected) ? ` · ${t('followUps.overdue')}` : ''}</dd></div>
         <div><dt>{t('followUps.state')}</dt><dd><StatusPill status={stateTone(selected.state)} label={t(FOLLOW_UP_STATE_KEY[selected.state])} /></dd></div>
         {selected.promise_date && <div><dt>{t('followUps.promiseDate')}</dt><dd>{selected.promise_date}</dd></div>}

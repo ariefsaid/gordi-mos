@@ -29,8 +29,6 @@ vi.mock('@/lib/db/user-views-collection', () => ({
   listCollectionViews: vi.fn(),
   getCollectionView: vi.fn(),
   createCollectionView: vi.fn(),
-  renameCollectionView: vi.fn(),
-  archiveCollectionView: vi.fn(),
 }))
 
 import { listTasksPage } from '@/lib/db/tasks'
@@ -310,7 +308,6 @@ describe('NFR-V3-001: no typed bulk capability is granted', () => {
     expect(taskCollectionDescriptor.getAccess({ viewerId: 'p-raka', accessRoles: [] })).toEqual({ mode: 'full', visibleActions: [] })
     expect(taskCollectionDescriptor.presentations.table.capabilities.bulkActions).toEqual([])
     expect(taskCollectionDescriptor.presentations.card.capabilities.bulkActions).toEqual([])
-    // Selection is disabled until a real bulk action ships (OD-REDESIGN-83.2).
     expect(taskCollectionDescriptor.presentations.table.capabilities.selection).toBe(false)
   })
 })

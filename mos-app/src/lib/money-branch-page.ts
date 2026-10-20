@@ -48,6 +48,8 @@ export interface BranchPage {
   daysCount: number
   /** The selected range's days, oldest first. */
   days: BranchDay[]
+  /** True when at least one selected day has no received revenue value. */
+  totalPartial: boolean
   total: number
   vsPrevious: number | null
   /** Present only when margin rows were read; null on B2B (margin covers POS branches). */
@@ -90,6 +92,7 @@ export function buildBranchPage(
   const page: BranchPage = {
     code, name: displayBranchName(latest.branch_name ?? code, branchId ? branchNames?.get(branchId) : null),
     branchId, isB2B, latestDate: window.to, daysCount: window.days, days,
+    totalPartial: days.some((day) => day.value === null),
     total: days.reduce((s, d) => s + (d.value ?? 0), 0),
     vsPrevious: previousPair > 0 ? currentPair / previousPair - 1 : null,
   }

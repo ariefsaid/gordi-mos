@@ -13,7 +13,8 @@ import { ProtectedRoute } from './auth/protected-route'
 import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
 import { RedirectIfAuthed } from './auth/redirect-if-authed'
-import { REVENUE_VIEW_ROLES } from './lib/capabilities'
+import { MONEY_BRANCH_ROUTE_ROLES, MONEY_PLANNING_ROLES, REVENUE_VIEW_ROLES } from './lib/capabilities'
+import { CAFE_PUSH_ROLES, CAFE_REVIEW_ROLES } from './lib/kitchen-gates'
 import { isShipGatedInProfile } from './lib/ship-gate'
 import { AppShell } from './shell/app-shell'
 import { ModuleBoundary } from './shell/module-boundary'
@@ -345,7 +346,7 @@ const routeTable: RouteObject[] = [
           // series that exists only on this line. Read admits the VIEW tiers; planning
           // (budget/pricing) stays finance|admin, and that split is why there are two gates.
           {
-            element: <RequireAccessRole anyOf={[...REVENUE_VIEW_ROLES, 'ops_lead']} moduleId="money" />,
+            element: <RequireAccessRole anyOf={MONEY_BRANCH_ROUTE_ROLES} moduleId="money" />,
             handle: infrastructureHandle('capability'),
             children: [{ path: 'money/branch/:code', element: withSuspense(<MoneyBranchPage />), handle: pageHandle('workspace') }],
           },
@@ -372,7 +373,7 @@ const routeTable: RouteObject[] = [
             ],
           },
           {
-            element: <RequireAccessRole anyOf={['finance', 'admin']} moduleId="money" />,
+            element: <RequireAccessRole anyOf={MONEY_PLANNING_ROLES} moduleId="money" />,
             handle: infrastructureHandle('capability'),
             children: [
               {
@@ -480,7 +481,7 @@ const routeTable: RouteObject[] = [
           // and NFR-002 still holds: which rows a supervisor may DECIDE is the server's, never
           // this route's. A route gate decides what is worth showing; it authorises nothing.
           {
-            element: <RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} scope="link" moduleId="cafe" />,
+            element: <RequireAccessRole anyOf={CAFE_REVIEW_ROLES} scope="link" moduleId="cafe" />,
             handle: infrastructureHandle('capability'),
             children: [
               { path: ROUTE_PATHS.cafeReview, element: withSuspense(<CafeReviewPage />), handle: pageHandle('workspace') },
@@ -497,7 +498,7 @@ const routeTable: RouteObject[] = [
           },
           // Ops leads/admins keep access; managers may reach the page, which requires the server read fact before listing rows.
           {
-            element: <RequireAccessRole anyOf={['ops_lead', 'admin', 'manager']} scope="link" moduleId="cafe" />,
+            element: <RequireAccessRole anyOf={[...CAFE_PUSH_ROLES, 'manager']} scope="link" moduleId="cafe" />,
             handle: infrastructureHandle('capability'),
             children: [
               { path: ROUTE_PATHS.cafePushes, element: withSuspense(<KitchenPushesPage />), handle: pageHandle('workspace') },
