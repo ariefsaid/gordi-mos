@@ -15,7 +15,8 @@
 # are never printed, written to disk or put in the PR. Locations are read from gitignored
 # supabase/op.staging.env (template: supabase/op.staging.env.example).
 # Deploys origin/main only (refuses from any other checkout state). Order, stopping at the first failure:
-# backup, migrations, edge functions changed since the stamped commit (with their importers; agent functions are held),
+# backup, migrations, edge functions changed since the stamped commit (with their importers;
+# agent-chat, compose-view and mcp are held until assistant switch-on),
 # the server ops clone and one reporting snapshot when server ops scripts changed, then the stamp.
 # Never runs `supabase config push` or touches trusted agent clients. Each deployed function gets a
 # handler-auth and CORS smoke check; secrets for changed functions are set before they deploy.
@@ -135,7 +136,7 @@ changed_files="$(git -C "$ROOT" diff --name-only "$base" "$om" -- supabase/funct
 # (supabase/functions/_shared, mos-app/src/lib/agent, mos-app/src/lib/viewspec) deploys every function
 # importing it, directly or through other shared modules; a changed top-level deno.json or deno.lock
 # deploys every function. Held functions never deploy from here.
-HELD_FUNCTIONS=(compose-view mcp)
+HELD_FUNCTIONS=(agent-chat compose-view mcp)
 all_functions=(); for d in "$ROOT"/supabase/functions/*/index.ts; do n="${d%/index.ts}"; all_functions+=("${n##*/}"); done
 selected=() queue=() seen=" "
 while IFS= read -r f; do
@@ -163,7 +164,7 @@ functions_to_deploy=() held_functions=()
 for n in $(printf '%s\n' "${selected[@]+"${selected[@]}"}" | sort -u); do
   case " ${HELD_FUNCTIONS[*]} " in *" $n "*) held_functions+=("$n") ;; *) functions_to_deploy+=("$n") ;; esac
 done
-[ "${#held_functions[@]}" -eq 0 ] || say "WARNING: changed edge functions held (not deployed): ${held_functions[*]} — held until agent switch-on."
+[ "${#held_functions[@]}" -eq 0 ] || say "WARNING: changed edge functions held (not deployed): ${held_functions[*]} — held until assistant switch-on."
 
 # Server ops: the ERP-sync box runs these scripts from its own clone of main.
 OPS=0
