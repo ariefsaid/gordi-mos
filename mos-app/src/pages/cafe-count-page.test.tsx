@@ -298,6 +298,24 @@ describe('CafeCountPage', () => {
     expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
 
+  it('updates a waiting count line after the page regains focus', async () => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    vi.mocked(listCafeCountFloorLines)
+      .mockResolvedValueOnce([{ id: 'line-raw', itemId: 'raw-1', state: 'waiting', rowVersion: 1 }])
+      .mockResolvedValueOnce([{ id: 'line-raw', itemId: 'raw-1', state: 'needs_recount', rowVersion: 2 }])
+      .mockResolvedValueOnce([{ id: 'line-raw', itemId: 'raw-1', state: 'needs_recount', rowVersion: 2 }])
+    renderPage()
+
+    expect(await screen.findByText('Counted · waiting for the system check')).toBeInTheDocument()
+    window.dispatchEvent(new Event('focus'))
+
+    expect(await screen.findByText('This item differs. It needs a recount, and a reason if it still differs.')).toBeInTheDocument()
+    document.dispatchEvent(new Event('visibilitychange'))
+    await waitFor(() => expect(listCafeCountFloorLines).toHaveBeenCalledTimes(3))
+    expect(listCafeCountFloorLines).toHaveBeenNthCalledWith(2, streamMocks.stream, '2026-10-06')
+    expect(listCafeCountFloorLines).toHaveBeenNthCalledWith(3, streamMocks.stream, '2026-10-06')
+  })
+
   it('AC-017 a line that differs asks only for a recount and a reason, with no expected figure, Variance or direction', async () => {
     vi.mocked(listCafeCountFloorLines).mockResolvedValue([
       { id: 'line-raw', itemId: 'raw-1', state: 'needs_recount', rowVersion: 2 },
