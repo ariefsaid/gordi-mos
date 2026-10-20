@@ -14,7 +14,7 @@ const GATED_BY_LABEL: Record<string, string> = {
 test.describe('shell phone nav', () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
-  test('AC-021 (OD-68): an org-wide admin sees Home, Work, More — NO module tab (café is not their work); More reaches Inbox and the other destinations', async ({ page }) => {
+  test('AC-021 (OD-68): an org-wide admin sees Home, Work, More — NO module tab (café is not their work); More reaches the other destinations; Inbox is the bell', async ({ page }) => {
     await loginAs(page, ADMIN.email, ADMIN.password)
 
     const nav = page.getByRole('navigation', { name: 'Primary' })
@@ -27,12 +27,15 @@ test.describe('shell phone nav', () => {
     // OD-68: an org-wide role gets no promoted module tab — Café is absent from the bottom nav.
     await expect(nav.getByRole('link', { name: 'Café' })).not.toBeVisible()
 
+    await expect(page.getByRole('banner').getByRole('link', { name: /^Inbox/ })).toBeVisible()
+
     await nav.getByRole('button', { name: 'More' }).click()
     const more = page.getByRole('dialog', { name: 'More' })
     // OD-WAY-51 supersedes OD-68's "modules are hidden from an org-wide admin's More" rule:
     // the drawer lists every module the ROUTE admits, regardless of promotion. What ships on day
     // one is Cafe (issue 444 gates Ecommerce and Roastery as post-MVP).
-    await expect(more.getByRole('link', { name: 'Inbox', exact: true })).toBeVisible()
+    // Inbox is the top-bar bell on a phone too, never a More row.
+    await expect(more.getByRole('link', { name: 'Inbox', exact: true })).toHaveCount(0)
     await expect(more.getByRole('link', { name: 'Admin settings', exact: true })).toBeVisible()
     // Events, Ecommerce and Roastery remain ship-gated for everyone.
     for (const [label, path] of Object.entries(GATED_BY_LABEL)) {
@@ -42,7 +45,9 @@ test.describe('shell phone nav', () => {
     // Without the revenue-view role the admin reaches Money only through the budget/pricing pages,
     // which exist only when that flag is on.
     await expect(more.getByRole('link', { name: 'Money', exact: true })).toHaveCount(process.env.VITE_SHOW_PLAN_BUDGET === 'true' ? 1 : 0)
-    await more.getByRole('link', { name: 'Personal profile', exact: true }).click()
+    // Personal profile opens from the account menu at the foot of More.
+    await more.getByRole('button', { name: new RegExp(ADMIN.displayName, 'i') }).and(page.locator('[aria-haspopup="menu"]')).click()
+    await page.getByRole('menuitem', { name: 'Personal profile', exact: true }).click()
     await expect(page).toHaveURL(/\/profile$/)
     await expect(page.getByRole('heading', { name: 'Personal profile', exact: true })).toBeVisible()
     await expect(more).toBeHidden()

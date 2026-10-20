@@ -132,6 +132,11 @@ describe('AC-014: TopBar layout (OD-57)', () => {
     expect(precedes(inbox, deputy)).toBe(true)
   })
 
+  it('marks the bell as the current page while the viewer is on Inbox', () => {
+    renderTopBar('/inbox')
+    expect(screen.getByRole('link', { name: 'Inbox' })).toHaveAttribute('aria-current', 'page')
+  })
+
   it('AC-014: contains NO button labelled Ask Deputy / Share Signal / Create Task (those live in ⌘K)', () => {
     renderTopBar()
     expect(screen.queryByRole('button', { name: 'Ask Deputy' })).toBeNull()
