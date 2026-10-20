@@ -1,4 +1,4 @@
--- Rollback for 20261019004500. Refuses to discard a group that may have reached ERP; restores
+-- Rollback for 20261020001100. Refuses to discard a group that may have reached ERP; restores
 -- the pre-posting Count guard/confirm RPCs and prior outbox/status constraints.
 begin;
 do $$
