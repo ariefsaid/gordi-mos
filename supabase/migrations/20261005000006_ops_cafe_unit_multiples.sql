@@ -1,7 +1,7 @@
 -- #1345 — manager-defined multiples of the per-stream default ERP unit.
 -- Café settings keep the same per-stream scope, writer predicate and RLS. ERP still owns every
 -- unit coordinate; MOS stores only positive quantity factors. A capture starts on the default.
--- DOWN (manual): supabase/rollback/20261005000006_ops_cafe_unit_multiples.sql. It refuses to run
+-- DOWN (manual): supabase/rollbacks/20261005000006_ops_cafe_unit_multiples.sql. It refuses to run
 -- while manager factors or entry snapshots exist, so configured settings/history are never lost.
 begin;
 

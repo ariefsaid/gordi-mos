@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
+import type { Locale } from '@/i18n/messages'
 
 vi.mock('../auth/use-auth')
 vi.mock('../theme/theme-provider')
@@ -29,8 +31,8 @@ import { UserChip } from './user-chip'
  * A <Link> and not a button + navigate(): `nav-reachability.test.tsx` reads `a[href]` out of the
  * DOM to prove the surface is still reachable, and a viewer gets ⌘-click and a status-bar preview.
  */
-function renderChip(ui: ReactElement) {
-  return render(<MemoryRouter>{ui}</MemoryRouter>)
+function renderChip(ui: ReactElement, locale: Locale = 'en') {
+  return render(<MemoryRouter><I18nProvider initialLocale={locale}>{ui}</I18nProvider></MemoryRouter>)
 }
 
 const baseViewer = {
@@ -328,7 +330,10 @@ describe('Local view-as session access', () => {
     expect(screen.getByText('No other people with a login.')).toBeInTheDocument()
   })
 
-  it('still loads the people list for an admin', async () => {
+  it.each([
+    { locale: 'en', viewAs: 'View as', backToMe: 'Back to Dina Pratiwi' },
+    { locale: 'id', viewAs: 'Lihat sebagai', backToMe: 'Kembali ke Dina Pratiwi' },
+  ] as const)('lets an admin view as and return to a colleague in $locale', async ({ locale, viewAs, backToMe }) => {
     mockListAdminPeople.mockResolvedValue([
       {
         id: baseViewer.person.id, full_name: 'Dina Pratiwi', email: 'dina@example.test',
@@ -346,11 +351,21 @@ describe('Local view-as session access', () => {
       signOut,
     })
     const user = userEvent.setup()
-    renderChip(<UserChip />)
+    renderChip(<UserChip />, locale)
 
     await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
 
-    expect(await screen.findByRole('menuitem', { name: 'Budi Santoso — Member' })).toBeInTheDocument()
+    expect(screen.getByText(viewAs)).toBeInTheDocument()
+    await user.click(await screen.findByRole('menuitem', { name: 'Budi Santoso — Member' }))
+    await waitFor(() => expect(mockSignInWithPassword).toHaveBeenCalledWith({ email: 'budi@example.test', password: 'local-password' }))
+    expect(JSON.parse(window.sessionStorage.getItem('mos.local-view-as.original') ?? 'null')).toEqual({
+      email: 'dina@example.test', full_name: 'Dina Pratiwi',
+    })
+
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    await user.click(await screen.findByRole('menuitem', { name: backToMe }))
+    await waitFor(() => expect(mockSignInWithPassword).toHaveBeenLastCalledWith({ email: 'dina@example.test', password: 'local-password' }))
+    expect(window.sessionStorage.getItem('mos.local-view-as.original')).toBeNull()
     expect(mockListAdminPeople).toHaveBeenCalledOnce()
   })
 
