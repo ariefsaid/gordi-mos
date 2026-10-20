@@ -1,5 +1,6 @@
 import type { ViewerRole } from '@/lib/db/viewer'
 import { can } from './capabilities'
+import { canAdminCafe } from './kitchen-gates'
 import { buHeadsForViewer, isOwnerDirector, type RoleScopeNode } from './role-scope'
 
 export interface HomeViewerScope {
@@ -11,7 +12,7 @@ export interface HomeViewerScope {
 
 /** Failed checks are a Café operational exception, not a proxy for route admission. */
 export function canReviewCafeFailedChecks(viewer: Pick<HomeViewerScope, 'affiliated' | 'accessRoles'>): boolean {
-  return viewer.affiliated.includes('cafe') || viewer.accessRoles.includes('admin')
+  return viewer.affiliated.includes('cafe') || canAdminCafe(viewer.accessRoles)
 }
 
 // Objectives belong on the Home cockpit when the viewer can steer a scope: an actual reporting

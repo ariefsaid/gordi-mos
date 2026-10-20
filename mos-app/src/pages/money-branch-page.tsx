@@ -12,7 +12,7 @@ import { Select } from '@/components/ui/select'
 import { listRecipeFindings, type RecipeFindingsData } from '@/lib/db/recipe-findings'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
-import { canViewMargin, canViewRevenue } from '@/lib/capabilities'
+import { canReviewMoneyBranch, canViewBranchCancelVoid, canViewMargin, canViewRevenue } from '@/lib/capabilities'
 import { CancelVoidRegister } from '@/components/money/cancel-void-register'
 import { BranchCancelVoidPage } from '@/components/money/branch-cancel-void-page'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -182,7 +182,7 @@ function DaysTable({ page, period }: { page: BranchPage; period: number }) {
 export function MoneyBranchPage() {
   const auth = useAuth()
   const roles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  return !canViewRevenue(roles) && roles.includes('ops_lead') ? <BranchCancelVoidPage /> : <RevenueMoneyBranchPage />
+  return !canViewRevenue(roles) && canViewBranchCancelVoid(roles) ? <BranchCancelVoidPage /> : <RevenueMoneyBranchPage />
 }
 
 function RevenueMoneyBranchPage() {
@@ -214,9 +214,9 @@ function RevenueMoneyBranchPage() {
   const syncedAt = useMemo(() => (data ? latestBy(data.revenue, (r) => r.snapshot_as_of) : null), [data])
   // A supervisor who sees one branch was sent here from /money; a link back would send them here again.
   const onlyBranch = !canSeeMargin && data !== null && new Set(data.revenue.map((r) => r.branch_code)).size === 1
-  const canSeeFindings = accessRoles.some(r => ['finance', 'manager', 'ops_lead'].includes(r)) && !page?.isB2B
+  const canSeeFindings = canReviewMoneyBranch(accessRoles) && !page?.isB2B
   const registerWindow = data?.latestDate ? resolveMoneyWindow(displayView, data.latestDate) : null
-  const canReview = accessRoles.some(role => ['finance', 'manager', 'ops_lead'].includes(role)) && displayView.channel !== 'B2B' && !page?.isB2B
+  const canReview = canReviewMoneyBranch(accessRoles) && displayView.channel !== 'B2B' && !page?.isB2B
   const register = canReview && registerWindow ? <CancelVoidRegister key={code} branch={code} start={registerWindow.from} end={registerWindow.to} /> : null
   const findingStart = page?.days[0]?.date ?? ''
   const findingEnd = page?.latestDate ?? ''

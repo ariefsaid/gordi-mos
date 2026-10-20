@@ -47,6 +47,7 @@ import {
   type CafeMissingItemReport,
 } from '@/lib/db/cafe-missing-item-reports'
 import { useCafeStream, type CafeStreamCatalog } from '@/lib/use-cafe-stream'
+import { canPushCafe } from '@/lib/kitchen-gates'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { useIsWide } from '@/shell/use-is-wide'
 import { Notice } from '@/components/ui/notice'
@@ -144,8 +145,7 @@ function withLinkedStream(catalog: CafeStreamCatalog, wanted: string | null): Ca
 
 function CafeItemSettingsPageForViewer() {
   const auth = useAuth()
-  const canManageStreamItems = auth.status === 'authenticated'
-    && auth.viewer.accessRoles.some(role => role === 'ops_lead' || role === 'admin')
+  const canManageStreamItems = auth.status === 'authenticated' && canPushCafe(auth.viewer.accessRoles)
   const t = useT()
   const cafeStream = useCafeStream()
   const {

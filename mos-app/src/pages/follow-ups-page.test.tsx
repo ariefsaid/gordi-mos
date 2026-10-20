@@ -259,6 +259,34 @@ describe('FollowUpsPage', () => {
     expect(await screen.findByRole('button', { name: messages[locale]['followUps.action.confirm'] })).toBeInTheDocument()
   })
 
+  it.each([
+    ['en', 'Confirm'],
+    ['id', 'Konfirmasi'],
+  ] as const)('AC-513: finance can confirm a settled follow-up in %s', async (locale, confirmLabel) => {
+    mockUseAuth.mockReturnValue({ ...viewer, viewer: { ...viewer.viewer, accessRoles: ['finance'] } })
+    mockListFollowUpsPage.mockResolvedValue(page([{ ...row, state: 'settled', running_balance: 0 }]))
+    const user = userEvent.setup()
+    renderRoute('/money/follow-ups', locale)
+    await user.click(await screen.findByRole('button', { name: /INV-1001/ }))
+
+    const detail = await screen.findByRole('complementary')
+    expect(await within(detail).findByRole('button', { name: confirmLabel })).toBeVisible()
+  })
+
+  it.each([
+    ['admin', true],
+    ['member', false],
+  ] as const)('AC-514: %s %s the all-lane chase bypass without a Business Unit role', async (role, canChase) => {
+    mockUseAuth.mockReturnValue({ ...viewer, viewer: { ...viewer.viewer, roles: [], accessRoles: [role] } })
+    const user = userEvent.setup()
+    renderRoute('/money/follow-ups')
+    await user.click(await screen.findByRole('button', { name: /INV-1001/ }))
+
+    const detail = await screen.findByRole('complementary')
+    if (canChase) expect(await within(detail).findByRole('button', { name: 'Chase' })).toBeVisible()
+    else expect(within(detail).queryByRole('button', { name: 'Chase' })).toBeNull()
+  })
+
   it('hides Load more when the follow-up total is exactly one page', async () => {
     mockListFollowUpsPage.mockResolvedValueOnce(page(Array.from({ length: 50 }, (_, index) => ({ ...row, id: `fu-${index}`, counterparty: `Buyer ${index}` }))))
     render(createElement(FollowUpsPage), { wrapper })

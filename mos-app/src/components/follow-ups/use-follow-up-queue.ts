@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { getBusinessUnits } from '@/lib/db/directory'
+import { can, hasAccessRole } from '@/lib/capabilities'
 import { canWorkAnyLane } from '@/lib/follow-up-lanes'
 import {
   listFollowUpsPage,
@@ -63,8 +64,8 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
   const [params] = useSearchParams()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const accessRoles = useMemo(() => viewer?.accessRoles ?? [], [viewer])
-  const canConfirm = accessRoles.includes('finance') || accessRoles.includes('admin')
-  const [canChase, setCanChase] = useState(accessRoles.includes('admin'))
+  const canConfirm = can(accessRoles, 'followup.confirm')
+  const [canChase, setCanChase] = useState(hasAccessRole(accessRoles, 'admin'))
   const [rows, setRows] = useState<FollowUpRow[]>([])
   const [state, setState] = useState<FollowUpFetchState>('loading')
   const [hasMore, setHasMore] = useState(false)
@@ -112,7 +113,7 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
       .then((bus) => {
         if (!cancelled) setCanChase(canWorkAnyLane(viewer.roles, bus, accessRoles))
       })
-      .catch(() => setCanChase(accessRoles.includes('admin')))
+      .catch(() => setCanChase(hasAccessRole(accessRoles, 'admin')))
     return () => { cancelled = true }
   }, [accessRoles, viewer])
 
