@@ -20,6 +20,7 @@ case "$*" in
   *in_flight*) [ "${FAKE_QUERY_FAIL:-}" = in_flight ] && exit 2; echo "${FAKE_IN_FLIGHT:-0}" ;;
   *posted_at*) [ "${FAKE_QUERY_FAIL:-}" = posted_at ] && exit 2; echo "${FAKE_OLD_SENT:-0}" ;;
   *"min(created_at)"*) [ "${FAKE_QUERY_FAIL:-}" = pending_age ] && exit 2; echo "${FAKE_AGE:-0}" ;;
+  *"max(revenue_date)"*) [ "${FAKE_QUERY_FAIL:-}" = reporting_freshness ] && exit 2; if [ "${FAKE_REPORTING_EMPTY:-0}" = 1 ]; then echo t; else echo "${FAKE_REPORTING_STALE:-f}"; fi ;;
   *to_regclass*) echo "${FAKE_TABLE:-f}" ;;
   *"interval '15 minutes'"*) echo "${FAKE_CLIENT_ERRS:-0}" ;;
 esac
@@ -115,13 +116,14 @@ reset; lifecycle "aged in-flight rows" \
 reset; lifecycle "sent-row retention" \
   "Older MOS updates have not been cleared after reaching ERP. This may use extra storage; please check the cleanup." \
   "Old MOS updates have been cleared." FAKE_OLD_SENT=2 -- FAKE_OLD_SENT=0
-for query in dead_letter pending_age in_flight posted_at; do
+for query in dead_letter pending_age in_flight posted_at reporting_freshness; do
   reset; run FAKE_QUERY_FAIL="$query"
   case "$query" in
     dead_letter) expected="MOS couldn't check whether ERP updates failed. ERP may be missing recent changes; please check the connection." ;;
     pending_age) expected="MOS couldn't check whether updates are waiting to reach ERP. ERP may be behind; please check the connection." ;;
     in_flight) expected="MOS couldn't check whether updates are stuck on their way to ERP. ERP may be missing changes; please check the ERP worker." ;;
     posted_at) expected="MOS couldn't check whether old ERP updates were cleared. Storage may keep growing; please check the cleanup." ;;
+    reporting_freshness) expected="MOS couldn't check whether sales figures are current. Please check the reporting connection. / MOS tidak dapat memeriksa apakah angka penjualan sudah terbaru. Silakan periksa koneksi pelaporan." ;;
   esac
   [ "$(nmsg)" = 1 ] && message_is "🚨 $expected" \
     && ok "$query query failure uses plain alert" || bad "$query query failure" "$(msgs)"
@@ -173,6 +175,19 @@ age_file "$tmp/bk/mos-20260101T000000Z.dump" 30; run
 [ "$(nmsg)" = 1 ] && message_is "🚨 No recent database copy is available. A restore may miss recent MOS changes; please check the backup job." && ok "a 30 h old dump alerts" || bad "stale dump" "$(msgs)"
 mkenv "$tmp/ops.env"
 
+echo "reporting freshness"
+reset; run FAKE_REPORTING_STALE=f
+if [ "$(nmsg)" = 0 ] && grep -q 'max(revenue_date)' "$tmp/psql.log" && grep -q "interval '26 hours'" "$tmp/psql.log" && grep -q 'coalesce(max(revenue_date)' "$tmp/psql.log"; then
+  ok "fresh sales date stays quiet and the query uses the 26-hour limit"
+else bad "fresh reporting snapshot" "$(msgs) $(cat "$tmp/psql.log")"; fi
+reset; lifecycle "reporting freshness" \
+  "Sales figures in MOS have not been updated for more than 26 hours. Please check the reporting refresh. / Angka penjualan di MOS belum diperbarui selama lebih dari 26 jam. Silakan periksa pembaruan laporan." \
+  "Sales figures in MOS are up to date again. / Angka penjualan di MOS sudah diperbarui kembali." FAKE_REPORTING_STALE=t -- FAKE_REPORTING_STALE=f
+reset; run FAKE_REPORTING_EMPTY=1
+if [ "$(nmsg)" = 1 ] && message_is "🚨 Sales figures in MOS have not been updated for more than 26 hours. Please check the reporting refresh. / Angka penjualan di MOS belum diperbarui selama lebih dari 26 jam. Silakan periksa pembaruan laporan."; then
+  ok "no sales rows alerts as stale"
+else bad "empty reporting snapshot" "$(msgs)"; fi
+
 echo "reachability"
 reset; lifecycle "app" \
   "MOS isn't responding at its usual address. People may be unable to use it; please check MOS." \
@@ -183,7 +198,7 @@ reset; lifecycle "auth" \
 
 echo "database down"
 reset; run FAKE_DB_DOWN=1 FAKE_DEAD=5
-if [ "$(nmsg)" = 1 ] && message_is "🚨 MOS can't reach its database. MOS data may be unavailable; please check the database connection." && ! grep -q dead_letter "$tmp/psql.log"; then ok "db down: one alert, no outbox queries piled on"; else bad "db down" "$(msgs)"; fi
+if [ "$(nmsg)" = 1 ] && message_is "🚨 MOS can't reach its database. MOS data may be unavailable; please check the database connection." && ! grep -q dead_letter "$tmp/psql.log" && ! grep -q 'max(revenue_date)' "$tmp/psql.log"; then ok "db down: one alert, no follow-up database queries"; else bad "db down" "$(msgs)"; fi
 run FAKE_DB_DOWN=0
 message_is "✅ MOS can reach its database again." && ok "database recovery is clear" || bad "database recovery" "$(msgs)"
 
