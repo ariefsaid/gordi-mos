@@ -289,11 +289,11 @@ export function CaptureQuantityControl({
         autoComplete="off"
         value={value}
         aria-invalid={invalid || undefined}
-        aria-describedby={invalid || describedById ? describedById : undefined}
+        aria-describedby={[`${id}-unit`, describedById].filter(Boolean).join(' ')}
         disabled={disabled}
         onChange={event => onQuantityChange(event.target.value)}
       />
-      <span className="cap-unit" aria-label={unitName} title={unitName}>{unitName}</span>
+      <span id={`${id}-unit`} className="cap-unit" title={unitName}>{unitName}</span>
       {units && units.length > 1 && onToggleUnit && (
         <button type="button" className="cap-link" aria-expanded={changingUnit} disabled={disabled} onClick={onToggleUnit}>
           {t('cafe.receive.changeUnit')}

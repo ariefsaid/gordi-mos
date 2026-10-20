@@ -510,7 +510,7 @@ describe('CafeReceivePage', () => {
 
     const bean = screen.getByRole('row', { name: /Coffee bean/ })
     expect(within(bean).getByText('PO lists: bag 1 kg')).toBeInTheDocument()
-    expect(within(bean).getByLabelText('kg')).toBeInTheDocument()
+    expect(within(bean).getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveAccessibleDescription(/kg/)
     expect(within(screen.getByRole('row', { name: /Fresh milk/ })).queryByText(/PO lists:/)).toBeNull()
   })
 
@@ -601,7 +601,7 @@ describe('CafeReceivePage', () => {
     fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
     const bean = screen.getByRole('textbox', { name: 'Received for Coffee bean' })
     const beanRow = bean.closest('[role="row"]') as HTMLElement
-    expect(within(beanRow).getByLabelText('kg')).toBeInTheDocument()
+    expect(bean).toHaveAccessibleDescription(/kg/)
     expect(beanRow).toHaveTextContent('PO lists: bag')
     expect(screen.queryByRole('button', { name: 'Discard draft' })).toBeNull()
     expect(Object.keys(localStorage).filter(key => key.includes('receive'))).toEqual([])
