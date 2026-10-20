@@ -3,10 +3,11 @@
 // COGS -> margin (AC-PB-005, read-only), the fail-loud freshness/certification warning (AC-PB-006),
 // and that the price is never written (MOS is the pre-flight, not the price-setter — ADR-0022 D5).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { BudgetRow } from '@/lib/plan-budget-logic'
+import { formatWibDateTime } from '@/lib/format/date'
 
 vi.mock('@/lib/db/plan-budget', () => ({
   listBudgetsPage: vi.fn(),
@@ -108,6 +109,20 @@ describe('PricingPage — AC-PB-005: read-only margin check', () => {
     await waitFor(() => {
       expect(screen.getByTestId('pricing-result')).toHaveTextContent('Rp 21.000')
       expect(screen.getByTestId('pricing-result')).toHaveTextContent('70%')
+    })
+  })
+
+  it.each([
+    { locale: 'en' as const, prefix: 'Basis as of', scenario: 'Budget scenario', candidate: 'Candidate price (Rp)' },
+    { locale: 'id' as const, prefix: 'Dasar biaya per', scenario: 'Skenario anggaran', candidate: 'Harga kandidat (Rp)' },
+  ])('shows the linked basis date on both margin tiles in $locale', async ({ locale, prefix, scenario, candidate }) => {
+    renderPage(locale)
+    await screen.findByRole('combobox', { name: scenario })
+    fireEvent.change(screen.getByLabelText(candidate), { target: { value: '30000' } })
+    const result = await screen.findByTestId('pricing-result')
+    await waitFor(() => {
+      expect(within(result).getAllByText(prefix)).toHaveLength(2)
+      expect(within(result).getAllByText(formatWibDateTime(FRESH))).toHaveLength(2)
     })
   })
 
