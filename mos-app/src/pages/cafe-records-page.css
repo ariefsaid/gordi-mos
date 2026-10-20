@@ -80,7 +80,7 @@
 .rec-entry-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--mos-row-gap); min-height: var(--mos-control-height); }
 .rec-entry-card__top .rec-item { min-height: var(--mos-control-height); padding-block: var(--mos-space-2); }
 .rec-card--day { grid-template-columns: minmax(0, 1fr); }
-.rec-day-values, .rec-day-head { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--mos-row-gap); }
+.rec-day-values, .rec-day-head { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--mos-row-gap); }
 .rec-day-values { margin-top: var(--mos-label-gap); }
 .rec-day-values__cell { font: var(--mos-type-control); font-variant-numeric: var(--mos-numeric); text-align: end; }
 .rec-day-head { padding: var(--mos-band-pad-y) var(--mos-band-pad-x); background: var(--mos-band); border-bottom: 1px solid var(--mos-line); color: var(--mos-muted); font: var(--mos-type-label); }

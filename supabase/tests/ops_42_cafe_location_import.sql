@@ -47,7 +47,7 @@ end $$;
 
 create temp table _imp_payload on commit drop as
 select * from jsonb_to_recordset($json$
-[{"kind":"log","src_id":"made","det_id":"465cb6bb-a4b7-5df1-9179-aa24748cdfe3","log_date":"2026-05-02","wip_link_id":"recW1","action":"produce","dest_code":null,"esb_bom_id":"BOM-001","esb_pd_porsi":null,"qty":10,"notes":null,"reviewed_at":null,"posted_to_esb":false,"esb_doc_num":null,"posted_at":null,"created_at":null},{"kind":"log","src_id":"radiant","det_id":"dd2242b2-18ab-5df7-8b1d-049d94d2df09","log_date":"2026-05-02","wip_link_id":"recW1","action":"transfer","dest_code":"radiant","esb_bom_id":"BOM-001","esb_pd_porsi":null,"qty":3,"notes":null,"reviewed_at":null,"posted_to_esb":false,"esb_doc_num":null,"posted_at":null,"created_at":null},{"kind":"move","src_id":"outlet","det_id":"4639f0e9-4f69-5e1f-a551-7ba37c2ce489","log_date":"2026-05-02","wip_link_id":"recW1","action":"transfer","dest_code":"rumah_rames","esb_bom_id":"BOM-001","esb_pd_porsi":null,"qty":4,"notes":null,"reviewed_at":null,"posted_to_esb":false,"esb_doc_num":null,"posted_at":null,"created_at":null},{"kind":"move","src_id":"missing-item","det_id":"aa764482-be5b-54ca-8559-668ff6a955cf","log_date":"2026-05-02","wip_link_id":"missing","action":"transfer","dest_code":"rumah_rames","esb_bom_id":"NO-SUCH-ITEM","esb_pd_porsi":null,"qty":2,"notes":null,"reviewed_at":null,"posted_to_esb":false,"esb_doc_num":null,"posted_at":null,"created_at":null},{"kind":"move","src_id":"missing-unit","det_id":"7180ea55-a463-57b7-aa8a-319ff0f9a16c","log_date":"2026-05-02","wip_link_id":"recW2","action":"transfer","dest_code":"rumah_rames","esb_bom_id":"BOM-002","esb_pd_porsi":null,"qty":2,"notes":null,"reviewed_at":null,"posted_to_esb":false,"esb_doc_num":null,"posted_at":null,"created_at":null}]
+[{"kind":"log","src_id":"made","det_id":"465cb6bb-a4b7-5df1-9179-aa24748cdfe3","log_date":"2026-05-02","wip_link_id":"recW1","action":"produce","dest_code":null,"esb_bom_id":"BOM-001","esb_pd_porsi":null,"qty":10,"notes":null,"reviewed_at":null,"posted_to_esb":false,"esb_doc_num":null,"posted_at":null,"created_at":null},{"kind":"log","src_id":"radiant","det_id":"dd2242b2-18ab-5df7-8b1d-049d94d2df09","log_date":"2026-05-02","wip_link_id":"recW1","action":"transfer","dest_code":"radiant","esb_bom_id":"BOM-001","esb_pd_porsi":null,"qty":3,"notes":null,"reviewed_at":null,"posted_to_esb":false,"esb_doc_num":null,"posted_at":null,"created_at":null},{"kind":"move","src_id":"outlet","det_id":"4639f0e9-4f69-5e1f-a551-7ba37c2ce489","log_date":"2026-05-02","wip_link_id":"recW1","action":"outlet_send","dest_code":null,"esb_bom_id":"BOM-001","esb_pd_porsi":null,"qty":4,"notes":null,"reviewed_at":null,"posted_to_esb":false,"esb_doc_num":null,"posted_at":null,"created_at":null},{"kind":"move","src_id":"missing-item","det_id":"aa764482-be5b-54ca-8559-668ff6a955cf","log_date":"2026-05-02","wip_link_id":"missing","action":"outlet_send","dest_code":null,"esb_bom_id":"NO-SUCH-ITEM","esb_pd_porsi":null,"qty":2,"notes":null,"reviewed_at":null,"posted_to_esb":false,"esb_doc_num":null,"posted_at":null,"created_at":null},{"kind":"move","src_id":"missing-unit","det_id":"7180ea55-a463-57b7-aa8a-319ff0f9a16c","log_date":"2026-05-02","wip_link_id":"recW2","action":"outlet_send","dest_code":null,"esb_bom_id":"BOM-002","esb_pd_porsi":null,"qty":2,"notes":null,"reviewed_at":null,"posted_to_esb":false,"esb_doc_num":null,"posted_at":null,"created_at":null}]
 $json$) as (kind text, src_id text, det_id uuid, log_date date, wip_link_id text, action text,
   dest_code text, esb_bom_id text, esb_pd_porsi text, qty numeric, notes text,
   reviewed_at timestamptz, posted_to_esb boolean, esb_doc_num text,
@@ -87,14 +87,18 @@ with ins_logs as (
     (id, org_id, business_unit_id, log_date, branch_id, activity, action,
      destination_branch_id, wip_item_id, qty_porsi, notes, status, source,
      submitted_by, reviewed_by, reviewed_at, batch_id, posted_to_esb, esb_doc_num,
-     posted_at, created_at)
+     posted_at, created_at,from_storage_location_id,to_storage_location_id,item_unit_id)
   select r.det_id, e.org_id, e.bu_id, r.log_date, e.br_rr, 'kitchen', r.action,
          r.dest_branch_id,
          r.wip_item_id, r.qty, r.notes, 'Approved', 'teable_import',
-         null, null, r.reviewed_at, null, coalesce(r.posted_to_esb, false),
-         r.esb_doc_num, r.posted_at, coalesce(r.created_at, now())
+         null, null, r.reviewed_at, null, case when r.kind='move' then false else coalesce(r.posted_to_esb, false) end,
+         case when r.kind='move' then null else r.esb_doc_num end,
+         case when r.kind='move' then null else r.posted_at end, coalesce(r.created_at, now()),
+         case when r.kind='move' then e.kitchen_location end, case when r.kind='move' then e.outlet_location end,
+         case when r.kind='move' then r.item_unit_id end
     from _imp_resolved r, _imp_env e
-   where r.kind = 'log' and r.n_matches = 1 and r.dest_allowed
+   where r.kind in ('log','move') and r.n_matches = 1 and r.dest_allowed
+     and (r.kind<>'move' or r.item_unit_id is not null)
   on conflict do nothing
   returning 1
 ), ins_plans as (
@@ -146,11 +150,11 @@ select set_config('app.import_outbox',(select count(*)::text from integrations.e
 select set_config('app.import_logs',(select count(*)::text from ops.kitchen_logs),true);
 select set_config('app.import_report',pg_temp.load()::text,true);
 select is((current_setting('app.import_report')::jsonb->>'moves_loaded')::int,1,'AC11: Approved outlet send loads one import move');
-select is((current_setting('app.import_report')::jsonb->>'logs_loaded')::int,2,'AC11: only production and Radiant load as logs');
+select is((current_setting('app.import_report')::jsonb->>'logs_loaded')::int,3,'AC11: production, Radiant and outlet send load as reviewed logs');
 select ok(current_setting('app.import_report')::jsonb->'unresolved' @> '[{"src_id":"missing-item","reason":"wip_item_not_in_catalog"},{"src_id":"missing-unit","reason":"item_unit_unresolved"}]'::jsonb,'AC11: unresolved items and units are reported');
 select is(pg_temp.load()->>'moves_loaded','0','AC11: rerun is a no-op');
 select is((select count(*)::text from integrations.esb_push),current_setting('app.import_outbox'),'AC11: import never enqueues');
-select is((select count(*) from ops.kitchen_logs),current_setting('app.import_logs')::bigint+2,'AC11: outlet send never writes a log');
+select is((select count(*) from ops.kitchen_logs),current_setting('app.import_logs')::bigint+3,'AC11: outlet send is a normal record alongside production and Radiant');
 select is((select count(*)::int from ops.location_movements where source_type='log'),0,'AC2: imported Approved logs never post locations');
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');

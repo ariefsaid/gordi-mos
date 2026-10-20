@@ -111,6 +111,14 @@ describe('status groups', () => {
     expect(groups.map(g => [formatDec(g.rows[0].qty!), g.rows[0].entries])).toEqual([['2', 1], ['15', 2], ['99', 1]])
   })
 
+  it('outlet sends are separate from transfers and waste in Records', () => {
+    const entries = entriesOf({ logs: [log({ action: 'outlet_send', destination_branch_id: null, qty_porsi: 4 })] })
+    expect(entries[0]).toMatchObject({ movement: 'sent', destinationBranchId: null })
+    expect(summarize(entries, 'transferred')).toEqual([])
+    expect(summarize(entries, 'wasted')).toEqual([])
+    expect(summarize(entries, 'sent')[0].rows[0].entries).toBe(1)
+  })
+
   it('transfers are grouped per destination and carry it on the row', () => {
     const entries = entriesOf({ logs: [log({ action: 'transfer', destination_branch_id: B2, qty_porsi: 3 }), log({ action: 'transfer', destination_branch_id: B1, qty_porsi: 4 })] })
     const rows = summarize(entries, 'transferred')[0].rows

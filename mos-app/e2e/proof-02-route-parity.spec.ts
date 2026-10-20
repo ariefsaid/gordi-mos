@@ -67,12 +67,12 @@ async function visibleSurfaceHrefs(page: Page): Promise<Set<string>> {
 }
 
 // The routes the navigation must expose for the admin: every visible root, with the Work
-// collections folded into Work; Inbox is the bell on a desktop and a More row on a phone.
-// The admin reaches Money only through budget/pricing when that flag is on.
+// collections folded into Work. Inbox is the top-bar bell and Personal profile sits in the account
+// menu, so neither is a navigation row. The admin reaches Money only through budget/pricing when that flag is on.
 function expectedAreaHrefs(width: number): string[] {
   const areas = new Set(ADMIN_VISIBLE_ROOT_ROUTES.map((route) => (route.startsWith('/work/') ? '/work' : route)))
-  areas.add('/profile')
-  // The desktop rail lists Inbox as an area and opens Admin from a flyout button, not a link.
+  areas.delete('/inbox')
+  // The desktop rail opens Admin from a flyout button, not a link.
   if (width >= 920) areas.delete('/admin/people')
   if (process.env.VITE_SHOW_PLAN_BUDGET === 'true') areas.add('/money/budget')
   return [...areas].sort()
