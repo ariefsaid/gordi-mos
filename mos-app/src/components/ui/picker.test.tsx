@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { MultiPicker, Picker, type PickerOption } from './picker'
 
 const options: PickerOption[] = [
@@ -234,14 +235,35 @@ describe('Picker', () => {
     expect(screen.getByRole('combobox', { name: 'Filter Status' })).toHaveFocus()
   })
 
-  it('marks a 200-character unbroken label for single-line truncation', async () => {
+  it.each(['en', 'id'] as const)('exposes the full long option label in locale %s', async (locale) => {
     const user = userEvent.setup()
-    const long = 'x'.repeat(200)
-    renderPicker({ options: [{ value: 'long', label: long }], value: 'long' })
+    const long = `Gordi HQ ${'retail operations '.repeat(8)}`.trim()
+    render(
+      <I18nProvider initialLocale={locale}>
+        <Picker label="Status" value="long" options={[{ value: 'long', label: long }]} onChange={vi.fn()} />
+      </I18nProvider>,
+    )
     await user.click(screen.getByRole('combobox', { name: 'Status' }))
-    const label = screen.getByRole('option', { name: long }).querySelector('.picker__option-label')
-    expect(label).toHaveTextContent(long)
-    expect(label).toHaveClass('picker__option-label')
+    const option = screen.getByRole('option', { name: long })
+    expect(option).toHaveAccessibleName(long)
+    expect(option).toHaveAttribute('aria-label', long)
+    expect(option.querySelector('.picker__option-label')).toHaveAttribute('title', long)
+    expect(option.querySelector('.picker__option-label')).toHaveClass('picker__option-label')
+  })
+
+  it.each(['en', 'id'] as const)('exposes the full long multi-select option label in locale %s', async (locale) => {
+    const user = userEvent.setup()
+    const long = `Extra unit ${'case quantity '.repeat(8)}`.trim()
+    render(
+      <I18nProvider initialLocale={locale}>
+        <MultiPicker label="Extra units" values={[]} options={[{ value: 'long', label: long }]} onChange={vi.fn()} />
+      </I18nProvider>,
+    )
+    await user.click(screen.getByRole('button', { name: 'Extra units' }))
+    const option = screen.getByRole('option', { name: long })
+    expect(option).toHaveAccessibleName(long)
+    expect(option).toHaveAttribute('aria-label', long)
+    expect(option.querySelector('.picker__option-label')).toHaveAttribute('title', long)
   })
 
   describe('multi-select', () => {
