@@ -12,6 +12,7 @@ select set_config('app.cafe_reference_test_org_id', '00000000-0000-0000-0000-000
 select ops.refresh_cafe_item_references($source$[
   {"esb_product_id":"SYNTH-ERP-P-1368-BLIND","esb_product_detail_id":"SYNTH-ERP-PD-1368-BLIND","name":"Blind item","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true}
 ]$source$::jsonb);
+select ops.refresh_cafe_stream_items('[{"esb_product_id":"SYNTH-ERP-P-1368-BLIND","branch_code":"gordi_hq"}]');
 select set_config('app.allow_test_seeds', 'off', true);
 update ops.item_units set confirmed_at = now() where esb_product_id = 'SYNTH-ERP-P-1368-BLIND';
 -- d5 kitchen member (floor), d4 kitchen supervisor, d6 bar supervisor (another stream), d2 ops lead.

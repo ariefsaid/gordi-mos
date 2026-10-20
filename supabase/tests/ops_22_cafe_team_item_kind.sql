@@ -18,6 +18,7 @@ select ops.refresh_cafe_item_references($source$[
   {"esb_product_id":"SYNTH-ERP-P-1287-RAW","esb_product_detail_id":"SYNTH-ERP-PD-1287-RAW","name":"Synthetic RAW 1287","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},
   {"esb_product_id":"SYNTH-ERP-P-1287-WIP","esb_product_detail_id":"SYNTH-ERP-PD-1287-WIP","name":"Synthetic WIP 1287","category":"KITCHEN","unit_name":"tray","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":true,"is_active":true}
 ]$source$::jsonb);
+select ops.refresh_cafe_stream_items('[{"esb_product_id":"SYNTH-ERP-P-1287-RAW","branch_code":"gordi_hq"},{"esb_product_id":"SYNTH-ERP-P-1287-WIP","branch_code":"gordi_hq"}]');
 
 select is((select count(*)::int from ops.wip_items
             where esb_product_id like 'SYNTH-ERP-P-1287-%' and kind is null and flag_active),
@@ -165,6 +166,9 @@ select ops.refresh_cafe_item_references($source$[
   {"esb_product_id":"SYNTH-ERP-P-1287-RAW","esb_product_detail_id":"SYNTH-ERP-PD-1287-RAW","name":"Synthetic RAW 1287","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},
   {"esb_product_id":"SYNTH-ERP-P-1287-WIP","esb_product_detail_id":"SYNTH-ERP-PD-1287-WIP","name":"Synthetic WIP 1287","category":"KITCHEN","unit_name":"tray","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":true,"is_active":true}
 ]$source$::jsonb);
+select ops.refresh_cafe_stream_items((select jsonb_agg(jsonb_build_object('esb_product_id', item.esb_product_id, 'branch_code', branch.code))
+  from ops.wip_items item join shared.branches branch on branch.org_id=item.org_id
+  where item.org_id='00000000-0000-0000-0000-0000000000b1' and item.esb_product_id like 'SYNTH-ERP-P-1287-%'));
 select set_config('app.allow_test_seeds', 'off', true);
 select set_config('app.test_org_b_item_id',
   (select id::text from ops.wip_items where org_id = '00000000-0000-0000-0000-0000000000b1'

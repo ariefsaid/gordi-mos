@@ -1,10 +1,11 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { ActionBar } from '@/components/ui/action-bar'
 import { StatusBadge } from '@/components/ui/status-badge'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParamState } from '@/lib/use-search-param-state'
-import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamItemsActions } from '@/components/kitchen/cafe-stream-items-actions'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { CafeItemRecipeSection } from '@/components/kitchen/cafe-recipe-detail'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -142,6 +143,9 @@ function withLinkedStream(catalog: CafeStreamCatalog, wanted: string | null): Ca
 }
 
 function CafeItemSettingsPageForViewer() {
+  const auth = useAuth()
+  const canManageStreamItems = auth.status === 'authenticated'
+    && auth.viewer.accessRoles.some(role => role === 'ops_lead' || role === 'admin')
   const t = useT()
   const cafeStream = useCafeStream()
   const {
@@ -595,6 +599,13 @@ function CafeItemSettingsPageForViewer() {
           )}
         </details>
       )}
+      {readState === 'ready' && stream && canManageStreamItems && <CafeStreamItemsActions
+        key={streamKey(stream.branch.id, stream.activity)}
+        stream={stream}
+        selectedItem={selectedItem ? { id: selectedItem.id, name: selectedItem.mosName } : undefined}
+        disabled={changed.size > 0 || savingIds.size > 0}
+        onChanged={loadStreamItems}
+      />}
       {readState === 'ready' && stream && needsUnitCount > 0 && (
         <button type="button" className="cafe-items__needs-unit-summary" onClick={() => setNeedsUnitFilter('Needs unit')}>
           <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">

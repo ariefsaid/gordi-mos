@@ -109,6 +109,8 @@ export async function listStreamItemIds(stream: ProductionStream): Promise<Set<s
   const { data, error } = await ops()
     .from('stream_items')
     .select('wip_item_id')
+    .is('hidden_at', null)
+    .eq('is_listed', true)
     .eq('branch_id', stream.branch.id)
     .eq('activity', stream.activity)
   if (error) throw new Error(`listStreamItemIds failed — ${error.message}`)
@@ -123,6 +125,7 @@ export function streamItemKey(branchId: string, activity: string, wipItemId: str
 /** Every stream's list in the org, as streamItemKey values. */
 export async function listAllStreamItemKeys(): Promise<Set<string>> {
   const { data, error } = await ops().from('stream_items').select('branch_id,activity,wip_item_id')
+    .is('hidden_at', null).eq('is_listed', true)
   if (error) throw new Error(`listAllStreamItemKeys failed — ${error.message}`)
   return new Set(((data ?? []) as { branch_id: string; activity: string; wip_item_id: string }[])
     .map(row => streamItemKey(row.branch_id, row.activity, row.wip_item_id)))

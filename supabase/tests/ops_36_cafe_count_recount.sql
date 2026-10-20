@@ -14,6 +14,9 @@ select ops.refresh_cafe_item_references($source$[
   {"esb_product_id":"SYNTH-ERP-P-1368-C","esb_product_detail_id":"SYNTH-ERP-PD-1368-C","name":"Recount item C","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},
   {"esb_product_id":"SYNTH-ERP-P-1368-D","esb_product_detail_id":"SYNTH-ERP-PD-1368-D","name":"Recount item D","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true}
 ]$source$::jsonb);
+select ops.refresh_cafe_stream_items((select jsonb_agg(jsonb_build_object('esb_product_id', item.esb_product_id, 'branch_code', branch))
+  from ops.wip_items item cross join unnest(array['gordi_hq','rumah_rames']) branch
+  where item.org_id='00000000-0000-0000-0000-0000000000a1' and item.esb_product_id like 'SYNTH-ERP-P-1368-%'));
 select set_config('app.allow_test_seeds', 'off', true);
 update ops.item_units set confirmed_at = now() where esb_product_id like 'SYNTH-ERP-P-1368-%';
 
