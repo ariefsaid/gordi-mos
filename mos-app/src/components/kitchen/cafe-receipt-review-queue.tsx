@@ -42,6 +42,7 @@ export function CafeReceiptReviewQueue({
   const t = useT()
   const { locale } = useI18n()
   const [rows, setRows] = useState<CafeReceipt[]>([])
+  const [evidence, setEvidence] = useState<{ id: string; receipt?: CafeReceipt } | null>(null)
   const [unsentMore, setUnsentMore] = useState(0)
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map())
   const [differences, setDifferences] = useState<ReadonlyMap<string, CafeReceiptDifferenceSummary> | 'failed'>(new Map())
@@ -72,7 +73,7 @@ export function CafeReceiptReviewQueue({
     // Counted receipts that are not sent yet follow the decidable Submitted ones, oldest first with
     // their age, so an unsent lock is visible; only Submitted ones can be decided.
     void Promise.all([
-      listCafeReceipts(['Submitted'], { photosFor: ['Submitted'] }), listCafeUnsentReceipts(unsentStream), getPeople(),
+      listCafeReceipts(['Submitted'], { photosFor: [] }), listCafeUnsentReceipts(unsentStream), getPeople(),
     ]).then(([submitted, unsent, people]) => {
       if (!active) return
       const nextRows = [...submitted, ...unsent.receipts]
@@ -101,6 +102,18 @@ export function CafeReceiptReviewQueue({
   const countedRows = visibleRows.filter(receipt => receipt.status === 'Counted')
   const selectedReceipt = visibleRows.find(receipt => receipt.id === selectedReceiptId)
     ?? submittedRows[0] ?? countedRows[0] ?? visibleRows[0]
+
+  const evidenceId = selectedReceipt?.status === 'Submitted' ? selectedReceipt.id : null
+  useEffect(() => {
+    if (!evidenceId) return
+    let active = true
+    setEvidence(null)
+    // Only the selected receipt signs photos; queue navigation never waits for storage.
+    void listCafeReceipts(['Submitted'], { ids: [evidenceId], photosFor: ['Submitted'] })
+      .then(receipts => { if (active) setEvidence({ id: evidenceId, receipt: receipts[0] }) })
+      .catch(() => { if (active) setEvidence({ id: evidenceId }) })
+    return () => { active = false }
+  }, [evidenceId, retry])
 
   async function decide(receipt: CafeReceipt, decision: 'approve' | 'reject') {
     if (busyId || !online) return
@@ -215,7 +228,9 @@ export function CafeReceiptReviewQueue({
                     {receipt.delivery_note_number && <span>{t('cafe.receipts.review.deliveryNote', { number: receipt.delivery_note_number })}</span>}
                     {receipt.posting_status === 'held' && receipt.status !== 'Approved' && <span>{t('cafe.receipts.review.locationMissing')}</span>}
                     {differences === 'failed' && <span>{t('cafe.receipts.review.differenceFailed')}</span>}
-                    {receipt.photosUnavailable && <span>{t('cafe.receipts.photosUnavailable')}</span>}
+                    {(receipt.photosUnavailable || (evidence?.id === receipt.id
+                      && (!evidence.receipt || evidence.receipt.photosUnavailable))) && <span>{t('cafe.receipts.photosUnavailable')}</span>}
+                    {evidenceId === receipt.id && evidence?.id !== receipt.id && <span role="status">{t('cafe.receipts.photosLoading')}</span>}
                     {difference && !difference.known && <span>{t('cafe.receipts.review.differenceUnknown')}</span>}
                     {difference && (
                       <span>{!difference.asOf ? t('cafe.receipts.review.poNeverRead')
@@ -234,7 +249,8 @@ export function CafeReceiptReviewQueue({
                       withDifference
                       outcome={difference?.known ? difference.byUnit.get(line.item_unit_id) : undefined}
                     >
-                      <CafeReceiptLineEvidence line={line} />
+                      <CafeReceiptLineEvidence line={{ ...line, photos: evidence?.id === receipt.id
+                        ? evidence.receipt?.lines.find(found => found.id === line.id)?.photos ?? [] : line.photos }} />
                     </CafeReceiptLineRow>
                   ))}
                 </ul>

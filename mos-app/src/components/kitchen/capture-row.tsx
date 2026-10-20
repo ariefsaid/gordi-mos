@@ -257,7 +257,7 @@ export function CaptureControl({ children }: { children: ReactNode }) {
 /** Plain typed box + fixed unit text, with the optional "change unit" choice and extras (Request, Receive, Count). */
 export function CaptureQuantityControl({
   id, itemName, quantityFor, value, unitName, invalid = false, describedById, disabled = false, enterKeyHint,
-  units, selectedUnitId, changingUnit = false, onQuantityChange, onToggleUnit, onUnitChange, children,
+  units, selectedUnitId, changingUnit = false, onQuantityChange, onQuantityBlur, onToggleUnit, onUnitChange, children,
 }: {
   id: string
   itemName: string
@@ -272,6 +272,7 @@ export function CaptureQuantityControl({
   selectedUnitId?: string
   changingUnit?: boolean
   onQuantityChange: (value: string) => void
+  onQuantityBlur?: () => void
   onToggleUnit?: () => void
   onUnitChange?: (unitId: string) => void
   children?: ReactNode
@@ -292,6 +293,7 @@ export function CaptureQuantityControl({
         aria-describedby={[`${id}-unit`, describedById].filter(Boolean).join(' ')}
         disabled={disabled}
         onChange={event => onQuantityChange(event.target.value)}
+        onBlur={onQuantityBlur}
       />
       <span id={`${id}-unit`} className="cap-unit" title={unitName}>{unitName}</span>
       {units && units.length > 1 && onToggleUnit && (
