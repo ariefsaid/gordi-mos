@@ -16,6 +16,7 @@ import { useIsOffline } from '@/shell/use-is-offline'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { ALL_STREAMS } from './cafe-stream-bar'
+import { CafeCountCorrectionAction } from './cafe-count-correction-action'
 import './cafe-count-posting-panel.css'
 
 const STATUS_KEYS = {
@@ -32,12 +33,14 @@ export function CafeCountPostingPanel({
   canManagePosting,
   canReleasePosting,
   refreshKey,
+  onCorrectionStarted,
 }: {
   streamFilter: string
   streamCatalog: readonly ProductionStream[]
   canManagePosting: boolean
   canReleasePosting: boolean
   refreshKey: number
+  onCorrectionStarted?: () => void
 }) {
   const t = useT()
   const offline = useIsOffline()
@@ -82,7 +85,7 @@ export function CafeCountPostingPanel({
   const heldByBranch = useMemo(() => {
     const held = new Map<string, CafeCountPostingQueueRow[]>()
     for (const row of visibleRows) {
-      if (row.posting_status !== 'held') continue
+      if (row.posting_status !== 'held' || row.superseded || row.can_correct === false) continue
       const group = held.get(row.branch_id) ?? []
       group.push(row)
       held.set(row.branch_id, group)
@@ -124,7 +127,7 @@ export function CafeCountPostingPanel({
     }
   }
 
-  const statusLabel = (row: CafeCountPostingQueueRow) => row.expected_out_of_date
+  const statusLabel = (row: CafeCountPostingQueueRow) => row.superseded ? t('cafe.count.correction.superseded') : row.expected_out_of_date
     ? t('cafe.count.posting.expectedOutOfDate')
     : t(STATUS_KEYS[row.posting_status])
 
@@ -160,12 +163,18 @@ export function CafeCountPostingPanel({
           return <li key={row.line_id}>
             <div>
               <strong>{row.item_name}</strong>
+              {row.correction_of && <span>{t('cafe.count.correction.of', { reference: row.correction_of })}</span>}
               <span>{stream ? streamLabel(t, stream) : row.branch_name} · {formatWeekdayDayMonth(row.count_date)}</span>
             </div>
             <div className="cafe-count-posting__state">
               <span role="status">{statusLabel(row)}</span>
               {row.esb_doc_num && <span>{t('cafe.count.posting.document', { number: row.esb_doc_num })}</span>}
               {row.posting_error && <span role="alert">{row.posting_error}</span>}
+              {row.can_correct && !row.superseded && <CafeCountCorrectionAction lineId={row.line_id}
+                itemName={row.item_name} unitName={row.unit_name} disabled={offline || busyBranch !== null}
+                onSaved={() => { setRetry(value => value + 1); onCorrectionStarted?.() }} />}
+              {!row.can_correct && !row.superseded && ['queued', 'failed', 'awaiting_authorization'].includes(row.posting_status)
+                && <span>{t('cafe.count.correction.waitForPosting')}</span>}
             </div>
           </li>
         })}

@@ -16,7 +16,7 @@
 -- production stream (OD-WAY-42).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(34);
+select plan(35);
 
 -- ── Shape: the pair lives on the Team, half a stream is impossible ───────────────────────────
 select has_column('shared','teams','branch_id',
@@ -404,6 +404,8 @@ select throws_ok(
 -- streams — a reviewer arm, never the caller's own stream.
 -- #1429 (DD-2026-10-06-1429): a receipt's match, matched portions and issues follow that receipt:
 -- reviewers of its stream through ops.can_review_stream, and for issues also its receiver.
+-- #1504 evaluates receipt reviewer authority as a statement-local set. Issues inherit their parent
+-- receipt's identical read grants, like lines, so they no longer name stream columns themselves.
 reset role;
 select set_eq($$
   select schemaname || '.' || tablename || ' :: ' || policyname from pg_policies
@@ -424,8 +426,7 @@ select set_eq($$
     ('ops.cafe_open_po_branches :: cafe_open_po_branches_select_reader'),
     ('ops.cafe_open_pos :: cafe_open_pos_select_reader'),
     ('ops.cafe_receipt_matches :: cafe_receipt_matches_select_reviewer'),
-    ('ops.cafe_receipt_portions :: cafe_receipt_portions_select_reviewer'),
-    ('ops.cafe_receipt_issues :: cafe_receipt_issues_select_receiver_or_reviewer')
+    ('ops.cafe_receipt_portions :: cafe_receipt_portions_select_reviewer')
   $$,
   'OD-WAY-49: the only policies referencing a stream column are the #236 kitchen-log reviewer arm, the #238 completeness write arms, the #1260 Café item-settings manager arms, the #1422 receipt and #1428 purchase-request reviewer arms, the #1427 open-PO reader arms and the #1429 receipt-matching reviewer arms — the stream is a capture default, never a member authorization dimension');
 
@@ -433,9 +434,15 @@ select is(
   (select coalesce(array_agg(schemaname || '.' || policyname order by policyname), '{}')
      from pg_policies
     where coalesce(qual,'') || ' ' || coalesce(with_check,'') ~* '(branch_id|\mactivity\M)'
-      and coalesce(qual,'') || ' ' || coalesce(with_check,'') !~* '(is_stream_reviewer|can_review_stream|can_manage_cafe_item_settings|can_read_cafe_open_pos)'),
+      and coalesce(qual,'') || ' ' || coalesce(with_check,'') !~* '(is_stream_reviewer|can_review_stream|cafe_receipt_review_stream_keys|can_manage_cafe_item_settings|can_read_cafe_open_pos)'),
   '{}'::text[],
   'OD-WAY-49: ...and every one of them reaches the stream through the REVIEWER or Café item-settings MANAGER-SCOPE predicate — no policy compares a stream column to the caller''s own, which is what a member wall would look like');
+
+select ok(
+  (select pg_get_functiondef('ops.cafe_receipt_review_stream_keys()'::regprocedure)) ~* 'ops\.can_review_stream\('
+  and (select pg_get_functiondef('ops.cafe_receipt_review_stream_keys()'::regprocedure)) !~* 'default_stream'
+  and not (select prosecdef from pg_proc where oid = 'ops.cafe_receipt_review_stream_keys()'::regprocedure),
+  '#1504 the receipt review set delegates to the reviewer predicate under caller RLS, never the capture default');
 
 -- The two substrate tables' whole policy surface, enumerated. It was SELECT-only when this slice
 -- landed; the two admin-write policies joined it on 2026-08-26 (20260826000001) so the admin screen

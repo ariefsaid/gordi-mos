@@ -183,6 +183,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 TARGET_ENVS = ("dry_run", "goo", "gkid")
@@ -654,6 +655,7 @@ class Outbox:
             "or": f"(next_attempt_at.is.null,next_attempt_at.lte.{_now()})",
             "target_env": f"eq.{self.cfg.target_env}",
             "endpoint": "neq.noop",
+            "source_module": "neq.cafe_count_expected",
             "select": "*",
             "order": "created_at.asc",
             "limit": str(self.cfg.max_rows),
@@ -2500,6 +2502,93 @@ def _run_count_journal_group(cfg: Config, client: ErpClient, outbox: Outbox | No
     return 0
 
 
+# Expected reads use the shared outbox lease, but complete without inventing an ERP document.
+def read_count_expected(client: ErpClient, cfg: Config, line: dict[str, Any]) -> dict[str, str]:
+    """Read the dated ERP stock period and convert only with its own product-unit ratios."""
+    branch = cfg.id_map.branches.get(str(line.get('branch_code')))
+    unit = cfg.id_map.item_units.get(str(line.get('item_unit_id')))
+    if not branch or not unit or not unit.get('product_id') or not unit.get('product_detail_id'):
+        raise Permanent('expected balance has no target-environment branch/product/unit mapping')
+    if line.get('storage_location_id'):
+        raise Permanent('expected balance has no verified ERP storage-location mapping')
+    day = datetime.strptime(str(line['count_date']), '%Y-%m-%d')
+    rows: list[dict[str, Any]] = []
+    total = None
+    # The documented stock-period response carries qtySum in uomID and qty to the base unit.
+    # Its end-of-day semantics and unit ratios remain subject to the sandbox proof (#1378).
+    for page in range(1, 101):
+        response = client.get('/inventory/stock-period/browse', {
+            'locationID': branch['location_id'], 'periodDate': day.strftime('%Y-%m-%d'),
+            'showAllProduct': 1, 'page': page, 'limit': 100,
+        })
+        result = response.get('result') if isinstance(response, dict) else None
+        if not isinstance(result, dict) or not isinstance(result.get('data'), list):
+            raise Permanent('expected balance report is unavailable')
+        count = result.get('count')
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0 or (total is not None and count != total):
+            raise Permanent('expected balance report has no stable completeness count')
+        total = count
+        page_rows = result['data']
+        if any(not isinstance(row, dict) for row in page_rows):
+            raise Permanent('expected balance report has an invalid row')
+        rows.extend(page_rows)
+        if len(rows) == total and not result.get('next'):
+            break
+        if not page_rows or len(rows) > total:
+            raise Permanent('expected balance report is incomplete')
+    else:
+        raise Permanent('expected balance report exceeds the page limit')
+    matches = [row for row in rows if str(row.get('productID')) == str(unit['product_id'])]
+    targets = [row for row in matches if str(row.get('productDetailID')) == str(unit['product_detail_id'])]
+    if len(targets) != 1 or not matches:
+        raise Permanent('ERP unit conversion is unavailable or ambiguous')
+    source, target = matches[0], targets[0]
+    try:
+        balance = Decimal(str(source['qtySum']))
+        if source.get('uomID') is None or target.get('uomID') is None:
+            raise ValueError()
+        if source['uomID'] != target['uomID']:
+            source_ratio, target_ratio = Decimal(str(source['qty'])), Decimal(str(target['qty']))
+            if not source_ratio.is_finite() or not target_ratio.is_finite() or source_ratio <= 0 or target_ratio <= 0:
+                raise ValueError()
+            balance = balance * source_ratio / target_ratio
+            if Decimal(str(target['qtySum'])) != balance:
+                raise ValueError()
+        if not balance.is_finite() or abs(balance) > Decimal('9999999999.9999') or balance != balance.quantize(Decimal('.0001')):
+            raise ValueError()
+    except (KeyError, ValueError, InvalidOperation, ZeroDivisionError):
+        raise Permanent('ERP unit conversion or balance is unavailable at stored precision') from None
+    return {'balance': str(balance), 'as_of': (day + timedelta(days=1)).strftime('%Y-%m-%dT00:00:00+07:00')}
+
+
+def refresh_count_expected(cfg: Config, *, out) -> int:
+    """One bounded read tick; queue and writeback both recheck the movement gate and version."""
+    headers = _pgrst_headers(cfg, 'ops', write=True)
+    Outbox(cfg).reap()
+    _, rows = _request('POST', f'{cfg.supabase_url}/rest/v1/rpc/cafe_count_expected_queue',
+                       headers=headers, body={'p_target_env': cfg.target_env, 'p_limit': cfg.max_rows}, timeout=cfg.timeout)
+    client = ErpClient(cfg)
+    bad = 0
+    for row in rows or []:
+        _, claimed = _request('POST', f'{cfg.supabase_url}/rest/v1/rpc/claim_cafe_count_expected',
+                               headers=headers, body={'p_push_id': row['push_id']}, timeout=cfg.timeout)
+        if claimed is not True:
+            continue
+        body = {'p_push_id': row['push_id'], 'p_expected_version': row['row_version'],
+                'p_balance': None, 'p_as_of': None, 'p_unavailable_reason': None}
+        try:
+            snapshot = read_count_expected(client, cfg, row)
+            body.update(p_balance=snapshot['balance'], p_as_of=snapshot['as_of'])
+        except (Permanent, Transient, ValueError):
+            # Returned ERP text may contain operational details; only a bounded state crosses to Review.
+            body['p_unavailable_reason'] = 'erp_balance_or_conversion_unavailable'
+            bad += 1
+        _request('POST', f'{cfg.supabase_url}/rest/v1/rpc/complete_cafe_count_expected',
+                 headers=headers, body=body, timeout=cfg.timeout)
+    print(f'expected balance: {len(rows or [])} offered, {bad} unavailable', file=out)
+    return bad
+
+
 def load_rows(path: str) -> list[dict[str, Any]]:
     try:
         with open(path, encoding="utf-8") as fh:
@@ -2538,7 +2627,23 @@ def main(argv: list[str] | None = None) -> int:
                         help="read open purchase orders from ESB into the MOS cache: 'all' "
                              "mapped branches (schedule), 'requested' (on demand) or one "
                              "branch code. Posts nothing")
+    parser.add_argument('--refresh-count-expected', action='store_true',
+                        help='read settled Count expected balances once; posts no ERP documents')
     args = parser.parse_args(argv)
+
+    if args.refresh_count_expected:
+        if args.plan or args.rows_from or args.refresh_open_pos:
+            print('--refresh-count-expected runs alone', file=sys.stderr)
+            return 2
+        try:
+            cfg = load_config(dict(os.environ), offline=False, drains=False, gkid_switch=READ_SWITCH)
+            if cfg.target_env == 'dry_run' or not (cfg.esb_base_url and cfg.esb_username and cfg.esb_password):
+                raise ConfigError('expected reads require this target environment and its credentials')
+            bad = refresh_count_expected(cfg, out=sys.stdout)
+        except (ConfigError, Permanent, Transient) as exc:
+            print(f'expected balance tick refused: {exc}', file=sys.stderr)
+            return 2
+        return 3 if bad else 0
 
     if args.refresh_open_pos:
         if args.plan or args.rows_from:
