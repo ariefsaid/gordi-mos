@@ -26,7 +26,7 @@ export function PeriodControl({ period, range, latestDate, onChange, onRangeChan
   useEffect(() => {
     setDraft({ from: rangeFrom ?? fallback.from, to: rangeTo ?? fallback.to })
     setInvalid(false)
-    if (rangeFrom && rangeTo) setCustomOpen(true)
+    setCustomOpen(Boolean(rangeFrom && rangeTo))
   }, [fallback.from, fallback.to, rangeFrom, rangeTo])
   const edit = (field: 'from' | 'to', value: string) => {
     const next = { ...draft, [field]: value }

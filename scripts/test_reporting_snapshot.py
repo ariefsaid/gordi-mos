@@ -421,6 +421,8 @@ class _RecordingCursor:
 
     def fetchall(self):
         sql = self._connection.calls[-1][1] if self._connection.calls else ""
+        if "from public.cancel_void_register_rows" in sql:
+            return list(self._connection.cancel_void_rows)
         if "from public.stock_snapshot" in sql:
             return list(self._connection.stock_rows)
         if "from public.recipe_observations" in sql:
@@ -443,6 +445,7 @@ class _RecordingConnection:
         self.state_rows = ()
         self.finding_rows = ()
         self.stock_rows = ()
+        self.cancel_void_rows = ()
         self.calls = []
 
     def __enter__(self):
@@ -460,7 +463,7 @@ class _RecordingConnection:
 
 @contextmanager
 def _observed_run(source_rows, reporting_rows=(), missing_target_table=None, recipe_rows=(),
-                  state_rows=(), finding_rows=(), stock_rows=()):
+                  state_rows=(), finding_rows=(), stock_rows=(), cancel_void_rows=()):
     """Stand in for psycopg for the duration of a run, and hand back the connections it opened.
 
     reporting_snapshot imports psycopg inside its run functions, so substituting the module in
@@ -481,6 +484,7 @@ def _observed_run(source_rows, reporting_rows=(), missing_target_table=None, rec
         connection.state_rows = state_rows
         connection.finding_rows = finding_rows
         connection.stock_rows = stock_rows
+        connection.cancel_void_rows = cancel_void_rows
         connections.append(connection)
         return connection
 
@@ -803,7 +807,7 @@ class MissingTargetTableTests(unittest.TestCase):
         self.assertEqual(
             written_tables,
             ["insert into reporting.sales_daily_revenue", "insert into reporting.ingredient_usage_daily",
-             "insert into reporting.recipe_versions"],
+             "insert into reporting.recipe_versions", "insert into reporting.cancel_void_register"],
         )
 
         with _observed_run(
@@ -905,7 +909,7 @@ class PendingBillRunTests(unittest.TestCase):
             out = io.StringIO()
             with redirect_stdout(out):
                 main()
-        self.assertEqual(len(connections), 12, "revenue, margin, usage, recipe history, findings and stock on-hand")
+        self.assertEqual(len(connections), 14, "revenue, margin, usage, recipe history, findings, stock on-hand and cancel/void")
         self.assertIn("usage=0 pending_bills=off pending_bills_skipped=off", out.getvalue())
         self.assertIn("stock_on_hand=0", out.getvalue())
 
@@ -919,7 +923,7 @@ class PendingBillRunTests(unittest.TestCase):
         config = SnapshotConfig.from_env(env)
         with _observed_run([]) as connections:
             counts = run_all_snapshots(config)
-        self.assertEqual(len(connections), 14, "revenue, margin, usage, pending bills, recipe history, findings and stock on-hand")
+        self.assertEqual(len(connections), 16, "revenue, margin, usage, pending bills, recipe history, findings, stock on-hand and cancel/void")
         self.assertIn("reporting.pending_bill_snapshots", repr(connections[7].calls))
         self.assertEqual(counts["pending_bills"], 0)
 

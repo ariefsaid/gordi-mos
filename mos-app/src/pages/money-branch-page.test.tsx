@@ -16,7 +16,10 @@ vi.mock('@/lib/db/reporting-margin', async () => {
   return { ...actual, listSalesMarginDaily: vi.fn() }
 })
 vi.mock('@/lib/db/money-branch', () => ({ listUncoveredCafeItems: vi.fn(), askBranchLead: vi.fn() }))
+vi.mock('@/lib/db/branches', () => ({ listBranchesByIds: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/recipe-findings', () => ({ listRecipeFindings: vi.fn() }))
+vi.mock('@/lib/db/cancel-void', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/db/cancel-void')>(), listCancelVoidRegister: vi.fn(), latestCancelVoidDate: vi.fn() }))
+vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/auth/use-auth')
 // Desktop presentation: the days table and the full filter row render (the phone gets cards).
 vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => true }))
@@ -28,6 +31,7 @@ import { listRecipeFindings, type RecipeFinding } from '@/lib/db/recipe-findings
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ReportingRowCapError } from '@/lib/db/reporting-shared'
 import { MoneyBranchPage } from './money-branch-page'
+import { listCancelVoidRegister, latestCancelVoidDate } from '@/lib/db/cancel-void'
 
 const mockRev = vi.mocked(listSalesDailyRevenue)
 const mockLatest = vi.mocked(latestSalesReportingDate)
@@ -109,6 +113,43 @@ beforeEach(() => {
   mockUncovered.mockResolvedValue([{ id: 'i-1', name: 'Cold brew base', activities: ['bar'] }])
   mockAsk.mockResolvedValue({ kind: 'created', taskId: 'task-9' })
   vi.mocked(listRecipeFindings).mockResolvedValue({ rows: [], receipts: [] })
+  vi.mocked(listCancelVoidRegister).mockResolvedValue({ rows: [], reviews: [] })
+  vi.mocked(latestCancelVoidDate).mockResolvedValue(LATEST)
+})
+
+it('ops lead reads the branch register without fetching revenue, margin or recipe figures', async () => {
+  renderBranch(['ops_lead'])
+  expect(await screen.findByRole('region', { name: 'Cancelled and voided sales' })).toBeVisible()
+  expect(listCancelVoidRegister).toHaveBeenCalledWith('GHQ', day(6), LATEST)
+  expect(listSalesDailyRevenue).not.toHaveBeenCalled()
+  expect(latestSalesReportingDate).not.toHaveBeenCalled()
+  expect(listSalesMarginDaily).not.toHaveBeenCalled()
+  expect(listRecipeFindings).not.toHaveBeenCalled()
+})
+
+it('the register follows the branch custom date slice, but is never read for a supervisor', async () => {
+  const view = renderBranch(['finance'], `/money/branch/GHQ?period=custom&from=${day(2)}&to=${LATEST}`)
+  expect(await screen.findByRole('region', { name: 'Cancelled and voided sales' })).toBeVisible()
+  expect(listCancelVoidRegister).toHaveBeenCalledWith('GHQ', day(2), LATEST)
+  view.unmount()
+  vi.mocked(listCancelVoidRegister).mockClear()
+  renderBranch(['supervisor'])
+  await screen.findByRole('heading', { level: 1, name: 'Gordi HQ' })
+  expect(listCancelVoidRegister).not.toHaveBeenCalled()
+})
+
+it.each(['ops_lead', 'finance'])('keeps the previous register while %s changes the date window', async role => {
+  const user = userEvent.setup()
+  renderBranch([role])
+  expect(await screen.findByText('No cancelled or voided sales recorded in this slice.')).toBeVisible()
+  vi.mocked(listCancelVoidRegister).mockReturnValue(new Promise(() => {}))
+  await user.click(screen.getByRole('combobox', { name: 'Period' }))
+  await user.click(screen.getByRole('option', { name: '30 days' }))
+  await waitFor(() => expect(listCancelVoidRegister).toHaveBeenLastCalledWith('GHQ', day(29), LATEST))
+  const register = screen.getByRole('region', { name: 'Cancelled and voided sales' })
+  expect(within(register).getByText('No cancelled or voided sales recorded in this slice.')).toBeVisible()
+  expect(within(register).queryByRole('status')).toBeNull()
+  expect(register.querySelector('[aria-busy="true"]')).not.toBeNull()
 })
 
 it('recipe/stock journey: prioritize a lead, filter, inspect evidence and blocked units', async () => {
