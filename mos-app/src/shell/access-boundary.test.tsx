@@ -53,7 +53,7 @@ import { admittedModules, footerAreas, viewerAdmittedToRoute } from './module-re
 const mockUseAuth = vi.mocked(useAuth)
 
 /** The gate that guards `/cafe/pushes` in the real table — a live route, so the panel is reachable. */
-const CAFE_PUSHES_ROLES = ['ops_lead', 'admin'] as const
+const CAFE_PUSHES_ROLES = ['ops_lead', 'admin', 'manager'] as const
 /** The gate that guards `/cafe/review`. */
 const CAFE_REVIEW_ROLES = ['ops_lead', 'admin', 'supervisor'] as const
 

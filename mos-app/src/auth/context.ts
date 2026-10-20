@@ -10,7 +10,14 @@ export type AuthState =
   | { status: 'orphan'; signOut: () => Promise<void> }
   | {
       status: 'authenticated'
-      viewer: { person: ViewerPerson; roles: ViewerRole[]; isManager: boolean; accessRoles: string[]; affiliated: string[] }
+      viewer: {
+        person: ViewerPerson
+        roles: ViewerRole[]
+        isManager: boolean
+        accessRoles: string[]
+        affiliated: string[]
+        canReadCafePushes?: boolean
+      }
       signOut: () => Promise<void>
       // Optional for provider-less typed fixtures; production AuthProvider always supplies a scope.
       readScope?: ReadScope

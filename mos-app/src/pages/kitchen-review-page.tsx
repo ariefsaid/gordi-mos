@@ -402,6 +402,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
 
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const canReadCafePushes = auth.status === 'authenticated' && auth.viewer.canReadCafePushes === true
   // #236 (FR-040/041): stream supervisors join the review surface. The page-level split is
   // DISPLAY ONLY — the write contract (who may decide which stream's rows) is the server's
   // guard/policy (NFR-002); everything here merely mirrors it so refusals are rare, not possible.
@@ -725,7 +726,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
       setNotice(batch_id === null
         ? t(logs.find(log => log.id === logId)?.action === 'outlet_send' ? 'kitchen.review.notice.outletSent' : 'kitchen.review.notice.wasteHeld')
         : t('kitchen.review.notice.approved', { batchId: batch_id }))
-      setNoticeCanViewPushes(isLeadOrAdmin && batch_id !== null)
+      setNoticeCanViewPushes(canReadCafePushes && batch_id !== null)
     } catch (err) {
       handleDecisionError(err)
     } finally {
@@ -848,14 +849,14 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
     setBulkAction(null)
     if (failed > 0 || stale.length > 0) {
       setNotice(t('kitchen.review.notice.bulkTruth', { approved, failed, stale: stale.length }))
-      setNoticeCanViewPushes(isLeadOrAdmin && approved > 0)
+      setNoticeCanViewPushes(canReadCafePushes && approved > 0)
     } else if (approved > 0) {
       setNotice(
         approved === 1
           ? t('kitchen.review.notice.approved', { batchId: batches[0] ?? '—' })
           : t('kitchen.review.notice.bulkApproved', { approved, batchId: batches.join(', ') }),
       )
-      setNoticeCanViewPushes(isLeadOrAdmin)
+      setNoticeCanViewPushes(canReadCafePushes)
     }
     if (stale.length > 0) setRetryKey(k => k + 1)
   }
@@ -1159,7 +1160,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
       {!isOnline && <Notice tone="attention" role="alert">{t('kitchen.review.offline')}</Notice>}
 
       {notice && (
-        <Notice tone="success" action={noticeCanViewPushes ? <Link to="/cafe/pushes">{t('kitchen.review.notice.viewPushes')}</Link> : undefined}>
+        <Notice tone="success" action={noticeCanViewPushes && canReadCafePushes ? <Link to="/cafe/pushes">{t('kitchen.review.notice.viewPushes')}</Link> : undefined}>
           {notice}
         </Notice>
       )}

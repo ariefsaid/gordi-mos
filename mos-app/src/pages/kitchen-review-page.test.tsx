@@ -159,7 +159,7 @@ function chooseStream(optionName: string) {
   fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
 }
 
-function viewer(accessRoles: string[]): AuthState {
+function viewer(accessRoles: string[], canReadCafePushes = accessRoles.includes('ops_lead') || accessRoles.includes('admin')): AuthState {
   return {
     status: 'authenticated',
     viewer: {
@@ -171,6 +171,7 @@ function viewer(accessRoles: string[]): AuthState {
       roles: [],
       isManager: false,
       accessRoles,
+      canReadCafePushes,
       affiliated: [],
     },
     signOut: vi.fn(),
@@ -578,6 +579,20 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
     expect(await screen.findByText(/PR-20260620-004/)).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /view pushes/i })).not.toBeInTheDocument()
+  })
+
+  it('AC-062: an admitted Retail Ops manager sees the Review notice link to Pushes', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor', 'manager'], true))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-005' })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    await pickLog('nasi goreng')
+    fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
+
+    expect(await screen.findByRole('link', { name: /view pushes/i })).toHaveAttribute('href', '/cafe/pushes')
   })
 
   it('AC: P0003 (already actioned) → friendly notice + re-fetch', async () => {

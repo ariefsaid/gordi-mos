@@ -89,7 +89,7 @@ function viewerFor(userId: string) {
   const person = userId === 'auth-user-b'
     ? { ...personRow, id: '40000000-0000-0000-0000-000000000002', user_id: userId, full_name: 'Other Fixture' }
     : { ...personRow, user_id: userId }
-  return { person, roles, isManager: false, accessRoles: ['member'], affiliated: [] }
+  return { person, roles, isManager: false, accessRoles: ['member'], affiliated: [], canReadCafePushes: false }
 }
 
 async function flushAuth() {
@@ -132,7 +132,7 @@ describe('AuthProvider', () => {
       data: { session: { user: { id: 'auth-user-001' } } },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [] })
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [], canReadCafePushes: false })
 
     await act(async () => {
       render(
@@ -151,7 +151,7 @@ describe('AuthProvider', () => {
       data: { session: { user: { id: 'auth-user-orphan' } } },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: null, roles: [], isManager: false, accessRoles: [], affiliated: [] })
+    mockResolveViewer.mockResolvedValue({ person: null, roles: [], isManager: false, accessRoles: [], affiliated: [], canReadCafePushes: false })
 
     await act(async () => {
       render(
@@ -202,7 +202,7 @@ describe('AuthProvider', () => {
       data: { session: null },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [] })
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [], canReadCafePushes: false })
 
     let capturedCallback: Parameters<typeof supabase.auth.onAuthStateChange>[0] | null = null
     mockOnAuthStateChange.mockImplementation((cb) => {
@@ -244,7 +244,7 @@ describe('AuthProvider', () => {
       data: { session: { user: { id: 'auth-user-001' } } },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [] })
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [], canReadCafePushes: false })
     mockSignOut.mockResolvedValue({ error: null })
 
     const user = userEvent.setup()
@@ -302,7 +302,7 @@ describe('AuthProvider', () => {
       data: { session: { user: { id: 'auth-user-001' } } },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [] })
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [], canReadCafePushes: false })
     mockSignOut.mockResolvedValue({ error: null })
     const user = userEvent.setup()
     await act(async () => {

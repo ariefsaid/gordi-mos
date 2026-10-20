@@ -64,15 +64,24 @@ describe('the module registry feeds every navigation surface', () => {
     expect(groups[3].items.map((item) => item.path)).toEqual(['/cafe/review', '/cafe/pushes'])
   })
 
-  it('keeps the admission gates: Review for leads and supervisors, Sent to ESB for leads only, no old review rows', () => {
+  it('keeps the admission gates: Review for leads and supervisors, Pushes for outbox readers, no old review rows', () => {
     expect(cafePaths([])).not.toContain('/cafe/review')
     expect(cafePaths(['supervisor'])).toContain('/cafe/review')
     expect(cafePaths(['supervisor'])).not.toContain('/cafe/pushes')
     expect(cafePaths(['ops_lead'])).toContain('/cafe/pushes')
+    expect(pageGroupsFor(cafe(['manager']), ['manager'], allModulesOn, { canReadCafePushes: true })
+      .flatMap((group) => group.items.map((item) => item.path))).toContain('/cafe/pushes')
+    expect(pageGroupsFor(cafe(['manager']), ['manager'], allModulesOn)
+      .flatMap((group) => group.items.map((item) => item.path))).not.toContain('/cafe/pushes')
     for (const roles of [[], ['supervisor'], ['ops_lead']]) {
       expect(cafePaths(roles)).not.toContain('/cafe/receive/review')
       expect(cafePaths(roles)).not.toContain('/cafe/request/review')
     }
+  })
+
+  it('admits Retail Ops readers to the direct Pushes route through the shared authority fact', () => {
+    expect(viewerAdmittedToRoute('/cafe/pushes', ['manager'], allModulesOn, { canReadCafePushes: true })).toBe(true)
+    expect(viewerAdmittedToRoute('/cafe/pushes', ['manager'], allModulesOn)).toBe(false)
   })
 
   it('omits an empty group rather than printing its heading', () => {
@@ -119,6 +128,11 @@ describe('⌘K Go to reads the same registry', () => {
     for (const path of ['/', '/work', '/inbox', '/cafe', '/cafe/records', '/cafe/stock-comparison', '/cafe/receive/issues', '/cafe/review', '/cafe/review?queue=receipts', '/cafe/review?queue=requests', '/cafe/review?queue=failed-sends', '/cafe/pushes', '/profile']) {
       expect(paths).toContain(path)
     }
+  })
+
+  it('offers Pushes in Go to when the server reader fact admits a manager', () => {
+    const paths = goToEntries(['manager'], allModulesOn, { canReadCafePushes: true }).map((entry) => entry.path)
+    expect(paths).toContain('/cafe/pushes')
   })
 
   it('never offers a queue or page the viewer cannot open', () => {

@@ -46,6 +46,7 @@ function makeAuthorityKey(result: ViewerResult): string {
     isManager: result.isManager,
     accessRoles: [...new Set(result.accessRoles)].sort(),
     affiliated: [...new Set(result.affiliated)].sort(),
+    canReadCafePushes: result.canReadCafePushes,
   })
 }
 
@@ -153,6 +154,7 @@ export function AuthProvider({ children }: Props) {
         isManager: result.isManager,
         accessRoles: result.accessRoles,
         affiliated: result.affiliated,
+        canReadCafePushes: result.canReadCafePushes,
       },
       readScope,
       signOut: handleSignOut,

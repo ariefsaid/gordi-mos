@@ -34,7 +34,7 @@ import type { EsbPushRow } from '@/lib/db/kitchen-pushes'
 const mockUseAuth = vi.mocked(useAuth)
 const mockListPushes = vi.mocked(listEsbPushes)
 
-function viewer(accessRoles: string[]): AuthState {
+function viewer(accessRoles: string[], canReadCafePushes = accessRoles.includes('ops_lead') || accessRoles.includes('admin')): AuthState {
   return {
     status: 'authenticated',
     viewer: {
@@ -52,6 +52,7 @@ function viewer(accessRoles: string[]): AuthState {
       roles: [],
       isManager: false,
       accessRoles,
+      canReadCafePushes,
       affiliated: [],
     },
     signOut: vi.fn(),
@@ -228,7 +229,7 @@ describe('KitchenPushesPage — role gate (AC-007)', () => {
       </MemoryRouter>,
     )
     expect(await screen.findByRole('region', { name: /access restricted/i })).toBeInTheDocument()
-    expect(screen.getByText(/available to ops leads/i)).toBeInTheDocument()
+    expect(screen.getByText(/ops leads, admins and Retail Ops managers/i)).toBeInTheDocument()
     expect(screen.getByRole('region')).not.toHaveTextContent(/\bESB\b/i)
     expect(mockListPushes).not.toHaveBeenCalled()
   })
@@ -244,7 +245,32 @@ describe('KitchenPushesPage — role gate (AC-007)', () => {
     mockUseAuth.mockReturnValue(viewer(['admin']))
     renderPage()
     await waitFor(() => expect(mockListPushes).toHaveBeenCalled())
-    expect(screen.queryByText(/available to ops leads/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/ops leads, admins and Retail Ops managers/i)).not.toBeInTheDocument()
+  })
+
+  it('AC-060: a Retail Ops manager with the outbox-read fact can read pushes without mutation controls', async () => {
+    mockUseAuth.mockReturnValue(viewer(['manager'], true))
+    mockListPushes.mockResolvedValue([DEAD_LETTER_ROW])
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: /PR-20260621-002/ })).toBeInTheDocument()
+    await openPush('PR-20260621-002')
+    expect(mockListPushes).toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /retry|resend|escalate|add|create/i })).toBeNull()
+    expect(screen.queryByRole('link', { name: /retry|resend|escalate/i })).toBeNull()
+  })
+
+  it('AC-060 ID: a non-reader gets the restricted copy naming Retail Ops managers', async () => {
+    mockUseAuth.mockReturnValue(viewer(['member']))
+    render(
+      <MemoryRouter>
+        <I18nProvider initialLocale="id">
+          <KitchenPushesPage />
+        </I18nProvider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText(/ops lead, admin, dan manager Retail Ops/i)).toBeInTheDocument()
+    expect(mockListPushes).not.toHaveBeenCalled()
   })
 
   it('forbidden panel has a back-to-log link', async () => {
@@ -332,6 +358,16 @@ describe('KitchenPushesPage — populated (FR-074)', () => {
     await screen.findByRole('button', { name: /PR-20260621-001/ })
 
     expect(screen.getByText('4 pushes · 1 queued')).toBeInTheDocument()
+  })
+
+  it('AC-061: three queued pushes read 3 pushes · 3 queued', async () => {
+    mockListPushes.mockResolvedValue([
+      PENDING_ROW,
+      { ...PENDING_ROW, id: 'push-queued-2', source_ref: 'TR-20260621-002' },
+      { ...PENDING_ROW, id: 'push-queued-3', source_ref: 'TR-20260621-003' },
+    ])
+    renderPage()
+    expect(await screen.findByText('3 pushes · 3 queued')).toBeInTheDocument()
   })
 
   it('pluralizes each tally count independently', async () => {

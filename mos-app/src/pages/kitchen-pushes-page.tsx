@@ -93,9 +93,10 @@ export function KitchenPushesPage() {
   const t = useT()
   const auth = useAuth()
   const isDesktop = useIsDesktop()
-  // ── Role gate (FR-074 / AC-007) — ops_lead/admin only ──────────────────────
+  // ── Read gate: the server fact admits Retail Ops managers; lead/admin access remains unchanged.
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const allowed = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
+  const canReadCafePushes = auth.status === 'authenticated' && auth.viewer.canReadCafePushes === true
+  const allowed = canReadCafePushes || accessRoles.includes('ops_lead') || accessRoles.includes('admin')
 
   const [rows, setRows] = useState<EsbPushRow[]>([])
   const [hasMore, setHasMore] = useState(false)
