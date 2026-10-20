@@ -38,7 +38,8 @@ export function CafeCountFollowUp({ line, itemName, unitName, online, onSaved }:
   const [reasonInvalid, setReasonInvalid] = useState(false)
 
   if (line.state !== 'needs_recount' && line.state !== 'needs_reason') {
-    return <p className="cafe-count__line-success" role="status">{t(STATE_TEXT[line.state])}</p>
+    return <div>{line.correctionOf && <p>{t('cafe.count.correction.of', { reference: line.correctionOf })}</p>}
+      <p className="cafe-count__line-success" role="status">{t(STATE_TEXT[line.state])}</p></div>
   }
 
   async function save(write: () => Promise<CafeCountFloorLine>) {
@@ -59,6 +60,7 @@ export function CafeCountFollowUp({ line, itemName, unitName, online, onSaved }:
 
   if (line.state === 'needs_recount') {
     return <div className="cafe-count__followup">
+      {line.correctionOf && <p>{t('cafe.count.correction.of', { reference: line.correctionOf })}</p>}
       <p className="cafe-count__recount-prompt" role="status">{t('cafe.count.recount.prompt')}</p>
       <label htmlFor={recountId}>{t('cafe.count.recount.label')}</label>
       <CaptureQuantityControl
@@ -85,6 +87,7 @@ export function CafeCountFollowUp({ line, itemName, unitName, online, onSaved }:
   }
 
   return <div className="cafe-count__followup">
+    {line.correctionOf && <p>{t('cafe.count.correction.of', { reference: line.correctionOf })}</p>}
     <p className="cafe-count__recount-prompt" role="status">{t('cafe.count.reason.prompt')}</p>
     <div className="cafe-receive__reason">
       <label htmlFor={reasonId}>{t('cafe.count.reason.label', { item: itemName })}</label>

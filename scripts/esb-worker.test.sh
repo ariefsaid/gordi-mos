@@ -283,5 +283,11 @@ tally=$(printf '%s\n' "$drv" | sed -n 's/^\([0-9][0-9]*\) passed, \([0-9][0-9]*\
 set -- ${tally:-0 1}
 pass=$((pass + $1)); fail=$((fail + $2))
 
+if python3 scripts/esb-worker-count-expected.test.py; then
+  ok 'AC-014 expected balance worker contracts'
+else
+  bad 'AC-014 expected balance worker contracts'
+fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

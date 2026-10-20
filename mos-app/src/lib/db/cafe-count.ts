@@ -13,7 +13,7 @@ export type CafeCountableItem = {
 }
 
 export type CafeCountStatus = 'Submitted' | 'Confirmed' | 'Rejected'
-type CafeCountExpectedStatus = 'waiting' | 'ready'
+type CafeCountExpectedStatus = 'waiting' | 'ready' | 'unavailable'
 export type CafeCountPostingStatus = 'not_posted' | 'not_needed' | 'held' | 'queued' | 'awaiting_authorization' | 'posted' | 'failed'
 type CafeCountPostingQueueStatus = Extract<CafeCountPostingStatus, 'held' | 'queued' | 'awaiting_authorization' | 'posted' | 'failed'>
 
@@ -30,6 +30,9 @@ export type CafeCountPostingQueueRow = {
   posting_error: string | null
   expected_out_of_date: boolean
   posting_enabled: boolean
+  correction_of?: string | null
+  superseded?: boolean
+  can_correct?: boolean
 }
 
 export type CafeCountPostingSwitch = { branch_id: string; branch_name: string; posting_enabled: boolean }
@@ -58,6 +61,10 @@ export type CafeCountLine = {
   expected_balance: string | null
   expected_status: CafeCountExpectedStatus
   expected_recorded_at: string | null
+  expected_state?: 'pending' | 'waiting_movements' | 'ready' | 'unavailable'
+  expected_as_of?: string | null
+  unavailable_reason?: string | null
+  correction_of?: string | null
   status: CafeCountStatus
   posting_status: CafeCountPostingStatus
   submitted_at: string
@@ -89,6 +96,7 @@ export type CafeCountFloorLine = {
   itemId: string
   state: CafeCountFloorState
   rowVersion: number
+  correctionOf?: string
 }
 
 export type ConfirmCafeCountResult = {
@@ -156,7 +164,7 @@ export async function listCafeCountLines(countDate?: string): Promise<CafeCountL
     if (row.activity !== 'kitchen' && row.activity !== 'bar') {
       throw new Error('listCafeCountLines failed: invalid Café stream')
     }
-    if (row.expected_status !== 'waiting' && row.expected_status !== 'ready') {
+    if (row.expected_status !== 'waiting' && row.expected_status !== 'ready' && row.expected_status !== 'unavailable') {
       throw new Error('listCafeCountLines failed: invalid Expected balance status')
     }
     if (row.status !== 'Submitted' && row.status !== 'Confirmed' && row.status !== 'Rejected') {
@@ -164,6 +172,7 @@ export async function listCafeCountLines(countDate?: string): Promise<CafeCountL
     }
     return {
       ...row,
+      ...figures.get(String(row.id)),
       counted_quantity: String(row.counted_quantity),
       recounted_quantity: row.recounted_quantity == null ? null : String(row.recounted_quantity),
       recounted_by: row.recounted_by == null ? null : String(row.recounted_by),
@@ -175,7 +184,7 @@ export async function listCafeCountLines(countDate?: string): Promise<CafeCountL
 }
 
 /** The Expected balance, Variance and reject note come only from the reviewer-gated read; lines the viewer cannot review have none. */
-type ReviewFigures = { expected_balance: string | null; variance: string | null; review_note: string | null }
+type ReviewFigures = Pick<CafeCountLine, 'expected_balance' | 'variance' | 'review_note' | 'expected_state' | 'expected_as_of' | 'unavailable_reason' | 'correction_of'>
 
 async function readCafeCountReviewFigures(ids: readonly string[]): Promise<Map<string, ReviewFigures>> {
   const figures = new Map<string, ReviewFigures>()
@@ -187,6 +196,10 @@ async function readCafeCountReviewFigures(ids: readonly string[]): Promise<Map<s
         expected_balance: row.expected_balance == null ? null : String(row.expected_balance),
         variance: row.variance == null ? null : String(row.variance),
         review_note: row.review_note == null ? null : String(row.review_note),
+        expected_state: row.expected_state as CafeCountLine['expected_state'],
+        expected_as_of: row.expected_as_of == null ? null : String(row.expected_as_of),
+        unavailable_reason: row.unavailable_reason == null ? null : String(row.unavailable_reason),
+        correction_of: row.correction_of == null ? null : String(row.correction_of),
       })
     }
   }
@@ -205,7 +218,8 @@ export async function listCafeCountFloorLines(stream: ProductionStream, countDat
   if (error) throw new Error(`listCafeCountFloorLines failed: ${error.message}`)
   return ((data ?? []) as Array<Record<string, unknown>>).map(row => {
     if (!FLOOR_STATES.includes(row.state as CafeCountFloorState)) throw new Error('listCafeCountFloorLines failed: invalid state')
-    return { id: String(row.id), itemId: String(row.wip_item_id), state: row.state as CafeCountFloorState, rowVersion: Number(row.row_version) }
+    return { id: String(row.id), itemId: String(row.wip_item_id), state: row.state as CafeCountFloorState, rowVersion: Number(row.row_version),
+      ...(row.correction_of == null ? {} : { correctionOf: String(row.correction_of) }) }
   })
 }
 
@@ -348,6 +362,9 @@ export async function listCafeCountPostingQueue(): Promise<CafeCountPostingQueue
       esb_doc_num: row.esb_doc_num == null ? null : String(row.esb_doc_num),
       posting_error: row.posting_error == null ? null : String(row.posting_error),
       expected_out_of_date: row.expected_out_of_date, posting_enabled: row.posting_enabled,
+      ...(row.correction_of === undefined ? {} : { correction_of: row.correction_of == null ? null : String(row.correction_of) }),
+      ...(typeof row.superseded === 'boolean' ? { superseded: row.superseded } : {}),
+      ...(typeof row.can_correct === 'boolean' ? { can_correct: row.can_correct } : {}),
     }
   })
 }

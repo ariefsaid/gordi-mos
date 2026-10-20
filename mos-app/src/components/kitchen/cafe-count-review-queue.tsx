@@ -14,6 +14,7 @@ import {
   type CafeCountLine,
 } from '@/lib/db/cafe-count'
 import { getPeople } from '@/lib/db/directory'
+import { refreshCafeCountExpected } from '@/lib/db/cafe-count-corrections'
 import { wibToday } from '@/lib/db/cafe-opening'
 import { Checkbox } from '@/components/ui/checkbox'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
@@ -168,6 +169,20 @@ export function CafeCountReviewQueue({
     }
   }
 
+  async function refreshExpected(line: CafeCountLine) {
+    if (busyId || !online || line.status !== 'Submitted') return
+    setBusyId(line.id)
+    setActionError(false)
+    try {
+      await refreshCafeCountExpected(line.id)
+      setRetry(value => value + 1)
+    } catch {
+      setActionError(true)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   async function confirm(line: CafeCountLine) {
     if (busyId || !online || line.status !== 'Submitted') return
     setBusyId(line.id)
@@ -196,7 +211,8 @@ export function CafeCountReviewQueue({
       aria-label={empty ? t('cafe.count.review.title') : undefined}
     >
       <CafeCountPostingPanel streamFilter={streamFilter} streamCatalog={streamCatalog}
-        canManagePosting={canManagePosting} canReleasePosting={canReleasePosting} refreshKey={refreshKey + postingRefreshKey} />
+        canManagePosting={canManagePosting} canReleasePosting={canReleasePosting} refreshKey={refreshKey + postingRefreshKey}
+        onCorrectionStarted={() => setRetry(value => value + 1)} />
       {/* Empty: the shared empty state carries the heading, so the section keeps no second one (named by aria-label). */}
       {!empty && (
         <header className="cafe-count-review__header">
@@ -261,14 +277,15 @@ export function CafeCountReviewQueue({
             </li>
           ))}</ul>}
           detail={selected ? <CountReviewDetail key={selected.id} line={selected} streamCatalog={streamCatalog} online={online} busy={busyId !== null}
-            own={own(selected)} names={names} onConfirm={() => void confirm(selected)} onReject={note => void reject(selected, note)} busyId={busyId} /> : <p>{t('cafe.count.review.choose')}</p>}
+            own={own(selected)} names={names} onConfirm={() => void confirm(selected)} onReject={note => void reject(selected, note)}
+            onRefreshExpected={() => void refreshExpected(selected)} busyId={busyId} /> : <p>{t('cafe.count.review.choose')}</p>}
         />
       )}
     </section>
   )
 }
 
-function CountReviewDetail({ line, streamCatalog, online, busy, own, names, onConfirm, onReject, busyId }: {
+function CountReviewDetail({ line, streamCatalog, online, busy, own, names, onConfirm, onReject, onRefreshExpected, busyId }: {
   line: CafeCountLine
   streamCatalog: readonly ProductionStream[]
   online: boolean
@@ -277,6 +294,7 @@ function CountReviewDetail({ line, streamCatalog, online, busy, own, names, onCo
   names: ReadonlyMap<string, string>
   onConfirm: () => void
   onReject: (note: string) => void
+  onRefreshExpected: () => void
   busyId: string | null
 }) {
   const t = useT()
@@ -291,11 +309,13 @@ function CountReviewDetail({ line, streamCatalog, online, busy, own, names, onCo
   const missing = countMissing(line)
   const stream = streamCatalog.find(s => s.branch.id === line.branch_id && s.activity === line.activity) ?? null
   const submittedAt = new Intl.DateTimeFormat(document.documentElement.lang || 'en', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(new Date(line.submitted_at))
-  const expectedAt = line.expected_recorded_at
-    ? new Intl.DateTimeFormat(document.documentElement.lang || 'en', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(new Date(line.expected_recorded_at)) : null
+  const expectedTimestamp = line.expected_as_of ?? line.expected_recorded_at
+  const expectedAt = expectedTimestamp
+    ? new Intl.DateTimeFormat(document.documentElement.lang || 'en', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(expectedTimestamp)) : null
   const fact = (label: string, value: React.ReactNode) => <div><dt>{label}</dt><dd>{value}</dd></div>
   return <article className="cafe-count-review__detail">
     <h3>{line.item_name}</h3>
+    {line.correction_of && <p>{t('cafe.count.correction.of', { reference: line.correction_of })}</p>}
     <p className="cafe-count-review__meta">{formatWeekdayDayMonth(line.count_date)} · {line.item_kind}{line.item_category ? ` · ${line.item_category}` : ''} · {stream ? streamLabel(t, stream) : ''} · {t('cafe.count.review.submittedAt', { time: submittedAt })}</p>
     {!online && <Notice tone="attention" role="alert">{t('cafe.count.offline')}</Notice>}
     <Panel title={t('cafe.count.review.comparison')} open>
@@ -311,6 +331,14 @@ function CountReviewDetail({ line, streamCatalog, online, busy, own, names, onCo
         {line.review_note && fact(t('cafe.count.review.rejectNoteFact'), line.review_note)}
       </dl>
     </Panel>
+    {line.status === 'Submitted' && <div>
+      <p role="status">{t(line.expected_state === 'waiting_movements' ? 'cafe.count.expected.waitingMovements'
+        : line.expected_status === 'unavailable' ? 'cafe.count.expected.unavailable'
+          : line.expected_status === 'ready' ? 'cafe.count.expected.ready' : 'cafe.count.expected.pending')}</p>
+      {line.unavailable_reason && <p>{t('cafe.count.expected.unavailableReason')}</p>}
+      <button type="button" className="btn btn-outline btn-touch" disabled={!online || busy}
+        onClick={onRefreshExpected}>{t('cafe.count.expected.refresh')}</button>
+    </div>}
     {line.status === 'Submitted' && rejecting && <div className="cafe-decision-workbench__note">
       <label htmlFor={noteId}>{t('cafe.count.review.rejectNote')}</label>
       <textarea id={noteId} value={note} maxLength={500} autoFocus onChange={event => setNote(event.target.value)} />

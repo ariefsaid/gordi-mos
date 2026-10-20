@@ -89,6 +89,19 @@ it('Indonesian reviewers can read held state and the empty branch configuration'
   expect(await screen.findByText('Tidak ada cabang aktif.')).toBeInTheDocument()
 })
 
+it('labels a superseded original and its correction, and explains unresolved posting without offering correction or release', async () => {
+  vi.mocked(listCafeCountPostingQueue).mockResolvedValue([
+    { ...held, superseded: true, can_correct: false },
+    { ...held, line_id: 'correction', correction_of: 'held', posting_status: 'queued', can_correct: false },
+  ])
+  render(panel({ canReleasePosting: true }))
+  expect(await screen.findByText('Superseded · never posted')).toBeInTheDocument()
+  expect(screen.getByText('Correction of confirmed count held')).toBeInTheDocument()
+  expect(screen.getByText('Resolve the original posting before starting a correction.')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Start correction' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Release/ })).not.toBeInTheDocument()
+})
+
 it('filters posting rows to the selected stream', async () => {
   vi.mocked(listCafeCountPostingQueue).mockResolvedValue([held, { ...held, line_id: 'other', activity: 'bar', item_name: 'Bar flour' }])
   render(panel({ streamFilter: 'branch-1|kitchen' }))
