@@ -68,13 +68,6 @@ function transcriptExceedsCap(messages: ConversationMessage[]): boolean {
 
 export type { HandlerSupabaseLike }
 
-/**
- * Injectable `can()` predicate (a UX preflight seam — RLS is the enforcement authority).
- * P2 default: `can = () => true` (no role-gating catalog yet; P3 threads role-gating without
- * a handler rewrite).
- */
-export type CanFn = (action: string, entity: string, ctx: { realRole: string | null }) => boolean
-
 export interface HandlerDeps {
   /** Vendor-neutral model client. */
   modelClient: ModelClient
@@ -89,8 +82,6 @@ export interface HandlerDeps {
   /** Caller access_roles, decoded from the JWT by index.ts (D1). */
   accessRoles: string[]
   now?: () => Date
-  /** A UX preflight seam (RLS is the authority). Defaults to allow-all in P2. */
-  can?: CanFn
   /** Flag-gated compose_view tool registration. */
   composeEnabled?: boolean
   /** Durable, owner-bound approval storage. Missing storage fails closed for write actions. */
@@ -107,20 +98,13 @@ export interface HandlerDeps {
 
 // ── Event builders ─────────────────────────────────────────────────────────────
 
-function makeId(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID()
-  }
-  return Math.random().toString(36).slice(2)
-}
-
 function mkEvent(
   runId: string,
   type: AgentEvent['type'],
   fields: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>,
   now: () => Date,
 ): AgentEvent {
-  return { id: makeId(), runId, type, createdAt: now().toISOString(), ...fields }
+  return { id: crypto.randomUUID(), runId, type, createdAt: now().toISOString(), ...fields }
 }
 
 // ── Persistence runtime ────────────────────────────────────────────────────────
@@ -367,7 +351,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
         yield emit('status', {
           payload: {
             kind: 'question',
-            questionId: makeId(),
+            questionId: crypto.randomUUID(),
             prompt: input.prompt ?? '',
             options: input.options ?? [],
             ...(input.allowFreeText !== undefined ? { allowFreeText: input.allowFreeText } : {}),
@@ -399,7 +383,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
           continue
         }
 
-        const pendingId = makeId()
+        const pendingId = crypto.randomUUID()
         const humanSummary = writeAction.summarize(validation.value)
         const pendingActions = deps.pendingActions
         const stored = pendingActions
@@ -475,7 +459,7 @@ export async function* agentChatHandler(
   req: AgentChatRequest,
   deps: HandlerDeps,
 ): AsyncIterable<AgentEvent> {
-  const runId = req.runId ?? makeId()
+  const runId = req.runId ?? crypto.randomUUID()
   const persist = makePersistenceRuntime(deps)
 
   // A fresh run (no req.runId on the wire) gets a new agent_threads + agent_runs row, created
@@ -603,7 +587,6 @@ async function* agentChatHandlerInner(
  *
  * Consume by pending id under the caller identity, validate the stored action again, and execute
  * its stored args under the caller JWT. A reject consumes the same one-use record without dispatch.
- * can() is a UX preflight; RLS remains the write authority.
  */
 async function* handleDecision(
   req: AgentChatRequest,
@@ -662,15 +645,6 @@ async function* handleDecision(
     })
     messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify({ result: 'Write action declined by user.' }) })
     yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist)
-    return
-  }
-
-  // can() preflight (UX seam; deny-all default is safe but P2 defaults to allow — RLS enforces).
-  const canFn: CanFn = deps.can ?? (() => true)
-  const allowed = canFn(action.name, action.name, { realRole: deps.accessRoles[0] ?? null })
-  if (!allowed) {
-    yield statusEvent('error', { error: 'PERMISSION_DENIED' })
-    messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify({ error: 'Permission denied.' }) })
     return
   }
 

@@ -319,7 +319,7 @@ async function renderTransferPage(
 
 import { KitchenLogPage } from './kitchen-log-page'
 import { rememberStream } from '@/lib/cafe-stream'
-import { activeCafeLocation, rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
+import { activeCafeLocation, rememberCafeLocation, rememberCafeOpeningTeam } from '@/lib/cafe-opening-location'
 import { cafeCaptureDraftStorageKey, writeCafeCaptureDraft } from '@/lib/cafe-capture-storage'
 
 beforeEach(() => {
@@ -328,7 +328,8 @@ beforeEach(() => {
   // #440: the Café stream is remembered for the whole module (sessionStorage), so a test that
   // switches streams would otherwise seed the NEXT test's opening stream. Clear it per test.
   rememberStream(null)
-  resetCafeLocations()
+  rememberCafeLocation('40000000-0000-0000-0000-000000000001', null)
+  rememberCafeOpeningTeam('40000000-0000-0000-0000-000000000001', null)
   locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], defaults: null, retry: vi.fn() })
   mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS)
   mockListActiveBranches.mockResolvedValue(BRANCHES)

@@ -4,7 +4,7 @@ vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 import { publishReadScope } from '@/lib/scoped-reads'
 import { useUnreadCount } from './useUnreadCount'
-import { announceUnreadCountChanged } from './unread-count-bus'
+import { refreshUnreadCount } from './unread-count-store'
 
 const mockCount = vi.fn()
 const mockUseAuth = vi.mocked(useAuth)
@@ -46,6 +46,21 @@ describe('useUnreadCount (CQ#2 — Inbox badge path)', () => {
     const { result } = renderHook(() => useUnreadCount())
     await waitFor(() => expect(result.current.loading).toBe(false))
     expect(result.current.unreadCount).toBe(5)
+  })
+
+  it('refreshes an unscoped count when a previously mounted badge remounts', async () => {
+    publishReadScope(null)
+    mockUseAuth.mockReturnValue({ status: 'loading' } as never)
+    mockCount.mockResolvedValueOnce(4).mockResolvedValueOnce(2)
+
+    const first = renderHook(() => useUnreadCount())
+    await waitFor(() => expect(first.result.current.unreadCount).toBe(4))
+    first.unmount()
+
+    const second = renderHook(() => useUnreadCount())
+    await waitFor(() => expect(second.result.current.unreadCount).toBe(2))
+    expect(mockCount).toHaveBeenCalledTimes(2)
+    second.unmount()
   })
 
   it('shares one deferred cold count read across two mounted Inbox badges', async () => {
@@ -113,7 +128,7 @@ describe('useUnreadCount (CQ#2 — Inbox badge path)', () => {
     hook.unmount()
   })
 
-  it('runs one refresh per unread-change announcement and keeps the newest pending result', async () => {
+  it('runs one refresh per unread change and keeps the newest pending result', async () => {
     let resolveFirstRefresh!: (count: number) => void
     let resolveSecondRefresh!: (count: number) => void
     const firstRefresh = new Promise<number>((resolve) => {
@@ -135,9 +150,9 @@ describe('useUnreadCount (CQ#2 — Inbox badge path)', () => {
       expect(secondBadge.result.current.unreadCount).toBe(5)
     })
 
-    act(() => announceUnreadCountChanged())
+    act(() => { void refreshUnreadCount() })
     await waitFor(() => expect(mockCount).toHaveBeenCalledTimes(2), { timeout: 500 })
-    act(() => announceUnreadCountChanged())
+    act(() => { void refreshUnreadCount() })
     await waitFor(() => expect(mockCount).toHaveBeenCalledTimes(3), { timeout: 500 })
 
     await act(async () => {
@@ -181,17 +196,15 @@ describe('useUnreadCount (CQ#2 — Inbox badge path)', () => {
     await waitFor(() => expect(result.current.unreadCount).toBe(7))
   })
 
-  it('issue #582: re-fetches when another mounted consumer announces a mark-read/mark-handled, without a reload', async () => {
+  it('re-fetches when another mounted consumer changes unread state, without a reload', async () => {
     mockCount.mockResolvedValue(4)
     const { result } = renderHook(() => useUnreadCount())
     await waitFor(() => expect(result.current.unreadCount).toBe(4))
 
-    // Simulate useNotifications elsewhere in the shell marking a row read: it never calls this
-    // hook's `refresh` directly (it can't — three independent mounts, bell/rail/tab), it only
-    // announces on the shared bus. A badge that doesn't subscribe stays stuck at 4 forever.
+    // Simulate another mounted consumer updating a notification and refreshing the shared count.
     mockCount.mockResolvedValue(3)
     act(() => {
-      announceUnreadCountChanged()
+      void refreshUnreadCount()
     })
 
     await waitFor(() => expect(result.current.unreadCount).toBe(3))
