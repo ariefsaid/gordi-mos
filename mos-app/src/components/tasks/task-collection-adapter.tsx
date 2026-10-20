@@ -11,8 +11,8 @@ import {
 } from '@/lib/db/directory'
 import { hasOrgWideAuthority } from '@/lib/role-scope'
 import type { BusinessUnitOption, PersonOption, TeamOption } from '@/lib/db/directory'
-import type { TaskTeamView } from '@/lib/team-context'
-import { deriveTaskTeamView } from '@/lib/team-context'
+import type { TaskTeamView } from '@/lib/team-context/task-team-view'
+import { deriveTaskTeamView } from '@/lib/team-context/task-team-view'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { buildCascadeGroups, type CascadeTask } from '@/lib/cascade/count-rollup'
@@ -21,11 +21,11 @@ import { STATUS_ORDER } from './task-formatters'
 import { groupTasksByOccurrence } from '@/lib/processes/occurrence-grouping'
 import { TaskCardPresentation, TaskTablePresentation } from './task-collection-presentation'
 import {
+  archiveCollectionView,
   createCollectionView,
   getCollectionView,
   listCollectionViews,
   renameCollectionView,
-  archiveCollectionView,
 } from '@/lib/db/user-views-collection'
 import {
   parseCollectionViewSpec,
@@ -579,17 +579,21 @@ type TaskPresentationDescriptor = CollectionPresentationDescriptor<
   TaskCollectionPresentation
 >
 
-const taskTablePresentation: TaskPresentationDescriptor = {
-  id: 'table',
-  label: 'Table',
-  compatibleQueryKeys: taskCollectionQuery.keys,
-  capabilities: {
+function taskPresentationCapabilities(): TaskPresentationDescriptor['capabilities'] {
+  return {
     ...TASK_CAPABILITIES,
     filterKeys: [...TASK_CAPABILITIES.filterKeys],
     sortKeys: [...TASK_CAPABILITIES.sortKeys],
     groupKeys: [...TASK_CAPABILITIES.groupKeys],
     bulkActions: [...TASK_CAPABILITIES.bulkActions],
-  },
+  }
+}
+
+const taskTablePresentation: TaskPresentationDescriptor = {
+  id: 'table',
+  label: 'Table',
+  compatibleQueryKeys: taskCollectionQuery.keys,
+  capabilities: taskPresentationCapabilities(),
   render: (props) => <TaskTablePresentation {...props} />,
 }
 
@@ -597,13 +601,7 @@ const taskCardPresentation: TaskPresentationDescriptor = {
   id: 'card',
   label: 'Card',
   compatibleQueryKeys: taskCollectionQuery.keys,
-  capabilities: {
-    ...TASK_CAPABILITIES,
-    filterKeys: [...TASK_CAPABILITIES.filterKeys],
-    sortKeys: [...TASK_CAPABILITIES.sortKeys],
-    groupKeys: [...TASK_CAPABILITIES.groupKeys],
-    bulkActions: [...TASK_CAPABILITIES.bulkActions],
-  },
+  capabilities: taskPresentationCapabilities(),
   render: (props) => <TaskCardPresentation {...props} />,
 }
 

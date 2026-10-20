@@ -24,12 +24,6 @@ export type TaskTeamView =
   | { status: 'bu-mismatch' }
   | { status: 'cross-org' }
 
-/** The minimal shape Issue 5's createTaskRecordAdapter accepts as its `team?` input. */
-export interface ViewerTeam {
-  id: string
-  label: string
-}
-
 /** Resolve a Task and its (possibly absent) executing Team into a derived view. */
 export function deriveTaskTeamView(task: TaskTeamSource, team: EligibleTeam | null): TaskTeamView {
   if (!team) return { status: 'unassigned' }
@@ -42,13 +36,4 @@ export function deriveTaskTeamView(task: TaskTeamSource, team: EligibleTeam | nu
     businessUnitId: team.businessUnitId,
     siteId: team.siteId,
   }
-}
-
-/**
- * Map a derived view to the RecordViewer `team?` input. Only a valid, real Team becomes a
- * TaskTeamView; every honest non-valid state maps to null so the viewer renders its own "Team not
- * assigned yet / data migration" copy rather than a fabricated Team (Issue 5 contract).
- */
-export function toViewerTeam(view: TaskTeamView): ViewerTeam | null {
-  return view.status === 'valid' ? { id: view.teamId, label: view.teamName } : null
 }

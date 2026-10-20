@@ -10,7 +10,6 @@ import {
   ROLE_META,
   ASSIGNABLE_ROLES,
   roleLabel,
-  roleDescription,
   localizedRoleMeta,
 } from './admin-users.types'
 
@@ -89,7 +88,7 @@ describe('localizedRoleMeta — every assignable role has catalog copy in both l
   })
 })
 
-describe('roleLabel / roleDescription helpers', () => {
+describe('roleLabel helper', () => {
   it('roleLabel returns the human label for a known slug', () => {
     expect(roleLabel('ops_lead')).toBe('Ops Lead')
     expect(roleLabel('admin')).toBe('Admin')
@@ -99,8 +98,4 @@ describe('roleLabel / roleDescription helpers', () => {
     expect(roleLabel('mystery_role')).toBe('mystery_role')
   })
 
-  it('roleDescription returns the description for a known slug, empty for unknown', () => {
-    expect(roleDescription('finance')).toBe('Sees financial reports')
-    expect(roleDescription('mystery_role')).toBe('')
-  })
 })

@@ -11,7 +11,7 @@ vi.mock('../supabase', () => {
 
 import {
   wibToday, getCafeOpeningProcessId, getCafeOpeningTeamId, listCafeViewerTeams,
-  resolveCafeOpeningTeamForTeam, resolveCafeOpeningTeams, resolveCafeOpeningTeamsForBranches,
+  resolveCafeOpeningTeams, resolveCafeOpeningTeamsForBranches,
   resolveCafeOpeningTeamsForTeamIds, getTodayOpeningForTeam,
   startTodayOpening, listStartableCafeTeams,
 } from './cafe-opening'
@@ -134,27 +134,7 @@ describe('getCafeOpeningTeamId', () => {
   })
 })
 
-describe('resolveCafeOpeningTeamForTeam', () => {
-  it('maps a viewer Team through its branch to the canonical opening Team', async () => {
-    const rec = freshRec()
-    mockSupabase({
-      'rpc.cafe_opening_teams': [{ data: [{
-        source_team_id: 'bar-team', branch_id: 'branch-1',
-        opening_team_id: TEAM_ID, opening_team_name: 'Gordi HQ Kitchen',
-      }], error: null }],
-    }, rec)
-
-    await expect(resolveCafeOpeningTeamForTeam('bar-team')).resolves.toEqual({
-      id: TEAM_ID,
-      name: 'Gordi HQ Kitchen',
-      branchId: 'branch-1',
-    })
-    expect(rec.rpcs).toEqual([['cafe_opening_teams', {
-      p_source_team_ids: ['bar-team'], p_branch_ids: [],
-    }]])
-    expect(rec.fromTables).toHaveLength(0)
-  })
-
+describe('resolveCafeOpeningTeamsForTeamIds', () => {
   it('batches source Teams, deduplicates branch resolution and fetches canonical names together', async () => {
     const rec = freshRec()
     mockSupabase({
@@ -223,11 +203,15 @@ describe('resolveCafeOpeningTeamForTeam', () => {
     expect(rec.rpcs).toHaveLength(0)
   })
 
-  it('returns null for a non-branch Team when the batch has no match', async () => {
+  it('omits non-branch Teams from the batched resolution', async () => {
     const rec = freshRec()
     mockSupabase({ 'rpc.cafe_opening_teams': [{ data: [], error: null }] }, rec)
 
-    await expect(resolveCafeOpeningTeamForTeam('hq-team')).resolves.toBeNull()
+    await expect(resolveCafeOpeningTeamsForTeamIds(['hq-team'])).resolves.toEqual(new Map())
+    expect(rec.rpcs).toEqual([['cafe_opening_teams', {
+      p_source_team_ids: ['hq-team'], p_branch_ids: [],
+    }]])
+    expect(rec.fromTables).toHaveLength(0)
   })
 })
 

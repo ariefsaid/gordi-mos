@@ -92,11 +92,14 @@ describe('BudgetPage — head (r5 F-9)', () => {
 })
 
 describe('BudgetPage — states', () => {
-  it('loading: shows a busy skeleton before data resolves', () => {
+  it.each([
+    { locale: 'en' as const, name: 'Loading…' },
+    { locale: 'id' as const, name: 'Memuat…' },
+  ])('loading: shows a busy skeleton with a localized accessible name in $locale', ({ locale, name }) => {
     vi.mocked(listBomLines).mockReturnValue(new Promise(() => {}))
     vi.mocked(listIngredientCostLines).mockResolvedValue([])
-    renderPage()
-    expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
+    renderPage(locale)
+    expect(screen.getByRole('status', { name })).toBeInTheDocument()
   })
 
   it('empty: names the snapshot source without leaking internal schema strings', async () => {
@@ -134,6 +137,33 @@ describe('BudgetPage — populated (fresh + certified)', () => {
     // not en-US commas — the one canonical formatIDR (lib/format/money). Every other
     // IDR string in the app was already dotted; the Plan family was the outlier.
     expect(await screen.findByText(/Rp 9.000/)).toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      locale: 'en' as const,
+      preview: 'Budgeted COGS preview',
+      capture: 'Capture budget scenario',
+      linkedCost: 'Linked cost line for Fresh Milk',
+      bom: 'Linked BOM evidence',
+      scenarios: 'Captured scenarios',
+    },
+    {
+      locale: 'id' as const,
+      preview: 'Pratinjau HPP anggaran',
+      capture: 'Catat skenario anggaran',
+      linkedCost: 'Baris biaya tertaut untuk Fresh Milk',
+      bom: 'Bukti BOM tertaut',
+      scenarios: 'Skenario yang dicatat',
+    },
+  ])('provides localized accessible names for budget regions and cost links in $locale', async ({ locale, preview, capture, linkedCost, bom, scenarios }) => {
+    renderPage(locale)
+    await screen.findByText(/Rp 9.000/)
+    expect(screen.getByRole('region', { name: preview })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: capture })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: linkedCost })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: bom })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: scenarios })).toBeInTheDocument()
   })
 
   it('AC-PB-007: each BOM line shows a drill link to the linked cost line (link-never-copy)', async () => {

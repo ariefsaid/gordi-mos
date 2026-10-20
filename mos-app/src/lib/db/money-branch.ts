@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { appUrl } from '@/config/app-build-settings'
-import { announceOpenTaskCountChanged } from '@/lib/open-task-count-store'
+import { refreshOpenTaskCount } from '@/lib/open-task-count-store'
 import type { ProductionActivity } from './kitchen-logs.types'
 
 // Data layer for the Money Branch page's two non-reporting pieces (#1436): the branch's Café items
@@ -72,6 +72,6 @@ export async function askBranchLead(input: AskBranchLeadInput): Promise<AskBranc
     if (error.code === 'P0002') return { kind: 'no-lead' }
     throw new Error(`askBranchLead failed: ${error.message}`)
   }
-  announceOpenTaskCountChanged()
+  void refreshOpenTaskCount()
   return { kind: 'created', taskId: data as string }
 }

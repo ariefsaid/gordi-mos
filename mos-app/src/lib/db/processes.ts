@@ -1,9 +1,7 @@
 import { supabase } from '@/lib/supabase'
-import { announceOpenTaskCountChanged } from '@/lib/open-task-count-store'
+import { refreshOpenTaskCount } from '@/lib/open-task-count-store'
 import { keysetBeforeFilter, keysetPageFromProbe } from './keyset-filter'
 import type { DueProcessRun, PendingTaskRow, ProcessOccurrenceAuthority, ProcessOccurrenceSummary, ProcessRunRollup, ProcessRunRow, SpawnResult, TaskDefLookup } from './processes.types'
-import type { TaskListRow } from './tasks.types'
-import { LIST_SELECT as TASK_LIST_SELECT } from './tasks'
 
 // Data layer for mos.process_runs + friends (Step 6 / ADR-0051). Reads/writes mos via
 // supabase.schema('mos') on the existing client — same client, RLS is the authority (mirrors
@@ -121,11 +119,11 @@ export async function resolvePendingTask(pendingId: string, picPersonId: string)
     p_pic_person_id: picPersonId,
   })
   if (error) throw new Error(`resolvePendingTask failed — ${error.message}`)
-  announceOpenTaskCountChanged()
+  void refreshOpenTaskCount()
   return data as string
 }
 
-// ── getRunRollup / listRunTasks / completeRun (B4) ───────────────────────────
+// ── getRunRollup / completeRun (B4) ─────────────────────────────────────────
 
 /** Read a run's derived progress roll-up (no stored counts — ADR D9). */
 export async function getRunRollup(runId: string): Promise<ProcessRunRollup> {
@@ -136,17 +134,6 @@ export async function getRunRollup(runId: string): Promise<ProcessRunRollup> {
     .single()
   if (error) throw new Error(`getRunRollup failed — ${error.message}`)
   return data as unknown as ProcessRunRollup
-}
-
-/** List a run's generated Tasks. Reuses the canonical task shape (TaskListRow, Rule 11 — never
- * re-implement task fetching); the DB stamps `process_run_id` on spawn/resolve (ADR D10). */
-export async function listRunTasks(runId: string): Promise<TaskListRow[]> {
-  const { data, error } = await mos()
-    .from('tasks')
-    .select(TASK_LIST_SELECT)
-    .eq('process_run_id', runId)
-  if (error) throw new Error(`listRunTasks failed — ${error.message}`)
-  return (data ?? []) as unknown as TaskListRow[]
 }
 
 /** Batched roll-up read for the Occurrence group-by in `/work/tasks` (Track C wiring): one
