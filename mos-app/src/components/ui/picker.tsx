@@ -289,6 +289,7 @@ export function Picker({
                       key={keyOf(option.value)}
                       value={keyOf(option.value)}
                       disabled={option.disabled}
+                      aria-label={option.label}
                       className={['picker__option', optionClassName].filter(Boolean).join(' ')}
                       data-checked={option.value === value || undefined}
                       onSelect={() => {
@@ -296,7 +297,7 @@ export function Picker({
                         close('select')
                       }}
                     >
-                      <span className="picker__option-label">{option.label}</span>
+                      <span className="picker__option-label" title={option.label}>{option.label}</span>
                       {option.value === value && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>}
                     </Command.Item>
                   ))
@@ -457,13 +458,14 @@ export function MultiPicker({
                       value={keyOf(option.value)}
                       disabled={option.disabled}
                       aria-checked={checked}
+                      aria-label={option.label}
                       className={['picker__option', optionClassName].filter(Boolean).join(' ')}
                       data-checked={checked || undefined}
                       onSelect={() => onChange(
                         checked ? values.filter(value => value !== option.value) : [...values, option.value],
                       )}
                     >
-                      <span className="picker__option-label">{option.label}</span>
+                      <span className="picker__option-label" title={option.label}>{option.label}</span>
                       <span className="picker__multi-check" aria-hidden="true">
                         {checked && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 4 4L19 6" /></svg>}
                       </span>
