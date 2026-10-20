@@ -1,4 +1,4 @@
--- Rollback for 20261020001100. Keeps confirmed counts and their posting groups intact.
+-- Rollback for 20261020001200. Keeps confirmed counts and their posting groups intact.
 -- Refuses to discard correction history, unavailable reasons or an active Expected read.
 begin;
 lock table ops.cafe_count_lines, integrations.esb_push, integrations.esb_push_groups in access exclusive mode;

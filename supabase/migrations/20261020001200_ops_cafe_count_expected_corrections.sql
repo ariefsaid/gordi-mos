@@ -1,5 +1,5 @@
 -- Worker-owned dated Expected snapshots and new linked corrections.
--- DOWN: supabase/rollbacks/20261020001100_ops_cafe_count_expected_corrections.sql.
+-- DOWN: supabase/rollbacks/20261020001200_ops_cafe_count_expected_corrections.sql.
 begin;
 
 alter table ops.cafe_count_lines
