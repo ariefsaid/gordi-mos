@@ -362,8 +362,9 @@ describe('KitchenPushesPage — populated (FR-074)', () => {
     const { container } = renderPage()
     const details = await openPush('PR-20260621-001')
 
-    // Outlet sends are explicitly distinguished from ERP posting in the owner's movement flow.
-    expect(container).toHaveTextContent('Outlet sends move stock between places only. They stay in Records and are not sent to ESB.')
+    // Rule 12: the whole rendered screen uses floor language, not the integration acronym.
+    expect(container).not.toHaveTextContent(/\bESB\b/i)
+    expect(container).toHaveTextContent('Outlet sends move stock between places only. They stay in Records and are not sent on.')
     for (const label of ['Batch', 'Status', 'Endpoint', 'Target', 'Retries', 'Created', 'Posted']) {
       expect(within(details).getByText(label, { selector: 'dt' })).toBeInTheDocument()
     }
@@ -562,7 +563,7 @@ describe('KitchenPushesPage — #402 AC-1: no raw database enum reaches the scre
     expect(screen.queryByText('dead_letter')).toBeNull()
   })
 
-  it('id locale: explains why outlet sends are not ERP pushes', async () => {
+  it('AC-1 id locale: the whole Pushes screen avoids the integration acronym', async () => {
     mockListPushes.mockResolvedValue([POSTED_ROW])
     const { container } = render(
       <MemoryRouter>
@@ -572,7 +573,7 @@ describe('KitchenPushesPage — #402 AC-1: no raw database enum reaches the scre
       </MemoryRouter>,
     )
     await screen.findByRole('button', { name: /PR-20260621-001/ })
-    expect(container).toHaveTextContent('Pengiriman ke outlet hanya memindahkan stok antar tempat. Catatannya tetap di Records dan tidak dikirim ke ESB.')
+    expect(container).not.toHaveTextContent(/\bESB\b/i)
   })
 })
 
