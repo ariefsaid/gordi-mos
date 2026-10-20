@@ -7,13 +7,17 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { AuthState } from '@/auth/context'
 
-vi.mock('@/lib/db/work-lines', () => ({
-  listWorkLinesAll: vi.fn(),
-  createWorkLine: vi.fn(),
-  renameWorkLine: vi.fn(),
-  setWorkLineArchived: vi.fn(),
-}))
-vi.mock('@/lib/db/objectives', () => ({ listObjectivesAll: vi.fn() }))
+vi.mock('@/lib/db/work-lines', () => {
+  const listWorkLinesAll = vi.fn()
+  return {
+    listWorkLinesAll,
+    listWorkLinesCatalogPage: vi.fn(async () => ({ rows: await listWorkLinesAll(), cursor: null, hasMore: false })),
+    createWorkLine: vi.fn(),
+    renameWorkLine: vi.fn(),
+    setWorkLineArchived: vi.fn(),
+  }
+})
+vi.mock('@/lib/db/objectives', () => ({ listObjectivesAll: vi.fn(), listObjectivesCatalogPage: vi.fn() }))
 vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
 vi.mock('@/lib/db/work-records', () => ({ listProcessCollectionFacts: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/work-authority', () => ({
@@ -26,7 +30,7 @@ vi.mock('@/components/catalog/catalog-record-document', () => ({
 }))
 vi.mock('@/components/tasks/task-drawer', () => ({ TaskOverlayContent: () => null }))
 
-import { listWorkLinesAll, createWorkLine } from '@/lib/db/work-lines'
+import { listWorkLinesAll, listWorkLinesCatalogPage, createWorkLine } from '@/lib/db/work-lines'
 import { listObjectivesAll } from '@/lib/db/objectives'
 import { listTasks } from '@/lib/db/tasks'
 import { listProcessCollectionFacts } from '@/lib/db/work-records'
@@ -105,6 +109,22 @@ beforeEach(() => {
 })
 
 describe('Projects & Processes collection-first contract', () => {
+  it.each([
+    { locale: 'en' as const, more: 'Load more items' },
+    { locale: 'id' as const, more: 'Muat item lainnya' },
+  ])('loads the next catalog page in $locale', async ({ locale, more }) => {
+    const row = (index: number) => ({ id: `wl-${String(index).padStart(3, '0')}`, name: `Project ${index}`, type: 'project' as const, archived_at: null })
+    vi.mocked(listWorkLinesCatalogPage).mockResolvedValueOnce({ rows: Array.from({ length: 50 }, (_, index) => row(index + 1)), cursor: 'wl-050', hasMore: true })
+      .mockResolvedValueOnce({ rows: [row(51)], cursor: null, hasMore: false })
+    desktopWidth()
+    renderPage('/', locale)
+
+    await screen.findByRole('link', { name: 'Project 1' })
+    fireEvent.click(screen.getByRole('button', { name: more }))
+    expect(await screen.findByRole('link', { name: 'Project 51' })).toBeInTheDocument()
+    expect(listWorkLinesCatalogPage).toHaveBeenLastCalledWith({ view: 'active', search: '', type: 'all' }, 'wl-050')
+  })
+
   it('renders real row links with relation and progress facts', async () => {
     vi.mocked(listTasks).mockResolvedValue([
       task('t1', 'obj-1', 'wl-1', 'Done'),

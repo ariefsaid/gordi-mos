@@ -8,6 +8,7 @@ import type { EmptyStateVariant } from '@/components/ui/state-kit'
 import type { RecordCollectionController } from '@/lib/record-collection/engine'
 import type { CollectionPresentationProps } from '@/lib/record-collection/types'
 import { useT } from '@/i18n/use-t'
+import { ListPaging } from '@/components/ui/list-paging'
 import './record-collection.css'
 
 export interface RecordCollectionSurfaceProps<
@@ -220,6 +221,13 @@ export function RecordCollectionSurface<
           </div>
         )}
         <div className="record-collection-body">{presentation.render(presentationProps)}</div>
+        {descriptor.hasMore && <ListPaging
+          count={projection.visibleRecords.length}
+          hasMore={state.data ? descriptor.hasMore(state.data) : false}
+          loading={state.loadingMore}
+          error={Boolean(state.moreError)}
+          onLoadMore={() => { void controller.loadMore() }}
+        />}
       </div>
     </div>
   )

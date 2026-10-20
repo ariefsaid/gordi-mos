@@ -9,12 +9,14 @@ import { daysAgoIsoDate, latestBy, readAllPages, REPORTING_WINDOW_DAYS } from '@
 
 const reporting = () => supabase.schema('reporting')
 
-/** Raw reporting.sales_daily_revenue columns (source-faithful — no dashboard-layer mapping here,
- * FR-008). Grain: org/date/channel/ESB/branch (one row per combination per snapshot run). */
+/** Daily branch grain from the reporting revenue rollup. Nullable fields preserve
+ * source facts when imported rows lack a clean aggregate. */
 export interface SalesDailyRevenueRow {
   revenue_date: string
   channel: string
+  /** Representative ERP company code; use esb_codes when all contributing companies matter. */
   esb_code: string
+  esb_codes?: string[]
   branch_code: string
   branch_name: string | null
   /** Link to shared.branches; null until a human confirms the ERP code's mapping. */
@@ -26,7 +28,7 @@ export interface SalesDailyRevenueRow {
 }
 
 const SELECT =
-  'revenue_date,channel,esb_code,branch_code,branch_name,branch_id,transactions,clean_revenue,snapshot_as_of,source_contract_version'
+  'revenue_date,channel,esb_code,esb_codes,branch_code,branch_name,branch_id,transactions,clean_revenue,snapshot_as_of,source_contract_version'
 
 export interface SalesDailyRevenueFilters {
   /** Only include rows with revenue_date >= (today − sinceDays). */
@@ -36,7 +38,7 @@ export interface SalesDailyRevenueFilters {
 }
 
 /**
- * List reporting.sales_daily_revenue rows ordered by revenue_date ascending (FR-002/AC-003).
+ * List branch-grain revenue rollup rows ordered by revenue_date ascending.
  * RLS scopes rows to the caller's org + finance/admin access role — org_id is never sent.
  * B2B/Roastery and every other channel/branch combination pass through unchanged (AC-006);
  * any dashboard-layer grouping (e.g. Activity mapping) happens above this data layer.
@@ -46,7 +48,7 @@ export async function listSalesDailyRevenue(
 ): Promise<SalesDailyRevenueRow[]> {
   const since = daysAgoIsoDate(f.sinceDays ?? REPORTING_WINDOW_DAYS)
   return readAllPages<SalesDailyRevenueRow>('listSalesDailyRevenue', (from, to) => {
-    let query = reporting().from('sales_daily_revenue').select(SELECT)
+    let query = reporting().from('sales_daily_revenue_rollup').select(SELECT)
     query = query.gte('revenue_date', f.fromDate ?? since)
     if (f.toDate) query = query.lte('revenue_date', f.toDate)
     return query.order('revenue_date', { ascending: true })

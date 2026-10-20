@@ -51,6 +51,29 @@ describe('DataTable — desktop, ready state', () => {
     expect(screen.getByText('SKC')).toBeInTheDocument()
   })
 
+  it('lets a user scroll through a long virtualized desktop table without mounting every row', async () => {
+    const rows = Array.from({ length: 120 }, (_, index) => ({
+      id: String(index), dimension: `Branch ${index}`, channel: 'POS', revenue: index, transactions: index,
+    }))
+    const offsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight')
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      get: function (this: HTMLElement) { return this.tagName === 'TR' ? 52 : 300 },
+    })
+    const { container } = render(<DataTable columns={COLUMNS} rows={rows} isDesktop virtualize caption="Sales by branch" />)
+    if (offsetHeight) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', offsetHeight)
+    else delete (HTMLElement.prototype as { offsetHeight?: number }).offsetHeight
+    const scroll = container.querySelector('.dt-scroll-virtual') as HTMLDivElement
+    expect(screen.getByText('Branch 0')).toBeInTheDocument()
+    expect(screen.queryByText('Branch 119')).not.toBeInTheDocument()
+
+    scroll.scrollTop = 5_500
+    fireEvent.scroll(scroll)
+
+    expect(await screen.findByText('Branch 119')).toBeInTheDocument()
+    expect(container.querySelectorAll('tbody tr').length).toBeLessThan(rows.length)
+  })
+
   it('applies .tabular to numeric cells', () => {
     render(<DataTable columns={COLUMNS} rows={ROWS} isDesktop caption="Sales by branch" />)
     const cell = screen.getByText('12400000')

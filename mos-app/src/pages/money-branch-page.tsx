@@ -220,7 +220,7 @@ function RevenueMoneyBranchPage() {
   const register = canReview && registerWindow ? <CancelVoidRegister key={code} branch={code} start={registerWindow.from} end={registerWindow.to} /> : null
   const findingStart = page?.days[0]?.date ?? ''
   const findingEnd = page?.latestDate ?? ''
-  const companies = [...new Set(data?.revenue.filter(r => r.branch_code === code).map(r => r.esb_code))].sort().join(',')
+  const companies = [...new Set(data?.revenue.filter(r => r.branch_code === code).flatMap(r => r.esb_codes ?? [r.esb_code]))].sort().join(',')
   const findingScope = `${code}:${findingStart}:${findingEnd}:${companies}`
   const [findings, setFindings] = useState<{ scope: string; data: RecipeFindingsData } | null>(null)
   const [findingStatus, setFindingStatus] = useState('loading')
