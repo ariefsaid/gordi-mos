@@ -1,7 +1,7 @@
 -- Executes the importer's exact dry-run SQL; shell test pins the generated block.
 begin;
 create extension if not exists pgtap with schema extensions;
-select no_plan();
+select plan(12);
 select set_config('app.allow_test_seeds','on',true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
