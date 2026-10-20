@@ -63,7 +63,9 @@ for (const actor of personas) {
     // Home owns its phone action bar; Inbox keeps the shared quick-action launcher available.
     await page.goto('inbox')
     await expect(page.getByRole('heading', { name: 'Inbox', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'Actions', exact: true }).click()
+    const launcher = page.getByRole('button', { name: 'Actions', exact: true })
+    await expect(launcher).toBeVisible()
+    await launcher.click()
     await expect(dialog.getByRole('option', { name: 'Create task', exact: true })).toBeVisible()
     await expect(dialog.getByRole('option', { name: 'Share signal', exact: true })).toBeVisible()
     await expect(dialog.getByRole('option', { name: 'Log Café production', exact: true })).toHaveCount(actor.capture ? 1 : 0)
