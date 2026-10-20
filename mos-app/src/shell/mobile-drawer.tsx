@@ -39,7 +39,7 @@ function rootOf(destination: Destination): string {
 /**
  * MobileDrawer — the phone's More: a drawer, not a page. It is derived from the SAME module registry as the
  * desktop nav: Home, Work, admitted destinations in the registry's shared order (only the current area's pages expand),
- * then Admin settings, Personal profile and the account chip (language, appearance, sign out) in a foot that stays on
+ * then Admin settings and the account chip (Personal profile, appearance, sign out) in a foot that stays on
  * screen while the navigation scrolls. Every close path — Esc, backdrop click, the ✕, and
  * selecting a destination — routes through the SAME `closeAndReturn` so focus always returns to the opener
  * (interaction-contract I2), never left dangling on a link about to unmount.
@@ -91,7 +91,6 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   const destinations = globalNavigationDestinations(accessRoles, isOn)
   const footer = footerAreas(accessRoles)
   const admin = footer.find((d) => d.id === 'admin')
-  const profile = footer.find((d) => d.id === 'profile')
   const adminGroups = admin ? pageGroupsFor(admin, accessRoles, isOn) : []
 
   return (
@@ -154,13 +153,12 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
           )}
         </nav>
 
-        {/* Foot: Admin settings and Personal profile, then the account (language, appearance, sign out). */}
+        {/* Foot: Admin settings, then the account (Personal profile, appearance, sign out). */}
         <div className="mobile-drawer-foot">
           <div className="nav-list">
             {admin && <AreaLink destination={admin} to={landingOf(admin)} state={rowState(pathname, landingOf(admin), rootOf(admin), currentPagePath(adminGroups, pathname))} onNavigate={closeAndReturn} />}
-            {profile && <AreaLink destination={profile} to="/profile" state={rowState(pathname, '/profile', '/profile', undefined)} onNavigate={closeAndReturn} />}
           </div>
-          {viewer && <UserChip variant="drawer" />}
+          {viewer && <UserChip variant="drawer" onNavigate={closeAndReturn} />}
           <ReleaseStamp />
         </div>
       </div>
