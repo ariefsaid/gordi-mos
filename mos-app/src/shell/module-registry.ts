@@ -2,6 +2,7 @@ import type React from 'react'
 import type { MessageKey } from '@/i18n/messages'
 import { SHOW_FOLLOWUPS, SHOW_PLAN_BUDGET } from '@/config/features'
 import { isShipGated } from '@/lib/ship-gate'
+import { hasAnyAccessRole } from '@/lib/capabilities'
 import type { ModuleId } from '@/lib/db/module-settings'
 import type { ModuleAccessCheck } from '@/lib/module-availability'
 import { reviewQueuePath, reviewQueuesFor } from '@/lib/cafe-review-queues'
@@ -441,7 +442,7 @@ function isLive(d: Destination, accessRoles: string[], isOn: ModuleAccessCheck):
   if (entry !== undefined && isShipGated(entry)) return false
   if (d.links.every((link) => isShipGated(link.path))) return false
   if (d.id === 'money') return moneyDestinationForViewer(accessRoles, isOn) !== null
-  const roleAdmitted = !d.anyOf || d.anyOf.some((role) => accessRoles.includes(role))
+  const roleAdmitted = !d.anyOf || hasAnyAccessRole(accessRoles, d.anyOf)
   if (d.id === 'work') return isOn('work', roleAdmitted)
   if (d.zone === 'modules') return isOn(d.id as ModuleId, roleAdmitted)
   return roleAdmitted

@@ -40,6 +40,7 @@ import type { ProductionActivity } from '@/lib/db/kitchen-logs.types'
 import { formatDayMonthYear, formatWibShortDateTime, wibToday } from '@/lib/format/date'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
+import { canReviewCafe } from '@/lib/kitchen-gates'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { useIsRecordSplit } from '@/shell/use-is-split-width'
@@ -63,7 +64,7 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
   const t = useT()
   const auth = useAuth()
   const roles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const reviewer = roles.some(role => ['ops_lead', 'admin', 'supervisor'].includes(role))
+  const reviewer = canReviewCafe(roles)
   const canCapture = auth.status === 'authenticated' && canCaptureCafe({ affiliated: auth.viewer.affiliated, accessRoles: auth.viewer.accessRoles })
   const online = !useIsOffline()
   const isDesktop = useIsDesktop()

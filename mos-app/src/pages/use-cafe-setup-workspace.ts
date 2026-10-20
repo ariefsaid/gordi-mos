@@ -5,12 +5,13 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsOffline } from '@/shell/use-is-offline'
+import { canAdminCafe } from '@/lib/kitchen-gates'
 
 export function useCafeSetupWorkspace<Data>() {
   const t = useT()
   const { locale } = useI18n()
   const auth = useAuth()
-  const isAdmin = auth.status === 'authenticated' && auth.viewer.accessRoles.includes('admin')
+  const isAdmin = auth.status === 'authenticated' && canAdminCafe(auth.viewer.accessRoles)
   const isDesktop = useIsDesktop()
   const offline = useIsOffline()
   const [params, setParams] = useSearchParams()
