@@ -84,5 +84,75 @@ assert_contains "SQL resolves org by slug"       "$tmp/load.sql" "shared.orgs"
 assert_contains "SQL resolves wip by ERP id"     "$tmp/load.sql" "esb_bom_id"
 assert_absent  "SQL never writes the outbox"     "$tmp/load.sql" 'insert[[:space:]]+into[[:space:]]+integrations\.esb_push'
 
+# Locations sends use identifiers and only Approved source rows.
+python3 - "$SCRIPT" "$tmp" <<'PY'
+import importlib.util
+import json
+import pathlib
+import sys
+module_spec = importlib.util.spec_from_file_location('history', sys.argv[1])
+history = importlib.util.module_from_spec(module_spec)
+module_spec.loader.exec_module(history)
+root = pathlib.Path(sys.argv[2])
+logs = []
+for identifier, action, status in [('send-rrs', 'Transfer to RRS', 'Approved'),
+                                    ('send-bungur', 'Transfer to Bungur', 'Approved'),
+                                    ('send-pending', 'Transfer to RRS', 'Submitted')]:
+    logs.append({'id': identifier, 'fields': {'date': '2026-08-01T17:00:00Z',
+        'wip_item': {'id': 'recW1'}, 'action_type': action, 'qty_porsi': 4, 'status': status}})
+(root / 'sends.json').write_text(json.dumps(logs))
+plans = [{'id': 'send-plan', 'fields': {'date': '2026-08-01T17:00:00Z',
+    'wip_item': 'recW1', 'action_type': 'Transfer to Bungur', 'planned_qty': 4}}]
+(root / 'send-plans.json').write_text(json.dumps(plans))
+# pgTAP executes this generated SQL, not a hand-written approximation of the load.
+wip = {'recW1': {'esb_bom_id': 'BOM-001'}, 'recW2': {'esb_bom_id': 'BOM-002'},
+       'missing': {'esb_bom_id': 'NO-SUCH-ITEM'}}
+records = []
+for identifier, action, qty, item in [('made', 'Production', 10, 'recW1'),
+        ('radiant', 'Transfer to Radiant', 3, 'recW1'), ('outlet', 'Transfer to RRS', 4, 'recW1'),
+        ('missing-item', 'Transfer to Bungur', 2, 'missing'), ('missing-unit', 'Transfer to Bungur', 2, 'recW2')]:
+    records.append({'id': identifier, 'fields': {'date': '2026-05-01T17:00:00Z',
+        'action_type': action, 'qty_porsi': qty, 'wip_item': item, 'status': 'Approved'}})
+rows, skips = history.collect(records, 'log', wip)
+assert not skips
+sql = history.build_sql(rows, 'org-a', 'retail_ops',
+    'f1420000-0000-0000-0000-000000000001', 'f1420000-0000-0000-0000-000000000002')
+body = sql.removeprefix('\\set ON_ERROR_STOP on\nbegin;\n').removesuffix('commit;\n')
+fixture = pathlib.Path('supabase/tests/ops_42_cafe_location_import.sql').read_text()
+assert fixture.split('$generated$')[1] == '\n' + body
+PY
+if [ $? -eq 0 ]; then pass=$((pass+1)); else fail=$((fail+1)); fi
+KITCHEN='f1410000-0000-0000-0000-000000000001'
+OUTLET='f1410000-0000-0000-0000-000000000002'
+check 'send ids required before loading' 2 --wip "$tmp/wip.json" --logs "$tmp/sends.json" --plans "$tmp/plans.json" --dry-run
+check 'location arguments required together' 2 --wip "$tmp/wip.json" --logs "$tmp/logs.json" --plans "$tmp/plans.json" --dry-run --rames-kitchen-location "$KITCHEN"
+check 'invalid location identifier refused' 2 --wip "$tmp/wip.json" --logs "$tmp/sends.json" --plans "$tmp/plans.json" --dry-run --rames-kitchen-location bad --rames-outlet-location "$OUTLET"
+check 'same location identifier refused' 2 --wip "$tmp/wip.json" --logs "$tmp/sends.json" --plans "$tmp/plans.json" --dry-run --rames-kitchen-location "$KITCHEN" --rames-outlet-location "$KITCHEN"
+check 'unapproved sends and send plans give non-clean exit' 3 --wip "$tmp/wip.json" --logs "$tmp/sends.json" --plans "$tmp/send-plans.json" --dry-run --rames-kitchen-location "$KITCHEN" --rames-outlet-location "$OUTLET"
+python3 "$SCRIPT" --wip "$tmp/wip.json" --logs "$tmp/sends.json" --plans "$tmp/send-plans.json" --dry-run --allow-unresolved --rames-kitchen-location "$KITCHEN" --rames-outlet-location "$OUTLET" > "$tmp/sends.sql" 2> "$tmp/sends.report"
+assert_contains 'send ledger insert' "$tmp/sends.sql" 'insert into ops.location_movements'
+assert_contains 'send SQL validates location availability' "$tmp/sends.sql" 'ops.location_branches'
+assert_contains 'send SQL requires active storage' "$tmp/sends.sql" "l.use in ('storage','both')"
+assert_contains 'send SQL requires confirmed units' "$tmp/sends.sql" 'confirmed_at is not null'
+assert_contains 'send SQL uses import source' "$tmp/sends.sql" "'move', 'import'"
+assert_contains 'non-Approved send reported' "$tmp/sends.report" 'send_not_approved'
+assert_absent 'non-Approved send never emitted' "$tmp/sends.sql" 'send-pending'
+assert_contains 'outlet send plans reported' "$tmp/sends.report" 'send_plan_not_loaded'
+assert_absent 'outlet send plans never emitted' "$tmp/sends.sql" 'send-plan'
+assert_absent 'send SQL never writes outbox' "$tmp/sends.sql" 'insert[[:space:]]+into[[:space:]]+integrations\.esb_push'
+python3 - "$tmp/sends.sql" <<'PY'
+import json
+import pathlib
+import sys
+import uuid
+sql = pathlib.Path(sys.argv[1]).read_text()
+rows = json.loads(sql.split('$json$')[1])
+sends = [row for row in rows if row['kind'] == 'move']
+namespace = uuid.uuid5(uuid.NAMESPACE_URL, 'https://ops.gordi.id/mos#kitchen-history-import')
+assert len(sends) == 2
+assert {row['det_id'] for row in sends} == {str(uuid.uuid5(namespace, f'rames_send:{identifier}')) for identifier in ['send-rrs', 'send-bungur']}
+PY
+if [ $? -eq 0 ]; then pass=$((pass+1)); else fail=$((fail+1)); fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
