@@ -231,6 +231,15 @@ describe('MoneyBranchPage — the day chart', () => {
     expect(chart).toHaveAttribute('aria-describedby')
   })
 
+  it.each([
+    ['en', 'Partial total'],
+    ['id', 'Total sebagian'],
+  ] as const)('marks a branch total partial in %s when a day is missing', async (locale, label) => {
+    mockRev.mockResolvedValue(REVENUE.filter((r) => !(r.branch_code === 'GHQ' && r.revenue_date === LATEST)))
+    renderBranch(['finance'], '/money/branch/GHQ?period=7', locale)
+    expect(await screen.findByText(label)).toBeInTheDocument()
+  })
+
   it('a branch missing the latest day opens on its last received day; the missing day reads "not received", never zero', async () => {
     mockRev.mockResolvedValue(REVENUE.filter((r) => !(r.branch_code === 'GHQ' && r.revenue_date === LATEST)))
     renderBranch(['finance'])

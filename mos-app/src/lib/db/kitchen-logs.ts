@@ -387,7 +387,7 @@ export async function resolveKitchenBuId(): Promise<string> {
  */
 interface StockForDateRow {
   wip_item_id: string
-  usable_qty: number
+  usable_qty: number | null
   available_qty: number
 }
 
@@ -463,7 +463,7 @@ export async function fetchKitchenStock(
         wip_item_name: item.mosName,
         category: item.category,
         on_stream: offered.has(item.id),
-        stok: s?.usable_qty ?? 0,
+        stok: s?.usable_qty ?? null,
         tersedia: s?.available_qty ?? 0,
       }
     })

@@ -719,7 +719,7 @@ describe('fetchStockMap — stok/tersedia per WIP item via kitchen_stock_for_dat
             {
               data: [
                 { wip_item_id: 'w1', usable_qty: 3, available_qty: 9 },
-                { wip_item_id: 'w2', usable_qty: 0, available_qty: 0 },
+                { wip_item_id: 'w2', usable_qty: null, available_qty: 0 },
               ],
               error: null,
             },
@@ -731,7 +731,7 @@ describe('fetchStockMap — stok/tersedia per WIP item via kitchen_stock_for_dat
 
     const map = await fetchStockMap('2026-06-20', STREAM)
     expect(map['w1']).toEqual({ stok: 3, tersedia: 9 })
-    expect(map['w2']).toEqual({ stok: 0, tersedia: 0 })
+    expect(map['w2']).toEqual({ stok: null, tersedia: 0 })
     // dispatched to the corrected #45 contract: kitchen_stock_for_date(p_as_of)
     expect(rec.rpcCalls).toContainEqual([
       'kitchen_stock_for_date',
@@ -807,6 +807,7 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
       setting('active-wip', 'Curry base', 'WIP'),
       setting('inactive-balance', 'Legacy spice', 'RAW', false),
       setting('without-row', 'Unlisted item', 'WIP'),
+      setting('missing-stock', 'Uncounted item', 'WIP'),
     ])
     const rec = freshRec()
     schemaMock.mockReturnValue(
@@ -817,10 +818,11 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
               { wip_item_id: 'raw-zero', usable_qty: 0, available_qty: 0 },
               { wip_item_id: 'active-wip', usable_qty: -4, available_qty: -2 },
               { wip_item_id: 'inactive-balance', usable_qty: 6, available_qty: 6 },
+              { wip_item_id: 'missing-stock', usable_qty: null, available_qty: 0 },
             ],
             error: null,
           }],
-          stream_items: [{ data: [{ wip_item_id: 'raw-zero' }, { wip_item_id: 'active-wip' }], error: null }],
+          stream_items: [{ data: [{ wip_item_id: 'raw-zero' }, { wip_item_id: 'active-wip' }, { wip_item_id: 'missing-stock' }], error: null }],
         },
         rec,
       ) as never,
@@ -831,6 +833,7 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
       { wip_item_id: 'raw-zero', wip_item_name: 'Rice for prep', category: 'Prep', on_stream: true, stok: 0, tersedia: 0 },
       { wip_item_id: 'active-wip', wip_item_name: 'Curry base', category: 'Prep', on_stream: true, stok: -4, tersedia: -2 },
       { wip_item_id: 'inactive-balance', wip_item_name: 'Legacy spice', category: 'Prep', on_stream: false, stok: 6, tersedia: 6 },
+      { wip_item_id: 'missing-stock', wip_item_name: 'Uncounted item', category: 'Prep', on_stream: true, stok: null, tersedia: 0 },
     ])
     expect(rows.some(row => row.wip_item_id === 'without-row')).toBe(false)
   })

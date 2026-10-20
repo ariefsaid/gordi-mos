@@ -125,18 +125,19 @@ function KitchenStockPageForViewer() {
   const searchedRows = placeRows.filter(row => (
     !searchQuery || row.wip_item_name.toLowerCase().includes(searchQuery)
   ))
-  const negativeCount = searchedRows.filter(row => row.stok < 0 || row.tersedia < 0).length
-  const visibleRows = negativeOnly === '1' ? searchedRows.filter(row => row.stok < 0 || row.tersedia < 0) : searchedRows
-  const negativeRows = visibleRows.filter(row => row.stok < 0 || row.tersedia < 0)
-  const otherRows = visibleRows.filter(row => !(row.stok < 0 || row.tersedia < 0))
+  const hasNegativeBalance = (row: KitchenStockRow) => (row.stok !== null && row.stok < 0) || row.tersedia < 0
+  const negativeCount = searchedRows.filter(hasNegativeBalance).length
+  const visibleRows = negativeOnly === '1' ? searchedRows.filter(hasNegativeBalance) : searchedRows
+  const negativeRows = visibleRows.filter(hasNegativeBalance)
+  const otherRows = visibleRows.filter(row => !hasNegativeBalance(row))
   const stockGroups = [
     ...(negativeRows.length ? [{ key: 'negative', label: t('kitchen.stock.negativeGroup'), rows: negativeRows }] : []),
     ...(otherRows.length ? [{ key: 'other', label: t('kitchen.stock.otherGroup'), rows: otherRows }] : []),
   ]
   // Number and unit are separate cells so the figures keep one right edge whatever the unit's width.
-  const formatStockQuantity = (quantity: number, unitName: string | null | undefined) => (
+  const formatStockQuantity = (quantity: number | null, unitName: string | null | undefined) => (
     <>
-      <span className="ks-qty__num">{Number.isFinite(quantity) ? formatQuantityWithUnit(quantity, '', document.documentElement.lang || 'en').trimEnd() : '—'}</span>
+      <span className="ks-qty__num">{quantity !== null && Number.isFinite(quantity) ? formatQuantityWithUnit(quantity, '', document.documentElement.lang || 'en').trimEnd() : '—'}</span>
       {' '}
       <span className="ks-qty__unit">{unitName ?? t('kitchen.stock.unitNotSet')}</span>
     </>
@@ -151,7 +152,7 @@ function KitchenStockPageForViewer() {
         {!unitNames[row.wip_item_id] && <span className="ks-unit-warning">{t('kitchen.stock.unitNotSet')}</span>}
       </span>
     </div>
-    <div className="ks-value" data-label={t('kitchen.stock.col.stok')}><span className={`ks-qty ${row.stok < 0 ? 'ks-negative tabular' : 'tabular'}`}>{formatStockQuantity(row.stok, unitNames[row.wip_item_id])}</span></div>
+    <div className="ks-value" data-label={t('kitchen.stock.col.stok')}><span className={`ks-qty ${row.stok !== null && row.stok < 0 ? 'ks-negative tabular' : 'tabular'}`}>{formatStockQuantity(row.stok, unitNames[row.wip_item_id])}</span></div>
     <div className="ks-value" data-label={t('kitchen.stock.col.tersedia')}><span className={`ks-qty ${row.tersedia < 0 ? 'ks-negative tabular' : 'tabular'}`}>{formatStockQuantity(row.tersedia, unitNames[row.wip_item_id])}</span></div>
   </div>
 

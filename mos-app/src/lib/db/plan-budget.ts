@@ -108,7 +108,7 @@ export interface CaptureBudgetInput {
   scenarioLabel: string
   scenarioType: 'baseline' | 'promo' | 'new_branch' | 'menu'
   owningBuId: string
-  costBasisAsOf: string
+  costBasisAsOf: string | null
   certifiedMetricKey?: string
   isComplete: boolean
   notes?: string

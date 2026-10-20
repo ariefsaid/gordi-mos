@@ -2264,6 +2264,29 @@ describe('R4 / FR-018: Log summary line', () => {
     expect(card).not.toHaveTextContent('Stock')
   })
 
+  it.each([
+    ['en', /Stock\s*—/i],
+    ['id', /Stok\s*—/i],
+  ] as const)('shows unknown stock as absent when the record is missing (%s)', async (locale, expected) => {
+    mockFetchStockMap.mockResolvedValue({ w1: { stok: null, tersedia: 9 }, w2: { stok: 0, tersedia: 0 } })
+    await renderPage(VIEWER_MEMBER, appUrl('/cafe'), undefined, undefined, locale)
+    const row = await screen.findByRole('row', { name: /ayam bakar/i })
+    expect(row).toHaveTextContent(expected)
+  })
+
+  it.each([
+    ['en', /Available\s*9/i, /Stock\s*—/i],
+    ['id', /Tersedia\s*9/i, /Stok\s*—/i],
+  ] as const)('keeps derived transfer availability visible when the saved stock is unknown (%s)', async (locale, available, stock) => {
+    mockFetchStockMap.mockResolvedValue({ w1: { stok: null, tersedia: 9 }, w2: { stok: 0, tersedia: 0 } })
+    await renderTransferPage(VIEWER_MEMBER, undefined, locale)
+    await screen.findAllByText('Ayam Bakar')
+    await userEvent.setup().click(movementTab(/radiant/i))
+    const row = screen.getByRole('row', { name: /ayam bakar/i })
+    expect(row).toHaveTextContent(available)
+    expect(row).toHaveTextContent(stock)
+  })
+
   it('directs a row without a capture unit to Café item settings', async () => {
     mockListCaptureFormItems.mockResolvedValue([{ ...WIP_ITEMS[0], units: [] }])
     await renderPage()
