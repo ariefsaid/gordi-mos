@@ -12,6 +12,7 @@ select ops.refresh_cafe_item_references($source$[
   {"esb_product_id":"SYNTH-ERP-P-1345-WIP","esb_product_detail_id":"SYNTH-ERP-PD-1345-WIP-A","name":"Synthetic multiple WIP","category":"KITCHEN","unit_name":"ERP pack","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":true,"is_active":true,"branch_code":"gordi_hq"},
   {"esb_product_id":"SYNTH-ERP-P-1345-WIP","esb_product_detail_id":"SYNTH-ERP-PD-1345-WIP-B","name":"Synthetic multiple WIP","category":"KITCHEN","unit_name":"ERP each","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":true,"is_active":true,"branch_code":"gordi_hq"}
 ]$source$::jsonb);
+select ops.refresh_cafe_stream_items('[{"esb_product_id":"SYNTH-ERP-P-1345-WIP","branch_code":"gordi_hq"}]');
 update ops.item_units set confirmed_at=now()
  where esb_product_detail_id in ('SYNTH-ERP-PD-1345-WIP-A','SYNTH-ERP-PD-1345-WIP-B');
 select set_config('app.allow_test_seeds', 'off', true);

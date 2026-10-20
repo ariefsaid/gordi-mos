@@ -17,6 +17,7 @@ select ops.refresh_cafe_item_references($source$[
   {"esb_product_id":"SYNTH-ERP-P-1456-WIP","esb_product_detail_id":"SYNTH-ERP-PD-1456-WIP","name":"Synthetic ESB-only WIP","category":"KITCHEN","unit_name":"tray","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":true,"is_active":true,"branch_code":"gordi_hq"},
   {"esb_product_id":"SYNTH-ERP-P-1456-KEEP","esb_product_detail_id":"SYNTH-ERP-PD-1456-KEEP","name":"Synthetic ESB source probe","category":"KITCHEN","unit_name":"tray","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":true,"is_active":true,"branch_code":"gordi_hq"}
 ]$source$::jsonb);
+select ops.refresh_cafe_stream_items('[{"esb_product_id":"SYNTH-ERP-P-1456-WIP","branch_code":"gordi_hq"},{"esb_product_id":"SYNTH-ERP-P-1456-KEEP","branch_code":"gordi_hq"}]');
 update ops.item_units set confirmed_at = now() where esb_product_detail_id = 'SYNTH-ERP-PD-1456-WIP';
 select set_config('app.allow_test_seeds', 'off', true);
 select set_config('app.esb_item', (select id::text from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1456-WIP'), true);

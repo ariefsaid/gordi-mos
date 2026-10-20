@@ -11,6 +11,7 @@ select set_config('app.cafe_reference_test_org_id', '00000000-0000-0000-0000-000
 select ops.refresh_cafe_item_references($source$[
   {"esb_product_id":"SYNTH-ESB-P-RECORDS-READ","esb_product_detail_id":"SYNTH-ESB-PD-RECORDS-READ","name":"Records read item","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true}
 ]$source$::jsonb);
+select ops.refresh_cafe_stream_items('[{"esb_product_id":"SYNTH-ESB-P-RECORDS-READ","branch_code":"gordi_hq"}]');
 select set_config('app.allow_test_seeds', 'off', true);
 select set_config('app.records_item_id', (select id::text from ops.wip_items where esb_product_id = 'SYNTH-ESB-P-RECORDS-READ'), true);
 select set_config('app.records_unit_id', (select id::text from ops.item_units where esb_product_detail_id = 'SYNTH-ESB-PD-RECORDS-READ'), true);

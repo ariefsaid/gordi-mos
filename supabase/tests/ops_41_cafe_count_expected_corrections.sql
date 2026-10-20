@@ -8,6 +8,10 @@ select shared._test_seed_access_roles();
 select ops._test_seed_cafe();
 select set_config('app.cafe_reference_test_org_id', '00000000-0000-0000-0000-0000000000a1', true);
 select ops.refresh_cafe_item_references('[{"esb_product_id":"SYNTH-EXPECTED","esb_product_detail_id":"SYNTH-EXPECTED-UNIT","name":"Expected fixture","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true}]'::jsonb);
+insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
+select org_id, '00000000-0000-0000-0000-00000000bf01', 'kitchen', id, 'manual'
+  from ops.wip_items
+ where org_id = '00000000-0000-0000-0000-0000000000a1' and esb_product_id = 'SYNTH-EXPECTED';
 select set_config('app.allow_test_seeds', 'off', true);
 update ops.item_units set confirmed_at = now() where esb_product_id = 'SYNTH-EXPECTED';
 select set_config('app.esb_target_env', 'goo', true);
