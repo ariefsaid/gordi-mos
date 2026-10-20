@@ -75,7 +75,8 @@ for (const actor of personas) {
     for (const label of ['Home', 'Work', 'Café']) {
       await expect(nav.getByRole('link', { name: label, exact: true }).first()).toBeVisible()
     }
-    await expect(page.getByRole('button', { name: 'Inbox', exact: true })).toBeVisible()
+    // On the Inbox page the desktop bell is a link marked as the current page.
+    await expect(page.getByRole('link', { name: 'Inbox', exact: true })).toHaveAttribute('aria-current', 'page')
     await nav.getByRole('link', { name: 'Work', exact: true }).first().click()
     for (const label of ['Signals', 'Tasks', 'Projects & Processes', 'Objectives']) {
       await expect(nav.getByRole('link', { name: new RegExp(`^${label}(,|\\s|$)`) }).first()).toBeVisible()
