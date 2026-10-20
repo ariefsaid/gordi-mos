@@ -60,8 +60,20 @@ it('opens a URL recipe directly and preserves missing output values without inve
   await screen.findByRole('heading', { name: 'Coffee' })
   expect(screen.getAllByText('Not provided by ESB')).toHaveLength(2)
   expect(screen.getByText('No ingredient lines were recorded for this version.')).toBeInTheDocument()
-  expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  expect(screen.getAllByRole('textbox')).toEqual([screen.getByRole('textbox', { name: 'Recipe on date' })])
   expect(screen.queryByRole('button', { name: /edit|save|ERP/i })).not.toBeInTheDocument()
+})
+
+it('resets the historical day when opening another recipe', async () => {
+  mount('/cafe/recipes?recipe=TEST%3A1')
+  const date = await screen.findByRole('textbox', { name: 'Recipe on date' })
+  fireEvent.focus(date)
+  fireEvent.change(date, { target: { value: '30/09/2026' } })
+  expect(screen.getByText('Recipe history not kept before 1 Oct 2026.', { selector: '[role="status"]' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('link', { name: 'Coffee' }))
+  await screen.findByRole('heading', { name: 'Coffee' })
+  expect(screen.getByRole('textbox', { name: 'Recipe on date' })).toHaveValue('')
+  expect(screen.getByText('No ingredient lines were recorded for this version.')).toBeInTheDocument()
 })
 
 it('clears a no-match search in the URL', async () => {

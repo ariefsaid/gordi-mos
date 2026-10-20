@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { formatDayMonthYear } from '@/lib/format/date'
 import { CafeItemRecipeSection, CafeRecipeDetail } from './cafe-recipe-detail'
 import { listItemRecipeVersions } from '@/lib/db/cafe-recipes'
 import type { RecipeVersion } from '@/lib/cafe-recipes'
@@ -41,6 +42,39 @@ it('does not update a closed item after its request resolves', async () => {
   resolve({ versions: [row], matchedByName: false })
   expect(screen.queryByRole('heading', { name: 'ERP preparation' })).not.toBeInTheDocument()
 })
+it.each(['en', 'id'] as const)('reads a past day and labels dates before retained history in %s', locale => {
+  const newer: RecipeVersion = { ...row, version: 2, first_seen: '2026-10-05', recipe: {
+    ...row.recipe, lines: [{ detail_id: 1, name: 'Flour', qty: 2, unit: 'KG' }],
+  } }
+  const latest: RecipeVersion = { ...newer, version: 3, recipe: { ...newer.recipe,
+    active: true, lines: [{ detail_id: 1, name: 'Flour', qty: 3, unit: 'KG' }],
+  } }
+  render(<I18nProvider initialLocale={locale}><CafeRecipeDetail versions={[newer, latest, row]} /></I18nProvider>)
+  const label = locale === 'en' ? 'Recipe on date' : 'Resep pada tanggal'
+  const date = screen.getByRole('textbox', { name: label })
+  const ingredients = () => within(screen.getByRole('list', { name: locale === 'en' ? 'Ingredients' : 'Bahan' }))
+  expect(ingredients().getByText('3 KG')).toBeInTheDocument()
+  fireEvent.focus(date)
+  fireEvent.change(date, { target: { value: '04/10/2026' } })
+  expect(ingredients().getByText(locale === 'en' ? '250.1234567 GR' : '250,1234567 GR')).toBeInTheDocument()
+  expect(ingredients().queryByText('2 KG')).not.toBeInTheDocument()
+  fireEvent.change(date, { target: { value: '01/10/2026' } })
+  expect(ingredients().getByText(locale === 'en' ? '250.1234567 GR' : '250,1234567 GR')).toBeInTheDocument()
+  fireEvent.change(date, { target: { value: '05/10/2026' } })
+  expect(ingredients().getByText('3 KG')).toBeInTheDocument()
+  expect(screen.getByText(locale === 'en' ? 'Active' : 'Aktif')).toBeInTheDocument()
+  fireEvent.change(date, { target: { value: '30/09/2026' } })
+  expect(screen.getByRole('status')).toHaveTextContent(locale === 'en'
+    ? `Recipe history not kept before ${formatDayMonthYear(row.first_seen, locale)}.`
+    : `Riwayat resep tidak disimpan sebelum ${formatDayMonthYear(row.first_seen, locale)}.`)
+  expect(screen.queryByRole('list', { name: locale === 'en' ? 'Ingredients' : 'Bahan' })).not.toBeInTheDocument()
+  fireEvent.change(date, { target: { value: '' } })
+  expect(ingredients().getByText('3 KG')).toBeInTheDocument()
+  fireEvent.click(screen.getByText(locale === 'en' ? 'Changes · 3 versions' : 'Perubahan · 3 versi'))
+  expect(screen.getAllByText(locale === 'en' ? 'Quantity changed' : 'Jumlah berubah')).toHaveLength(2)
+  expect(screen.getByText(locale === 'en' ? 'Unit changed' : 'Satuan berubah')).toBeInTheDocument()
+})
+
 it('retains history even when a source hash change does not change displayed ingredients', () => {
   render(<I18nProvider initialLocale="en"><CafeRecipeDetail versions={[row, { ...row, version: 2 }]} /></I18nProvider>)
   expect(screen.getByText(/Other ESB recipe metadata changed/)).toBeInTheDocument()
