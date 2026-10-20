@@ -126,7 +126,7 @@ function parseLog(row: Record<string, unknown>): CafeRecordLog {
   const embed = row.wip_items as { name?: string } | Array<{ name?: string }> | null | undefined
   const name = Array.isArray(embed) ? embed[0]?.name : embed?.name
   if ((row.activity !== 'kitchen' && row.activity !== 'bar') || !LOG_STATUSES.includes(row.status as KitchenLogStatus)
-    || (row.action !== 'produce' && row.action !== 'transfer' && row.action !== 'waste') || typeof row.id !== 'string') {
+    || (row.action !== 'produce' && row.action !== 'transfer' && row.action !== 'outlet_send' && row.action !== 'waste') || typeof row.id !== 'string') {
     throw new Error('listCafeRecordLogs failed: invalid log row')
   }
   const { wip_items: _embed, ...rest } = row

@@ -17,7 +17,7 @@ Resolution rules (the ruling's "keyed by ERP identifier, never by name"):
   * branches resolve in SQL by shared.branches.code (rumah_rames / radiant / cikal); the
     incumbent's labels map structurally (DD-WAY-13: labels are presentation):
     Production → produce; Approved "Transfer to Bungur"/"Transfer to RRS" logs →
-    same-stream location moves using the two supplied place ids;
+    outlet_send logs plus same-stream location moves using the two supplied place ids;
     "Transfer to Radiant"/"Transfer to GGS" → radiant; "Transfer to Cikal" → cikal.
     Plans for outlet sends are reported, never loaded;
   * people columns (submitted_by / reviewed_by / plan_by) land NULL — people carry
@@ -72,9 +72,10 @@ LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 # Anything else is reported, never guessed.
 ACTION_MAP = {
     "Production": ("produce", None),
-    "Transfer to Bungur": ("transfer", "rumah_rames"),
+    "Transfer to Bungur": ("outlet_send", None),
     "Transfer to Radiant": ("transfer", "radiant"),
-    "Transfer to RRS": ("transfer", "rumah_rames"),
+    "Transfer to RRS": ("outlet_send", None),
+    "Kirim ke Rumah Rames": ("outlet_send", None),
     "Transfer to GGS": ("transfer", "radiant"),
     "Transfer to Cikal": ("transfer", "cikal"),
 }
@@ -192,7 +193,7 @@ def parse_log(rec: object, wip_index: dict[str, dict | None]) -> dict:
     qty = fields.get("qty_porsi")
     if isinstance(qty, bool) or not isinstance(qty, (int, float)) or qty <= 0:
         raise ParseSkip(f"invalid qty_porsi: {qty!r}")
-    is_send = dest_code == "rumah_rames"
+    is_send = action == "outlet_send"
     if is_send and fields.get("status") != "Approved":
         raise ParseSkip("send_not_approved")
     posted_raw = fields.get("posted_to_esb")
@@ -220,7 +221,7 @@ def parse_log(rec: object, wip_index: dict[str, dict | None]) -> dict:
 def parse_plan(rec: object, wip_index: dict[str, dict | None]) -> dict:
     src_id, created_at, log_date, action, dest_code, link = parse_common(rec, "plan", wip_index)
     fields = rec["fields"]
-    if dest_code == "rumah_rames":
+    if action == "outlet_send":
         raise ParseSkip("send_plan_not_loaded")
     qty = fields.get("planned_qty")
     if isinstance(qty, bool) or not isinstance(qty, (int, float)) or qty < 0:
@@ -376,14 +377,18 @@ with ins_logs as (
     (id, org_id, business_unit_id, log_date, branch_id, activity, action,
      destination_branch_id, wip_item_id, qty_porsi, notes, status, source,
      submitted_by, reviewed_by, reviewed_at, batch_id, posted_to_esb, esb_doc_num,
-     posted_at, created_at)
+     posted_at, created_at,from_storage_location_id,to_storage_location_id,item_unit_id)
   select r.det_id, e.org_id, e.bu_id, r.log_date, e.br_rr, 'kitchen', r.action,
          r.dest_branch_id,
          r.wip_item_id, r.qty, r.notes, 'Approved', 'teable_import',
-         null, null, r.reviewed_at, null, coalesce(r.posted_to_esb, false),
-         r.esb_doc_num, r.posted_at, coalesce(r.created_at, now())
+         null, null, r.reviewed_at, null, case when r.kind='move' then false else coalesce(r.posted_to_esb, false) end,
+         case when r.kind='move' then null else r.esb_doc_num end,
+         case when r.kind='move' then null else r.posted_at end, coalesce(r.created_at, now()),
+         case when r.kind='move' then e.kitchen_location end, case when r.kind='move' then e.outlet_location end,
+         case when r.kind='move' then r.item_unit_id end
     from _imp_resolved r, _imp_env e
-   where r.kind = 'log' and r.n_matches = 1 and r.dest_allowed
+   where r.kind in ('log','move') and r.n_matches = 1 and r.dest_allowed
+     and (r.kind<>'move' or r.item_unit_id is not null)
   on conflict do nothing
   returning 1
 ), ins_plans as (

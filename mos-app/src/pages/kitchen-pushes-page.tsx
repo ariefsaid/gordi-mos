@@ -183,6 +183,7 @@ export function KitchenPushesPage() {
       meta={headMeta}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
+      <p>{t('kitchen.pushes.outletSend')}</p>
       {load.kind === 'loading' && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (

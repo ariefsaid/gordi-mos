@@ -1105,6 +1105,31 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     expect(screen.getByRole('button', { name: /approve es kopi/i })).not.toBeDisabled()
   })
 
+  it('outlet send approval confirms a place move, not waste or an ERP batch', async () => {
+    mockList.mockResolvedValue([{ ...PROD_LOG, action: 'outlet_send', action_type: 'Send to Rumah Rames outlet', destination_branch_id: null }])
+    mockPlan.mockResolvedValue({ [PROD_LOG.wip_item_id]: { outlet_send: PROD_LOG.qty_porsi } })
+    mockApprove.mockResolvedValue({ batch_id: null })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText(PROD_LOG.wip_item_name)
+    await pickLog(PROD_LOG.wip_item_name)
+    expect(screen.getAllByText(/Send to Rumah Rames outlet/).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`approve ${PROD_LOG.wip_item_name}`, 'i') }))
+    await screen.findByText('Outlet send approved. Stock moved between places; nothing is sent to ESB.')
+    expect(mockApprove).toHaveBeenCalledWith(PROD_LOG.id, PROD_LOG.updated_at, null)
+  })
+
+  it.each(['en', 'id'] as const)('outlet send refusal is plain and retryable in %s', async locale => {
+    mockList.mockResolvedValue([{ ...PROD_LOG, action: 'outlet_send', action_type: 'Send to Rumah Rames outlet', destination_branch_id: null }])
+    mockPlan.mockResolvedValue({ [PROD_LOG.wip_item_id]: { outlet_send: PROD_LOG.qty_porsi } })
+    mockApprove.mockRejectedValue(new KitchenRpcError('P0001', 'CAFE_LOCATION_MOVE_INSUFFICIENT_STOCK'))
+    render(<KitchenReviewPage />, { wrapper: locale === 'id' ? idWrapper : wrapper })
+    await screen.findByText(PROD_LOG.wip_item_name)
+    await pickLog(PROD_LOG.wip_item_name)
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`${locale === 'id' ? 'setujui' : 'approve'} ${PROD_LOG.wip_item_name}`, 'i') }))
+    await screen.findByText(locale === 'id' ? /stok di dapur tidak cukup/i : /not enough stock at the kitchen/i)
+    expect(screen.getByRole('button', { name: new RegExp(`${locale === 'id' ? 'setujui' : 'approve'} ${PROD_LOG.wip_item_name}`, 'i') })).toBeEnabled()
+  })
+
   it('FR-043: the server\'s P0004 ordering refusal surfaces as guidance, not a raw error', async () => {
     mockList.mockResolvedValue([XFER_OTHER_STREAM])
     // on-plan (5 == 5) so Approve fires the RPC immediately — no variance-note detour

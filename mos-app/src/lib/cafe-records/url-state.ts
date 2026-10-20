@@ -4,7 +4,7 @@
 import { isIsoDate, PERIOD_KEYS, resolvePreset, type PeriodKey } from './period'
 import type { ProductionActivity } from '@/lib/db/kitchen-logs.types'
 
-export const QUESTIONS = ['made', 'transferred', 'wasted', 'received', 'requested', 'counted', 'everything'] as const
+export const QUESTIONS = ['made', 'transferred', 'sent', 'wasted', 'received', 'requested', 'counted', 'everything'] as const
 export type Question = (typeof QUESTIONS)[number]
 const READINGS = ['summary', 'entries', 'day'] as const
 export type Reading = (typeof READINGS)[number]

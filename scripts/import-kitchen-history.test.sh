@@ -130,6 +130,8 @@ check 'invalid location identifier refused' 2 --wip "$tmp/wip.json" --logs "$tmp
 check 'same location identifier refused' 2 --wip "$tmp/wip.json" --logs "$tmp/sends.json" --plans "$tmp/plans.json" --dry-run --rames-kitchen-location "$KITCHEN" --rames-outlet-location "$KITCHEN"
 check 'unapproved sends and send plans give non-clean exit' 3 --wip "$tmp/wip.json" --logs "$tmp/sends.json" --plans "$tmp/send-plans.json" --dry-run --rames-kitchen-location "$KITCHEN" --rames-outlet-location "$OUTLET"
 python3 "$SCRIPT" --wip "$tmp/wip.json" --logs "$tmp/sends.json" --plans "$tmp/send-plans.json" --dry-run --allow-unresolved --rames-kitchen-location "$KITCHEN" --rames-outlet-location "$OUTLET" > "$tmp/sends.sql" 2> "$tmp/sends.report"
+assert_contains 'send uses normal reviewed log action' "$tmp/sends.sql" '"action":"outlet_send"'
+assert_contains 'send log captures source place' "$tmp/sends.sql" 'from_storage_location_id,to_storage_location_id'
 assert_contains 'send ledger insert' "$tmp/sends.sql" 'insert into ops.location_movements'
 assert_contains 'send SQL validates location availability' "$tmp/sends.sql" 'ops.location_branches'
 assert_contains 'send SQL requires active storage' "$tmp/sends.sql" "l.use in ('storage','both')"
