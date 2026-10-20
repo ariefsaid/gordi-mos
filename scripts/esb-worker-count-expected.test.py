@@ -65,7 +65,7 @@ class ExpectedTick(unittest.TestCase):
                                    item_units={'unit': {'product_id': 71, 'product_detail_id': 702}}),
         )
 
-    def tick(self, *, claimed=True, error=False):
+    def tick(self, *, claimed=True, error=False, cli=False):
         calls = []
         def transport(method, url, **kwargs):
             body = kwargs.get('body')
@@ -88,8 +88,8 @@ class ExpectedTick(unittest.TestCase):
                     {'productID': 71, 'productDetailID': 702, 'uomID': 2, 'qtySum': -2.5},
                 ], 'next': ''}}
             raise AssertionError(f'unexpected transport call: {method} {url}')
-        with patch.object(worker, '_request', transport):
-            result = worker.refresh_count_expected(self.config(), out=io.StringIO())
+        with patch.object(worker, '_request', transport), patch.object(worker, 'load_config', return_value=self.config()), patch('sys.stdout', new_callable=io.StringIO):
+            result = worker.main(['--refresh-count-expected']) if cli else worker.refresh_count_expected(self.config(), out=io.StringIO())
         return result, calls
 
     def test_ac_014_worker_stores_line_unit_snapshot_after_claim(self):
@@ -107,6 +107,20 @@ class ExpectedTick(unittest.TestCase):
         self.assertIsNone(write['p_balance'])
         self.assertIsNone(write['p_as_of'])
         self.assertEqual(write['p_unavailable_reason'], 'erp_balance_or_conversion_unavailable')
+
+    def test_expected_cli_reports_success_or_unavailability_from_the_real_tick(self):
+        self.assertEqual(self.tick(cli=True)[0], 0)
+        self.assertEqual(self.tick(cli=True, error=True)[0], 3)
+
+    def test_expected_cli_refuses_combined_modes_and_dry_run_without_transport(self):
+        cfg = self.config()
+        cfg.target_env = 'dry_run'
+        with patch.object(worker, 'load_config', return_value=cfg) as config, patch.object(worker, '_request') as transport, patch('sys.stderr', new_callable=io.StringIO):
+            for extra in [['--plan'], ['--rows-from', 'fixture.json'], ['--refresh-open-pos', 'all']]:
+                self.assertEqual(worker.main(['--refresh-count-expected', *extra]), 2)
+            config.assert_not_called()
+            self.assertEqual(worker.main(['--refresh-count-expected']), 2)
+            transport.assert_not_called()
 
     def test_a_lost_claim_never_contacts_erp(self):
         bad, calls = self.tick(claimed=False)
