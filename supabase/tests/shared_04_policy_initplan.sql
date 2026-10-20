@@ -13,7 +13,7 @@ with policy_clauses as (
 ), unwrapped as (
   select *, regexp_replace(
     expression,
-    $wrapped$\([[:space:]]*select[[:space:]]+shared\.(current_org_id|current_person_id|is_org_wide|is_org_member|is_cafe_affiliated)[[:space:]]*\([[:space:]]*\)([[:space:]]+as[[:space:]]+[[:alnum:]_]+)?[[:space:]]*\)|\([[:space:]]*select[[:space:]]+shared\.(has_access_role|can)[[:space:]]*\('[^']*(''[^']*)*'::text[[:space:]]*\)([[:space:]]+as[[:space:]]+[[:alnum:]_]+)?[[:space:]]*\)$wrapped$,
+    $wrapped$\([[:space:]]*select[[:space:]]+shared\.(current_org_id|current_person_id|current_access_roles|is_org_wide|is_org_member|is_cafe_affiliated)[[:space:]]*\([[:space:]]*\)([[:space:]]+as[[:space:]]+[[:alnum:]_]+)?[[:space:]]*\)|\([[:space:]]*select[[:space:]]+shared\.(has_access_role|can)[[:space:]]*\('[^']*(''[^']*)*'([[:space:]]*::text)?[[:space:]]*\)([[:space:]]+as[[:space:]]+[[:alnum:]_]+)?[[:space:]]*\)$wrapped$,
     '', 'gi'
   ) as bare_expression
     from policy_clauses
@@ -22,7 +22,7 @@ with policy_clauses as (
 select is(
   (select count(*)::int
      from unwrapped
-    where bare_expression ~* $bare$shared\.(current_org_id|current_person_id|is_org_wide|is_org_member|is_cafe_affiliated)[[:space:]]*\([[:space:]]*\)|shared\.(has_access_role|can)[[:space:]]*\('[^']*(''[^']*)*'::text[[:space:]]*\)$bare$),
+    where bare_expression ~* $bare$shared\.(current_org_id|current_person_id|current_access_roles|is_org_wide|is_org_member|is_cafe_affiliated)[[:space:]]*\([[:space:]]*\)|shared\.(has_access_role|can)[[:space:]]*\('[^']*(''[^']*)*'([[:space:]]*::text)?[[:space:]]*\)$bare$),
   0,
   'every RLS helper in policy clauses is evaluated once per statement'
 );
