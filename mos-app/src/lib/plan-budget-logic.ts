@@ -48,7 +48,7 @@ export interface BudgetRow {
   scenario_type: 'baseline' | 'promo' | 'new_branch' | 'menu'
   owning_bu_id: string
   total_budgeted_cogs: number
-  cost_basis_as_of: string // ISO timestamp
+  cost_basis_as_of: string | null // ISO timestamp, absent when no basis date was recorded
   certified_metric_key: string
   is_complete: boolean
 }

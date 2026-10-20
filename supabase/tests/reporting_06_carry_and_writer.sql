@@ -25,7 +25,7 @@ create extension if not exists pgtap with schema extensions;
 grant reporting_writer to postgres with set true;
 grant usage on schema extensions to reporting_writer;
 
-select plan(13);
+select plan(14);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -77,6 +77,16 @@ select is(
     where id = current_setting('app.test_budget_id')::uuid),
   9000.0000::numeric,
   'a budget total is recomputed server-side from these cost lines — 0.18 L of milk plus 0.018 kg of espresso, priced from the table and not from anything the client sent');
+
+select set_config('app.test_null_budget_id', mos.capture_budget(
+   'MENU-CAPPUC','Cappuccino','no basis','promo',
+   '00000000-0000-0000-0000-0000000000a2', null, 'cogs.budgeted', true, null,
+   array[('ING-MILK',0.1800,'L'),('ING-ESP',0.0180,'kg')]::mos.budget_line_input[])::text, true);
+select is(
+  (select cost_basis_as_of from mos.budgets
+    where id = current_setting('app.test_null_budget_id')::uuid),
+  null::timestamptz,
+  'budget capture keeps an unknown cost basis null instead of inventing a date');
 
 select throws_ok($$
   select mos.capture_budget('MENU-X','Mystery','baseline','baseline',

@@ -146,7 +146,7 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
   const run = useCallback(async (row: FollowUpRow, verb: FollowUpTransition) => {
     if (verb === 'partial' || verb === 'settle' || verb === 'promise') {
       setActive({ id: row.id, verb })
-      setForm({ ...EMPTY_FORM, amount: verb === 'settle' ? String(row.running_balance) : '' })
+      setForm({ ...EMPTY_FORM, amount: verb === 'settle' && row.running_balance !== null ? String(row.running_balance) : '' })
       return
     }
     await transitionFollowUp(row.id, verb, {})
@@ -156,7 +156,7 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
   const submit = useCallback(async (row: FollowUpRow, verb: FollowUpTransition) => {
     const payload = verb === 'promise'
       ? { promise_date: form.promise_date, note: form.note }
-      : { amount: Number(form.amount || row.running_balance), cash_in_date: form.cash_in_date, evidence: form.evidence, note: form.note }
+      : { amount: form.amount !== '' ? Number(form.amount) : row.running_balance ?? undefined, cash_in_date: form.cash_in_date, evidence: form.evidence, note: form.note }
     await transitionFollowUp(row.id, verb, payload)
     setActive(null)
     load(loadedCountRef.current)
