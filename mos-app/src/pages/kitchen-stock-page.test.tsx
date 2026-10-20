@@ -17,7 +17,9 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import userEvent from '@testing-library/user-event'
+import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -42,6 +44,9 @@ import { fetchKitchenStock, listCafeDestinations, listStreamPairs } from '@/lib/
 
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 import { listActiveBranches } from '@/lib/db/branches'
+
+vi.mock('@/lib/db/cafe-locations', () => ({ listCafeLocations: vi.fn(), fetchCafeLocationBalances: vi.fn() }))
+import { listCafeLocations, fetchCafeLocationBalances } from '@/lib/db/cafe-locations'
 
 // shared.default_stream() (FR-001) — the viewer's live primary stream Team. Un-mocked
 // it hits Supabase for real and every bootstrap lands in the error state.
@@ -152,6 +157,16 @@ beforeEach(() => {
   mockDestinations.mockResolvedValue([])
   mockDefaultStream.mockResolvedValue(CENTRAL_KITCHEN)
   mockFetchStock.mockResolvedValue([])
+  vi.mocked(listCafeLocations).mockResolvedValue([
+    { id: 'kitchen', name: 'Rumah Rames kitchen (Gordi HQ)', use: 'both', parent_id: null, branch_ids: [BRANCH_RR.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
+    { id: 'outlet', name: 'Rumah Rames outlet', use: 'storage', parent_id: null, branch_ids: [BRANCH_RR.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
+    { id: 'production', name: 'Production only', use: 'production', parent_id: null, branch_ids: [BRANCH_RR.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
+  ])
+  vi.mocked(fetchCafeLocationBalances).mockResolvedValue({ rows: [
+    { location_id: 'kitchen', item_id: 'w1', item_unit_id: 'u-porsi', usable_qty: '6', available_qty: '4' },
+    { location_id: null, item_id: 'w1', item_unit_id: 'u-porsi', usable_qty: '-2', available_qty: '-1' },
+    { location_id: 'kitchen', item_id: 'w1', item_unit_id: 'u-other', usable_qty: '999', available_qty: '999' },
+  ], as_of: '2026-10-20', coverage: 'unallocated', reason: null })
 })
 
 function setDesktop() {
@@ -557,6 +572,70 @@ describe('KitchenStockPage — locale seam (#400)', () => {
     render(<KitchenStockPage />, { wrapper: idWrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getAllByText(/^(esb inventory is not connected|inventori ESB belum terhubung)/i)).toHaveLength(1)
+  })
+})
+
+describe('Stock places', () => {
+  beforeEach(() => {
+    mockFetchStock.mockResolvedValue([STOCK_ROWS[0]])
+    vi.mocked(listCafeItemSettings).mockResolvedValue([
+      { id: 'w1', erpName: 'Ayam Bakar', mosName: 'Ayam Bakar', category: null, kind: 'WIP', isActive: true, defaultUnitId: 'u-porsi', units: [{ id: 'u-porsi', name: 'porsi', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }] },
+    ])
+  })
+
+  it.each(['en', 'id'] as const)('shows exact-unit place figures, Unassigned and All places, and links back to Stock (%s)', async locale => {
+    const user = userEvent.setup()
+    render(<MemoryRouter initialEntries={['/cafe/stock']}><I18nProvider initialLocale={locale}><Routes>
+      <Route path="/cafe/stock" element={<KitchenStockPage />} />
+      <Route path="/cafe/locations/change-location" element={<CafePageFrame page="moveStock"><p>Move form</p></CafePageFrame>} />
+    </Routes></I18nProvider></MemoryRouter>)
+    await screen.findByText('Ayam Bakar')
+    expect(rowOf('Ayam Bakar').textContent).toMatch(/12 porsi.*8 porsi/)
+    const select = screen.getByRole('combobox', { name: locale === 'en' ? 'Place' : 'Tempat' })
+    await user.click(select)
+    expect(screen.queryByRole('option', { name: 'Production only' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: 'Rumah Rames kitchen (Gordi HQ)' }))
+    await waitFor(() => expect(rowOf('Ayam Bakar').textContent).toMatch(/6 porsi.*4 porsi/))
+    expect(fetchCafeLocationBalances).toHaveBeenCalledWith(expect.any(String), { branch_id: BRANCH_RR.id, activity: 'kitchen' })
+    await user.click(select)
+    await user.click(screen.getByRole('option', { name: locale === 'en' ? 'Unassigned' : 'Belum ditempatkan' }))
+    expect(rowOf('Ayam Bakar').textContent).toMatch(/-2 porsi.*-1 porsi/)
+    await user.click(select)
+    await user.click(screen.getByRole('option', { name: locale === 'en' ? 'All places' : 'Semua tempat' }))
+    expect(rowOf('Ayam Bakar').textContent).toMatch(/12 porsi.*8 porsi/)
+    await user.click(screen.getByRole('link', { name: locale === 'en' ? 'Change location' : 'Pindah lokasi' }))
+    expect(await screen.findByText('Move form')).toBeInTheDocument()
+    await user.click(screen.getByRole('link', { name: locale === 'en' ? 'Back to Available to transfer' : 'Kembali ke Tersedia untuk dipindah' }))
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+  })
+
+  it('shows an unavailable figure, not zero, and can return to All places after a place refresh fails', async () => {
+    vi.mocked(fetchCafeLocationBalances).mockResolvedValueOnce({ rows: [
+      { location_id: 'kitchen', item_id: 'w1', item_unit_id: 'u-porsi', usable_qty: null, available_qty: null },
+    ], as_of: '2026-10-20', coverage: 'unavailable', reason: null })
+    const user = userEvent.setup()
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    await user.click(screen.getByRole('combobox', { name: 'Place' }))
+    await user.click(screen.getByRole('option', { name: 'Rumah Rames kitchen (Gordi HQ)' }))
+    expect(rowOf('Ayam Bakar').textContent).toMatch(/— porsi.*— porsi/)
+    expect(screen.getByText(/This place’s balance is unavailable/)).toBeInTheDocument()
+    await user.click(screen.getByRole('combobox', { name: 'Place' }))
+    await user.click(screen.getByRole('option', { name: 'All places' }))
+    expect(rowOf('Ayam Bakar').textContent).toMatch(/12 porsi.*8 porsi/)
+  })
+
+  it('keeps All places usable when location balances fail and offers a retry', async () => {
+    vi.mocked(fetchCafeLocationBalances).mockRejectedValueOnce(new Error('network'))
+    const user = userEvent.setup()
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(rowOf('Ayam Bakar').textContent).toMatch(/12 porsi.*8 porsi/)
+    await user.click(await screen.findByRole('button', { name: /try again/i }))
+    await waitFor(() => expect(fetchCafeLocationBalances).toHaveBeenCalledTimes(2))
+    await user.click(screen.getByRole('combobox', { name: 'Place' }))
+    await user.click(screen.getByRole('option', { name: 'Rumah Rames kitchen (Gordi HQ)' }))
+    expect(rowOf('Ayam Bakar').textContent).toMatch(/6 porsi.*4 porsi/)
   })
 })
 
