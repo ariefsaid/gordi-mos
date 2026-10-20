@@ -34,9 +34,9 @@ export function ObjectiveHint({ hint, className }: ObjectiveHintProps) {
   const { isOn } = useModuleAvailability()
   const drillable = hint.id != null && !isShipGated('/work/objectives') && isOn('work')
   return (
-    <span className={className}>
+    <span className={className} title={hint.name}>
       {drillable
-        ? <Link to={`/work/objectives/${encodeURIComponent(hint.id!)}`}>{hint.name}</Link>
+        ? <Link to={`/work/objectives/${encodeURIComponent(hint.id!)}`} aria-label={hint.name}>{hint.name}</Link>
         : hint.name}
     </span>
   )
