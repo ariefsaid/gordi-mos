@@ -1,7 +1,7 @@
 -- #1373–#1375 — one item-journal outbox group per confirmation action, worker state and current-only release.
 -- The existing per-branch switch remains fail-closed. The deployment target must be non-dry-run;
 -- the worker has its own independent default-off ESB_COUNT_JOURNAL_ENABLED gate.
--- DOWN: supabase/rollbacks/20261019004500_ops_cafe_count_item_journal_posting.sql.
+-- DOWN: supabase/rollbacks/20261020001100_ops_cafe_count_item_journal_posting.sql.
 
 begin;
 
