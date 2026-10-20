@@ -3,6 +3,11 @@ import type { ProductionActivity, ProductionStream } from './kitchen-logs.types'
 
 export type CafePurchaseRequestStatus = 'Submitted' | 'Approved' | 'Rejected'
 
+export type CafePurchaseRequestPosting = {
+  state: 'not_posted' | 'queued' | 'posted' | 'failed'
+  esb_number?: string | null
+}
+
 export type CafePurchaseRequestLine = {
   id: string
   wip_item_id?: string
@@ -26,6 +31,7 @@ export type CafePurchaseRequest = {
   reviewed_at: string | null
   review_note: string | null
   row_version: number
+  posting?: CafePurchaseRequestPosting | null
   lines: CafePurchaseRequestLine[]
 }
 
@@ -33,7 +39,7 @@ export type CafePurchaseRequestDraftLine = { item_unit_id: string; quantity: str
 
 export const REQUEST_FIELDS = [
   'id', 'branch_id', 'activity', 'required_by', 'note', 'status', 'requested_by', 'requested_at',
-  'reviewed_by', 'reviewed_at', 'review_note', 'row_version',
+  'reviewed_by', 'reviewed_at', 'review_note', 'row_version', 'posting:cafe_purchase_request_posting',
   'lines:cafe_purchase_request_lines(id, item_name, item_category, unit_name, quantity)',
 ].join(', ')
 
@@ -68,8 +74,19 @@ export function parseCafePurchaseRequestRow(row: Record<string, unknown>): CafeP
   }
   return {
     ...row,
+    posting: parsePosting(row.posting),
     lines: (row.lines as Array<Record<string, unknown>>).map(line => ({ ...line, quantity: String(line.quantity) })),
   } as unknown as CafePurchaseRequest
+}
+
+function parsePosting(value: unknown): CafePurchaseRequestPosting | null {
+  if (value == null) return null
+  const posting = value as Record<string, unknown>
+  if (!['not_posted', 'queued', 'posted', 'failed'].includes(String(posting.state))
+    || (posting.esb_number != null && typeof posting.esb_number !== 'string')) {
+    throw new Error('Invalid purchase request posting state')
+  }
+  return posting as CafePurchaseRequestPosting
 }
 
 /** Send: only the key, stream, needed-by date, note and (product detail, quantity) pairs cross the boundary. */
@@ -102,7 +119,7 @@ export async function reviewCafePurchaseRequest(
   decision: 'approve' | 'reject',
   expectedVersion: number,
   note: string,
-): Promise<{ status: 'Approved' | 'Rejected'; row_version: number }> {
+): Promise<{ status: 'Approved' | 'Rejected'; row_version: number; posting: CafePurchaseRequestPosting | null }> {
   const { data, error } = await ops().rpc('review_cafe_purchase_request', {
     p_request_id: requestId,
     p_decision: decision,
@@ -114,7 +131,16 @@ export async function reviewCafePurchaseRequest(
   if (!row || (row.status !== 'Approved' && row.status !== 'Rejected') || typeof row.row_version !== 'number') {
     throw new Error('reviewCafePurchaseRequest failed: invalid response')
   }
-  return { status: row.status, row_version: row.row_version }
+  // Approval can enqueue immediately; a failed read must not turn a saved decision into a failed one.
+  const posting = row.status === 'Approved' ? await readPosting(requestId).catch(() => null) : null
+  return { status: row.status, row_version: row.row_version, posting }
+}
+
+async function readPosting(requestId: string): Promise<CafePurchaseRequestPosting | null> {
+  const { data, error } = await ops().from('cafe_purchase_requests')
+    .select('posting:cafe_purchase_request_posting').eq('id', requestId).maybeSingle()
+  if (error) throw new Error(`Purchase request posting read failed: ${error.message}`)
+  return parsePosting((data as Record<string, unknown> | null)?.posting)
 }
 
 /** The needed-by dates the server accepts: today (WIB) through 90 days ahead. */
