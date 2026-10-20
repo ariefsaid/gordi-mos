@@ -266,6 +266,7 @@ $$;
 comment on function ops._enqueue_cafe_count_line(uuid, uuid, text) is
   'Internal fail-closed count enqueue. The per-branch switch, non-dry-run deployment gate and sample-org boundary must all pass; one action id groups lines by branch, stream and date, while member keys deduplicate each line per environment.';
 revoke all on function ops._enqueue_cafe_count_line(uuid, uuid, text) from public, anon, authenticated, service_role;
+revoke execute on function ops._enqueue_cafe_count_line(uuid, uuid, text) from public, anon, authenticated;
 
 create or replace function ops._enqueue_confirmed_cafe_count_line()
 returns trigger
@@ -289,6 +290,7 @@ begin
 end;
 $$;
 revoke all on function ops._enqueue_confirmed_cafe_count_line() from public, anon, authenticated, service_role;
+revoke execute on function ops._enqueue_confirmed_cafe_count_line() from public, anon, authenticated;
 create trigger cafe_count_enqueue_on_confirmation
   after update of status on ops.cafe_count_lines
   for each row when (old.status = 'Submitted' and new.status = 'Confirmed')
@@ -433,6 +435,7 @@ $$;
 comment on function ops._sync_cafe_count_group_posting() is
   'Mirrors the count group''s queue, created-awaiting-authorization, failure or authorized-posted state to its frozen count lines. The group is the source of truth.';
 revoke all on function ops._sync_cafe_count_group_posting() from public, anon, authenticated, service_role;
+revoke execute on function ops._sync_cafe_count_group_posting() from public, anon, authenticated;
 create trigger esb_push_groups_sync_cafe_count_posting
   after update of status, posting_stage, esb_doc_num on integrations.esb_push_groups
   for each row when (new.source_module = 'cafe_count')
@@ -491,6 +494,7 @@ $$;
 comment on function ops._cafe_count_expected_is_current(uuid, uuid, text, date, timestamptz) is
   'A Count snapshot is current only when no ERP kitchen, receipt or count journal for its branch/date posted later and every Approved kitchen log for that branch/date has its ERP document (including waste). Internal reviewer/release predicate.';
 revoke all on function ops._cafe_count_expected_is_current(uuid, uuid, text, date, timestamptz) from public, anon, authenticated, service_role;
+revoke execute on function ops._cafe_count_expected_is_current(uuid, uuid, text, date, timestamptz) from public, anon, authenticated;
 
 create or replace function ops.release_cafe_count_posting(p_branch_id uuid)
 returns jsonb
