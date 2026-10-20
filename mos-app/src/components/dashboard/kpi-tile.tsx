@@ -44,6 +44,8 @@ export interface KPITileProps {
   /** #804: the snapshot this figure was read from. A reporting tile states its own as-of —
    *  the head sentence covers the page, not the tile a reader is looking at. */
   asOf?: string
+  /** Localized lead-in for the as-of label. */
+  asOfPrefix?: string
   /** Composition-owned hook (grid placement, surface-local sizing). The tile never styles
    *  itself from this — GRID PLACEMENT IS THE PAGE'S CONCERN, not the tile's, so a page that
    *  needs one tile to span two tracks passes a class rather than the tile growing a `span` prop. */
@@ -70,6 +72,7 @@ export function KPITile({
   basis,
   dq,
   asOf,
+  asOfPrefix,
   className: extraClassName,
 }: KPITileProps) {
   if (state === 'loading') {
@@ -112,7 +115,7 @@ export function KPITile({
         <span className="kpi-tile-foot">
           {basis && <BasisChip label={basis.label} />}
           {dq && <DQBadge dq={dq} />}
-          {asOf && <FreshnessLabel asOf={asOf} />}
+          {asOf && <FreshnessLabel asOf={asOf} prefix={asOfPrefix} />}
         </span>
       )}
     </>

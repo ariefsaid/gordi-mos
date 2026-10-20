@@ -9,6 +9,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { PeopleRow } from '@/lib/database.types'
 import type { BudgetRow } from '@/lib/plan-budget-logic'
+import * as planBudgetLogic from '@/lib/plan-budget-logic'
 
 vi.mock('@/lib/db/plan-budget', () => ({
   listIngredientCostLines: vi.fn(),
@@ -91,11 +92,14 @@ describe('BudgetPage — head (r5 F-9)', () => {
 })
 
 describe('BudgetPage — states', () => {
-  it('loading: shows a busy skeleton before data resolves', () => {
+  it.each([
+    { locale: 'en' as const, name: 'Loading…' },
+    { locale: 'id' as const, name: 'Memuat…' },
+  ])('loading: shows a busy skeleton with a localized accessible name in $locale', ({ locale, name }) => {
     vi.mocked(listBomLines).mockReturnValue(new Promise(() => {}))
     vi.mocked(listIngredientCostLines).mockResolvedValue([])
-    renderPage()
-    expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
+    renderPage(locale)
+    expect(screen.getByRole('status', { name })).toBeInTheDocument()
   })
 
   it('empty: names the snapshot source without leaking internal schema strings', async () => {
@@ -135,6 +139,33 @@ describe('BudgetPage — populated (fresh + certified)', () => {
     expect(await screen.findByText(/Rp 9.000/)).toBeInTheDocument()
   })
 
+  it.each([
+    {
+      locale: 'en' as const,
+      preview: 'Budgeted COGS preview',
+      capture: 'Capture budget scenario',
+      linkedCost: 'Linked cost line for Fresh Milk',
+      bom: 'Linked BOM evidence',
+      scenarios: 'Captured scenarios',
+    },
+    {
+      locale: 'id' as const,
+      preview: 'Pratinjau HPP anggaran',
+      capture: 'Catat skenario anggaran',
+      linkedCost: 'Baris biaya tertaut untuk Fresh Milk',
+      bom: 'Bukti BOM tertaut',
+      scenarios: 'Skenario yang dicatat',
+    },
+  ])('provides localized accessible names for budget regions and cost links in $locale', async ({ locale, preview, capture, linkedCost, bom, scenarios }) => {
+    renderPage(locale)
+    await screen.findByText(/Rp 9.000/)
+    expect(screen.getByRole('region', { name: preview })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: capture })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: linkedCost })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: bom })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: scenarios })).toBeInTheDocument()
+  })
+
   it('AC-PB-007: each BOM line shows a drill link to the linked cost line (link-never-copy)', async () => {
     renderPage()
     await screen.findByText(/Rp 9.000/)
@@ -168,6 +199,32 @@ describe('BudgetPage — populated (fresh + certified)', () => {
     const input = await screen.findByLabelText(/scenario label/i)
     expect(input).toHaveClass('mk-textinput__field')
     expect(input.closest('.mk-textinput')).toHaveClass('mk-textinput--full')
+  })
+
+  it.each([
+    ['en', /Basis as of —/],
+    ['id', /Dasar biaya per —/],
+  ] as const)('keeps a missing cost basis absent when capturing in %s', async (locale, basisCopy) => {
+    vi.mocked(captureBudget).mockResolvedValue('MISSING-BASIS-BUDGET')
+    vi.mocked(listBomLines).mockResolvedValue([
+      { menu_item_esb_code: 'MENU-CAPPUC', ingredient_esb_code: 'ING-MILK', recipe_qty: 1, qty_unit: 'L' },
+    ])
+    vi.mocked(listIngredientCostLines).mockResolvedValue([
+      { ingredient_esb_code: 'ING-MILK', name: 'Fresh Milk', unit_cost: 9000, unit: 'L', as_of: FRESH },
+    ])
+    const compute = vi.spyOn(planBudgetLogic, 'computeBudgetedCogs').mockReturnValue({
+      lines: [{ ingredient_esb_code: 'ING-MILK', ingredient_name: 'Fresh Milk', recipe_qty: 1, qty_unit: 'L', unit_cost: 9000, cost_as_of: null, line_total: 9000 }],
+      total: 9000, complete: true, basis_as_of: null,
+    })
+    try {
+      renderPage(locale)
+      expect(await screen.findByText(basisCopy)).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: /capture budget|catat anggaran/i }))
+      await waitFor(() => expect(captureBudget).toHaveBeenCalledTimes(1))
+      expect(vi.mocked(captureBudget).mock.calls[0][0].costBasisAsOf).toBeNull()
+    } finally {
+      compute.mockRestore()
+    }
   })
 
   it('AC-PB-008: capture submits a budget with the linked shape (no unit cost on lines)', async () => {

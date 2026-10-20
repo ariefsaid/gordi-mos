@@ -104,8 +104,7 @@ import { listKitchenWastePhotos } from '@/lib/db/kitchen-waste-photos'
 import { KitchenReviewPage } from './kitchen-review-page'
 import { rememberStream } from '@/lib/cafe-stream'
 import { streamDateKey } from '@/lib/kitchen-action-label'
-import { rememberCafeLocation } from '@/lib/cafe-opening-location'
-import { resetCafeLocations } from '@/lib/cafe-opening-location'
+import { rememberCafeLocation, rememberCafeOpeningTeam } from '@/lib/cafe-opening-location'
 import type { PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -159,7 +158,7 @@ function chooseStream(optionName: string) {
   fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
 }
 
-function viewer(accessRoles: string[]): AuthState {
+function viewer(accessRoles: string[], canReadCafePushes = accessRoles.includes('ops_lead') || accessRoles.includes('admin')): AuthState {
   return {
     status: 'authenticated',
     viewer: {
@@ -171,6 +170,7 @@ function viewer(accessRoles: string[]): AuthState {
       roles: [],
       isManager: false,
       accessRoles,
+      canReadCafePushes,
       affiliated: [],
     },
     signOut: vi.fn(),
@@ -214,7 +214,8 @@ beforeEach(() => {
   // outranks the FR-041 role default — so clear it per test, or one test's switch decides the
   // next test's opening filter.
   rememberStream(null)
-  resetCafeLocations()
+  rememberCafeLocation('p-lead', null)
+  rememberCafeOpeningTeam('p-lead', null)
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockList.mockResolvedValue([])
   vi.mocked(hasSubmittedKitchenProduction).mockResolvedValue(false)
@@ -290,6 +291,19 @@ describe('KitchenReviewPage — states', () => {
     mockPlan.mockResolvedValue({ w1: { produce: 1.5 } })
     render(<KitchenReviewPage />, { wrapper })
     expect(await screen.findByText(/3 × 0\.5 pack \(1\.5 pack\)/)).toBeInTheDocument()
+  })
+
+  it('uses Indonesian decimal marks for captured and canonical quantities', async () => {
+    mockList.mockResolvedValue([{
+      ...PROD_LOG,
+      qty_porsi: 1.5,
+      entry_quantity: 3,
+      entry_unit_factor: 0.5,
+      entry_unit_name: 'pack',
+    }])
+    mockPlan.mockResolvedValue({ w1: { produce: 1.5 } })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
+    expect(await screen.findByText(/3 × 0,5 pack \(1,5 pack\)/)).toBeInTheDocument()
   })
 
   it('empty: renders the shared awaiting EmptyState without a completion control', async () => {
@@ -578,6 +592,20 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
     expect(await screen.findByText(/PR-20260620-004/)).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /view pushes/i })).not.toBeInTheDocument()
+  })
+
+  it('AC-062: an admitted Retail Ops manager sees the Review notice link to Pushes', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor', 'manager'], true))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-005' })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    await pickLog('nasi goreng')
+    fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
+
+    expect(await screen.findByRole('link', { name: /view pushes/i })).toHaveAttribute('href', '/cafe/pushes')
   })
 
   it('AC: P0003 (already actioned) → friendly notice + re-fetch', async () => {

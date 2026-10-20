@@ -87,7 +87,7 @@ import { listActiveBranches } from '@/lib/db/branches'
 
 import { KitchenPlanPage } from './kitchen-plan-page'
 import { rememberStream } from '@/lib/cafe-stream'
-import { resetCafeLocations } from '@/lib/cafe-opening-location'
+import { rememberCafeLocation, rememberCafeOpeningTeam } from '@/lib/cafe-opening-location'
 import type { CafeDestination, WipItemOption, PlanCell, PesananRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -182,7 +182,10 @@ beforeEach(() => {
   // #440: the Café stream is remembered module-wide in sessionStorage — clear it so one test's
   // switch never seeds the next test's default.
   rememberStream(null)
-  resetCafeLocations()
+  for (const personId of ['p-1', 'person-a', 'person-b']) {
+    rememberCafeLocation(personId, null)
+    rememberCafeOpeningTeam(personId, null)
+  }
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockBranches.mockResolvedValue(BRANCHES)
   mockStreamPairs.mockResolvedValue(STREAM_PAIRS)

@@ -160,8 +160,8 @@ export type ActualsMap = Record<string, Partial<Record<MovementKey, ActualUnitTo
 // Per WIP item: `stok` = on-hand usable stock (the start-of-day net of approved
 // logs), `tersedia` = available for transfer (FR-023). Stepper shows plan·stok·tersedia.
 export interface ItemStock {
-  /** on-hand usable stock for the date (start-of-day net of approved logs) */
-  stok: number
+  /** on-hand usable stock for the date (start-of-day net of approved logs); null when unrecorded */
+  stok: number | null
   /** available for a transfer right now (FR-023 tersedia) */
   tersedia: number
 }
@@ -181,8 +181,8 @@ export interface KitchenStockRow {
   wip_item_name: string
   /** optional category display label from ops.wip_items (read-only UI sugar). */
   category?: string | null
-  /** usable_qty — the net of approved logs for the date (FR-060). */
-  stok: number
+  /** usable_qty — the net of approved logs for the date (FR-060); null when unrecorded. */
+  stok: number | null
   /** available_qty — usable net of transfers already committed (FR-061). */
   tersedia: number
 }

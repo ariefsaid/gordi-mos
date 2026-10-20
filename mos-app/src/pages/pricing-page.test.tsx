@@ -3,10 +3,11 @@
 // COGS -> margin (AC-PB-005, read-only), the fail-loud freshness/certification warning (AC-PB-006),
 // and that the price is never written (MOS is the pre-flight, not the price-setter — ADR-0022 D5).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { BudgetRow } from '@/lib/plan-budget-logic'
+import { formatWibDateTime } from '@/lib/format/date'
 
 vi.mock('@/lib/db/plan-budget', () => ({
   listBudgetsPage: vi.fn(),
@@ -111,6 +112,20 @@ describe('PricingPage — AC-PB-005: read-only margin check', () => {
     })
   })
 
+  it.each([
+    { locale: 'en' as const, prefix: 'Basis as of', scenario: 'Budget scenario', candidate: 'Candidate price (Rp)' },
+    { locale: 'id' as const, prefix: 'Dasar biaya per', scenario: 'Skenario anggaran', candidate: 'Harga kandidat (Rp)' },
+  ])('shows the linked basis date on both margin tiles in $locale', async ({ locale, prefix, scenario, candidate }) => {
+    renderPage(locale)
+    await screen.findByRole('combobox', { name: scenario })
+    fireEvent.change(screen.getByLabelText(candidate), { target: { value: '30000' } })
+    const result = await screen.findByTestId('pricing-result')
+    await waitFor(() => {
+      expect(within(result).getAllByText(prefix)).toHaveLength(2)
+      expect(within(result).getAllByText(formatWibDateTime(FRESH))).toHaveLength(2)
+    })
+  })
+
   it('margin-% is shown (never a price write — no price-input for ecommerce/POS)', async () => {
     renderPage()
     await screen.findByText(/budget scenario/i)
@@ -131,6 +146,20 @@ describe('PricingPage — AC-PB-005: read-only margin check', () => {
     renderPage()
     expect(await screen.findByText(/Rp 9.000/)).toBeInTheDocument()
     expect(screen.getByText(/basis as of/i)).toBeInTheDocument()
+  })
+
+  it.each([
+    ['en', 'Basis as of'],
+    ['id', 'Dasar biaya per'],
+  ] as const)('shows an unrecorded budget basis as absent in %s', async (locale, basisLabel) => {
+    vi.mocked(listBudgetsPage).mockResolvedValue(budgetPage([{
+      id: 'b1', menu_item_esb_code: 'MENU-CAPPUC', menu_item_name: 'Cappuccino', scenario_label: 'Baseline',
+      scenario_type: 'baseline', owning_bu_id: 'bu-1', total_budgeted_cogs: 9000,
+      cost_basis_as_of: null, certified_metric_key: 'cogs.budgeted', is_complete: true,
+    }]))
+    renderPage(locale)
+    const basis = await screen.findByRole('region', { name: /linked budget basis|dasar anggaran tertaut/i })
+    expect(basis.textContent).toContain(`${basisLabel}—`)
   })
 })
 

@@ -5,6 +5,10 @@ import {
   can,
   canViewRevenue,
   canViewMargin,
+  canReviewMoneyBranch,
+  canViewBranchCancelVoid,
+  hasAccessRole,
+  hasAnyAccessRole,
   REVENUE_VIEW_ROLES,
   MARGIN_VIEW_ROLES,
   MONEY_READ_POLICY_MIGRATION,
@@ -58,6 +62,30 @@ describe('can', () => {
     expect(can(['admin'], 'process.adopt')).toBe(true)
     expect(can(['ops_lead'], 'process.adopt')).toBe(false)
     expect(can(['member'], 'process.adopt')).toBe(false)
+  })
+})
+
+describe('access-role predicates', () => {
+  it('matches a single or any listed role without admitting unrelated roles', () => {
+    expect(hasAccessRole(['admin', 'member'], 'admin')).toBe(true)
+    expect(hasAccessRole(['member'], 'admin')).toBe(false)
+    expect(hasAnyAccessRole(['member', 'ops_lead'], ['finance', 'ops_lead'])).toBe(true)
+    expect(hasAnyAccessRole(['member'], ['finance', 'ops_lead'])).toBe(false)
+  })
+
+  it('canReviewMoneyBranch preserves its wider review set without granting its cancel/void-only door', () => {
+    for (const role of ['finance', 'manager', 'ops_lead']) expect(canReviewMoneyBranch([role])).toBe(true)
+    for (const role of ['admin', 'supervisor', 'member']) expect(canReviewMoneyBranch([role])).toBe(false)
+    expect(canViewBranchCancelVoid(['ops_lead'])).toBe(true)
+    expect(canViewBranchCancelVoid(['finance', 'manager', 'admin'])).toBe(false)
+  })
+
+  it('follow-up confirmation mirrors the seeded capability, not the route role set', () => {
+    expect(can(['finance'], 'followup.confirm')).toBe(true)
+    expect(can(['admin'], 'followup.confirm')).toBe(true)
+    for (const role of ['manager', 'supervisor', 'ops_lead', 'member']) {
+      expect(can([role], 'followup.confirm')).toBe(false)
+    }
   })
 })
 

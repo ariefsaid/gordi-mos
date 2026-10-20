@@ -55,8 +55,6 @@ vi.mock('@/lib/db/user-views-collection', () => ({
   listCollectionViews: vi.fn(),
   getCollectionView: vi.fn(),
   createCollectionView: vi.fn(),
-  renameCollectionView: vi.fn(),
-  archiveCollectionView: vi.fn(),
 }))
 
 import { listTasks, listTasksPage, hasOlderDoneTasks, listOlderDoneTasks, getTask, createTask, updateTaskFields } from '@/lib/db/tasks'

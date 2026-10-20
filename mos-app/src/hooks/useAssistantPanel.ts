@@ -17,7 +17,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
-import { makeId } from '@/lib/agent/runtime/makeId'
 import { loadThreadForDisplay } from '@/lib/agent/history'
 import { isAgentWidget, type AgentWidget } from '@/lib/agent/widgets'
 import { supabase } from '@/lib/supabase'
@@ -176,7 +175,7 @@ export function useAssistantPanel() {
       setError(null)
       setIsStuck(false)
       lastProgressAtRef.current = Date.now()
-      setTranscript((prev) => [...prev, { id: makeId(), role: 'user', text: goal }])
+      setTranscript((prev) => [...prev, { id: crypto.randomUUID(), role: 'user', text: goal }])
 
       // CQ#2/SEC-Medium (conversation-model fix): a run already active on this panel surface
       // (i.e. a second-or-later turn in the SAME conversation) follows up on it rather than

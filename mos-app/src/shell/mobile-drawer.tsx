@@ -57,6 +57,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const { isOn } = useModuleAvailability()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
+  const canReadCafePushes = viewer?.canReadCafePushes === true
 
   const closeAndReturn = useCallback(() => {
     onClose()
@@ -91,7 +92,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   const destinations = globalNavigationDestinations(accessRoles, isOn)
   const footer = footerAreas(accessRoles)
   const admin = footer.find((d) => d.id === 'admin')
-  const adminGroups = admin ? pageGroupsFor(admin, accessRoles, isOn) : []
+  const adminGroups = admin ? pageGroupsFor(admin, accessRoles, isOn, { canReadCafePushes }) : []
 
   return (
     <OverlayPortal>
@@ -121,7 +122,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
           <div className="nav-list">
             {destinations.map((destination) => {
               const groups = destination.id === 'work' || destination.zone === 'modules'
-                ? pageGroupsFor(destination, accessRoles, isOn) : []
+                ? pageGroupsFor(destination, accessRoles, isOn, { canReadCafePushes }) : []
               const hasPages = pageCount(groups) >= 2
               const expanded = area?.id === destination.id && hasPages
               const activeGroups = destination.id === 'work' || area?.id === destination.id ? groups : []

@@ -11,7 +11,7 @@ vi.mock('../supabase', () => {
 
 import {
   wibToday, getCafeOpeningProcessId, getCafeOpeningTeamId, listCafeViewerTeams,
-  resolveCafeOpeningTeamForTeam, resolveCafeOpeningTeamsForTeamIds,
+  resolveCafeOpeningTeamsForTeamIds,
   getTodayOpeningForTeam,
   startTodayOpening, listStartableCafeTeams,
 } from './cafe-opening'
@@ -134,27 +134,7 @@ describe('getCafeOpeningTeamId', () => {
   })
 })
 
-describe('resolveCafeOpeningTeamForTeam', () => {
-  it('maps a viewer Team through its branch to the canonical opening Team', async () => {
-    const rec = freshRec()
-    mockSupabase({
-      'shared.teams': [
-        { data: [{ id: 'bar-team', branch_id: 'branch-1' }], error: null },
-        { data: [{ id: TEAM_ID, name: 'Gordi HQ Kitchen' }], error: null },
-      ],
-      'rpc.cafe_opening_team': [{ data: TEAM_ID, error: null }],
-    }, rec)
-
-    await expect(resolveCafeOpeningTeamForTeam('bar-team')).resolves.toEqual({
-      id: TEAM_ID,
-      name: 'Gordi HQ Kitchen',
-      branchId: 'branch-1',
-    })
-    expect(rec.eqs).toContainEqual(['id', ['bar-team']])
-    expect(rec.rpcs).toContainEqual(['cafe_opening_team', { p_branch_id: 'branch-1' }])
-    expect(rec.eqs).toContainEqual(['id', [TEAM_ID]])
-  })
-
+describe('resolveCafeOpeningTeamsForTeamIds', () => {
   it('batches source Teams, deduplicates branch resolution and fetches canonical names together', async () => {
     const rec = freshRec()
     mockSupabase({
@@ -178,14 +158,6 @@ describe('resolveCafeOpeningTeamForTeam', () => {
     expect(rec.fromTables.filter((table) => table === 'shared.teams')).toHaveLength(2)
     expect(rec.eqs).toContainEqual(['id', ['bar-team', 'kitchen-team', 'office-team']])
     expect(rec.eqs).toContainEqual(['id', [TEAM_ID]])
-  })
-
-  it('returns null for a non-branch Team without asking for a canonical opening Team', async () => {
-    const rec = freshRec()
-    mockSupabase({ 'shared.teams': [{ data: [{ id: 'hq-team', branch_id: null }], error: null }] }, rec)
-
-    await expect(resolveCafeOpeningTeamForTeam('hq-team')).resolves.toBeNull()
-    expect(rec.rpcs).toHaveLength(0)
   })
 })
 

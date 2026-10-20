@@ -1,7 +1,7 @@
 -- #1465 T2: single-bill payment ledger, atomic writer, Finance-only proof and append-only reversals.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(51);
+select plan(63);
 
 select shared._test_seed_directory();
 
@@ -130,6 +130,27 @@ select throws_ok($$insert into storage.objects (bucket_id,name) values
 select shared._test_set_access_roles(:'admin_a');
 select is((select count(*)::int from mos.pending_bill_payments), 0, 'a same-org admin reads no payment entries without Finance');
 select is((select count(*)::int from storage.objects where bucket_id = 'pending-bill-proofs'), 0, 'AC-1112: an admin without Finance reads no proof objects');
+
+-- Manager, ops_lead and supervisor access roles are not Finance grants: neither payment history,
+-- proof objects, uploads nor either payment writer is available to them.
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["manager"]}');
+select is((select count(*)::int from mos.pending_bill_payments), 0, 'a manager reads no pending-bill payment entries');
+select is((select count(*)::int from storage.objects where bucket_id = 'pending-bill-proofs'), 0, 'a manager reads no pending-bill proof objects');
+select throws_ok($$insert into storage.objects (bucket_id,name) values ('pending-bill-proofs','00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001003.jpg')$$, '42501', null, 'a manager cannot upload a pending-bill proof');
+select throws_ok($$select * from mos.record_pending_bill_payment('ESB-TEST','BR-TEST','PB-1465-A',1,(now() at time zone 'Asia/Jakarta')::date,'00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001001.jpg',null,'00000000-0000-4000-8000-000000001193',null,null)$$, '42501', 'Finance access is required.', 'a manager cannot record a pending-bill payment');
+
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["ops_lead"]}');
+select is((select count(*)::int from mos.pending_bill_payments), 0, 'an ops_lead reads no pending-bill payment entries');
+select is((select count(*)::int from storage.objects where bucket_id = 'pending-bill-proofs'), 0, 'an ops_lead reads no pending-bill proof objects');
+select throws_ok($$insert into storage.objects (bucket_id,name) values ('pending-bill-proofs','00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001003.jpg')$$, '42501', null, 'an ops_lead cannot upload a pending-bill proof');
+select throws_ok($$select * from mos.record_pending_bill_payment('ESB-TEST','BR-TEST','PB-1465-A',1,(now() at time zone 'Asia/Jakarta')::date,'00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001001.jpg',null,'00000000-0000-4000-8000-000000001194',null,null)$$, '42501', 'Finance access is required.', 'an ops_lead cannot record a pending-bill payment');
+
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["supervisor"]}');
+select is((select count(*)::int from mos.pending_bill_payments), 0, 'a supervisor reads no pending-bill payment entries');
+select is((select count(*)::int from storage.objects where bucket_id = 'pending-bill-proofs'), 0, 'a supervisor reads no pending-bill proof objects');
+select throws_ok($$insert into storage.objects (bucket_id,name) values ('pending-bill-proofs','00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001003.jpg')$$, '42501', null, 'a supervisor cannot upload a pending-bill proof');
+select throws_ok($$select * from mos.record_pending_bill_payment('ESB-TEST','BR-TEST','PB-1465-A',1,(now() at time zone 'Asia/Jakarta')::date,'00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001001.jpg',null,'00000000-0000-4000-8000-000000001195',null,null)$$, '42501', 'Finance access is required.', 'a supervisor cannot record a pending-bill payment');
+
 select shared._test_set_access_roles(:'finance_a');
 select is((select count(*)::int from mos.pending_bill_payments where bill_no = 'PB-1465-A'), 1, 'Finance in the bill org reads its ledger entry');
 select is((select count(*)::int from storage.objects where bucket_id = 'pending-bill-proofs'), 2, 'Finance in the bill org reads private proof objects');

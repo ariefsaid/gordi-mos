@@ -9,6 +9,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { MobileGroupedCards } from './mobile-grouped-cards'
 import type { MobileGroupedCardsProps } from './mobile-grouped-cards'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { isShipGated } from '@/lib/ship-gate'
 
@@ -57,11 +58,13 @@ const BASE_PROPS: MobileGroupedCardsProps = {
   objectiveMap: new Map<string, string>(),
 }
 
-function renderCards(props: Partial<MobileGroupedCardsProps> = {}) {
+function renderCards(props: Partial<MobileGroupedCardsProps> = {}, locale: 'en' | 'id' = 'en') {
   return render(
-    <MemoryRouter>
-      <MobileGroupedCards {...BASE_PROPS} {...props} />
-    </MemoryRouter>,
+    <I18nProvider initialLocale={locale}>
+      <MemoryRouter>
+        <MobileGroupedCards {...BASE_PROPS} {...props} />
+      </MemoryRouter>
+    </I18nProvider>,
   )
 }
 
@@ -99,6 +102,21 @@ describe('MobileGroupedCards', () => {
     expect(screen.getByRole('button', { name: 'Blocked (1)' })).toBeInTheDocument()
   })
 
+  it.each(['en', 'id'] as const)('makes long phone group and Objective names available in locale %s', (locale) => {
+    const objectiveName = `Grow ${'recurring regional revenue '.repeat(5)}`.trim()
+    const groupName = `Launch ${'customer experience improvements '.repeat(5)}`.trim()
+    renderCards({ groups: [{
+      key: 'objective:project', label: groupName, rows: [makeTask({ title: 'Ship task' })], overdue: 0, prefillParam: '',
+      objectiveHint: { id: null, name: objectiveName }, workLineType: 'project',
+    }] }, locale)
+
+    const fullName = new RegExp(`${objectiveName}.*${groupName}.*\\(1\\)`)
+    const header = screen.getByRole('button', { name: fullName })
+    expect(header).toHaveAccessibleName(fullName)
+    expect(screen.getByText(objectiveName).closest('.mgc-objective-hint')).toHaveAttribute('title', objectiveName)
+    expect(screen.getByText(groupName)).toHaveAttribute('title', groupName)
+  })
+
   it('renders Objective hint above the Project/Process group title at phone width', () => {
     renderCards({ groups: [{
       key: 'objective:project', label: 'Launch', rows: [makeTask({ title: 'Ship task' })], overdue: 0, prefillParam: '',
@@ -108,11 +126,13 @@ describe('MobileGroupedCards', () => {
     // asserted unconditionally. Whether it is also a drill depends on the ship gate (#444): with
     // Objectives outside the MVP payload the name stays and the link goes, because a phone tap
     // that lands on a redirect back to Home is a dead end dressed as a control.
-    expect(screen.getByText('Grow revenue')).toBeInTheDocument()
+    expect(screen.getByText('Grow revenue').closest('.mgc-objective-hint')).toHaveAttribute('title', 'Grow revenue')
     if (isShipGated('/work/objectives')) {
       expect(screen.queryByRole('link', { name: 'Grow revenue' })).toBeNull()
     } else {
-      expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives/objective-1')
+      const objectiveLink = screen.getByRole('link', { name: 'Grow revenue' })
+      expect(objectiveLink).toHaveAttribute('href', '/work/objectives/objective-1')
+      expect(objectiveLink).toHaveAttribute('aria-label', 'Grow revenue')
     }
     expect(screen.getByText('Launch')).toBeInTheDocument()
     expect(screen.getByText('Ship task')).toBeInTheDocument()

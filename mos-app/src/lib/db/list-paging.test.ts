@@ -251,17 +251,35 @@ describe('server list paging boundaries', () => {
       created_at: index > 50 ? '2026-10-05T09:00:00Z' : '2026-10-05T08:00:00Z',
     }))
     const expected = [...harness.rows].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)) || String(b.id).localeCompare(String(a.id))).map(row => row.id)
-    for (const readPage of [listTaskEvents, listFollowUpEvents] as const) {
-      const ids: string[] = []
-      let page = await readPage(readPage === listTaskEvents ? 'task-1' : 'fu-1')
-      while (page.length > 0) {
-        ids.push(...page.map(row => row.id))
-        if (page.length < 50) break
-        page = await readPage(readPage === listTaskEvents ? 'task-1' : 'fu-1', page.at(-1)!)
-      }
-      expect(ids).toEqual(expected)
-      expect(new Set(ids).size).toBe(103)
+    const taskIds: string[] = []
+    let taskPage = await listTaskEventsPage('task-1')
+    while (taskPage.rows.length > 0) {
+      taskIds.push(...taskPage.rows.map(row => row.id))
+      if (!taskPage.hasMore || !taskPage.nextCursor) break
+      taskPage = await listTaskEventsPage('task-1', taskPage.nextCursor)
     }
+    expect(taskIds).toEqual(expected)
+    expect(new Set(taskIds).size).toBe(103)
+
+    const taskEventIds: string[] = []
+    let taskEvents = await listTaskEvents('task-1')
+    while (taskEvents.length > 0) {
+      taskEventIds.push(...taskEvents.map((event) => event.id))
+      if (taskEvents.length < 50) break
+      taskEvents = await listTaskEvents('task-1', taskEvents.at(-1)!)
+    }
+    expect(taskEventIds).toEqual(expected)
+    expect(new Set(taskEventIds).size).toBe(103)
+
+    const followUpIds: string[] = []
+    let followUpPage = await listFollowUpEvents('fu-1')
+    while (followUpPage.length > 0) {
+      followUpIds.push(...followUpPage.map(row => row.id))
+      if (followUpPage.length < 50) break
+      followUpPage = await listFollowUpEvents('fu-1', followUpPage.at(-1)!)
+    }
+    expect(followUpIds).toEqual(expected)
+    expect(new Set(followUpIds).size).toBe(103)
     expect(harness.requests.every(url => url.searchParams.get('limit') === '51')).toBe(true)
   })
 

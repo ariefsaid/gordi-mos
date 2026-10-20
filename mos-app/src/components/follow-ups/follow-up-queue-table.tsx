@@ -146,7 +146,7 @@ export function FollowUpQueueTable({
       key: 'running_balance',
       header: t('followUps.balance'),
       numeric: true,
-      render: (row) => formatIDR(row.running_balance),
+      render: (row) => row.running_balance === null ? '—' : formatIDR(row.running_balance),
     },
     {
       key: 'state',
@@ -223,7 +223,7 @@ export function FollowUpQueueTable({
               <StatusPill status={followUpStatusTone(detailRow.state)} label={detailRow.state} />
             </dd>
             <dt style={{ color: 'var(--muted-foreground)' }}>Running balance</dt>
-            <dd className="tabular" style={{ margin: 0 }}>{formatIDR(detailRow.running_balance)}</dd>
+            <dd className="tabular" style={{ margin: 0 }}>{detailRow.running_balance === null ? '—' : formatIDR(detailRow.running_balance)}</dd>
           </dl>
           {active?.id === detailRow.id && renderTransitionForm(detailRow, active.verb)}
         </aside>

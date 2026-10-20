@@ -1,8 +1,28 @@
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { findingComparison, findingKey } from './recipe-findings'
 import { translateFor } from '@/i18n/use-t'
 import type { RecipeFinding } from '@/lib/db/recipe-findings'
 const t = translateFor('en')
+
+it('reuses a comparison formatter per locale while keeping EN and ID figures localized', () => {
+  const NumberFormat = Intl.NumberFormat
+  const numberFormat = vi.spyOn(Intl, 'NumberFormat')
+  numberFormat.mockImplementation(function (locales, options) { return new NumberFormat(locales, options) })
+  const row = {
+    rule: 'quantity_difference_candidate', comparison_unit: 'kg',
+    expected_qty_day_comparable: 1234.5, actual_qty_day_comparable: 0.125,
+    conversion_evidence: {},
+  } as RecipeFinding
+
+  try {
+    expect(findingComparison(row, translateFor('en'), 'en')).toBe('Expected 1,234.5 kg · actual 0.125 kg')
+    expect(findingComparison(row, translateFor('en'), 'en')).toBe('Expected 1,234.5 kg · actual 0.125 kg')
+    expect(findingComparison(row, translateFor('id'), 'id')).toBe('Diharapkan 1.234,5 kg · aktual 0,125 kg')
+    expect(numberFormat).toHaveBeenCalledTimes(2)
+  } finally {
+    numberFormat.mockRestore()
+  }
+})
 
 it.each([
   ['conflicting_recorded_conversions', "Units can't be compared: conflicting recorded conversions"],

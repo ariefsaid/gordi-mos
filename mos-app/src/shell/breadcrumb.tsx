@@ -57,7 +57,7 @@ export function Breadcrumb() {
     // admitted to, and — in the folded 64px rail, where pages sit behind a closed flyout — any area that has pages.
     const roles = viewer?.accessRoles ?? []
     const landing = destination.primaryPath ?? destination.links[0].path
-    const hasPages = pageCount(pageGroupsFor(destination, roles, layout.isOn)) >= 2 || destination.id === 'work'
+    const hasPages = pageCount(pageGroupsFor(destination, roles, layout.isOn, { canReadCafePushes: layout.canReadCafePushes })) >= 2 || destination.id === 'work'
     // The area's own row is the page when its landing is open; any deeper route has no row of its own to hold "page".
     leafCarriesCurrent =
       (destination.id === 'profile' && pathname !== landing) ||

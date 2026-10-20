@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { Locale } from './messages'
 
 /**
@@ -55,7 +55,9 @@ export function I18nProvider({ children, initialLocale = DEFAULT_LOCALE }: {
     setLocaleState(next)
   }, [])
 
-  return <I18nContext.Provider value={{ locale, setLocale }}>{children}</I18nContext.Provider>
+  const value = useMemo(() => ({ locale, setLocale }), [locale, setLocale])
+
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
 }
 
 export function useI18n(): I18nContextValue {

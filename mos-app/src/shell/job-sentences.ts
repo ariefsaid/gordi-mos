@@ -1,38 +1,7 @@
 /**
- * job-sentences — Rule 1 registry (one job per rail item).
- *
- * Ported verbatim from the convergence `fixtures.js` `jobSentences` (the
- * Experience Contract Rule-1 table is the authority). `jobSentences` holds the
- * 12 destination/child rows; `jobKeyForPath` resolves a route to its owning
- * job-sentence i18n key (Work child / record → owning type — convergence
- * `contextRow` resolution), so the ContextRow can render the active route's job
- * sentence via `t(jobKeyForPath(pathname))`.
- *
- * No such registry existed in the app before Step 2 (spec §3.1) — genuinely new.
+ * Resolve the active route to its owning job-sentence i18n key for ContextRow.
  */
 import type { MessageKey } from '@/i18n/messages'
-
-/**
- * The 12 convergence job sentences, keyed by destination/child id. These mirror
- * the i18n `job.*` strings 1:1 (the i18n catalog is the rendered source; this
- * registry is the verbatim port for sanity + Rule-1 traceability).
- */
-export const jobSentences = {
-  home: 'What needs my attention right now?',
-  work: 'Find and do the work I own or my Team owns.',
-  // The Tasks collection can be All, My work, Team work, or Overdue; keep its head neutral.
-  tasks: 'Find and update the work in this view.',
-  // Every Signal is All Teams (no owning Team at capture) — mirrors the i18n `job.signals` wording.
-  signals: 'Search and revisit the Signals shared across the org.',
-  projects: 'Govern the Processes and Projects that generate the work.',
-  objectives: 'Track the Objectives the org committed to.',
-  money: 'Trust the financial figures and act on money exceptions.',
-  // DO-24(b) (census F-INBOX-7): "what asked for me" was ungrammatical — plain second person.
-  inbox: 'Triage what was directed to you and return to its source.',
-  cafe: "Run today's café floor work — openings, checks, stock, shifts.",
-  ecommerce: "Fulfil today's online orders against the right stock.",
-  roastery: 'Record today’s roasts, yield, and transfers truthfully.',
-} as const
 
 const SEG_TO_JOB: Record<string, MessageKey> = {
   home: 'job.home',
@@ -48,11 +17,7 @@ const SEG_TO_JOB: Record<string, MessageKey> = {
   ecommerce: 'job.ecommerce',
   roastery: 'job.roastery',
   profile: 'job.profile',
-  // /admin/* is an app-native settings surface, not one of the 12 convergence rail
-  // destinations — so it carries its own job key (like `profile`) rather than falling
-  // through to `job.home`. Without this, every /admin route borrowed Home's sentence
-  // ("What needs my attention right now?"), factually wrong on a settings screen. It is
-  // NOT added to the verbatim `jobSentences` registry, which is a 12-row convergence port.
+  // /admin is a settings surface with its own job key, not Home's.
   admin: 'job.admin',
 }
 

@@ -319,7 +319,7 @@ async function renderTransferPage(
 
 import { KitchenLogPage } from './kitchen-log-page'
 import { rememberStream } from '@/lib/cafe-stream'
-import { activeCafeLocation, rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
+import { activeCafeLocation, rememberCafeLocation, rememberCafeOpeningTeam } from '@/lib/cafe-opening-location'
 import { cafeCaptureDraftStorageKey, writeCafeCaptureDraft } from '@/lib/cafe-capture-storage'
 
 beforeEach(() => {
@@ -328,7 +328,8 @@ beforeEach(() => {
   // #440: the Café stream is remembered for the whole module (sessionStorage), so a test that
   // switches streams would otherwise seed the NEXT test's opening stream. Clear it per test.
   rememberStream(null)
-  resetCafeLocations()
+  rememberCafeLocation('40000000-0000-0000-0000-000000000001', null)
+  rememberCafeOpeningTeam('40000000-0000-0000-0000-000000000001', null)
   locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], defaults: null, retry: vi.fn() })
   mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS)
   mockListActiveBranches.mockResolvedValue(BRANCHES)
@@ -2264,6 +2265,29 @@ describe('R4 / FR-018: Log summary line', () => {
     expect(card).not.toHaveTextContent('Stock')
   })
 
+  it.each([
+    ['en', /Stock\s*—/i],
+    ['id', /Stok\s*—/i],
+  ] as const)('shows unknown stock as absent when the record is missing (%s)', async (locale, expected) => {
+    mockFetchStockMap.mockResolvedValue({ w1: { stok: null, tersedia: 9 }, w2: { stok: 0, tersedia: 0 } })
+    await renderPage(VIEWER_MEMBER, appUrl('/cafe'), undefined, undefined, locale)
+    const row = await screen.findByRole('row', { name: /ayam bakar/i })
+    expect(row).toHaveTextContent(expected)
+  })
+
+  it.each([
+    ['en', /Available\s*9/i, /Stock\s*—/i],
+    ['id', /Tersedia\s*9/i, /Stok\s*—/i],
+  ] as const)('keeps derived transfer availability visible when the saved stock is unknown (%s)', async (locale, available, stock) => {
+    mockFetchStockMap.mockResolvedValue({ w1: { stok: null, tersedia: 9 }, w2: { stok: 0, tersedia: 0 } })
+    await renderTransferPage(VIEWER_MEMBER, undefined, locale)
+    await screen.findAllByText('Ayam Bakar')
+    await userEvent.setup().click(movementTab(/radiant/i))
+    const row = screen.getByRole('row', { name: /ayam bakar/i })
+    expect(row).toHaveTextContent(available)
+    expect(row).toHaveTextContent(stock)
+  })
+
   it('directs a row without a capture unit to Café item settings', async () => {
     mockListCaptureFormItems.mockResolvedValue([{ ...WIP_ITEMS[0], units: [] }])
     await renderPage()
@@ -3138,6 +3162,15 @@ describe('AC-006 / FR-014/015: unitless plan fact + effective target + already-l
     mockFetchPlanMap.mockResolvedValue(AC6_PLAN)
     mockFetchStockMap.mockResolvedValue(AC6_STOCK)
     mockFetchActualsMap.mockResolvedValue(AC6_ACTUALS)
+  })
+
+  it('formats logged actual quantities with Indonesian decimal marks', async () => {
+    mockFetchActualsMap.mockResolvedValue({
+      w1: { [PRODUCE_KEY]: [loggedUnit('u1-porsi', 1.25, 'porsi')] },
+    })
+    await renderPage(VIEWER_MEMBER, appUrl('/cafe'), undefined, undefined, 'id')
+    await screen.findAllByText('Ayam Bakar')
+    expect(screen.getByRole('row', { name: /ayam bakar/i })).toHaveTextContent(/Tercatat hari ini\s*1,25 porsi/)
   })
 
   it('AC-006: a logged row keeps the plan unitless, shows actual history, and keeps the gate', async () => {

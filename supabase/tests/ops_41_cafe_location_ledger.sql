@@ -1,7 +1,7 @@
 -- Approval, signed book placement, and same-stream physical sends.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(40);
+select plan(41);
 select set_config('app.allow_test_seeds','on',true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -50,6 +50,7 @@ select pg_temp.approve('f1410000-0000-0000-0000-000000000011');
 select pg_temp.approve('f1410000-0000-0000-0000-000000000012');
 select pg_temp.approve('f1410000-0000-0000-0000-000000000013');
 select is((select count(*)::int from ops.location_movements where source_type='log'),3,'AC1: produce, transfer and waste each post once');
+select is((select (value->>'usable_qty')::numeric from jsonb_array_elements(ops.cafe_location_balances('2026-05-04','00000000-0000-0000-0000-00000000bf02','kitchen')->'rows') where value->>'location_id' is null and value->>'item_id'='00000000-0000-0000-0000-00000000ab02'),5::numeric,'AC: the known location-book remainder remains allocatable when the stored stock snapshot is absent');
 select results_eq($$select kind,from_location_id::text,to_location_id::text,quantity from ops.location_movements where source_type='log' order by source_id$$,
  format('values (''production''::text,null::text,%L::text,10::numeric),(''transfer'',%L,null,3),(''waste'',%L,null,2)',current_setting('app.kitchen'),current_setting('app.kitchen'),current_setting('app.kitchen')),'AC1: exact movement direction and quantity');
 select throws_ok($$select pg_temp.approve('f1410000-0000-0000-0000-000000000010')$$,'P0003',null,'AC1: re-approval remains refused');
@@ -87,10 +88,10 @@ select is((select sum((value->>'usable_qty')::numeric) from jsonb_array_elements
 select results_eq($$select value->>'item_id',sum((value->>'available_qty')::numeric),sum((value->>'usable_qty')::numeric)
  from jsonb_array_elements(ops.cafe_location_balances('2026-05-03','00000000-0000-0000-0000-00000000bf02','kitchen')->'rows')
  group by value->>'item_id' order by value->>'item_id'$$,
- $$select wip_item_id::text,available_qty,available_qty+usable_qty
+ $$select wip_item_id::text,available_qty,available_qty+coalesce(usable_qty,0)
  from ops.kitchen_stock_for_date('2026-05-03','00000000-0000-0000-0000-00000000bf02','kitchen')
- where available_qty <> 0 or usable_qty <> 0 order by wip_item_id$$,
- 'AC3: every item ties to both start-of-day and through-date book on the third log date');
+ where available_qty <> 0 or coalesce(usable_qty,0) <> 0 order by wip_item_id$$,
+ 'AC3: every item ties to the location book when a missing snapshot has no stored day adjustment');
 select lives_ok($$select ops.move_cafe_stock(pg_temp.input('3','2026-05-06'),'f1410000-0000-0000-0000-000000000026')$$,'later send can consume source stock');
 select throws_ok($$select ops.move_cafe_stock(pg_temp.input('2','2026-05-05'),'f1410000-0000-0000-0000-000000000027')$$,'P0001','CAFE_LOCATION_MOVE_INSUFFICIENT_STOCK','AC8: backdated send cannot overdraw later date');
 -- Defaults affect new approvals only, never the stored log or imported history.

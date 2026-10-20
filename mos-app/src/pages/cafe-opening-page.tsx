@@ -38,7 +38,7 @@ import { useCafeTodayStream } from '@/lib/use-cafe-today-stream'
 import { useCafeTodayJobs } from '@/lib/use-cafe-today-jobs'
 import { useModuleAvailability } from '@/lib/module-availability'
 import { streamLabel } from '@/lib/kitchen-action-label'
-import { canPushCafe } from '@/lib/kitchen-gates'
+import { canPushCafe, canReviewCafe } from '@/lib/kitchen-gates'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { CAFE_OPENING_ENABLED } from '@/lib/cafe-opening-enabled'
 import './cafe-opening-page.css'
@@ -344,12 +344,13 @@ function CafeToday({ contextLine, context, state, children }: { contextLine?: st
   const t = useT()
   const auth = useAuth()
   const roles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const canReadCafePushes = auth.status === 'authenticated' && auth.viewer.canReadCafePushes === true
   const affiliated = auth.status === 'authenticated' ? auth.viewer.affiliated : []
   const canCapture = auth.status === 'authenticated' && canCaptureCafe({ affiliated, accessRoles: roles })
   // Leads (and stream supervisors) see what is waiting for them; the rows inside gate themselves by role.
-  const reviewer = roles.some(role => ['ops_lead', 'admin', 'supervisor'].includes(role))
+  const reviewer = canReviewCafe(roles)
   const { isOn } = useModuleAvailability()
-  const sections = visibleSections(CAFE_SECTIONS.filter((section) => section.path !== '/cafe'), roles, isOn)
+  const sections = visibleSections(CAFE_SECTIONS.filter((section) => section.path !== '/cafe'), roles, isOn, { canReadCafePushes })
   const groups = ['cafe.nav.today', 'cafe.nav.stock', 'cafe.nav.close', 'cafe.nav.setup'] as const
   const isDesktop = useIsDesktop()
   // Café home states which stream its numbers belong to, and reads each job's state for that stream.

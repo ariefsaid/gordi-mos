@@ -231,9 +231,8 @@ describe('createCollectionView', () => {
   })
 })
 
-// ── renameCollectionView ──────────────────────────────────────────────────────────
 describe('renameCollectionView', () => {
-  it('updates only the name (and updated_at) for the given id', async () => {
+  it('updates only the name and updated timestamp for the given id', async () => {
     const rec = recorder()
     schemaMock.mockReturnValue(makeMosSchema({ data: null, error: null }, rec) as never)
 
@@ -254,9 +253,8 @@ describe('renameCollectionView', () => {
   })
 })
 
-// ── archiveCollectionView ──────────────────────────────────────────────────────────
 describe('archiveCollectionView', () => {
-  it('soft-archives by setting lifecycle=archived + archived_at + updated_at', async () => {
+  it('soft-archives by setting lifecycle and both timestamps', async () => {
     const rec = recorder()
     schemaMock.mockReturnValue(makeMosSchema({ data: null, error: null }, rec) as never)
 

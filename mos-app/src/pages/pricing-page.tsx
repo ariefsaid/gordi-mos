@@ -158,12 +158,12 @@ export function PricingPage() {
         {budget && status && <section className="pp-basis" aria-label={tx('moneyB.pricing.linkedBasis')}>
           <div className="pp-basis-values">
             <div><span>{tx('moneyB.pricing.budgetedCogs')}</span><strong className="tabular">{formatIDR(budget.total_budgeted_cogs)}</strong></div>
-            <div><span>{tx('moneyB.pricing.basisDate')}</span><strong className="tabular">{shortDate(budget.cost_basis_as_of)}</strong></div>
+            <div><span>{tx('moneyB.pricing.basisDate')}</span><strong className="tabular">{budget.cost_basis_as_of ? shortDate(budget.cost_basis_as_of) : '—'}</strong></div>
             <FailLoudBadge status={status} />
           </div>
           {!status.fresh && <p className="pp-warn" role="alert" data-testid="pricing-freshness-warning">{tx('moneyB.pricing.staleWarning')}</p>}
           <Link className="pp-budget-link" to={`/money/budget?menu=${encodeURIComponent(budget.menu_item_esb_code)}&scenario=${encodeURIComponent(budget.id)}#captured-scenarios`}>{tx('moneyB.pricing.openBudgetContext')}</Link>
-          <p className="pp-basis-trace">{t('moneyB.pricing.basisTrace' as MessageKey, { menu: budget.menu_item_name, scenario: budget.scenario_label, date: shortDate(budget.cost_basis_as_of) })}</p>
+          <p className="pp-basis-trace">{t('moneyB.pricing.basisTrace' as MessageKey, { menu: budget.menu_item_name, scenario: budget.scenario_label, date: budget.cost_basis_as_of ? shortDate(budget.cost_basis_as_of) : '—' })}</p>
         </section>}
 
         <div className="pp-workspace">
@@ -173,9 +173,9 @@ export function PricingPage() {
           </div>
           <section className="pp-result-region" aria-label={tx('moneyB.pricing.projectedResult')}>
             <h2>{tx('moneyB.pricing.projectedResult')}</h2>
-            {margin ? <div className="pp-result" data-testid="pricing-result">
-              <KPITile className="pp-result-tile" label={tx('moneyB.pricing.grossMargin')} value={formatIDR(margin.margin)} />
-              <KPITile className="pp-result-tile" label={tx('moneyB.pricing.marginPct')} value={formatPct(margin.margin_pct)} delta={margin.below_floor ? { text: t('moneyB.pricing.belowFloor' as MessageKey, { floor: formatPct(MARGIN_FLOOR_PCT) }), tone: 'destructive' } : undefined} sub={margin.below_floor ? tx('moneyB.pricing.warnOnly') : tx('moneyB.pricing.formula')} />
+            {margin && budget ? <div className="pp-result" data-testid="pricing-result">
+              <KPITile className="pp-result-tile" label={tx('moneyB.pricing.grossMargin')} value={formatIDR(margin.margin)} asOf={budget.cost_basis_as_of ?? undefined} asOfPrefix={tx('moneyB.pricing.basisDate')} />
+              <KPITile className="pp-result-tile" label={tx('moneyB.pricing.marginPct')} value={formatPct(margin.margin_pct)} delta={margin.below_floor ? { text: t('moneyB.pricing.belowFloor' as MessageKey, { floor: formatPct(MARGIN_FLOOR_PCT) }), tone: 'destructive' } : undefined} sub={margin.below_floor ? tx('moneyB.pricing.warnOnly') : tx('moneyB.pricing.formula')} asOf={budget.cost_basis_as_of ?? undefined} asOfPrefix={tx('moneyB.pricing.basisDate')} />
             </div> : <p className="pp-result-empty">{tx('moneyB.pricing.noCandidate')}</p>}
           </section>
         </div>
