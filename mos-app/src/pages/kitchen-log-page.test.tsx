@@ -14,6 +14,7 @@ import { Profiler, StrictMode, Suspense, type ReactNode } from 'react'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import * as dateFormat from '@/lib/format/date'
 import { MemoryRouter, Route, Routes, createMemoryRouter, RouterProvider, Link } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import * as kitchenItemList from '@/lib/kitchen-item-list'
@@ -1258,6 +1259,23 @@ describe('outlet sends', () => {
   })
 })
 
+describe('Issue 1551: shared Jakarta date on kitchen capture', () => {
+  it.each([
+    ['en', 'Tue 6 Oct'],
+    ['id', 'Sel, 6 Okt'],
+  ] as const)('uses the shared Jakarta date on the capture page (%s)', async (locale, label) => {
+    const today = vi.spyOn(dateFormat, 'wibToday').mockReturnValue('2026-10-06')
+    try {
+      await renderPage(VIEWER_MEMBER, appUrl('/cafe'), undefined, undefined, locale)
+      const date = await screen.findByText(label)
+      expect(date).toHaveAttribute('dateTime', '2026-10-06')
+      expect(today).toHaveBeenCalled()
+    } finally {
+      today.mockRestore()
+    }
+  })
+})
+
 // ── AC-030: successful submit ──────────────────────────────────────────────────
 describe('AC-030: successful submit (increment semantics)', () => {
   it.each(['1,5', '1.5'])('production accepts %s and saves 1.5', async raw => {
@@ -1767,7 +1785,7 @@ describe('Submit error state', () => {
 
 describe('capture retry identity and saved drafts', () => {
   it('does not restore yesterday’s staged quantities into today’s capture form', async () => {
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    const today = dateFormat.wibToday()
     const yesterdayDate = new Date(`${today}T00:00:00.000Z`)
     yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1)
     const yesterday = yesterdayDate.toISOString().slice(0, 10)
@@ -1844,7 +1862,7 @@ describe('capture retry identity and saved drafts', () => {
 
   it('restores a matching saved draft after an explicit stream choice when no default stream is available', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    const today = dateFormat.wibToday()
     writeCafeCaptureDraft({
       orgId: '10000000-0000-0000-0000-000000000001',
       personId: '40000000-0000-0000-0000-000000000001',
@@ -1931,7 +1949,7 @@ describe('capture retry identity and saved drafts', () => {
       }] },
     })
     mockInsertKitchenLogBatch.mockResolvedValue([requestId])
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    const today = dateFormat.wibToday()
     writeCafeCaptureDraft({
       orgId: '10000000-0000-0000-0000-000000000001',
       personId: '40000000-0000-0000-0000-000000000001',
