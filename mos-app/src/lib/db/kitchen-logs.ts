@@ -709,6 +709,32 @@ export async function hasSubmittedKitchenProduction(logDate: string, branchId: s
   return (data ?? []).length > 0
 }
 
+/** Return every requested stream/date that still has Submitted production, using one bounded read. */
+export async function listSubmittedKitchenProductionGates(
+  gates: readonly { logDate: string; branchId: string; activity: ProductionActivity }[],
+): Promise<Set<string>> {
+  const unique = new Map(gates.map((gate) => [
+    streamDateKey(gate.logDate, gate.branchId, gate.activity), gate,
+  ]))
+  if (unique.size === 0) return new Set()
+
+  const filters = [...unique.values()].map((gate) =>
+    `and(log_date.eq.${gate.logDate},branch_id.eq.${gate.branchId},activity.eq.${gate.activity})`,
+  )
+  const { data, error } = await ops().from('kitchen_logs')
+    .select('log_date,branch_id,activity')
+    .or(filters.join(','))
+    .eq('status', 'Submitted')
+    .eq('action', 'produce')
+  if (error) throw new Error(`listSubmittedKitchenProductionGates failed — ${error.message}`)
+
+  return new Set(((data ?? []) as Array<{
+    log_date: string
+    branch_id: string
+    activity: ProductionActivity
+  }>).map((row) => streamDateKey(row.log_date, row.branch_id, row.activity)))
+}
+
 /**
  * Approve a Submitted kitchen log via the atomic `approve_kitchen_log` RPC (FR-050).
  * The RPC mints the batch_id, recomputes stock, enqueues the ESB push, and writes

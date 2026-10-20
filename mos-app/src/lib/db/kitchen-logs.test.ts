@@ -44,6 +44,7 @@ import {
   listSubmittedKitchenLogs,
   countSubmittedKitchenLogs,
   hasSubmittedKitchenProduction,
+  listSubmittedKitchenProductionGates,
   approveKitchenLog,
   approveKitchenLogsBulk,
   rejectKitchenLog,
@@ -1448,6 +1449,51 @@ describe('fetchActualsMap — the already-logged actuals, stream-scoped (FR-014,
   })
 })
 
+
+describe('listSubmittedKitchenProductionGates — batched transfer gates', () => {
+  it('reads requested streams in one query and returns the matching Submitted production keys', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ kitchen_logs: [{ data: [
+      { log_date: '2026-10-05', branch_id: BRANCH_ID, activity: 'bar' },
+      { log_date: '2026-10-06', branch_id: RADIANT_ID, activity: 'kitchen' },
+    ], error: null }] }, rec) as never)
+    const gates = [
+      { logDate: '2026-10-05', branchId: BRANCH_ID, activity: 'bar' as const },
+      { logDate: '2026-10-06', branchId: RADIANT_ID, activity: 'kitchen' as const },
+      { logDate: '2026-10-07', branchId: BRANCH_ID, activity: 'kitchen' as const },
+    ]
+
+    await expect(listSubmittedKitchenProductionGates(gates)).resolves.toEqual(new Set([
+      streamDateKey('2026-10-05', BRANCH_ID, 'bar'),
+      streamDateKey('2026-10-06', RADIANT_ID, 'kitchen'),
+    ]))
+    expect(rec.fromTables).toEqual(['kitchen_logs'])
+    expect(rec.selects).toEqual(['log_date,branch_id,activity'])
+    expect(rec.eqs).toEqual([['status', 'Submitted'], ['action', 'produce']])
+    expect(rec.orFilters).toEqual([[
+      `and(log_date.eq.2026-10-05,branch_id.eq.${BRANCH_ID},activity.eq.bar)`,
+      `and(log_date.eq.2026-10-06,branch_id.eq.${RADIANT_ID},activity.eq.kitchen)`,
+      `and(log_date.eq.2026-10-07,branch_id.eq.${BRANCH_ID},activity.eq.kitchen)`,
+    ].join(',')])
+  })
+
+  it('skips the database read when no transfers need a production gate', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({}, rec) as never)
+
+    await expect(listSubmittedKitchenProductionGates([])).resolves.toEqual(new Set())
+    expect(rec.fromTables).toHaveLength(0)
+  })
+
+  it('fails closed when the batched production gate read errors', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ kitchen_logs: [{ data: null, error: { message: 'offline' } }] }, rec) as never)
+
+    await expect(listSubmittedKitchenProductionGates([
+      { logDate: '2026-10-05', branchId: BRANCH_ID, activity: 'bar' },
+    ])).rejects.toThrow('listSubmittedKitchenProductionGates failed')
+  })
+})
 
 describe('hasSubmittedKitchenProduction — the gate outside the review page', () => {
   it.each([[[], false], [[{ id: 'unloaded-production' }], true]] as const)('checks the stream/day with a bounded existence read', async (data, expected) => {

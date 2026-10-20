@@ -29,6 +29,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     ...actual,
     listSubmittedKitchenLogs: vi.fn(),
     hasSubmittedKitchenProduction: vi.fn().mockResolvedValue(false),
+    listSubmittedKitchenProductionGates: vi.fn().mockResolvedValue(new Set<string>()),
     fetchPlanMaps: vi.fn(),
     listStreamPairs: vi.fn(),
     approveKitchenLog: vi.fn(),
@@ -41,6 +42,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
 import {
   listSubmittedKitchenLogs,
   hasSubmittedKitchenProduction,
+  listSubmittedKitchenProductionGates,
   fetchPlanMaps,
   listStreamPairs,
   approveKitchenLog,
@@ -218,6 +220,7 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockList.mockResolvedValue([])
   vi.mocked(hasSubmittedKitchenProduction).mockResolvedValue(false)
+  vi.mocked(listSubmittedKitchenProductionGates).mockResolvedValue(new Set())
   mockWastePhotos.mockResolvedValue([])
   mockPlan.mockResolvedValue({})
   mockPlanBatch.mockImplementation(async contexts => Promise.all(contexts.map(async context => [
@@ -742,14 +745,17 @@ describe('KitchenReviewPage — production-first gate (FR-042, AC-042)', () => {
       updated_at: '2026-09-28T09:00:00Z',
     }
     mockList.mockResolvedValue([olderProduction, olderTransfer, newerTransfer])
-    vi.mocked(hasSubmittedKitchenProduction).mockImplementation(async date => date === '2026-09-25')
+    vi.mocked(listSubmittedKitchenProductionGates).mockImplementation(async gates => new Set(
+      gates.filter(gate => gate.logDate === '2026-09-25').map(gate => streamDateKey(gate.logDate, gate.branchId, gate.activity)),
+    ))
     mockPlan.mockResolvedValue({ w1: { produce: 8 }, w2: { [`transfer:${RADIANT_ID}`]: 40 } })
     render(<KitchenReviewPage />, { wrapper })
 
     await screen.findByText('Earlier transfer')
-    expect(vi.mocked(hasSubmittedKitchenProduction).mock.calls).toEqual(expect.arrayContaining([
-      ['2026-09-25', BRANCH_ID, 'kitchen'],
-      ['2026-09-28', BRANCH_ID, 'kitchen'],
+    expect(vi.mocked(listSubmittedKitchenProductionGates)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(listSubmittedKitchenProductionGates).mock.calls[0]?.[0]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ logDate: '2026-09-25', branchId: BRANCH_ID, activity: 'kitchen' }),
+      expect.objectContaining({ logDate: '2026-09-28', branchId: BRANCH_ID, activity: 'kitchen' }),
     ]))
     await pickLog('Earlier transfer')
     expect(screen.getByRole('button', { name: /approve earlier transfer/i })).toBeDisabled()
@@ -1672,13 +1678,21 @@ describe('KitchenReviewPage — server paging', () => {
     expect(mockList.mock.calls[1]).toEqual(mockList.mock.calls[2])
   })
 
-  it('keeps transfers gated when the pending production is outside the loaded window', async () => {
+  it.each([
+    [wrapper, /finish production approvals first/i],
+    [idWrapper, /Selesaikan persetujuan Produksi dulu/],
+  ] as const)('keeps transfers gated when pending production is outside the loaded window in both locales', async (pageWrapper, gateText) => {
     mockList.mockResolvedValue([XFER_LOG])
-    vi.mocked(hasSubmittedKitchenProduction).mockResolvedValue(true)
-    render(<KitchenReviewPage />, { wrapper })
+    vi.mocked(listSubmittedKitchenProductionGates).mockImplementation(async gates => new Set(
+      gates.map(gate => streamDateKey(gate.logDate, gate.branchId, gate.activity)),
+    ))
+    render(<KitchenReviewPage />, { wrapper: pageWrapper })
     await screen.findByText('Cold Brew')
-    expect(screen.getByText(/finish production approvals first/i)).toBeInTheDocument()
-    expect(vi.mocked(hasSubmittedKitchenProduction)).toHaveBeenCalledWith(expect.any(String), BRANCH_ID, 'kitchen')
+    expect(screen.getByText(gateText)).toBeInTheDocument()
+    expect(vi.mocked(listSubmittedKitchenProductionGates)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(listSubmittedKitchenProductionGates).mock.calls[0]?.[0]).toEqual([
+      expect.objectContaining({ logDate: expect.any(String), branchId: BRANCH_ID, activity: 'kitchen' }),
+    ])
   })
 })
 

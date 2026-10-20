@@ -12,6 +12,7 @@ import {
   startRun, listDueRuns, listPendingTasks, resolvePendingTask,
   getRunRollup, listRunTasks, completeRun, cancelRun, listRunRollups, listTaskDefs,
   listProcessOccurrenceSummaries, listStartableProcessRuns, canStartProcessForTeam, canCloseProcessRun,
+  listProcessOccurrenceAuthorities,
 } from './processes'
 import { supabase } from '@/lib/supabase'
 import { announceOpenTaskCountChanged } from '@/lib/open-task-count-store'
@@ -119,6 +120,36 @@ describe('runtime process authority', () => {
 
     await expect(canCloseProcessRun(RUN_ID)).resolves.toBe(false)
     expect(rec.rpcs).toContainEqual(['can_close_process_run_id', { p_run_id: RUN_ID }])
+  })
+
+  it('loads start and close authority for a screen in one batched RPC', async () => {
+    const rec = freshRec()
+    const answers = [
+      { authority_kind: 'start', target_id: TEAM_ID, allowed: true },
+      { authority_kind: 'close', target_id: 'run-1', allowed: false },
+    ]
+    mockSupabase({ 'rpc.process_occurrence_authority': [{ data: answers, error: null }] }, rec)
+
+    await expect(listProcessOccurrenceAuthorities([TEAM_ID, TEAM_ID], ['run-1', 'run-1'])).resolves.toEqual(answers)
+    expect(rec.rpcs).toEqual([['process_occurrence_authority', {
+      p_team_ids: [TEAM_ID], p_run_ids: ['run-1'],
+    }]])
+  })
+
+  it('propagates batch authority failures so the caller can fail closed', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.process_occurrence_authority': [{ data: null, error: { message: 'offline' } }] }, rec)
+
+    await expect(listProcessOccurrenceAuthorities([TEAM_ID], [])).rejects.toThrow(/offline/)
+    expect(rec.rpcs).toHaveLength(1)
+  })
+
+  it('skips the authority RPC when the screen has no Team or run IDs', async () => {
+    const rec = freshRec()
+    mockSupabase({}, rec)
+
+    await expect(listProcessOccurrenceAuthorities([], [])).resolves.toEqual([])
+    expect(rec.rpcs).toEqual([])
   })
 
   it('propagates process authority RPC errors for callers to fail closed', async () => {

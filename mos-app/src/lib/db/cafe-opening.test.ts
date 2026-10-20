@@ -11,8 +11,8 @@ vi.mock('../supabase', () => {
 
 import {
   wibToday, getCafeOpeningProcessId, getCafeOpeningTeamId, listCafeViewerTeams,
-  resolveCafeOpeningTeamForTeam, resolveCafeOpeningTeamsForTeamIds,
-  getTodayOpeningForTeam,
+  resolveCafeOpeningTeamForTeam, resolveCafeOpeningTeams, resolveCafeOpeningTeamsForBranches,
+  resolveCafeOpeningTeamsForTeamIds, getTodayOpeningForTeam,
   startTodayOpening, listStartableCafeTeams,
 } from './cafe-opening'
 import { supabase } from '@/lib/supabase'
@@ -138,11 +138,10 @@ describe('resolveCafeOpeningTeamForTeam', () => {
   it('maps a viewer Team through its branch to the canonical opening Team', async () => {
     const rec = freshRec()
     mockSupabase({
-      'shared.teams': [
-        { data: [{ id: 'bar-team', branch_id: 'branch-1' }], error: null },
-        { data: [{ id: TEAM_ID, name: 'Gordi HQ Kitchen' }], error: null },
-      ],
-      'rpc.cafe_opening_team': [{ data: TEAM_ID, error: null }],
+      'rpc.cafe_opening_teams': [{ data: [{
+        source_team_id: 'bar-team', branch_id: 'branch-1',
+        opening_team_id: TEAM_ID, opening_team_name: 'Gordi HQ Kitchen',
+      }], error: null }],
     }, rec)
 
     await expect(resolveCafeOpeningTeamForTeam('bar-team')).resolves.toEqual({
@@ -150,42 +149,85 @@ describe('resolveCafeOpeningTeamForTeam', () => {
       name: 'Gordi HQ Kitchen',
       branchId: 'branch-1',
     })
-    expect(rec.eqs).toContainEqual(['id', ['bar-team']])
-    expect(rec.rpcs).toContainEqual(['cafe_opening_team', { p_branch_id: 'branch-1' }])
-    expect(rec.eqs).toContainEqual(['id', [TEAM_ID]])
+    expect(rec.rpcs).toEqual([['cafe_opening_teams', {
+      p_source_team_ids: ['bar-team'], p_branch_ids: [],
+    }]])
+    expect(rec.fromTables).toHaveLength(0)
   })
 
   it('batches source Teams, deduplicates branch resolution and fetches canonical names together', async () => {
     const rec = freshRec()
     mockSupabase({
-      'shared.teams': [
-        { data: [
-          { id: 'bar-team', branch_id: 'branch-1' },
-          { id: 'kitchen-team', branch_id: 'branch-1' },
-          { id: 'office-team', branch_id: null },
-        ], error: null },
-        { data: [{ id: TEAM_ID, name: 'Gordi HQ Kitchen' }], error: null },
-      ],
-      'rpc.cafe_opening_team': [{ data: TEAM_ID, error: null }],
+      'rpc.cafe_opening_teams': [{ data: [
+        { source_team_id: 'bar-team', branch_id: 'branch-1', opening_team_id: TEAM_ID, opening_team_name: 'Gordi HQ Kitchen' },
+        { source_team_id: 'kitchen-team', branch_id: 'branch-1', opening_team_id: TEAM_ID, opening_team_name: 'Gordi HQ Kitchen' },
+      ], error: null }],
     }, rec)
 
-    const result = await resolveCafeOpeningTeamsForTeamIds(['bar-team', 'kitchen-team', 'office-team'])
+    const result = await resolveCafeOpeningTeamsForTeamIds(['bar-team', 'kitchen-team', 'office-team', 'bar-team'])
 
     expect(result.get('bar-team')).toEqual({ id: TEAM_ID, name: 'Gordi HQ Kitchen', branchId: 'branch-1' })
     expect(result.get('kitchen-team')).toEqual(result.get('bar-team'))
     expect(result.has('office-team')).toBe(false)
-    expect(rec.rpcs).toEqual([['cafe_opening_team', { p_branch_id: 'branch-1' }]])
-    expect(rec.fromTables.filter((table) => table === 'shared.teams')).toHaveLength(2)
-    expect(rec.eqs).toContainEqual(['id', ['bar-team', 'kitchen-team', 'office-team']])
-    expect(rec.eqs).toContainEqual(['id', [TEAM_ID]])
+    expect(rec.rpcs).toEqual([['cafe_opening_teams', {
+      p_source_team_ids: ['bar-team', 'kitchen-team', 'office-team'], p_branch_ids: [],
+    }]])
+    expect(rec.fromTables).toHaveLength(0)
   })
 
-  it('returns null for a non-branch Team without asking for a canonical opening Team', async () => {
+  it('resolves branch and source Team IDs together in one RPC', async () => {
     const rec = freshRec()
-    mockSupabase({ 'shared.teams': [{ data: [{ id: 'hq-team', branch_id: null }], error: null }] }, rec)
+    mockSupabase({
+      'rpc.cafe_opening_teams': [{ data: [
+        { source_team_id: 'bar-team', branch_id: 'branch-1', opening_team_id: TEAM_ID, opening_team_name: 'Gordi HQ Kitchen' },
+        { source_team_id: null, branch_id: 'branch-2', opening_team_id: 'opening-2', opening_team_name: 'RRS Kitchen' },
+      ], error: null }],
+    }, rec)
+
+    const result = await resolveCafeOpeningTeams({ sourceTeamIds: ['bar-team'], branchIds: ['branch-2', 'branch-2'] })
+
+    expect(result.bySourceTeamId.get('bar-team')).toEqual({ id: TEAM_ID, name: 'Gordi HQ Kitchen', branchId: 'branch-1' })
+    expect(result.byBranchId.get('branch-2')).toEqual({ id: 'opening-2', name: 'RRS Kitchen', branchId: 'branch-2' })
+    expect(rec.rpcs).toEqual([['cafe_opening_teams', {
+      p_source_team_ids: ['bar-team'], p_branch_ids: ['branch-2'],
+    }]])
+  })
+
+  it('resolves branch-only batches through the compatibility helper', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'rpc.cafe_opening_teams': [{ data: [{
+        source_team_id: null, branch_id: 'branch-1', opening_team_id: TEAM_ID, opening_team_name: 'Gordi HQ Kitchen',
+      }], error: null }],
+    }, rec)
+
+    await expect(resolveCafeOpeningTeamsForBranches(['branch-1'])).resolves.toEqual(new Map([
+      ['branch-1', { id: TEAM_ID, name: 'Gordi HQ Kitchen', branchId: 'branch-1' }],
+    ]))
+  })
+
+  it('re-throws a batch resolver error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.cafe_opening_teams': [{ data: null, error: { message: 'offline' } }] }, rec)
+
+    await expect(resolveCafeOpeningTeams({ sourceTeamIds: ['team-1'], branchIds: [] })).rejects.toThrow(/offline/)
+  })
+
+  it('skips an empty batch and returns empty maps', async () => {
+    const rec = freshRec()
+    mockSupabase({}, rec)
+
+    await expect(resolveCafeOpeningTeams({ sourceTeamIds: [], branchIds: [] })).resolves.toEqual({
+      bySourceTeamId: new Map(), byBranchId: new Map(),
+    })
+    expect(rec.rpcs).toHaveLength(0)
+  })
+
+  it('returns null for a non-branch Team when the batch has no match', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.cafe_opening_teams': [{ data: [], error: null }] }, rec)
 
     await expect(resolveCafeOpeningTeamForTeam('hq-team')).resolves.toBeNull()
-    expect(rec.rpcs).toHaveLength(0)
   })
 })
 
