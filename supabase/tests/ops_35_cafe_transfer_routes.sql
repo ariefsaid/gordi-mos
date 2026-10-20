@@ -1,7 +1,7 @@
 -- Transfer-route administration protects new plans/captures while preserving submitted history.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(39);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -35,6 +35,10 @@ select ok(exists (select 1 from shared.role_capabilities
   and not exists (select 1 from shared.role_capabilities
     where role <> 'admin' and capability = 'cafe.transfer_routes.manage'),
   'only admin receives transfer-route management capability');
+select ok(not has_function_privilege('anon', 'ops._check_cafe_transfer_route_conflict(uuid,uuid,text,uuid)', 'EXECUTE')
+  and not has_function_privilege('authenticated', 'ops._check_cafe_transfer_route_conflict(uuid,uuid,text,uuid)', 'EXECUTE')
+  and not has_function_privilege('service_role', 'ops._check_cafe_transfer_route_conflict(uuid,uuid,text,uuid)', 'EXECUTE'),
+  'the shared conflict check is callable only inside the route RPCs');
 
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
@@ -59,6 +63,43 @@ select throws_ok($$select * from ops.create_cafe_transfer_route(
   '{"origin_branch_id":"00000000-0000-0000-0000-00000000bf01","origin_activity":"kitchen","destination_branch_id":"00000000-0000-0000-0000-00000000bf02"}'::jsonb,
   '40000000-0000-0000-8000-000000000002')$$,
   '22023', 'transfer route already exists', 'duplicate route creation is refused');
+
+savepoint route_conflict;
+select is((select r.row_version from ops.create_cafe_transfer_route(
+  '{"origin_branch_id":"00000000-0000-0000-0000-00000000bf01","origin_activity":"kitchen","destination_branch_id":"00000000-0000-0000-0000-00000000bf03"}'::jsonb,
+  '40000000-0000-0000-8000-000000000011') r), 1::bigint,
+  'admin can create a different route for the same origin stream');
+select throws_ok($$select * from ops.update_cafe_transfer_route(
+  '{"origin_branch_id":"00000000-0000-0000-0000-00000000bf01","origin_activity":"kitchen","destination_branch_id":"00000000-0000-0000-0000-00000000bf02"}'::jsonb,
+  1,
+  '{"origin_branch_id":"00000000-0000-0000-0000-00000000bf01","origin_activity":"kitchen","destination_branch_id":"00000000-0000-0000-0000-00000000bf03"}'::jsonb,
+  '40000000-0000-0000-8000-000000000012')$$,
+  '22023', 'transfer route already exists', 'updating a route to an existing route is refused');
+select is((select r.row_version from ops.list_cafe_transfer_routes() r
+  where r.origin_branch_id = '00000000-0000-0000-0000-00000000bf01'
+    and r.origin_activity = 'kitchen' and r.destination_branch_id = '00000000-0000-0000-0000-00000000bf02'),
+  1::bigint, 'a conflicting update preserves the original route and version');
+select is((select count(*)::int from ops.cafe_transfer_route_audit
+  where request_id in ('40000000-0000-0000-8000-000000000002','40000000-0000-0000-8000-000000000012')),
+  0, 'refused create and update conflicts leave no audit events');
+select is((select r.row_version from ops.update_cafe_transfer_route(
+  '{"origin_branch_id":"00000000-0000-0000-0000-00000000bf01","origin_activity":"kitchen","destination_branch_id":"00000000-0000-0000-0000-00000000bf02"}'::jsonb,
+  1,
+  '{"origin_branch_id":"00000000-0000-0000-0000-00000000bf01","origin_activity":"kitchen","destination_branch_id":"00000000-0000-0000-0000-00000000bf02"}'::jsonb,
+  '40000000-0000-0000-8000-000000000013') r), 2::bigint,
+  'updating a route without changing its key does not conflict with itself');
+select is((select r.row_version from ops.update_cafe_transfer_route(
+  '{"origin_branch_id":"00000000-0000-0000-0000-00000000bf01","origin_activity":"kitchen","destination_branch_id":"00000000-0000-0000-0000-00000000bf02"}'::jsonb,
+  1,
+  '{"origin_branch_id":"00000000-0000-0000-0000-00000000bf01","origin_activity":"kitchen","destination_branch_id":"00000000-0000-0000-0000-00000000bf02"}'::jsonb,
+  '40000000-0000-0000-8000-000000000013') r), 2::bigint,
+  'retrying the unchanged-key update returns its original version');
+select is((select count(*)::int from ops.cafe_transfer_route_audit
+  where request_id = '40000000-0000-0000-8000-000000000013'),
+  1, 'retrying the unchanged-key update adds no audit event');
+rollback to savepoint route_conflict;
+release savepoint route_conflict;
+
 select throws_ok($$select * from ops.create_cafe_transfer_route(
   '{"origin_branch_id":"00000000-0000-0000-0000-00000000bf01","origin_activity":"kitchen","destination_branch_id":"00000000-0000-0000-0000-00000000bf01"}'::jsonb,
   '40000000-0000-0000-8000-000000000003')$$,
