@@ -13,8 +13,30 @@ export type CafeCountableItem = {
 }
 
 export type CafeCountStatus = 'Submitted' | 'Confirmed' | 'Rejected'
-type CafeCountExpectedStatus = 'waiting' | 'ready'
-export type CafeCountPostingStatus = 'not_posted' | 'not_needed' | 'held' | 'posted' | 'failed'
+type CafeCountExpectedStatus = 'waiting' | 'ready' | 'unavailable'
+export type CafeCountPostingStatus = 'not_posted' | 'not_needed' | 'held' | 'queued' | 'awaiting_authorization' | 'posted' | 'failed'
+type CafeCountPostingQueueStatus = Extract<CafeCountPostingStatus, 'held' | 'queued' | 'awaiting_authorization' | 'posted' | 'failed'>
+
+export type CafeCountPostingQueueRow = {
+  line_id: string
+  branch_id: string
+  branch_name: string
+  activity: ProductionActivity
+  count_date: string
+  item_name: string
+  unit_name: string
+  posting_status: CafeCountPostingQueueStatus
+  esb_doc_num: string | null
+  posting_error: string | null
+  expected_out_of_date: boolean
+  posting_enabled: boolean
+  correction_of?: string | null
+  superseded?: boolean
+  can_correct?: boolean
+}
+
+export type CafeCountPostingSwitch = { branch_id: string; branch_name: string; posting_enabled: boolean }
+export type CafeCountPostingReleaseResult = { released_lines: number; expected_out_of_date_lines: number; held_lines: number }
 
 export type CafeCountLine = {
   id: string
@@ -39,6 +61,10 @@ export type CafeCountLine = {
   expected_balance: string | null
   expected_status: CafeCountExpectedStatus
   expected_recorded_at: string | null
+  expected_state?: 'pending' | 'waiting_movements' | 'ready' | 'unavailable'
+  expected_as_of?: string | null
+  unavailable_reason?: string | null
+  correction_of?: string | null
   status: CafeCountStatus
   posting_status: CafeCountPostingStatus
   submitted_at: string
@@ -70,12 +96,13 @@ export type CafeCountFloorLine = {
   itemId: string
   state: CafeCountFloorState
   rowVersion: number
+  correctionOf?: string
 }
 
 export type ConfirmCafeCountResult = {
   line_id: string
   status: 'Confirmed'
-  posting_status: 'not_needed' | 'held'
+  posting_status: 'not_needed' | 'held' | 'queued'
   row_version: number
   variance: string
 }
@@ -137,7 +164,7 @@ export async function listCafeCountLines(countDate?: string): Promise<CafeCountL
     if (row.activity !== 'kitchen' && row.activity !== 'bar') {
       throw new Error('listCafeCountLines failed: invalid Café stream')
     }
-    if (row.expected_status !== 'waiting' && row.expected_status !== 'ready') {
+    if (row.expected_status !== 'waiting' && row.expected_status !== 'ready' && row.expected_status !== 'unavailable') {
       throw new Error('listCafeCountLines failed: invalid Expected balance status')
     }
     if (row.status !== 'Submitted' && row.status !== 'Confirmed' && row.status !== 'Rejected') {
@@ -145,6 +172,7 @@ export async function listCafeCountLines(countDate?: string): Promise<CafeCountL
     }
     return {
       ...row,
+      ...figures.get(String(row.id)),
       counted_quantity: String(row.counted_quantity),
       recounted_quantity: row.recounted_quantity == null ? null : String(row.recounted_quantity),
       recounted_by: row.recounted_by == null ? null : String(row.recounted_by),
@@ -156,7 +184,7 @@ export async function listCafeCountLines(countDate?: string): Promise<CafeCountL
 }
 
 /** The Expected balance, Variance and reject note come only from the reviewer-gated read; lines the viewer cannot review have none. */
-type ReviewFigures = { expected_balance: string | null; variance: string | null; review_note: string | null }
+type ReviewFigures = Pick<CafeCountLine, 'expected_balance' | 'variance' | 'review_note' | 'expected_state' | 'expected_as_of' | 'unavailable_reason' | 'correction_of'>
 
 async function readCafeCountReviewFigures(ids: readonly string[]): Promise<Map<string, ReviewFigures>> {
   const figures = new Map<string, ReviewFigures>()
@@ -168,6 +196,10 @@ async function readCafeCountReviewFigures(ids: readonly string[]): Promise<Map<s
         expected_balance: row.expected_balance == null ? null : String(row.expected_balance),
         variance: row.variance == null ? null : String(row.variance),
         review_note: row.review_note == null ? null : String(row.review_note),
+        expected_state: row.expected_state as CafeCountLine['expected_state'],
+        expected_as_of: row.expected_as_of == null ? null : String(row.expected_as_of),
+        unavailable_reason: row.unavailable_reason == null ? null : String(row.unavailable_reason),
+        correction_of: row.correction_of == null ? null : String(row.correction_of),
       })
     }
   }
@@ -186,7 +218,8 @@ export async function listCafeCountFloorLines(stream: ProductionStream, countDat
   if (error) throw new Error(`listCafeCountFloorLines failed: ${error.message}`)
   return ((data ?? []) as Array<Record<string, unknown>>).map(row => {
     if (!FLOOR_STATES.includes(row.state as CafeCountFloorState)) throw new Error('listCafeCountFloorLines failed: invalid state')
-    return { id: String(row.id), itemId: String(row.wip_item_id), state: row.state as CafeCountFloorState, rowVersion: Number(row.row_version) }
+    return { id: String(row.id), itemId: String(row.wip_item_id), state: row.state as CafeCountFloorState, rowVersion: Number(row.row_version),
+      ...(row.correction_of == null ? {} : { correctionOf: String(row.correction_of) }) }
   })
 }
 
@@ -281,7 +314,7 @@ export async function confirmCafeCountLine(lineId: string, expectedVersion: numb
   })
   if (error) throw new Error(`confirmCafeCountLine failed: ${error.message}`)
   const row = data as Record<string, unknown> | null
-  if (!row || row.status !== 'Confirmed' || (row.posting_status !== 'not_needed' && row.posting_status !== 'held')
+  if (!row || row.status !== 'Confirmed' || (row.posting_status !== 'not_needed' && row.posting_status !== 'held' && row.posting_status !== 'queued')
     || typeof row.line_id !== 'string' || typeof row.row_version !== 'number'
     || (typeof row.variance !== 'number' && typeof row.variance !== 'string')) {
     throw new Error('confirmCafeCountLine failed: invalid review response')
@@ -290,7 +323,7 @@ export async function confirmCafeCountLine(lineId: string, expectedVersion: numb
 }
 
 export type CafeCountConfirmOutcome =
-  | { line_id: string; outcome: 'confirmed'; posting_status: 'not_needed' | 'held'; row_version: number }
+  | { line_id: string; outcome: 'confirmed'; posting_status: 'not_needed' | 'held' | 'queued'; row_version: number }
   | { line_id: string; outcome: 'refused'; reason: string }
 
 /** Confirms chosen lines in one call, each with its own version token; reports every line's outcome. */
@@ -303,11 +336,64 @@ export async function confirmCafeCountLines(lines: ReadonlyArray<Pick<CafeCountL
   return data.map((value: unknown) => {
     const row = (value ?? {}) as Record<string, unknown>
     if (typeof row.line_id !== 'string') throw new Error('confirmCafeCountLines failed: invalid response')
-    if (row.outcome === 'confirmed' && (row.posting_status === 'not_needed' || row.posting_status === 'held') && typeof row.row_version === 'number') {
+    if (row.outcome === 'confirmed' && (row.posting_status === 'not_needed' || row.posting_status === 'held' || row.posting_status === 'queued') && typeof row.row_version === 'number') {
       return { line_id: row.line_id, outcome: 'confirmed', posting_status: row.posting_status, row_version: row.row_version }
     }
     return { line_id: row.line_id, outcome: 'refused', reason: typeof row.reason === 'string' ? row.reason : 'unknown' }
   })
+}
+
+const CAFE_COUNT_POSTING_STATUSES: readonly CafeCountPostingQueueStatus[] = ['held', 'queued', 'awaiting_authorization', 'posted', 'failed']
+
+// Reviewer-only read: the RPC returns no Expected balance or Variance.
+export async function listCafeCountPostingQueue(): Promise<CafeCountPostingQueueRow[]> {
+  const { data, error } = await supabase.schema('ops').rpc('cafe_count_posting_queue')
+  if (error) throw new Error(`listCafeCountPostingQueue failed: ${error.message}`)
+  return ((data ?? []) as Array<Record<string, unknown>>).map(row => {
+    if ((row.activity !== 'kitchen' && row.activity !== 'bar')
+      || !CAFE_COUNT_POSTING_STATUSES.includes(row.posting_status as CafeCountPostingQueueStatus)
+      || typeof row.expected_out_of_date !== 'boolean' || typeof row.posting_enabled !== 'boolean') {
+      throw new Error('listCafeCountPostingQueue failed: invalid reviewer status row')
+    }
+    return {
+      line_id: String(row.line_id), branch_id: String(row.branch_id), branch_name: String(row.branch_name),
+      activity: row.activity, count_date: String(row.count_date), item_name: String(row.item_name),
+      unit_name: String(row.unit_name), posting_status: row.posting_status as CafeCountPostingQueueStatus,
+      esb_doc_num: row.esb_doc_num == null ? null : String(row.esb_doc_num),
+      posting_error: row.posting_error == null ? null : String(row.posting_error),
+      expected_out_of_date: row.expected_out_of_date, posting_enabled: row.posting_enabled,
+      ...(row.correction_of === undefined ? {} : { correction_of: row.correction_of == null ? null : String(row.correction_of) }),
+      ...(typeof row.superseded === 'boolean' ? { superseded: row.superseded } : {}),
+      ...(typeof row.can_correct === 'boolean' ? { can_correct: row.can_correct } : {}),
+    }
+  })
+}
+
+// The branch-switch reader is admin-only in the database.
+export async function listCafeCountPostingSwitches(): Promise<CafeCountPostingSwitch[]> {
+  const { data, error } = await supabase.schema('ops').rpc('list_cafe_count_posting_switches')
+  if (error) throw new Error(`listCafeCountPostingSwitches failed: ${error.message}`)
+  return ((data ?? []) as Array<Record<string, unknown>>).map(row => {
+    if (typeof row.posting_enabled !== 'boolean') throw new Error('listCafeCountPostingSwitches failed: invalid branch switch')
+    return { branch_id: String(row.branch_id), branch_name: String(row.branch_name), posting_enabled: row.posting_enabled }
+  })
+}
+
+export async function setCafeCountPostingEnabled(branchId: string, enabled: boolean): Promise<void> {
+  const { error } = await supabase.schema('ops').rpc('set_cafe_count_posting_enabled', {
+    p_branch_id: branchId,
+    p_enabled: enabled,
+  })
+  if (error) throw new Error(`setCafeCountPostingEnabled failed: ${error.message}`)
+}
+
+export async function releaseCafeCountPosting(branchId: string): Promise<CafeCountPostingReleaseResult> {
+  const { data, error } = await supabase.schema('ops').rpc('release_cafe_count_posting', { p_branch_id: branchId })
+  if (error) throw new Error(`releaseCafeCountPosting failed: ${error.message}`)
+  const row = data as Record<string, unknown> | null
+  if (!row || typeof row.released_lines !== 'number' || typeof row.expected_out_of_date_lines !== 'number'
+    || typeof row.held_lines !== 'number') throw new Error('releaseCafeCountPosting failed: invalid response')
+  return { released_lines: row.released_lines, expected_out_of_date_lines: row.expected_out_of_date_lines, held_lines: row.held_lines }
 }
 
 /** Rejects a wrong figure with the reviewer's note; the counter then enters the item again. */

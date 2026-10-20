@@ -122,6 +122,8 @@ Environment
   ESB_PURCHASE_REQUEST_ENABLED "1" lets a drain post café purchase requests; unset, the drain does
                             not select them. Every drain gate above applies as well.
   ESB_PURCHASE_REQUEST_SHAPE_FILE  optional JSON overriding PurchaseRequestShape fields
+  ESB_COUNT_JOURNAL_ENABLED   "1" lets a drain post count variances; unset, it does not select them.
+  ESB_COUNT_JOURNAL_SHAPE_FILE optional JSON overriding CountJournalShape fields
 
 Map file:
   {"target_env": "goo",
@@ -129,13 +131,14 @@ Map file:
                                       "receiving_locations": {"<mos location key>": 0}}, ...},
    "items":    {"<mos wip_item_id uuid>": {"bom_id": 0, "product_detail_id": 0}, ...},
    "item_units": {"<mos item_unit uuid>": {"product_detail_id": 0, "product_id": 0}, ...},
-   "request_process_id": 0}
+   "request_process_id": 0, "count_variance_purpose_id": 0}
   "item_units" is optional; the open-PO refresh uses it to name an ESB PO line's MOS product
   detail, and a goods receipt needs its "product_id" too. "receiving_locations" is optional;
   a goods receipt for a branch without its location key is refused. On the ERP of record
   ("items": "from-payload") the MOS catalog's own ids are used. "request_process_id" is optional:
   ESB's default request process for this environment, which every purchase-request line carries;
-  a purchase request is refused without it.
+  a purchase request is refused without it. "count_variance_purpose_id" is the target environment's
+  item-journal purpose for Count variances; count posting is refused without it.
   "items" may be the string "from-payload" ONLY when target_env is "gkid"; the loader
   refuses that combination anywhere else, which is the safety line enforced at config
   time as well as at dispatch time.
@@ -170,6 +173,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import sys
@@ -179,6 +183,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 TARGET_ENVS = ("dry_run", "goo", "gkid")
@@ -187,6 +192,7 @@ POST_SWITCH = "ESB_ALLOW_GKID"
 READ_SWITCH = "ESB_ALLOW_GKID_READ"
 GR_SWITCH = "ESB_GOODS_RECEIPT_ENABLED"
 PR_SWITCH = "ESB_PURCHASE_REQUEST_ENABLED"
+COUNT_SWITCH = "ESB_COUNT_JOURNAL_ENABLED"
 PASSTHROUGH = "from-payload"
 
 TRANSIENT_STATUS = {408, 429}
@@ -263,6 +269,7 @@ class IdMap:
     items: dict[str, dict[str, int]] | str
     item_units: dict[str, dict[str, int]] = field(default_factory=dict)
     request_process_id: int | None = None
+    count_variance_purpose_id: int | None = None
 
     @property
     def passthrough(self) -> bool:
@@ -333,9 +340,11 @@ class Config:
     timeout: float
     goods_receipt_enabled: bool = False
     purchase_request_enabled: bool = False
+    count_journal_enabled: bool = False
     po_shape: OpenPoShape = field(default_factory=lambda: OpenPoShape())
     gr_shape: GoodsReceiptShape = field(default_factory=lambda: GoodsReceiptShape())
     pr_shape: PurchaseRequestShape = field(default_factory=lambda: PurchaseRequestShape())
+    count_shape: CountJournalShape = field(default_factory=lambda: CountJournalShape())
 
     @property
     def stamps_erp_of_record(self) -> bool:
@@ -426,9 +435,12 @@ def load_id_map(path: str, target_env: str) -> IdMap:
     process = raw.get("request_process_id")
     if process is not None and (isinstance(process, bool) or not isinstance(process, int)):
         raise ConfigError(f"id map {path}: `request_process_id` must be an integer ESB request process id")
+    count_purpose = raw.get("count_variance_purpose_id")
+    if count_purpose is not None and (isinstance(count_purpose, bool) or not isinstance(count_purpose, int) or count_purpose <= 0):
+        raise ConfigError(f"id map {path}: `count_variance_purpose_id` must be a positive integer ESB purpose id")
 
     return IdMap(target_env=target_env, branches=branches, items=items, item_units=item_units,
-                 request_process_id=process)
+                 request_process_id=process, count_variance_purpose_id=count_purpose)
 
 
 def load_config(environ: dict[str, str], *, offline: bool, drains: bool,
@@ -514,9 +526,11 @@ def load_config(environ: dict[str, str], *, offline: bool, drains: bool,
         timeout=float(_int_env(environ, "ESB_HTTP_TIMEOUT", 30)),
         goods_receipt_enabled=_flag(environ, GR_SWITCH),
         purchase_request_enabled=_flag(environ, PR_SWITCH),
+        count_journal_enabled=_flag(environ, COUNT_SWITCH),
         po_shape=_load_shape(environ, "ESB_OPEN_PO_SHAPE_FILE", OpenPoShape),
         gr_shape=_load_shape(environ, "ESB_GOODS_RECEIPT_SHAPE_FILE", GoodsReceiptShape),
         pr_shape=_load_shape(environ, "ESB_PURCHASE_REQUEST_SHAPE_FILE", PurchaseRequestShape),
+        count_shape=_load_shape(environ, "ESB_COUNT_JOURNAL_SHAPE_FILE", CountJournalShape),
     )
 
 
@@ -641,6 +655,7 @@ class Outbox:
             "or": f"(next_attempt_at.is.null,next_attempt_at.lte.{_now()})",
             "target_env": f"eq.{self.cfg.target_env}",
             "endpoint": "neq.noop",
+            "source_module": "neq.cafe_count_expected",
             "select": "*",
             "order": "created_at.asc",
             "limit": str(self.cfg.max_rows),
@@ -648,7 +663,8 @@ class Outbox:
         # A family whose worker switch is off is left pending, not skipped after selection:
         # its rows must not fill the page.
         off = [e for e, on in (("goods-receipt", self.cfg.goods_receipt_enabled),
-                               ("purchase-request", self.cfg.purchase_request_enabled)) if not on]
+                               ("purchase-request", self.cfg.purchase_request_enabled),
+                               ("count-journal", self.cfg.count_journal_enabled)) if not on]
         if off:
             filters["and"] = f"({','.join('endpoint.neq.' + e for e in off)})"
         query = urllib.parse.urlencode(filters)
@@ -753,7 +769,8 @@ class Outbox:
         self._patch(row["id"], {"status": "posted", "esb_doc_num": doc_num,
                                 "posted_at": _now(), "last_error": None})
 
-    def close_failed(self, row: dict[str, Any], error: str, *, permanent: bool) -> str:
+    def close_failed(self, row: dict[str, Any], error: str, *, permanent: bool,
+                     doc_num: str | None = None) -> str:
         """A permanent fault dead-letters immediately; a transient one spends a retry and
         dead-letters at the budget. Either way the error stays on the row: an outbox
         whose failures are invisible is worse than no outbox."""
@@ -763,8 +780,10 @@ class Outbox:
         else:
             retry += 1
             status = "dead_letter" if retry >= self.cfg.max_retry else "failed"
-        self._patch(row["id"], {"status": status, "retry_count": retry,
-                                "last_error": error[:2000]})
+        patch = {"status": status, "retry_count": retry, "last_error": error[:2000]}
+        if doc_num:
+            patch["esb_doc_num"] = doc_num
+        self._patch(row["id"], patch)
         return status
 
     def patch_group(self, group_id: str, patch: dict[str, Any]) -> None:
@@ -772,6 +791,12 @@ class Outbox:
         query = urllib.parse.urlencode({"id": f"eq.{group_id}"})
         _request("PATCH", f"{self.cfg.supabase_url}/rest/v1/esb_push_groups?{query}",
                  headers=self._headers(write=True), body=patch, timeout=self.cfg.timeout)
+
+    def set_count_group_posting(self, group_id: str, posting_status: str) -> None:
+        _request("POST", f"{self.cfg.supabase_url}/rest/v1/rpc/set_cafe_count_group_posting",
+                 headers=_pgrst_headers(self.cfg, "ops", write=True),
+                 body={"p_group_id": group_id, "p_posting_status": posting_status},
+                 timeout=self.cfg.timeout)
 
     def stamp_log_posted(self, row: dict[str, Any], doc_num: str) -> None:
         """The kitchen log's posting mirror. Two conditions, and BOTH are about the same
@@ -1132,14 +1157,15 @@ def _resume_members(outbox: Outbox, rows: list[dict[str, Any]], ref: str, out, *
     return [row for row in rows if row.get("status") == "in_flight"], None
 
 
-def _fail_members(outbox: Outbox, rows: list[dict[str, Any]], error: str, *, permanent: bool) -> list[str]:
+def _fail_members(outbox: Outbox, rows: list[dict[str, Any]], error: str, *, permanent: bool,
+                  doc_num: str | None = None) -> list[str]:
     """Close every member this tick holds in flight; a member already posted is never
     downgraded. A write that faults leaves that row to the lease reaper."""
     states = []
     for row in rows:
         if row.get("status") == "in_flight":
             try:
-                states.append(outbox.close_failed(row, error, permanent=permanent))
+                states.append(outbox.close_failed(row, error, permanent=permanent, doc_num=doc_num))
             except Exception:
                 pass
     return states
@@ -1234,7 +1260,8 @@ def run_tick(cfg: Config, rows: list[dict[str, Any]], *,
             groups.setdefault(str(gid), []).append(row)
         else:
             singles.append(row)
-    runners = {"goods-receipt": _run_goods_receipt_group, "purchase-request": _run_purchase_request_group}
+    runners = {"goods-receipt": _run_goods_receipt_group, "purchase-request": _run_purchase_request_group,
+               "count-journal": _run_count_journal_group}
     for grouped in groups.values():
         run = runners.get(grouped[0].get("endpoint"), _run_group)
         bad += run(cfg, client, outbox, grouped, plan_only=plan_only, out=out, wip_names=wip_names)
@@ -2173,6 +2200,395 @@ def _run_purchase_request_group(cfg: Config, client: ErpClient, outbox: Outbox |
     return 0
 
 
+# ══════════════════════════════════════════════════════════════════════════════════════
+# Café count variances (issues 1373–1375) — one item journal per confirmation group
+# ══════════════════════════════════════════════════════════════════════════════════════
+# The branch switch enqueues at confirmation; this independent worker switch gates every
+# drain. The write-ahead stages make an ambiguous create retry lookup by the MOS key before
+# any second create. The ERP payload is deliberately isolated in compose_count_journal.
+# Paths, status ids, the count-purpose mapping, signed quantity semantics, and whether the
+# additionalInfo filter is exact still need the sandbox proof before any live enablement.
+
+COUNT_STAGE_SENT = "create_sent"
+COUNT_STAGE_AWAITING = "awaiting_authorization"
+
+
+@dataclass(frozen=True)
+class CountJournalShape:
+    create_path: str = "/inventory/item-journal"
+    result_number: str = "itemJournalNum"
+    authorize_method: str = "PATCH"
+    authorize_path: str = "/inventory/item-journal/{doc}/authorize"
+    lookup_path: str = "/inventory/item-journal"
+    lookup_param: str = "additionalInfo"
+    lookup_page_param: str = "page"
+    lookup_page_size_param: str = "limit"
+    lookup_page_size: int = 50
+    lookup_max_pages: int = 20
+    lookup_rows: str = "result.data"
+    lookup_total: str = "result.count"
+    lookup_number: str = "itemJournalNum"
+    lookup_key: str = "additionalInfo"
+    lookup_status: str = "statusID"
+    authorized_statuses: tuple[str, ...] = ("3",)
+    additional_info_max: int = 1000
+    date_field: str = "itemJournalDate"
+    branch_field: str = "branchID"
+    location_field: str = "locationID"
+    info_field: str = "additionalInfo"
+    details_field: str = "itemJournalDetails"
+    detail_product_field: str = "productDetailID"
+    detail_quantity_field: str = "qty"
+    detail_purpose_field: str = "purposeID"
+
+
+def count_journal_units(cfg: Config, rows: list[dict[str, Any]], *, db: bool
+                        ) -> dict[str, dict[str, int]]:
+    """Map MOS stock units to this target's product details; only gkid reads its own catalog."""
+    unit_ids = sorted({str((row.get("payload") or {}).get("item_unit_id") or "") for row in rows})
+    if not unit_ids or "" in unit_ids:
+        raise Permanent("a count line carries no item unit")
+    if not cfg.id_map.passthrough:
+        units = {}
+        for unit_id in unit_ids:
+            entry = cfg.id_map.item_units.get(unit_id)
+            if not entry or "product_detail_id" not in entry:
+                raise Permanent(f"item unit {unit_id} has no {cfg.target_env} product-detail id map entry")
+            units[unit_id] = {"product_detail_id": entry["product_detail_id"]}
+        return units
+    if not db:
+        raise Permanent("the ERP of record's product details are read from the MOS catalog, and this rehearsal has no database")
+    query = urllib.parse.urlencode({"id": f"in.({','.join(unit_ids)})",
+                                    "select": "id,esb_product_detail_id"})
+    _, found = _request("GET", f"{cfg.supabase_url}/rest/v1/item_units?{query}",
+                        headers=_pgrst_headers(cfg, "ops"), timeout=cfg.timeout)
+    by_id = {str(row.get("id")): row for row in (found or []) if isinstance(row, dict)}
+    units = {}
+    for unit_id in unit_ids:
+        detail_id = (by_id.get(unit_id) or {}).get("esb_product_detail_id")
+        if detail_id in (None, ""):
+            raise Permanent(f"item unit {unit_id} has no ERP product detail in the MOS catalog")
+        units[unit_id] = {"product_detail_id": _as_int(detail_id, "esb_product_detail_id")}
+    return units
+
+
+def compose_count_journal(cfg: Config, rows: list[dict[str, Any]],
+                          units: dict[str, dict[str, int]]) -> Request:
+    """Build one no-cost item journal from a single branch, stream, date and MOS key."""
+    if not rows:
+        raise Permanent("empty count-journal group")
+    for row in rows:
+        _own_env(cfg, row)
+    head = rows[0].get("payload") or {}
+    facts = ("branch_code", "activity", "count_date", "mos_key")
+    group_ids = {str(row.get("push_group_id") or "") for row in rows}
+    if len(group_ids) != 1 or not next(iter(group_ids)) or any(
+            (row.get("payload") or {}).get(key) != head.get(key) for row in rows for key in facts):
+        raise Permanent("a count journal must be one confirmation group, branch, stream, date and MOS key")
+    shape = cfg.count_shape
+    branch = cfg.id_map.branch(head.get("branch_code"))
+    day = str(head.get("count_date") or "")
+    try:
+        datetime.strptime(day, "%Y-%m-%d")
+    except ValueError:
+        raise Permanent(f"payload count_date is not a date: {day!r}") from None
+    key = str(head.get("mos_key") or "")
+    if not key or _ascii(key, shape.additional_info_max) != key:
+        raise Permanent(f"MOS key is missing, not ASCII or longer than the item-journal additional information "
+                        f"field ({shape.additional_info_max}); it is never shortened")
+    purpose = cfg.id_map.count_variance_purpose_id
+    if purpose is None:
+        raise Permanent(f"the {cfg.target_env} id map has no `count_variance_purpose_id`; refusing to guess it")
+    details = []
+    for row in rows:
+        payload = row.get("payload") or {}
+        unit_id = str(payload.get("item_unit_id") or "")
+        unit = units.get(unit_id)
+        if not unit or "product_detail_id" not in unit:
+            raise Permanent(f"item unit {unit_id} has no mapped ERP product detail")
+        variance = _as_float(payload.get("variance"), "variance")
+        if not math.isfinite(variance):
+            raise Permanent(f"count variance is not finite: {variance!r}")
+        if variance == 0:
+            raise Permanent("zero count variance must not be journalled")
+        details.append({shape.detail_product_field: unit["product_detail_id"],
+                        shape.detail_quantity_field: variance,
+                        shape.detail_purpose_field: purpose})
+    if len({detail[shape.detail_product_field] for detail in details}) != len(details):
+        raise Permanent("two count lines name the same ESB product detail")
+    # Kept in one function until the endpoint body is proven against the sandbox.
+    return Request(
+        path=shape.create_path, result_key=shape.result_number,
+        body={shape.date_field: day, shape.branch_field: branch["branch_id"],
+              shape.location_field: branch["location_id"], shape.info_field: key,
+              shape.details_field: details})
+
+
+def lookup_count_journal(client: ErpClient, shape: CountJournalShape, key: str) -> tuple[str, bool] | None:
+    """Return the unique exact MOS-key match, or prove absence across all configured pages."""
+    rows_seen: list[dict[str, Any]] = []
+    page_signatures: set[tuple[str, ...]] = set()
+    total: int | None = None
+    complete = False
+    for page in range(1, shape.lookup_max_pages + 1):
+        params = {shape.lookup_param: key, shape.lookup_page_param: page,
+                  shape.lookup_page_size_param: shape.lookup_page_size}
+        try:
+            result = client.get(shape.lookup_path, params)
+        except (Permanent, Transient) as exc:
+            raise Halt(f"the lookup of count journal {key} could not decide: {esb_message(exc)}") from None
+        page_rows = _dig(result, shape.lookup_rows)
+        if not isinstance(page_rows, list) or any(not isinstance(row, dict) for row in page_rows):
+            raise Halt(f"the lookup of count journal {key} returned no complete list")
+        if any(_dig(row, shape.lookup_key) in (None, "") for row in page_rows):
+            raise Halt(f"the count-journal lookup returned a row without {shape.lookup_key!r}")
+        signature = tuple(str(_dig(row, shape.lookup_number) or "") for row in page_rows)
+        if signature and signature in page_signatures:
+            raise Halt(f"the lookup of count journal {key} repeated a page")
+        page_signatures.add(signature)
+        rows_seen.extend(page_rows)
+        raw_total = _dig(result, shape.lookup_total)
+        if raw_total is None:
+            raise Halt(f"the count-journal lookup did not prove its result complete with {shape.lookup_total!r}")
+        if isinstance(raw_total, bool) or not isinstance(raw_total, int) or raw_total < 0:
+            raise Halt(f"the count-journal lookup returned an invalid total")
+        if total is not None and total != raw_total:
+            raise Halt(f"the count-journal lookup changed its total while paging")
+        total = raw_total
+        if total < len(rows_seen):
+            raise Halt(f"the count-journal lookup total is smaller than its pages")
+        if total == len(rows_seen):
+            complete = True
+            break
+        if len(page_rows) < shape.lookup_page_size:
+            if total is not None and total > len(rows_seen):
+                raise Halt(f"the lookup of count journal {key} did not return every row")
+            complete = True
+            break
+    if not complete:
+        raise Halt(f"the lookup of count journal {key} did not return every page")
+    found = [row for row in rows_seen if str(_dig(row, shape.lookup_key)).strip() == key]
+    if len(found) > 1:
+        raise Halt(f"multiple item journals carry the MOS key {key}")
+    if not found:
+        return None
+    number = str(_dig(found[0], shape.lookup_number) or "").strip()
+    status = _dig(found[0], shape.lookup_status)
+    if not number or status is None:
+        raise Halt(f"the item journal carrying {key} has no number or status")
+    return number, str(status) in {str(value) for value in shape.authorized_statuses}
+
+
+def authorize_count_journal(cfg: Config, client: ErpClient, number: str) -> None:
+    shape = cfg.count_shape
+    try:
+        client._call(shape.authorize_method,
+                     shape.authorize_path.format(doc=urllib.parse.quote(number, safe="")))
+    except Permanent as exc:
+        raise EsbRefused(f"ESB created count journal {number} but refused authorization: {esb_message(exc)}") from None
+    except Transient as exc:
+        raise Transient(f"authorization of count journal {number} is not confirmed: {exc}",
+                        kind=exc.kind) from None
+
+
+def _stop_count_journal(outbox: Outbox, gid: str, rows: list[dict[str, Any]], ref: str,
+                        exc: Permanent, *, may_exist: bool, doc_num: str | None, out) -> None:
+    message = (f"HALTED for a person: {exc}. Check ESB for {ref} before anything is sent again"
+               if may_exist and not isinstance(exc, EsbRefused) else str(exc))
+    _fail_members(outbox, rows, message, permanent=True, doc_num=doc_num)
+    try:
+        outbox.patch_group(gid, {"status": "dead_letter", "last_error": message[:2000]})
+    except Exception:
+        pass
+    print(f"{ref}: {'HALTED for a person' if message.startswith('HALTED') else 'refused'} — {exc}", file=out)
+
+
+def _run_count_journal_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
+                             rows: list[dict[str, Any]], *, plan_only: bool, out,
+                             wip_names: dict[str, str] | None = None) -> int:
+    """Create and authorize one count item journal, then fan the ERP number out to its lines."""
+    head = rows[0].get("payload") or {}
+    ref = str(head.get("mos_key") or rows[0].get("push_group_id"))
+    if not plan_only and not cfg.count_journal_enabled:
+        print(f"{ref}: held — count-journal posting is off in this worker ({COUNT_SWITCH}); nothing sent", file=out)
+        return 0
+    gid = str(rows[0].get("push_group_id") or "")
+    meta = outbox.group_meta(gid) if outbox is not None else {}
+    number, stage = meta.get("esb_doc_num"), meta.get("posting_stage")
+    may_exist = bool(number or stage)
+    try:
+        units = count_journal_units(cfg, rows, db=outbox is not None)
+        req = compose_count_journal(cfg, rows, units)
+    except Permanent as exc:
+        print(f"{ref}: {'REFUSED' if plan_only else 'group failed'} — {exc}", file=out)
+        if not plan_only and outbox is not None:
+            live, early = _resume_members(outbox, rows, ref, out, terminal_ok=False)
+            if early is None:
+                _stop_count_journal(outbox, gid, live, ref, exc, may_exist=may_exist,
+                                    doc_num=number, out=out)
+        return len(rows)
+    except Transient as exc:
+        print(f"{ref}: not attempted — {exc}", file=out)
+        return len(rows)
+    if plan_only:
+        print(f"{ref}: POST {req.path} {json.dumps(req.body, sort_keys=True)}", file=out)
+        print(f"{ref}: {cfg.count_shape.authorize_method} "
+              f"{cfg.count_shape.authorize_path.format(doc='<returned number>')}", file=out)
+        return 0
+    assert outbox is not None
+    live, early = _resume_members(outbox, rows, ref, out, terminal_ok=False)
+    if early is not None:
+        return early
+    shape = cfg.count_shape
+    try:
+        if number and stage is None:
+            # A number with its stage cleared is the worker's checkpoint after authorization.
+            pass
+        elif stage == COUNT_STAGE_AWAITING:
+            if not number:
+                raise Halt("count journal awaits authorization but has no ERP number")
+            found = lookup_count_journal(client, shape, ref)
+            if found is None or found[0] != number:
+                raise Halt(f"ESB does not show created count journal {number} under {ref}")
+            if not found[1]:
+                authorize_count_journal(cfg, client, number)
+        elif stage in (None, COUNT_STAGE_SENT) and not number:
+            found = lookup_count_journal(client, shape, ref) if stage == COUNT_STAGE_SENT else None
+            if found is not None:
+                number, authorized = found
+                outbox.patch_group(gid, {"status": "in_flight", "posting_stage": COUNT_STAGE_AWAITING,
+                                         "esb_doc_num": number})
+                may_exist = True
+                if not authorized:
+                    authorize_count_journal(cfg, client, number)
+            else:
+                outbox.patch_group(gid, {"status": "in_flight", "posting_stage": COUNT_STAGE_SENT,
+                                         "last_error": None})
+                may_exist = True
+                try:
+                    number = client.post(req.path, req.body, req.result_key)
+                except Permanent as exc:
+                    outbox.patch_group(gid, {"posting_stage": None})
+                    may_exist = False
+                    raise EsbRefused(f"ESB refused count journal {ref}: {esb_message(exc)}") from None
+                if not number:
+                    raise Transient(f"ESB accepted count journal {ref} but returned no number")
+                outbox.patch_group(gid, {"status": "in_flight", "posting_stage": COUNT_STAGE_AWAITING,
+                                         "esb_doc_num": number})
+                authorize_count_journal(cfg, client, number)
+        else:
+            raise Halt(f"count-journal group {ref} has an unsupported posting stage")
+        for row in live:
+            if row.get("status") == "posted":
+                continue
+            outbox.close_posted(row, str(number))
+            row["status"] = "posted"
+        # Clearing the stage and closing the group are one durable authorized checkpoint.
+        outbox.patch_group(gid, {"status": "posted", "esb_doc_num": number, "posting_stage": None,
+                                 "posted_at": _now(), "last_error": None})
+    except Permanent as exc:
+        _stop_count_journal(outbox, gid, live, ref, exc, may_exist=may_exist,
+                            doc_num=number, out=out)
+        return len(rows)
+    except Exception as exc:
+        _fail_members(outbox, live, str(exc), permanent=False, doc_num=number)
+        try:
+            outbox.patch_group(gid, {"status": "failed", "last_error": str(exc)[:2000]})
+        except Exception:
+            pass
+        print(f"{ref}: group failed — {exc}", file=out)
+        return len(rows)
+    print(f"{ref}: posted -> {number} ({len(live)} lines)", file=out)
+    return 0
+
+
+# Expected reads use the shared outbox lease, but complete without inventing an ERP document.
+def read_count_expected(client: ErpClient, cfg: Config, line: dict[str, Any]) -> dict[str, str]:
+    """Read the dated ERP stock period and convert only with its own product-unit ratios."""
+    branch = cfg.id_map.branches.get(str(line.get('branch_code')))
+    unit = cfg.id_map.item_units.get(str(line.get('item_unit_id')))
+    if not branch or not unit or not unit.get('product_id') or not unit.get('product_detail_id'):
+        raise Permanent('expected balance has no target-environment branch/product/unit mapping')
+    if line.get('storage_location_id'):
+        raise Permanent('expected balance has no verified ERP storage-location mapping')
+    day = datetime.strptime(str(line['count_date']), '%Y-%m-%d')
+    rows: list[dict[str, Any]] = []
+    total = None
+    # The documented stock-period response carries qtySum in uomID and qty to the base unit.
+    # Its end-of-day semantics and unit ratios remain subject to the sandbox proof (#1378).
+    for page in range(1, 101):
+        response = client.get('/inventory/stock-period/browse', {
+            'locationID': branch['location_id'], 'periodDate': day.strftime('%Y-%m-%d'),
+            'showAllProduct': 1, 'page': page, 'limit': 100,
+        })
+        result = response.get('result') if isinstance(response, dict) else None
+        if not isinstance(result, dict) or not isinstance(result.get('data'), list):
+            raise Permanent('expected balance report is unavailable')
+        count = result.get('count')
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0 or (total is not None and count != total):
+            raise Permanent('expected balance report has no stable completeness count')
+        total = count
+        page_rows = result['data']
+        if any(not isinstance(row, dict) for row in page_rows):
+            raise Permanent('expected balance report has an invalid row')
+        rows.extend(page_rows)
+        if len(rows) == total and not result.get('next'):
+            break
+        if not page_rows or len(rows) > total:
+            raise Permanent('expected balance report is incomplete')
+    else:
+        raise Permanent('expected balance report exceeds the page limit')
+    matches = [row for row in rows if str(row.get('productID')) == str(unit['product_id'])]
+    targets = [row for row in matches if str(row.get('productDetailID')) == str(unit['product_detail_id'])]
+    if len(targets) != 1 or not matches:
+        raise Permanent('ERP unit conversion is unavailable or ambiguous')
+    source, target = matches[0], targets[0]
+    try:
+        balance = Decimal(str(source['qtySum']))
+        if source.get('uomID') is None or target.get('uomID') is None:
+            raise ValueError()
+        if source['uomID'] != target['uomID']:
+            source_ratio, target_ratio = Decimal(str(source['qty'])), Decimal(str(target['qty']))
+            if not source_ratio.is_finite() or not target_ratio.is_finite() or source_ratio <= 0 or target_ratio <= 0:
+                raise ValueError()
+            balance = balance * source_ratio / target_ratio
+            if Decimal(str(target['qtySum'])) != balance:
+                raise ValueError()
+        if not balance.is_finite() or abs(balance) > Decimal('9999999999.9999') or balance != balance.quantize(Decimal('.0001')):
+            raise ValueError()
+    except (KeyError, ValueError, InvalidOperation, ZeroDivisionError):
+        raise Permanent('ERP unit conversion or balance is unavailable at stored precision') from None
+    return {'balance': str(balance), 'as_of': (day + timedelta(days=1)).strftime('%Y-%m-%dT00:00:00+07:00')}
+
+
+def refresh_count_expected(cfg: Config, *, out) -> int:
+    """One bounded read tick; queue and writeback both recheck the movement gate and version."""
+    headers = _pgrst_headers(cfg, 'ops', write=True)
+    Outbox(cfg).reap()
+    _, rows = _request('POST', f'{cfg.supabase_url}/rest/v1/rpc/cafe_count_expected_queue',
+                       headers=headers, body={'p_target_env': cfg.target_env, 'p_limit': cfg.max_rows}, timeout=cfg.timeout)
+    client = ErpClient(cfg)
+    bad = 0
+    for row in rows or []:
+        _, claimed = _request('POST', f'{cfg.supabase_url}/rest/v1/rpc/claim_cafe_count_expected',
+                               headers=headers, body={'p_push_id': row['push_id']}, timeout=cfg.timeout)
+        if claimed is not True:
+            continue
+        body = {'p_push_id': row['push_id'], 'p_expected_version': row['row_version'],
+                'p_balance': None, 'p_as_of': None, 'p_unavailable_reason': None}
+        try:
+            snapshot = read_count_expected(client, cfg, row)
+            body.update(p_balance=snapshot['balance'], p_as_of=snapshot['as_of'])
+        except (Permanent, Transient, ValueError):
+            # Returned ERP text may contain operational details; only a bounded state crosses to Review.
+            body['p_unavailable_reason'] = 'erp_balance_or_conversion_unavailable'
+            bad += 1
+        _request('POST', f'{cfg.supabase_url}/rest/v1/rpc/complete_cafe_count_expected',
+                 headers=headers, body=body, timeout=cfg.timeout)
+    print(f'expected balance: {len(rows or [])} offered, {bad} unavailable', file=out)
+    return bad
+
+
 def load_rows(path: str) -> list[dict[str, Any]]:
     try:
         with open(path, encoding="utf-8") as fh:
@@ -2211,7 +2627,23 @@ def main(argv: list[str] | None = None) -> int:
                         help="read open purchase orders from ESB into the MOS cache: 'all' "
                              "mapped branches (schedule), 'requested' (on demand) or one "
                              "branch code. Posts nothing")
+    parser.add_argument('--refresh-count-expected', action='store_true',
+                        help='read settled Count expected balances once; posts no ERP documents')
     args = parser.parse_args(argv)
+
+    if args.refresh_count_expected:
+        if args.plan or args.rows_from or args.refresh_open_pos:
+            print('--refresh-count-expected runs alone', file=sys.stderr)
+            return 2
+        try:
+            cfg = load_config(dict(os.environ), offline=False, drains=False, gkid_switch=READ_SWITCH)
+            if cfg.target_env == 'dry_run' or not (cfg.esb_base_url and cfg.esb_username and cfg.esb_password):
+                raise ConfigError('expected reads require this target environment and its credentials')
+            bad = refresh_count_expected(cfg, out=sys.stdout)
+        except (ConfigError, Permanent, Transient) as exc:
+            print(f'expected balance tick refused: {exc}', file=sys.stderr)
+            return 2
+        return 3 if bad else 0
 
     if args.refresh_open_pos:
         if args.plan or args.rows_from:
