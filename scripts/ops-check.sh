@@ -5,10 +5,11 @@
 #   */5 * * * * /path/to/scripts/ops-check.sh >> ~/ops-check.log 2>&1
 #
 # Checks: database reachable; ERP outbox dead letters, claimable-row age, expired leases and
-# sent-row retention; ERP worker heartbeat age (required); newest nightly dump (when
-# OPS_BACKUP_DIR is set); app URL and auth health endpoint; client-error rows in the last
-# 15 minutes (skipped while the log table does not exist). Every coordinate comes from the
-# untracked env file (scripts/ops.env.example, OPS_ENV_FILE); a missing value refuses the run.
+# sent-row retention; ERP worker heartbeat age (required); reporting sales-date freshness;
+# newest nightly dump (when OPS_BACKUP_DIR is set); app URL and auth health endpoint; and
+# client-error rows in the last 15 minutes (skipped while the log table does not exist).
+# Configuration comes from the untracked env file (scripts/ops.env.example, OPS_ENV_FILE); a
+# missing value refuses the run.
 # Self-test: scripts/ops-check.test.sh
 set -u -o pipefail
 
@@ -123,6 +124,17 @@ if [ "$(sql 'select 1')" = 1 ]; then
       fi
     fi  # table absent: skipped, not an alert
   fi
+
+  reporting_stale="$(sql "select coalesce(max(revenue_date)::timestamptz < now() - interval '26 hours', true)
+    from reporting.sales_daily_revenue")"
+  if [ "$reporting_stale" = t ]; then report reporting_freshness fail \
+    "Sales figures in MOS have not been updated for more than 26 hours. Please check the reporting refresh. / Angka penjualan di MOS belum diperbarui selama lebih dari 26 jam. Silakan periksa pembaruan laporan." \
+    "Sales figures in MOS are up to date again. / Angka penjualan di MOS sudah diperbarui kembali."
+  elif [ "$reporting_stale" = f ]; then report reporting_freshness ok \
+    "Sales figures in MOS are up to date again. / Angka penjualan di MOS sudah diperbarui kembali."
+  else report reporting_freshness fail \
+    "MOS couldn't check whether sales figures are current. Please check the reporting connection. / MOS tidak dapat memeriksa apakah angka penjualan sudah terbaru. Silakan periksa koneksi pelaporan." \
+    "Sales figures in MOS are up to date again. / Angka penjualan di MOS sudah diperbarui kembali."; fi
 else
   report database fail "MOS can't reach its database. MOS data may be unavailable; please check the database connection." \
     "MOS can reach its database again."

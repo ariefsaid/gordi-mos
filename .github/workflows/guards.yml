@@ -42,6 +42,13 @@ jobs:
         run: bash scripts/impeccable-changed-ui.sh "${BASE_SHA:-HEAD^}"
       - name: migration order guard self-test (#1110)
         run: bash scripts/check-migration-order.test.sh
+      - name: migration rollback guard self-test
+        run: bash scripts/check-migration-rollback.test.sh
+      - name: Migration rollback paths for new versions
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --quiet --no-tags origin "+refs/heads/dev:refs/remotes/origin/dev"
+          bash scripts/check-migration-rollback.sh origin/dev
       - name: Migration order — new versions must be newer than the base's latest (#1110)
         if: github.event_name == 'pull_request'
         env:

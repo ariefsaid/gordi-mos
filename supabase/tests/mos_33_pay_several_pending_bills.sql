@@ -1,7 +1,7 @@
 -- #1466: atomic multi-bill payment writer, Finance access and idempotent replay.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(30);
+select plan(33);
 
 select shared._test_seed_directory();
 
@@ -139,6 +139,12 @@ select throws_ok($$select * from mos.pay_several_pending_bills(
   (now() at time zone 'Asia/Jakarta')::date, '00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001601.jpg',
   '00000000-0000-4000-8000-000000001510')$$,
   'P0002', 'Pending bill PB-1466-A was not found in this org.', 'Finance in another org cannot pay the first org''s bill');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["manager"]}');
+select throws_ok($$select * from mos.pay_several_pending_bills(ARRAY['["ESB-TEST","BR-TEST","PB-1466-C-GOOD"]'], ARRAY[70000]::bigint[], (now() at time zone 'Asia/Jakarta')::date, '00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001601.jpg', '00000000-0000-4000-8000-000000001511')$$, '42501', 'Finance access is required.', 'a manager cannot pay pending bills through the batch writer');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["ops_lead"]}');
+select throws_ok($$select * from mos.pay_several_pending_bills(ARRAY['["ESB-TEST","BR-TEST","PB-1466-C-GOOD"]'], ARRAY[70000]::bigint[], (now() at time zone 'Asia/Jakarta')::date, '00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001601.jpg', '00000000-0000-4000-8000-000000001512')$$, '42501', 'Finance access is required.', 'an ops_lead cannot pay pending bills through the batch writer');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["supervisor"]}');
+select throws_ok($$select * from mos.pay_several_pending_bills(ARRAY['["ESB-TEST","BR-TEST","PB-1466-C-GOOD"]'], ARRAY[70000]::bigint[], (now() at time zone 'Asia/Jakarta')::date, '00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001601.jpg', '00000000-0000-4000-8000-000000001513')$$, '42501', 'Finance access is required.', 'a supervisor cannot pay pending bills through the batch writer');
 
 select * from finish();
 rollback;
