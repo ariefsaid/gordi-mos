@@ -173,9 +173,9 @@ export function PricingPage() {
           </div>
           <section className="pp-result-region" aria-label={tx('moneyB.pricing.projectedResult')}>
             <h2>{tx('moneyB.pricing.projectedResult')}</h2>
-            {margin ? <div className="pp-result" data-testid="pricing-result">
-              <KPITile className="pp-result-tile" label={tx('moneyB.pricing.grossMargin')} value={formatIDR(margin.margin)} />
-              <KPITile className="pp-result-tile" label={tx('moneyB.pricing.marginPct')} value={formatPct(margin.margin_pct)} delta={margin.below_floor ? { text: t('moneyB.pricing.belowFloor' as MessageKey, { floor: formatPct(MARGIN_FLOOR_PCT) }), tone: 'destructive' } : undefined} sub={margin.below_floor ? tx('moneyB.pricing.warnOnly') : tx('moneyB.pricing.formula')} />
+            {margin && budget ? <div className="pp-result" data-testid="pricing-result">
+              <KPITile className="pp-result-tile" label={tx('moneyB.pricing.grossMargin')} value={formatIDR(margin.margin)} asOf={budget.cost_basis_as_of} asOfPrefix={tx('moneyB.pricing.basisDate')} />
+              <KPITile className="pp-result-tile" label={tx('moneyB.pricing.marginPct')} value={formatPct(margin.margin_pct)} delta={margin.below_floor ? { text: t('moneyB.pricing.belowFloor' as MessageKey, { floor: formatPct(MARGIN_FLOOR_PCT) }), tone: 'destructive' } : undefined} sub={margin.below_floor ? tx('moneyB.pricing.warnOnly') : tx('moneyB.pricing.formula')} asOf={budget.cost_basis_as_of} asOfPrefix={tx('moneyB.pricing.basisDate')} />
             </div> : <p className="pp-result-empty">{tx('moneyB.pricing.noCandidate')}</p>}
           </section>
         </div>
