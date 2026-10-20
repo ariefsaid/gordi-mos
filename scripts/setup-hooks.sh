@@ -32,4 +32,4 @@ git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r wt
   (cd "$wt" 2>/dev/null && bash "$dest/post-checkout") || true
 done
 echo "✓ core.hooksPath = $dest (installed from $src)"
-echo "  pre-commit gates: conflict markers + eslint/stylelint/vitest scoped to staged files"
+echo "  pre-commit gates: gitleaks (if installed) + conflict markers + staged eslint/stylelint"
