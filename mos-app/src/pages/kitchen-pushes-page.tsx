@@ -32,6 +32,7 @@ import { Panel } from '@/components/cafe/redesign/worksheet'
 import { CafeCloseReviewWorkspace } from '@/components/cafe/redesign/cafe-close-review-workspace'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
+import { canPushCafe } from '@/lib/kitchen-gates'
 import { useT } from '@/i18n/use-t'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { CafeQueueEmpty } from '@/components/cafe/redesign/cafe-queue-empty'
@@ -95,7 +96,7 @@ export function KitchenPushesPage() {
   const isDesktop = useIsDesktop()
   // ── Role gate (FR-074 / AC-007) — ops_lead/admin only ──────────────────────
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const allowed = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
+  const allowed = canPushCafe(accessRoles)
 
   const [rows, setRows] = useState<EsbPushRow[]>([])
   const [hasMore, setHasMore] = useState(false)

@@ -36,7 +36,7 @@ import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
 import { useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { recordsHref } from '@/lib/cafe-records/url-state'
-import { canEditCafePlan, isReviewerEligibleTeam } from '@/lib/kitchen-gates'
+import { canEditCafePlan, canPushCafe, isReviewerEligibleTeam } from '@/lib/kitchen-gates'
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import type { CafeViewerTeam } from '@/lib/db/cafe-opening'
 import { streamKey } from '@/lib/kitchen-action-label'
@@ -218,8 +218,7 @@ function PlanEditor() {
   // DB's unconditional OR); a supervisor needs the SELECTED stream itself checked below.
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
-  const isLeadOrAdmin = auth.status === 'authenticated'
-    && (auth.viewer.accessRoles.includes('ops_lead') || auth.viewer.accessRoles.includes('admin'))
+  const isLeadOrAdmin = auth.status === 'authenticated' && canPushCafe(auth.viewer.accessRoles)
   const [reviewerStreamKeys, setReviewerStreamKeys] = useState<ReadonlySet<string>>(new Set())
   // The enumerable stream catalog (FR-005) — the head picker's options (#440). The branch
   // catalog comes with it: the MOVEMENT control derives its destinations from the producing
