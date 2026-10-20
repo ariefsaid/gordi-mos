@@ -45,7 +45,7 @@ export function MovementSeg({ value, options, branches, origin = null, label, on
       label={label}
       ariaLabel={t('kitchen.actionType.aria')}
       options={options.map(option => {
-        const base = deriveActionLabel(t, option, branches)
+        const base = deriveActionLabel(t, option, branches, origin?.branch)
         const intra = isIntraBranch(option, origin)
         const label = intra ? `${base} · ${counterpart}` : base
         const planned = planCounts?.[movementKey(option)] ?? 0

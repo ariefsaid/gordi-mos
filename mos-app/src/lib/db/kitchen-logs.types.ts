@@ -65,17 +65,18 @@ export interface StreamPair {
 }
 
 /** Actions available to plans and production capture. */
-export type KitchenAction = 'produce' | 'transfer'
+export type KitchenAction = 'produce' | 'transfer' | 'outlet_send'
 
 /** Stored café-log actions; waste is log-only and is never a planned or ERP-posted movement. */
 export type KitchenLogAction = KitchenAction | 'waste'
 
 /**
- * A movement within a stream. `destinationBranchId` is null for a produce and required for
+ * A movement within a stream. `destinationBranchId` is null for produce/outlet_send and required for
  * a transfer — the same shape as the `kitchen_logs_destination_matches_action` CHECK. A
  * transfer whose destination equals its origin is a within-books move: it still leaves the
  * kitchen's hands (so it consumes stock) but the ERP already books that branch as holding
- * it, so it has no ERP counterpart.
+ * it, so it has no ERP counterpart. An outlet_send instead moves places within the same
+ * stream, keeping its stock and branch book unchanged.
  */
 export interface KitchenMovement {
   action: KitchenAction
@@ -259,7 +260,7 @@ export interface ReviewLogRow {
   updated_at: string
 }
 
-/** A null batch id is the explicit held-ERP result for approved waste. */
+/** Waste and same-stream outlet sends approve without an ERP batch. */
 export interface ApproveResult {
   batch_id: string | null
 }

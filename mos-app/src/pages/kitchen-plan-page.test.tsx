@@ -38,6 +38,11 @@ function idWrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, { initialLocale: 'id' }, children))
 }
 
+const locationMocks = vi.hoisted(() => ({ choices: vi.fn() }))
+vi.mock('@/lib/use-cafe-location-choices', async importActual => ({
+  ...await importActual<typeof import('@/lib/use-cafe-location-choices')>(),
+  useCafeLocationChoices: locationMocks.choices,
+}))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 
@@ -173,6 +178,7 @@ const PESANAN: PesananRow[] = [
 
 beforeEach(() => {
   vi.clearAllMocks()
+  locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], defaults: null, retry: vi.fn() })
   // #440: the Café stream is remembered module-wide in sessionStorage — clear it so one test's
   // switch never seeds the next test's default.
   rememberStream(null)
@@ -201,6 +207,42 @@ afterEach(() => {
       removeEventListener: () => {},
       dispatchEvent: () => false,
     }),
+  })
+})
+
+describe('outlet sends', () => {
+  it('offers a retry when outlet-place choices cannot load, without hiding ordinary planning', async () => {
+    const retry = vi.fn()
+    locationMocks.choices.mockReturnValue({ status: 'error', locations: [], defaults: null, retry })
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByRole('spinbutton', { name: /Ayam Bakar/i })
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    expect(retry).toHaveBeenCalledOnce()
+    expect(screen.queryByText('Send to Rumah Rames outlet')).not.toBeInTheDocument()
+  })
+  it.each(['en', 'id'] as const)('plans an outlet send in %s without a branch transfer', async locale => {
+    locationMocks.choices.mockReturnValue({ status: 'ready', locations: [
+      { id: 'kitchen', use: 'both', archived_at: null, branch_ids: ['branch-1'] },
+      { id: 'outlet', use: 'storage', archived_at: null, branch_ids: ['branch-1'] },
+    ], defaults: { production_location_id: 'kitchen', storage_location_id: 'kitchen' }, retry: vi.fn() })
+    render(<KitchenPlanPage />, { wrapper: locale === 'id' ? idWrapper : wrapper })
+    const label = locale === 'id' ? 'Kirim ke outlet Rumah Rames' : 'Send to Rumah Rames outlet'
+    fireEvent.click(await screen.findByRole('combobox', { name: locale === 'id' ? /rencana untuk/i : /plan for/i }))
+    fireEvent.click(await screen.findByRole('option', { name: label }))
+    const input = await screen.findByRole('spinbutton', { name: /Ayam Bakar/i })
+    fireEvent.change(input, { target: { value: '4' } })
+    fireEvent.blur(input)
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'outlet_send', destination_branch_id: null, qty_porsi: 4,
+    })))
+  })
+
+  it.each(['en', 'id'] as const)('other kitchens without an outlet place do not offer a send in %s', async locale => {
+    mockDefaultStream.mockResolvedValue({ ...RADIANT_KITCHEN, produces: true })
+    mockStreamPairs.mockResolvedValue(STREAM_PAIRS.map(pair => ({ ...pair, produces: true })))
+    render(<KitchenPlanPage />, { wrapper: locale === 'id' ? idWrapper : wrapper })
+    await screen.findByRole('spinbutton', { name: /Ayam Bakar/i })
+    expect(screen.queryByText(locale === 'id' ? 'Kirim ke outlet Radiant' : 'Send to Radiant outlet')).not.toBeInTheDocument()
   })
 })
 

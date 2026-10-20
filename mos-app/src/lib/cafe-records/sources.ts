@@ -4,13 +4,13 @@ import type { SourceId } from './load'
 import type { RecordsUrlState } from './url-state'
 
 const SOURCE_ID_OF = { log: 'logs', count: 'counts', receipt: 'receipts', request: 'requests' } as const
-export const MOVEMENT_SOURCE: Record<Movement, SourceId> = { made: 'logs', transferred: 'logs', wasted: 'logs', received: 'receipts', requested: 'requests', counted: 'counts' }
+export const MOVEMENT_SOURCE: Record<Movement, SourceId> = { sent: 'logs', made: 'logs', transferred: 'logs', wasted: 'logs', received: 'receipts', requested: 'requests', counted: 'counts' }
 const ALL_SOURCES: SourceId[] = ['logs', 'counts', 'receipts', 'requests']
 
 export function requiredSources(state: Pick<RecordsUrlState, 'question' | 'reading' | 'history' | 'entry'>): SourceId[] {
   const set = new Set<SourceId>()
   if (state.reading === 'day') {
-    // The four day columns come from logs and Counts whatever the question; Received also reads receipts.
+    // Day columns come from logs and Counts whatever the question; Received also reads receipts.
     if (state.question !== 'requested') { set.add('logs'); set.add('counts') }
     if (state.question === 'received') set.add('receipts')
   } else for (const movement of movementsFor(state.question)) set.add(MOVEMENT_SOURCE[movement])

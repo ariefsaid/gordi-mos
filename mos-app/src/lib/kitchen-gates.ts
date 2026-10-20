@@ -82,7 +82,7 @@ export function effectiveTarget(
   movement: KitchenMovement,
   { plan, stok }: { plan: number; stok: number },
 ): number {
-  if (isStockConsuming(movement)) return plan
+  if (movement.action !== 'produce') return plan
   return Math.max(plan - stok, 0)
 }
 

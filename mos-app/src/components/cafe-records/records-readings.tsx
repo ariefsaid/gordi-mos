@@ -169,7 +169,7 @@ export function EntriesReading({ text, entries, sort, dir, onSort, showDestinati
 
 // ── Day summary ───────────────────────────────────────────────────────────────────────────────────
 
-const DAY_COLUMNS: readonly DayColumn[] = ['made', 'transferred', 'wasted', 'counted']
+const DAY_COLUMNS: readonly DayColumn[] = ['made', 'transferred', 'sent', 'wasted', 'counted']
 
 function dayCellText(t: Translate, row: DayRow, column: DayColumn): { value: string; reason: string | null } {
   const cell = row.cells[column]
@@ -186,9 +186,9 @@ export function DayReading({ text, groups, dir, onSort, isDesktop, ...open }: Op
 }) {
   const { t } = text
   const heads: Record<DayColumn, string> = {
-    made: t('records.day.made'), transferred: t('records.day.transferred'), wasted: t('records.day.wasted'), counted: t('records.day.counted'),
+    sent: t('records.movement.sent'), made: t('records.day.made'), transferred: t('records.day.transferred'), wasted: t('records.day.wasted'), counted: t('records.day.counted'),
   }
-  const short: Record<DayColumn, string> = { made: t('records.day.made'), transferred: t('records.day.out'), wasted: t('records.day.waste'), counted: t('records.day.count') }
+  const short: Record<DayColumn, string> = { sent: t('records.movement.sent'), made: t('records.day.made'), transferred: t('records.day.out'), wasted: t('records.day.waste'), counted: t('records.day.count') }
   const cell = (row: DayRow, column: DayColumn): ReactNode => {
     const { value, reason } = dayCellText(t, row, column)
     return <>{value}{reason ? <span className="sr-only"> ({reason})</span> : null}</>

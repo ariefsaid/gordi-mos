@@ -22,7 +22,7 @@ vi.mock('@/auth/use-auth')
 const locationMocks = vi.hoisted(() => ({ choices: vi.fn() }))
 vi.mock('@/lib/use-cafe-location-choices', async importActual => {
   const actual = await importActual<typeof import('@/lib/use-cafe-location-choices')>()
-  return { ...actual, useCafeLocationChoices: locationMocks.choices }
+  return { ...actual, useCafeLocationChoices: locationMocks.choices, readCafeLocationChoices: async () => locationMocks.choices() }
 })
 import { useAuth } from '@/auth/use-auth'
 
@@ -1225,6 +1225,36 @@ describe('AC-022: transfer over-availability rejects submit — "Only N availabl
     expect((qtyInput as HTMLInputElement).value).toBe('10')
     expect(screen.queryByText(/only \d+ \S+ available/i)).toBeNull()
     expect(screen.queryByText(/note required/i)).toBeNull()
+  })
+})
+
+describe('outlet sends', () => {
+  it.each(['en', 'id'] as const)('captures a same-stream outlet send in %s', async locale => {
+    locationMocks.choices.mockImplementation((selected?: ProductionStream | null) => selected === null
+      ? { status: 'idle', locations: [], defaults: null, retry: vi.fn() }
+      : { status: 'ready', locations: [
+      { id: 'kitchen', name: 'Kitchen', use: 'both', archived_at: null, branch_ids: [BRANCH_RUMAH_RAMES.id] },
+      { id: 'outlet', name: 'Outlet', use: 'storage', archived_at: null, branch_ids: [BRANCH_RUMAH_RAMES.id] },
+    ], defaults: { production_location_id: 'kitchen', storage_location_id: 'kitchen' }, retry: vi.fn() })
+    mockInsertKitchenLogBatch.mockResolvedValue(['outlet-log'])
+    mockFetchPlanMap.mockResolvedValue({ w1: { outlet_send: 4 } })
+    await renderTransferPage(VIEWER_MEMBER, undefined, locale)
+    const label = locale === 'id' ? 'Kirim ke outlet Rumah Rames' : 'Send to Rumah Rames outlet'
+    fireEvent.click(await movementTabAsync(new RegExp(`^${label}`)))
+    expect(screen.getByRole('combobox', { name: locale === 'id' ? 'Ke penyimpanan' : 'To storage' })).toHaveTextContent('Outlet')
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Ayam Bakar/i }), { target: { value: '4' } })
+    fireEvent.click(screen.getAllByRole('button', { name: locale === 'id' ? /^kirim/i : /^submit/i }).find(button => !button.hasAttribute('aria-pressed'))!)
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledWith([
+      expect.objectContaining({ action: 'outlet_send', destination_branch_id: null, from_storage_location_id: 'kitchen', to_storage_location_id: 'outlet', qty_porsi: 4 }),
+    ]))
+  })
+
+  it.each(['en', 'id'] as const)('other kitchens without an outlet place do not offer a send in %s', async locale => {
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_GORDI_HQ, activity: 'kitchen', produces: true })
+    mockListCafeDestinations.mockResolvedValue([...CAFE_DESTINATIONS, { origin_branch_id: BRANCH_GORDI_HQ.id, origin_activity: 'kitchen', destination_branch_id: BRANCH_RADIANT.id }])
+    await renderTransferPage(VIEWER_MEMBER, undefined, locale)
+    await screen.findAllByText('Ayam Bakar')
+    expect(screen.queryByText(locale === 'id' ? 'Kirim ke outlet Gordi HQ' : 'Send to Gordi HQ outlet')).not.toBeInTheDocument()
   })
 })
 
