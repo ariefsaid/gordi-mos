@@ -4,6 +4,7 @@
 import { useAuth } from '@/auth/use-auth'
 import { isShipGated } from '@/lib/ship-gate'
 import { streamKey } from '@/lib/kitchen-action-label'
+import { canPushCafe, canReviewCafe } from '@/lib/kitchen-gates'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { STOCK_COMPARISON_PATH, stockComparisonHref } from '@/lib/cafe-stock-comparison-url'
 
@@ -15,8 +16,8 @@ export interface ComparisonAudience {
 }
 
 export function audienceOf(accessRoles: readonly string[]): ComparisonAudience {
-  const all = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
-  return { admitted: all || accessRoles.includes('supervisor'), all }
+  const all = canPushCafe(accessRoles)
+  return { admitted: canReviewCafe(accessRoles), all }
 }
 
 /** May this viewer compare this one stream? */
