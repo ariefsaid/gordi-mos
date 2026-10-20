@@ -4,6 +4,8 @@ Load only what the task needs. `docs/` is local-only (gitignored); in a managed 
 
 ## Read on demand
 
+- `product-expectation.md`: the owner's expectations; the yardstick for every build, review and audit.
+
 - `docs/gotchas.md` before changing project behaviour or when something is surprising.
 - `docs/decisions.md` when applying an owner decision (`OD-*`) or Director decision (`DD-*`); name the type when citing it.
 - `CONTEXT.md` and `docs/agents/domain.md` when domain language or model is relevant.
