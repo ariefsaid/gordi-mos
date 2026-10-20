@@ -1,7 +1,11 @@
-export type KeysetTimestampColumn = 'created_at' | 'occurred_at'
+export type KeysetTimestampColumn = 'created_at' | 'occurred_at' | 'starts_at' | 'scheduled_date'
 
 export function keysetBeforeFilter(column: KeysetTimestampColumn, timestamp: string, id: string): string {
   return `${column}.lt.${timestamp},and(${column}.eq.${timestamp},id.lt.${id})`
+}
+
+export function keysetAfterFilter(column: KeysetTimestampColumn, timestamp: string, id: string): string {
+  return `${column}.gt.${timestamp},and(${column}.eq.${timestamp},id.gt.${id})`
 }
 
 export function keysetPageFromProbe<Row, Cursor>(

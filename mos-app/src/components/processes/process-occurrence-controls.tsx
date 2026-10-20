@@ -7,6 +7,7 @@ import type { PendingTaskRow, ProcessOccurrenceSummary } from '@/lib/db/processe
 import { formatDayMonthYear } from '@/lib/format/date'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
+import { ListPaging } from '@/components/ui/list-paging'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { TextInput } from '@/components/ui/text-input'
@@ -37,7 +38,7 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
   const { locale } = useI18n()
   // A host that lifts the occurrence data (the record header shows the Start primary) passes it in.
   const fetched = useProcessOccurrences(data ? null : workLineId, onChanged)
-  const { state, occurrences, startable, startableTeamIds, closableRunIds, authorityError, startingKey, startError, actionError, setActionError, load, retry } = data ?? fetched
+  const { state, occurrences, hasMore, loadingMore, moreError, loadMore, startable, startableTeamIds, closableRunIds, authorityError, startingKey, startError, actionError, setActionError, load, retry } = data ?? fetched
   const handleStart = (data ?? fetched).start
 
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
@@ -226,6 +227,8 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
           </ul>
         </RecordDisclosure>
       ) : null}
+      <ListPaging count={occurrences.length} hasMore={hasMore} loading={loadingMore}
+        error={moreError} onLoadMore={() => { void loadMore() }} />
 
       {assignRunId ? (
         <OccurrenceAssignDialog

@@ -11,6 +11,7 @@ import type { TaskRow } from '@/lib/db/tasks.types'
 // ── Mock the data layer (table + drawer both pull from it) ────────────────────
 vi.mock('../lib/db/tasks', () => ({
   listTasks: vi.fn(),
+  listTasksPage: vi.fn(),
   hasOlderDoneTasks: vi.fn(),
   listOlderDoneTasks: vi.fn(),
   listTaskEvents: vi.fn(),
@@ -44,7 +45,7 @@ vi.mock('../lib/comments/postComment', () => ({
 }))
 
 import {
-  listTasks, hasOlderDoneTasks, listOlderDoneTasks, listTaskEvents,
+  listTasks, listTasksPage, hasOlderDoneTasks, listOlderDoneTasks, listTaskEvents,
   getTask, updateTaskStatus, createTask, archiveTask,
 } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
@@ -61,6 +62,7 @@ import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
 
 const mockListTasks = vi.mocked(listTasks)
+const mockListTasksPage = vi.mocked(listTasksPage)
 const mockHasOlderDoneTasks = vi.mocked(hasOlderDoneTasks)
 const mockListOlderDoneTasks = vi.mocked(listOlderDoneTasks)
 const mockGetTask = vi.mocked(getTask)
@@ -189,6 +191,10 @@ const TEAMS = [{ id: 'team-kitchen', name: 'Kitchen Team', businessUnitId: 'bu-1
 
 beforeEach(() => {
   vi.resetAllMocks()
+  mockListTasksPage.mockImplementation(async (filters, _before, cutoff, readLease) => ({
+    rows: await mockListTasks(filters, readLease, cutoff), nextCursor: null, hasMore: false,
+  }))
+  mockListTasks.mockResolvedValue([])
   localStorage.clear()
   stubMatchMedia(true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
