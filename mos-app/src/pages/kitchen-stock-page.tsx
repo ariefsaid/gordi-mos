@@ -168,6 +168,14 @@ function KitchenStockPageForViewer() {
   // as on capture: an explicit choice, never a silent fallback to the catalog's first branch.
   // A read surface that guesses is worse than one that asks — it answers "how much stock is
   // there" about books the person never picked.
+  // One place adopts a finished stock read: rows, their unit labels and default units.
+  const showRead = useCallback((data: KitchenStockRow[], settings: CafeItemSetting[]) => {
+    setRows(data)
+    setUnitNames(stockUnitNames(settings))
+    setDefaultUnitIds(Object.fromEntries(settings.map(item => [item.id, item.defaultUnitId])))
+    setLoad({ kind: 'ready' })
+  }, [])
+
   const bootstrap = useCallback(async () => {
     const gen = ++requestGen.current
     setLoad({ kind: 'loading' })
@@ -181,15 +189,12 @@ function KitchenStockPageForViewer() {
       }
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
       adoptStream(catalog)
-      setRows(data)
-      setUnitNames(stockUnitNames(settings))
-      setDefaultUnitIds(Object.fromEntries(settings.map(item => [item.id, item.defaultUnitId])))
-      setLoad({ kind: 'ready' })
+      showRead(data, settings)
     } catch {
       if (gen !== requestGen.current) return
       setLoad({ kind: 'error' })
     }
-  }, [asOf, resolveStream, adoptStream])
+  }, [asOf, resolveStream, adoptStream, showRead])
 
   // Switching the stream re-reads the rows: the same dish has a different balance in
   // another stream's books (OD-WAY-28) — a kept list would show one stream's numbers
@@ -203,15 +208,12 @@ function KitchenStockPageForViewer() {
       const data = await fetchKitchenStock(asOf, next)
       const settings = data.length > 0 ? await listCafeItemSettings(next) : []
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
-      setRows(data)
-      setUnitNames(stockUnitNames(settings))
-      setDefaultUnitIds(Object.fromEntries(settings.map(item => [item.id, item.defaultUnitId])))
-      setLoad({ kind: 'ready' })
+      showRead(data, settings)
     } catch {
       if (gen !== requestGen.current) return
       setLoad({ kind: 'error' })
     }
-  }, [asOf, chooseStream])
+  }, [asOf, chooseStream, showRead])
 
   // Read once authenticated (an unauthenticated viewer never triggers the read).
   useEffect(() => {
