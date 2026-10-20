@@ -5,9 +5,9 @@
 // "Waiting for you" and the Review page's tabs all read the same counts, never a request per consumer.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
-import { listSubmittedKitchenLogs } from '@/lib/db/kitchen-logs'
-import { listCafeCountLines } from '@/lib/db/cafe-count'
-import { listCafeReceipts } from '@/lib/db/cafe-receipts'
+import { countSubmittedKitchenLogs } from '@/lib/db/kitchen-logs'
+import { countSubmittedCafeCountLines } from '@/lib/db/cafe-count'
+import { countCafeReceipts } from '@/lib/db/cafe-receipts'
 import { listCafePurchaseRequests } from '@/lib/db/cafe-purchase-requests'
 import { countCafeReceiptIssuesNeedingPo } from '@/lib/db/cafe-receipt-issues'
 import { listEsbPushes } from '@/lib/db/kitchen-pushes'
@@ -46,9 +46,9 @@ export function useCafeWaitingSource(enabled: boolean): CafeWaiting {
   const load = useCallback((key: WaitingKey, quiet = false) => {
     if (!enabled || !viewerId || !admitted) return
     if (!quiet) setQueues(current => ({ ...current, [key]: { status: 'loading' } }))
-    const read: Promise<number | unknown[]> = key === 'logs' ? listSubmittedKitchenLogs()
-      : key === 'counts' ? listCafeCountLines()
-        : key === 'receipts' ? listCafeReceipts(['Submitted'], { photosFor: [] })
+    const read: Promise<number | unknown[]> = key === 'logs' ? countSubmittedKitchenLogs()
+      : key === 'counts' ? countSubmittedCafeCountLines()
+        : key === 'receipts' ? countCafeReceipts(['Submitted'])
           : key === 'requests' ? listCafePurchaseRequests(['Submitted'])
             : key === 'failed' ? Promise.all([listEsbPushes({ status: 'dead_letter' }, 50), listEsbPushes({ status: 'failed' }, 50)]).then(([a, b]) => [...a, ...b])
               : countCafeReceiptIssuesNeedingPo()

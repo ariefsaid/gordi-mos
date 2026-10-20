@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { useState } from 'react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
@@ -41,8 +42,12 @@ const mockSignalComposer = vi.mocked(SignalComposer)
 
 import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
 
+const observedComposerValues: ReturnType<typeof useSignalComposer>[] = []
+
 function Opener() {
-  const { open, postCount } = useSignalComposer()
+  const context = useSignalComposer()
+  observedComposerValues.push(context)
+  const { open, postCount } = context
   return (
     <>
       <button type="button" onClick={() => open()}>open-composer</button>
@@ -87,6 +92,24 @@ beforeEach(() => {
 })
 
 describe('SignalComposerHost — one command, many entry points (C1, AC-428 backing / FR-417)', () => {
+  it('keeps the composer context stable for an unrelated parent render', async () => {
+    observedComposerValues.length = 0
+    mockUseAuth.mockReturnValue(authedViewer)
+    function ParentRerender() {
+      const [, setRevision] = useState(0)
+      return <>
+        <button type="button" onClick={() => setRevision(revision => revision + 1)}>Refresh parent</button>
+        <SignalComposerHost><Opener /></SignalComposerHost>
+      </>
+    }
+    render(<I18nProvider><ParentRerender /></I18nProvider>)
+    await waitFor(() => expect(observedComposerValues.at(-1)?.canPost).toBe(true))
+    const value = observedComposerValues.at(-1)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh parent' }))
+    expect(observedComposerValues.at(-1)).toBe(value)
+  })
+
   it('does not mount the composer before open() is called', () => {
     renderHost(authedViewer)
     expect(screen.queryByTestId('signal-composer-stub')).not.toBeInTheDocument()

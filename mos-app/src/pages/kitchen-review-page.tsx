@@ -96,10 +96,17 @@ function isOffPlan(log: ReviewLogRow, planQty: number): boolean {
   return log.qty_porsi !== planQty
 }
 
+const reviewQuantityFormatters = new Map<string, Intl.NumberFormat>()
+
 function formatLogEntryQuantity(log: ReviewLogRow): string {
   if (log.entry_quantity == null || log.entry_unit_name == null) return String(log.qty_porsi)
   const locale = document.documentElement.lang || 'en'
-  const format = (quantity: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 3 }).format(quantity)
+  let formatter = reviewQuantityFormatters.get(locale)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, { maximumFractionDigits: 3 })
+    reviewQuantityFormatters.set(locale, formatter)
+  }
+  const format = (quantity: number) => formatter.format(quantity)
   const factor = log.entry_unit_factor ?? 1
   const enteredUnit = factor === 1 ? log.entry_unit_name : formatUnitMultiple(factor, log.entry_unit_name, locale)
   const entered = factor === 1

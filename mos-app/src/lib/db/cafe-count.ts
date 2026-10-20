@@ -146,6 +146,15 @@ export async function listCafeCountableItems(stream: ProductionStream): Promise<
   })
 }
 
+/** Counts Submitted Counts without loading their figures or reviewer-only details. */
+export async function countSubmittedCafeCountLines(): Promise<number> {
+  const { count, error } = await supabase.schema('ops').from('cafe_count_lines')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'Submitted')
+  if (error) throw new Error(`countSubmittedCafeCountLines failed: ${error.message}`)
+  return count ?? 0
+}
+
 /** Reads Submitted Counts oldest-first across dates by default; RLS enforces the Café-log org read scope. */
 export async function listCafeCountLines(countDate?: string): Promise<CafeCountLine[]> {
   let query = supabase.schema('ops')

@@ -12,6 +12,17 @@ import { Select } from '@/components/ui/select'
 import { QuantityField } from '@/components/ui/quantity-field'
 import './wip-item-entry.css'
 
+const actualQuantityFormatters = new Map<string, Intl.NumberFormat>()
+
+function formatActualQuantity(quantity: number, locale: string): string {
+  let formatter = actualQuantityFormatters.get(locale)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 2 })
+    actualQuantityFormatters.set(locale, formatter)
+  }
+  return formatter.format(quantity)
+}
+
 interface WipItemEntryProps {
   itemName: string
   line: KitchenLogLine
@@ -234,9 +245,7 @@ export function WipItemDetail({
     : error === ''
       ? notes.trim() ? t('kitchen.log.stepper.noteReady') : t('kitchen.log.stepper.noteCue')
       : error
-  const formatActualQty = (quantity: number) => new Intl.NumberFormat(
-    document.documentElement.lang || 'en', { useGrouping: false, maximumFractionDigits: 2 },
-  ).format(quantity)
+  const formatActualQty = (quantity: number) => formatActualQuantity(quantity, document.documentElement.lang || 'en')
   const unitLabel = (unitOptions?.find(u => u.id === line.item_unit_id) ?? unitOptions?.find(u => u.is_default) ?? unitOptions?.[0])?.name ?? ''
   // Say how much IS available and why today's production is not in it yet (it counts once a lead approves it).
   const availableUnit = (unitOptions?.find(u => u.is_default) ?? unitOptions?.[0])?.name ?? unitLabel

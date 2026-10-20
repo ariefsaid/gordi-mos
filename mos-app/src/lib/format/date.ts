@@ -21,6 +21,35 @@ const WIB_DATE = new Intl.DateTimeFormat('en-CA', {
   month: '2-digit',
   day: '2-digit',
 })
+const WIB_WEEKDAY_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Jakarta',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+const weekdayFormatters = new Map<string, Intl.DateTimeFormat>()
+const utcDayMonthYearFormatters = new Map<string, Intl.DateTimeFormat>()
+const localDayMonthYearFormatters = new Map<string, Intl.DateTimeFormat>()
+const wibDateTimeFormatters = new Map<string, Intl.DateTimeFormat>()
+const wibShortDateTimeFormatters = new Map<string, Intl.DateTimeFormat>()
+
+function cachedDateFormatter(
+  cache: Map<string, Intl.DateTimeFormat>,
+  locale: string,
+  options: Intl.DateTimeFormatOptions,
+  cacheKey = locale,
+): Intl.DateTimeFormat {
+  let formatter = cache.get(cacheKey)
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, options)
+    cache.set(cacheKey, formatter)
+  }
+  return formatter
+}
 
 /** The Asia/Jakarta calendar date for an instant, formatted as YYYY-MM-DD. */
 export function wibToday(now: Date = new Date()): string {
@@ -41,12 +70,12 @@ export function formatWeekdayDayMonth(isoDate: string, locale?: Locale): string 
   const [y, m, d] = isoDate.split('-').map(Number)
   const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d))
   if (Number.isNaN(dt.getTime())) return isoDate
-  return dt.toLocaleDateString(resolveTag(locale), {
+  return cachedDateFormatter(weekdayFormatters, resolveTag(locale), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
     timeZone: 'UTC',
-  })
+  }).format(dt)
 }
 
 /** "12 Jun 2026" from a date-only ISO day or timestamp. Date-only days stay in UTC; timestamps
@@ -54,19 +83,23 @@ export function formatWeekdayDayMonth(isoDate: string, locale?: Locale): string 
 export function formatDayMonthYear(iso: string, locale?: Locale): string {
   const dt = new Date(iso)
   if (Number.isNaN(dt.getTime())) return iso
-  return dt.toLocaleDateString(resolveTag(locale), {
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(iso)
+  const cache = dateOnly ? utcDayMonthYearFormatters : localDayMonthYearFormatters
+  const tag = resolveTag(locale)
+  const cacheKey = dateOnly ? tag : `${tag}:${dt.getTimezoneOffset()}`
+  return cachedDateFormatter(cache, tag, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
-    ...(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? { timeZone: 'UTC' } : {}),
-  })
+    ...(dateOnly ? { timeZone: 'UTC' } : {}),
+  }, cacheKey).format(dt)
 }
 
 /** "12 Jun 2026, 12:30 WIB" — Asia/Jakarta wall clock with the WIB suffix (records, meta lines
  *  that carry the full date). */
 export function formatWibDateTime(value: string | Date, locale?: Locale): string {
   const date = value instanceof Date ? value : new Date(value)
-  const parts = new Intl.DateTimeFormat(resolveTag(locale), {
+  const parts = cachedDateFormatter(wibDateTimeFormatters, resolveTag(locale), {
     timeZone: 'Asia/Jakarta',
     year: 'numeric',
     month: 'short',
@@ -84,7 +117,7 @@ export function formatWibDateTime(value: string | Date, locale?: Locale): string
  *  (FR-046), never a browser-locale string. Shares the formatter pipeline with the full form. */
 export function formatWibShortDateTime(value: string | Date, locale?: Locale): string {
   const date = value instanceof Date ? value : new Date(value)
-  const parts = new Intl.DateTimeFormat(resolveTag(locale), {
+  const parts = cachedDateFormatter(wibShortDateTimeFormatters, resolveTag(locale), {
     timeZone: 'Asia/Jakarta',
     month: 'short',
     day: '2-digit',
@@ -101,15 +134,7 @@ export function formatWibShortDateTime(value: string | Date, locale?: Locale): s
  *  of formatWeekdayDayMonth, so a sync time reads like the reporting day beside it (WIB implied). */
 export function formatWibWeekdayTime(value: string | Date, locale?: Locale): string {
   const date = value instanceof Date ? value : new Date(value)
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(date)
+  const parts = WIB_WEEKDAY_FORMATTER.formatToParts(date)
   const pick = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((part) => part.type === type)?.value ?? ''
   const day = `${pick('year')}-${pick('month')}-${pick('day')}`
