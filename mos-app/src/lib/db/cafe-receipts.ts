@@ -215,6 +215,18 @@ type CafeReceiptListOptions = {
   photosFor?: readonly CafeReceiptStatus[]
 }
 
+// Read every stored draft's status without loading history, posting summaries or photos.
+export async function listCafeReceiptStatuses(ids: readonly string[]): Promise<Array<{ id: string; status: CafeReceiptStatus }>> {
+  const rows: Array<{ id: string; status: CafeReceiptStatus }> = []
+  const unique = [...new Set(ids)]
+  for (let start = 0; start < unique.length; start += 50) {
+    const { data, error } = await ops().from('cafe_receipts').select('id,status').in('id', unique.slice(start, start + 50))
+    if (error) throw new Error(`listCafeReceiptStatuses failed: ${error.message}`)
+    rows.push(...(data ?? []) as Array<{ id: string; status: CafeReceiptStatus }>)
+  }
+  return rows
+}
+
 /** Receipts the viewer may read, newest first; RLS returns their own and the streams they review. */
 export async function listCafeReceipts(statuses: readonly CafeReceiptStatus[], options: CafeReceiptListOptions = {}): Promise<CafeReceipt[]> {
   return (await readCafeReceipts(statuses, options)).receipts
