@@ -6,12 +6,16 @@ import { CreateDraftProvider } from '@/shell/create-drafts'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
-vi.mock('@/lib/db/objectives', () => ({
-  listObjectivesAll: vi.fn(),
-  createObjective: vi.fn(),
-  renameObjective: vi.fn(),
-  setObjectiveArchived: vi.fn(),
-}))
+vi.mock('@/lib/db/objectives', () => {
+  const listObjectivesAll = vi.fn()
+  return {
+    listObjectivesAll,
+    listObjectivesCatalogPage: vi.fn(async () => ({ rows: await listObjectivesAll(), cursor: null, hasMore: false })),
+    createObjective: vi.fn(),
+    renameObjective: vi.fn(),
+    setObjectiveArchived: vi.fn(),
+  }
+})
 vi.mock('@/lib/db/work-lines', () => ({ listWorkLinesAll: vi.fn() }))
 vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
 vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn() }))
@@ -25,7 +29,7 @@ vi.mock('@/components/catalog/catalog-record-document', () => ({
 }))
 vi.mock('@/components/tasks/task-drawer', () => ({ TaskOverlayContent: () => null }))
 
-import { listObjectivesAll, createObjective } from '@/lib/db/objectives'
+import { listObjectivesAll, listObjectivesCatalogPage, createObjective } from '@/lib/db/objectives'
 import { listWorkLinesAll } from '@/lib/db/work-lines'
 import { getBusinessUnits } from '@/lib/db/directory'
 import { listTasks } from '@/lib/db/tasks'
@@ -94,6 +98,20 @@ beforeEach(() => {
 })
 
 describe('Objectives collection-first contract', () => {
+  it.each([
+    { locale: 'en' as const, more: 'Load more items' },
+    { locale: 'id' as const, more: 'Muat item lainnya' },
+  ])('loads the next objective catalog page in $locale', async ({ locale, more }) => {
+    const row = (index: number) => ({ id: `obj-${String(index).padStart(3, '0')}`, name: `Objective ${index}`, archived_at: null })
+    vi.mocked(listObjectivesCatalogPage).mockResolvedValueOnce({ rows: Array.from({ length: 50 }, (_, index) => row(index + 1)), cursor: 'obj-050', hasMore: true })
+      .mockResolvedValueOnce({ rows: [row(51)], cursor: null, hasMore: false })
+    renderPage('/', locale)
+
+    await screen.findByRole('link', { name: 'Objective 1' })
+    fireEvent.click(screen.getByRole('button', { name: more }))
+    expect(await screen.findByRole('link', { name: 'Objective 51' })).toBeInTheDocument()
+    expect(listObjectivesCatalogPage).toHaveBeenLastCalledWith({ view: 'active', search: '' }, 'obj-050')
+  })
   it('renders real Objective links with their work lines and task progress', async () => {
     vi.mocked(listTasks).mockResolvedValue([
       task('t1', 'obj-1', 'wl-1', 'Done'),

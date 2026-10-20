@@ -36,6 +36,7 @@
 import { Fragment, useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import { useAuth } from '@/auth/use-auth'
+import { canAdminCafe } from '@/lib/kitchen-gates'
 import { EmptyState } from '@/components/ui/state-kit'
 import { useListboxPopover } from '@/components/ui/use-listbox-popover'
 import { CheckIcon } from '@/shell/icons'
@@ -365,7 +366,7 @@ export function CafeStreamChoices({
   const ranked = [...options].sort(
     (a, b) => myRank(a, homeStream, myStreamKeys) - myRank(b, homeStream, myStreamKeys),
   )
-  const showAdminHint = auth.status === 'authenticated' && auth.viewer.accessRoles.includes('admin')
+  const showAdminHint = auth.status === 'authenticated' && canAdminCafe(auth.viewer.accessRoles)
   return (
     <EmptyState variant="next-step" className="cafe-stream-choose" title={t('cafe.stream.chooseTitle')} copy={t('cafe.stream.chooseCopy')}>
       <div className="cafe-stream-choices">

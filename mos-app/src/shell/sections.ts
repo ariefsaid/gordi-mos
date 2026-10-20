@@ -1,6 +1,7 @@
 import type React from 'react'
 import type { MessageKey } from '@/i18n/messages'
-import { can } from '@/lib/capabilities'
+import { can, hasAnyAccessRole, MONEY_PLANNING_ROLES, REVENUE_VIEW_ROLES } from '@/lib/capabilities'
+import { CAFE_PUSH_ROLES, CAFE_REVIEW_ROLES } from '@/lib/kitchen-gates'
 import { isShipGated } from '@/lib/ship-gate'
 import type { ModuleAccessCheck } from '@/lib/module-availability'
 import type { ModuleId } from '@/lib/db/module-settings'
@@ -29,6 +30,8 @@ export interface Section {
    * pointing at a bounce — or a surface ends up with no link at all.
    */
   anyOf?: readonly string[]
+  /** The server-resolved read fact that also admits Café Pushes readers. */
+  readFact?: 'canReadCafePushes'
   /** Café's shared grouped navigation metadata. */
   group?: MessageKey
   /** Secondary route nested beneath its parent destination on Café navigation. */
@@ -37,11 +40,11 @@ export interface Section {
 
 /** Money leaves. Their role and feature gates mirror router.tsx; route admission is unchanged. */
 export const MONEY_SECTIONS: Section[] = [
-  { path: '/money', label: 'Overview', labelKey: 'money.pages.overview', Icon: MoneyIcon, anyOf: ['finance', 'manager', 'supervisor'] },
+  { path: '/money', label: 'Overview', labelKey: 'money.pages.overview', Icon: MoneyIcon, anyOf: REVENUE_VIEW_ROLES },
   { path: '/money/pending-bills', label: 'Pending bills', labelKey: 'nav.money.pendingBills', Icon: PendingBillIcon, anyOf: ['finance'] },
-  { path: '/money/budget', label: 'Budget creation', labelKey: 'money.pages.budget', Icon: PlanIcon, anyOf: ['finance', 'admin'] },
-  { path: '/money/pricing', label: 'Pricing pre-flight', labelKey: 'money.pages.pricing', Icon: PlanIcon, anyOf: ['finance', 'admin'] },
-  { path: '/money/follow-ups', label: 'AR Follow-up queue', labelKey: 'money.pages.followUps', Icon: MoneyIcon, anyOf: ['finance', 'admin'] },
+  { path: '/money/budget', label: 'Budget creation', labelKey: 'money.pages.budget', Icon: PlanIcon, anyOf: MONEY_PLANNING_ROLES },
+  { path: '/money/pricing', label: 'Pricing pre-flight', labelKey: 'money.pages.pricing', Icon: PlanIcon, anyOf: MONEY_PLANNING_ROLES },
+  { path: '/money/follow-ups', label: 'AR Follow-up queue', labelKey: 'money.pages.followUps', Icon: MoneyIcon, anyOf: MONEY_PLANNING_ROLES },
 ]
 
 /** Backward-compatible named leaf used by existing navigation code. */
@@ -87,13 +90,13 @@ export const CAFE_SECTIONS: Section[] = [
   { path: '/cafe/waste', label: 'Waste', labelKey: 'nav.cafe.waste', Icon: WasteIcon, group: 'cafe.nav.today' },
   { path: '/cafe/count', label: 'Stock count', labelKey: 'nav.cafe.count', Icon: CountIcon, group: 'cafe.nav.stock' },
   // Count reviewers only; the page and reporting RPC further limit stream scope.
-  { path: '/cafe/stock-comparison', label: 'Stock comparison', labelKey: 'nav.cafe.stockComparison', Icon: StockComparisonIcon, group: 'cafe.nav.stock', anyOf: ['ops_lead', 'admin', 'supervisor'] },
+  { path: '/cafe/stock-comparison', label: 'Stock comparison', labelKey: 'nav.cafe.stockComparison', Icon: StockComparisonIcon, group: 'cafe.nav.stock', anyOf: CAFE_REVIEW_ROLES },
   { path: '/cafe/receive', label: 'Receive', labelKey: 'nav.cafe.receive', Icon: ReceiveIcon, group: 'cafe.nav.stock' },
   { path: '/cafe/receive/issues', label: 'Receipt issues', labelKey: 'cafe.pageTitle.receiptIssues', Icon: ReceiveIcon, group: 'cafe.nav.stock', parentPath: '/cafe/receive' },
   { path: '/cafe/request', label: 'Request', labelKey: 'cafe.request.title', Icon: RequestIcon, group: 'cafe.nav.stock' },
   { path: '/cafe/stock', label: 'Available to transfer', labelKey: 'nav.cafe.stock', Icon: StockIcon, group: 'cafe.nav.stock' },
-  { path: '/cafe/review', label: 'Review', labelKey: 'nav.cafe.review', Icon: ReviewIcon, group: 'cafe.nav.close', anyOf: ['ops_lead', 'admin', 'supervisor'] },
-  { path: '/cafe/pushes', label: 'Pushes', labelKey: 'nav.cafe.pushes', Icon: DispatchIcon, group: 'cafe.nav.close', anyOf: ['ops_lead', 'admin'] },
+  { path: '/cafe/review', label: 'Review', labelKey: 'nav.cafe.review', Icon: ReviewIcon, group: 'cafe.nav.close', anyOf: CAFE_REVIEW_ROLES },
+  { path: '/cafe/pushes', label: 'Pushes', labelKey: 'nav.cafe.pushes', Icon: DispatchIcon, group: 'cafe.nav.close', anyOf: CAFE_PUSH_ROLES, readFact: 'canReadCafePushes' },
   { path: '/cafe/items', label: 'Items', labelKey: 'nav.cafe.items', Icon: ItemsIcon, group: 'cafe.nav.setup' },
   { path: '/cafe/recipes', label: 'Recipes', labelKey: 'nav.cafe.recipes', Icon: RecipesIcon, group: 'cafe.nav.setup' },
   // Preview ship state (lib/ship-gate.ts): `visibleSections` drops it unless the dev launch opted in.
@@ -115,15 +118,19 @@ export const CAFE_ROUTE_SECTIONS: Section[] = CAFE_SECTIONS
  * rather than beside them — and why the same array closes the route in `router.tsx`, so a link can
  * never survive a path that stopped routing.
  */
+export type ViewerNavFacts = { canReadCafePushes?: boolean }
+
 export function visibleSections(
   sections: readonly Section[],
   accessRoles: readonly string[],
   isOn: ModuleAccessCheck,
+  viewerFacts: ViewerNavFacts = {},
 ): Section[] {
   return sections.filter((section) => {
     if (isShipGated(section.path)) return false
     if (section.capability && !can(accessRoles, section.capability)) return false
-    const roleAdmitted = !section.anyOf || section.anyOf.some((role) => accessRoles.includes(role))
+    const factAdmitted = section.readFact === 'canReadCafePushes' && viewerFacts.canReadCafePushes === true
+    const roleAdmitted = !section.anyOf || hasAnyAccessRole(accessRoles, section.anyOf) || factAdmitted
     const moduleId = moduleForPath(section.path)
     return moduleId ? isOn(moduleId, roleAdmitted) : roleAdmitted
   })

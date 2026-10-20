@@ -11,10 +11,10 @@
 // — ADR-0015); Objectives are a separate collection. Both carry the FR-422 up/down trace, computed once
 // in `load()` over existing cascade data (no schema change) and rendered under each active row.
 import {
-  listObjectivesAll, createObjective, renameObjective, setObjectiveArchived,
+  listObjectivesAll, listObjectivesCatalogPage, createObjective, renameObjective, setObjectiveArchived,
 } from '@/lib/db/objectives'
 import {
-  listWorkLinesAll, createWorkLine, renameWorkLine, setWorkLineArchived,
+  listWorkLinesAll, listWorkLinesCatalogPage, createWorkLine, renameWorkLine, setWorkLineArchived,
 } from '@/lib/db/work-lines'
 import { listTasks } from '@/lib/db/tasks'
 import {
@@ -158,6 +158,8 @@ export interface CatalogCollectionContext {
   peopleById?: ReadonlyMap<string, string>
   businessUnits?: readonly BusinessUnitOption[]
   objectiveOptions?: readonly { value: string; label: string }[]
+  pageCursor?: string | null
+  pageHasMore?: boolean
 }
 
 /** A projection group — a catalog renders a single flat group (the active view). */
@@ -460,8 +462,8 @@ const inertSavedViews: CollectionSavedViewDescriptor<CatalogCollectionQuery, Cat
     list: async () => [],
     get: async () => null,
     create: async () => { throw new Error('catalog has no persisted views') },
-    rename: async () => {},
-    archive: async () => {},
+    rename: async () => { throw new Error('catalog has no persisted views') },
+    archive: async () => { throw new Error('catalog has no persisted views') },
   },
   operations: [],
   buildSpec: () => { throw new Error('catalog has no persisted views') },
@@ -472,7 +474,7 @@ const inertSavedViews: CollectionSavedViewDescriptor<CatalogCollectionQuery, Cat
 function makeCatalogDescriptor(config: {
   id: string
   filterKeys: readonly QueryKey<CatalogCollectionQuery>[]
-  load: (readLease?: ReadLease) => Promise<CollectionData<CatalogRow, CatalogCollectionContext>>
+  load: (query: CatalogCollectionQuery, readLease?: ReadLease, afterId?: string) => Promise<CollectionData<CatalogRow, CatalogCollectionContext>>
 }): RecordCollectionDescriptor<
   CatalogRow,
   string,
@@ -487,9 +489,8 @@ function makeCatalogDescriptor(config: {
     defaultPresentation: 'list',
     query: catalogCollectionQuery,
     savedViews: inertSavedViews,
-    // Everything is filtered client-side in project() over one snapshot, so no query change needs a
-    // refetch — only an explicit retry() (after a create/rename/archive mutation) reloads.
-    loadKeys: [],
+    // Search and archive/type scope change the server page; sort stays local to the fetched rows.
+    loadKeys: ['view', 'q', 'type', 'coverage'],
     presentations: {
       list: {
         id: 'list',
@@ -508,7 +509,12 @@ function makeCatalogDescriptor(config: {
         render: (props) => <CatalogDirectionRegister {...props} />,
       },
     },
-    load: ({ readLease }) => config.load(readLease),
+    load: ({ readLease, query }) => config.load(query, readLease),
+    loadMore: async ({ query, readLease, data }) => mergeCatalogData(
+      data,
+      await config.load(query, readLease, data.context.pageCursor ?? undefined),
+    ),
+    hasMore: (data) => data.context.pageHasMore === true,
     project: (data, query) => projectCatalog(data, query),
     getId: (row) => row.id,
     // Catalog reads are org-wide; mutation affordances are resolved by the page/record runtime
@@ -521,6 +527,31 @@ function readCatalogFragment<T>(readLease: ReadLease | undefined, key: string, l
   return readLease ? readLease.read(key, load) : load()
 }
 
+function mergeCatalogData(
+  previous: CollectionData<CatalogRow, CatalogCollectionContext>,
+  next: CollectionData<CatalogRow, CatalogCollectionContext>,
+): CollectionData<CatalogRow, CatalogCollectionContext> {
+  const mergeMap = <Value,>(before: ReadonlyMap<string, Value> | undefined, after: ReadonlyMap<string, Value> | undefined) =>
+    new Map([...(before ?? []), ...(after ?? [])])
+  const mergeOptions = <Value extends { value: string }>(before: readonly Value[] | undefined, after: readonly Value[] | undefined) =>
+    [...new Map([...(before ?? []), ...(after ?? [])].map((option) => [option.value, option] as const)).values()]
+  return {
+    records: [...previous.records, ...next.records],
+    context: {
+      ...previous.context,
+      ...next.context,
+      traceById: mergeMap(previous.context.traceById, next.context.traceById),
+      relationsById: mergeMap(previous.context.relationsById, next.context.relationsById),
+      progressById: mergeMap(previous.context.progressById, next.context.progressById),
+      lastActivityById: mergeMap(previous.context.lastActivityById, next.context.lastActivityById),
+      businessUnitsById: mergeMap(previous.context.businessUnitsById, next.context.businessUnitsById),
+      peopleById: mergeMap(previous.context.peopleById, next.context.peopleById),
+      businessUnits: [...new Map([...(previous.context.businessUnits ?? []), ...(next.context.businessUnits ?? [])].map((unit) => [unit.id, unit] as const)).values()],
+      objectiveOptions: mergeOptions(previous.context.objectiveOptions, next.context.objectiveOptions),
+    },
+  }
+}
+
 // ── Objectives (down-trace; no type filter) ────────────────────────────────────────────────────────
 
 export const objectivesCollectionDescriptor = makeCatalogDescriptor({
@@ -529,12 +560,14 @@ export const objectivesCollectionDescriptor = makeCatalogDescriptor({
   // data for — mirrors Projects/Processes' existing 'type' filter (same CollectionToolbar
   // `filters` mechanism, no second filter grammar).
     filterKeys: ['view', 'coverage'],
-  load: async (readLease) => {
-    const [objectives, tasks, workLines] = await Promise.all([
-      readCatalogFragment(readLease, 'mos.objectives:select(id,name,archived_at,business_unit_id,is_company_wide,accountable_person_id,period_year,period_quarter):order=archived_at.asc.nulls_first,name.asc', () => listObjectivesAll()),
+  load: async (query, readLease, afterId) => {
+    const [objectivePage, tasks, workLines] = await Promise.all([
+      readCatalogFragment(readLease, `mos.objectives.catalog:${JSON.stringify({ view: query.view, search: query.q, afterId })}`, () =>
+        listObjectivesCatalogPage({ view: query.view, search: query.q }, afterId)),
       readLease ? listTasks({}, readLease) : listTasks({}),
       readCatalogFragment(readLease, 'mos.work_lines:select(id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id,archived_at):order=archived_at.asc.nulls_first,name.asc', () => listWorkLinesAll()),
     ])
+    const objectives = objectivePage.rows
     const t = translateFor(readPersistedLocale())
     const labels = cascadeLabels(t)
     // The Tasks grouping supplies a deduplicated Task set for counts; the catalog projection
@@ -566,6 +599,8 @@ export const objectivesCollectionDescriptor = makeCatalogDescriptor({
         lastActivityById: latestActivityById(relationProjection, objectives.map((row) => row.id), 'objective'),
         ...directory,
         objectiveOptions: objectives.map((objective) => ({ value: objective.id, label: objective.name })),
+        pageCursor: objectivePage.cursor,
+        pageHasMore: objectivePage.hasMore,
       },
     }
   },
@@ -589,12 +624,14 @@ export const objectivesCatalogActions = {
 export const projectsProcessesCollectionDescriptor = makeCatalogDescriptor({
   id: 'work_lines',
   filterKeys: ['view', 'type'],
-  load: async (readLease) => {
-    const [workLines, tasks, objectives] = await Promise.all([
-      readCatalogFragment(readLease, 'mos.work_lines:select(id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id,archived_at):order=archived_at.asc.nulls_first,name.asc', () => listWorkLinesAll()),
+  load: async (query, readLease, afterId) => {
+    const [workLinePage, tasks, objectives] = await Promise.all([
+      readCatalogFragment(readLease, `mos.work_lines.catalog:${JSON.stringify({ view: query.view, search: query.q, type: query.type, afterId })}`, () =>
+        listWorkLinesCatalogPage({ view: query.view, search: query.q, type: query.type }, afterId)),
       readLease ? listTasks({}, readLease) : listTasks({}),
       readCatalogFragment(readLease, 'mos.objectives:select(id,name,archived_at,business_unit_id,is_company_wide,accountable_person_id,period_year,period_quarter):order=archived_at.asc.nulls_first,name.asc', () => listObjectivesAll()),
     ])
+    const workLines = workLinePage.rows
     const t = translateFor(readPersistedLocale())
     const labels = cascadeLabels(t)
     // Keep the Task census and catalog relationships aligned as in the Objectives descriptor.
@@ -651,6 +688,8 @@ export const projectsProcessesCollectionDescriptor = makeCatalogDescriptor({
         lastActivityById: latestActivityById(relationProjection, workLines.map((row) => row.id), 'work_line'),
         ...directory,
         objectiveOptions: objectives.map((objective) => ({ value: objective.id, label: objective.name })),
+        pageCursor: workLinePage.cursor,
+        pageHasMore: workLinePage.hasMore,
       },
     }
   },

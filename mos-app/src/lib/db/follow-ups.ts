@@ -16,7 +16,7 @@ export interface FollowUpRow {
   lane: FollowUpLane
   source_invoice_ref: string | null
   original_amount: number
-  running_balance: number
+  running_balance: number | null
   state: FollowUpState
   promise_date: string | null
   issued_date: string | null

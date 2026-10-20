@@ -95,6 +95,8 @@ export interface BranchRow {
   code: string
   name: string
   revenue: number
+  /** True when any day in the selected range has not been received. */
+  partial: boolean
   /** Change against the previous period of the same length, counting only day pairs where both
    *  days were received. Null when no such pair exists or the earlier side is zero. */
   vsPrevious: number | null
@@ -272,6 +274,7 @@ export function buildBranchTable(
     const row: BranchRow = {
       code: s.code, name: s.name,
       revenue: dates.reduce((sum, d) => sum + (s.byDate.get(d) ?? 0), 0),
+      partial: dates.some((date) => s.byDate.get(date) === undefined),
       vsPrevious: change(periodPairs), latestDay: s.byDate.get(latestDate) ?? null,
       vsWeekday: change(weekdayPairs), trend: dates.map((date) => s.byDate.get(date) ?? null),
     }
@@ -290,7 +293,7 @@ export function buildBranchTable(
   const companyMargin = scopedMargin ? marginFigures(scopedMargin, window.from, window.to) : null
   const previousMargin = scopedMargin ? marginFigures(scopedMargin, previousStart, previousEnd).pct : null
   const company: CompanyRow = {
-    revenue: all.reduce((s, r) => s + r.revenue, 0), vsPrevious: change(companyPeriod),
+    revenue: all.reduce((s, r) => s + r.revenue, 0), partial: all.some((row) => row.partial), vsPrevious: change(companyPeriod),
     latestDay: all.some((row) => row.latestDay !== null) ? all.reduce((s, r) => s + (r.latestDay ?? 0), 0) : null,
     vsWeekday: change(companyWeekday),
     missingLatest: branches.filter((r) => r.latestDay === null).length,

@@ -32,7 +32,7 @@ interface Props {
 // the in-memory read module, so it cannot revive an earlier lease.
 let nextReadScopeGeneration = 0
 
-function makeAuthorityKey(result: ViewerResult): string {
+function makeAuthorityKey(result: Pick<ViewerResult, 'roles' | 'isManager' | 'accessRoles' | 'affiliated'> & { canReadCafePushes?: boolean }): string {
   const roles = result.roles
     .map((role) => ({
       id: role.id,
@@ -46,6 +46,7 @@ function makeAuthorityKey(result: ViewerResult): string {
     isManager: result.isManager,
     accessRoles: [...new Set(result.accessRoles)].sort(),
     affiliated: [...new Set(result.affiliated)].sort(),
+    canReadCafePushes: result.canReadCafePushes,
   })
 }
 
@@ -145,17 +146,24 @@ export function AuthProvider({ children }: Props) {
     const readScope = buildReadScope(userId, person, result, activeScopeRef.current)
     activeScopeRef.current = readScope
     publishReadScope(readScope)
-    setState({
-      status: 'authenticated',
-      viewer: {
-        person,
-        roles: result.roles,
-        isManager: result.isManager,
-        accessRoles: result.accessRoles,
-        affiliated: result.affiliated,
-      },
-      readScope,
-      signOut: handleSignOut,
+    setState(current => {
+      const currentViewer = current.status === 'authenticated' ? current.viewer : null
+      const viewer = currentViewer
+        && currentViewer.person.id === person.id
+        && makeAuthorityKey(currentViewer) === makeAuthorityKey(result)
+        ? currentViewer
+        : {
+            person,
+            roles: result.roles,
+            isManager: result.isManager,
+            accessRoles: result.accessRoles,
+            affiliated: result.affiliated,
+            canReadCafePushes: result.canReadCafePushes,
+          }
+      if (current.status === 'authenticated' && current.viewer === viewer && current.readScope === readScope) {
+        return current
+      }
+      return { status: 'authenticated', viewer, readScope, signOut: handleSignOut }
     })
   }, [handleSignOut, retireReadScope])
 

@@ -21,7 +21,9 @@ const reporting = () => supabase.schema('reporting')
  * (POS-only today — no channel dimension; see §7a). */
 export interface SalesMarginDailyRow {
   margin_date: string
+  /** Representative ERP company code; use esb_codes when all contributing companies matter. */
   esb_code: string
+  esb_codes?: string[]
   branch_code: string
   branch_name: string | null
   /** Link to shared.branches; null until a human confirms the ERP code's mapping. */
@@ -35,12 +37,15 @@ export interface SalesMarginDailyRow {
   margin_interim: number | null
   /** data-quality badge for low BOM-recipe-coverage days. */
   bom_coverage_pct: number | null
+  /** Aggregate weights preserve the source-row mean across a selected date window. */
+  bom_coverage_pct_sum?: number | null
+  bom_coverage_count?: number
   snapshot_as_of: string
   source_contract_version: string
 }
 
 const SELECT =
-  'margin_date,esb_code,branch_code,branch_name,branch_id,revenue,cogs_interim_sm,cogs_budget_bom,margin_interim,bom_coverage_pct,snapshot_as_of,source_contract_version'
+  'margin_date,esb_code,esb_codes,branch_code,branch_name,branch_id,revenue,cogs_interim_sm,cogs_budget_bom,margin_interim,bom_coverage_pct,bom_coverage_pct_sum,bom_coverage_count,snapshot_as_of,source_contract_version'
 
 export interface SalesMarginDailyFilters {
   /** Only include rows with margin_date >= (today − sinceDays). */
@@ -58,7 +63,7 @@ export async function listSalesMarginDaily(
 ): Promise<SalesMarginDailyRow[]> {
   const since = daysAgoIsoDate(f.sinceDays ?? REPORTING_WINDOW_DAYS)
   return readAllPages<SalesMarginDailyRow>('listSalesMarginDaily', (from, to) => {
-    let query = reporting().from('sales_margin_daily').select(SELECT)
+    let query = reporting().from('sales_margin_daily_rollup').select(SELECT)
     query = query.gte('margin_date', f.fromDate ?? since)
     if (f.toDate) query = query.lte('margin_date', f.toDate)
     return query.order('margin_date', { ascending: true })

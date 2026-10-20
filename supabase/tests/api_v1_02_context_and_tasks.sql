@@ -476,7 +476,12 @@ insert into mos.signal_tasks (signal_id, task_id, created_by)
     from generate_series(1, 105) n;
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
-select is(jsonb_array_length(api_v1.get_task('00000000-0000-0000-0000-0000000000f1') -> 'item' -> 'signal_ids'), 105, 'get_task returns all linked Signal ids');
+select is(
+  (select array_agg(linked.signal_id::uuid order by linked.signal_id::uuid)
+     from jsonb_array_elements_text(api_v1.get_task('00000000-0000-0000-0000-0000000000f1') -> 'item' -> 'signal_ids') as linked(signal_id)),
+  (select array_agg(('00000000-0000-0000-0000-00000009' || lpad(n::text, 4, '0'))::uuid order by n)
+     from generate_series(1, 105) n),
+  'get_task returns every linked Signal id');
 
 select * from finish();
 rollback;

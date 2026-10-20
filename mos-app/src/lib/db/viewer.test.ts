@@ -80,6 +80,59 @@ describe('resolveViewer', () => {
     mockRpc.mockResolvedValue({ data: false, error: null })
   })
 
+  it('starts the independent authority reads together after resolving the person', async () => {
+    let releasePersonRoles!: (value: { data: { role_id: string; created_at: string }[]; error: null }) => void
+    let personRolesReadStarted = false
+    const personRolesQuery = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      then: (resolve: (value: unknown) => unknown) => {
+        personRolesReadStarted = true
+        return new Promise<{ data: { role_id: string; created_at: string }[]; error: null }>(done => {
+          releasePersonRoles = done
+        }).then(resolve)
+      },
+    }
+    const peopleQuery = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: personRow, error: null }),
+    }
+    const rolesQuery = {
+      select: vi.fn().mockReturnThis(),
+      then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [roleA], error: null }).then(resolve),
+    }
+    const heldRolesQuery = {
+      select: vi.fn().mockReturnThis(),
+      then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [{ role_id: ROLE_A_ID }], error: null }).then(resolve),
+    }
+    let personRolesCalls = 0
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'people') return asChain(peopleQuery)
+      if (table === 'roles') return asChain(rolesQuery)
+      if (table === 'person_roles') {
+        personRolesCalls += 1
+        return asChain(personRolesCalls === 1 ? personRolesQuery : heldRolesQuery)
+      }
+      throw new Error(`Unexpected table: ${table}`)
+    })
+    mockRpc.mockResolvedValue({ data: true, error: null })
+
+    const pending = resolveViewer(USER_ID)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(personRolesReadStarted).toBe(true)
+    expect(mockFrom).toHaveBeenCalledWith('roles')
+    expect(mockFrom).toHaveBeenCalledTimes(4)
+    expect(mockRpc).toHaveBeenCalledWith('is_cafe_affiliated')
+    expect(mockRpc).toHaveBeenCalledWith('can_read_cafe_pushes')
+
+    releasePersonRoles({ data: [{ role_id: ROLE_A_ID, created_at: '2026-01-01T00:00:00Z' }], error: null })
+    await expect(pending).resolves.toMatchObject({ person: personRow, roles: [roleA], isManager: false, affiliated: ['cafe'] })
+  })
+
   it('AC-012: resolveViewer returns Person + held Roles', async () => {
     // Track eq calls to assert no org_id filter
     const eqCalls: Array<[string, string]> = []
@@ -150,14 +203,14 @@ describe('resolveViewer', () => {
     expect(repeated.person).toEqual(personRow)
     expect(repeated.accessRoles).toEqual(['ops_lead'])
     expect(mockFrom).toHaveBeenCalledTimes(4)
-    expect(mockRpc).toHaveBeenCalledOnce()
+    expect(mockRpc).toHaveBeenCalledTimes(2)
 
     // A page load starts empty (memory only): authority another admin changed is never served from the tab.
     __resetReferenceCacheForTests(false)
     personRolesCallCount = 0
     await resolveViewer(USER_ID)
     expect(mockFrom).toHaveBeenCalledTimes(8)
-    expect(mockRpc).toHaveBeenCalledTimes(2)
+    expect(mockRpc).toHaveBeenCalledTimes(4)
 
     // Assert the query never filters by org_id (RLS scopes it — §8)
     const orgIdFilters = eqCalls.filter(([col]) => col === 'org_id')
@@ -537,6 +590,29 @@ describe('resolveViewer', () => {
 
       expect(mockRpc).toHaveBeenCalledWith('is_cafe_affiliated')
       expect(result.affiliated).toEqual(['cafe'])
+    })
+
+    it('AC-060: resolves the outbox-reader authorization fact into the viewer payload', async () => {
+      mockPeopleRead()
+      mockRpc.mockImplementation((name: string) => Promise.resolve({ data: name === 'can_read_cafe_pushes', error: null }))
+
+      const result = await resolveViewer(USER_ID)
+
+      expect(mockRpc).toHaveBeenCalledWith('can_read_cafe_pushes')
+      expect(result.canReadCafePushes).toBe(true)
+    })
+
+    it('a failed Pushes read-fact request fails closed', async () => {
+      mockPeopleRead()
+      mockRpc.mockImplementation((name: string) => Promise.resolve({
+        data: name === 'is_cafe_affiliated' ? true : null,
+        error: name === 'can_read_cafe_pushes' ? { message: 'read fact unavailable' } : null,
+      }))
+
+      const result = await resolveViewer(USER_ID)
+
+      expect(result.affiliated).toEqual(['cafe'])
+      expect(result.canReadCafePushes).toBe(false)
     })
 
     it('no stream membership answers false — the payload carries an empty list', async () => {

@@ -25,7 +25,7 @@ vi.mock('@/lib/db/deployment-stamp', () => ({ readDeploymentStamp: vi.fn().mockR
 
 import { MobileDrawer } from './mobile-drawer'
 
-function setAuthAs(accessRoles: string[] = [], affiliated: string[] = []) {
+function setAuthAs(accessRoles: string[] = [], affiliated: string[] = [], canReadCafePushes = false) {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -33,7 +33,7 @@ function setAuthAs(accessRoles: string[] = [], affiliated: string[] = []) {
         id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Cahya Cafe',
         email: 'c@example.test', archived_at: null, must_change_password: false, created_at: '', updated_at: '',
       },
-      roles: [], isManager: false, accessRoles, affiliated,
+      roles: [], isManager: false, accessRoles, canReadCafePushes, affiliated,
     },
     signOut: vi.fn(),
   })
@@ -44,8 +44,8 @@ function LocationDisplay() {
   return <div data-testid="location">{location.pathname}</div>
 }
 
-function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'], locale, affiliated = [], path = '/' }: { open?: boolean; onClose?: () => void; accessRoles?: string[]; locale?: 'id'; affiliated?: string[]; path?: string } = {}) {
-  setAuthAs(accessRoles, affiliated)
+function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'], locale, affiliated = [], path = '/', canReadCafePushes = false }: { open?: boolean; onClose?: () => void; accessRoles?: string[]; locale?: 'id'; affiliated?: string[]; path?: string; canReadCafePushes?: boolean } = {}) {
+  setAuthAs(accessRoles, affiliated, canReadCafePushes)
   return render(
     <ThemeProvider>
       <I18nProvider initialLocale={locale}>
@@ -106,6 +106,16 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
     expect(screen.queryByRole('link', { name: /^Log$/ })).toBeNull()
     expect(screen.queryByRole('link', { name: /^Review$/ })).toBeNull()
     expect(screen.queryByRole('link', { name: /^Pushes$/ })).toBeNull()
+  })
+
+  it('offers Pushes only when the viewer outbox-read fact admits them', () => {
+    renderDrawer({ accessRoles: ['manager'], canReadCafePushes: true, path: '/cafe' })
+    expect(document.querySelector('a[href="/cafe/pushes"]')).toBeInTheDocument()
+  })
+
+  it('does not offer Pushes to a manager whose read fact is false', () => {
+    renderDrawer({ accessRoles: ['manager'], canReadCafePushes: false, path: '/cafe' })
+    expect(document.querySelector('a[href="/cafe/pushes"]')).toBeNull()
   })
 
   it('hides Work and Money when their org switches are off', () => {

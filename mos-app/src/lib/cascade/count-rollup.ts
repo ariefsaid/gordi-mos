@@ -317,7 +317,3 @@ export function rollUpCounts<T extends CascadeTask>(
     }),
   }
 }
-
-export function formatCountRollup(count: CountRollup): string {
-  return `${count.done} / ${count.total} done`
-}

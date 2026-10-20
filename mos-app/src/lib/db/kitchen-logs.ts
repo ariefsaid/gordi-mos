@@ -387,7 +387,7 @@ export async function resolveKitchenBuId(): Promise<string> {
  */
 interface StockForDateRow {
   wip_item_id: string
-  usable_qty: number
+  usable_qty: number | null
   available_qty: number
 }
 
@@ -463,7 +463,7 @@ export async function fetchKitchenStock(
         wip_item_name: item.mosName,
         category: item.category,
         on_stream: offered.has(item.id),
-        stok: s?.usable_qty ?? 0,
+        stok: s?.usable_qty ?? null,
         tersedia: s?.available_qty ?? 0,
       }
     })
@@ -613,6 +613,15 @@ export const KITCHEN_LOGS_PAGE_SIZE = 50
 export type KitchenLogsWindow = {
   before?: Pick<ReviewLogRow, 'log_date' | 'created_at' | 'id'>
   stream?: { branchId: string; activity: ProductionActivity }
+}
+
+/** Counts Submitted kitchen logs without downloading their rows. */
+export async function countSubmittedKitchenLogs(): Promise<number> {
+  const { count, error } = await ops().from('kitchen_logs')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'Submitted')
+  if (error) throw new Error(`countSubmittedKitchenLogs failed — ${error.message}`)
+  return count ?? 0
 }
 
 /**

@@ -1,7 +1,7 @@
 -- AC-013: the Retail Ops manager may read dispatch rows, but cannot operate the queue.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(5);
+select plan(9);
 insert into shared.roles (id, org_id, business_unit_id, name)
 values ('30000000-0000-0000-0000-000000000009',
         '10000000-0000-0000-0000-000000000001',
@@ -21,6 +21,7 @@ set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000001","access_roles":["member","manager"]}');
 select cmp_ok((select count(*)::int from integrations.esb_push), '>', 0,
   'AC-013: Retail Ops manager reads the org outbox');
+select ok(shared.can_read_cafe_pushes(), 'Retail Ops manager read fact is true');
 select throws_ok($$insert into integrations.esb_push (org_id, source_module, source_ref, endpoint, payload, target_env, dedup_key)
   values ('10000000-0000-0000-0000-000000000001','test','reader-denied','noop','{}','dry_run','reader-denied')$$,
   '42501', null, 'AC-013: manager cannot retry by inserting an outbox row');
@@ -28,11 +29,15 @@ select throws_ok($$insert into integrations.esb_push (org_id, source_module, sou
 select shared._test_set_access_roles('{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000003","access_roles":["member","manager"]}');
 select is((select count(*)::int from integrations.esb_push), 0,
   'AC-013: a manager whose only unit role sits outside Retail Ops reads no outbox rows');
+select ok(not shared.can_read_cafe_pushes(), 'non-Retail Ops manager read fact is false');
 select shared._test_set_access_roles('{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000005","access_roles":["member","manager","finance"]}');
 select is((select count(*)::int from integrations.esb_push), 0,
   'AC-013: finance is refused the outbox');
+select ok(not shared.can_read_cafe_pushes(), 'finance read fact is false');
 select throws_ok($$ update integrations.esb_push set payload = payload
   where id = (select id from integrations.esb_push limit 1) $$,
   '42501', null, 'AC-013: the manager has no direct UPDATE privilege on the outbox');
+select shared._test_set_access_roles('{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000001","access_roles":["member","ops_lead"]}');
+select ok(shared.can_read_cafe_pushes(), 'ops lead read fact remains true');
 select * from finish();
 rollback;

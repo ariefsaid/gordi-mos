@@ -81,6 +81,12 @@ function AuthScopeConsumer() {
   return <span data-testid="auth-scope-generation">{value}</span>
 }
 
+function ViewerIdentityConsumer({ capture }: { capture: (viewer: { canReadCafePushes?: boolean }) => void }) {
+  const auth = useAuth()
+  if (auth.status === 'authenticated') capture(auth.viewer)
+  return <span>{auth.status}</span>
+}
+
 function sessionFor(userId: string): Session {
   return { user: { id: userId } } as Partial<Session> as Session
 }
@@ -89,7 +95,7 @@ function viewerFor(userId: string) {
   const person = userId === 'auth-user-b'
     ? { ...personRow, id: '40000000-0000-0000-0000-000000000002', user_id: userId, full_name: 'Other Fixture' }
     : { ...personRow, user_id: userId }
-  return { person, roles, isManager: false, accessRoles: ['member'], affiliated: [] }
+  return { person, roles, isManager: false, accessRoles: ['member'], affiliated: [], canReadCafePushes: false }
 }
 
 async function flushAuth() {
@@ -132,7 +138,7 @@ describe('AuthProvider', () => {
       data: { session: { user: { id: 'auth-user-001' } } },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [] })
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [], canReadCafePushes: false })
 
     await act(async () => {
       render(
@@ -151,7 +157,7 @@ describe('AuthProvider', () => {
       data: { session: { user: { id: 'auth-user-orphan' } } },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: null, roles: [], isManager: false, accessRoles: [], affiliated: [] })
+    mockResolveViewer.mockResolvedValue({ person: null, roles: [], isManager: false, accessRoles: [], affiliated: [], canReadCafePushes: false })
 
     await act(async () => {
       render(
@@ -202,7 +208,7 @@ describe('AuthProvider', () => {
       data: { session: null },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [] })
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [], canReadCafePushes: false })
 
     let capturedCallback: Parameters<typeof supabase.auth.onAuthStateChange>[0] | null = null
     mockOnAuthStateChange.mockImplementation((cb) => {
@@ -244,7 +250,7 @@ describe('AuthProvider', () => {
       data: { session: { user: { id: 'auth-user-001' } } },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [] })
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [], canReadCafePushes: false })
     mockSignOut.mockResolvedValue({ error: null })
 
     const user = userEvent.setup()
@@ -302,7 +308,7 @@ describe('AuthProvider', () => {
       data: { session: { user: { id: 'auth-user-001' } } },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [] })
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [], canReadCafePushes: false })
     mockSignOut.mockResolvedValue({ error: null })
     const user = userEvent.setup()
     await act(async () => {
@@ -325,6 +331,62 @@ describe('AuthProvider', () => {
 
     await waitFor(() => expect(mockSignOut).toHaveBeenCalledOnce(), { timeout: 4000 })
     await waitFor(() => expect(screen.getByTestId('status').textContent).toBe('unauthenticated'))
+  })
+
+  it('reuses the viewer object for repeated sign-in with unchanged identity and authority', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+    let capturedCallback: Parameters<typeof supabase.auth.onAuthStateChange>[0] | null = null
+    mockOnAuthStateChange.mockImplementation((callback) => {
+      capturedCallback = callback
+      return { data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } } } as ReturnType<typeof supabase.auth.onAuthStateChange>
+    })
+    mockResolveViewer
+      .mockResolvedValueOnce(viewerFor('auth-user-a'))
+      .mockResolvedValueOnce(viewerFor('auth-user-a'))
+      .mockResolvedValueOnce({ ...viewerFor('auth-user-a'), accessRoles: ['ops_lead'] })
+    const observed: object[] = []
+
+    render(<AuthProvider><ViewerIdentityConsumer capture={viewer => observed.push(viewer)} /></AuthProvider>)
+    await flushAuth()
+
+    act(() => capturedCallback!('SIGNED_IN', sessionFor('auth-user-a')))
+    await flushAuth()
+    const firstViewer = observed.at(-1)
+    expect(firstViewer).toBeDefined()
+
+    act(() => capturedCallback!('SIGNED_IN', sessionFor('auth-user-a')))
+    await flushAuth()
+    expect(observed.at(-1)).toBe(firstViewer)
+
+    act(() => capturedCallback!('SIGNED_IN', sessionFor('auth-user-a')))
+    await flushAuth()
+    expect(observed.at(-1)).not.toBe(firstViewer)
+  })
+
+  it('replaces the viewer when the server-resolved Café Pushes read fact changes', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+    let capturedCallback: Parameters<typeof supabase.auth.onAuthStateChange>[0] | null = null
+    mockOnAuthStateChange.mockImplementation((callback) => {
+      capturedCallback = callback
+      return { data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } } } as ReturnType<typeof supabase.auth.onAuthStateChange>
+    })
+    mockResolveViewer
+      .mockResolvedValueOnce({ ...viewerFor('auth-user-a'), canReadCafePushes: false })
+      .mockResolvedValueOnce({ ...viewerFor('auth-user-a'), canReadCafePushes: true })
+    const observed: Array<{ canReadCafePushes?: boolean }> = []
+
+    render(<AuthProvider><ViewerIdentityConsumer capture={viewer => observed.push(viewer)} /></AuthProvider>)
+    await flushAuth()
+    act(() => capturedCallback!('SIGNED_IN', sessionFor('auth-user-a')))
+    await flushAuth()
+    const firstViewer = observed.at(-1)
+    expect(firstViewer?.canReadCafePushes).toBe(false)
+
+    act(() => capturedCallback!('SIGNED_IN', sessionFor('auth-user-a')))
+    await flushAuth()
+
+    expect(observed.at(-1)?.canReadCafePushes).toBe(true)
+    expect(observed.at(-1)).not.toBe(firstViewer)
   })
 
   it('does not revive A across A → B → A or an AuthProvider remount, and ignores a late B resolution', async () => {

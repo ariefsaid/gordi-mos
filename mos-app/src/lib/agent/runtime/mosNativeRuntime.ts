@@ -23,7 +23,6 @@ import type {
 import type { AgentChatRequest, ConversationMessage, AgentDecision, AgentCancel } from './transport.ts'
 import type { AgentAnswer } from './port.ts'
 import { decodeSseStream } from './transport.ts'
-import { makeId } from './makeId.ts'
 
 export interface MosNativeRuntimeOptions {
   /** Full URL of the agent-chat edge function (e.g. `${supABaseUrl}/functions/v1/agent-chat`). */
@@ -62,7 +61,7 @@ export class MosNativeRuntime implements AgentRuntime {
   }
 
   async createRun(input: { goal: string; context?: RunContext }): Promise<AgentRun> {
-    const id = makeId()
+    const id = crypto.randomUUID()
     this.runs.set(id, {
       messages: [{ role: 'user', content: input.goal }],
       context: input.context,

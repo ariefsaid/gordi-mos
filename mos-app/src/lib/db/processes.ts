@@ -1,8 +1,7 @@
 import { supabase } from '@/lib/supabase'
-import { announceOpenTaskCountChanged } from '@/lib/open-task-count-store'
+import { refreshOpenTaskCount } from '@/lib/open-task-count-store'
+import { keysetBeforeFilter, keysetPageFromProbe } from './keyset-filter'
 import type { DueProcessRun, PendingTaskRow, ProcessOccurrenceSummary, ProcessRunRollup, ProcessRunRow, SpawnResult, TaskDefLookup } from './processes.types'
-import type { TaskListRow } from './tasks.types'
-import { LIST_SELECT as TASK_LIST_SELECT } from './tasks'
 
 // Data layer for mos.process_runs + friends (Step 6 / ADR-0051). Reads/writes mos via
 // supabase.schema('mos') on the existing client — same client, RLS is the authority (mirrors
@@ -103,11 +102,11 @@ export async function resolvePendingTask(pendingId: string, picPersonId: string)
     p_pic_person_id: picPersonId,
   })
   if (error) throw new Error(`resolvePendingTask failed — ${error.message}`)
-  announceOpenTaskCountChanged()
+  void refreshOpenTaskCount()
   return data as string
 }
 
-// ── getRunRollup / listRunTasks / completeRun (B4) ───────────────────────────
+// ── getRunRollup / completeRun (B4) ─────────────────────────────────────────
 
 /** Read a run's derived progress roll-up (no stored counts — ADR D9). */
 export async function getRunRollup(runId: string): Promise<ProcessRunRollup> {
@@ -120,17 +119,6 @@ export async function getRunRollup(runId: string): Promise<ProcessRunRollup> {
   return data as unknown as ProcessRunRollup
 }
 
-/** List a run's generated Tasks. Reuses the canonical task shape (TaskListRow, Rule 11 — never
- * re-implement task fetching); the DB stamps `process_run_id` on spawn/resolve (ADR D10). */
-export async function listRunTasks(runId: string): Promise<TaskListRow[]> {
-  const { data, error } = await mos()
-    .from('tasks')
-    .select(TASK_LIST_SELECT)
-    .eq('process_run_id', runId)
-  if (error) throw new Error(`listRunTasks failed — ${error.message}`)
-  return (data ?? []) as unknown as TaskListRow[]
-}
-
 /** Batched roll-up read for the Occurrence group-by in `/work/tasks` (Track C wiring): one
  * `.in('process_run_id', runIds)` read instead of N `getRunRollup` calls per rendered occurrence
  * group. Returns `[]` (no network call) for an empty `runIds` list. */
@@ -140,29 +128,42 @@ export async function listRunRollups(runIds: string[]): Promise<ProcessRunRollup
     .from('process_run_rollup')
     .select(ROLLUP_COLUMNS)
     .in('process_run_id', runIds)
+    .limit(runIds.length)
   if (error) throw new Error(`listRunRollups failed — ${error.message}`)
   return (data ?? []) as unknown as ProcessRunRollup[]
 }
 
-/** Load a Process record's existing occurrences with their authoritative derived counts and Team
- * names. This is a read-only composition seam for Work record documents; lifecycle writes remain
- * the existing RPCs below, and generated Tasks are never edited by this loader. */
-export async function listProcessOccurrenceSummaries(workLineId: string): Promise<ProcessOccurrenceSummary[]> {
-  const { data: runData, error: runError } = await mos()
+export const PROCESS_OCCURRENCES_PAGE_SIZE = 50
+export type ProcessOccurrenceCursor = Pick<ProcessRunRow, 'scheduled_date' | 'id'>
+export type ProcessOccurrencePage = {
+  rows: ProcessOccurrenceSummary[]
+  nextCursor: ProcessOccurrenceCursor | null
+  hasMore: boolean
+}
+
+/** Load a bounded Process occurrence window with authoritative derived counts and Team names. */
+export async function listProcessOccurrenceSummaries(
+  workLineId: string, before?: ProcessOccurrenceCursor | null,
+): Promise<ProcessOccurrencePage> {
+  let query = mos()
     .from('process_runs')
     .select('id,work_line_id,owning_team_id,period_key,caption,scheduled_date,status,definition_version,started_by,completed_at,completed_by,cancelled_at,cancelled_by,cancel_reason')
     .eq('work_line_id', workLineId)
-    .order('scheduled_date', { ascending: false })
+  if (before) query = query.or(keysetBeforeFilter('scheduled_date', before.scheduled_date, before.id))
+  const { data: runData, error: runError } = await query.order('scheduled_date', { ascending: false })
+    .order('id', { ascending: false }).limit(PROCESS_OCCURRENCES_PAGE_SIZE + 1)
   if (runError) throw new Error(`listProcessOccurrenceSummaries runs failed — ${runError.message}`)
 
-  const runs = (runData ?? []) as ProcessRunRow[]
-  if (runs.length === 0) return []
+  const page = keysetPageFromProbe((runData ?? []) as ProcessRunRow[], PROCESS_OCCURRENCES_PAGE_SIZE,
+    (run) => ({ scheduled_date: run.scheduled_date, id: run.id }))
+  const runs = page.rows
+  if (runs.length === 0) return { ...page, rows: [] }
 
   const runIds = runs.map((run) => run.id)
   const teamIds = Array.from(new Set(runs.map((run) => run.owning_team_id)))
   const [{ data: rollupData, error: rollupError }, { data: teamData, error: teamError }] = await Promise.all([
-    mos().from('process_run_rollup').select(ROLLUP_COLUMNS).in('process_run_id', runIds),
-    shared().from('teams').select('id,name').in('id', teamIds),
+    mos().from('process_run_rollup').select(ROLLUP_COLUMNS).in('process_run_id', runIds).limit(runIds.length),
+    shared().from('teams').select('id,name').in('id', teamIds).limit(teamIds.length),
   ])
   if (rollupError) throw new Error(`listProcessOccurrenceSummaries rollups failed — ${rollupError.message}`)
   if (teamError) throw new Error(`listProcessOccurrenceSummaries teams failed — ${teamError.message}`)
@@ -173,15 +174,18 @@ export async function listProcessOccurrenceSummaries(workLineId: string): Promis
     ((teamData ?? []) as Array<{ id: string; name: string }>).map((team) => [team.id, team.name]),
   )
 
-  return runs.map((run) => {
-    const rollup = rollupByRunId.get(run.id)
-    if (!rollup) throw new Error(`listProcessOccurrenceSummaries missing rollup for ${run.id}`)
-    return {
-      run,
-      team_name: teamNameById.get(run.owning_team_id) ?? run.owning_team_id,
-      rollup,
-    }
-  })
+  return {
+    ...page,
+    rows: runs.map((run) => {
+      const rollup = rollupByRunId.get(run.id)
+      if (!rollup) throw new Error(`listProcessOccurrenceSummaries missing rollup for ${run.id}`)
+      return {
+        run,
+        team_name: teamNameById.get(run.owning_team_id) ?? run.owning_team_id,
+        rollup,
+      }
+    }),
+  }
 }
 
 /** Mark a run complete via `mos.complete_process_run` — a deliberate human act; the run's Tasks

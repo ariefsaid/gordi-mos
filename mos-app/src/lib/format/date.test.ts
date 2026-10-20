@@ -11,6 +11,21 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+it('reuses one date formatter per locale for repeated timestamps', () => {
+  const DateTimeFormat = Intl.DateTimeFormat
+  const formatter = vi.spyOn(Intl, 'DateTimeFormat')
+  formatter.mockImplementation(function (locales, options) { return new DateTimeFormat(locales, options) })
+  try {
+    expect(formatWibDateTime('2026-06-12T05:30:00Z', 'en')).toBe('12 Jun 2026, 12:30 WIB')
+    expect(formatWibDateTime('2026-06-13T05:30:00Z', 'en')).toBe('13 Jun 2026, 12:30 WIB')
+    expect(formatter).toHaveBeenCalledTimes(1)
+    expect(formatWibDateTime('2026-06-12T05:30:00Z', 'id')).toBe('12 Jun 2026, 12:30 WIB')
+    expect(formatter).toHaveBeenCalledTimes(2)
+  } finally {
+    formatter.mockRestore()
+  }
+})
+
 describe('formatWeekdayDayMonth — "Wed 12 Jun" from a YYYY-MM-DD date', () => {
   it('formats en (en-GB grammar) by default', () => {
     expect(formatWeekdayDayMonth('2026-06-10')).toBe('Wed 10 Jun')

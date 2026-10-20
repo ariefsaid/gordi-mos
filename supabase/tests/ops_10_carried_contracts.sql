@@ -325,8 +325,8 @@ select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000
 select is(
   (select usable_qty from ops.kitchen_stock_for_date('2026-06-19','00000000-0000-0000-0000-00000000bf02','kitchen')
     where wip_item_id = '00000000-0000-0000-0000-00000000ab02'),
-  0::numeric(12,2),
-  'AC: an item with no stored balance that day reads 0, not a missing row — the capture surface needs a line for every item it can log against');
+  null::numeric(12,2),
+  'AC: an item with no stored balance that day keeps its stock amount unknown while its row remains available for capture');
 
 -- The lateral join is the reason a caller can trust one number against the other. If the two ever
 -- disagreed, the surface would show a start-of-day cut computed from a different rule than the one

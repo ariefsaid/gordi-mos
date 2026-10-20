@@ -31,6 +31,7 @@ export interface NavLayout {
   /** Below 768px there is no desktop nav at all: tabs and the More drawer are the nav. */
   isNarrow: boolean
   roles: string[]
+  canReadCafePushes: boolean
   isOn: ModuleAccessCheck
   /** One page-bearing destination → labelled sidebar; Work plus an admitted module → rail with contextual panel. */
   mode: NavMode
@@ -61,16 +62,18 @@ export function useNavLayout(): NavLayout {
   const { collapsed } = useRailCollapsePref()
   const { isOn } = useModuleAvailability()
   const roles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const canReadCafePushes = auth.status === 'authenticated' && auth.viewer.canReadCafePushes === true
+  const viewerFacts = { canReadCafePushes }
   const mode = navModeFor(roles, isOn)
   const compact = !isNarrow && (!fullWidth || collapsed)
   const area = destinationForPath(pathname)
   const panelCandidate = area && (area.id === 'work' || area.zone === 'modules' || area.id === 'admin') ? area : null
-  const panelArea = !compact && mode === 'panel' && panelCandidate && pageCount(pageGroupsFor(panelCandidate, roles, isOn)) >= 2 ? panelCandidate : null
+  const panelArea = !compact && mode === 'panel' && panelCandidate && pageCount(pageGroupsFor(panelCandidate, roles, isOn, viewerFacts)) >= 2 ? panelCandidate : null
   const columnWidth = compact ? 'var(--mos-rail-collapsed)'
     : mode === 'sidebar' ? 'var(--mos-rail-width)'
       : panelArea ? 'calc(var(--mos-rail-collapsed) + clamp(12rem, var(--mos-context-width), 16rem))' : 'var(--mos-rail-collapsed)'
   return {
-    isNarrow, roles, isOn, mode, compact, collapsible: !isNarrow && fullWidth, panelArea, area, columnWidth,
+    isNarrow, roles, canReadCafePushes, isOn, mode, compact, collapsible: !isNarrow && fullWidth, panelArea, area, columnWidth,
     brandWide: !compact && mode === 'sidebar',
   }
 }

@@ -4,25 +4,26 @@
 // cost basis is stale or uncertified (anchor A7). Warn-only margin floor (D5/OQ-3).
 //
 // Design authority: docs/specs/plan-budget.spec.md + docs/plans/2026-07-07-plan-budget.md.
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { useBudgetPages } from '@/hooks/use-budget-pages'
 import { useT } from '@/i18n/use-t'
 import { formatDayMonthYear } from '@/lib/format/date'
-import { listBudgets, getCertifiedMetric } from '@/lib/db/plan-budget'
+import { listBudgetsPage, getCertifiedMetric } from '@/lib/db/plan-budget'
 import {
   projectMargin,
   assessCostStatus,
   formatIDR,
   formatPct,
   MARGIN_FLOOR_PCT,
-  type BudgetRow,
   type CertifiedMetric,
 } from '@/lib/plan-budget-logic'
 import { FailLoudBadge } from '@/components/plan/fail-loud-badge'
 import { KPITile } from '@/components/dashboard/kpi-tile'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { ListPaging } from '@/components/ui/list-paging'
 import { Select } from '@/components/ui/select'
 import { TextInput } from '@/components/ui/text-input'
 import type { MessageKey } from '@/i18n/messages'
@@ -39,7 +40,16 @@ export function PricingPage() {
   const tx = (key: string) => t(key as MessageKey)
   useDocumentTitle(t('common.docTitle', { page: t('nav.planPricing') }))
 
-  const [budgets, setBudgets] = useState<BudgetRow[]>([])
+  const {
+    rows: budgets,
+    hasMore: budgetsHasMore,
+    loadingMore: loadingMoreBudgets,
+    moreError: budgetsMoreError,
+    invalidate: invalidateBudgetPages,
+    replacePage: replaceBudgetPage,
+    loadMore: loadMoreBudgetPage,
+  } = useBudgetPages()
+  const readGeneration = useRef(0)
   const [metric, setMetric] = useState<CertifiedMetric | null>(null)
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
@@ -47,17 +57,20 @@ export function PricingPage() {
   const [priceText, setPriceText] = useState<string>('')
 
   const fetchAll = useCallback(async () => {
+    const generation = ++readGeneration.current
+    invalidateBudgetPages()
     setLoad({ kind: 'loading' })
     try {
-      const [b, m] = await Promise.all([listBudgets(), getCertifiedMetric('cogs.budgeted')])
-      setBudgets(b)
+      const [page, m] = await Promise.all([listBudgetsPage(), getCertifiedMetric('cogs.budgeted')])
+      if (generation !== readGeneration.current) return
+      replaceBudgetPage(page)
       setMetric(m)
-      setSelectedBudgetId((prev) => (prev && b.some((x) => x.id === prev) ? prev : b[0]?.id ?? ''))
+      setSelectedBudgetId((prev) => (prev && page.rows.some((x) => x.id === prev) ? prev : page.rows[0]?.id ?? ''))
       setLoad({ kind: 'ready' })
     } catch {
-      setLoad({ kind: 'error' })
+      if (generation === readGeneration.current) setLoad({ kind: 'error' })
     }
-  }, [])
+  }, [invalidateBudgetPages, replaceBudgetPage])
 
   useEffect(() => {
     fetchAll()
@@ -137,18 +150,20 @@ export function PricingPage() {
           <Select id="pricing-budget-scenario" fullWidth value={selectedBudgetId} onChange={(e) => setSelectedBudgetId(e.target.value)}>
             {budgets.map((b) => <option key={b.id} value={b.id}>{b.menu_item_name} — {b.scenario_label} ({tx(`moneyB.budget.type.${b.scenario_type === 'new_branch' ? 'newBranch' : b.scenario_type}`)})</option>)}
           </Select>
+          <ListPaging count={budgets.length} hasMore={budgetsHasMore} loading={loadingMoreBudgets} error={budgetsMoreError}
+            onLoadMore={() => { void loadMoreBudgetPage((cursor) => listBudgetsPage(undefined, cursor)) }} />
           {budget && <span className="pp-available">{t('moneyB.pricing.count.other' as MessageKey, { count: String(budgets.length) })}</span>}
         </div>
 
         {budget && status && <section className="pp-basis" aria-label={tx('moneyB.pricing.linkedBasis')}>
           <div className="pp-basis-values">
             <div><span>{tx('moneyB.pricing.budgetedCogs')}</span><strong className="tabular">{formatIDR(budget.total_budgeted_cogs)}</strong></div>
-            <div><span>{tx('moneyB.pricing.basisDate')}</span><strong className="tabular">{shortDate(budget.cost_basis_as_of)}</strong></div>
+            <div><span>{tx('moneyB.pricing.basisDate')}</span><strong className="tabular">{budget.cost_basis_as_of ? shortDate(budget.cost_basis_as_of) : '—'}</strong></div>
             <FailLoudBadge status={status} />
           </div>
           {!status.fresh && <p className="pp-warn" role="alert" data-testid="pricing-freshness-warning">{tx('moneyB.pricing.staleWarning')}</p>}
           <Link className="pp-budget-link" to={`/money/budget?menu=${encodeURIComponent(budget.menu_item_esb_code)}&scenario=${encodeURIComponent(budget.id)}#captured-scenarios`}>{tx('moneyB.pricing.openBudgetContext')}</Link>
-          <p className="pp-basis-trace">{t('moneyB.pricing.basisTrace' as MessageKey, { menu: budget.menu_item_name, scenario: budget.scenario_label, date: shortDate(budget.cost_basis_as_of) })}</p>
+          <p className="pp-basis-trace">{t('moneyB.pricing.basisTrace' as MessageKey, { menu: budget.menu_item_name, scenario: budget.scenario_label, date: budget.cost_basis_as_of ? shortDate(budget.cost_basis_as_of) : '—' })}</p>
         </section>}
 
         <div className="pp-workspace">
@@ -158,9 +173,9 @@ export function PricingPage() {
           </div>
           <section className="pp-result-region" aria-label={tx('moneyB.pricing.projectedResult')}>
             <h2>{tx('moneyB.pricing.projectedResult')}</h2>
-            {margin ? <div className="pp-result" data-testid="pricing-result">
-              <KPITile className="pp-result-tile" label={tx('moneyB.pricing.grossMargin')} value={formatIDR(margin.margin)} />
-              <KPITile className="pp-result-tile" label={tx('moneyB.pricing.marginPct')} value={formatPct(margin.margin_pct)} delta={margin.below_floor ? { text: t('moneyB.pricing.belowFloor' as MessageKey, { floor: formatPct(MARGIN_FLOOR_PCT) }), tone: 'destructive' } : undefined} sub={margin.below_floor ? tx('moneyB.pricing.warnOnly') : tx('moneyB.pricing.formula')} />
+            {margin && budget ? <div className="pp-result" data-testid="pricing-result">
+              <KPITile className="pp-result-tile" label={tx('moneyB.pricing.grossMargin')} value={formatIDR(margin.margin)} asOf={budget.cost_basis_as_of ?? undefined} asOfPrefix={tx('moneyB.pricing.basisDate')} />
+              <KPITile className="pp-result-tile" label={tx('moneyB.pricing.marginPct')} value={formatPct(margin.margin_pct)} delta={margin.below_floor ? { text: t('moneyB.pricing.belowFloor' as MessageKey, { floor: formatPct(MARGIN_FLOOR_PCT) }), tone: 'destructive' } : undefined} sub={margin.below_floor ? tx('moneyB.pricing.warnOnly') : tx('moneyB.pricing.formula')} asOf={budget.cost_basis_as_of ?? undefined} asOfPrefix={tx('moneyB.pricing.basisDate')} />
             </div> : <p className="pp-result-empty">{tx('moneyB.pricing.noCandidate')}</p>}
           </section>
         </div>
