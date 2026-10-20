@@ -25,7 +25,7 @@
 .money-filter-select .mk-select { min-width: 0; }
 
 .money-results { display: flex; flex-direction: column; gap: 16px; min-width: 0; width: 100%; transition: opacity var(--mos-duration-fast) ease; }
-.money-results[aria-busy='true'] { cursor: progress; }
+.money-results[aria-busy='true'] { cursor: progress; opacity: 0.6; }
 
 .money-position__basis { margin: -8px 0 0; color: var(--muted-foreground); font-size: var(--mos-size-1); }
 .money-compare { min-width: 0; }
