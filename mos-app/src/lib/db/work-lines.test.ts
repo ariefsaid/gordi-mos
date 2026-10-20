@@ -6,7 +6,7 @@ vi.mock('../supabase', () => {
 })
 
 import {
-  listWorkLines, listWorkLinesAll, createWorkLine, renameWorkLine, setWorkLineArchived,
+  listWorkLines, listWorkLinesAll, listWorkLinesCatalogPage, createWorkLine, renameWorkLine, setWorkLineArchived,
   readWorkLine, updateWorkLine, searchWorkLinesByName,
 } from './work-lines'
 import { supabase } from '@/lib/supabase'
@@ -17,7 +17,11 @@ interface Recorder {
   fromTables: string[]
   selects: string[]
   eqs: Array<[string, unknown]>
+  ilikes: Array<[string, unknown]>
+  nots: Array<[string, unknown, unknown]>
   orders: Array<[string, unknown]>
+  limits: number[]
+  cursors: Array<[string, unknown]>
   inserts: unknown[]
   updates: unknown[]
 }
@@ -36,7 +40,11 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
     builder.select = vi.fn((s?: string) => { if (s) rec.selects.push(s); return builder })
     builder.is = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.eq = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
+    builder.ilike = vi.fn((c: string, v: unknown) => { rec.ilikes.push([c, v]); return builder })
+    builder.not = vi.fn((c: string, operator: unknown, v: unknown) => { rec.nots.push([c, operator, v]); return builder })
     builder.order = vi.fn((c: string, o: unknown) => { rec.orders.push([c, o]); return builder })
+    builder.gt = vi.fn((c: string, v: unknown) => { rec.cursors.push([c, v]); return builder })
+    builder.limit = vi.fn((n: number) => { rec.limits.push(n); return builder })
     builder.insert = vi.fn((p: unknown) => { rec.inserts.push(p); return builder })
     builder.update = vi.fn((p: unknown) => { rec.updates.push(p); return builder })
     builder.single = vi.fn(() => builder)
@@ -48,7 +56,7 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
 }
 
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], eqs: [], orders: [], inserts: [], updates: [] }
+  return { fromTables: [], selects: [], eqs: [], ilikes: [], nots: [], orders: [], limits: [], cursors: [], inserts: [], updates: [] }
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -106,8 +114,51 @@ describe('listWorkLines', () => {
   })
 })
 
+describe('Projects and Processes catalog paging', () => {
+  it('returns one bounded page and a cursor when more rows remain', async () => {
+    const rec = freshRec()
+    const rows = Array.from({ length: 51 }, (_, index) => ({
+      id: `wl-${String(index + 1).padStart(3, '0')}`, name: `Record ${index + 1}`, type: 'project', archived_at: null,
+    }))
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: rows, error: null }] }, rec) as never)
+
+    const page = await listWorkLinesCatalogPage({ view: 'all', search: '', type: 'all' })
+
+    expect(page.rows).toHaveLength(50)
+    expect(page.hasMore).toBe(true)
+    expect(page.cursor).toBe('wl-050')
+    expect(rec.limits).toEqual([51])
+    expect(rec.orders).toContainEqual(['id', { ascending: true }])
+  })
+
+  it('applies archive, name, type, and cursor filters in the server query', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: [], error: null }] }, rec) as never)
+
+    await listWorkLinesCatalogPage({ view: 'archived', search: 'Menu', type: 'process' }, 'wl-050')
+
+    expect(rec.nots).toContainEqual(['archived_at', 'is', null])
+    expect(rec.ilikes).toContainEqual(['name', '%Menu%'])
+    expect(rec.eqs).toContainEqual(['type', 'process'])
+    expect(rec.cursors).toContainEqual(['id', 'wl-050'])
+    expect(rec.limits).toEqual([51])
+  })
+
+  it('continues strictly after the last record and marks the final page', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: [{ id: 'wl-051', name: 'Last', type: 'process', archived_at: null }], error: null }] }, rec) as never)
+
+    const page = await listWorkLinesCatalogPage({ view: 'all', search: '', type: 'all' }, 'wl-050')
+
+    expect(rec.cursors).toContainEqual(['id', 'wl-050'])
+    expect(page.rows).toHaveLength(1)
+    expect(page.hasMore).toBe(false)
+    expect(page.cursor).toBeNull()
+  })
+})
+
 describe('listWorkLinesAll (management)', () => {
-  it('selects archived_at and orders archived-first then name', async () => {
+  it('uses bounded keyset reads and keeps active rows ahead of archived records', async () => {
     const rec = freshRec()
     const rows = [
       { id: 'wl-1', name: 'Active', type: 'project', archived_at: null },
@@ -119,8 +170,8 @@ describe('listWorkLinesAll (management)', () => {
 
     expect(result).toEqual(rows)
     expect(rec.selects).toContain('id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id,archived_at')
-    expect(rec.orders).toContainEqual(['archived_at', { nullsFirst: true }])
-    expect(rec.orders).toContainEqual(['name', undefined])
+    expect(rec.orders).toContainEqual(['id', { ascending: true }])
+    expect(rec.limits).toEqual([51])
   })
 
   it('throws on error', async () => {

@@ -45,7 +45,7 @@ function makeSchema(
     const result = () => {
       const i = counters[table] ?? 0
       counters[table] = i + 1
-      const queue = responses[table] ?? []
+      const queue = responses[table] ?? (table === 'sales_daily_revenue_rollup' ? responses.sales_daily_revenue : undefined) ?? []
       return queue[Math.min(i, queue.length - 1)] ?? { data: null, error: null }
     }
     const builder: Record<string, unknown> = {}
@@ -122,7 +122,7 @@ describe('listSalesDailyRevenue', () => {
     const rows = await listSalesDailyRevenue()
 
     expect(schemaMock).toHaveBeenCalledWith('reporting')
-    expect(rec.fromTables).toContain('sales_daily_revenue')
+    expect(rec.fromTables).toContain('sales_daily_revenue_rollup')
     expect(rec.orders).toContainEqual(['revenue_date', { ascending: true }])
     expect(rec.gtes[0][0]).toBe('revenue_date')
     expect(rec.ranges).toEqual([[0, 999]])
@@ -138,6 +138,7 @@ describe('listSalesDailyRevenue', () => {
     await listSalesDailyRevenue()
 
     expect(rec.selects[0].split(',')).toContain('branch_id')
+    expect(rec.selects[0].split(',')).toContain('esb_codes')
   })
 
   it('never sends org_id as a query filter (RLS scopes it)', async () => {

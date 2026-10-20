@@ -23,6 +23,7 @@ import type { TaskRow } from '@/lib/db/tasks.types'
 // ── Mock data layer ──────────────────────────────────────────────────────────
 vi.mock('../../lib/db/tasks', () => ({
   listTasks: vi.fn(),
+  listTasksPage: vi.fn(),
   hasOlderDoneTasks: vi.fn(),
   listOlderDoneTasks: vi.fn(),
   getTask: vi.fn(),
@@ -58,7 +59,7 @@ vi.mock('@/lib/db/user-views-collection', () => ({
   archiveCollectionView: vi.fn(),
 }))
 
-import { listTasks, hasOlderDoneTasks, listOlderDoneTasks, getTask, createTask, updateTaskFields } from '@/lib/db/tasks'
+import { listTasks, listTasksPage, hasOlderDoneTasks, listOlderDoneTasks, getTask, createTask, updateTaskFields } from '@/lib/db/tasks'
 import { linkSignalTask } from '@/lib/db/signals'
 import { getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams, getTeamsByIds } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
@@ -70,6 +71,7 @@ import { TasksWorkspace } from './tasks-workspace'
 import { taskCollectionDescriptor } from './task-collection-adapter'
 
 const mockListTasks = vi.mocked(listTasks)
+const mockListTasksPage = vi.mocked(listTasksPage)
 const mockHasOlderDoneTasks = vi.mocked(hasOlderDoneTasks)
 const mockListOlderDoneTasks = vi.mocked(listOlderDoneTasks)
 const mockGetTask = vi.mocked(getTask)
@@ -234,6 +236,9 @@ function renderAt(entries: string[]) {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  mockListTasksPage.mockImplementation(async (filters, _before, cutoff, readLease) => ({
+    rows: await mockListTasks(filters, readLease, cutoff), nextCursor: null, hasMore: false,
+  }))
   mockHasOlderDoneTasks.mockResolvedValue(false)
   mockListOlderDoneTasks.mockResolvedValue({ rows: [], nextCursor: null, hasMore: false })
   vi.mocked(getPersonTeams).mockResolvedValue(VIEWER_TEAMS)
@@ -1175,6 +1180,22 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     expect(empty.querySelector('.empty-state-glyph')).toBeNull()
     expect(screen.getByRole('link', { name: /^create task$/i })).toBeInTheDocument()
     expect(document.querySelector('.list-paging')).toBeNull()
+  })
+
+  it.each([
+    { locale: 'en' as const, label: 'Load more items' },
+    { locale: 'id' as const, label: 'Muat item lainnya' },
+  ])('lets users continue Tasks beyond the first server page in $locale', async ({ locale, label }) => {
+    const first = makeTask({ id: 'page-first', title: 'First page task', due_date: '2026-10-05' })
+    const next = makeTask({ id: 'page-next', title: 'Next page task', due_date: '2026-10-05' })
+    mockListTasksPage
+      .mockResolvedValueOnce({ rows: [first], nextCursor: { due_date: first.due_date, id: first.id }, hasMore: true })
+      .mockResolvedValueOnce({ rows: [next], nextCursor: null, hasMore: false })
+    renderTable({}, authedState, ['/work/tasks'], locale)
+
+    expect(await screen.findByText('First page task')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: label }))
+    expect(await screen.findByText('Next page task')).toBeInTheDocument()
   })
 
   it('loads older Done tasks from the empty state when archived history exists', async () => {

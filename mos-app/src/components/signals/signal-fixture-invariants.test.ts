@@ -19,10 +19,13 @@ function literalString(expression: ts.Expression): string | null {
 }
 
 function invalidAudienceTeamPairs(filePath: string): string[] {
+  const text = readFileSync(filePath, 'utf8')
+  // Only files that set owning_team_id can hold a pair; parsing the rest timed out under coverage.
+  if (!text.includes('owning_team_id')) return []
   const extension = extname(filePath)
   const sourceFile = ts.createSourceFile(
     filePath,
-    readFileSync(filePath, 'utf8'),
+    text,
     ts.ScriptTarget.Latest,
     true,
     extension === '.tsx' ? ts.ScriptKind.TSX : ts.ScriptKind.TS,

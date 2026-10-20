@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { readAllCatalogPages } from './catalog-pages'
 import { containsPattern } from './like-pattern'
 import { withReferenceCache, invalidateReferenceCache } from './reference-cache'
 
@@ -31,6 +32,16 @@ export interface ObjectiveOwnership {
 
 const ACTIVE_COLUMNS = 'id,name,business_unit_id,accountable_person_id,period_year'
 const ADMIN_COLUMNS = 'id,name,archived_at,business_unit_id,is_company_wide,accountable_person_id,period_year,period_quarter'
+
+const OBJECTIVES_PAGE_SIZE = 50
+
+export type ObjectiveCatalogFilter = { view: 'active' | 'archived' | 'all'; search: string }
+
+export type ObjectiveCatalogPage = {
+  rows: ObjectiveAdminRow[]
+  cursor: string | null
+  hasMore: boolean
+}
 
 /** List active (non-archived) objectives ordered by name (org-readable via RLS). SWR-cached —
  * the picker/palette re-read these on mount, a few times a day of change (#1359). */
@@ -74,15 +85,28 @@ export interface ObjectiveAdminRow {
   period_quarter?: number | null
 }
 
-/** List ALL objectives (active + archived) for the management surface — active first, then by name. */
-export async function listObjectivesAll(): Promise<ObjectiveAdminRow[]> {
-  const { data, error } = await mos()
-    .from('objectives')
-    .select(ADMIN_COLUMNS)
-    .order('archived_at', { nullsFirst: true })
-    .order('name')
-  if (error) throw new Error(`listObjectivesAll failed — ${error.message}`)
-  return (data ?? []) as unknown as ObjectiveAdminRow[]
+/** Read one ID-keyset page for the Objectives catalog. */
+export async function listObjectivesCatalogPage(
+  filter: ObjectiveCatalogFilter,
+  afterId?: string,
+): Promise<ObjectiveCatalogPage> {
+  let query = mos().from('objectives').select(ADMIN_COLUMNS)
+  if (filter.view === 'active') query = query.is('archived_at', null)
+  if (filter.view === 'archived') query = query.not('archived_at', 'is', null)
+  if (filter.search.trim()) query = query.ilike('name', containsPattern(filter.search.trim()))
+  if (afterId) query = query.gt('id', afterId)
+  const { data, error } = await query.order('id', { ascending: true }).limit(OBJECTIVES_PAGE_SIZE + 1)
+  if (error) throw new Error(`listObjectivesCatalogPage failed — ${error.message}`)
+  const fetched = (data ?? []) as unknown as ObjectiveAdminRow[]
+  const hasMore = fetched.length > OBJECTIVES_PAGE_SIZE
+  const rows = fetched.slice(0, OBJECTIVES_PAGE_SIZE)
+  return { rows, hasMore, cursor: hasMore ? rows.at(-1)?.id ?? null : null }
+}
+
+/** List every objective for record-context lookups, using bounded catalog pages. */
+export function listObjectivesAll(): Promise<ObjectiveAdminRow[]> {
+  return readAllCatalogPages('listObjectivesCatalogPage', 'listObjectivesAll', (afterId) =>
+    listObjectivesCatalogPage({ view: 'all', search: '' }, afterId))
 }
 
 /** Create an objective (org_id stamped by the DB). Returns the new row. */

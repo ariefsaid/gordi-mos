@@ -17,6 +17,7 @@ import {
   listIngredientCostLines,
   listBomLines,
   listBudgets,
+  listBudgetsPage,
   getCertifiedMetric,
   captureBudget,
 } from './plan-budget'
@@ -31,6 +32,9 @@ interface Recorder {
   eqs: Array<[string, unknown]>
   isCalls: Array<[string, unknown]>
   orders: Array<[string, unknown]>
+  limits: number[]
+  filters: string[]
+  ranges: Array<[number, number]>
   inserts: unknown[]
 }
 
@@ -64,6 +68,9 @@ function makeSchema(
       rec.orders.push([c, o])
       return builder
     })
+    builder.limit = vi.fn((n: number) => { rec.limits.push(n); return builder })
+    builder.or = vi.fn((filter: string) => { rec.filters.push(filter); return builder })
+    builder.range = vi.fn((from: number, to: number) => { rec.ranges.push([from, to]); return builder })
     builder.insert = vi.fn((rows: unknown) => {
       rec.inserts.push(rows)
       return builder
@@ -85,7 +92,7 @@ function makeSchema(
 }
 
 function freshRec(): Recorder {
-  return { schemaNames: [], fromTables: [], rpcCalls: [], selects: [], eqs: [], isCalls: [], orders: [], inserts: [] }
+  return { schemaNames: [], fromTables: [], rpcCalls: [], selects: [], eqs: [], isCalls: [], orders: [], limits: [], filters: [], ranges: [], inserts: [] }
 }
 
 beforeEach(() => {
@@ -113,6 +120,7 @@ describe('AC-PB-003: reads the reporting read-models via the reporting schema', 
     expect(rows).toHaveLength(1)
     expect(rec.fromTables).toContain('ingredient_cost_lines')
     expect(rec.schemaNames).toContain('reporting')
+    expect(rec.ranges).toEqual([[0, 999]])
   })
 
   it('listBomLines reads reporting.bom_lines and filters by menu item when given', async () => {
@@ -122,6 +130,7 @@ describe('AC-PB-003: reads the reporting read-models via the reporting schema', 
     expect(rec.fromTables).toContain('bom_lines')
     expect(rec.schemaNames).toContain('reporting')
     expect(rec.eqs).toContainEqual(['menu_item_esb_code', 'MENU-1'])
+    expect(rec.ranges).toEqual([[0, 999]])
   })
 
   it('throws non-secret on reporting error (no DSN/token/SQL in message)', async () => {
@@ -132,6 +141,51 @@ describe('AC-PB-003: reads the reporting read-models via the reporting schema', 
     } catch (e) {
       expect((e as Error).message).not.toMatch(/dsn|token|jwt|stack/i)
     }
+  })
+})
+
+describe('budget scenario paging', () => {
+  it('returns the newest 50 scenarios and a cursor for the next page', async () => {
+    const rec = freshRec()
+    const createdAt = (index: number) => new Date(Date.UTC(2026, 9, 20 - index)).toISOString()
+    const rows = Array.from({ length: 51 }, (_, index) => ({ id: `budget-${index + 1}`, created_at: createdAt(index) }))
+    install({ budgets: [{ data: rows, error: null }] }, rec)
+
+    const page = await listBudgetsPage('MENU-1')
+
+    expect(page.rows).toHaveLength(50)
+    expect(page.hasMore).toBe(true)
+    expect(page.cursor).toEqual({ id: 'budget-50', createdAt: createdAt(49) })
+    expect(rec.limits).toEqual([51])
+    expect(rec.orders).toEqual([['created_at', { ascending: false }], ['id', { ascending: false }]])
+    expect(rec.eqs).toContainEqual(['menu_item_esb_code', 'MENU-1'])
+  })
+
+  it('collects every scenario through bounded keyset pages for calculations', async () => {
+    const rec = freshRec()
+    const first = Array.from({ length: 51 }, (_, index) => ({ id: `budget-${index + 1}`, created_at: new Date(Date.UTC(2026, 9, 20 - index)).toISOString() }))
+    install({ budgets: [
+      { data: first, error: null },
+      { data: [{ id: 'budget-51', created_at: '2026-09-01T00:00:00Z' }], error: null },
+    ] }, rec)
+
+    const rows = await listBudgets()
+
+    expect(rows).toHaveLength(51)
+    expect(rec.limits).toEqual([51, 51])
+    expect(rec.filters).toHaveLength(1)
+  })
+
+  it('requests rows strictly older than the last loaded timestamp and ID', async () => {
+    const rec = freshRec()
+    install({ budgets: [{ data: [{ id: 'budget-51', created_at: '2026-09-01T00:00:00Z' }], error: null }] }, rec)
+
+    const page = await listBudgetsPage(undefined, { id: 'budget-50', createdAt: '2026-09-02T00:00:00Z' })
+
+    expect(rec.filters).toContain('created_at.lt.2026-09-02T00:00:00Z,and(created_at.eq.2026-09-02T00:00:00Z,id.lt.budget-50)')
+    expect(page.rows).toHaveLength(1)
+    expect(page.hasMore).toBe(false)
+    expect(page.cursor).toBeNull()
   })
 })
 

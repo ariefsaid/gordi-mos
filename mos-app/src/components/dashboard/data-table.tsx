@@ -8,9 +8,10 @@
 // navy label + muted tabular count) per non-null group, with internal collapse state.
 // Flat `rows` mode is 100% unchanged when `groups` is absent; if both are given,
 // `groups` wins. Callers pass exactly one of `rows` (flat) / `groups` (grouped).
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { SortIndicator } from '@/components/ui/sort-indicator'
 import { GroupHeader } from '@/components/ui/group-header'
-import { Fragment, useState, type ReactNode } from 'react'
+import { Fragment, useRef, useState, type ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
 import './data-table.css'
 
@@ -88,6 +89,8 @@ export interface DataTableProps<Row> {
   footer?: ReactNode
   /** caller passes useIsDesktop() — single-render, exactly one branch in the DOM */
   isDesktop: boolean
+  /** Window long desktop tables with the same TanStack row virtualizer used by Tasks. */
+  virtualize?: boolean
   state?: 'ready' | 'loading' | 'empty' | 'error'
   /** empty-state label; defaults to the localized common.noRows */
   emptyLabel?: ReactNode
@@ -136,6 +139,7 @@ export function DataTable<Row extends object>({
   onSortChange,
   footer,
   isDesktop,
+  virtualize = false,
   cardsHead,
   state = 'ready',
   emptyLabel,
@@ -200,6 +204,7 @@ export function DataTable<Row extends object>({
           emptyLabel={resolvedEmptyLabel}
           caption={caption}
           collapsed={collapsed}
+          virtualize={virtualize}
           onToggleGroup={toggleGroup}
         />
       )
@@ -221,6 +226,7 @@ export function DataTable<Row extends object>({
 }
 
 interface DesktopTableProps<Row> {
+  virtualize: boolean
   columns: DataTableColumn<Row>[]
   rows: Row[]
   groups?: DataTableGroup<Row>[]
@@ -246,6 +252,8 @@ function DesktopRow<Row>({
   rowClassName,
   onRowClick,
   renderRowDetail,
+  measureElement,
+  virtualIndex,
 }: {
   row: Row
   rowIndex: number
@@ -253,11 +261,13 @@ function DesktopRow<Row>({
   rowClassName?: (row: Row, index: number) => string | undefined
   onRowClick?: (row: Row) => void
   renderRowDetail?: (row: Row, index: number) => ReactNode
+  measureElement?: (element: HTMLTableRowElement | null) => void
+  virtualIndex?: number
 }) {
   const detail = renderRowDetail?.(row, rowIndex)
   return (
     <Fragment>
-      <tr className={rowClassName?.(row, rowIndex)} onClick={onRowClick ? (event) => { if (!(event.target as HTMLElement).closest('button, a')) onRowClick(row) } : undefined}>
+      <tr ref={measureElement} data-index={virtualIndex} className={rowClassName?.(row, rowIndex)} onClick={onRowClick ? (event) => { if (!(event.target as HTMLElement).closest('button, a')) onRowClick(row) } : undefined}>
         {columns.map(column => {
           const value = cellValue(row, column)
           const isNumeric = column.numeric || column.align === 'right'
@@ -287,14 +297,18 @@ function GroupHeaderRow<Row>({
   columnCount,
   collapsed,
   onToggle,
+  measureElement,
+  virtualIndex,
 }: {
   group: DataTableGroup<Row>
   columnCount: number
   collapsed: boolean
   onToggle: () => void
+  measureElement?: (element: HTMLTableRowElement | null) => void
+  virtualIndex?: number
 }) {
   return (
-    <tr className="dt-group-row">
+    <tr ref={measureElement} data-index={virtualIndex} className="dt-group-row">
       <th scope="colgroup" colSpan={columnCount} className="dt-group-cell">
         <GroupHeader
           id={group.anchorId}
@@ -311,6 +325,7 @@ function GroupHeaderRow<Row>({
 }
 
 function DesktopTable<Row>({
+  virtualize,
   columns,
   rows,
   groups,
@@ -327,7 +342,23 @@ function DesktopTable<Row>({
   collapsed,
   onToggleGroup,
 }: DesktopTableProps<Row>) {
-  return (
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const entries = groups
+    ? groups.flatMap((group) => [
+      ...(group.label !== null ? [{ kind: 'group' as const, group }] : []),
+      ...(!collapsed.has(group.key) ? group.rows.map((row, rowIndex) => ({ kind: 'row' as const, groupKey: group.key, row, rowIndex })) : []),
+    ])
+    : rows.map((row, rowIndex) => ({ kind: 'row' as const, groupKey: '', row, rowIndex }))
+  const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLTableRowElement>({
+    count: virtualize && state === 'ready' ? entries.length : 0,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 52,
+    overscan: 8,
+    initialRect: { width: 0, height: 600 },
+  })
+  const virtualItems = rowVirtualizer.getVirtualItems()
+  const totalSize = rowVirtualizer.getTotalSize()
+  const table = (
     <table className={`dt-table${tableClassName ? ` ${tableClassName}` : ''}`} aria-label={caption}>
       <caption className="dt-caption">{caption}</caption>
       <thead>
@@ -377,47 +408,54 @@ function DesktopTable<Row>({
         </tr>
       </thead>
       <tbody>
-        {state === 'loading' && (
-          <SkeletonRows columnCount={columns.length} />
-        )}
+        {state === 'loading' && <SkeletonRows columnCount={columns.length} />}
         {state === 'empty' && (
-          <tr>
-            <td className="dt-empty" colSpan={columns.length}>
-              {emptyLabel}
-            </td>
-          </tr>
+          <tr><td className="dt-empty" colSpan={columns.length}>{emptyLabel}</td></tr>
         )}
-        {state === 'ready' && !groups && rows.map((row, rowIndex) => (
-          <DesktopRow
-            key={rowKey(row, rowIndex)}
-            row={row}
-            rowIndex={rowIndex}
-            columns={columns}
-            rowClassName={rowClassName}
-            onRowClick={onRowClick}
-            renderRowDetail={renderRowDetail}
-          />
-        ))}
-        {state === 'ready' && groups && groups.map(group => (
-          <Fragment key={group.key}>
-            {group.label !== null && (
-              <GroupHeaderRow
-                group={group}
-                columnCount={columns.length}
-                collapsed={collapsed.has(group.key)}
-                onToggle={() => onToggleGroup(group.key)}
-              />
-            )}
-            {!collapsed.has(group.key) && group.rows.map((row, rowIndex) => (
-              <DesktopRow
-                key={`${group.key}:${rowKey(row, rowIndex)}`}
-                row={row}
-                rowIndex={rowIndex}
+        {state === 'ready' && virtualize && (() => {
+          const padTop = virtualItems.length > 0 ? virtualItems[0].start : 0
+          const padBottom = virtualItems.length > 0 ? totalSize - virtualItems[virtualItems.length - 1].end : 0
+          return <>
+            {padTop > 0 && <tr aria-hidden="true"><td colSpan={columns.length} style={{ height: padTop }} /></tr>}
+            {virtualItems.map((item) => {
+              const entry = entries[item.index]
+              if (entry.kind === 'group') {
+                return <GroupHeaderRow
+                  key={`group:${entry.group.key}`}
+                  group={entry.group}
+                  columnCount={columns.length}
+                  collapsed={collapsed.has(entry.group.key)}
+                  onToggle={() => onToggleGroup(entry.group.key)}
+                  measureElement={rowVirtualizer.measureElement}
+                  virtualIndex={item.index}
+                />
+              }
+              return <DesktopRow
+                key={`${entry.groupKey}:${rowKey(entry.row, entry.rowIndex)}`}
+                row={entry.row}
+                rowIndex={entry.rowIndex}
                 columns={columns}
                 rowClassName={rowClassName}
                 onRowClick={onRowClick}
                 renderRowDetail={renderRowDetail}
+                measureElement={rowVirtualizer.measureElement}
+                virtualIndex={item.index}
               />
+            })}
+            {padBottom > 0 && <tr aria-hidden="true"><td colSpan={columns.length} style={{ height: padBottom }} /></tr>}
+          </>
+        })()}
+        {state === 'ready' && !virtualize && !groups && rows.map((row, rowIndex) => (
+          <DesktopRow key={rowKey(row, rowIndex)} row={row} rowIndex={rowIndex} columns={columns}
+            rowClassName={rowClassName} onRowClick={onRowClick} renderRowDetail={renderRowDetail} />
+        ))}
+        {state === 'ready' && !virtualize && groups && groups.map(group => (
+          <Fragment key={group.key}>
+            {group.label !== null && <GroupHeaderRow group={group} columnCount={columns.length}
+              collapsed={collapsed.has(group.key)} onToggle={() => onToggleGroup(group.key)} />}
+            {!collapsed.has(group.key) && group.rows.map((row, rowIndex) => (
+              <DesktopRow key={`${group.key}:${rowKey(row, rowIndex)}`} row={row} rowIndex={rowIndex}
+                columns={columns} rowClassName={rowClassName} onRowClick={onRowClick} renderRowDetail={renderRowDetail} />
             ))}
           </Fragment>
         ))}
@@ -425,6 +463,7 @@ function DesktopTable<Row>({
       {footer && state === 'ready' && <tfoot>{footer}</tfoot>}
     </table>
   )
+  return virtualize ? <div ref={scrollRef} className="dt-scroll-virtual">{table}</div> : table
 }
 
 function SkeletonRows({ columnCount }: { columnCount: number }) {

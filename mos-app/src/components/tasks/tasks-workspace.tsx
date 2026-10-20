@@ -270,13 +270,14 @@ export function TasksWorkspace({
     controller.retry()
   }, [completedTaskId, controller, setCompletedTaskId])
   const { state } = controller
-  const [hasPagedOlderDone, setHasPagedOlderDone] = useState(false)
   // The engine keeps presentation separate from query for compatibility checks; expose the
   // canonical layout in the domain query consumed by the toolbar/runtime without writing a second
   // query owner.
   const query = useMemo(() => ({ ...state.query, layout: state.presentation }), [state.presentation, state.query])
   const dataContext = state.data?.context
   const projection = state.projection
+  const hasPagedOlderDone = (dataContext?.olderDoneTaskIds?.size ?? 0) > 0
+    && (projection?.visibleRecords.length ?? 0) >= 50
   const records = projection?.visibleRecords ?? EMPTY_RECORDS
   const runtimeStatusOverrides = statusOverrides ?? EMPTY_STATUS_OVERRIDES
   const processStartTeamIdsKey = [...new Set(records
@@ -915,23 +916,23 @@ export function TasksWorkspace({
   // "Show older done tasks" continues the same list: below the rows, or inside the empty state when
   // nothing in the loaded window matched (one place for the next step, not a stranded button).
   const visibleTaskCount = projection?.visibleRecords.length ?? 0
-  const olderDoneAvailable = dataContext?.olderDoneHasMore === true && state.status !== 'loading' && state.status !== 'error' && state.status !== 'permission'
-    && (query.status === null || query.status === 'Done')
-    && !query.overdueOnly && query.view !== 'overdue'
-  const olderDoneInEmpty = olderDoneAvailable && visibleTaskCount === 0 && (state.status === 'filtered-empty' || state.status === 'empty')
-  const olderDonePaging = olderDoneAvailable && dataContext ? (
+  const taskPageAvailable = dataContext?.taskHasMore === true
+  const olderDoneAvailable = dataContext?.olderDoneHasMore === true
+    && (query.status === null || query.status === 'Done') && !query.overdueOnly && query.view !== 'overdue'
+  const taskListMoreAvailable = (taskPageAvailable || olderDoneAvailable)
+    && state.status !== 'loading' && state.status !== 'error' && state.status !== 'permission'
+  const taskListMoreInEmpty = taskListMoreAvailable && visibleTaskCount === 0
+    && (state.status === 'filtered-empty' || state.status === 'empty')
+  const taskListPaging = taskListMoreAvailable && dataContext ? (
     <ListPaging
       count={visibleTaskCount}
       hasMore
       loading={state.loadingMore}
       error={Boolean(state.moreError)}
-      moreLabel={t('tasks.showOlderDone')}
+      moreLabel={taskPageAvailable ? undefined : t('tasks.showOlderDone')}
       emptyItems={isFilteredEmpty ? t('collection.items.tasks') : undefined}
-      bare={olderDoneInEmpty}
-      onLoadMore={async () => {
-        await controller.loadMore()
-        if ((controller.state.projection?.visibleRecords.length ?? 0) >= 50) setHasPagedOlderDone(true)
-      }}
+      bare={taskListMoreInEmpty}
+      onLoadMore={() => { void controller.loadMore() }}
     />
   ) : null
   // Only the search box narrows the list: Clear then names what it clears.
@@ -1118,13 +1119,13 @@ export function TasksWorkspace({
                   title: emptyTitle,
                   copy: emptyCopy,
                   variant: 'next-step',
-                  create: <><Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-outline">{t('tasks.new')}</Link>{olderDoneInEmpty ? olderDonePaging : null}</>,
+                  create: <><Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-outline">{t('tasks.new')}</Link>{taskListMoreInEmpty ? taskListPaging : null}</>,
                 }}
                 filteredEmpty={{
                   items: t('collection.items.tasks'),
                   clear: onClearFilters,
                   clearLabel: onlySearchNarrows ? t('common.clearSearch') : undefined,
-                  create: olderDoneInEmpty ? olderDonePaging : undefined,
+                  create: taskListMoreInEmpty ? taskListPaging : undefined,
                   title: isFilteredEmpty
                     ? emptyLoadedTasks
                     : mineViewUnfiltered ? emptyTitle : undefined,
@@ -1135,7 +1136,7 @@ export function TasksWorkspace({
                 error={{ message: t('tasks.error.load'), retry }}
                 loadingLabel={t('tasks.loading')}
               />
-              {olderDonePaging && !olderDoneInEmpty ? olderDonePaging : null}
+              {taskListPaging && !taskListMoreInEmpty ? taskListPaging : null}
               </section>
             </>
             )}

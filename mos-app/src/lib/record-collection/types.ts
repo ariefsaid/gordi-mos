@@ -185,6 +185,8 @@ export interface RecordCollectionDescriptor<
     readLease?: ReadLease
     data: CollectionData<TRecord, TContext>
   }): Promise<CollectionData<TRecord, TContext>>
+  /** Whether the current server window has a continuation for the shared Load more control. */
+  hasMore?(data: CollectionData<TRecord, TContext>): boolean
   /**
    * A stable semantic key for the server reads required by this query and authority. When present,
    * the engine reloads only when this key changes; it takes precedence over `loadKeys`. Use it when

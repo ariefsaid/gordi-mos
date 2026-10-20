@@ -1651,6 +1651,16 @@ describe('KitchenReviewPage — server paging', () => {
     expect(screen.queryByRole('button', { name: /Load more/ })).not.toBeInTheDocument()
   })
 
+  it('loads the next server page in Indonesian', async () => {
+    const first = page(1, 50)
+    mockList.mockResolvedValueOnce(first).mockResolvedValueOnce(page(51, 1))
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
+    await screen.findByText('Paged item 1')
+    fireEvent.click(screen.getByRole('button', { name: 'Muat item lainnya' }))
+    await screen.findByText('Paged item 51')
+    expect(screen.getByText('51 item dimuat · akhir daftar')).toBeInTheDocument()
+  })
+
   it('keeps loaded rows on a next-page failure and retries the same cursor', async () => {
     const first = page(1, 50)
     mockList.mockResolvedValueOnce(first).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(page(51, 1))
