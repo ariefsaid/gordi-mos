@@ -41,9 +41,9 @@ function line(overrides: Partial<CafeCountLine> & Pick<CafeCountLine, 'id' | 'it
   }
 }
 
-function renderQueue({ streamFilter = ALL_STREAMS, viewerId = 'person-reviewer', canManagePosting = false, canReleasePosting = false }: { streamFilter?: string; viewerId?: string; canManagePosting?: boolean; canReleasePosting?: boolean } = {}) {
+function renderQueue({ streamFilter = ALL_STREAMS, viewerId = 'person-reviewer', canManagePosting = false, canReleasePosting = false, locale = 'en' }: { streamFilter?: string; viewerId?: string; canManagePosting?: boolean; canReleasePosting?: boolean; locale?: 'en' | 'id' } = {}) {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <CafeCountReviewQueue
         viewerId={viewerId}
         streamFilter={streamFilter}
@@ -105,6 +105,17 @@ describe('CafeCountReviewQueue', () => {
     expect(screen.getAllByText('Expected balance is not ready yet.').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /stock/i })).not.toBeInTheDocument() // no door to Stock while the balance is not ready
+  })
+
+  it('formats count quantities with Indonesian decimal and grouping marks', async () => {
+    mockList.mockResolvedValue([line({
+      id: 'locale', item_name: 'Rice', counted_quantity: '1234.5000',
+      expected_balance: '1000.2500', variance: '234.2500',
+    })])
+    renderQueue({ locale: 'id' })
+    await openRow(/Rice/)
+    expect(fact('Hitungan pertama')).toHaveTextContent('1.234,5 kg')
+    expect(fact('Expected balance')).toHaveTextContent('1.000,25 kg')
   })
 
   it('loads Submitted Counts across dates, oldest first, with each date in the shared short format', async () => {

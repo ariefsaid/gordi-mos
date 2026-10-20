@@ -1,5 +1,28 @@
 type DecimalFraction = { numerator: bigint; denominator: bigint }
 
+const quantityFormatters = new Map<string, Intl.NumberFormat>()
+const multipleFormatters = new Map<string, Intl.NumberFormat>()
+
+function quantityFormatter(locale?: string): Intl.NumberFormat {
+  const key = locale ?? ''
+  let formatter = quantityFormatters.get(key)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 2 })
+    quantityFormatters.set(key, formatter)
+  }
+  return formatter
+}
+
+function multipleFormatter(locale?: string): Intl.NumberFormat {
+  const key = locale ?? ''
+  let formatter = multipleFormatters.get(key)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 6 })
+    multipleFormatters.set(key, formatter)
+  }
+  return formatter
+}
+
 function toDecimalFraction(value: number, label: string): DecimalFraction {
   if (!Number.isFinite(value)) throw new Error(`${label} must be finite`)
   const text = value.toString().toLowerCase()
@@ -71,12 +94,12 @@ export function fromDefaultUnitQuantity(quantity: number, factor: number): numbe
 
 /** Format a captured amount beside its unit, using the capture surface's number rules. */
 export function formatQuantityWithUnit(quantity: number, unitName: string, locale?: string): string {
-  const formattedQuantity = new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 2 }).format(quantity)
+  const formattedQuantity = quantityFormatter(locale).format(quantity)
   return `${formattedQuantity} ${unitName}`
 }
 
 /** A locale-aware, stable label for a manager-defined multiple of a default ERP unit. */
 export function formatUnitMultiple(factor: number, unitName: string, locale?: string): string {
-  const formattedFactor = new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 6 }).format(factor)
+  const formattedFactor = multipleFormatter(locale).format(factor)
   return `${formattedFactor} ${unitName}`
 }

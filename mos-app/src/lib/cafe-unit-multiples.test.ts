@@ -1,7 +1,24 @@
-import { describe, expect, it } from 'vitest'
-import { formatUnitMultiple, fromDefaultUnitQuantity, toDefaultUnitQuantity } from './cafe-unit-multiples'
+import { describe, expect, it, vi } from 'vitest'
+import { formatQuantityWithUnit, formatUnitMultiple, fromDefaultUnitQuantity, toDefaultUnitQuantity } from './cafe-unit-multiples'
 
 describe('café unit-multiple conversion', () => {
+  it('reuses locale-specific formatters while preserving EN and ID quantity text', () => {
+    const NumberFormat = Intl.NumberFormat
+    const numberFormat = vi.spyOn(Intl, 'NumberFormat')
+    numberFormat.mockImplementation(function (locales, options) { return new NumberFormat(locales, options) })
+    try {
+      expect(formatQuantityWithUnit(1.25, 'porsi', 'en')).toBe('1.25 porsi')
+      expect(formatQuantityWithUnit(1.25, 'porsi', 'en')).toBe('1.25 porsi')
+      expect(formatUnitMultiple(1000, 'porsi', 'en')).toBe('1000 porsi')
+      expect(formatUnitMultiple(1000, 'porsi', 'en')).toBe('1000 porsi')
+      expect(formatQuantityWithUnit(1.25, 'porsi', 'id')).toBe('1,25 porsi')
+      expect(formatUnitMultiple(1000, 'porsi', 'id')).toBe('1000 porsi')
+      expect(numberFormat).toHaveBeenCalledTimes(4)
+    } finally {
+      numberFormat.mockRestore()
+    }
+  })
+
   it('formats a four-digit multiple without grouping', () => {
     expect(formatUnitMultiple(1000, 'porsi', 'en')).toBe('1000 porsi')
   })

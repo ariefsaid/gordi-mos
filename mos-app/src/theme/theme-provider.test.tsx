@@ -1,6 +1,16 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { renderHook, act, render, screen } from '@testing-library/react';
+import { renderHook, act, render, screen, fireEvent } from '@testing-library/react';
+import { useState } from 'react';
 import { ThemeProvider, useThemeContext } from './theme-provider';
+
+const observedThemeValues: ReturnType<typeof useThemeContext>[] = [];
+
+function ThemeValueConsumer() {
+  const value = useThemeContext();
+  observedThemeValues.push(value);
+  return <span>{value.theme}</span>;
+}
+
 
 /**
  * ThemeProvider + useThemeContext tests.
@@ -139,6 +149,22 @@ describe('ThemeProvider (AC-137 — system/OS preference)', () => {
       /ThemeProvider/
     );
     consoleError.mockRestore();
+  });
+
+  it('keeps its context value stable when the parent renders for unrelated state', () => {
+    const { mql } = makeMatchMedia(false);
+    vi.spyOn(window, 'matchMedia').mockReturnValue(mql as unknown as MediaQueryList);
+    observedThemeValues.length = 0;
+    function ParentRerender() {
+      const [, setRevision] = useState(0);
+      return <><button type="button" onClick={() => setRevision(revision => revision + 1)}>Refresh parent</button>
+        <ThemeProvider><ThemeValueConsumer /></ThemeProvider></>;
+    }
+
+    render(<ParentRerender />);
+    const value = observedThemeValues.at(-1);
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh parent' }));
+    expect(observedThemeValues.at(-1)).toBe(value);
   });
 
   it('ThemeProvider renders children', () => {
