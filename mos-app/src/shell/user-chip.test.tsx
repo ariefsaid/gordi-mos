@@ -119,6 +119,21 @@ describe('AC-005: UserChip and sign-out menu', () => {
     expect(screen.getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument()
   })
 
+  it('opens Personal profile from the account menu', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    renderChip(<UserChip variant="rail" />)
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    const profile = screen.getByRole('menuitem', { name: 'Personal profile' })
+    expect(profile).toHaveAttribute('href', '/profile')
+    await user.click(profile)
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
   it('Escape closes menu and returns focus to chip', async () => {
     mockUseAuth.mockReturnValue({
       status: 'authenticated',

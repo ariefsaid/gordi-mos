@@ -198,7 +198,7 @@ function RecipesForViewer() {
         </section>
         {selected && <section ref={detailRef} tabIndex={-1} className="cafe-recipes__reference" aria-label={t('cafe.recipes.reference')}>
           <Link className="btn btn-ghost cafe-recipes__back" to={href({ recipe: null })}>{t('cafe.recipes.back')}</Link>
-          <CafeRecipeDetail versions={versions.filter(row => recipeKey(row) === selected)} status={statusOf.get(selected)} type={typeOf.get(selected)}
+          <CafeRecipeDetail key={selected} versions={versions.filter(row => recipeKey(row) === selected)} status={statusOf.get(selected)} type={typeOf.get(selected)}
             visibility={<RecipeVisibilityControl
               recipeKey={selected}
               visibility={visibilityByRecipe.get(selected)}

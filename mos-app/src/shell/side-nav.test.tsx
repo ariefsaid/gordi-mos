@@ -52,19 +52,14 @@ describe('desktop navigation follows org module settings', () => {
     renderNav('/', 'id')
     expect(screen.getByText('Beranda')).toBeInTheDocument()
     expect(screen.getByText('Keuangan')).toBeInTheDocument()
-    expect(screen.getByText('Kotak Masuk')).toBeInTheDocument()
   })
 
-  it('shows Work, Inbox and admitted modules on the labelled global rail', () => {
+  it('shows Work and admitted modules on the labelled global rail; Inbox and Profile are not rows', () => {
     renderNav()
     expect(screen.getByRole('link', { name: 'Work' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Inbox' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Money' })).toBeInTheDocument()
-  })
-
-  it('marks Inbox as the current page on the rail when Inbox is open', () => {
-    renderNav('/inbox')
-    expect(screen.getByRole('link', { name: 'Inbox' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.queryByRole('link', { name: 'Inbox' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Personal profile' })).toBeNull()
   })
 
   it.each(['sidebar', 'panel'] as const)('keeps the release label available in the %s footer', (mode) => {
