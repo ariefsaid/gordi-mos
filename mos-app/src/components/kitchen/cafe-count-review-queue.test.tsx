@@ -230,7 +230,7 @@ describe('CafeCountReviewQueue', () => {
     vi.mocked(refreshCafeCountExpected).mockResolvedValue(undefined)
     renderQueue()
     expect(await screen.findByText('Expected balance unavailable')).toBeInTheDocument()
-    expect(screen.getByText(/The ERP balance or its unit conversion could not be verified/)).toBeInTheDocument()
+    expect(screen.getByText(/The ESB balance or its unit conversion could not be verified/)).toBeInTheDocument()
     expect(screen.getByText('Correction of confirmed count original')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Refresh expected balance' }))
     await waitFor(() => expect(refreshCafeCountExpected).toHaveBeenCalledWith('unavailable'))
