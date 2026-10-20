@@ -52,6 +52,7 @@ describe('buildBranchPage', () => {
     const page = buildBranchPage(ROWS, null, 'ckl', 7)!
     expect(page.latestDate).toBe(LATEST)
     expect(page.days[6]).toEqual({ date: LATEST, value: null, compare: 500_000 })
+    expect(page.totalPartial).toBe(true)
   })
 
   it('B2B counts a received day without an invoice as zero, and carries no margin', () => {

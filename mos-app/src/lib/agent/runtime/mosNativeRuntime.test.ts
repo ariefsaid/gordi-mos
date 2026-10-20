@@ -55,10 +55,13 @@ describe('MosNativeRuntime (T23)', () => {
     })
   }
 
-  it('createRun mints a runId + returns a running AgentRun titled from the goal', async () => {
+  it('createRun uses the platform UUID and returns a running AgentRun titled from the goal', async () => {
+    const randomUUID = vi.fn(() => 'native-uuid')
+    vi.stubGlobal('crypto', { randomUUID })
     const rt = makeRuntime()
     const run = await rt.createRun({ goal: 'What is on my plate this week?' })
-    expect(run.id).toBeTruthy()
+    expect(run.id).toBe('native-uuid')
+    expect(randomUUID).toHaveBeenCalledOnce()
     expect(run.status).toBe('running')
     expect(run.title).toBe('What is on my plate this week?')
     // createRun does NOT fetch (the streaming POST is subscribe's job — see file header).

@@ -18,7 +18,7 @@ import { listCafeDestinations, listStreamPairs } from '@/lib/db/kitchen-logs'
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import { useAuth } from '@/auth/use-auth'
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
-import { activeCafeLocation, rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
+import { activeCafeLocation, rememberCafeLocation } from '@/lib/cafe-opening-location'
 import { streamKey } from '@/lib/kitchen-action-label'
 import { useCafeStream } from './use-cafe-stream'
 
@@ -48,7 +48,7 @@ const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const, produces: tr
 beforeEach(() => {
   vi.clearAllMocks()
   rememberStream(null)
-  resetCafeLocations()
+  for (const personId of ['p-1', 'p-routes', 'p-krishna']) rememberCafeLocation(personId, null)
   vi.mocked(listActiveBranches).mockResolvedValue(BRANCHES)
   vi.mocked(listStreamPairs).mockResolvedValue(PAIRS)
   vi.mocked(listCafeDestinations).mockResolvedValue(DESTINATIONS)

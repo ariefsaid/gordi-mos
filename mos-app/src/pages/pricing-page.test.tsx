@@ -147,6 +147,20 @@ describe('PricingPage — AC-PB-005: read-only margin check', () => {
     expect(await screen.findByText(/Rp 9.000/)).toBeInTheDocument()
     expect(screen.getByText(/basis as of/i)).toBeInTheDocument()
   })
+
+  it.each([
+    ['en', 'Basis as of'],
+    ['id', 'Dasar biaya per'],
+  ] as const)('shows an unrecorded budget basis as absent in %s', async (locale, basisLabel) => {
+    vi.mocked(listBudgetsPage).mockResolvedValue(budgetPage([{
+      id: 'b1', menu_item_esb_code: 'MENU-CAPPUC', menu_item_name: 'Cappuccino', scenario_label: 'Baseline',
+      scenario_type: 'baseline', owning_bu_id: 'bu-1', total_budgeted_cogs: 9000,
+      cost_basis_as_of: null, certified_metric_key: 'cogs.budgeted', is_complete: true,
+    }]))
+    renderPage(locale)
+    const basis = await screen.findByRole('region', { name: /linked budget basis|dasar anggaran tertaut/i })
+    expect(basis.textContent).toContain(`${basisLabel}—`)
+  })
 })
 
 describe('PricingPage — scenario paging', () => {

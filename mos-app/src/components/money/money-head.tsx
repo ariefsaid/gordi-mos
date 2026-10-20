@@ -80,11 +80,11 @@ export function MoneyFreshness({ latestDate, syncedAt, freshMessage, staleMessag
       {stale
         ? staleMessage ?? t('money.freshness.stale', {
           through: formatWeekdayDayMonth(latestDate, locale),
-          synced: syncedAt ? formatWibWeekdayTime(syncedAt, locale) : '',
+          synced: syncedAt ? formatWibWeekdayTime(syncedAt, locale) : t('money.freshness.unknownTime'),
         })
         : freshMessage ?? t('money.freshness', {
           through: formatWeekdayDayMonth(latestDate, locale),
-          synced: syncedAt ? formatWibWeekdayTime(syncedAt, locale) : '',
+          synced: syncedAt ? formatWibWeekdayTime(syncedAt, locale) : t('money.freshness.unknownTime'),
         })}
     </span>
   )

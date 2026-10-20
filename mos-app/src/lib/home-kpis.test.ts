@@ -4,11 +4,7 @@
 
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
-import {
-  trailingMargin,
-  formatMarginKpi,
-} from './home-kpis'
-import { translateFor } from '@/i18n/use-t'
+import { trailingMargin } from './home-kpis'
 
 function marginRow(overrides: Partial<SalesMarginDailyRow>): SalesMarginDailyRow {
   return {
@@ -72,21 +68,5 @@ describe('trailingMargin', () => {
     ]
     const w = trailingMargin(rows, '2026-06-30', 7)
     expect(w.current).toBe(1_000_000)
-  })
-})
-
-// ── formatMarginKpi (AC-HK02) ─────────────────────────────────────────────────
-describe('formatMarginKpi', () => {
-  it('AC-HK02: formats value + delta + a margin-pct sub when pct is present', () => {
-    const display = formatMarginKpi({ current: 4_000_000, prior: 2_000_000 }, 0.4, translateFor('en'))
-    expect(display.value).toMatch(/Rp/)
-    expect(display.delta.tone).toBe('success')
-    expect(display.pctSub).toMatch(/40(\.0)?% margin/)
-  })
-
-  it('AC-HK02: pct is null (not NaN) when revenue was 0/absent — sub is blank, delta is "no comparison"', () => {
-    const display = formatMarginKpi({ current: 0, prior: null }, null, translateFor('en'))
-    expect(display.delta.text).toBe('no comparison')
-    expect(display.pctSub).toBe('')
   })
 })

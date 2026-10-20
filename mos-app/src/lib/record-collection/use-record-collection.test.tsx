@@ -107,6 +107,7 @@ function makeSignalDescriptorWithSavedView(
         rename: vi.fn(),
         archive: vi.fn(),
       },
+      operations: ['save', 'apply', 'rename', 'archive'],
       parseAndValidate: () => ({ ok: true, spec: view.spec }),
       applySpec: (spec) => ({
         query: { ...signalCollectionQuery.neutral, layout: spec.presentation as SignalCollectionPresentation },
@@ -555,7 +556,7 @@ describe('useRecordCollection (synced)', () => {
           rename: vi.fn(),
           archive: vi.fn(),
         },
-        operations: ['apply'],
+        operations: ['save', 'apply', 'rename', 'archive'],
         buildSpec: () => { throw new Error('unused') },
         parseAndValidate: () => ({ ok: true, spec: view.spec }),
         applySpec: (spec) => ({

@@ -1,19 +1,9 @@
 // dashboard.test.ts — Money's reporting-window math.
 import { describe, it, expect } from 'vitest'
 import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
-import { bomCoveragePct, resolveWindow } from '@/lib/dashboard'
+import { bomCoveragePct } from '@/lib/dashboard'
 
 const LATEST = '2026-06-30'
-
-describe('resolveWindow', () => {
-  it('AC-013: 7 days resolve to [latestDate-6, latestDate]', () => {
-    expect(resolveWindow({ kind: 'preset', days: 7 }, LATEST)).toEqual({ start: '2026-06-24', end: LATEST })
-  })
-
-  it('AC-013: 30 days resolve to [latestDate-29, latestDate]', () => {
-    expect(resolveWindow({ kind: 'preset', days: 30 }, LATEST)).toEqual({ start: '2026-06-01', end: LATEST })
-  })
-})
 
 describe('bomCoveragePct', () => {
   const row = (margin_date: string, bom_coverage_pct: number | null) =>

@@ -8,7 +8,7 @@ import {
 } from '@/lib/db/notifications'
 import { applyMarkHandled } from '@/components/inbox/read-handled-semantics'
 import { compareTriage } from '@/components/inbox/nudge-semantics'
-import { announceUnreadCountChanged } from './unread-count-bus'
+import { refreshUnreadCount } from './unread-count-store'
 
 export interface UseNotifications {
   notifications: NotificationRow[]
@@ -100,13 +100,12 @@ export function useNotifications(): UseNotifications {
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read_at: readAt } : n)))
       try {
         await markNotificationRead(id, readAt)
-        // #582: only AFTER the write resolves — announcing earlier let a subscriber's re-fetch
-        // race the write and read the pre-write count back (a stale-high badge).
-        announceUnreadCountChanged()
+        // Refresh only after the write resolves so the count cannot race stale data.
+        void refreshUnreadCount()
       } catch {
         // Revert on failure — the badge must not lie about unread state.
         setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read_at: null } : n)))
-        announceUnreadCountChanged()
+        void refreshUnreadCount()
       }
     },
     [notifications],
@@ -122,13 +121,12 @@ export function useNotifications(): UseNotifications {
       setNotifications((prev) => prev.map((n) => (n.id === id ? applyMarkHandled(n, now) : n)))
       try {
         await markNotificationHandled(id, now, before.read_at == null ? now : null)
-        // #582: only AFTER the write resolves (handled co-stamps read on an unread row, so this
-        // can change the unread total too) — see markRead above for why the order matters.
-        announceUnreadCountChanged()
+        // Refresh after the write because handling an unread row also changes the count.
+        void refreshUnreadCount()
       } catch {
         // Revert on failure — the queue must not lie about handled state.
         setNotifications((prev) => prev.map((n) => (n.id === id ? before : n)))
-        announceUnreadCountChanged()
+        void refreshUnreadCount()
       }
     },
     [notifications],

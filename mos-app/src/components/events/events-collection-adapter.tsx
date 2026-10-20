@@ -80,6 +80,7 @@ export const eventsCollectionDescriptor: RecordCollectionDescriptor<EventRow, st
       context: { ...data.context, nextCursor: page.nextCursor },
     }
   },
+  hasMore: (data) => data.context.nextCursor !== null,
   project(data): CollectionProjection<EventRow, EventRow[]> { return { visibleRecords: [...data.records].sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at) || a.title.localeCompare(b.title)), groups: [], totalRecords: data.records.length, visibleRecordsAreFiltered: false } },
   getId: (event) => event.id,
   getAccess: (): CollectionAccess<EventAction> => ({ mode: 'full', visibleActions: [] }),

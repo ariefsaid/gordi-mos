@@ -25,7 +25,6 @@ import { loadJournaledWrites, loadMaxSeq } from './persistence.ts'
 import { createPendingActionStore } from './pendingActions.ts'
 import { readCappedJson } from './requestBody.ts'
 import { ChatCompletionsClient } from '../_shared/chatCompletionsClient.ts'
-import { resolveDefaultModel } from '../_shared/modelResolution.ts'
 import { logStructuredError } from '../_shared/errorLog.ts'
 import { requireVerifiedClaims } from '../_shared/claims.ts'
 import { assistantRefusalResponse, checkAssistantAvailability } from '../_shared/assistantAvailability.ts'
@@ -70,7 +69,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // ── 4. Read the model config from function secrets (D4) ──────────────────────
   const apiKey = Deno.env.get('AGENT_MODEL_API_KEY')
   const baseUrl = Deno.env.get('AGENT_MODEL_BASE_URL')
-  const model = resolveDefaultModel({ AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined })
+  const model = Deno.env.get('AGENT_MODEL_DEFAULT') ?? ''
 
   if (!model) {
     logStructuredError({ fn: 'agent-chat', errorCode: 'MODEL_NOT_CONFIGURED' })
