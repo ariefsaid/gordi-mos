@@ -18,8 +18,8 @@ import {
  * Desktop sidebar and rail, the collapsed rail's flyouts, the pages panel, ⌘K "Go to", the phone tab bar
  * and the More drawer all draw from the three zones below; nothing keeps a parallel list of its own.
  *
- *  - `WORKSPACE`       — Home, Work and Inbox route owners. `globalNavigationDestinations` merges these with
- *                        admitted modules in the shared shell order; Inbox also remains a top-bar door.
+ *  - `WORKSPACE`       — Home, Work and Inbox route owners. `globalNavigationDestinations` merges Home and Work
+ *                        with admitted modules in the shared shell order; Inbox has no menu row (it is the top-bar bell).
  *  - `MODULE_REGISTRY` — the modules, in registry order (Money, Café, then future Shift, Events, then
  *                        Roastery, Ecommerce). Each entry carries what a module owns: its ship gate (the
  *                        landing path asked of `lib/ship-gate.ts`), admission roles (`anyOf`, Money resolves
@@ -27,7 +27,7 @@ import {
  *                        icon, EN/ID names (`labelKey` into the catalog) and order. Each PAGE keeps its own
  *                        anyOf/capability/feature gate (`sections.ts`); this organises existing rules, it is
  *                        not a runtime on/off switch.
- *  - `UTILITY`         — Admin settings and Personal profile, pinned at the foot.
+ *  - `UTILITY`         — Admin settings, pinned at the foot, and Personal profile, in the account menu.
  *
  * Work declares its children in the owner-ruled order (OD-REDESIGN-57(ii), P-13): Signals · Tasks ·
  * Projects & Processes · Objectives · Events. Events is ship-gated (#348), so four of the five render.
@@ -197,14 +197,12 @@ export function admittedModules(accessRoles: string[], isOn: ModuleAccessCheck):
 export function globalNavigationDestinations(accessRoles: string[], isOn: ModuleAccessCheck): Destination[] {
   const home = WORKSPACE.find((destination) => destination.id === 'home')!
   const work = WORKSPACE.find((destination) => destination.id === 'work')!
-  const inbox = WORKSPACE.find((destination) => destination.id === 'inbox')!
   const modules = admittedModules(accessRoles, isOn)
   const live = (destination: Destination) => isLive(destination, accessRoles, isOn)
   return [
     ...(live(home) ? [home] : []),
     ...(live(work) ? [work] : []),
     ...modules.filter((destination) => destination.id === 'money'),
-    ...(live(inbox) ? [inbox] : []),
     ...modules.filter((destination) => destination.id === 'cafe'),
     ...modules.filter((destination) => destination.id !== 'money' && destination.id !== 'cafe'),
   ]
@@ -367,12 +365,14 @@ const UTILITY: Destination[] = [
   },
 ]
 
-/**
- * The Utility entries pinned at the foot of a nav surface: Admin settings when the viewer's roles admit it,
- * then Personal profile (a footer link everywhere; owner 2026-10-14).
- */
+/** The Utility entries pinned at the foot of a nav surface: Admin settings when the viewer's roles admit it. */
 export function footerAreas(accessRoles: string[]): Destination[] {
-  return UTILITY.filter((u) => isLive(u, accessRoles, () => true))
+  return UTILITY.filter((u) => u.id !== 'profile' && isLive(u, accessRoles, () => true))
+}
+
+/** Personal profile, opened from the account menu, unless the release ships without it. */
+export function profileArea(): Destination | undefined {
+  return UTILITY.find((u) => u.id === 'profile' && isLive(u, [], () => true))
 }
 
 /** All destinations across the zones, in registry order (for resolution scans). */
@@ -405,6 +405,7 @@ export interface GoToEntry {
 export function goToEntries(accessRoles: string[], isOn: ModuleAccessCheck): GoToEntry[] {
   const roots: Destination[] = [
     ...globalNavigationDestinations(accessRoles, isOn),
+    ...WORKSPACE.filter((d) => d.id === 'inbox' && isLive(d, accessRoles, isOn)),
     ...UTILITY.filter((d) => isLive(d, accessRoles, isOn)),
   ]
   const queues = reviewQueuesFor(accessRoles)

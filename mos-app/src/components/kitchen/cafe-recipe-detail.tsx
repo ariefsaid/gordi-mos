@@ -2,9 +2,10 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
+import { DateField } from '@/components/ui/date-field'
 import { Pill } from '@/components/ui/pill'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
-import { diffRecipes, esbBomType, latestRecipes, recipeKey, recipeName, type EsbStatus, type RecipeType, type RecipeVersion } from '@/lib/cafe-recipes'
+import { diffRecipes, esbBomType, esbStatus, latestRecipes, recipeKey, recipeName, type EsbStatus, type RecipeType, type RecipeVersion } from '@/lib/cafe-recipes'
 import { EsbStatusBadge } from '@/components/kitchen/esb-status-badge'
 import { useRecipeTypeLabel } from '@/components/kitchen/use-recipe-type-label'
 import { listItemRecipeVersions } from '@/lib/db/cafe-recipes'
@@ -34,31 +35,38 @@ export function CafeRecipeDetail({ versions, status, type, visibility }: {
   const t = useT()
   const typeLabel = useRecipeTypeLabel()
   const { locale } = useI18n()
-  const history = [...versions].sort((a, b) => b.version - a.version)
-  const current = history[0]
-  if (!current) return <EmptyState variant="blank" title={t('cafe.recipes.noRecipe')} />
-  const recipe = current.recipe
+  const [date, setDate] = useState('')
+  const history = [...versions].sort((a, b) => b.first_seen.localeCompare(a.first_seen) || b.version - a.version)
+  const latest = history[0]
+  if (!latest) return <EmptyState variant="blank" title={t('cafe.recipes.noRecipe')} />
+  const current = date ? history.find(version => version.first_seen <= date) : latest
+  const recipe = current?.recipe
+  const displayedStatus = date ? current && esbStatus(current) : status
+  const historyStart = formatDayMonthYear(history[history.length - 1].first_seen, locale)
   const missing = t('cafe.recipes.notProvided')
   const quantity = (value: number) => value === 0 ? '0' : formatQuantityInput(value, locale, 20)
   return (
     <article className="cafe-recipe-detail">
       <header className="cafe-recipe-detail__head">
-        <h2>{recipeName(current) || t('cafe.recipes.unnamed')}</h2>
-        {status && <EsbStatusBadge status={status} />}
+        <h2>{recipeName(current ?? latest) || t('cafe.recipes.unnamed')}</h2>
+        {displayedStatus && <EsbStatusBadge status={displayedStatus} />}
         <Pill tone="neutral" dot={false}>{t('cafe.recipes.readOnly')}</Pill>
       </header>
       {visibility}
+      <DateField className="cafe-recipe-detail__date" label={t('cafe.recipes.onDate')} value={date} onChange={setDate} placeholder={t('cafe.recipes.latest')} />
+      <p className="cafe-recipe-detail__note">{t('cafe.recipes.observationNote')}</p>
+      {!recipe ? <p role="status">{t('cafe.recipes.beforeHistory', { date: historyStart })}</p> : <>
       <dl className="cafe-recipe-detail__facts">
         {type && <div><dt>{t('cafe.recipes.type')}</dt><dd>{typeLabel(type)}</dd></div>}
-        {esbBomType(current) && <div><dt>{t('cafe.recipes.esbType')}</dt><dd>{esbBomType(current)}</dd></div>}
+        {current && esbBomType(current) && <div><dt>{t('cafe.recipes.esbType')}</dt><dd>{esbBomType(current)}</dd></div>}
         <div><dt>{t('cafe.recipes.outputUnit')}</dt><dd>{recipe.output_unit || missing}</dd></div>
         <div><dt>{t('cafe.recipes.yield')}</dt><dd>{recipe.output_yield == null ? missing : quantity(recipe.output_yield)}</dd></div>
         {recipe.branch_codes?.length ? <div><dt>{t('cafe.recipes.scope')}</dt><dd>{recipe.branch_codes.join(', ')}</dd></div> : null}
       </dl>
-      {(status ? status === 'inactive' || status === 'removed' : recipe.active === false || recipe.menu_deleted) && <p>{t('cafe.recipes.inactive')}</p>}
+      {(displayedStatus ? displayedStatus === 'inactive' || displayedStatus === 'removed' : recipe.active === false || recipe.menu_deleted) && <p>{t('cafe.recipes.inactive')}</p>}
       <h3>{t('cafe.recipes.ingredients')}</h3>
       {recipe.lines.length === 0 ? <p>{t('cafe.recipes.noIngredients')}</p> : (
-        <ul className="cafe-recipe-detail__ingredients">
+        <ul className="cafe-recipe-detail__ingredients" aria-label={t('cafe.recipes.ingredients')}>
           {recipe.lines.map((line, index) => (
             <li key={`${line.line_id ?? line.detail_id}:${index}`}>
               <span>{line.name || t('cafe.recipes.unnamedIngredient')}
@@ -69,9 +77,10 @@ export function CafeRecipeDetail({ versions, status, type, visibility }: {
           ))}
         </ul>
       )}
+      </>}
       <details className="cafe-recipe-detail__history">
         <summary>{t(history.length === 1 ? 'cafe.recipes.changesOne' : 'cafe.recipes.changes', { count: history.length })}</summary>
-        <p className="cafe-recipe-detail__note">{t('cafe.recipes.observationNote')}</p>
+        {recipe && <p className="cafe-recipe-detail__note">{t('cafe.recipes.beforeHistory', { date: historyStart })}</p>}
         <ol>
           {history.map((version, index) => {
             const previous = history[index + 1]

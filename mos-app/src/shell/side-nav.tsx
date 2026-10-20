@@ -95,7 +95,6 @@ function Sidebar({ data }: { data: NavData }) {
   }, [pathname])
 
   const admin = footer.find((d) => d.id === 'admin')
-  const profile = footer.find((d) => d.id === 'profile')
   const adminGroups = admin ? pagesOf(admin, roles, layout.isOn) : []
 
   return (
@@ -131,16 +130,15 @@ function Sidebar({ data }: { data: NavData }) {
               )
             })}
           </div>
-          {area?.id === 'admin' && adminGroups.length > 0 && (
-            <div className="nav-admin-pages">
-              <div className="nav-group-heading nav-group-heading--top">{t('dest.admin')}</div>
-              <PageLinks groups={adminGroups} pathname={pathname} forPath={badges.forPath} />
-            </div>
-          )}
         </div>
         <div className="nav-foot-links nav-list">
           {admin && <AreaLink destination={admin} to={landingOf(admin)} state={rowState(pathname, landingOf(admin), '/admin', currentPagePath(adminGroups, pathname))} />}
-          {profile && <AreaLink destination={profile} to="/profile" state={rowState(pathname, '/profile', '/profile', undefined)} />}
+          {/* Admin pages open under their own row at the foot, not in the module list above. */}
+          {area?.id === 'admin' && adminGroups.length > 0 && (
+            <div className="nav-admin-pages">
+              <PageLinks groups={adminGroups} pathname={pathname} forPath={badges.forPath} />
+            </div>
+          )}
           <ReleaseStamp />
         </div>
       </nav>
