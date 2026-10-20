@@ -1,5 +1,5 @@
 -- Nightly source evidence and append-only human reviews of stable register cases.
--- DOWN: run supabase/rollbacks/20261020004000_cancel_void_reviews.sql (refuses nonempty history).
+-- DOWN: run supabase/rollbacks/20261020004000_reporting_cancel_void_reviews.sql (refuses nonempty history).
 
 create table reporting.cancel_void_register (
   org_id uuid not null references shared.orgs(id) on delete restrict,
