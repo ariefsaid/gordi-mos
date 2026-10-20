@@ -13,7 +13,6 @@ vi.mock('../lib/db/tasks', () => ({
   listTasks: vi.fn(),
   hasOlderDoneTasks: vi.fn(),
   listOlderDoneTasks: vi.fn(),
-  listTaskEvents: vi.fn(),
   getTask: vi.fn(),
   createTask: vi.fn(),
   updateTaskStatus: vi.fn(),
@@ -44,7 +43,7 @@ vi.mock('../lib/comments/postComment', () => ({
 }))
 
 import {
-  listTasks, hasOlderDoneTasks, listOlderDoneTasks, listTaskEvents,
+  listTasks, hasOlderDoneTasks, listOlderDoneTasks,
   getTask, updateTaskStatus, createTask, archiveTask,
 } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
@@ -200,7 +199,6 @@ beforeEach(() => {
   vi.mocked(listWorkLines).mockResolvedValue([])
   mockHasOlderDoneTasks.mockResolvedValue(false)
   mockListOlderDoneTasks.mockResolvedValue({ rows: [], nextCursor: null, hasMore: false })
-  vi.mocked(listTaskEvents).mockResolvedValue([])
   vi.mocked(listComments).mockResolvedValue([])
   mockPostComment.mockResolvedValue('comment-1')
 })

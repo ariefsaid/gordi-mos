@@ -54,7 +54,6 @@ function makeDescriptor(opts: {
       savedViews: true,
       selection: true,
       recordOpening: true,
-      bulkActions: [] as readonly never[],
     },
     render: (props: { projection: CollectionProjection<FakeTask, FakeGroup>; onOpenRecord: (r: FakeTask) => void }) => (
       <ul data-testid="work-rows">
@@ -72,8 +71,7 @@ function makeDescriptor(opts: {
     query: taskCollectionQuery,
     savedViews: {
       enabled: true,
-      store: { list: async () => [], get: async () => null, create: vi.fn(), rename: vi.fn(), archive: vi.fn() },
-      operations: ['save', 'apply', 'rename', 'archive'],
+      store: { list: async () => [], get: async () => null, create: vi.fn() },
       buildSpec: () => { throw new Error('unused') },
       parseAndValidate: () => ({ ok: false, issues: [] }),
       applySpec: () => { throw new Error('unused') },

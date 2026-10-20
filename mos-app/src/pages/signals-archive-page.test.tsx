@@ -23,8 +23,6 @@ vi.mock('@/lib/db/user-views-collection', () => ({
   listCollectionViews: vi.fn(),
   getCollectionView: vi.fn(),
   createCollectionView: vi.fn(),
-  renameCollectionView: vi.fn(),
-  archiveCollectionView: vi.fn(),
 }))
 // The V3 collection Table renders in desktop mode here (deterministic), and the archive Feed's
 // "Share a Signal" row opens the shared composer host — stub it so this page test needs no shell.

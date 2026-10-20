@@ -6,17 +6,16 @@ vi.mock('../supabase', () => {
   const schema = vi.fn()
   return { supabase: { schema } }
 })
-vi.mock('@/lib/open-task-count-store', () => ({ announceOpenTaskCountChanged: vi.fn() }))
+vi.mock('@/lib/open-task-count-store', () => ({ refreshOpenTaskCount: vi.fn() }))
 
 import {
   startRun, listDueRuns, listPendingTasks, resolvePendingTask,
-  getRunRollup, listRunTasks, completeRun, cancelRun, listRunRollups, listTaskDefs,
+  getRunRollup, completeRun, cancelRun, listRunRollups, listTaskDefs,
   listProcessOccurrenceSummaries, listStartableProcessRuns, canStartProcessForTeam, canCloseProcessRun,
 } from './processes'
 import { supabase } from '@/lib/supabase'
-import { announceOpenTaskCountChanged } from '@/lib/open-task-count-store'
+import { refreshOpenTaskCount } from '@/lib/open-task-count-store'
 import type { DueProcessRun, ProcessOccurrenceSummary, ProcessRunRollup, ProcessRunRow } from './processes.types'
-import type { TaskListRow } from './tasks.types'
 
 const schemaMock = vi.mocked(supabase.schema)
 
@@ -277,7 +276,7 @@ describe('resolvePendingTask', () => {
 
     await resolvePendingTask(PENDING_ID, PIC_ID)
 
-    expect(announceOpenTaskCountChanged).toHaveBeenCalledOnce()
+    expect(refreshOpenTaskCount).toHaveBeenCalledOnce()
   })
 
   it('AC-621: calls mos.resolve_pending_task with the RPC args and returns the new task id', async () => {
@@ -301,7 +300,7 @@ describe('resolvePendingTask', () => {
   })
 })
 
-// ── getRunRollup / listRunTasks / completeRun (B4) ───────────────────────────
+// ── getRunRollup / completeRun (B4) ─────────────────────────────────────────
 describe('getRunRollup', () => {
   it('reads mos.process_run_rollup filtered by process_run_id', async () => {
     const rec = freshRec()
@@ -324,27 +323,6 @@ describe('getRunRollup', () => {
     mockSupabase({ 'mos.process_run_rollup': [{ data: null, error: { message: 'not found' } }] }, rec)
 
     await expect(getRunRollup(RUN_ID)).rejects.toThrow(/not found/)
-  })
-})
-
-describe('listRunTasks', () => {
-  it('reads mos.tasks filtered by process_run_id (reuses TaskListRow, no re-implemented fetch)', async () => {
-    const rec = freshRec()
-    const taskRow = { id: 'task-1', title: 'Open the café' } as unknown as TaskListRow
-    mockSupabase({ 'mos.tasks': [{ data: [taskRow], error: null }] }, rec)
-
-    const rows = await listRunTasks(RUN_ID)
-
-    expect(rec.fromTables).toContain('mos.tasks')
-    expect(rec.eqs).toContainEqual(['process_run_id', RUN_ID])
-    expect(rows).toEqual([taskRow])
-  })
-
-  it('re-throws when the read errors', async () => {
-    const rec = freshRec()
-    mockSupabase({ 'mos.tasks': [{ data: null, error: { message: 'read failed' } }] }, rec)
-
-    await expect(listRunTasks(RUN_ID)).rejects.toThrow(/read failed/)
   })
 })
 

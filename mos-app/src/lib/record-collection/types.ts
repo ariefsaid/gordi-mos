@@ -40,7 +40,7 @@ export interface CollectionQuerySchema<TQuery extends object> {
   normalize(query: TQuery): TQuery
 }
 
-interface CollectionCapabilities<TQuery extends object, TAction extends string> {
+interface CollectionCapabilities<TQuery extends object> {
   search: boolean
   filterKeys: readonly QueryKey<TQuery>[]
   sortKeys: readonly QueryKey<TQuery>[]
@@ -48,10 +48,7 @@ interface CollectionCapabilities<TQuery extends object, TAction extends string> 
   savedViews: boolean
   selection: boolean
   recordOpening: boolean
-  bulkActions: readonly TAction[]
 }
-
-type SavedViewOperation = 'save' | 'apply' | 'rename' | 'archive'
 
 export interface CollectionViewStore {
   list(collectionId: CollectionViewSpec['collectionId']): Promise<readonly PersistedCollectionView[]>
@@ -61,12 +58,9 @@ export interface CollectionViewStore {
     scope: 'private' | 'shared_team'
     spec: CollectionViewSpec
   }): Promise<PersistedCollectionView>
-  rename(id: string, name: string): Promise<void>
-  archive(id: string): Promise<void>
 }
 
-export type CollectionViewOperationStatus =
-  | 'idle' | 'loading' | 'saving' | 'renaming' | 'archiving' | 'error'
+export type CollectionViewOperationStatus = 'idle' | 'loading' | 'saving' | 'error'
 
 export interface CollectionViewState {
   readonly items: readonly PersistedCollectionView[]
@@ -116,13 +110,12 @@ export interface CollectionPresentationDescriptor<
   TQuery extends object,
   TProjection,
   TContext,
-  TAction extends string,
   TPresentation extends string,
 > {
   readonly id: TPresentation
   readonly label: string
   readonly compatibleQueryKeys: readonly QueryKey<TQuery>[]
-  readonly capabilities: CollectionCapabilities<TQuery, TAction>
+  readonly capabilities: CollectionCapabilities<TQuery>
   render(props: CollectionPresentationProps<TRecord, TQuery, TProjection, TContext, TId>): ReactNode
 }
 
@@ -132,7 +125,6 @@ export interface CollectionSavedViewDescriptor<
 > {
   readonly enabled: boolean
   readonly store: CollectionViewStore
-  readonly operations: readonly SavedViewOperation[]
   buildSpec(args: { query: TQuery; presentation: TPresentation }): CollectionViewSpec
   parseAndValidate(input: unknown): CollectionViewValidationResult
   applySpec(spec: CollectionViewSpec): { query: TQuery; presentation: TPresentation }
@@ -165,7 +157,6 @@ export interface RecordCollectionDescriptor<
       TQuery,
       CollectionProjection<TRecord, TGroup>,
       TContext,
-      TAction,
       TPresentation
     >
   >>
@@ -214,11 +205,6 @@ export interface RecordCollectionDescriptor<
   viewer?: RecordViewerOpeningContract<TRecord>
   /** Issue 4 overlay host, injected by the React hook. React-free engine calls this seam. */
   host?: CollectionOverlayHost
-  runBulkAction?: (args: {
-    action: TAction
-    ids: readonly TId[]
-    viewerId: string
-  }) => Promise<void>
 }
 
 export interface RecordCollectionState<

@@ -67,8 +67,6 @@ export interface RecordCollectionController<
    */
   setViewport(isDesktop: boolean): void
   toggleSelected(id: TId): void
-  selectVisible(ids: readonly TId[]): void
-  clearSelection(): void
   toggleGroup(groupId: string): void
   /**
    * Bind a source builder (the React hook supplies the live pathname/search) so the presentation
@@ -76,7 +74,6 @@ export interface RecordCollectionController<
    */
   setSourceBuilder(builder: () => CollectionOpenSource<TQuery, TPresentation>): void
   openRecord(record: TRecord, source?: CollectionOpenSource<TQuery, TPresentation>): void
-  runBulkAction(action: TAction): Promise<void>
   retry(): void
   loadMore(): Promise<void>
   loadSavedViews(): Promise<void>
@@ -85,8 +82,6 @@ export interface RecordCollectionController<
     scope: 'private' | 'shared_team',
   ): Promise<PersistedCollectionView | null>
   applySavedView(id: string): Promise<PresentationSwitchResult<TQuery, TPresentation>>
-  renameSavedView(id: string, name: string): Promise<void>
-  archiveSavedView(id: string): Promise<void>
 }
 
 /**
@@ -309,14 +304,6 @@ export function createRecordCollectionController<
       else nextSel.add(id)
       set({ selectedIds: nextSel })
     },
-    selectVisible(ids) {
-      const nextSel = new Set(state.selectedIds)
-      for (const id of ids) nextSel.add(id)
-      set({ selectedIds: nextSel })
-    },
-    clearSelection() {
-      set({ selectedIds: new Set<TId>() })
-    },
     toggleGroup(groupId) {
       const next = new Set(state.collapsedGroupIds)
       if (next.has(groupId)) next.delete(groupId)
@@ -338,13 +325,6 @@ export function createRecordCollectionController<
       const hasOpenPanel = (host.session?.frames.length ?? 0) > 0
       if (hasOpenPanel) void host.push(entry)
       else void host.openRoot(entry, 'route')
-    },
-    async runBulkAction(action) {
-      if (!descriptor.runBulkAction || initial.viewerId === null) return
-      const ids = [...state.selectedIds]
-      await descriptor.runBulkAction({ action, ids, viewerId: initial.viewerId })
-      initial.readLease?.invalidate()
-      runLoad()
     },
     retry() {
       initial.readLease?.invalidate()
@@ -438,30 +418,6 @@ export function createRecordCollectionController<
       setSavedViews({ operation: 'idle', error: null })
       runLoad()
       return { ok: true, query: nextQuery, presentation: applied.presentation }
-    },
-    async renameSavedView(id, name) {
-      setSavedViews({ operation: 'renaming', error: null })
-      try {
-        await descriptor.savedViews.store.rename(id, name)
-        const items = state.savedViews.items.map((v) => (v.id === id ? { ...v, name } : v))
-        setSavedViews({ items, operation: 'idle', error: null })
-      } catch (err) {
-        setSavedViews({ operation: 'error', error: errText(err) })
-      }
-    },
-    async archiveSavedView(id) {
-      setSavedViews({ operation: 'archiving', error: null })
-      try {
-        await descriptor.savedViews.store.archive(id)
-        const items = state.savedViews.items.filter((v) => v.id !== id)
-        // Archive clears only the saved identity; the compatible current collection state stays.
-        const currentSavedId = (state.query as { savedViewId?: string | null }).savedViewId
-        const clearedId = currentSavedId === id
-        setSavedViews({ items, operation: 'idle', error: null })
-        if (clearedId) set({ query: { ...state.query, ['savedViewId' as keyof TQuery]: null } as TQuery })
-      } catch (err) {
-        setSavedViews({ operation: 'error', error: errText(err) })
-      }
     },
   }
 

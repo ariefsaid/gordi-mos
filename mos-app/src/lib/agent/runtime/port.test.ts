@@ -65,7 +65,6 @@ describe('agent runtime port — pure type seam (T21)', () => {
       name: 'query_entity',
       description: 'read',
       inputSchema: {},
-      surfaces: ['agent'],
       confirm: false,
       run: async () => ({ ok: true }),
     }

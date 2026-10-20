@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { TASK_EVENTS_PAGE_SIZE, taskDoneRecentCutoff } from './task-paging'
 import { containsPattern } from './like-pattern'
 import { keysetBeforeFilter, keysetPageFromProbe } from './keyset-filter'
-import { announceOpenTaskCountChanged } from '@/lib/open-task-count-store'
+import { refreshOpenTaskCount } from '@/lib/open-task-count-store'
 import { getReadScope, sharePending } from '@/lib/scoped-reads'
 import type { ReadLease } from '@/lib/scoped-reads'
 import type {
@@ -25,8 +25,7 @@ const mos = () => supabase.schema('mos')
 // Raw mos.tasks columns only — no cross-schema FK embeds.
 // PostgREST CANNOT FK-embed across schemas (mos→shared) under the mos profile (PGRST200).
 // Display-name resolution is client-side via directory.ts (Fix C1).
-// LIST_SELECT is exported for processes.ts rollup reuse (Rule 11 — never re-implement task fetching).
-export const LIST_SELECT = [
+const LIST_SELECT = [
   'id', 'org_id', 'title', 'business_unit_id', 'team_id', 'status',
   'responsible_person_id', 'accountable_person_id', 'consulted_person_ids',
   'informed_person_ids', 'due_date', 'objective_id', 'work_line_id',
@@ -101,10 +100,6 @@ export async function listTaskEventsPage(
   if (error) throw new Error(`listTaskEvents failed — ${error.message}`)
   return keysetPageFromProbe((data ?? []) as unknown as TaskEventRow[], TASK_EVENTS_PAGE_SIZE,
     (event) => ({ created_at: event.created_at, id: event.id }))
-}
-
-export async function listTaskEvents(taskId: string, before?: TaskEventsCursor): Promise<TaskEventRow[]> {
-  return (await listTaskEventsPage(taskId, before)).rows
 }
 
 export type OlderDoneTaskCursor = Pick<TaskListRow, 'completed_at' | 'id'>
@@ -256,7 +251,7 @@ export async function createTask(input: CreateTaskInput): Promise<string> {
     ...taskInsert,
   }).select('id').single()
   if (error) throw new Error(`createTask failed — ${error.message}`)
-  announceOpenTaskCountChanged()
+  void refreshOpenTaskCount()
   const id = (data as { id: string }).id
   await logEvent(id, input.createdBy, 'created')
   return id
@@ -265,7 +260,7 @@ export async function createTask(input: CreateTaskInput): Promise<string> {
 async function updateTask(id: string, patch: Record<string, unknown>): Promise<void> {
   const { error } = await mos().from('tasks').update(patch).eq('id', id)
   if (error) throw new Error(`updateTask failed — ${error.message}`)
-  announceOpenTaskCountChanged()
+  void refreshOpenTaskCount()
 }
 
 /** Change status, then log a `status_changed` event recording from→to (FR-031/055). */

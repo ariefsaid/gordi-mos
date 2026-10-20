@@ -12,10 +12,15 @@ export function useMyOpenTaskCount(): number | null {
   const personId = auth.status === 'authenticated' ? auth.viewer?.person?.id : undefined
   const readScope: ReadScope | null = auth.status === 'authenticated' ? auth.readScope ?? null : null
   const subscribe = useCallback(
-    (listener: () => void) => subscribeOpenTaskCount(listener, readScope),
-    [readScope],
+    (listener: () => void) => personId
+      ? subscribeOpenTaskCount(personId, listener, readScope)
+      : () => {},
+    [personId, readScope],
   )
-  const getSnapshot = useCallback(() => getOpenTaskCountSnapshot(readScope), [readScope])
+  const getSnapshot = useCallback(
+    () => personId ? getOpenTaskCountSnapshot(personId, readScope) : null,
+    [personId, readScope],
+  )
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 
   useEffect(() => {

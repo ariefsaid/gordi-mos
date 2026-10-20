@@ -103,8 +103,6 @@ export interface AgentAction {
   description: string
   /** JSON Schema -> model tool parameters (not ZodType). */
   inputSchema: object
-  /** P2 ships ['agent']. */
-  surfaces?: ('ui' | 'agent' | 'mcp' | 'cli')[]
   /** Read-only actions (query_entity, compose_view) => false/omitted. */
   confirm?: boolean
   run: (input: unknown, ctx: DeputyContext) => Promise<unknown>

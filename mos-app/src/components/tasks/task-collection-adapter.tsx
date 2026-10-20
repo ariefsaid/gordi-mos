@@ -11,8 +11,8 @@ import {
 } from '@/lib/db/directory'
 import { hasOrgWideAuthority } from '@/lib/role-scope'
 import type { BusinessUnitOption, PersonOption, TeamOption } from '@/lib/db/directory'
-import type { TaskTeamView } from '@/lib/team-context'
-import { deriveTaskTeamView } from '@/lib/team-context'
+import type { TaskTeamView } from '@/lib/team-context/task-team-view'
+import { deriveTaskTeamView } from '@/lib/team-context/task-team-view'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { buildCascadeGroups, type CascadeTask } from '@/lib/cascade/count-rollup'
@@ -24,8 +24,6 @@ import {
   createCollectionView,
   getCollectionView,
   listCollectionViews,
-  renameCollectionView,
-  archiveCollectionView,
 } from '@/lib/db/user-views-collection'
 import {
   parseCollectionViewSpec,
@@ -482,8 +480,6 @@ const taskCollectionViewStore: CollectionViewStore = {
   list: (collectionId) => listCollectionViews(collectionId),
   get: (id) => getCollectionView(id),
   create: ({ name, scope, spec }) => createCollectionView({ name, scope, spec }),
-  rename: (id, name) => renameCollectionView(id, name),
-  archive: (id) => archiveCollectionView(id),
 }
 
 /** Map the live typed query + presentation into a persisted, schema-versioned Task view spec. */
@@ -543,7 +539,6 @@ const taskCollectionSavedViews: CollectionSavedViewDescriptor<
 > = {
   enabled: true,
   store: taskCollectionViewStore,
-  operations: ['save', 'apply', 'rename', 'archive'],
   buildSpec: buildTaskViewSpec,
   parseAndValidate: (input) => parseCollectionViewSpec(input),
   applySpec: applyTaskViewSpec,
@@ -564,7 +559,6 @@ const TASK_CAPABILITIES = {
   savedViews: true,
   selection: false,
   recordOpening: true,
-  bulkActions: [] as const,
 }
 
 type TaskPresentationDescriptor = CollectionPresentationDescriptor<
@@ -573,7 +567,6 @@ type TaskPresentationDescriptor = CollectionPresentationDescriptor<
   TaskCollectionQuery,
   CollectionProjection<TaskCollectionRecord, TaskRenderGroup>,
   TaskCollectionContext,
-  TaskCollectionAction,
   TaskCollectionPresentation
 >
 
@@ -586,7 +579,6 @@ const taskTablePresentation: TaskPresentationDescriptor = {
     filterKeys: [...TASK_CAPABILITIES.filterKeys],
     sortKeys: [...TASK_CAPABILITIES.sortKeys],
     groupKeys: [...TASK_CAPABILITIES.groupKeys],
-    bulkActions: [...TASK_CAPABILITIES.bulkActions],
   },
   render: (props) => <TaskTablePresentation {...props} />,
 }
@@ -600,7 +592,6 @@ const taskCardPresentation: TaskPresentationDescriptor = {
     filterKeys: [...TASK_CAPABILITIES.filterKeys],
     sortKeys: [...TASK_CAPABILITIES.sortKeys],
     groupKeys: [...TASK_CAPABILITIES.groupKeys],
-    bulkActions: [...TASK_CAPABILITIES.bulkActions],
   },
   render: (props) => <TaskCardPresentation {...props} />,
 }

@@ -104,8 +104,7 @@ import { listKitchenWastePhotos } from '@/lib/db/kitchen-waste-photos'
 import { KitchenReviewPage } from './kitchen-review-page'
 import { rememberStream } from '@/lib/cafe-stream'
 import { streamDateKey } from '@/lib/kitchen-action-label'
-import { rememberCafeLocation } from '@/lib/cafe-opening-location'
-import { resetCafeLocations } from '@/lib/cafe-opening-location'
+import { rememberCafeLocation, rememberCafeOpeningTeam } from '@/lib/cafe-opening-location'
 import type { PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -214,7 +213,8 @@ beforeEach(() => {
   // outranks the FR-041 role default — so clear it per test, or one test's switch decides the
   // next test's opening filter.
   rememberStream(null)
-  resetCafeLocations()
+  rememberCafeLocation('p-lead', null)
+  rememberCafeOpeningTeam('p-lead', null)
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockList.mockResolvedValue([])
   vi.mocked(hasSubmittedKitchenProduction).mockResolvedValue(false)
