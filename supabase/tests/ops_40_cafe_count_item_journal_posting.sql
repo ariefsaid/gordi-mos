@@ -1,7 +1,7 @@
 -- #1373/#1375 — confirmation groups, independent branch switches and current-only release.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(32);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -92,12 +92,43 @@ select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000
        '00000000-0000-0000-0000-0000000000d4', now(), 'COUNT-POSTED-AFTER-SNAPSHOT', true, 'ERP-COUNT-POSTED', now() + interval '1 minute'
   from ops.wip_items w where w.esb_product_id = 'SYNTH-ERP-P-1373-F';
 insert into ops.kitchen_logs (org_id, business_unit_id, log_date, branch_id, activity, action, destination_branch_id,
-                              wip_item_id, qty_porsi, status, source, submitted_by, reviewed_by, reviewed_at,
+                              wip_item_id, item_unit_id, qty_porsi, status, source, submitted_by, reviewed_by, reviewed_at,
                               batch_id, posted_to_esb)
 select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bb01', current_date - 3,
-       '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'waste', null, w.id, 1, 'Approved', 'teable_import', null,
+       '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'waste', null, w.id,
+       (select u.id from ops.item_units u where u.wip_item_id = w.id and u.source_active limit 1),
+       1, 'Approved', 'teable_import', null,
        '00000000-0000-0000-0000-0000000000d4', now(), 'COUNT-HELD-WASTE-NO-ERP-DOC', false
   from ops.wip_items w where w.esb_product_id = 'SYNTH-ERP-P-1373-G';
+
+-- Inbound transfers affect the destination's expected figure too.
+savepoint inbound_probe;
+insert into ops.cafe_destinations (org_id, origin_branch_id, origin_activity, destination_branch_id)
+values ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf02',
+        'kitchen', '00000000-0000-0000-0000-00000000bf01') on conflict do nothing;
+insert into ops.kitchen_logs (org_id, business_unit_id, log_date, branch_id, activity, action, destination_branch_id,
+                              wip_item_id, qty_porsi, status, source, batch_id, posted_to_esb)
+select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bb01', current_date - 2,
+       '00000000-0000-0000-0000-00000000bf02', 'kitchen', 'transfer',
+       '00000000-0000-0000-0000-00000000bf01', w.id, 1, 'Approved', 'teable_import', 'COUNT-INBOUND', false
+  from ops.wip_items w where w.esb_product_id = 'SYNTH-ERP-P-1373-H';
+select ok(not ops._cafe_count_expected_is_current(line.org_id, line.branch_id, line.activity,
+              line.count_date, line.expected_recorded_at),
+  'AC-034 an approved inbound transfer without its document keeps the destination count held')
+  from ops.cafe_count_lines line where line.id = current_setting('app.h')::uuid;
+rollback to inbound_probe;
+
+savepoint submitted_probe;
+insert into ops.kitchen_logs (org_id, business_unit_id, log_date, branch_id, activity, action,
+                              wip_item_id, qty_porsi, status, source, batch_id)
+select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bb01', current_date - 2,
+       '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'produce', w.id, 1, 'Submitted', 'teable_import', 'COUNT-SUBMITTED'
+  from ops.wip_items w where w.esb_product_id = 'SYNTH-ERP-P-1373-H';
+select ok(not ops._cafe_count_expected_is_current(line.org_id, line.branch_id, line.activity,
+              line.count_date, line.expected_recorded_at),
+  'AC-034 an unsettled movement keeps the count held')
+  from ops.cafe_count_lines line where line.id = current_setting('app.h')::uuid;
+rollback to submitted_probe;
 
 -- One confirmation action groups its three non-zero lines; zero-variance lines never become members.
 set local role authenticated;
@@ -133,6 +164,19 @@ select ops.record_cafe_count_recount(current_setting('app.b')::uuid, 3);
 select ops.record_cafe_count_reason(current_setting('app.b')::uuid, 'checked');
 select ops.record_cafe_count_recount(current_setting('app.c')::uuid, 4);
 select ops.record_cafe_count_reason(current_setting('app.c')::uuid, 'checked');
+reset role;
+savepoint confirmation_gate;
+insert into ops.kitchen_logs (org_id, business_unit_id, log_date, branch_id, activity, action,
+                              wip_item_id, qty_porsi, status, source, batch_id)
+select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bb01', current_date,
+       '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'produce', w.id, 1, 'Submitted', 'teable_import', 'COUNT-CONFIRM-GATE'
+  from ops.wip_items w where w.esb_product_id = 'SYNTH-ERP-P-1373-A';
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
+select is(ops.confirm_cafe_count_line(current_setting('app.a')::uuid, 4) ->> 'posting_status', 'held',
+  'AC-029 confirmation stays held while the movement gate is closed even with the switch on');
+rollback to confirmation_gate;
+set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 select set_config('app.confirmed', ops.confirm_cafe_count_lines(jsonb_build_array(
   jsonb_build_object('line_id',current_setting('app.a'),'row_version',4),
@@ -162,10 +206,14 @@ select is((select count(*)::int from ops.cafe_count_lines where id in (current_s
 select is((select count(*)::int from jsonb_array_elements(current_setting('app.confirmed')::jsonb) as outcomes(value)
             where value ->> 'posting_status' = 'queued'), 3,
   'AC-029 the confirmation response reports the queued state');
-select lives_ok($$select ops.confirm_cafe_count_lines(jsonb_build_array(
-  jsonb_build_object('line_id',current_setting('app.a'),'row_version',4),
-  jsonb_build_object('line_id',current_setting('app.b'),'row_version',4)))$$,
-  'AC-029 repeated confirmation is refused without creating a second group');
+reset role;
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
+select is(ops.confirm_cafe_count_lines(jsonb_build_array(
+  jsonb_build_object('line_id',current_setting('app.a'),'row_version',4))) -> 0 ->> 'reason',
+  'CAFE_COUNT_NOT_SUBMITTED', 'AC-029 repeated confirmation is refused because the line is no longer Submitted');
+reset role;
+set local role service_role;
 select is((select count(*)::int from integrations.esb_push_groups where source_module = 'cafe_count'), 1,
   'AC-029 the idempotent repeat leaves the one group unchanged');
 
@@ -174,8 +222,7 @@ update integrations.esb_push_groups set status = 'in_flight', posting_stage = 'a
 select is((select count(*)::int from ops.cafe_count_lines where id in (current_setting('app.a')::uuid,
   current_setting('app.b')::uuid,current_setting('app.c')::uuid) and posting_status = 'awaiting_authorization'), 3,
   'AC-032 the group write-back shows created-awaiting-authorization on each line');
-update integrations.esb_push set status = 'in_flight'
- where source_module = 'cafe_count' and push_group_id in (select id from integrations.esb_push_groups where source_module = 'cafe_count');
+select integrations.claim_esb_pushes(array(select id from integrations.esb_push where source_module = 'cafe_count'));
 update integrations.esb_push set status = 'posted', esb_doc_num = 'IJ-TEST-1', posted_at = now()
  where source_module = 'cafe_count' and status = 'in_flight';
 update integrations.esb_push_groups set status = 'posted', posting_stage = null, posted_at = now()
@@ -188,10 +235,16 @@ set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 select is((select count(*)::int from ops.cafe_count_posting_queue()), 0,
   'NFR-006 the floor cannot read reviewer count-posting figures or errors');
+select throws_ok($$select ops.set_cafe_count_posting_enabled('00000000-0000-0000-0000-00000000bf01', true)$$,
+  '42501', 'CAFE_COUNT_POSTING_ADMIN_ONLY', 'FR-031 a floor member cannot enable count posting');
+select throws_ok($$select ops.list_cafe_count_posting_switches()$$,
+  '42501', 'CAFE_COUNT_POSTING_ADMIN_ONLY', 'FR-031 the posting switch reader is admin only');
 select throws_ok($$select ops.release_cafe_count_posting('00000000-0000-0000-0000-00000000bf01')$$,
   '42501', 'CAFE_COUNT_POSTING_RELEASE_FORBIDDEN', 'AC-034 a floor member cannot release held counts');
 
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
+select throws_ok($$select ops.set_cafe_count_posting_enabled('00000000-0000-0000-0000-00000000bf01', false)$$,
+  '42501', 'CAFE_COUNT_POSTING_ADMIN_ONLY', 'FR-031 an ops lead cannot change the admin switch');
 select set_config('app.release_result', ops.release_cafe_count_posting('00000000-0000-0000-0000-00000000bf01')::text, true);
 select is(current_setting('app.release_result')::jsonb ->> 'released_lines', '1',
   'AC-034 release enqueues the line whose branch/date Expected snapshot is still current');
@@ -229,7 +282,7 @@ set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select ops.record_cafe_count_recount(current_setting('app.sample_line')::uuid, 2);
 select ops.record_cafe_count_reason(current_setting('app.sample_line')::uuid, 'checked');
-select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000d4","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 select ops.confirm_cafe_count_line(current_setting('app.sample_line')::uuid, 4);
 reset role;
 set local role service_role;
@@ -237,6 +290,12 @@ select is((select posting_status from ops.cafe_count_lines where id = current_se
   'NFR-006 a sample-org confirmation stays held even when the branch switch is on');
 select is((select count(*)::int from integrations.esb_push where source_module = 'cafe_count'), 4,
   'NFR-006 a sample-org Count never adds a member to the guarded outbox');
+
+reset role;
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a2","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member","admin"]}');
+select is((select count(*)::int from ops.cafe_count_posting_queue()), 0,
+  'NFR-006 another organization cannot read count posting state');
 
 select * from finish();
 rollback;

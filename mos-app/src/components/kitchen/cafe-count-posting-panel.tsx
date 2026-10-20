@@ -160,7 +160,7 @@ export function CafeCountPostingPanel({
           return <li key={row.line_id}>
             <div>
               <strong>{row.item_name}</strong>
-              <span>{row.branch_name} · {streamLabel(t, stream)} · {formatWeekdayDayMonth(row.count_date)}</span>
+              <span>{stream ? streamLabel(t, stream) : row.branch_name} · {formatWeekdayDayMonth(row.count_date)}</span>
             </div>
             <div className="cafe-count-posting__state">
               <span role="status">{statusLabel(row)}</span>
@@ -170,7 +170,7 @@ export function CafeCountPostingPanel({
           </li>
         })}
       </ul>}
-      {canReleasePosting && [...heldByBranch].map(([branchId, held]) => {
+      {canReleasePosting && !loading && !queueError && [...heldByBranch].map(([branchId, held]) => {
         const branch = visibleRows.find(row => row.branch_id === branchId)
         const enabled = branch?.posting_enabled ?? false
         if (!enabled) return null

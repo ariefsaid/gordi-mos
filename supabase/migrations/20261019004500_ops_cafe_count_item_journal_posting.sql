@@ -31,12 +31,13 @@ set search_path = ''
 as $$
 declare
   v_action text := coalesce(current_setting('app.cafe_count_action', true), '');
+  v_today date := (clock_timestamp() at time zone 'Asia/Jakarta')::date;
 begin
   if tg_op = 'INSERT' then
     new.org_id := shared.current_org_id();
     new.submitted_by := shared.current_person_id();
     new.submitted_at := clock_timestamp();
-    new.count_date := (clock_timestamp() at time zone 'Asia/Jakarta')::date;
+    new.count_date := coalesce(new.count_date, v_today);
     new.source := 'mos';
     new.status := 'Submitted';
     new.posting_status := 'not_posted';
@@ -57,6 +58,13 @@ begin
     if new.org_id is null or new.submitted_by is null then
       raise exception 'CAFE_COUNT_FORBIDDEN' using errcode = '42501';
     end if;
+    if new.count_date > v_today then
+      raise exception 'CAFE_COUNT_DATE_FUTURE' using errcode = '23514';
+    end if;
+    if new.count_date < v_today - 7 or (new.count_date < v_today - 1
+       and not (shared.has_access_role('ops_lead') or shared.has_access_role('admin'))) then
+      raise exception 'CAFE_COUNT_DATE_TOO_OLD' using errcode = '23514';
+    end if;
     if not exists (
       select 1 from ops.cafe_countable_items(new.branch_id, new.activity) item
        where item.item_id = new.wip_item_id
@@ -76,8 +84,9 @@ begin
      and new.posting_status in ('held', 'queued', 'awaiting_authorization', 'posted', 'failed')
      and new.posting_status is distinct from old.posting_status
      and new.row_version = old.row_version
-     and (to_jsonb(new) - 'posting_status' - 'updated_at')
-         is not distinct from (to_jsonb(old) - 'posting_status' - 'updated_at') then
+     -- PostgreSQL computes the generated variance after BEFORE triggers.
+     and (to_jsonb(new) - 'posting_status' - 'updated_at' - 'variance')
+         is not distinct from (to_jsonb(old) - 'posting_status' - 'updated_at' - 'variance') then
     new.updated_at := clock_timestamp();
     return new;
   end if;
@@ -97,6 +106,8 @@ begin
      or new.item_unit_id is distinct from old.item_unit_id
      or new.unit_name is distinct from old.unit_name
      or new.counted_quantity is distinct from old.counted_quantity
+     or new.entry_quantity is distinct from old.entry_quantity
+     or new.entry_unit_factor is distinct from old.entry_unit_factor
      or new.client_key is distinct from old.client_key
      or new.source is distinct from old.source
      or new.submitted_by is distinct from old.submitted_by
@@ -209,6 +220,8 @@ begin
     return null;
   end if;
   if v_env = 'dry_run' or shared.is_sample_org(v_line.org_id)
+     or not ops._cafe_count_expected_is_current(v_line.org_id, v_line.branch_id,
+       v_line.activity, v_line.count_date, v_line.expected_recorded_at)
      or not coalesce((select s.posting_enabled from ops.cafe_count_posting_switches s
                        where s.org_id = v_line.org_id and s.branch_id = v_line.branch_id), false) then
     return null;
@@ -236,7 +249,7 @@ begin
             'item_unit_id', v_line.item_unit_id, 'variance', v_line.variance,
             'mos_key', 'MOS-CC-' || upper(replace(v_group_id::text, '-', ''))),
           v_env, v_member_key, v_group_id)
-  on conflict (dedup_key) do nothing;
+  on conflict (org_id, dedup_key) do nothing;
   get diagnostics v_inserted = row_count;
   if v_inserted = 0 and not exists (
     select 1 from integrations.esb_push e
@@ -444,14 +457,15 @@ begin
 
   if exists (
     select 1 from ops.kitchen_logs l
-     where l.org_id = p_org_id and l.branch_id = p_branch_id and l.log_date = p_count_date
-       and l.status = 'Approved' and l.posted_at > p_expected_at
+     where l.org_id = p_org_id and (l.branch_id = p_branch_id or l.destination_branch_id = p_branch_id)
+       and l.log_date = p_count_date and l.status = 'Approved' and l.posted_at >= p_expected_at
   ) then return false; end if;
   if exists (
     select 1 from ops.kitchen_logs l
-     where l.org_id = p_org_id and l.branch_id = p_branch_id and l.log_date = p_count_date
-       and l.status = 'Approved'
-       and (not l.posted_to_esb or nullif(l.esb_doc_num, '') is null or l.posted_at is null)
+     where l.org_id = p_org_id and (l.branch_id = p_branch_id or l.destination_branch_id = p_branch_id)
+       and l.log_date = p_count_date
+       and (l.status = 'Submitted' or (l.status = 'Approved'
+         and (not l.posted_to_esb or nullif(l.esb_doc_num, '') is null or l.posted_at is null)))
   ) then return false; end if;
   if exists (
     select 1

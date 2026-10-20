@@ -1962,7 +1962,7 @@ def count_tick(esb: FakeCount, *, meta=None, rows=None, cfg=None):
 
 count_units = {COUNT_UNITS[0]: {"product_detail_id": 9071}, COUNT_UNITS[1]: {"product_detail_id": 9072}}
 count_req = W.compose_count_journal(count_cfg(), count_rows(), count_units)
-check("AC-1374 one item journal carries the mapped branch/location, date, MOS key and every signed non-zero variance",
+check("AC-030 one item journal carries the mapped branch/location, date, MOS key and every signed non-zero variance",
       count_req.path == COUNT_PATH and count_req.body == {
           "itemJournalDate": "2026-10-19", "branchID": 176, "locationID": 510,
           "additionalInfo": COUNT_KEY,
@@ -2003,6 +2003,15 @@ check_raises("AC-1374 missing count variance purpose is refused, never guessed",
                  W.load_config(count_env(ESB_WORKER_MAP_FILE=os.path.join(TMP, "goo-count-no-purpose.json")),
                                offline=False, drains=True), count_rows(), count_units), needle="count_variance_purpose_id")
 
+for label, cfg, rows in (
+        ("branch", count_cfg(), count_rows(branch_code="not-mapped")),
+        ("purpose", count_cfg(ESB_WORKER_MAP_FILE=os.path.join(TMP, "goo-count-no-purpose.json")), count_rows()),
+        ("stock unit", count_cfg(), count_rows(item_unit_id="not-mapped"))):
+    n, out, f, _ = count_tick(FakeCount(), cfg=cfg, rows=rows)
+    check(f"AC-033 missing {label} mapping permanently refuses the group without ERP calls",
+          n == 2 and not esb_calls(f) and len(member_closes(f)) == 2
+          and all(value["status"] == "dead_letter" for value in member_closes(f).values()), out)
+
 n, out, f, rows = count_tick(FakeCount())
 check("AC-1374 the group creates one journal and authorizes the returned number exactly once",
       n == 0 and esb_calls(f) == [("POST", COUNT_PATH), ("PATCH", f"{COUNT_PATH}/IJ-0001/authorize")],
@@ -2023,7 +2032,7 @@ count_found = {"status": "ok", "result": {"count": 1, "data": [
 count_new = {"status": "ok", "result": {"count": 1, "data": [
     {"itemJournalNum": "IJ-0001", "additionalInfo": COUNT_KEY, "statusID": 1}]}}
 n, out, f, rows = count_tick(FakeCount(lookups=[count_found]), meta=count_sent)
-check("AC-1374 a retry adopts the exact MOS-key match and never creates or authorizes twice",
+check("AC-031 a retry adopts the exact MOS-key match and never creates or authorizes twice",
       n == 0 and esb_calls(f) == [("GET", COUNT_PATH)]
       and all(v["esb_doc_num"] == "IJ-0001" for v in member_closes(f).values()), repr(esb_calls(f)))
 lookup_q = urllib.parse.parse_qs(urllib.parse.urlsplit(f.to(COUNT_PATH)[0]["url"]).query)
@@ -2045,7 +2054,8 @@ for label, lookup in (
             {"itemJournalNum": f"IJ-{i:04}", "additionalInfo": "MOS-OTHER", "statusID": 3}
             for i in range(50)]}}),
         ("missing completeness total", {"status": "ok", "result": {"data": []}}),
-        ("lookup refusal", http_refusal(400, "unknown filter"))):
+        ("lookup refusal", http_refusal(400, "unknown filter")),
+        ("lookup timeout", W.Transient("lookup timed out", kind="timeout"))):
     n, out, f, rows = count_tick(FakeCount(lookups=[lookup]), meta=count_sent)
     closes = member_closes(f)
     check(f"AC-1374 undecidable lookup ({label}) halts with no second create",
@@ -2055,7 +2065,7 @@ for label, lookup in (
           repr(esb_calls(f)) + repr(closes))
 
 n, out, f, rows = count_tick(FakeCount(authorizes=[http_refusal(400, "period is closed")]))
-check("AC-1374 an authorization refusal dead-letters the count with its returned number and no second create",
+check("AC-032 an authorization refusal dead-letters the count with its returned number and no second create",
       n == 2 and len(f.to("/authorize")) == 1
       and all(v["status"] == "dead_letter" and v["esb_doc_num"] == "IJ-0001"
               for v in member_closes(f).values())
@@ -2065,6 +2075,12 @@ check("AC-1374 an ambiguous authorization keeps the created number and awaiting 
       n == 2 and all(v["status"] == "failed" for v in member_closes(f).values())
       and any(p.get("posting_stage") == "awaiting_authorization" and p.get("esb_doc_num") == "IJ-0001"
               for p in group_patches(f)), repr(group_patches(f)))
+n, out, f, rows = count_tick(FakeCount(creates=[{"status": "ok", "result": {}}]))
+check("AC-032 a create without a returned document reference is never posted or authorized",
+      n == 2 and esb_calls(f) == [("POST", COUNT_PATH)]
+      and all(value["status"] == "failed" and not value.get("esb_doc_num") for value in member_closes(f).values())
+      and group_patches(f)[0].get("posting_stage") == "create_sent", repr(group_patches(f)))
+
 n, out, f, rows = count_tick(FakeCount(creates=[W.Transient("create timed out", kind="timeout")]))
 check("AC-1374 an ambiguous create retains create_sent and does not claim a document number",
       n == 2 and all(v["status"] == "failed" for v in member_closes(f).values())

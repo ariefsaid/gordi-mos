@@ -31,7 +31,7 @@ drop function if exists ops.cafe_count_posting_queue();
 delete from integrations.esb_push where source_module = 'cafe_count';
 delete from integrations.esb_push_groups where source_module = 'cafe_count';
 
--- Restore the exact pre-posting line guard from 20261019004300.
+-- Restore the pre-posting phone-entry guard from 20261019004400.
 create or replace function ops._guard_cafe_count_line()
 returns trigger
 language plpgsql
@@ -40,12 +40,13 @@ set search_path = ''
 as $$
 declare
   v_action text := coalesce(current_setting('app.cafe_count_action', true), '');
+  v_today date := (clock_timestamp() at time zone 'Asia/Jakarta')::date;
 begin
   if tg_op = 'INSERT' then
     new.org_id := shared.current_org_id();
     new.submitted_by := shared.current_person_id();
     new.submitted_at := clock_timestamp();
-    new.count_date := (clock_timestamp() at time zone 'Asia/Jakarta')::date;
+    new.count_date := coalesce(new.count_date, v_today);
     new.source := 'mos';
     new.status := 'Submitted';
     new.posting_status := 'not_posted';
@@ -65,6 +66,13 @@ begin
     new.updated_at := clock_timestamp();
     if new.org_id is null or new.submitted_by is null then
       raise exception 'CAFE_COUNT_FORBIDDEN' using errcode = '42501';
+    end if;
+    if new.count_date > v_today then
+      raise exception 'CAFE_COUNT_DATE_FUTURE' using errcode = '23514';
+    end if;
+    if new.count_date < v_today - 7 or (new.count_date < v_today - 1
+       and not (shared.has_access_role('ops_lead') or shared.has_access_role('admin'))) then
+      raise exception 'CAFE_COUNT_DATE_TOO_OLD' using errcode = '23514';
     end if;
     if not exists (
       select 1 from ops.cafe_countable_items(new.branch_id, new.activity) item
@@ -93,6 +101,8 @@ begin
      or new.item_unit_id is distinct from old.item_unit_id
      or new.unit_name is distinct from old.unit_name
      or new.counted_quantity is distinct from old.counted_quantity
+     or new.entry_quantity is distinct from old.entry_quantity
+     or new.entry_unit_factor is distinct from old.entry_unit_factor
      or new.client_key is distinct from old.client_key
      or new.source is distinct from old.source
      or new.submitted_by is distinct from old.submitted_by

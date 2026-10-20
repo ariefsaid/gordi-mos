@@ -15,7 +15,7 @@ export type CafeCountableItem = {
 export type CafeCountStatus = 'Submitted' | 'Confirmed' | 'Rejected'
 type CafeCountExpectedStatus = 'waiting' | 'ready'
 export type CafeCountPostingStatus = 'not_posted' | 'not_needed' | 'held' | 'queued' | 'awaiting_authorization' | 'posted' | 'failed'
-export type CafeCountPostingQueueStatus = Extract<CafeCountPostingStatus, 'held' | 'queued' | 'awaiting_authorization' | 'posted' | 'failed'>
+type CafeCountPostingQueueStatus = Extract<CafeCountPostingStatus, 'held' | 'queued' | 'awaiting_authorization' | 'posted' | 'failed'>
 
 export type CafeCountPostingQueueRow = {
   line_id: string
@@ -331,7 +331,7 @@ export async function confirmCafeCountLines(lines: ReadonlyArray<Pick<CafeCountL
 
 const CAFE_COUNT_POSTING_STATUSES: readonly CafeCountPostingQueueStatus[] = ['held', 'queued', 'awaiting_authorization', 'posted', 'failed']
 
-/** Reviewer-only statuses and errors; the RPC returns no Expected balance or Variance. */
+// Reviewer-only read: the RPC returns no Expected balance or Variance.
 export async function listCafeCountPostingQueue(): Promise<CafeCountPostingQueueRow[]> {
   const { data, error } = await supabase.schema('ops').rpc('cafe_count_posting_queue')
   if (error) throw new Error(`listCafeCountPostingQueue failed: ${error.message}`)
@@ -352,7 +352,7 @@ export async function listCafeCountPostingQueue(): Promise<CafeCountPostingQueue
   })
 }
 
-/** The branch-switch reader is admin-only at the database boundary. */
+// The branch-switch reader is admin-only in the database.
 export async function listCafeCountPostingSwitches(): Promise<CafeCountPostingSwitch[]> {
   const { data, error } = await supabase.schema('ops').rpc('list_cafe_count_posting_switches')
   if (error) throw new Error(`listCafeCountPostingSwitches failed: ${error.message}`)

@@ -2333,8 +2333,8 @@ def lookup_count_journal(client: ErpClient, shape: CountJournalShape, key: str) 
                   shape.lookup_page_size_param: shape.lookup_page_size}
         try:
             result = client.get(shape.lookup_path, params)
-        except Permanent as exc:
-            raise Halt(f"the lookup of count journal {key} was refused: {esb_message(exc)}") from None
+        except (Permanent, Transient) as exc:
+            raise Halt(f"the lookup of count journal {key} could not decide: {esb_message(exc)}") from None
         page_rows = _dig(result, shape.lookup_rows)
         if not isinstance(page_rows, list) or any(not isinstance(row, dict) for row in page_rows):
             raise Halt(f"the lookup of count journal {key} returned no complete list")
