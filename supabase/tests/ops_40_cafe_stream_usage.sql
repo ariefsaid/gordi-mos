@@ -28,6 +28,8 @@ select is((select count(*)::int from ops.cafe_item_settings_read where erp_name=
 select is((select count(*)::int from ops.stream_items si join ops.wip_items item on item.id=si.wip_item_id where item.esb_product_id='USAGE-BAR' and si.activity='kitchen'),0,'AC4: Bar item never enters Kitchen');
 select is((select count(*)::int from ops.stream_items si join ops.wip_items item on item.id=si.wip_item_id where item.esb_product_id='USAGE-SHARED' and si.activity='bar'),0,'AC4: Kitchen item never enters Bar');
 select is((select (report->>'skipped_unmapped')::int from usage_result),1,'AC5: unmapped branch skipped and counted');
+update ops.item_units set is_default=true, confirmed_at=now()
+ where org_id='00000000-0000-0000-0000-0000000000a1' and esb_product_id in ('USAGE-SHARED','USAGE-HQ');
 select ops._test_configure_cafe_items(array(select id from ops.wip_items where esb_product_id in ('USAGE-SHARED','USAGE-HQ')));
 select cmp_ok((select count(*)::int from ops.stream_items where org_id='00000000-0000-0000-0000-0000000000b1'),'>',0,'wrong-org read test has real memberships');
 update ops.wip_items set category='Kitchen' where id='00000000-0000-0000-0000-00000000ab09';
@@ -63,7 +65,8 @@ select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000
 select throws_ok($$select ops.set_cafe_stream_item('00000000-0000-0000-0000-00000000bf02','kitchen',(select id from ops.wip_items where esb_product_id='USAGE-NONE'),true)$$,'42501',null,'AC10: members cannot hide memberships');
 select throws_ok($$select ops.set_cafe_stream_item('00000000-0000-0000-0000-00000000bf02','kitchen',(select id from ops.wip_items where esb_product_id='USAGE-NONE'),false)$$,'42501',null,'AC10: members cannot add or restore memberships');
 select throws_ok($$insert into ops.stream_items(branch_id,activity,wip_item_id,source) values ('00000000-0000-0000-0000-00000000bf01','kitchen',(select id from ops.wip_items where esb_product_id='USAGE-NONE'),'manual')$$,'42501',null,'AC10: direct inserts remain role gated');
-select is((with removed as (delete from ops.stream_items returning id) select count(*)::int from removed),0,'AC10: members cannot directly delete memberships');
+with removed as (delete from ops.stream_items returning id)
+select is((select count(*)::int from removed),0,'AC10: members cannot directly delete memberships');
 select throws_ok($$update ops.stream_items set hidden_at=null$$,'42501',null,'AC10: clients cannot bypass the RPC to edit hidden markers');
 select is((select count(*)::int from ops.stream_items where org_id='00000000-0000-0000-0000-0000000000b1'),0,'AC10: hidden markers remain org scoped');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}');
