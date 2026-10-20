@@ -30,6 +30,10 @@
   border: 0;
 }
 
+/* Long table windows match the Tasks table's 70vh scroll viewport. */
+.dt-scroll-virtual { max-height: 70vh; min-width: 0; overflow: auto; }
+.dt-scroll-virtual .dt-table thead th { background: var(--card); }
+
 /* Sticky header: the shared table-head grammar (styles/table-head.css) sets the look; this keeps it pinned. */
 .dt-table thead th { position: sticky; top: 0; z-index: var(--z-sticky); }
 .dt-table thead .dt-th-num { text-align: right; }

@@ -4,25 +4,26 @@
 // cost basis is stale or uncertified (anchor A7). Warn-only margin floor (D5/OQ-3).
 //
 // Design authority: docs/specs/plan-budget.spec.md + docs/plans/2026-07-07-plan-budget.md.
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { useBudgetPages } from '@/hooks/use-budget-pages'
 import { useT } from '@/i18n/use-t'
 import { formatDayMonthYear } from '@/lib/format/date'
-import { listBudgets, getCertifiedMetric } from '@/lib/db/plan-budget'
+import { listBudgetsPage, getCertifiedMetric } from '@/lib/db/plan-budget'
 import {
   projectMargin,
   assessCostStatus,
   formatIDR,
   formatPct,
   MARGIN_FLOOR_PCT,
-  type BudgetRow,
   type CertifiedMetric,
 } from '@/lib/plan-budget-logic'
 import { FailLoudBadge } from '@/components/plan/fail-loud-badge'
 import { KPITile } from '@/components/dashboard/kpi-tile'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { ListPaging } from '@/components/ui/list-paging'
 import { Select } from '@/components/ui/select'
 import { TextInput } from '@/components/ui/text-input'
 import type { MessageKey } from '@/i18n/messages'
@@ -39,7 +40,16 @@ export function PricingPage() {
   const tx = (key: string) => t(key as MessageKey)
   useDocumentTitle(t('common.docTitle', { page: t('nav.planPricing') }))
 
-  const [budgets, setBudgets] = useState<BudgetRow[]>([])
+  const {
+    rows: budgets,
+    hasMore: budgetsHasMore,
+    loadingMore: loadingMoreBudgets,
+    moreError: budgetsMoreError,
+    invalidate: invalidateBudgetPages,
+    replacePage: replaceBudgetPage,
+    loadMore: loadMoreBudgetPage,
+  } = useBudgetPages()
+  const readGeneration = useRef(0)
   const [metric, setMetric] = useState<CertifiedMetric | null>(null)
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
@@ -47,17 +57,20 @@ export function PricingPage() {
   const [priceText, setPriceText] = useState<string>('')
 
   const fetchAll = useCallback(async () => {
+    const generation = ++readGeneration.current
+    invalidateBudgetPages()
     setLoad({ kind: 'loading' })
     try {
-      const [b, m] = await Promise.all([listBudgets(), getCertifiedMetric('cogs.budgeted')])
-      setBudgets(b)
+      const [page, m] = await Promise.all([listBudgetsPage(), getCertifiedMetric('cogs.budgeted')])
+      if (generation !== readGeneration.current) return
+      replaceBudgetPage(page)
       setMetric(m)
-      setSelectedBudgetId((prev) => (prev && b.some((x) => x.id === prev) ? prev : b[0]?.id ?? ''))
+      setSelectedBudgetId((prev) => (prev && page.rows.some((x) => x.id === prev) ? prev : page.rows[0]?.id ?? ''))
       setLoad({ kind: 'ready' })
     } catch {
-      setLoad({ kind: 'error' })
+      if (generation === readGeneration.current) setLoad({ kind: 'error' })
     }
-  }, [])
+  }, [invalidateBudgetPages, replaceBudgetPage])
 
   useEffect(() => {
     fetchAll()
@@ -137,6 +150,8 @@ export function PricingPage() {
           <Select id="pricing-budget-scenario" fullWidth value={selectedBudgetId} onChange={(e) => setSelectedBudgetId(e.target.value)}>
             {budgets.map((b) => <option key={b.id} value={b.id}>{b.menu_item_name} — {b.scenario_label} ({tx(`moneyB.budget.type.${b.scenario_type === 'new_branch' ? 'newBranch' : b.scenario_type}`)})</option>)}
           </Select>
+          <ListPaging count={budgets.length} hasMore={budgetsHasMore} loading={loadingMoreBudgets} error={budgetsMoreError}
+            onLoadMore={() => { void loadMoreBudgetPage((cursor) => listBudgetsPage(undefined, cursor)) }} />
           {budget && <span className="pp-available">{t('moneyB.pricing.count.other' as MessageKey, { count: String(budgets.length) })}</span>}
         </div>
 
