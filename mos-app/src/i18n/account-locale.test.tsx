@@ -1,6 +1,7 @@
 // #927 — the interface language belongs to the signed-in account, never to the browser.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import type { AuthState } from '@/auth/context'
 import { AuthShell } from '@/auth/auth-shell'
 import { I18nProvider, useI18n } from './I18nProvider'
@@ -30,9 +31,11 @@ function signedIn(personId: string): AuthState {
 }
 
 let save: (next: 'en' | 'id') => Promise<void>
+const observedAccountValues: ReturnType<typeof useAccountLocale>[] = []
 function Probe() {
   const { locale } = useI18n()
   const account = useAccountLocale()
+  observedAccountValues.push(account)
   save = account.save
   return <output data-testid="probe">{`${account.status}:${locale}`}</output>
 }
@@ -59,6 +62,24 @@ beforeEach(() => {
 })
 
 describe('AccountLocaleProvider (#927)', () => {
+  it('keeps the account context stable across unrelated parent renders', async () => {
+    observedAccountValues.length = 0
+    mockUseAuth.mockReturnValue(signedIn('B'))
+    function ParentRerender() {
+      const [, setRevision] = useState(0)
+      return <>
+        <button type="button" onClick={() => setRevision(revision => revision + 1)}>Refresh parent</button>
+        {tree()}
+      </>
+    }
+
+    render(<ParentRerender />)
+    await waitFor(() => expect(probe()).toBe('ready:en'))
+    const value = observedAccountValues.at(-1)
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh parent' }))
+    expect(observedAccountValues.at(-1)).toBe(value)
+  })
+
   it('while auth is loading it shows the product default and reads nothing', () => {
     mockUseAuth.mockReturnValue({ status: 'loading' })
     render(tree())

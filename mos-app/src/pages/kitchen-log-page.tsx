@@ -266,6 +266,17 @@ async function readLatestItemLogDates(stream: ProductionStream | null, itemIds: 
   }
 }
 
+const captureQuantityFormatters = new Map<string, Intl.NumberFormat>()
+
+function formatCaptureQuantity(quantity: number, locale: string): string {
+  let formatter = captureQuantityFormatters.get(locale)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 2 })
+    captureQuantityFormatters.set(locale, formatter)
+  }
+  return formatter.format(quantity)
+}
+
 export function KitchenLogPage({ mode = 'production', leading }: {
   mode?: KitchenLogMode
   leading?: ReactNode
@@ -1490,9 +1501,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
       unit,
     }]
   })
-  const formatCaptureQty = (quantity: number) => new Intl.NumberFormat(
-    document.documentElement.lang || 'en', { useGrouping: false, maximumFractionDigits: 2 },
-  ).format(quantity)
+  const formatCaptureQty = (quantity: number) => formatCaptureQuantity(quantity, document.documentElement.lang || 'en')
   // Stock and plan figures are in the item's default unit (the Stock page says the same); an item with
   // no unit yet says so instead of showing a bare number.
   const renderUnitValue = (value: ReactNode, item: CaptureFormItem, show = true) => {

@@ -42,6 +42,7 @@ import {
   insertKitchenLog,
   insertKitchenLogBatch,
   listSubmittedKitchenLogs,
+  countSubmittedKitchenLogs,
   hasSubmittedKitchenProduction,
   approveKitchenLog,
   approveKitchenLogsBulk,
@@ -883,6 +884,23 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
 
 // ── listSubmittedKitchenLogs — review queue read (FR-040, AC-040/090) ──────────
 describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () => {
+  it('counts the review queue without downloading log rows', async () => {
+    const query: Record<string, unknown> = {}
+    query.select = vi.fn(() => query)
+    query.eq = vi.fn(() => query)
+    let error: { message: string } | null = null
+    query.then = (resolve: (value: unknown) => unknown) => Promise.resolve({ data: null, count: error ? null : 7, error }).then(resolve)
+    const from = vi.fn(() => query)
+    schemaMock.mockReturnValue({ from } as never)
+
+    await expect(countSubmittedKitchenLogs()).resolves.toBe(7)
+    expect(from).toHaveBeenCalledWith('kitchen_logs')
+    expect(query.select).toHaveBeenCalledWith('id', { count: 'exact', head: true })
+    expect(query.eq).toHaveBeenCalledWith('status', 'Submitted')
+    error = { message: 'offline' }
+    await expect(countSubmittedKitchenLogs()).rejects.toThrow('countSubmittedKitchenLogs failed — offline')
+  })
+
   const SUBMITTED_ROWS = [
     {
       id: 'log-1',

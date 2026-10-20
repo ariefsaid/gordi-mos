@@ -1,5 +1,27 @@
 export type QuantityParseReason = 'format' | 'ambiguous' | 'thousands' | 'negative' | 'integer' | 'range' | 'precision'
 
+const decimalMarkFormatters = new Map<string, Intl.NumberFormat>()
+const quantityFormatters = new Map<string, Intl.NumberFormat>()
+
+function getDecimalMarkFormatter(locale: string): Intl.NumberFormat {
+  let formatter = decimalMarkFormatters.get(locale)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, { useGrouping: false })
+    decimalMarkFormatters.set(locale, formatter)
+  }
+  return formatter
+}
+
+function getQuantityFormatter(locale: string, maximumFractionDigits: number): Intl.NumberFormat {
+  const key = `${locale}:${maximumFractionDigits}`
+  let formatter = quantityFormatters.get(key)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits })
+    quantityFormatters.set(key, formatter)
+  }
+  return formatter
+}
+
 export type QuantityParseResult =
   | { kind: 'empty' }
   | { kind: 'valid'; value: number; normalized: string }
@@ -22,7 +44,7 @@ export function getQuantityAmbiguitySuggestions(raw: string, locale: string): Qu
 
   const [, integerPart, fractionPart] = match
   const grouped = BigInt(`${integerPart}${fractionPart}`).toString()
-  const decimalMark = new Intl.NumberFormat(locale, { useGrouping: false })
+  const decimalMark = getDecimalMarkFormatter(locale)
     .formatToParts(1.1).find(part => part.type === 'decimal')?.value ?? '.'
   const decimal = `${BigInt(integerPart)}${decimalMark}${fractionPart}`
 
@@ -70,8 +92,5 @@ export function parseQuantityInput(raw: string, options: QuantityParseOptions = 
 /** Format a quantity for direct display in the viewer's locale without grouping. */
 export function formatQuantityInput(value: number, locale: string, maximumFractionDigits = 2): string {
   if (!Number.isFinite(value) || value === 0) return ''
-  return new Intl.NumberFormat(locale, {
-    useGrouping: false,
-    maximumFractionDigits,
-  }).format(value)
+  return getQuantityFormatter(locale, maximumFractionDigits).format(value)
 }

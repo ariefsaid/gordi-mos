@@ -615,6 +615,15 @@ export type KitchenLogsWindow = {
   stream?: { branchId: string; activity: ProductionActivity }
 }
 
+/** Counts Submitted kitchen logs without downloading their rows. */
+export async function countSubmittedKitchenLogs(): Promise<number> {
+  const { count, error } = await ops().from('kitchen_logs')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'Submitted')
+  if (error) throw new Error(`countSubmittedKitchenLogs failed — ${error.message}`)
+  return count ?? 0
+}
+
 /**
  * Page Submitted kitchen logs oldest-first by log date, then submission time (FR-040). An
  * optional date narrows the queue; omitting it returns every pending log.
