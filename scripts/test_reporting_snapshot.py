@@ -1085,6 +1085,7 @@ class RecipeHistorySnapshotTests(unittest.TestCase):
             "esb_code": "TEST", "menu_id": 101, "version": 1,
             "warehouse_version_hash": "a" * 32,
             "source_observed_at": datetime(2026, 10, 9, 20, tzinfo=timezone.utc),
+            "recipe": self._source()["recipe"],
             **changes,
         }
 
@@ -1111,10 +1112,28 @@ class RecipeHistorySnapshotTests(unittest.TestCase):
 
     def test_unchanged_recipe_adds_nothing_on_a_later_observation(self):
         self.assertEqual(self._plan([self._source()], [self._previous()]), [])
+        recipe = self._source()["recipe"]
+        recipe["menu_name"] = "Renamed output"
+        recipe["lines"][0].update(name="Renamed ingredient", line_id=999, qty=25.0)
+        self.assertEqual(self._plan(
+            [self._source(recipe=recipe, recipe_version_hash="b" * 32)],
+            [self._previous()],
+        ), [])
+
+    def test_reordered_lines_add_nothing_but_duplicate_line_changes_are_retained(self):
+        recipe = self._source()["recipe"]
+        line = dict(recipe["lines"][0], qty=5)
+        previous = self._previous(recipe={**recipe, "lines": [*recipe["lines"], line]})
+        source = self._source(recipe={**recipe, "lines": [line, *recipe["lines"]]},
+                              recipe_version_hash="b" * 32)
+        self.assertEqual(self._plan([source], [previous]), [])
+        source["recipe"]["lines"].append(line)
+        self.assertEqual(len(self._plan([source], [previous])), 1)
 
     def test_return_to_an_earlier_hash_is_a_new_version(self):
         versions = self._plan(
-            [self._source()], [self._previous(version=2, warehouse_version_hash="b" * 32)],
+            [self._source()], [self._previous(version=2, warehouse_version_hash="b" * 32,
+                recipe={"active": True, "lines": []})],
         )
         self.assertEqual([(v["version"], v["warehouse_version_hash"]) for v in versions],
                          [(3, "a" * 32)])
