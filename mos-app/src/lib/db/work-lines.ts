@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { readAllCatalogPages } from './catalog-pages'
 import { containsPattern } from './like-pattern'
 import { withReferenceCache, invalidateReferenceCache } from './reference-cache'
 
@@ -31,6 +32,20 @@ const ACTIVE_COLUMNS =
   'id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id'
 const ADMIN_COLUMNS =
   'id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id,archived_at'
+
+const WORK_RECORDS_PAGE_SIZE = 50
+
+export type WorkLineCatalogFilter = {
+  view: 'active' | 'archived' | 'all'
+  search: string
+  type: 'all' | 'project' | 'process'
+}
+
+export type WorkLineCatalogPage = {
+  rows: WorkLineAdminRow[]
+  cursor: string | null
+  hasMore: boolean
+}
 
 /** List active (non-archived) work lines ordered by name (org-readable via RLS). SWR-cached —
  * the picker/palette re-read these on mount, a few times a day of change (#1359). */
@@ -77,15 +92,29 @@ export interface WorkLineAdminRow {
   responsible_person_id?: string | null
 }
 
-/** List ALL work lines (active + archived) for the management surface — active first, then by name. */
-export async function listWorkLinesAll(): Promise<WorkLineAdminRow[]> {
-  const { data, error } = await mos()
-    .from('work_lines')
-    .select(ADMIN_COLUMNS)
-    .order('archived_at', { nullsFirst: true })
-    .order('name')
-  if (error) throw new Error(`listWorkLinesAll failed — ${error.message}`)
-  return (data ?? []) as unknown as WorkLineAdminRow[]
+/** Read one ID-keyset page for the Projects & Processes catalog. */
+export async function listWorkLinesCatalogPage(
+  filter: WorkLineCatalogFilter,
+  afterId?: string,
+): Promise<WorkLineCatalogPage> {
+  let query = mos().from('work_lines').select(ADMIN_COLUMNS)
+  if (filter.view === 'active') query = query.is('archived_at', null)
+  if (filter.view === 'archived') query = query.not('archived_at', 'is', null)
+  if (filter.search.trim()) query = query.ilike('name', containsPattern(filter.search.trim()))
+  if (filter.type !== 'all') query = query.eq('type', filter.type)
+  if (afterId) query = query.gt('id', afterId)
+  const { data, error } = await query.order('id', { ascending: true }).limit(WORK_RECORDS_PAGE_SIZE + 1)
+  if (error) throw new Error(`listWorkLinesCatalogPage failed — ${error.message}`)
+  const fetched = (data ?? []) as unknown as WorkLineAdminRow[]
+  const hasMore = fetched.length > WORK_RECORDS_PAGE_SIZE
+  const rows = fetched.slice(0, WORK_RECORDS_PAGE_SIZE)
+  return { rows, hasMore, cursor: hasMore ? rows.at(-1)?.id ?? null : null }
+}
+
+/** List every work line for record-context lookups, using bounded catalog pages. */
+export function listWorkLinesAll(): Promise<WorkLineAdminRow[]> {
+  return readAllCatalogPages('listWorkLinesCatalogPage', 'listWorkLinesAll', (afterId) =>
+    listWorkLinesCatalogPage({ view: 'all', search: '', type: 'all' }, afterId))
 }
 
 /** Create a work line (org_id stamped by the DB). Returns the new row. */

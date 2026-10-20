@@ -14,6 +14,14 @@ describe('bomCoveragePct', () => {
     expect(bomCoveragePct(rows, '2026-06-28', LATEST)).toBeCloseTo(0.9, 10)
   })
 
+  it('weights rollup means by their contributing source-row count', () => {
+    const rows = [
+      { ...row('2026-06-29', 0.9), bom_coverage_pct_sum: 1.8, bom_coverage_count: 2 },
+      { ...row('2026-06-30', 0.5), bom_coverage_pct_sum: 0.5, bom_coverage_count: 1 },
+    ]
+    expect(bomCoveragePct(rows, '2026-06-28', LATEST)).toBeCloseTo(2.3 / 3, 10)
+  })
+
   it('is null when no day in the window carries coverage', () => {
     expect(bomCoveragePct([row('2026-06-30', null)], '2026-06-24', LATEST)).toBeNull()
   })

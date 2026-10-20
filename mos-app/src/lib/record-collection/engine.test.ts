@@ -113,6 +113,8 @@ function makeDescriptor(opts: {
     list: async () => [],
     get: async () => null,
     create: vi.fn<CollectionViewStore['create']>(),
+    rename: vi.fn<CollectionViewStore['rename']>(),
+    archive: vi.fn<CollectionViewStore['archive']>(),
   }
   const presentation = (id: TaskCollectionPresentation) => ({
     id,
@@ -129,6 +131,7 @@ function makeDescriptor(opts: {
       savedViews: true,
       selection: true,
       recordOpening: true,
+      bulkActions: [] as readonly FakeAction[],
     },
     render: () => null,
   })
@@ -139,6 +142,7 @@ function makeDescriptor(opts: {
     savedViews: {
       enabled: true,
       store,
+      operations: ['save', 'apply', 'rename', 'archive'],
       buildSpec: ({ query, presentation }) => makeSpec(query, presentation),
       parseAndValidate: (input) => parseCollectionViewSpec(input),
       applySpec: (spec) => {
@@ -352,6 +356,8 @@ describe('RecordCollection engine', () => {
       list: async () => [view],
       get: async (id: string) => (id === 'v-1' ? view : null),
       create: vi.fn<CollectionViewStore['create']>(),
+      rename: vi.fn<CollectionViewStore['rename']>(),
+      archive: vi.fn<CollectionViewStore['archive']>(),
     }
     const c = createRecordCollectionController(makeDescriptor({ store }), INITIAL)
     await flush()
@@ -372,6 +378,8 @@ describe('RecordCollection engine', () => {
       list: async () => [view],
       get: async (id: string) => (id === 'v-1' ? view : null),
       create: vi.fn<CollectionViewStore['create']>(),
+      rename: vi.fn<CollectionViewStore['rename']>(),
+      archive: vi.fn<CollectionViewStore['archive']>(),
     }
     const c = createRecordCollectionController(makeDescriptor({ store }), { ...INITIAL, isDesktop: false })
     await flush()
@@ -397,6 +405,8 @@ describe('RecordCollection engine', () => {
       list: async () => [view],
       get: async () => view,
       create: vi.fn<CollectionViewStore['create']>(),
+      rename: vi.fn<CollectionViewStore['rename']>(),
+      archive: vi.fn<CollectionViewStore['archive']>(),
     }
     const c = createRecordCollectionController(makeDescriptor({ store }), INITIAL)
     await flush()
@@ -417,6 +427,8 @@ describe('RecordCollection engine', () => {
       list: vi.fn(async () => [view]),
       get: async () => view,
       create: vi.fn(async () => view),
+      rename: vi.fn<CollectionViewStore['rename']>(),
+      archive: vi.fn<CollectionViewStore['archive']>(),
     }
     const c = createRecordCollectionController(makeDescriptor({ store }), INITIAL)
     await flush()
@@ -432,6 +444,14 @@ describe('RecordCollection engine', () => {
     expect(c.state.query.savedViewId).toBe('v-1')
     expect(c.state.savedViews.operation).toBe('idle')
 
+    await c.renameSavedView('v-1', 'Renamed')
+    expect(store.rename).toHaveBeenCalledWith('v-1', 'Renamed')
+    expect(c.state.savedViews.items.find((item) => item.id === 'v-1')?.name).toBe('Renamed')
+
+    await c.archiveSavedView('v-1')
+    expect(store.archive).toHaveBeenCalledWith('v-1')
+    expect(c.state.savedViews.items).toHaveLength(0)
+    expect(c.state.query.savedViewId).toBeNull()
   })
 
   it('NFR-V3-001: saveCurrentView surfaces a retryable error when the store rejects', async () => {
@@ -439,6 +459,8 @@ describe('RecordCollection engine', () => {
       list: async () => [],
       get: async () => null,
       create: vi.fn(async () => { throw new Error('network down') }),
+      rename: vi.fn<CollectionViewStore['rename']>(),
+      archive: vi.fn<CollectionViewStore['archive']>(),
     }
     const c = createRecordCollectionController(makeDescriptor({ store }), INITIAL)
     await flush()
@@ -453,6 +475,8 @@ describe('RecordCollection engine', () => {
       list: vi.fn(async () => { throw new Error('list failed') }),
       get: async () => null,
       create: vi.fn<CollectionViewStore['create']>(),
+      rename: vi.fn<CollectionViewStore['rename']>(),
+      archive: vi.fn<CollectionViewStore['archive']>(),
     }
     const c = createRecordCollectionController(makeDescriptor({ store }), INITIAL)
     await flush()
@@ -471,6 +495,23 @@ describe('RecordCollection engine', () => {
     await flush()
     expect(loadSpy).toHaveBeenCalledTimes(1)
     expect(c.state.query).toEqual(queryBefore)
+  })
+
+  it('FR-V3-007: selectVisible adds only given ids and clearSelection empties the selection', async () => {
+    const controller = createRecordCollectionController(makeDescriptor(), INITIAL)
+    await flush()
+    controller.toggleSelected('t-2')
+    controller.selectVisible(['t-1'])
+    expect(controller.state.selectedIds).toEqual(new Set(['t-1', 't-2']))
+    controller.clearSelection()
+    expect(controller.state.selectedIds.size).toBe(0)
+  })
+
+  it('NFR-V3-001: runBulkAction is a no-op without a descriptor action', async () => {
+    const controller = createRecordCollectionController(makeDescriptor(), INITIAL)
+    await flush()
+    controller.toggleSelected('t-1')
+    await expect(controller.runBulkAction('archive' as never)).resolves.toBeUndefined()
   })
 
   it('FR-V3-007: toggleGroup collapses and re-expands a typed group id', async () => {

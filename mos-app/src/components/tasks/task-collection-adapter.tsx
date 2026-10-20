@@ -2,7 +2,7 @@
 // The canonical typed query and URL schema live in task-collection-query.ts; this adapter keeps its
 // collection descriptor focused on data work.
 import { taskDoneRecentCutoff } from '@/lib/db/task-paging'
-import { hasOlderDoneTasks, listOlderDoneTasks, listTasks, type OlderDoneTaskCursor, type TaskListFilters } from '@/lib/db/tasks'
+import { hasOlderDoneTasks, listOlderDoneTasks, listTasksPage, type OlderDoneTaskCursor, type TaskListCursor, type TaskListFilters } from '@/lib/db/tasks'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { ProcessRunRollup } from '@/lib/db/processes.types'
 import { listRunRollups, listTaskDefs } from '@/lib/db/processes'
@@ -21,9 +21,11 @@ import { STATUS_ORDER } from './task-formatters'
 import { groupTasksByOccurrence } from '@/lib/processes/occurrence-grouping'
 import { TaskCardPresentation, TaskTablePresentation } from './task-collection-presentation'
 import {
+  archiveCollectionView,
   createCollectionView,
   getCollectionView,
   listCollectionViews,
+  renameCollectionView,
 } from '@/lib/db/user-views-collection'
 import {
   parseCollectionViewSpec,
@@ -137,6 +139,8 @@ export interface TaskCollectionContext {
   statusOverrides: ReadonlyMap<string, TaskStatus>
   /** The reference clock for overdue computation (kept in context so `project` stays pure). */
   now: Date
+  taskCursor?: TaskListCursor | null
+  taskHasMore?: boolean
   olderDoneCutoff?: string
   olderDoneCursor?: OlderDoneTaskCursor | null
   olderDoneHasMore?: boolean
@@ -480,6 +484,8 @@ const taskCollectionViewStore: CollectionViewStore = {
   list: (collectionId) => listCollectionViews(collectionId),
   get: (id) => getCollectionView(id),
   create: ({ name, scope, spec }) => createCollectionView({ name, scope, spec }),
+  rename: (id, name) => renameCollectionView(id, name),
+  archive: (id) => archiveCollectionView(id),
 }
 
 /** Map the live typed query + presentation into a persisted, schema-versioned Task view spec. */
@@ -539,6 +545,7 @@ const taskCollectionSavedViews: CollectionSavedViewDescriptor<
 > = {
   enabled: true,
   store: taskCollectionViewStore,
+  operations: ['save', 'apply', 'rename', 'archive'],
   buildSpec: buildTaskViewSpec,
   parseAndValidate: (input) => parseCollectionViewSpec(input),
   applySpec: applyTaskViewSpec,
@@ -559,6 +566,7 @@ const TASK_CAPABILITIES = {
   savedViews: true,
   selection: false,
   recordOpening: true,
+  bulkActions: [] as const,
 }
 
 type TaskPresentationDescriptor = CollectionPresentationDescriptor<
@@ -567,19 +575,25 @@ type TaskPresentationDescriptor = CollectionPresentationDescriptor<
   TaskCollectionQuery,
   CollectionProjection<TaskCollectionRecord, TaskRenderGroup>,
   TaskCollectionContext,
+  TaskCollectionAction,
   TaskCollectionPresentation
 >
+
+function taskPresentationCapabilities(): TaskPresentationDescriptor['capabilities'] {
+  return {
+    ...TASK_CAPABILITIES,
+    filterKeys: [...TASK_CAPABILITIES.filterKeys],
+    sortKeys: [...TASK_CAPABILITIES.sortKeys],
+    groupKeys: [...TASK_CAPABILITIES.groupKeys],
+    bulkActions: [...TASK_CAPABILITIES.bulkActions],
+  }
+}
 
 const taskTablePresentation: TaskPresentationDescriptor = {
   id: 'table',
   label: 'Table',
   compatibleQueryKeys: taskCollectionQuery.keys,
-  capabilities: {
-    ...TASK_CAPABILITIES,
-    filterKeys: [...TASK_CAPABILITIES.filterKeys],
-    sortKeys: [...TASK_CAPABILITIES.sortKeys],
-    groupKeys: [...TASK_CAPABILITIES.groupKeys],
-  },
+  capabilities: taskPresentationCapabilities(),
   render: (props) => <TaskTablePresentation {...props} />,
 }
 
@@ -587,12 +601,7 @@ const taskCardPresentation: TaskPresentationDescriptor = {
   id: 'card',
   label: 'Card',
   compatibleQueryKeys: taskCollectionQuery.keys,
-  capabilities: {
-    ...TASK_CAPABILITIES,
-    filterKeys: [...TASK_CAPABILITIES.filterKeys],
-    sortKeys: [...TASK_CAPABILITIES.sortKeys],
-    groupKeys: [...TASK_CAPABILITIES.groupKeys],
-  },
+  capabilities: taskPresentationCapabilities(),
   render: (props) => <TaskCardPresentation {...props} />,
 }
 
@@ -620,8 +629,8 @@ async function loadTaskCollection(args: {
   const lease = args.readLease
   const now = new Date()
   const doneCutoff = taskDoneRecentCutoff(now)
-  const [rows, businessUnits, people, downlinePersonIds, objectives, workLines, viewerTeams, viewerRoleBuIds, olderDoneHasMore] = await Promise.all([
-    lease ? listTasks(filters, lease, doneCutoff) : listTasks(filters, undefined, doneCutoff),
+  const [taskPage, businessUnits, people, downlinePersonIds, objectives, workLines, viewerTeams, viewerRoleBuIds, olderDoneHasMore] = await Promise.all([
+    listTasksPage(filters, null, doneCutoff, lease),
     lease ? getBusinessUnits(lease) : getBusinessUnits(),
     lease ? getPeople(lease) : getPeople(),
     // Throws with its siblings — a downline failure must surface, not silently read-only
@@ -642,6 +651,7 @@ async function loadTaskCollection(args: {
       ? hasOlderDoneTasks({ ...(args.query.businessUnitId ? { businessUnitId: args.query.businessUnitId } : {}), includeArchived: args.query.includeArchived }, doneCutoff, lease).catch(() => true)
       : Promise.resolve(false),
   ])
+  const rows = taskPage.rows
   const records = rows.map(toTaskCollectionRecord)
   const taskTeamIds = [...new Set(records.map((record) => record.teamId).filter((id): id is string => id !== null))]
   const taskTeams = taskTeamIds.length === 0
@@ -708,6 +718,8 @@ async function loadTaskCollection(args: {
     // load seeds them empty/no-op so the projection is a pure function of the fetched rows.
     statusOverrides: new Map(),
     now,
+    taskCursor: taskPage.nextCursor,
+    taskHasMore: taskPage.hasMore,
     olderDoneCutoff: doneCutoff,
     olderDoneCursor: null,
     olderDoneHasMore,
@@ -721,7 +733,7 @@ function readTaskFragment<T>(readLease: ReadLease | undefined, key: string, load
   return readLease ? readLease.read(key, load) : load()
 }
 
-async function loadOlderDoneTaskPage(args: {
+async function loadTaskPage(args: {
   query: TaskCollectionQuery
   viewerId: string | null
   readLease?: ReadLease
@@ -729,8 +741,15 @@ async function loadOlderDoneTaskPage(args: {
 }): Promise<CollectionData<TaskCollectionRecord, TaskCollectionContext>> {
   const { query, data, readLease } = args
   const context = data.context
-  if (context.olderDoneHasMore === false) return data
-  const page = await listOlderDoneTasks(
+  const taskPage = context.taskHasMore
+    ? await listTasksPage(
+      { includeArchived: query.includeArchived },
+      context.taskCursor ?? null,
+      context.olderDoneCutoff ?? taskDoneRecentCutoff(),
+      readLease,
+    )
+    : null
+  const olderDonePage = taskPage || !context.olderDoneHasMore ? null : await listOlderDoneTasks(
     {
       ...(query.businessUnitId ? { businessUnitId: query.businessUnitId } : {}),
       includeArchived: query.includeArchived,
@@ -738,16 +757,20 @@ async function loadOlderDoneTaskPage(args: {
     context.olderDoneCursor,
     context.olderDoneCutoff ?? taskDoneRecentCutoff(),
   )
-  if (page.rows.length === 0) {
-    return { ...data, context: { ...context, olderDoneHasMore: false } }
+  if (!taskPage && !olderDonePage) return data
+  const pageRows = taskPage?.rows ?? olderDonePage?.rows ?? []
+  if (pageRows.length === 0) {
+    return { ...data, context: taskPage
+      ? { ...context, taskHasMore: false, taskCursor: null }
+      : { ...context, olderDoneHasMore: false, olderDoneCursor: null } }
   }
 
-  const records = page.rows.map(toTaskCollectionRecord)
+  const records = pageRows.map(toTaskCollectionRecord)
   const rowsById = new Map(context.rowsById)
   const olderDoneTaskIds = new Set(context.olderDoneTaskIds ?? [])
-  for (const row of page.rows) {
+  for (const row of pageRows) {
     rowsById.set(row.id, row)
-    olderDoneTaskIds.add(row.id)
+    if (olderDonePage) olderDoneTaskIds.add(row.id)
   }
 
   const teamNamesById = new Map(context.teamNamesById ?? [])
@@ -758,7 +781,7 @@ async function loadOlderDoneTaskPage(args: {
     : readLease ? await getTeamsByIds(newTeamIds, readLease) : await getTeamsByIds(newTeamIds)
   for (const team of teams) teamNamesById.set(team.id, team.name)
   const teamsById = new Map(teams.map((team) => [team.id, team]))
-  for (const row of page.rows) {
+  for (const row of pageRows) {
     taskTeamViewsById.set(row.id, deriveTaskTeamView(
       { org_id: row.org_id, business_unit_id: row.business_unit_id },
       row.team_id ? teamsById.get(row.team_id) ?? null : null,
@@ -801,8 +824,10 @@ async function loadOlderDoneTaskPage(args: {
       rowsById,
       runRollupsByRunId,
       provenanceByTaskDefId,
-      olderDoneCursor: page.nextCursor,
-      olderDoneHasMore: page.hasMore,
+      ...(taskPage ? { taskCursor: taskPage.nextCursor, taskHasMore: taskPage.hasMore } : {
+        olderDoneCursor: olderDonePage?.nextCursor ?? null,
+        olderDoneHasMore: olderDonePage?.hasMore ?? false,
+      }),
       olderDoneTaskIds,
     },
   }
@@ -864,7 +889,7 @@ export const taskCollectionDescriptor: RecordCollectionDescriptor<
     ])
   },
   load: loadTaskCollection,
-  loadMore: loadOlderDoneTaskPage,
+  loadMore: loadTaskPage,
   project: (data, query) => projectTaskCollection(data, query),
   getId: (record) => record.id,
   getAccess: getTaskAccess,

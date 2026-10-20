@@ -87,7 +87,8 @@ export function makeInboxTriageDescriptor(routeLog: InboxTriageOpen): RecordColl
     query: inboxQuerySchema,
     savedViews: {
       enabled: true,
-      store: { list: async () => [], get: async () => null, create: async () => { throw new Error('n/a') } },
+      store: { list: async () => [], get: async () => null, create: async () => { throw new Error('n/a') }, rename: async () => { throw new Error('n/a') }, archive: async () => { throw new Error('n/a') } },
+      operations: [],
       buildSpec: () => { throw new Error('inbox has no persisted views in this fixture') },
       parseAndValidate: () => ({ ok: false, issues: [] }),
       applySpec: () => { throw new Error('n/a') },
@@ -105,6 +106,7 @@ export function makeInboxTriageDescriptor(routeLog: InboxTriageOpen): RecordColl
           savedViews: false,
           selection: true,
           recordOpening: true,
+          bulkActions: [],
         },
         render: () => null,
       },

@@ -51,6 +51,8 @@ function makeClient(responses: Record<string, Result[]>, rec: Recorder) {
     builder.is = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.in = vi.fn((c: string, v: unknown) => { rec.ins.push([c, v]); return builder })
     builder.order = vi.fn(() => builder)
+    builder.or = vi.fn(() => builder)
+    builder.limit = vi.fn(() => builder)
     builder.single = vi.fn(() => Promise.resolve(nextResult(key)))
     builder.maybeSingle = vi.fn(() => Promise.resolve(nextResult(key)))
     builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve(nextResult(key)).then(resolve)
@@ -396,7 +398,7 @@ describe('listProcessOccurrenceSummaries', () => {
     const rows = await listProcessOccurrenceSummaries(WORK_LINE_ID)
 
     const expected: ProcessOccurrenceSummary[] = [{ run, team_name: 'Café Operations', rollup }]
-    expect(rows).toEqual(expected)
+    expect(rows).toEqual({ rows: expected, nextCursor: null, hasMore: false })
     expect(rec.fromTables).toContain('mos.process_runs')
     expect(rec.ins).toContainEqual(['process_run_id', [RUN_ID]])
     expect(rec.ins).toContainEqual(['id', [TEAM_ID]])
@@ -406,7 +408,7 @@ describe('listProcessOccurrenceSummaries', () => {
     const rec = freshRec()
     mockSupabase({ 'mos.process_runs': [{ data: [], error: null }] }, rec)
 
-    await expect(listProcessOccurrenceSummaries(WORK_LINE_ID)).resolves.toEqual([])
+    await expect(listProcessOccurrenceSummaries(WORK_LINE_ID)).resolves.toEqual({ rows: [], nextCursor: null, hasMore: false })
     expect(rec.fromTables).toEqual(['mos.process_runs'])
   })
 

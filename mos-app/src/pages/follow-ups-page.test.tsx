@@ -6,6 +6,7 @@ import { createElement, type ReactNode } from 'react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 import { SHOW_FOLLOWUPS } from '@/config/features'
+import { messages, type Locale } from '@/i18n/messages'
 import { FollowUpsPage } from './follow-ups-page'
 
 vi.mock('@/config/features', async (importOriginal) => ({
@@ -79,14 +80,14 @@ function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
 }
 
-function renderRoute(initialEntry: string) {
+function renderRoute(initialEntry: string, locale: Locale = 'en') {
   return render(
     createElement(
       MemoryRouter,
       { initialEntries: [initialEntry] },
       createElement(
         I18nProvider,
-        null,
+        { initialLocale: locale },
         createElement(
           Routes,
           null,
@@ -223,6 +224,39 @@ describe('FollowUpsPage', () => {
     const detail = await screen.findByRole('complementary', { name: 'Record details' })
     expect(within(detail).getAllByText('Settled').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
+  })
+
+  it.each((['manager', 'ops_lead', 'supervisor'] as const).flatMap((accessRole) =>
+    (['en', 'id'] as const).map((locale) => [accessRole, locale] as const),
+  ))('%s without a queue lane sees no follow-up actions in %s', async (accessRole, locale) => {
+    mockUseAuth.mockReturnValue({
+      ...viewer,
+      viewer: { ...viewer.viewer, roles: [], accessRoles: [accessRole] },
+    })
+    const user = userEvent.setup()
+    renderRoute('/money/follow-ups', locale)
+    await user.click(await screen.findByRole('button', { name: /INV-1001/ }))
+
+    const actions = screen.getByRole('region', { name: messages[locale]['followUps.actions'] })
+    expect(within(actions).getByText(messages[locale]['moneyB.followups.noActions'])).toBeInTheDocument()
+    for (const actionKey of ['chase', 'promise', 'partial', 'settle'] as const) {
+      expect(within(actions).queryByRole('button', { name: messages[locale][`followUps.action.${actionKey}`] })).not.toBeInTheDocument()
+    }
+  })
+
+  it.each((['finance', 'admin'] as const).flatMap((accessRole) =>
+    (['en', 'id'] as const).map((locale) => [accessRole, locale] as const),
+  ))('%s can confirm a settled follow-up in %s', async (accessRole, locale) => {
+    mockUseAuth.mockReturnValue({
+      ...viewer,
+      viewer: { ...viewer.viewer, roles: [], accessRoles: [accessRole] },
+    })
+    mockListFollowUpsPage.mockResolvedValue(page([{ ...row, state: 'settled', running_balance: 0 }]))
+    const user = userEvent.setup()
+    renderRoute('/money/follow-ups', locale)
+    await user.click(await screen.findByRole('button', { name: /INV-1001/ }))
+
+    expect(await screen.findByRole('button', { name: messages[locale]['followUps.action.confirm'] })).toBeInTheDocument()
   })
 
   it('hides Load more when the follow-up total is exactly one page', async () => {

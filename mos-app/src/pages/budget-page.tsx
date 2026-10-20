@@ -11,6 +11,7 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsRecordSplit } from '@/shell/use-is-split-width'
 import { useAuth } from '@/auth/use-auth'
+import { useBudgetPages } from '@/hooks/use-budget-pages'
 import { useT } from '@/i18n/use-t'
 import { saveErrorMessage } from '@/lib/save-error'
 import { formatDayMonthYear } from '@/lib/format/date'
@@ -18,7 +19,7 @@ import { getBusinessUnits, type BusinessUnitOption } from '@/lib/db/directory'
 import {
   listIngredientCostLines,
   listBomLines,
-  listBudgets,
+  listBudgetsPage,
   getCertifiedMetric,
   captureBudget,
 } from '@/lib/db/plan-budget'
@@ -33,6 +34,7 @@ import {
 } from '@/lib/plan-budget-logic'
 import { FailLoudBadge } from '@/components/plan/fail-loud-badge'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { ListPaging } from '@/components/ui/list-paging'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { TextInput } from '@/components/ui/text-input'
@@ -62,7 +64,15 @@ export function BudgetPage() {
 
   const [bom, setBom] = useState<BomLine[]>([])
   const [costs, setCosts] = useState<IngredientCostLine[]>([])
-  const [budgets, setBudgets] = useState<BudgetRow[]>([])
+  const {
+    rows: budgets,
+    hasMore: budgetsHasMore,
+    loadingMore: loadingMoreBudgets,
+    moreError: budgetsMoreError,
+    invalidate: invalidateBudgetPages,
+    replacePage: replaceBudgetPage,
+    loadMore: loadMoreBudgetPage,
+  } = useBudgetPages()
   const [metric, setMetric] = useState<CertifiedMetric | null>(null)
   const [bus, setBus] = useState<BusinessUnitOption[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
@@ -104,22 +114,23 @@ export function BudgetPage() {
 
   // Refresh the scenario list whenever the selected menu changes (or after a save).
   useEffect(() => {
+    invalidateBudgetPages()
     if (!selectedMenu) {
-      setBudgets([])
+      replaceBudgetPage({ rows: [], cursor: null, hasMore: false })
       return
     }
     let active = true
-    listBudgets(selectedMenu)
-      .then((rows) => {
-        if (active) setBudgets(rows)
+    listBudgetsPage(selectedMenu)
+      .then((page) => {
+        if (active) replaceBudgetPage(page)
       })
       .catch(() => {
-        if (active) setBudgets([])
+        if (active) replaceBudgetPage({ rows: [], cursor: null, hasMore: false })
       })
     return () => {
       active = false
     }
-  }, [selectedMenu, savedId])
+  }, [selectedMenu, savedId, invalidateBudgetPages, replaceBudgetPage])
 
   const menuCodes = useMemo(
     () => Array.from(new Set(bom.map((x) => x.menu_item_esb_code))).sort(),
@@ -323,6 +334,8 @@ export function BudgetPage() {
             </tr>)}</tbody>
           </table></div>
         )}
+        <ListPaging count={budgets.length} hasMore={budgetsHasMore} loading={loadingMoreBudgets} error={budgetsMoreError}
+          onLoadMore={() => { void loadMoreBudgetPage((cursor) => listBudgetsPage(selectedMenu, cursor)) }} />
       </section>
 
       <section className="bp-section bp-costlines">

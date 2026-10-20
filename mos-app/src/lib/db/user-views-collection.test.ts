@@ -12,6 +12,8 @@ import {
   listCollectionViews,
   getCollectionView,
   createCollectionView,
+  renameCollectionView,
+  archiveCollectionView,
 } from './user-views-collection'
 import type { CollectionViewInput } from './user-views-collection'
 import type { CollectionViewSpec } from '@/lib/record-collection/collection-view-spec'
@@ -226,5 +228,49 @@ describe('createCollectionView', () => {
     await expect(
       createCollectionView({ name: 'x', scope: 'private', spec: taskSpec }),
     ).rejects.toThrow(/insert failed/)
+  })
+})
+
+describe('renameCollectionView', () => {
+  it('updates only the name and updated timestamp for the given id', async () => {
+    const rec = recorder()
+    schemaMock.mockReturnValue(makeMosSchema({ data: null, error: null }, rec) as never)
+
+    await renameCollectionView('view-1', 'Renamed view')
+
+    const payload = rec.updatePayload as Record<string, unknown>
+    expect(payload.name).toBe('Renamed view')
+    expect(payload).toHaveProperty('updated_at')
+    expect(payload).not.toHaveProperty('kind')
+    expect(payload).not.toHaveProperty('context')
+    expect(rec.eqCalls).toContainEqual(['id', 'view-1'])
+  })
+
+  it('throws on a PostgREST error', async () => {
+    const rec = recorder()
+    schemaMock.mockReturnValue(makeMosSchema({ data: null, error: { message: 'rename failed' } }, rec) as never)
+    await expect(renameCollectionView('view-1', 'x')).rejects.toThrow(/rename failed/)
+  })
+})
+
+describe('archiveCollectionView', () => {
+  it('soft-archives by setting lifecycle and both timestamps', async () => {
+    const rec = recorder()
+    schemaMock.mockReturnValue(makeMosSchema({ data: null, error: null }, rec) as never)
+
+    await archiveCollectionView('view-1')
+
+    const payload = rec.updatePayload as Record<string, unknown>
+    expect(payload.lifecycle).toBe('archived')
+    expect(payload).toHaveProperty('archived_at')
+    expect(payload.archived_at).not.toBeNull()
+    expect(payload).toHaveProperty('updated_at')
+    expect(rec.eqCalls).toContainEqual(['id', 'view-1'])
+  })
+
+  it('throws on a PostgREST error', async () => {
+    const rec = recorder()
+    schemaMock.mockReturnValue(makeMosSchema({ data: null, error: { message: 'archive failed' } }, rec) as never)
+    await expect(archiveCollectionView('view-1')).rejects.toThrow(/archive failed/)
   })
 })

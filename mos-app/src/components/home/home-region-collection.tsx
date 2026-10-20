@@ -55,11 +55,14 @@ const NOOP_VIEW_STORE: CollectionViewStore = {
   list: async () => [],
   get: async () => null,
   create: async () => { throw new Error('Home regions do not support saved views') },
+  rename: async () => { throw new Error('Home regions do not support saved views') },
+  archive: async () => { throw new Error('Home regions do not support saved views') },
 }
 
 const NO_SAVED_VIEWS: CollectionSavedViewDescriptor<HomeCollectionQuery, 'home'> = {
   enabled: false,
   store: NOOP_VIEW_STORE,
+  operations: [],
   buildSpec: () => { throw new Error('Home regions do not support saved views') },
   parseAndValidate: () => ({ ok: false, issues: [] }),
   applySpec: () => ({ query: { region: 'needs-you' }, presentation: 'home' }),
@@ -115,6 +118,7 @@ function homeRegionDescriptor(
           savedViews: false,
           selection: false,
           recordOpening: false,
+          bulkActions: [],
         },
         render: ({ projection, context }) => <HomeRows projection={projection} context={context} />,
       },

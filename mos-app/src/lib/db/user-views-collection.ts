@@ -118,3 +118,20 @@ export async function createCollectionView(
   if (error) throw new Error(`createCollectionView failed — ${error.message}`)
   return toPersisted(data as unknown as CollectionViewRow)
 }
+
+export async function renameCollectionView(id: string, name: string): Promise<void> {
+  const { error } = await mos()
+    .from('user_views')
+    .update({ name, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw new Error(`renameCollectionView failed — ${error.message}`)
+}
+
+export async function archiveCollectionView(id: string): Promise<void> {
+  const now = new Date().toISOString()
+  const { error } = await mos()
+    .from('user_views')
+    .update({ lifecycle: 'archived', archived_at: now, updated_at: now })
+    .eq('id', id)
+  if (error) throw new Error(`archiveCollectionView failed — ${error.message}`)
+}

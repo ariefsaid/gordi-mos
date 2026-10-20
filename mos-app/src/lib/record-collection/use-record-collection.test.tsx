@@ -54,6 +54,7 @@ function makeSignalDescriptor(): RecordCollectionDescriptor<
       savedViews: true,
       selection: true,
       recordOpening: true,
+      bulkActions: [] as readonly never[],
     },
     render: () => null,
   })
@@ -63,7 +64,8 @@ function makeSignalDescriptor(): RecordCollectionDescriptor<
     query: signalCollectionQuery,
     savedViews: {
       enabled: true,
-      store: { list: async () => [], get: async () => null, create: vi.fn() },
+      store: { list: async () => [], get: async () => null, create: vi.fn(), rename: vi.fn(), archive: vi.fn() },
+      operations: ['save', 'apply', 'rename', 'archive'],
       buildSpec: () => { throw new Error('unused') },
       parseAndValidate: () => ({ ok: false, issues: [] }),
       applySpec: () => { throw new Error('unused') },
@@ -102,7 +104,10 @@ function makeSignalDescriptorWithSavedView(
         list: async () => [view],
         get: async (id: string) => (id === view.id ? view : null),
         create: vi.fn(),
+        rename: vi.fn(),
+        archive: vi.fn(),
       },
+      operations: ['save', 'apply', 'rename', 'archive'],
       parseAndValidate: () => ({ ok: true, spec: view.spec }),
       applySpec: (spec) => ({
         query: { ...signalCollectionQuery.neutral, layout: spec.presentation as SignalCollectionPresentation },
@@ -421,7 +426,7 @@ describe('useRecordCollection (synced)', () => {
       id, label: id, compatibleQueryKeys,
       capabilities: {
         search: false, filterKeys: ['filter'] as const, sortKeys: [] as const, groupKeys: [] as const,
-        savedViews: false, selection: false, recordOpening: false,
+        savedViews: false, selection: false, recordOpening: false, bulkActions: [] as readonly never[],
       },
       render: () => null,
     })
@@ -431,7 +436,8 @@ describe('useRecordCollection (synced)', () => {
       query: xQuerySchema,
       savedViews: {
         enabled: false,
-        store: { list: async () => [], get: async () => null, create: vi.fn() },
+        store: { list: async () => [], get: async () => null, create: vi.fn(), rename: vi.fn(), archive: vi.fn() },
+        operations: [],
         buildSpec: () => { throw new Error('unused') },
         parseAndValidate: () => ({ ok: false, issues: [] }),
         applySpec: () => { throw new Error('unused') },
@@ -547,7 +553,10 @@ describe('useRecordCollection (synced)', () => {
           list: async () => [view],
           get: async (id: string) => (id === view.id ? view : null),
           create: vi.fn(),
+          rename: vi.fn(),
+          archive: vi.fn(),
         },
+        operations: ['save', 'apply', 'rename', 'archive'],
         buildSpec: () => { throw new Error('unused') },
         parseAndValidate: () => ({ ok: true, spec: view.spec }),
         applySpec: (spec) => ({

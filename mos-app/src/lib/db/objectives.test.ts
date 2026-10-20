@@ -8,7 +8,7 @@ vi.mock('../supabase', () => {
 })
 
 import {
-  listObjectives, listObjectivesAll, createObjective, renameObjective, setObjectiveArchived,
+  listObjectives, listObjectivesAll, listObjectivesCatalogPage, createObjective, renameObjective, setObjectiveArchived,
   readObjective, updateObjective, searchObjectivesByName,
 } from './objectives'
 import { supabase } from '@/lib/supabase'
@@ -19,7 +19,11 @@ interface Recorder {
   fromTables: string[]
   selects: string[]
   eqs: Array<[string, unknown]>
+  ilikes: Array<[string, unknown]>
+  nots: Array<[string, unknown, unknown]>
   orders: Array<[string, unknown]>
+  limits: number[]
+  cursors: Array<[string, unknown]>
   inserts: unknown[]
   updates: unknown[]
 }
@@ -38,7 +42,11 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
     builder.select = vi.fn((s?: string) => { if (s) rec.selects.push(s); return builder })
     builder.is = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.eq = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
+    builder.ilike = vi.fn((c: string, v: unknown) => { rec.ilikes.push([c, v]); return builder })
+    builder.not = vi.fn((c: string, operator: unknown, v: unknown) => { rec.nots.push([c, operator, v]); return builder })
     builder.order = vi.fn((c: string, o: unknown) => { rec.orders.push([c, o]); return builder })
+    builder.gt = vi.fn((c: string, v: unknown) => { rec.cursors.push([c, v]); return builder })
+    builder.limit = vi.fn((n: number) => { rec.limits.push(n); return builder })
     builder.insert = vi.fn((p: unknown) => { rec.inserts.push(p); return builder })
     builder.update = vi.fn((p: unknown) => { rec.updates.push(p); return builder })
     builder.single = vi.fn(() => builder)
@@ -50,7 +58,7 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
 }
 
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], eqs: [], orders: [], inserts: [], updates: [] }
+  return { fromTables: [], selects: [], eqs: [], ilikes: [], nots: [], orders: [], limits: [], cursors: [], inserts: [], updates: [] }
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -97,8 +105,49 @@ describe('listObjectives', () => {
   })
 })
 
+describe('Objectives catalog paging', () => {
+  it('returns at most one page and an ID cursor when more objectives remain', async () => {
+    const rec = freshRec()
+    const rows = Array.from({ length: 51 }, (_, index) => ({
+      id: `obj-${String(index + 1).padStart(3, '0')}`, name: `Objective ${index + 1}`, archived_at: null,
+    }))
+    schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: rows, error: null }] }, rec) as never)
+
+    const page = await listObjectivesCatalogPage({ view: 'all', search: '' })
+
+    expect(page.rows).toHaveLength(50)
+    expect(page.hasMore).toBe(true)
+    expect(page.cursor).toBe('obj-050')
+    expect(rec.limits).toEqual([51])
+    expect(rec.orders).toContainEqual(['id', { ascending: true }])
+  })
+
+  it('applies archive and name filters in the server query', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: [], error: null }] }, rec) as never)
+
+    await listObjectivesCatalogPage({ view: 'archived', search: 'Growth' })
+
+    expect(rec.nots).toContainEqual(['archived_at', 'is', null])
+    expect(rec.ilikes).toContainEqual(['name', '%Growth%'])
+    expect(rec.limits).toEqual([51])
+  })
+
+  it('loads only records after its cursor', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: [{ id: 'obj-051', name: 'Last', archived_at: null }], error: null }] }, rec) as never)
+
+    const page = await listObjectivesCatalogPage({ view: 'all', search: '' }, 'obj-050')
+
+    expect(rec.cursors).toContainEqual(['id', 'obj-050'])
+    expect(page.rows).toHaveLength(1)
+    expect(page.hasMore).toBe(false)
+    expect(page.cursor).toBeNull()
+  })
+})
+
 describe('listObjectivesAll (management)', () => {
-  it('selects archived_at and orders archived-first then name', async () => {
+  it('uses bounded keyset reads and keeps active objectives ahead of archived records', async () => {
     const rec = freshRec()
     const rows = [
       { id: 'o-1', name: 'Active', archived_at: null },
@@ -110,8 +159,8 @@ describe('listObjectivesAll (management)', () => {
 
     expect(result).toEqual(rows)
     expect(rec.selects).toContain('id,name,archived_at,business_unit_id,is_company_wide,accountable_person_id,period_year,period_quarter')
-    expect(rec.orders).toContainEqual(['archived_at', { nullsFirst: true }])
-    expect(rec.orders).toContainEqual(['name', undefined])
+    expect(rec.orders).toContainEqual(['id', { ascending: true }])
+    expect(rec.limits).toEqual([51])
   })
 
   it('throws on error', async () => {

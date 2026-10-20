@@ -1197,7 +1197,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
           selected={selectedLog !== null}
           onBack={() => setSelectedLogId(null)}
           backLabel={t('kitchen.review.master.back')}
-          master={<DataTable columns={columns} rows={[]} groups={tableGroups} isDesktop={isDesktop} renderCard={renderReviewCard} caption={t('kitchen.review.caption')} />}
+          master={<DataTable columns={columns} rows={[]} groups={tableGroups} isDesktop={isDesktop} virtualize={isDesktop && visibleLogs.length >= KITCHEN_LOGS_PAGE_SIZE} renderCard={renderReviewCard} caption={t('kitchen.review.caption')} />}
           detail={reviewWorkbench}
         />
       )}

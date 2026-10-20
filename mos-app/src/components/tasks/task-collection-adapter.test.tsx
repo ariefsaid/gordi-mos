@@ -9,6 +9,7 @@ import type { CollectionData } from '@/lib/record-collection/types'
 
 vi.mock('@/lib/db/tasks', () => ({
   listTasks: vi.fn(),
+  listTasksPage: vi.fn(),
   hasOlderDoneTasks: vi.fn().mockResolvedValue(false),
   listOlderDoneTasks: vi.fn().mockResolvedValue({ rows: [], nextCursor: null, hasMore: false }),
 }))
@@ -30,7 +31,7 @@ vi.mock('@/lib/db/user-views-collection', () => ({
   createCollectionView: vi.fn(),
 }))
 
-import { listTasks } from '@/lib/db/tasks'
+import { listTasksPage } from '@/lib/db/tasks'
 import {
   getBusinessUnits,
   getDownlinePersonIds,
@@ -124,7 +125,7 @@ describe('load — DAL wiring and context', () => {
 
   it('FR-V3-007: legacy storage columns map to PIC/Supervisor only inside the adapter, BU rendered honestly', async () => {
     seedDirectory()
-    mock(listTasks).mockResolvedValue([rawTask({ id: 't-1', title: 'Fix the coffee machine' })])
+    mock(listTasksPage).mockResolvedValue({ rows: [rawTask({ id: 't-1', title: 'Fix the coffee machine' })], nextCursor: null, hasMore: false })
     const data = await taskCollectionDescriptor.load({ query: q(), viewerId: 'p-raka' })
     expect(data.records[0].picId).toBe('p-raka')
     expect(data.records[0].supervisorId).toBe('p-sari')
@@ -132,18 +133,40 @@ describe('load — DAL wiring and context', () => {
     expect(data.context.personNamesById.get('p-raka')).toBe('Raka')
     expect(data.context.workLineTypeById.get('wl-1')).toBe('project')
     // Only includeArchived is a server filter; BU/Status stay client-side.
-    expect(mock(listTasks)).toHaveBeenCalledWith(
+    expect(mock(listTasksPage)).toHaveBeenCalledWith(
       { includeArchived: false },
-      undefined,
+      null,
       expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+      undefined,
     )
+  })
+
+  it('loads a bounded Tasks page first, then appends the next page to the virtualized collection', async () => {
+    seedDirectory()
+    const first = rawTask({ id: 't-1', title: 'First task', due_date: '2026-10-05' })
+    const second = rawTask({ id: 't-2', title: 'Next task', due_date: '2026-10-05' })
+    const cursor = { due_date: first.due_date, id: first.id }
+    mock(listTasksPage)
+      .mockResolvedValueOnce({ rows: [first], nextCursor: cursor, hasMore: true })
+      .mockResolvedValueOnce({ rows: [second], nextCursor: null, hasMore: false })
+    const data = await taskCollectionDescriptor.load({ query: q(), viewerId: 'p-raka' })
+    expect(data.records.map((record) => record.id)).toEqual(['t-1'])
+    expect(data.context.taskHasMore).toBe(true)
+
+    const next = await taskCollectionDescriptor.loadMore?.({ query: q(), viewerId: 'p-raka', data })
+    expect(next?.records.map((record) => record.id)).toEqual(['t-1', 't-2'])
+    expect(next?.context.taskHasMore).toBe(false)
+    expect(next?.context.rowsById.get('t-2')).toEqual(second)
+    expect(mock(listTasksPage).mock.calls[1]).toEqual([
+      { includeArchived: false }, cursor, expect.any(String), undefined,
+    ])
   })
 
   it('fetches occurrence roll-ups + PIC provenance ONLY when grouping by occurrence', async () => {
     seedDirectory()
-    mock(listTasks).mockResolvedValue([
+    mock(listTasksPage).mockResolvedValue({ rows: [
       rawTask({ id: 't-1', title: 'Fix the coffee machine', process_run_id: 'run-1', generated_from_task_def_id: 'def-1' }),
-    ])
+    ], nextCursor: null, hasMore: false })
     mock(listRunRollups).mockResolvedValue([
       { process_run_id: 'run-1', caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17', status: 'active', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0, overdue: 0, pending_unresolved: 1, completion_pct: 0 },
     ])
@@ -158,7 +181,7 @@ describe('load — DAL wiring and context', () => {
 
   it('does NOT fetch roll-ups when not grouping by occurrence', async () => {
     seedDirectory()
-    mock(listTasks).mockResolvedValue([rawTask({ id: 't-1', title: 'x', process_run_id: 'run-1' })])
+    mock(listTasksPage).mockResolvedValue({ rows: [rawTask({ id: 't-1', title: 'x', process_run_id: 'run-1' })], nextCursor: null, hasMore: false })
     await taskCollectionDescriptor.load({ query: q({ groupBy: 'status' }), viewerId: 'p-raka' })
     expect(mock(listRunRollups)).not.toHaveBeenCalled()
     expect(mock(listTaskDefs)).not.toHaveBeenCalled()
@@ -166,7 +189,7 @@ describe('load — DAL wiring and context', () => {
 
   it('AC-002: ordinary Task groups, filters, and sort reproject without repeating reads', async () => {
     seedDirectory()
-    mock(listTasks).mockResolvedValue([rawTask({ id: 't-1', title: 'Fix the coffee machine', team_id: 'team-1' })])
+    mock(listTasksPage).mockResolvedValue({ rows: [rawTask({ id: 't-1', title: 'Fix the coffee machine', team_id: 'team-1' })], nextCursor: null, hasMore: false })
     const controller = createRecordCollectionController(taskCollectionDescriptor, {
       query: q(),
       presentation: 'table',
@@ -187,7 +210,7 @@ describe('load — DAL wiring and context', () => {
       await flushCollectionLoad()
     }
 
-    expect(mock(listTasks)).toHaveBeenCalledTimes(1)
+    expect(mock(listTasksPage)).toHaveBeenCalledTimes(1)
     expect(mock(getBusinessUnits)).toHaveBeenCalledTimes(1)
     expect(mock(getPeople)).toHaveBeenCalledTimes(1)
     expect(mock(getDownlinePersonIds)).toHaveBeenCalledTimes(1)
@@ -205,8 +228,8 @@ describe('load — DAL wiring and context', () => {
     seedDirectory()
     const rows = [rawTask({ id: 't-run', title: 'Run task', team_id: 'team-1', process_run_id: 'run-1' })]
     const rawTaskRead = vi.fn(async () => rows)
-    mock(listTasks).mockImplementation((filters, readLease) => {
-      const load = () => rawTaskRead()
+    mock(listTasksPage).mockImplementation((filters, _before, _cutoff, readLease) => {
+      const load = async () => ({ rows: await rawTaskRead(), nextCursor: null, hasMore: false })
       return readLease
         ? readLease.read(`test-task-list:${JSON.stringify(filters)}`, load)
         : load()
@@ -249,7 +272,7 @@ describe('load — DAL wiring and context', () => {
   it('FR-V3-013: context.rowsById bridges each projected id back to its raw TaskListRow (single-loader render seam)', async () => {
     seedDirectory()
     const raw = rawTask({ id: 't-1', title: 'Fix the coffee machine', responsible_person_id: 'p-raka', accountable_person_id: 'p-sari' })
-    mock(listTasks).mockResolvedValue([raw])
+    mock(listTasksPage).mockResolvedValue({ rows: [raw], nextCursor: null, hasMore: false })
     const data = await taskCollectionDescriptor.load({ query: q(), viewerId: 'p-raka' })
     // The workspace maps a projected record id → the full raw row for its TaskListRow render stack,
     // so the descriptor stays the ONLY loader (no parallel listTasks fetch in the workspace).
@@ -260,7 +283,7 @@ describe('load — DAL wiring and context', () => {
   it('loads viewer Team choices and real Team identity for Team work without inferring from BU', async () => {
     seedDirectory()
     const raw = rawTask({ id: 't-team', title: 'Team-owned task', team_id: 'team-cafe', created_by: 'p-raka' })
-    mock(listTasks).mockResolvedValue([raw])
+    mock(listTasksPage).mockResolvedValue({ rows: [raw], nextCursor: null, hasMore: false })
     mock(getPersonTeams).mockResolvedValue([{
       id: 'team-cafe', name: 'Café Floor', businessUnitId: 'bu-cafe', siteId: 'site-1', orgId: 'org-1', isPrimary: true,
     }])
@@ -280,10 +303,11 @@ describe('load — DAL wiring and context', () => {
   })
 })
 
-describe('NFR-V3-001: Task collection access', () => {
-  it('is full-but-actionless with selection disabled', () => {
+describe('NFR-V3-001: no typed bulk capability is granted', () => {
+  it('access is full-but-actionless and both presentations expose an empty bulkActions slot', () => {
     expect(taskCollectionDescriptor.getAccess({ viewerId: 'p-raka', accessRoles: [] })).toEqual({ mode: 'full', visibleActions: [] })
-    // Selection is disabled until a real bulk action ships (OD-REDESIGN-83.2).
+    expect(taskCollectionDescriptor.presentations.table.capabilities.bulkActions).toEqual([])
+    expect(taskCollectionDescriptor.presentations.card.capabilities.bulkActions).toEqual([])
     expect(taskCollectionDescriptor.presentations.table.capabilities.selection).toBe(false)
   })
 })

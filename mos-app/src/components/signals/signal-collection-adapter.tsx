@@ -8,9 +8,11 @@ import { listReadableSignals, listAllTeams, orderSignalsForFeed, SIGNALS_PAGE_SI
 import { getPeople } from '@/lib/db/directory'
 import type { OverlayEntry } from '@/shell/overlay-host'
 import {
+  archiveCollectionView,
   createCollectionView,
   getCollectionView,
   listCollectionViews,
+  renameCollectionView,
 } from '@/lib/db/user-views-collection'
 import {
   parseCollectionViewSpec,
@@ -383,6 +385,8 @@ const signalCollectionViewStore: CollectionViewStore = {
   list: (collectionId) => listCollectionViews(collectionId),
   get: (id) => getCollectionView(id),
   create: (input) => createCollectionView(input),
+  rename: (id, name) => renameCollectionView(id, name),
+  archive: (id) => archiveCollectionView(id),
 }
 
 const signalCollectionSavedViews: CollectionSavedViewDescriptor<
@@ -391,6 +395,7 @@ const signalCollectionSavedViews: CollectionSavedViewDescriptor<
 > = {
   enabled: true,
   store: signalCollectionViewStore,
+  operations: ['save', 'apply', 'rename', 'archive'],
   buildSpec({ query, presentation }): CollectionViewSpec {
     return {
       kind: 'collection',
@@ -466,6 +471,7 @@ export const signalCollectionDescriptor: RecordCollectionDescriptor<
         savedViews: true,
         selection: false,
         recordOpening: true,
+        bulkActions: [],
       },
       render: (props) => <SignalFeedPresentation {...props} />,
     },
@@ -481,6 +487,7 @@ export const signalCollectionDescriptor: RecordCollectionDescriptor<
         savedViews: true,
         selection: false,
         recordOpening: true,
+        bulkActions: [],
       },
       render: (props) => <SignalTablePresentation {...props} />,
     },

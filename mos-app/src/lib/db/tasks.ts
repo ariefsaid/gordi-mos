@@ -48,16 +48,20 @@ export interface TaskListFilters {
 }
 
 const TASKS_LIST_MAX_ROWS = 1000
+export const TASKS_LIST_PAGE_SIZE = 50
 export const TASKS_OLDER_DONE_PAGE_SIZE = 50
+export type TaskListCursor = Pick<TaskListRow, 'due_date' | 'id'>
+export type TaskListPage = { rows: TaskListRow[]; nextCursor: TaskListCursor | null; hasMore: boolean }
 
-function taskListReadKey(filters: TaskListFilters, cutoff: string): string {
+function taskListReadKey(filters: TaskListFilters, cutoff: string, before?: TaskListCursor | null): string {
   return `mos.tasks:list:${JSON.stringify({
     select: LIST_SELECT,
     businessUnitId: filters.businessUnitId || null,
     status: filters.status ?? null,
     includeArchived: Boolean(filters.includeArchived),
     recentDoneSince: cutoff,
-    order: ['due_date', 'asc', 'nulls_last'],
+    before: before ?? null,
+    order: ['due_date', 'asc', 'nulls_last', 'id', 'asc'],
   })}`
 }
 
@@ -87,6 +91,37 @@ export async function listTasks(
   return scope ? sharePending(scope, key, load) : load()
 }
 
+/** Fetch one bounded window of active and recently completed Tasks, ordered by due date. */
+export async function listTasksPage(
+  filters: TaskListFilters = {},
+  before: TaskListCursor | null = null,
+  cutoff = taskDoneRecentCutoff(),
+  readLease?: ReadLease,
+): Promise<TaskListPage> {
+  const load = async (): Promise<TaskListPage> => {
+    let query = mos().from('tasks').select(LIST_SELECT)
+    if (!filters.includeArchived) query = query.is('archived_at', null)
+    if (filters.businessUnitId) query = query.eq('business_unit_id', filters.businessUnitId)
+    if (filters.status) query = query.eq('status', filters.status)
+    query = query.or(`status.neq.Done,completed_at.gte.${cutoff}`)
+    if (before?.due_date) {
+      query = query.or(`due_date.gt.${before.due_date},and(due_date.eq.${before.due_date},id.gt.${before.id}),due_date.is.null`)
+    } else if (before) {
+      query = query.is('due_date', null).gt('id', before.id)
+    }
+    const { data, error } = await query.order('due_date', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true }).limit(TASKS_LIST_PAGE_SIZE + 1)
+    if (error) throw new Error(`listTasksPage failed — ${error.message}`)
+    return keysetPageFromProbe((data ?? []) as unknown as TaskListRow[], TASKS_LIST_PAGE_SIZE,
+      (row) => ({ due_date: row.due_date, id: row.id }))
+  }
+
+  const key = taskListReadKey(filters, cutoff, before)
+  if (readLease) return readLease.read(key, load)
+  const scope = getReadScope()
+  return scope ? sharePending(scope, key, load) : load()
+}
+
 export type TaskEventsCursor = Pick<TaskEventRow, 'created_at' | 'id'>
 
 /** Newest-first page of task history. */
@@ -100,6 +135,10 @@ export async function listTaskEventsPage(
   if (error) throw new Error(`listTaskEvents failed — ${error.message}`)
   return keysetPageFromProbe((data ?? []) as unknown as TaskEventRow[], TASK_EVENTS_PAGE_SIZE,
     (event) => ({ created_at: event.created_at, id: event.id }))
+}
+
+export async function listTaskEvents(taskId: string, before?: TaskEventsCursor): Promise<TaskEventRow[]> {
+  return (await listTaskEventsPage(taskId, before)).rows
 }
 
 export type OlderDoneTaskCursor = Pick<TaskListRow, 'completed_at' | 'id'>
