@@ -58,7 +58,7 @@ function dueRow(overrides: Partial<DueProcessRun> = {}): DueProcessRun {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockOccurrences.mockResolvedValue([])
+  mockOccurrences.mockResolvedValue({ rows: [], nextCursor: null, hasMore: false })
   mockStartable.mockResolvedValue([])
   mockCanStart.mockResolvedValue(true)
   mockCanClose.mockResolvedValue(true)

@@ -5,6 +5,7 @@ import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
+import { ListPaging } from '@/components/ui/list-paging'
 import { eventsCollectionDescriptor, type EventCollectionQuery } from '@/components/events/events-collection-adapter'
 import './events-workspace-page.css'
 
@@ -42,5 +43,9 @@ export function EventsWorkspacePage() {
       error={{ message: t('events.error'), retry: () => controller.retry() }}
       loadingLabel={t('events.loading')}
     />
+    {controller.state.data?.context.nextCursor && controller.state.status !== 'loading' && controller.state.status !== 'error' ? (
+      <ListPaging count={controller.state.data.records.length} hasMore loading={controller.state.loadingMore}
+        error={Boolean(controller.state.moreError)} onLoadMore={() => { void controller.loadMore() }} />
+    ) : null}
   </PageFamilyFrame>
 }
