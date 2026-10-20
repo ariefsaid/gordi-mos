@@ -30,6 +30,8 @@ export interface Section {
    * pointing at a bounce — or a surface ends up with no link at all.
    */
   anyOf?: readonly string[]
+  /** The server-resolved read fact that also admits Café Pushes readers. */
+  readFact?: 'canReadCafePushes'
   /** Café's shared grouped navigation metadata. */
   group?: MessageKey
   /** Secondary route nested beneath its parent destination on Café navigation. */
@@ -94,7 +96,7 @@ export const CAFE_SECTIONS: Section[] = [
   { path: '/cafe/request', label: 'Request', labelKey: 'cafe.request.title', Icon: RequestIcon, group: 'cafe.nav.stock' },
   { path: '/cafe/stock', label: 'Available to transfer', labelKey: 'nav.cafe.stock', Icon: StockIcon, group: 'cafe.nav.stock' },
   { path: '/cafe/review', label: 'Review', labelKey: 'nav.cafe.review', Icon: ReviewIcon, group: 'cafe.nav.close', anyOf: CAFE_REVIEW_ROLES },
-  { path: '/cafe/pushes', label: 'Pushes', labelKey: 'nav.cafe.pushes', Icon: DispatchIcon, group: 'cafe.nav.close', anyOf: CAFE_PUSH_ROLES },
+  { path: '/cafe/pushes', label: 'Pushes', labelKey: 'nav.cafe.pushes', Icon: DispatchIcon, group: 'cafe.nav.close', anyOf: CAFE_PUSH_ROLES, readFact: 'canReadCafePushes' },
   { path: '/cafe/items', label: 'Items', labelKey: 'nav.cafe.items', Icon: ItemsIcon, group: 'cafe.nav.setup' },
   { path: '/cafe/recipes', label: 'Recipes', labelKey: 'nav.cafe.recipes', Icon: RecipesIcon, group: 'cafe.nav.setup' },
   // Preview ship state (lib/ship-gate.ts): `visibleSections` drops it unless the dev launch opted in.
@@ -116,15 +118,19 @@ export const CAFE_ROUTE_SECTIONS: Section[] = CAFE_SECTIONS
  * rather than beside them — and why the same array closes the route in `router.tsx`, so a link can
  * never survive a path that stopped routing.
  */
+export type ViewerNavFacts = { canReadCafePushes?: boolean }
+
 export function visibleSections(
   sections: readonly Section[],
   accessRoles: readonly string[],
   isOn: ModuleAccessCheck,
+  viewerFacts: ViewerNavFacts = {},
 ): Section[] {
   return sections.filter((section) => {
     if (isShipGated(section.path)) return false
     if (section.capability && !can(accessRoles, section.capability)) return false
-    const roleAdmitted = !section.anyOf || hasAnyAccessRole(accessRoles, section.anyOf)
+    const factAdmitted = section.readFact === 'canReadCafePushes' && viewerFacts.canReadCafePushes === true
+    const roleAdmitted = !section.anyOf || hasAnyAccessRole(accessRoles, section.anyOf) || factAdmitted
     const moduleId = moduleForPath(section.path)
     return moduleId ? isOn(moduleId, roleAdmitted) : roleAdmitted
   })

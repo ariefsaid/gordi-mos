@@ -496,10 +496,9 @@ const routeTable: RouteObject[] = [
               },
             ],
           },
-          // PUSHES stays ops_lead/admin: it is the dispatch/outbox surface, not a review queue —
-          // #236 opened review per stream, and nothing about that opened posting state.
+          // Ops leads/admins keep access; managers may reach the page, which requires the server read fact before listing rows.
           {
-            element: <RequireAccessRole anyOf={CAFE_PUSH_ROLES} scope="link" moduleId="cafe" />,
+            element: <RequireAccessRole anyOf={[...CAFE_PUSH_ROLES, 'manager']} scope="link" moduleId="cafe" />,
             handle: infrastructureHandle('capability'),
             children: [
               { path: ROUTE_PATHS.cafePushes, element: withSuspense(<KitchenPushesPage />), handle: pageHandle('workspace') },

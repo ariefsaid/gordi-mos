@@ -32,7 +32,7 @@ interface Props {
 // the in-memory read module, so it cannot revive an earlier lease.
 let nextReadScopeGeneration = 0
 
-function makeAuthorityKey(result: Pick<ViewerResult, 'roles' | 'isManager' | 'accessRoles' | 'affiliated'>): string {
+function makeAuthorityKey(result: Pick<ViewerResult, 'roles' | 'isManager' | 'accessRoles' | 'affiliated'> & { canReadCafePushes?: boolean }): string {
   const roles = result.roles
     .map((role) => ({
       id: role.id,
@@ -46,6 +46,7 @@ function makeAuthorityKey(result: Pick<ViewerResult, 'roles' | 'isManager' | 'ac
     isManager: result.isManager,
     accessRoles: [...new Set(result.accessRoles)].sort(),
     affiliated: [...new Set(result.affiliated)].sort(),
+    canReadCafePushes: result.canReadCafePushes,
   })
 }
 
@@ -157,6 +158,7 @@ export function AuthProvider({ children }: Props) {
             isManager: result.isManager,
             accessRoles: result.accessRoles,
             affiliated: result.affiliated,
+            canReadCafePushes: result.canReadCafePushes,
           }
       if (current.status === 'authenticated' && current.viewer === viewer && current.readScope === readScope) {
         return current

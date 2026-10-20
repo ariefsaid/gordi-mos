@@ -6,7 +6,7 @@ import { hasAnyAccessRole } from '@/lib/capabilities'
 import type { ModuleId } from '@/lib/db/module-settings'
 import type { ModuleAccessCheck } from '@/lib/module-availability'
 import { reviewQueuePath, reviewQueuesFor } from '@/lib/cafe-review-queues'
-import { ADMIN_SECTIONS, CAFE_ROUTE_SECTIONS, CAFE_SECTIONS, MONEY_SECTIONS, sectionForPath, visibleSections, type Section } from './sections'
+import { ADMIN_SECTIONS, CAFE_ROUTE_SECTIONS, CAFE_SECTIONS, MONEY_SECTIONS, sectionForPath, visibleSections, type Section, type ViewerNavFacts } from './sections'
 import {
   HomeIcon, TasksIcon, InboxIcon, WorkLineIcon, ObjectiveIcon,
   WorkIcon, SignalsIcon, MoneyIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
@@ -269,11 +269,16 @@ const CAFE_GROUPS = ['cafe.nav.today', 'cafe.nav.stock', 'cafe.nav.close', 'cafe
  * Café: its home row, then Today / Stock / Close / Setup, empty groups omitted, a nested page (Receipt issues
  * under Receive) directly after its parent.
  */
-export function pageGroupsFor(destination: Destination, accessRoles: string[], isOn: ModuleAccessCheck): PageGroup[] {
+export function pageGroupsFor(
+  destination: Destination,
+  accessRoles: string[],
+  isOn: ModuleAccessCheck,
+  viewerFacts: ViewerNavFacts = {},
+): PageGroup[] {
   if ((destination.id === 'work' || destination.zone === 'modules') && !isOn(destination.id as ModuleId)) return []
   if (destination.id === 'money') return [{ key: 'money', items: moneySectionsForViewer(accessRoles, isOn) }]
   if (destination.id === 'cafe') {
-    const visible = visibleSections(destination.children ?? [], accessRoles, isOn)
+    const visible = visibleSections(destination.children ?? [], accessRoles, isOn, viewerFacts)
     const home: Section = { path: '/cafe', label: 'Café home', labelKey: 'nav.cafe.today', Icon: destination.Icon }
     const groups: PageGroup[] = [{ key: 'home', items: [home] }]
     for (const group of CAFE_GROUPS) {
@@ -335,11 +340,12 @@ export function viewerAdmittedToRoute(
   path: string,
   accessRoles: string[],
   isOn: ModuleAccessCheck,
+  viewerFacts: ViewerNavFacts = {},
 ): boolean {
   const destination = destinationForPath(path)
   if (!destination || !isLive(destination, accessRoles, isOn)) return false
   const section = sectionForPath(path)
-  return section == null || visibleSections([section], accessRoles, isOn).length === 1
+  return section == null || visibleSections([section], accessRoles, isOn, viewerFacts).length === 1
 }
 
 const UTILITY: Destination[] = [
@@ -403,7 +409,11 @@ export interface GoToEntry {
  * questions as the menus ask, nothing else: the ship gate and admission for the area, `visibleSections`
  * for its pages, the viewer's roles for Review's queues. Search is acceleration, never the only way in.
  */
-export function goToEntries(accessRoles: string[], isOn: ModuleAccessCheck): GoToEntry[] {
+export function goToEntries(
+  accessRoles: string[],
+  isOn: ModuleAccessCheck,
+  viewerFacts: ViewerNavFacts = {},
+): GoToEntry[] {
   const roots: Destination[] = [
     ...globalNavigationDestinations(accessRoles, isOn),
     ...WORKSPACE.filter((d) => d.id === 'inbox' && isLive(d, accessRoles, isOn)),
@@ -413,7 +423,7 @@ export function goToEntries(accessRoles: string[], isOn: ModuleAccessCheck): GoT
   return roots.flatMap((destination) => {
     const rootId = `n-${destination.id}`
     const root: GoToEntry = { id: rootId, labelKey: destination.labelKey, Icon: destination.Icon, path: destination.primaryPath ?? destination.links[0].path, trail: [] }
-    const pages = destination.id === 'inbox' || destination.id === 'profile' || destination.id === 'home' ? [] : pageGroupsFor(destination, accessRoles, isOn)
+    const pages = destination.id === 'inbox' || destination.id === 'profile' || destination.id === 'home' ? [] : pageGroupsFor(destination, accessRoles, isOn, viewerFacts)
     const rows = pages.flatMap((group) => group.items.flatMap<GoToEntry>((item) => {
       const trail: MessageKey[] = [destination.labelKey, ...(group.headingKey ? [group.headingKey] : [])]
       const row: GoToEntry = { id: `n-child${item.path.replace(/\//g, '-')}`, labelKey: item.labelKey ?? 'nav.home', Icon: item.Icon, path: item.path, trail, parentId: rootId }
