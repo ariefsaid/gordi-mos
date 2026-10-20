@@ -11,10 +11,12 @@ vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn(async () => [
   { id: 'person-floor', full_name: 'Floor Counter' }, { id: 'person-recount', full_name: 'Shift Recounter' },
 ]) }))
 vi.mock('@/lib/db/cafe-opening', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/db/cafe-opening')>(), wibToday: () => '2026-10-06' }))
+vi.mock('@/lib/db/cafe-count-corrections', () => ({ refreshCafeCountExpected: vi.fn() }))
 const desktop = vi.hoisted(() => ({ value: true }))
 vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => desktop.value }))
 
 import { confirmCafeCountLine, confirmCafeCountLines, listCafeCountLines, listCafeCountNotCounted, listCafeCountPostingQueue, listCafeCountPostingSwitches, rejectCafeCountLine, releaseCafeCountPosting, setCafeCountPostingEnabled } from '@/lib/db/cafe-count'
+import { refreshCafeCountExpected } from '@/lib/db/cafe-count-corrections'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeCountReviewQueue } from './cafe-count-review-queue'
 
@@ -219,6 +221,21 @@ describe('CafeCountReviewQueue', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm selected (1)' }))
     await waitFor(() => expect(confirmCafeCountLines).toHaveBeenCalledWith([expect.objectContaining({ id: 'other', row_version: 2 })]))
     expect(await screen.findByText('1 could not be confirmed. Refresh to see the latest.')).toBeInTheDocument()
+  })
+
+  it('reviewers see unavailable Expected and its reason, then request a worker refresh on the linked unconfirmed count', async () => {
+    mockList.mockResolvedValue([line({ id: 'unavailable', item_name: 'Flour correction', expected_status: 'unavailable',
+      expected_state: 'unavailable', expected_balance: null, variance: null,
+      unavailable_reason: 'erp_balance_or_conversion_unavailable', correction_of: 'original' })])
+    vi.mocked(refreshCafeCountExpected).mockResolvedValue(undefined)
+    renderQueue()
+    expect(await screen.findByText('Expected balance unavailable')).toBeInTheDocument()
+    expect(screen.getByText(/The ESB balance or its unit conversion could not be verified/)).toBeInTheDocument()
+    expect(screen.getByText('Correction of confirmed count original')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh expected balance' }))
+    await waitFor(() => expect(refreshCafeCountExpected).toHaveBeenCalledWith('unavailable'))
+    await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('button', { name: 'Confirm count' })).not.toBeInTheDocument()
   })
 
   it('AC-029 and AC-034 an admin enables one branch and a reviewer releases only through the currentness-checked action', async () => {

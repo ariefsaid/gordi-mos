@@ -6,6 +6,7 @@ import {
   cafeReceiptArrivalDateBounds,
   listCafeReceiptDifferences,
   listCafeReceipts,
+  listCafeReceiptStatuses,
   listCafeUnsentReceipts,
   listCafeHeldReceipts,
   listCafeReceivableItems,
@@ -36,6 +37,28 @@ const STREAM: ProductionStream = {
 beforeEach(() => vi.clearAllMocks())
 
 describe('Café receipt adapter', () => {
+  it('checks every device-draft status in bounded reads, without photos or posting data', async () => {
+    const ids = Array.from({ length: 121 }, (_, index) => `receipt-${index}`)
+    const query = { select: vi.fn(), in: vi.fn(async (_field: string, batch: string[]) => ({
+      data: batch.map(id => ({ id, status: 'Submitted' })), error: null,
+    })) }
+    query.select.mockReturnValue(query)
+    const from = vi.fn().mockReturnValue(query)
+    schemaMock.mockReturnValue({ from } as never)
+    const statuses = await listCafeReceiptStatuses([...ids, ids[0]])
+    expect(statuses.map(row => row.id)).toEqual(ids)
+    expect(query.in.mock.calls.map(([, batch]) => batch.length)).toEqual([50, 50, 21])
+    expect(query.select).toHaveBeenCalledWith('id,status')
+    expect(listCafeReceiptPhotos).not.toHaveBeenCalled()
+  })
+
+  it('leaves cleanup to retry when receipt statuses cannot be read', async () => {
+    const query = { select: vi.fn(), in: vi.fn().mockResolvedValue({ data: null, error: { message: 'offline' } }) }
+    query.select.mockReturnValue(query)
+    schemaMock.mockReturnValue({ from: vi.fn().mockReturnValue(query) } as never)
+    await expect(listCafeReceiptStatuses(['r-1'])).rejects.toThrow('offline')
+  })
+
   it('FR-1008 a received quantity is a positive decimal with comma or point; zero and blank are not lines', () => {
     expect(normalizeCafeReceiptQuantity('')).toBeNull()
     expect(normalizeCafeReceiptQuantity('0')).toBeNull()
