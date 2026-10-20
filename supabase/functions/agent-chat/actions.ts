@@ -147,7 +147,6 @@ export const queryEntityAction: AgentAction = {
   name: 'query_entity',
   description: "Read the caller's own rows from a whitelisted entity. RLS-scoped; row-capped; read-only.",
   inputSchema: QUERY_ENTITY_SCHEMA,
-  surfaces: ['agent'],
   confirm: false,
   run: (input: unknown, ctx: DeputyContext) => runQueryEntity(input, ctx),
 }
@@ -212,7 +211,6 @@ export const createTaskAction: AgentAction & {
   name: 'create_task',
   description: 'Create a new task (title, business unit, R/A people). Requires user approval.',
   inputSchema: CREATE_TASK_SCHEMA,
-  surfaces: ['agent'],
   confirm: true,
   validate: validateCreateTask,
   summarize: (i) => `Create task: title=${JSON.stringify(i.title)}; business unit=${JSON.stringify(i.businessUnitId)}; responsible=${JSON.stringify(i.responsiblePersonId)}; accountable=${JSON.stringify(i.accountablePersonId)}; due date=${JSON.stringify(i.dueDate ?? null)}; objective=${JSON.stringify(i.objectiveId ?? null)}; work line=${JSON.stringify(i.workLineId ?? null)}; description=${JSON.stringify(i.description ?? null)}`,
@@ -298,7 +296,6 @@ export const postUpdateAction: AgentAction & {
   name: 'post_update',
   description: "Add one line to the caller's current weekly update draft. Requires user approval.",
   inputSchema: POST_UPDATE_SCHEMA,
-  surfaces: ['agent'],
   confirm: true,
   validate: validatePostUpdate,
   summarize: (i) => `Add update line: label=${JSON.stringify(i.label)}; progress=${JSON.stringify(i.progress)}; week start=${JSON.stringify(i.weekStart ?? currentMondayJakarta())}`,
@@ -401,7 +398,6 @@ export const composeViewAction: AgentAction = {
   name: 'compose_view',
   description: "Compose a validated dashboard view from the user's natural-language request.",
   inputSchema: COMPOSE_VIEW_INPUT_SCHEMA,
-  surfaces: ['agent'],
   confirm: false,
   run: () => {
     throw new Error(
@@ -440,7 +436,6 @@ export const notifyAction: AgentAction & {
   name: 'notify',
   description: 'Drop a note into your OWN inbox (e.g. a reminder). Only notifies you, no one else.',
   inputSchema: NOTIFY_SCHEMA,
-  surfaces: ['agent'],
   confirm: false, // self-only inbox write — not a consequential external action
   validate: validateNotify,
   run: async (input: unknown, ctx: DeputyContext) => {
@@ -477,7 +472,6 @@ export const askUserAction: AgentAction = {
   name: 'ask_user',
   description: 'Ask the user a clarifying question with tappable option chips (and optionally free text) before proceeding.',
   inputSchema: ASK_USER_SCHEMA,
-  surfaces: ['agent'],
   run: () => {
     throw new Error(
       'ask_user is dispatched specially by runToolLoop (a status{kind:"question"} emit); never call run() directly',

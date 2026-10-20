@@ -366,7 +366,7 @@ function RevenueMoneyBranchPage() {
       {askStatus && <div ref={askStatusRef} tabIndex={-1} className="money-branch__ask-result">{askStatus}</div>}
       {load.status === 'error' && <MoneyLoadError kept tooMany={load.tooMany} onRetry={() => void read()} />}
       <MoneyFigures label={t('money.overview.figures')} className="money-branch__figures">
-        <MoneyFigure lead label={t('money.overview.revenue', { days: String(page.daysCount) })} value={formatIDRCompact(page.total)} delta={<MoneyDelta value={page.vsPrevious} t={t} />} basis={t('money.table.col.vsPrevious')} />
+        <MoneyFigure lead label={t('money.overview.revenue', { days: String(page.daysCount) })} value={formatIDRCompact(page.total)} delta={<MoneyDelta value={page.vsPrevious} t={t} />} basis={t('money.table.col.vsPrevious')} extra={page.totalPartial ? t('money.table.partial') : undefined} />
         <MoneyFigure
           label={t('money.overview.latestOn', { date: formatWeekdayDayMonth(lastReceived, locale) })}
           value={lastDay ? formatIDRCompact(lastDay.value!) : t('money.table.notReceived')}

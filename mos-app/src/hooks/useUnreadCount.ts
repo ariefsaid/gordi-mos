@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { useAuth } from '@/auth/use-auth'
-import { countUnread } from '@/lib/db/notifications'
-import { onUnreadCountChanged } from './unread-count-bus'
 import {
   getUnreadCountSnapshot,
   refreshUnreadCount,
@@ -24,70 +22,18 @@ export interface UseUnreadCount {
 export function useUnreadCount(): UseUnreadCount {
   const auth = useAuth()
   const readScope = auth.status === 'authenticated' ? auth.readScope ?? null : null
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-
-  // The bell is mounted for the whole session in the app, but it is mounted and torn down
-  // constantly in tests and in StrictMode's double-invoke — and `countUnread()` is a network read
-  // that outlives a fast unmount. Without this guard the `finally` calls `setLoading` on a
-  // component React has already discarded, which surfaces as an unhandled rejection AFTER the test
-  // environment is gone ("window is not defined" from `resolveUpdatePriority`) and takes the whole
-  // runner's exit code to 1 while every test still passes.
-  //
-  // Declared BEFORE the refresh effect on purpose: effects run in declaration order, so on a
-  // StrictMode re-mount this flag is back to true before `refresh()` is fired again.
-  const mounted = useRef(true)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
-
-  const refreshLocal = useCallback(async () => {
-    if (!mounted.current) return
-    setLoading(true)
-    try {
-      const count = await countUnread()
-      if (mounted.current) setUnreadCount(count)
-    } catch {
-      // Swallow — the bell is decorative; a transient read failure just leaves the last known count.
-    } finally {
-      if (mounted.current) setLoading(false)
-    }
-  }, [])
-
   const subscribe = useCallback(
     (listener: () => void) => subscribeUnreadCount(readScope, listener),
     [readScope],
   )
   const getSnapshot = useCallback(() => getUnreadCountSnapshot(readScope), [readScope])
-  const scopedSnapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 
-  const refresh = useCallback(async () => {
-    if (readScope !== null) {
-      await refreshUnreadCount(readScope)
-      return
-    }
-    await refreshLocal()
-  }, [readScope, refreshLocal])
+  const refresh = useCallback(() => refreshUnreadCount(readScope), [readScope])
 
   useEffect(() => {
-    if (readScope !== null) {
-      void watchUnreadCount(readScope)
-      return
-    }
-    void refreshLocal()
-  }, [readScope, refreshLocal])
+    void watchUnreadCount(readScope)
+  }, [readScope])
 
-  // #582: react to a mark-read/mark-handled done by ANY mounted useNotifications() elsewhere in
-  // the shell (Inbox page, quick-triage panel) — not just a refetch this hook triggered itself.
-  useEffect(() => {
-    if (readScope !== null) return
-    return onUnreadCountChanged(() => void refreshLocal())
-  }, [readScope, refreshLocal])
-
-  return readScope !== null
-    ? { ...scopedSnapshot, refresh }
-    : { unreadCount, loading, refresh }
+  return { ...snapshot, refresh }
 }

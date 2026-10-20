@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { useNotifications } from './useNotifications'
-import { announceUnreadCountChanged } from './unread-count-bus'
+import { refreshUnreadCount } from './unread-count-store'
 import type { NotificationCursor, NotificationPage, NotificationRow } from '@/lib/db/notifications'
 
 const mockList = vi.fn()
@@ -15,8 +15,8 @@ vi.mock('@/lib/db/notifications', () => ({
   markNotificationHandled: (id: string, at: string, readAt: string | null) => mockHandle(id, at, readAt),
 }))
 
-vi.mock('./unread-count-bus', () => ({
-  announceUnreadCountChanged: vi.fn(),
+vi.mock('./unread-count-store', () => ({
+  refreshUnreadCount: vi.fn(),
 }))
 
 function notificationPage(rows: NotificationRow[], hasMore = false, nextCursor: NotificationCursor | null = null): NotificationPage {
@@ -40,7 +40,7 @@ beforeEach(() => {
   mockList.mockReset()
   mockMark.mockReset()
   mockHandle.mockReset()
-  vi.mocked(announceUnreadCountChanged).mockReset()
+  vi.mocked(refreshUnreadCount).mockReset()
 })
 
 describe('useNotifications (AC-P3-IB-002/003)', () => {
@@ -135,7 +135,7 @@ describe('useNotifications (AC-P3-IB-002/003)', () => {
     expect(result.current.notifications).toEqual([])
   })
 
-  it('issue #582 fix: markRead announces the unread-count refresh only after the write resolves', async () => {
+  it('markRead refreshes the unread count only after the write resolves', async () => {
     mockList.mockResolvedValue([row('b', false, '2026-07-02T00:00:00Z')])
     const order: string[] = []
     let resolveWrite!: () => void
@@ -148,7 +148,10 @@ describe('useNotifications (AC-P3-IB-002/003)', () => {
           }
         }),
     )
-    vi.mocked(announceUnreadCountChanged).mockImplementation(() => order.push('announced'))
+    vi.mocked(refreshUnreadCount).mockImplementation(() => {
+      order.push('refreshed')
+      return Promise.resolve()
+    })
 
     const { result } = renderHook(() => useNotifications())
     await waitFor(() => expect(result.current.loading).toBe(false))
@@ -158,8 +161,7 @@ describe('useNotifications (AC-P3-IB-002/003)', () => {
       markReadPromise = result.current.markRead('b')
     })
 
-    // The write is still in flight — no announce yet. An announce here is exactly the bug: a
-    // subscriber (useUnreadCount) would re-fetch and read the pre-write count (stale-high badge).
+    // The write is still in flight, so the shared count must not refresh yet.
     expect(order).toEqual([])
 
     await act(async () => {
@@ -167,10 +169,10 @@ describe('useNotifications (AC-P3-IB-002/003)', () => {
       await markReadPromise
     })
 
-    expect(order).toEqual(['write resolved', 'announced'])
+    expect(order).toEqual(['write resolved', 'refreshed'])
   })
 
-  it('issue #582 fix: markHandled announces the unread-count refresh only after the write resolves', async () => {
+  it('markHandled refreshes the unread count only after the write resolves', async () => {
     mockList.mockResolvedValue([row('b', false, '2026-07-02T00:00:00Z')])
     const order: string[] = []
     let resolveWrite!: () => void
@@ -183,7 +185,10 @@ describe('useNotifications (AC-P3-IB-002/003)', () => {
           }
         }),
     )
-    vi.mocked(announceUnreadCountChanged).mockImplementation(() => order.push('announced'))
+    vi.mocked(refreshUnreadCount).mockImplementation(() => {
+      order.push('refreshed')
+      return Promise.resolve()
+    })
 
     const { result } = renderHook(() => useNotifications())
     await waitFor(() => expect(result.current.loading).toBe(false))
@@ -200,7 +205,7 @@ describe('useNotifications (AC-P3-IB-002/003)', () => {
       await markHandledPromise
     })
 
-    expect(order).toEqual(['write resolved', 'announced'])
+    expect(order).toEqual(['write resolved', 'refreshed'])
   })
 
   it('OD-WAY-88 (#549): markHandled optimistically stamps handled (+read for an unread row) and persists', async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { deriveTaskTeamView, toViewerTeam } from './task-team-view'
+import { deriveTaskTeamView } from './task-team-view'
 import type { EligibleTeam } from './types'
 
 // AC-804/805 regression slice (FR-V3-003 / NFR-V3-008), read side: a Task's BU and Site are
@@ -49,17 +49,5 @@ describe('deriveTaskTeamView', () => {
   it('flags a cross-org Team instead of trusting the join', () => {
     const view = deriveTaskTeamView(task, team({ id: 't1', orgId: 'org-2' }))
     expect(view.status).toBe('cross-org')
-  })
-})
-
-describe('toViewerTeam (Issue 5 RecordViewer integration point)', () => {
-  it('maps a valid derived view to the minimal { id, label } TaskTeamView the adapter accepts', () => {
-    const view = deriveTaskTeamView(task, team({ id: 't1', name: 'Bandung Café' }))
-    expect(toViewerTeam(view)).toEqual({ id: 't1', label: 'Bandung Café' })
-  })
-
-  it('maps any non-valid view to null so the viewer shows honest "Team not assigned yet"', () => {
-    expect(toViewerTeam(deriveTaskTeamView(task, null))).toBeNull()
-    expect(toViewerTeam(deriveTaskTeamView(task, team({ id: 't1', businessUnitId: 'bu-x' })))).toBeNull()
   })
 })

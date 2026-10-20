@@ -24,7 +24,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { composeViewHandler } from './handler.ts'
 import { ChatCompletionsClient } from '../_shared/chatCompletionsClient.ts'
-import { resolveComposeModel } from '../_shared/modelResolution.ts'
 import { logStructuredError } from '../_shared/errorLog.ts'
 import { requireVerifiedClaims } from '../_shared/claims.ts'
 import { assistantRefusalResponse, checkAssistantAvailability } from '../_shared/assistantAvailability.ts'
@@ -60,10 +59,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // ── 3. Read the model config from function secrets (D4) ────────────────────
   const apiKey = Deno.env.get('AGENT_MODEL_API_KEY')
   const baseUrl = Deno.env.get('AGENT_MODEL_BASE_URL')
-  const model = resolveComposeModel({
-    AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined,
-    AGENT_MODEL_COMPOSE: Deno.env.get('AGENT_MODEL_COMPOSE') ?? undefined,
-  })
+  const model = Deno.env.get('AGENT_MODEL_COMPOSE') ?? Deno.env.get('AGENT_MODEL_DEFAULT') ?? ''
 
   if (!model) {
     logStructuredError({ fn: 'compose-view', errorCode: 'MODEL_NOT_CONFIGURED' })

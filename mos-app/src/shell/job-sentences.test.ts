@@ -1,39 +1,6 @@
-/**
- * job-sentences registry tests — Rule 1 (one job per rail item), Step 2 T2.
- * The registry is ported verbatim from the convergence `fixtures.js` `jobSentences`,
- * and `jobKeyForPath` resolves a route to its owning job-sentence i18n key
- * (Work child / record → owning type — convergence `contextRow` resolution).
- */
+/** Route ownership for the job-sentence ContextRow. */
 import { describe, it, expect } from 'vitest'
-import { jobSentences, jobKeyForPath } from './job-sentences'
-
-describe('jobSentences registry', () => {
-  it('does not retain a retired Events destination key', () => {
-    expect(Object.keys(jobSentences).sort()).toEqual(
-      [
-        'home', 'work', 'tasks', 'signals', 'projects', 'objectives',
-        'money', 'inbox', 'cafe', 'ecommerce', 'roastery',
-      ].sort(),
-    )
-  })
-
-  it('ports the verbatim convergence strings', () => {
-    expect(jobSentences.home).toBe('What needs my attention right now?')
-    expect(jobSentences.work).toBe('Find and do the work I own or my Team owns.')
-    expect(jobSentences.tasks).toBe('Find and update the work in this view.')
-    // Every Signal is All Teams — the sentence names the org, not "your Teams".
-    expect(jobSentences.signals).toBe('Search and revisit the Signals shared across the org.')
-    expect(jobSentences.projects).toBe('Govern the Processes and Projects that generate the work.')
-    expect(jobSentences.objectives).toBe('Track the Objectives the org committed to.')
-    expect(jobSentences.money).toBe('Trust the financial figures and act on money exceptions.')
-    // DELIBERATE copy change (Census R2 DO-24(b) · F-INBOX-7): the convergence string
-    // "Triage what asked for me…" was ungrammatical — rewritten to plain second person.
-    expect(jobSentences.inbox).toBe('Triage what was directed to you and return to its source.')
-    expect(jobSentences.cafe).toBe("Run today's café floor work — openings, checks, stock, shifts.")
-    expect(jobSentences.ecommerce).toBe("Fulfil today's online orders against the right stock.")
-    expect(jobSentences.roastery).toBe('Record today’s roasts, yield, and transfers truthfully.')
-  })
-})
+import { jobKeyForPath } from './job-sentences'
 
 describe('jobKeyForPath — route → owning job key (Work child / record resolution)', () => {
   it('resolves Work children to their own job key', () => {

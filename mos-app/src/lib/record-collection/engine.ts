@@ -443,7 +443,7 @@ export function createRecordCollectionController<
       setSavedViews({ operation: 'renaming', error: null })
       try {
         await descriptor.savedViews.store.rename(id, name)
-        const items = state.savedViews.items.map((v) => (v.id === id ? { ...v, name } : v))
+        const items = state.savedViews.items.map((view) => (view.id === id ? { ...view, name } : view))
         setSavedViews({ items, operation: 'idle', error: null })
       } catch (err) {
         setSavedViews({ operation: 'error', error: errText(err) })
@@ -453,8 +453,7 @@ export function createRecordCollectionController<
       setSavedViews({ operation: 'archiving', error: null })
       try {
         await descriptor.savedViews.store.archive(id)
-        const items = state.savedViews.items.filter((v) => v.id !== id)
-        // Archive clears only the saved identity; the compatible current collection state stays.
+        const items = state.savedViews.items.filter((view) => view.id !== id)
         const currentSavedId = (state.query as { savedViewId?: string | null }).savedViewId
         const clearedId = currentSavedId === id
         setSavedViews({ items, operation: 'idle', error: null })
