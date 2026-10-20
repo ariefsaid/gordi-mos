@@ -1,5 +1,5 @@
 -- Stream placement follows branch production usage; catalog refresh owns only items and units.
--- DOWN: run supabase/rollbacks/20261020007000_ops_cafe_stream_usage.sql.
+-- DOWN: run supabase/rollbacks/20261020009500_ops_cafe_stream_usage.sql.
 
 alter table ops.stream_items
   add column hidden_at timestamptz,
