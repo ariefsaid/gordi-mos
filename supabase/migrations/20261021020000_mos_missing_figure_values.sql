@@ -1,5 +1,5 @@
 -- Keep absent snapshot values absent in reconciliation, stock and captured budget dates.
--- DOWN: run supabase/rollbacks/20261021020000_missing_figure_values.sql
+-- DOWN: run supabase/rollbacks/20261021020000_mos_missing_figure_values.sql
 
 alter table mos.budgets alter column cost_basis_as_of drop not null;
 
