@@ -19,7 +19,7 @@ version() { basename "$1" | sed -nE 's/^([0-9]{14})_.*\.sql$/\1/p'; }
 has_down_header() {
   git show "$HEADREF:$1" | awk '
     /^[[:space:]]*$/ { next }
-    /^--/ { if ($0 ~ /^-- DOWN:/) found=1; next }
+    /^--/ { if ($0 ~ /^-- DOWN[:( ]/) found=1; next }
     { exit }
     END { if (found) exit 0; exit 1 }
   '
@@ -46,9 +46,9 @@ while IFS= read -r file; do
 done <<< "$added"
 
 if [ "${#bad[@]}" -gt 0 ]; then
-  echo "MIGRATION ROLLBACK FAIL: migrations newer than the latest on $BASE ($latest) need a '-- DOWN:' header line or a matching file under $ROLLBACKS_DIR:" >&2
+  echo "MIGRATION ROLLBACK FAIL: migrations newer than the latest on $BASE ($latest) need a '-- DOWN' header line or a matching file under $ROLLBACKS_DIR:" >&2
   printf '  %s\n' "${bad[@]}" >&2
-  echo "Add a line beginning '-- DOWN:' or add $ROLLBACKS_DIR/<migration filename>." >&2
+  echo "Add a line beginning '-- DOWN:' or '-- DOWN (...)' or add $ROLLBACKS_DIR/<migration filename>." >&2
   exit 1
 fi
 
