@@ -7,12 +7,16 @@ import {
   listCafeCountFloorLines,
   listCafeCountableItems,
   listCafeCountLines,
+  listCafeCountPostingQueue,
+  listCafeCountPostingSwitches,
   recordCafeCountReason,
+  releaseCafeCountPosting,
   recordCafeCountRecount,
   newCafeCountClientKey,
   normalizeCafeCountQuantity,
   parseCafeCountQuantity,
   submitCafeCounts,
+  setCafeCountPostingEnabled,
 } from './cafe-count'
 
 vi.mock('@/lib/supabase', () => ({ supabase: { schema: vi.fn() } }))
@@ -156,6 +160,39 @@ describe('Cafe Count domain adapter', () => {
     expect(query.select).toHaveBeenCalledWith(expect.not.stringMatching(/variance|expected_balance/))
     expect(rpc).toHaveBeenCalledWith('cafe_count_review_figures', { p_line_ids: ['l1'] })
     expect(line).toMatchObject({ expected_balance: '4', variance: '1' })
+  })
+
+  it('reads reviewer-only posting state without figures and writes switches and current-only release through RPCs', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: [{
+        line_id: 'line-1', branch_id: 'branch-1', branch_name: 'Branch', activity: 'kitchen',
+        count_date: '2026-10-06', item_name: 'Raw flour', unit_name: 'kg', posting_status: 'awaiting_authorization',
+        esb_doc_num: 'IJ-100', posting_error: 'authorization pending', expected_out_of_date: false, posting_enabled: true,
+      }], error: null })
+      .mockResolvedValueOnce({ data: [{ branch_id: 'branch-1', branch_name: 'Branch', posting_enabled: false }], error: null })
+      .mockResolvedValueOnce({ data: { enabled: true }, error: null })
+      .mockResolvedValueOnce({ data: { released_lines: 1, expected_out_of_date_lines: 2, held_lines: 2 }, error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+
+    await expect(listCafeCountPostingQueue()).resolves.toEqual([{
+      line_id: 'line-1', branch_id: 'branch-1', branch_name: 'Branch', activity: 'kitchen',
+      count_date: '2026-10-06', item_name: 'Raw flour', unit_name: 'kg', posting_status: 'awaiting_authorization',
+      esb_doc_num: 'IJ-100', posting_error: 'authorization pending', expected_out_of_date: false, posting_enabled: true,
+    }])
+    await expect(listCafeCountPostingSwitches()).resolves.toEqual([{ branch_id: 'branch-1', branch_name: 'Branch', posting_enabled: false }])
+    await expect(setCafeCountPostingEnabled('branch-1', true)).resolves.toBeUndefined()
+    await expect(releaseCafeCountPosting('branch-1')).resolves.toEqual({ released_lines: 1, expected_out_of_date_lines: 2, held_lines: 2 })
+    expect(rpc.mock.calls).toEqual([
+      ['cafe_count_posting_queue'],
+      ['list_cafe_count_posting_switches'],
+      ['set_cafe_count_posting_enabled', { p_branch_id: 'branch-1', p_enabled: true }],
+      ['release_cafe_count_posting', { p_branch_id: 'branch-1' }],
+    ])
+  })
+
+  it('refuses an invalid reviewer posting row rather than treating unknown state as safe', async () => {
+    schemaMock.mockReturnValue({ rpc: vi.fn().mockResolvedValue({ data: [{ posting_status: 'unexpected' }], error: null }) } as never)
+    await expect(listCafeCountPostingQueue()).rejects.toThrow('invalid reviewer status row')
   })
 
   it('records a recount and a trimmed reason through the floor functions', async () => {
