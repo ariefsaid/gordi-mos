@@ -1961,6 +1961,19 @@ def count_tick(esb: FakeCount, *, meta=None, rows=None, cfg=None):
 
 
 count_units = {COUNT_UNITS[0]: {"product_detail_id": 9071}, COUNT_UNITS[1]: {"product_detail_id": 9072}}
+catalog = Fake(**{"rest/v1/item_units": lambda *a: [
+    {"id": COUNT_UNITS[0], "esb_product_detail_id": "9011"},
+    {"id": COUNT_UNITS[1], "esb_product_detail_id": "9012"}]})
+record_units = run(lambda: W.count_journal_units(gk_pr, count_rows(), db=True), catalog)
+check("AC-033 the ERP of record resolves stock product details from its own catalog only",
+      record_units == {COUNT_UNITS[0]: {"product_detail_id": 9011}, COUNT_UNITS[1]: {"product_detail_id": 9012}}
+      and len(catalog.calls) == 1, repr(record_units))
+check_raises("AC-033 an unresolved catalog unit is permanently refused", W.Permanent,
+             lambda: run(lambda: W.count_journal_units(gk_pr, count_rows(), db=True),
+                         Fake(**{"rest/v1/item_units": lambda *a: []})), needle="no ERP product detail")
+check_raises("AC-033 catalog identifiers are never guessed in an offline rehearsal", W.Permanent,
+             lambda: W.count_journal_units(gk_pr, count_rows(), db=False), needle="no database")
+
 count_req = W.compose_count_journal(count_cfg(), count_rows(), count_units)
 check("AC-030 one item journal carries the mapped branch/location, date, MOS key and every signed non-zero variance",
       count_req.path == COUNT_PATH and count_req.body == {
@@ -2031,6 +2044,15 @@ count_found = {"status": "ok", "result": {"count": 1, "data": [
     {"itemJournalNum": "IJ-0001", "additionalInfo": COUNT_KEY, "statusID": 3}]}}
 count_new = {"status": "ok", "result": {"count": 1, "data": [
     {"itemJournalNum": "IJ-0001", "additionalInfo": COUNT_KEY, "statusID": 1}]}}
+for label, lookup, expected_calls, expected_failures in (
+        ("already authorized", count_found, [("GET", COUNT_PATH)], 0),
+        ("awaiting authorization", count_new, [("GET", COUNT_PATH), ("PATCH", f"{COUNT_PATH}/IJ-0001/authorize")], 0),
+        ("missing created journal", {"status": "ok", "result": {"count": 0, "data": []}}, [("GET", COUNT_PATH)], 2)):
+    n, out, f, rows = count_tick(FakeCount(lookups=[lookup]),
+                                meta={"posting_stage": "awaiting_authorization", "esb_doc_num": "IJ-0001"})
+    check(f"AC-032 recovery of {label} never sends another create",
+          n == expected_failures and esb_calls(f) == expected_calls, out + repr(esb_calls(f)))
+
 n, out, f, rows = count_tick(FakeCount(lookups=[count_found]), meta=count_sent)
 check("AC-031 a retry adopts the exact MOS-key match and never creates or authorizes twice",
       n == 0 and esb_calls(f) == [("GET", COUNT_PATH)]
