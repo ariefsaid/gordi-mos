@@ -4,6 +4,7 @@ import { listCafeReceiptPhotos, signCafeReceiptPhotos } from './cafe-receipt-pho
 import type { ProductionStream } from './kitchen-logs.types'
 import {
   cafeReceiptArrivalDateBounds,
+  countCafeReceipts,
   listCafeReceiptDifferences,
   listCafeReceipts,
   listCafeReceiptStatuses,
@@ -37,6 +38,23 @@ const STREAM: ProductionStream = {
 beforeEach(() => vi.clearAllMocks())
 
 describe('Café receipt adapter', () => {
+  it('counts receipts without reading receipt details, lines or photos', async () => {
+    const query: Record<string, unknown> = {}
+    query.select = vi.fn(() => query)
+    query.in = vi.fn(() => query)
+    let error: { message: string } | null = null
+    query.then = (resolve: (value: unknown) => unknown) => Promise.resolve({ data: null, count: error ? null : 3, error }).then(resolve)
+    const from = vi.fn(() => query)
+    schemaMock.mockReturnValue({ from } as never)
+
+    await expect(countCafeReceipts(['Submitted'])).resolves.toBe(3)
+    expect(from).toHaveBeenCalledWith('cafe_receipts')
+    expect(query.select).toHaveBeenCalledWith('id', { count: 'exact', head: true })
+    expect(query.in).toHaveBeenCalledWith('status', ['Submitted'])
+    error = { message: 'offline' }
+    await expect(countCafeReceipts(['Submitted'])).rejects.toThrow('countCafeReceipts failed: offline')
+  })
+
   it('checks every device-draft status in bounded reads, without photos or posting data', async () => {
     const ids = Array.from({ length: 121 }, (_, index) => `receipt-${index}`)
     const query = { select: vi.fn(), in: vi.fn(async (_field: string, batch: string[]) => ({

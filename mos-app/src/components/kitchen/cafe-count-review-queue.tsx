@@ -30,6 +30,47 @@ import './cafe-capture-layout.css'
 import './cafe-count-review-queue.css'
 import './cafe-decision-queue.css'
 
+const integerFormatters = new Map<string, Intl.NumberFormat>()
+const decimalFormatters = new Map<string, Intl.NumberFormat>()
+const submittedAtFormatters = new Map<string, Intl.DateTimeFormat>()
+const expectedAtFormatters = new Map<string, Intl.DateTimeFormat>()
+
+function getIntegerFormatter(locale: string): Intl.NumberFormat {
+  let formatter = integerFormatters.get(locale)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 })
+    integerFormatters.set(locale, formatter)
+  }
+  return formatter
+}
+
+function getDecimalFormatter(locale: string): Intl.NumberFormat {
+  let formatter = decimalFormatters.get(locale)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale)
+    decimalFormatters.set(locale, formatter)
+  }
+  return formatter
+}
+
+function getSubmittedAtFormatter(locale: string): Intl.DateTimeFormat {
+  let formatter = submittedAtFormatters.get(locale)
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })
+    submittedAtFormatters.set(locale, formatter)
+  }
+  return formatter
+}
+
+function getExpectedAtFormatter(locale: string): Intl.DateTimeFormat {
+  let formatter = expectedAtFormatters.get(locale)
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' })
+    expectedAtFormatters.set(locale, formatter)
+  }
+  return formatter
+}
+
 export function CafeCountReviewQueue({
   streamFilter,
   streamCatalog,
@@ -308,10 +349,11 @@ function CountReviewDetail({ line, streamCatalog, online, busy, own, names, onCo
     && areCafeCountDecimalsEqual(calculatedVariance, line.variance)
   const missing = countMissing(line)
   const stream = streamCatalog.find(s => s.branch.id === line.branch_id && s.activity === line.activity) ?? null
-  const submittedAt = new Intl.DateTimeFormat(document.documentElement.lang || 'en', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(new Date(line.submitted_at))
+  const locale = document.documentElement.lang || 'en'
+  const submittedAt = getSubmittedAtFormatter(locale).format(new Date(line.submitted_at))
   const expectedTimestamp = line.expected_as_of ?? line.expected_recorded_at
   const expectedAt = expectedTimestamp
-    ? new Intl.DateTimeFormat(document.documentElement.lang || 'en', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(expectedTimestamp)) : null
+    ? getExpectedAtFormatter(locale).format(new Date(expectedTimestamp)) : null
   const fact = (label: string, value: React.ReactNode) => <div><dt>{label}</dt><dd>{value}</dd></div>
   return <article className="cafe-count-review__detail">
     <h3>{line.item_name}</h3>
@@ -401,12 +443,12 @@ function formatCafeCountDecimal(value: string, locale: string): string {
   const [, sign, whole, rawFraction = ''] = match
   const fraction = rawFraction.replace(/0+$/, '')
   const wholeValue = BigInt(`${sign}${whole}`)
-  const integerFormatter = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 })
+  const integerFormatter = getIntegerFormatter(locale)
   const formattedWhole = integerFormatter.format(wholeValue)
   const negativeZeroSign = sign === '-' && wholeValue === 0n
     ? integerFormatter.formatToParts(-1n).find(part => part.type === 'minusSign')?.value ?? '-'
     : ''
   const formattedInteger = `${negativeZeroSign}${formattedWhole}`
-  const decimalSeparator = new Intl.NumberFormat(locale).formatToParts(1.1).find(part => part.type === 'decimal')?.value ?? '.'
+  const decimalSeparator = getDecimalFormatter(locale).formatToParts(1.1).find(part => part.type === 'decimal')?.value ?? '.'
   return fraction ? `${formattedInteger}${decimalSeparator}${fraction}` : formattedInteger
 }

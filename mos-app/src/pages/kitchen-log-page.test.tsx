@@ -3163,6 +3163,15 @@ describe('AC-006 / FR-014/015: unitless plan fact + effective target + already-l
     mockFetchActualsMap.mockResolvedValue(AC6_ACTUALS)
   })
 
+  it('formats logged actual quantities with Indonesian decimal marks', async () => {
+    mockFetchActualsMap.mockResolvedValue({
+      w1: { [PRODUCE_KEY]: [loggedUnit('u1-porsi', 1.25, 'porsi')] },
+    })
+    await renderPage(VIEWER_MEMBER, appUrl('/cafe'), undefined, undefined, 'id')
+    await screen.findAllByText('Ayam Bakar')
+    expect(screen.getByRole('row', { name: /ayam bakar/i })).toHaveTextContent(/Tercatat hari ini\s*1,25 porsi/)
+  })
+
   it('AC-006: a logged row keeps the plan unitless, shows actual history, and keeps the gate', async () => {
     await renderPage()
     await screen.findAllByText('Ayam Bakar')

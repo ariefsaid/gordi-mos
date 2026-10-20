@@ -7,6 +7,7 @@ import {
   listCafeCountFloorLines,
   listCafeCountableItems,
   listCafeCountLines,
+  countSubmittedCafeCountLines,
   listCafeCountPostingQueue,
   listCafeCountPostingSwitches,
   recordCafeCountReason,
@@ -117,6 +118,23 @@ describe('Cafe Count domain adapter', () => {
     await expect(submitCafeCounts(STREAM, [{
       client_key: 'key-1', item_id: 'item-1', quantity: '0',
     }])).resolves.toEqual([{ client_key: 'key-1', outcome: 'existing', line_id: 'original-line' }])
+  })
+
+  it('counts Submitted Counts without reading their full rows or reviewer figures', async () => {
+    const query: Record<string, unknown> = {}
+    query.select = vi.fn(() => query)
+    query.eq = vi.fn(() => query)
+    let error: { message: string } | null = null
+    query.then = (resolve: (value: unknown) => unknown) => Promise.resolve({ data: null, count: error ? null : 5, error }).then(resolve)
+    const from = vi.fn(() => query)
+    schemaMock.mockReturnValue({ from, rpc: vi.fn() } as never)
+
+    await expect(countSubmittedCafeCountLines()).resolves.toBe(5)
+    expect(from).toHaveBeenCalledWith('cafe_count_lines')
+    expect(query.select).toHaveBeenCalledWith('id', { count: 'exact', head: true })
+    expect(query.eq).toHaveBeenCalledWith('status', 'Submitted')
+    error = { message: 'offline' }
+    await expect(countSubmittedCafeCountLines()).rejects.toThrow('countSubmittedCafeCountLines failed: offline')
   })
 
   it('reads all Submitted dates oldest first without sending an org', async () => {

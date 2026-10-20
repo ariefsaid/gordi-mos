@@ -227,6 +227,15 @@ export async function listCafeReceiptStatuses(ids: readonly string[]): Promise<A
   return rows
 }
 
+/** Counts receipts in the requested states without reading their nested details or photos. */
+export async function countCafeReceipts(statuses: readonly CafeReceiptStatus[]): Promise<number> {
+  const { count, error } = await ops().from('cafe_receipts')
+    .select('id', { count: 'exact', head: true })
+    .in('status', [...statuses])
+  if (error) throw new Error(`countCafeReceipts failed: ${error.message}`)
+  return count ?? 0
+}
+
 /** Receipts the viewer may read, newest first; RLS returns their own and the streams they review. */
 export async function listCafeReceipts(statuses: readonly CafeReceiptStatus[], options: CafeReceiptListOptions = {}): Promise<CafeReceipt[]> {
   return (await readCafeReceipts(statuses, options)).receipts
