@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { ModuleId } from '@/lib/db/module-settings'
 import { effectiveModuleAccess } from '@/lib/module-access'
 import {
-  admittedModules, currentPagePath, destinationForPath, FIXED_AREAS, footerAreas, globalNavigationDestinations, goToEntries, navModeFor, pageCount, pageGroupsFor,
+  admittedModules, currentPagePath, destinationForPath, FIXED_AREAS, footerAreas, profileArea, globalNavigationDestinations, goToEntries, navModeFor, pageCount, pageGroupsFor,
   moneyDestinationForViewer, moneySectionsForViewer, phoneModuleForViewer, rememberModule, rowState, viewerAdmittedToRoute,
 } from './module-registry'
 
@@ -20,7 +20,8 @@ describe('the module registry feeds every navigation surface', () => {
 
   it('keeps every admitted root available through the shared global navigation list', () => {
     const paths = globalNavigationDestinations(['finance'], allModulesOn).map((destination) => destination.primaryPath ?? destination.links[0].path)
-    for (const path of ['/', '/work', '/money', '/inbox', '/cafe']) expect(paths).toContain(path)
+    for (const path of ['/', '/work', '/money', '/cafe']) expect(paths).toContain(path)
+    expect(paths).not.toContain('/inbox')
     expect(globalNavigationDestinations(['admin'], allModulesOn).map((destination) => destination.id)).not.toContain('money')
   })
 
@@ -98,9 +99,10 @@ describe('the module registry feeds every navigation surface', () => {
     expect(rowState('/work', '/', '/', undefined)).toBeUndefined()
   })
 
-  it('pins Admin settings only for admins, and Personal profile for everyone', () => {
-    expect(footerAreas([]).map((d) => d.id)).toEqual(['profile'])
-    expect(footerAreas(['admin']).map((d) => d.id)).toEqual(['admin', 'profile'])
+  it('pins Admin settings only for admins; Personal profile lives in the account menu', () => {
+    expect(footerAreas([]).map((d) => d.id)).toEqual([])
+    expect(footerAreas(['admin']).map((d) => d.id)).toEqual(['admin'])
+    expect(profileArea()?.primaryPath).toBe('/profile')
   })
 
   it('owns Inbox as a destination with no menu row, so the bell and breadcrumb still resolve it', () => {
