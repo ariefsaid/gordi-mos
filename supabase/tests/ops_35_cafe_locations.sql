@@ -1,7 +1,7 @@
 -- Café physical locations: tenant-scoped catalog, honest opening coverage, and same-stream moves.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(32);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -104,6 +104,16 @@ select throws_ok($$insert into ops.locations (org_id,name,use) values
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","admin"]}');
 select is((select count(*)::int from ops.list_cafe_locations('{}'::jsonb)), 0,
   'another organization cannot read this catalog');
+select is((select count(*)::int from ops.location_movements),0,'AC10: another organization cannot read ledger rows');
+select throws_ok($$select ops.place_cafe_unassigned_stock(jsonb_build_object(
+  'stream',jsonb_build_object('branch_id','00000000-0000-0000-0000-00000000bf01','activity','kitchen'),
+  'to_location_id',current_setting('app.loc_main'),'as_of',current_date),'f1350000-0000-0000-0000-000000000017')$$,
+  '22023','CAFE_LOCATION_MOVE_STREAM_INVALID','AC10: another org cannot place stock through guessed stream id');
+select throws_ok($$select ops.move_cafe_stock(jsonb_build_object(
+  'stream',jsonb_build_object('branch_id','00000000-0000-0000-0000-00000000bf01','activity','kitchen'),
+  'item_unit_id',current_setting('app.loc_unit'),'quantity','1','from_location_id',current_setting('app.loc_main'),
+  'to_location_id',current_setting('app.loc_to'),'movement_date',current_date),'f1350000-0000-0000-0000-000000000018')$$,
+  '22023','CAFE_LOCATION_MOVE_STREAM_INVALID','AC10: another org cannot move stock through guessed stream id');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
 select throws_ok($$select ops.archive_cafe_location(current_setting('app.loc_parent')::uuid,1,'f1350000-0000-0000-0000-000000000010')$$,
   'P0001', null, 'a parent with an active child cannot be archived');
@@ -163,6 +173,8 @@ select ok((select bool_and(wip_item_id=current_setting('app.loc_item')::uuid and
   'receipt submission stamps real item metadata and the selected storage location');
 select is((current_setting('app.receipt')::jsonb->'lines'->0->>'storage_location_id'),current_setting('app.loc_receipt'),
   'receipt submit returns the selected storage location on its line');
+select is((select count(*)::int from ops.location_movements where source_type='receipt'),0,
+  'receipts do not credit locations while absent from stream books');
 select is((select storage_location_id::text from ops.cafe_record_locations('receipt',array[
   (select id from ops.cafe_receipt_lines where receipt_id=(current_setting('app.receipt')::jsonb->>'receipt_id')::uuid)])),
   current_setting('app.loc_receipt'), 'the record-location read returns the stored receipt location');

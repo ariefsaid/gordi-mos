@@ -2,7 +2,26 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 create extension if not exists dblink with schema extensions;
-select plan(16);
+select plan(21);
+
+select is((select prosecdef from pg_proc
+  where oid = 'ops.insert_cafe_capture_logs(jsonb)'::regprocedure), false,
+  '#1587 capture runs with the caller''s privileges (SECURITY INVOKER)');
+select is((select setting from pg_proc
+  cross join lateral unnest(proconfig) as config(setting)
+  where oid = 'ops.insert_cafe_capture_logs(jsonb)'::regprocedure
+    and setting like 'search_path=%'), 'search_path=""',
+  '#1587 capture pins an empty search_path');
+select ok(has_function_privilege('authenticated', 'ops.insert_cafe_capture_logs(jsonb)', 'EXECUTE'),
+  '#1587 signed-in users can execute capture');
+select ok(not has_function_privilege('anon', 'ops.insert_cafe_capture_logs(jsonb)', 'EXECUTE'),
+  '#1587 anonymous users cannot execute capture');
+select ok(not exists (
+  select 1 from pg_proc function
+  cross join lateral aclexplode(coalesce(function.proacl, acldefault('f', function.proowner))) privilege
+  where function.oid = 'ops.insert_cafe_capture_logs(jsonb)'::regprocedure
+    and privilege.grantee = 0 and privilege.privilege_type = 'EXECUTE'
+), '#1587 PUBLIC has no execute grant on capture');
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();

@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import { CafeReviewQueueStatus } from '@/components/kitchen/cafe-review-queue-status'
+import { CafeCountPostingPanel } from '@/components/kitchen/cafe-count-posting-panel'
 import { useCafeReviewQueueState } from '@/components/kitchen/use-cafe-review-queue-state'
 import { useT } from '@/i18n/use-t'
 import { areCafeCountDecimalsEqual, calculateCafeCountVariance } from '@/lib/cafe-count-variance'
@@ -35,6 +36,8 @@ export function CafeCountReviewQueue({
   reviewableStreamKeys,
   viewerId = null,
   refreshKey = 0,
+  canManagePosting = false,
+  canReleasePosting = false,
 }: {
   streamFilter: string
   streamCatalog: readonly ProductionStream[]
@@ -43,6 +46,8 @@ export function CafeCountReviewQueue({
   /** The reviewer; a line they counted or recounted is never theirs to confirm. */
   viewerId?: string | null
   refreshKey?: number
+  canManagePosting?: boolean
+  canReleasePosting?: boolean
 }) {
   const t = useT()
   const {
@@ -65,6 +70,7 @@ export function CafeCountReviewQueue({
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set())
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map())
   const [bulkRefused, setBulkRefused] = useState(0)
+  const [postingRefreshKey, setPostingRefreshKey] = useState(0)
   const [notCounted, setNotCounted] = useState<CafeCountableItem[] | null>(null)
   const today = useMemo(() => wibToday(), [])
 
@@ -138,6 +144,7 @@ export function CafeCountReviewQueue({
         const outcome = confirmed.get(row.id)
         return outcome ? { ...row, status: 'Confirmed', posting_status: outcome.posting_status, row_version: outcome.row_version } : row
       }))
+      if (confirmed.size > 0) setPostingRefreshKey(value => value + 1)
       setBulkRefused(outcomes.length - confirmed.size)
       setChosen(new Set())
     } catch {
@@ -174,6 +181,7 @@ export function CafeCountReviewQueue({
         row_version: result.row_version,
         variance: result.variance,
       } : row))
+      setPostingRefreshKey(value => value + 1)
     } catch {
       setActionError(true)
     } finally {
@@ -187,6 +195,8 @@ export function CafeCountReviewQueue({
       aria-labelledby={empty ? undefined : 'cafe-count-review-title'}
       aria-label={empty ? t('cafe.count.review.title') : undefined}
     >
+      <CafeCountPostingPanel streamFilter={streamFilter} streamCatalog={streamCatalog}
+        canManagePosting={canManagePosting} canReleasePosting={canReleasePosting} refreshKey={refreshKey + postingRefreshKey} />
       {/* Empty: the shared empty state carries the heading, so the section keeps no second one (named by aria-label). */}
       {!empty && (
         <header className="cafe-count-review__header">
@@ -343,7 +353,14 @@ function readyToConfirm(line: CafeCountLine): boolean {
 
 function countStateKey(line: CafeCountLine) {
   if (line.status === 'Rejected') return 'cafe.count.review.rejected' as const
-  if (line.status === 'Confirmed') return line.posting_status === 'held' ? 'cafe.count.review.confirmedHeld' as const : 'cafe.count.review.confirmedNotNeeded' as const
+  if (line.status === 'Confirmed') {
+    if (line.posting_status === 'not_needed') return 'cafe.count.review.confirmedNotNeeded' as const
+    if (line.posting_status === 'held' || line.posting_status === 'not_posted') return 'cafe.count.review.confirmedHeld' as const
+    if (line.posting_status === 'queued') return 'cafe.count.posting.status.queued' as const
+    if (line.posting_status === 'awaiting_authorization') return 'cafe.count.posting.status.awaiting_authorization' as const
+    if (line.posting_status === 'posted') return 'cafe.count.posting.status.posted' as const
+    return 'cafe.count.posting.status.failed' as const
+  }
   const missing = countMissing(line)
   return missing === 'recount' ? 'cafe.count.review.missingRecount' as const
     : missing === 'reason' ? 'cafe.count.review.missingReason' as const

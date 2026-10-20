@@ -1,7 +1,7 @@
 -- Café ESB stock comparison: writer isolation, Count-review scope, exact EOD math and pinned pages.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(26);
 
 -- Test-only role membership mirrors reporting_07_writer_org_scope.sql; the production role never receives it.
 grant reporting_writer to postgres with set true;
@@ -148,6 +148,31 @@ select is((ops.list_stock_comparison('00000000-0000-0000-0000-00000000bf01','bar
   'a shared kitchen/bar source pool blocks comparison while retaining its expected quantity');
 select is((ops.get_stock_comparison_item('00000000-0000-0000-0000-00000000bf02','kitchen','00000000-0000-0000-0000-00000000ab01','00000000-0000-0000-0000-00000000de01','00000000-0000-0000-0000-00000000ed01')#>>'{row,difference}'), '-1.0000',
   'detail returns the same authorized row and generation');
+
+-- Location approval, book opening and a physical send never change the Count/ERP comparison.
+select set_config('app.comparison_before',ops.list_stock_comparison(
+  '00000000-0000-0000-0000-00000000bf02','kitchen',false,'','all',null,'item','asc',null,50)::text,true);
+reset role;
+insert into ops.locations(id,org_id,name,use) values
+ ('f1130000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a1','Comparison kitchen','both'),
+ ('f1130000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a1','Comparison outlet','storage');
+insert into ops.location_branches(org_id,location_id,branch_id)
+select org_id,id,'00000000-0000-0000-0000-00000000bf02' from ops.locations where id in
+ ('f1130000-0000-0000-0000-000000000001','f1130000-0000-0000-0000-000000000002');
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
+insert into ops.kitchen_logs(id,business_unit_id,log_date,branch_id,activity,action,wip_item_id,qty_porsi,to_storage_location_id,notes)
+values('f1130000-0000-0000-0000-000000000003','00000000-0000-0000-0000-00000000bb01',current_date,
+ '00000000-0000-0000-0000-00000000bf02','kitchen','produce','00000000-0000-0000-0000-00000000ab01',10,
+ 'f1130000-0000-0000-0000-000000000001','made');
+select ops.approve_kitchen_log('f1130000-0000-0000-0000-000000000003','verified',
+ (select updated_at from ops.kitchen_logs where id='f1130000-0000-0000-0000-000000000003'));
+select ops.place_cafe_unassigned_stock('{"stream":{"branch_id":"00000000-0000-0000-0000-00000000bf02","activity":"kitchen"},"to_location_id":"f1130000-0000-0000-0000-000000000001"}'::jsonb || jsonb_build_object('as_of',current_date),
+ 'f1130000-0000-0000-0000-000000000004');
+select ops.move_cafe_stock('{"stream":{"branch_id":"00000000-0000-0000-0000-00000000bf02","activity":"kitchen"},"item_unit_id":"00000000-0000-0000-0000-00000000de01","quantity":"4","from_location_id":"f1130000-0000-0000-0000-000000000001","to_location_id":"f1130000-0000-0000-0000-000000000002"}'::jsonb || jsonb_build_object('movement_date',current_date),
+ 'f1130000-0000-0000-0000-000000000005');
+select is(ops.list_stock_comparison('00000000-0000-0000-0000-00000000bf02','kitchen',false,'','all',null,'item','asc',null,50)::text,
+ current_setting('app.comparison_before'),'AC9: approval, placement and send leave ERP comparison byte-identical');
 
 -- The stream reviewer can read only the stream of their live primary Team.
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
