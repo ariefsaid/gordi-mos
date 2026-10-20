@@ -26,6 +26,8 @@ import { listCafeItemSettings } from './cafe-item-settings'
 import { supabase } from '@/lib/supabase'
 import {
   listCaptureFormItems,
+  listStreamItemIds,
+  listAllStreamItemKeys,
   fetchActualsMap,
   fetchLatestItemLogDates,
   fetchPlanMap,
@@ -155,6 +157,15 @@ function makeSchema(
   }
   return { from: vi.fn(fromImpl), rpc: vi.fn(rpcImpl) }
 }
+
+it('excludes manually hidden and no-longer-used memberships in capture/plan list readers', async () => {
+  const rec = freshRec()
+  schemaMock.mockReturnValue(makeSchema({ stream_items: [{ data: [], error: null }] }, rec) as never)
+  await listStreamItemIds(STREAM)
+  await listAllStreamItemKeys()
+  expect(rec.iss).toEqual([['hidden_at', null], ['hidden_at', null]])
+  expect(rec.eqs.filter(([column]) => column === 'is_listed')).toEqual([['is_listed', true], ['is_listed', true]])
+})
 
 function freshRec(): Recorder {
   return {

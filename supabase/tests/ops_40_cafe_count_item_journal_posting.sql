@@ -18,6 +18,10 @@ select ops.refresh_cafe_item_references($source$[
   {"esb_product_id":"SYNTH-ERP-P-1373-G","esb_product_detail_id":"SYNTH-ERP-PD-1373-G","name":"Count posting G","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},
   {"esb_product_id":"SYNTH-ERP-P-1373-H","esb_product_detail_id":"SYNTH-ERP-PD-1373-H","name":"Count posting H","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true}
 ]$source$::jsonb);
+insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
+select org_id, '00000000-0000-0000-0000-00000000bf01', 'kitchen', id, 'manual'
+  from ops.wip_items
+ where org_id = '00000000-0000-0000-0000-0000000000a1' and esb_product_id like 'SYNTH-ERP-P-1373-%';
 select set_config('app.allow_test_seeds', 'off', true);
 update ops.item_units set confirmed_at = now() where esb_product_id like 'SYNTH-ERP-P-1373-%';
 select set_config('app.esb_target_env', 'goo', true);
