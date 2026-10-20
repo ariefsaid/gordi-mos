@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
@@ -160,6 +161,16 @@ function renderPage(initialPath = '/admin/people') {
   )
 }
 
+function renderPageInLocale(initialPath: string, locale: 'en' | 'id') {
+  return render(
+    <I18nProvider initialLocale={locale}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <AdminUsersPage />
+      </MemoryRouter>
+    </I18nProvider>,
+  )
+}
+
 describe('AdminUsersPage (AC-060)', () => {
   it('AC-060: renders loading state (SkeletonRows) before data resolves', () => {
     // Return a never-resolving promise
@@ -284,6 +295,26 @@ describe('AdminUsersPage (AC-060)', () => {
     await screen.findByText('Budi Santoso')
 
     expect(screen.getByRole('heading', { name: /People/i })).toBeInTheDocument()
+  })
+})
+
+describe('AdminUsersPage — segment counts (#493)', () => {
+  it.each([
+    ['en', '3 people', 'Status filter', 'Archived', '1 of 4 people'],
+    ['id', '3 orang', 'Filter status', 'Diarsipkan', '1 dari 4 orang'],
+  ] as const)('counts only the visible segment in %s', async (locale, allCount, filterLabel, archivedLabel, archivedCount) => {
+    const user = userEvent.setup()
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    renderPageInLocale('/admin/people', locale)
+
+    await screen.findByText('Budi Santoso')
+    expect(screen.getByText(allCount)).toBeInTheDocument()
+    expect(screen.queryByText('Old Staff')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('combobox', { name: filterLabel }))
+    await user.click(await screen.findByRole('option', { name: archivedLabel }))
+    expect(await screen.findByText('Old Staff')).toBeInTheDocument()
+    expect(screen.getByText(archivedCount)).toBeInTheDocument()
   })
 })
 

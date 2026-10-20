@@ -310,14 +310,24 @@ function useOccurrenceAssignment(runtime: TaskCollectionRuntime) {
   const [pending, setPending] = useState<PendingTaskRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
+  const pendingLoadId = useRef(0)
 
   const open = useCallback((nextRunId: string) => {
+    const requestId = ++pendingLoadId.current
     setRunId(nextRunId)
     setLoading(true)
     setError(false)
     listPendingTasks(nextRunId)
-      .then((rows) => { setPending(rows); setLoading(false) })
-      .catch(() => { setError(true); setLoading(false) })
+      .then((rows) => {
+        if (requestId !== pendingLoadId.current) return
+        setPending(rows)
+        setLoading(false)
+      })
+      .catch(() => {
+        if (requestId !== pendingLoadId.current) return
+        setError(true)
+        setLoading(false)
+      })
   }, [])
 
   const retry = useCallback(() => {

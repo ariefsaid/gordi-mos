@@ -19,7 +19,7 @@
 -- substrate the composite-key rows and the delete proof hang from.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(62);
+select plan(68);
 
 select shared._test_seed_directory();
 
@@ -120,6 +120,41 @@ select is((select actor_person_id::text from shared.record_history
              and record_key = '00000000-0000-0000-0000-000000009976'
              and field_name = 'revoked_at'),
   '00000000-0000-0000-0000-0000000000d3', 'the revoke stamps the revoking admin');
+
+-- A later admin restores the same grant. Its old grant fields remain unchanged, but the
+-- append-only history records who restored it and when (the #939 acceptance on current dev).
+select set_config('app.original_granted_at', (select granted_at::text from shared.person_access_roles
+           where id = '00000000-0000-0000-0000-000000009976'), true);
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["admin"]}');
+update shared.person_access_roles set revoked_at = null
+ where id = '00000000-0000-0000-0000-000000009976';
+select is((select (revoked_at is null and revoked_by is null) from shared.person_access_roles
+           where id = '00000000-0000-0000-0000-000000009976'),
+  true, 're-grant restores the active role and clears revocation fields');
+select is((select granted_by::text from shared.person_access_roles
+           where id = '00000000-0000-0000-0000-000000009976'),
+  '00000000-0000-0000-0000-0000000000d3', 're-grant leaves the original grantor on the current row');
+select is((select granted_at::text from shared.person_access_roles
+           where id = '00000000-0000-0000-0000-000000009976'),
+  current_setting('app.original_granted_at'), 're-grant leaves the original grant time on the current row');
+select is((select count(*)::int from shared.record_history
+           where schema_name = 'shared' and table_name = 'person_access_roles'
+             and record_key = '00000000-0000-0000-0000-000000009976'
+             and action = 'update' and field_name = 'revoked_at'
+             and old_value is not null and new_value is null),
+  1, 're-grant appends a distinct history event for the restored role');
+select is((select actor_person_id::text from shared.record_history
+           where schema_name = 'shared' and table_name = 'person_access_roles'
+             and record_key = '00000000-0000-0000-0000-000000009976'
+             and action = 'update' and field_name = 'revoked_at'
+             and old_value is not null and new_value is null),
+  '00000000-0000-0000-0000-0000000000d2', 're-grant history identifies the restoring admin');
+select ok((select occurred_at is not null from shared.record_history
+           where schema_name = 'shared' and table_name = 'person_access_roles'
+             and record_key = '00000000-0000-0000-0000-000000009976'
+             and action = 'update' and field_name = 'revoked_at'
+             and old_value is not null and new_value is null),
+  're-grant history records when the role was restored');
 
 select is((select count(*)::int from shared.record_history
            where schema_name = 'shared' and table_name = 'team_memberships'
