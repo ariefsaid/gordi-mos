@@ -143,14 +143,14 @@ describe('Work and Café navigation', () => {
     expect(screen.getByLabelText('Current route')).toHaveTextContent('/cafe/records')
   })
 
-  it('opens Admin pages through its utility menu and keeps Profile reachable', async () => {
+  it('opens Admin pages through its utility menu; Profile is not a sidebar row', async () => {
     setViewer(['admin'])
     renderNavigation('/cafe/records')
     await screen.findByRole('button', { name: 'Admin settings' })
 
     const primary = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(primary).getByRole('button', { name: 'Admin settings' })).toBeInTheDocument()
-    expect(within(primary).getByRole('link', { name: 'Personal profile' })).toBeInTheDocument()
+    expect(within(primary).queryByRole('link', { name: 'Personal profile' })).toBeNull()
 
     fireEvent.click(within(primary).getByRole('button', { name: 'Admin settings' }))
     fireEvent.click(await screen.findByRole('link', { name: 'People' }))

@@ -7,6 +7,7 @@ This script deliberately does not load .env files.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -880,6 +881,14 @@ def build_recipe_history_source_query() -> str:
     """
 
 
+def _recipe_contents(recipe: Mapping[str, Any]) -> tuple:
+    # Source hashes also cover labels and row ordering; only recipe contents create MOS versions.
+    fields = ("product_id", "detail_id", "qty", "unit_id", "unit",
+              "detail_active", "product_active", "product_deleted")
+    return (recipe.get("active"), recipe.get("menu_deleted"),
+            Counter(tuple(line.get(field) for field in fields) for line in recipe["lines"]))
+
+
 def plan_recipe_versions(
     source_rows: list[Mapping[str, Any]],
     latest_versions: list[Mapping[str, Any]],
@@ -894,8 +903,8 @@ def plan_recipe_versions(
         version_hash = _required_text(row.get("recipe_version_hash"), "recipe_version_hash")
         previous = latest.get((esb_code, row["menu_id"]))
         if previous and (
-            previous["warehouse_version_hash"] == version_hash
-            or row["observed_at"] <= previous["source_observed_at"]
+            row["observed_at"] <= previous["source_observed_at"]
+            or _recipe_contents(previous["recipe"]) == _recipe_contents(row["recipe"])
         ):
             continue
         versions.append({
@@ -938,7 +947,7 @@ def run_recipe_history_snapshot(config: SnapshotConfig, snapshot_as_of: datetime
             )
             reporting_cur.execute("""
                 select distinct on (esb_code, menu_id)
-                       esb_code, menu_id, version, warehouse_version_hash, source_observed_at
+                       esb_code, menu_id, version, warehouse_version_hash, source_observed_at, recipe
                 from reporting.recipe_versions where org_id = %s
                 order by esb_code, menu_id, version desc
             """, (config.org_id,))
