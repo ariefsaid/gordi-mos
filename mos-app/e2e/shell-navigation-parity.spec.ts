@@ -33,9 +33,11 @@ for (const actor of personas) {
     await expect(phoneNav.getByRole('link')).toHaveText(actor.cafe ? ['Home', 'Work', 'Café'] : ['Home', 'Work'])
     await phoneNav.getByRole('button', { name: 'More' }).click()
     const more = page.getByRole('dialog', { name: 'More', exact: true })
-    for (const label of ['Home', 'Work', 'Inbox']) {
+    for (const label of ['Home', 'Work']) {
       await expect(more.getByRole('link', { name: label, exact: true })).toBeVisible()
     }
+    // Inbox is the top-bar bell, never a menu row.
+    await expect(more.getByRole('link', { name: 'Inbox', exact: true })).toHaveCount(0)
     // Money stays out of the fixed tabs and appears in More only for the roles that reach it.
     await expect(phoneNav.getByRole('link', { name: 'Money', exact: true })).toHaveCount(0)
     await expect(more.getByRole('link', { name: 'Money', exact: true })).toHaveCount(money ? 1 : 0)
