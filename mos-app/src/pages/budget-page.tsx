@@ -194,7 +194,7 @@ export function BudgetPage() {
         scenarioLabel,
         scenarioType,
         owningBuId: owningBu,
-        costBasisAsOf: cogs.basis_as_of ?? new Date().toISOString(),
+        costBasisAsOf: cogs.basis_as_of,
         isComplete: cogs.complete,
         lines: selectedBom.map((b) => ({
           ingredient_esb_code: b.ingredient_esb_code,
@@ -330,7 +330,7 @@ export function BudgetPage() {
             <caption>{tx('moneyB.budget.scenarioCaption')}</caption>
             <thead><tr><th scope="col">{tx('moneyB.budget.scenario')}</th><th scope="col">{tx('moneyB.budget.type')}</th><th scope="col">{tx('moneyB.budget.readiness')}</th><th scope="col">{tx('moneyB.budget.basisAsOfColumn')}</th></tr></thead>
             <tbody>{budgets.map((budget) => <tr key={budget.id} id={`budget-scenario-${budget.id}`} data-testid="budget-scenario-row">
-              <th scope="row">{budget.scenario_label}</th><td>{budget.scenario_type}</td><td className="tabular">{formatIDR(budget.total_budgeted_cogs)}</td><td className="tabular">{shortDate(budget.cost_basis_as_of)}</td>
+              <th scope="row">{budget.scenario_label}</th><td>{budget.scenario_type}</td><td className="tabular">{formatIDR(budget.total_budgeted_cogs)}</td><td className="tabular">{budget.cost_basis_as_of ? shortDate(budget.cost_basis_as_of) : '—'}</td>
             </tr>)}</tbody>
           </table></div>
         )}

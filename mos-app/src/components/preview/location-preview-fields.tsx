@@ -5,6 +5,7 @@ import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import type { CafeLocation, CaptureLocations } from '@/lib/db/cafe-locations'
 import { LOCATIONS_PATH, type RecordLocationKey } from '@/lib/cafe-locations-preview'
+import { canAdminCafe } from '@/lib/kitchen-gates'
 import './location-preview-fields.css'
 
 type LocationFieldsKind = 'production' | 'transfer' | 'waste' | 'count' | 'receive'
@@ -30,7 +31,7 @@ const FIELD_LABELS: Record<LocationFieldsKind, MessageKey[]> = {
 function ManageLink() {
   const t = useT()
   const auth = useAuth()
-  const isAdmin = auth.status === 'authenticated' && auth.viewer.accessRoles.includes('admin')
+  const isAdmin = auth.status === 'authenticated' && canAdminCafe(auth.viewer.accessRoles)
   return isAdmin ? <Link className="loc-fields__link" to={LOCATIONS_PATH}>{t('cafe.locations.manage')}</Link> : null
 }
 
@@ -94,7 +95,7 @@ export function LocationPanelFields({
 }) {
   const t = useT()
   const auth = useAuth()
-  const canManage = auth.status === 'authenticated' && auth.viewer.accessRoles.includes('admin')
+  const canManage = auth.status === 'authenticated' && canAdminCafe(auth.viewer.accessRoles)
   const unavailable = disabled || loadState !== 'ready'
   const fields = kind === 'production' ? [
     { key: 'production_location_id' as const, options: locations.production },

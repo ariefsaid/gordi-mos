@@ -29,7 +29,7 @@ import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
-import { canReviewCafe } from '@/lib/kitchen-gates'
+import { canPushCafe, canReviewCafe } from '@/lib/kitchen-gates'
 import {
   explanationDiffers,
   cafeReceiptExplanationDraftIds,
@@ -220,7 +220,7 @@ export function CafeReceivePage() {
   const [receiveLocationChoice, setReceiveLocationChoice] = useState<{ scope: string; id: string | null } | null>(null)
   const receiveStorageLocationId = receiveLocationChoice?.scope === locationScope
     ? receiveLocationChoice.id : defaultStorageLocationId
-  const canBackdate = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
+  const canBackdate = canPushCafe(accessRoles)
   const canReview = canReviewCafe(accessRoles)
   const isDesktop = useIsDesktop()
   const today = useMemo(() => wibToday(), [])

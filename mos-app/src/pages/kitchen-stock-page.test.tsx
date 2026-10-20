@@ -443,6 +443,16 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
 })
 
 describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
+  it.each([
+    ['en', wrapper],
+    ['id', idWrapper],
+  ] as const)('shows an unrecorded stock amount as absent in %s', async (_locale, localeWrapper) => {
+    mockFetchStock.mockResolvedValue([{ ...STOCK_ROWS[0]!, stok: null, tersedia: 0 }])
+    render(<KitchenStockPage />, { wrapper: localeWrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(within(rowOf('Ayam Bakar')).getByText('—')).toBeInTheDocument()
+  })
+
   it('filters to negative balances with the toggle and back', async () => {
     setDesktop()
     mockFetchStock.mockResolvedValue(STOCK_ROWS)

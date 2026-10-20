@@ -18,6 +18,7 @@ import { useSearchParamState } from '@/lib/use-search-param-state'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
+import { canPushCafe, canReviewCafe } from '@/lib/kitchen-gates'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { CafeCountFollowUp } from '@/components/kitchen/cafe-count-followup'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -119,9 +120,8 @@ export function CafeCountPage() {
     ? locationChoices.defaults?.storage_location_id ?? null
     : null
   const today = useMemo(() => wibToday(), [])
-  const canBackdate = auth.status === 'authenticated'
-    && (auth.viewer.accessRoles.includes('ops_lead') || auth.viewer.accessRoles.includes('admin'))
-  const canSeeExcluded = auth.status === 'authenticated' && (canBackdate || auth.viewer.accessRoles.includes('supervisor'))
+  const canBackdate = auth.status === 'authenticated' && canPushCafe(auth.viewer.accessRoles)
+  const canSeeExcluded = auth.status === 'authenticated' && canReviewCafe(auth.viewer.accessRoles)
   // The server takes a back-dated count at most 7 days old.
   const dateBounds = canBackdate ? { min: addDays(today, -7), max: today } : cafeReceiptArrivalDateBounds(today, false)
   const [logDate, setLogDate] = useState(today)

@@ -94,7 +94,7 @@ export function createFollowUpRecordAdapter(input: FollowUpRecordAdapterInput): 
     readField({ key: 'kind', label: 'Type', control: 'text', value: row.kind, displayValue: KIND_LABEL[row.kind] }),
     readField({ key: 'source', label: 'Invoice', control: 'text', value: row.source_invoice_ref, displayValue: row.source_invoice_ref ?? KIND_LABEL[row.kind] }),
     readField({ key: 'originalAmount', label: 'Original amount', control: 'text', value: row.original_amount, displayValue: formatIDR(row.original_amount) }),
-    readField({ key: 'runningBalance', label: 'Running balance', control: 'text', value: row.running_balance, displayValue: formatIDR(row.running_balance) }),
+    readField({ key: 'runningBalance', label: 'Running balance', control: 'text', value: row.running_balance, displayValue: row.running_balance === null ? '—' : formatIDR(row.running_balance) }),
     readField({ key: 'dueDate', label: 'Due date', control: 'date', value: row.due_date, displayValue: row.due_date ?? 'No due date' }),
     readField({ key: 'age', label: 'Age', control: 'text', value: row.due_date, displayValue: ageLabel(row.due_date) }),
   ])

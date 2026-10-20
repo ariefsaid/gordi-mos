@@ -17,7 +17,7 @@
 -- the recompute is the entire reason the RPC exists.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(29);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -158,6 +158,11 @@ select ok(
   (select is_drift from mos.follow_up_recon_drift
     where counterparty = 'PT Big Buyer' and period = '2026-07'),
   'with the ERP feed empty every MOS settlement shows as drift — honest, and it becomes a real check the moment the feed lands');
+select is(
+  (select esb_amount from mos.follow_up_recon_drift
+    where counterparty = 'PT Big Buyer' and period = '2026-07'),
+  null::numeric,
+  'when no ERP reduction is available the reconciliation leaves its amount unknown');
 
 reset role;
 select * from finish();

@@ -3,6 +3,7 @@ import { listAdminPeople } from '@/lib/db/admin-users'
 import { localizedRoleMeta, type AdminPersonRow } from '@/lib/db/admin-users.types'
 import { supabase } from '@/lib/supabase'
 import type { MessageKey } from '@/i18n/messages'
+import { hasAccessRole } from '@/lib/capabilities'
 
 const ORIGINAL_KEY = 'mos.local-view-as.original'
 const PEOPLE_KEY = 'mos.local-view-as.people'
@@ -64,7 +65,7 @@ export function useLocalViewAs(open: boolean, viewer: Viewer, password: string |
   const [peopleStatus, setPeopleStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
   const [switching, setSwitching] = useState(false)
   const [switchError, setSwitchError] = useState(false)
-  const canLoadPeople = viewer?.accessRoles.includes('admin') ?? false
+  const canLoadPeople = viewer ? hasAccessRole(viewer.accessRoles, 'admin') : false
 
   useEffect(() => {
     if (!open || !password) return

@@ -28,6 +28,7 @@ import { LIST_PARAMS, isLastActiveAdmin } from '@/components/admin/people-filter
 import { listRoleAuthority, listTeamLeadAssignments } from '@/lib/db/admin-access'
 import { getBusinessUnits, getRoles } from '@/lib/db/directory'
 import { normalizeAuthorityRows, type RoleAuthorityRow, type TeamLeadAssignment } from '@/lib/db/admin-access.types'
+import { hasAccessRole } from '@/lib/capabilities'
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 import './admin-person-page.css'
 
@@ -116,7 +117,7 @@ export function AdminPersonPage() {
             refresh={data.refresh}
           />
           <AccessCard person={person} people={data.people} refresh={data.refresh} />
-          {person.access_roles.includes('supervisor') && <ScopeCard person={person} options={data.scopeOptions} refresh={data.refresh} />}
+          {hasAccessRole(person.access_roles, 'supervisor') && <ScopeCard person={person} options={data.scopeOptions} refresh={data.refresh} />}
           <PersonModulesCard person={person} />
           <ReceiptIssuesCard person={person} />
         </div>
