@@ -70,6 +70,7 @@
 .cafe-recipe-detail__facts dt { color: var(--muted-foreground); font-size: var(--mos-size-1); }
 .cafe-recipe-detail__facts dd { margin: 4px 0 0; overflow-wrap: anywhere; }
 .cafe-recipe-detail__note { margin: 0; max-width: 75ch; }
+.cafe-recipe-detail__date { margin-block: var(--mos-group-above) var(--mos-label-gap); }
 
 .cafe-recipe-detail__ingredients {
   margin: 0;

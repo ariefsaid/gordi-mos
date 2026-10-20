@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useMenuPopover } from '@/lib/use-menu-popover'
@@ -6,6 +7,7 @@ import { localViewAsPassword } from '@/config/local-view-as'
 import { clearLocalViewAsSession, useLocalViewAs } from './local-view-as-session'
 import { AppearanceControl } from './appearance-control'
 import { Chevron } from './icons'
+import { profileArea } from './module-registry'
 import './user-chip.css'
 
 interface UserChipProps {
@@ -19,6 +21,8 @@ interface UserChipProps {
   // full-width row in the phone "More" drawer's foot. Both open their menu UPWARD.
   /** Display variant. */
   variant?: 'header' | 'rail' | 'drawer'
+  /** Called after a menu link navigates, so the phone drawer can close. */
+  onNavigate?: () => void
 }
 
 function getInitials(fullName: string): string {
@@ -28,7 +32,7 @@ function getInitials(fullName: string): string {
   return (first + second).toUpperCase()
 }
 
-export function UserChip({ compact = false, variant = 'header' }: UserChipProps) {
+export function UserChip({ compact = false, variant = 'header', onNavigate }: UserChipProps) {
   // 'rail' and 'drawer' both render the full-width identity row (name + role); only the
   // menu's open direction differs (rail opens up, drawer opens down — see menuOpensUp below).
   const isFullWidth = variant === 'rail' || variant === 'drawer'
@@ -36,6 +40,7 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
   const menuOpensUp = isFullWidth
   const t = useT()
   const auth = useAuth()
+  const profile = profileArea()
   const [open, setOpen] = useState(false)
   const chipRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -116,6 +121,15 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
           className={`user-chip-menu ${isFullWidth ? 'user-chip-menu--left' : 'user-chip-menu--right'} ${menuOpensUp ? 'user-chip-menu--up' : 'user-chip-menu--down'}`}
           style={isFullWidth ? undefined : { minWidth: viewAsPassword ? 260 : 140 }}
         >
+          {profile && (
+            <>
+              <Link role="menuitem" to="/profile" className="user-chip-menu-item" onClick={() => { setOpen(false); onNavigate?.() }}>
+                {t('nav.profile')}
+              </Link>
+              <div className="user-chip-menu__sep" role="separator" aria-hidden="true" />
+            </>
+          )}
+
           {/* Appearance switcher */}
           <AppearanceControl />
 
