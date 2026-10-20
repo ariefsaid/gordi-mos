@@ -174,7 +174,7 @@ export function MobileGroupedCards({
               className="mgc-group-head"
               label={<span className="mgc-group-headings">
                 {group.objectiveHint && <ObjectiveHint hint={group.objectiveHint} className="mgc-objective-hint" />}
-                <span className="mgc-label">{group.label}</span>
+                <span className="mgc-label" title={group.label} aria-label={group.label}>{group.label}</span>
                 {group.workLineType != null && <MobileWorkLineTypeTag type={group.workLineType} />}
               </span>}
               count={group.occurrenceRollup

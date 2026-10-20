@@ -61,6 +61,7 @@ interface CachedViewerResult {
   roles: ViewerRole[]
   isManager: boolean
   affiliated: string[]
+  canReadCafePushes: boolean
 }
 
 export interface ViewerResult extends CachedViewerResult {
@@ -100,11 +101,11 @@ async function resolveViewerData(userId: string): Promise<CachedViewerResult> {
     // Warn on RLS/read error so misconfiguration doesn't silently masquerade as an orphan.
     if (personError) console.warn('viewer: person read failed', personError)
     // Orphan: no people row or read error → fail closed, no throw
-    return { person: null, roles: [], isManager: false, affiliated: [] }
+    return { person: null, roles: [], isManager: false, affiliated: [], canReadCafePushes: false }
   }
 
-  // The four authority reads share no dependency once the person row is known.
-  const [personRolesResult, rolesResult, allPersonRolesResult, affiliationResult] = await Promise.all([
+  // The authority reads share no dependency once the person row is known.
+  const [personRolesResult, rolesResult, allPersonRolesResult, affiliationResult, cafePushReadResult] = await Promise.all([
     supabase
       .from('person_roles')
       .select('role_id, created_at')
@@ -117,11 +118,13 @@ async function resolveViewerData(userId: string): Promise<CachedViewerResult> {
     // derivation to a DB view/RPC to avoid reading the full junction table client-side.
     supabase.from('person_roles').select('role_id'),
     supabase.schema('shared').rpc('is_cafe_affiliated'),
+    supabase.schema('shared').rpc('can_read_cafe_pushes'),
   ])
   const { data: personRoles, error: prError } = personRolesResult
   const { data: allRoles, error: rolesError } = rolesResult
   const { data: allPersonRoles, error: allPrError } = allPersonRolesResult
   const { data: affiliatedRpc, error: affiliationError } = affiliationResult
+  const { data: canReadCafePushesRpc, error: cafePushReadError } = cafePushReadResult
 
   if (prError) throw new Error(`resolveViewer: person_roles read failed — ${prError.message}`)
   if (rolesError) throw new Error(`resolveViewer: roles read failed — ${rolesError.message}`)
@@ -145,14 +148,15 @@ async function resolveViewerData(userId: string): Promise<CachedViewerResult> {
     })
 
   const isManager = deriveIsManager({ viewerRoleIds, roles, heldRoleIds })
-  // The affiliation answer is the same predicate the write policies consult. A failed read
-  // answers unaffiliated — RLS, not this field, is the write authority (NFR-001).
+  // Failed affiliation reads fail closed; RLS remains the write authority (NFR-001).
   if (affiliationError) console.warn('viewer: affiliation read failed', affiliationError)
+  if (cafePushReadError) console.warn('viewer: Café Pushes read fact failed', cafePushReadError)
   const affiliated = affiliatedRpc === true ? ['cafe'] : []
   return {
     person,
     roles: viewerRoles,
     isManager,
     affiliated,
+    canReadCafePushes: canReadCafePushesRpc === true,
   }
 }

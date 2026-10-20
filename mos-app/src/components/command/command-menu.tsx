@@ -142,6 +142,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     () => (auth.status === 'authenticated' ? auth.viewer.accessRoles : []),
     [auth],
   )
+  const canReadCafePushes = auth.status === 'authenticated' && auth.viewer.canReadCafePushes === true
   // #407/#755: `launcherActions` is the ONE shared list for the phone `+` launcher and the
   // typed ⌘K ACT filter. Café capture is a WRITE, so it uses canCaptureCafe, not route admission;
   // OD-WAY-51 admits /cafe/log to READ.
@@ -203,7 +204,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
   // a Receive search finds Penerimaan and the reverse. VISIBILITY comes from the registry; the query filter drops
   // non-matching rows without reordering, and `withResolvedRungs` clears a rung whose root row was filtered away.
   const navigateItems = useMemo<CommandItem[]>(
-    () => goToEntries(accessRoles, isOn).map<CommandItem>((entry) => ({
+    () => goToEntries(accessRoles, isOn, { canReadCafePushes }).map<CommandItem>((entry) => ({
       id: entry.id,
       label: t(entry.labelKey),
       Icon: entry.Icon,
@@ -214,7 +215,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
       child: entry.parentId !== undefined,
       parentId: entry.parentId,
     })),
-    [accessRoles, isOn, t],
+    [accessRoles, canReadCafePushes, isOn, t],
   )
 
   // CMDK-1: the palette is kept mounted across close→reopen (its host toggles `open`, it does

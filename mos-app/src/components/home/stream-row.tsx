@@ -15,8 +15,8 @@ export function StreamRow({ item, hidePic = false, reasonStyle = 'chip', actionL
 }) {
   const showPic = item.pic != null && !hidePic
   const segments = [
-    item.caption && <span key="caption" className="stream-row-tail-seg">{item.caption}</span>,
-    item.meta && <span key="due" className="stream-row-tail-seg">{item.meta}</span>,
+    item.caption && <span key="caption" className="stream-row-tail-seg" title={item.caption}>{item.caption}</span>,
+    item.meta && <span key="due" className="stream-row-tail-seg" title={item.meta}>{item.meta}</span>,
   ].filter(Boolean)
   const hasMeta = showPic || segments.length > 0
   const rowClass = `stream-row${urgent ? ' stream-row--attention' : ''}${featured ? ' stream-row--featured' : ''}`
@@ -32,10 +32,10 @@ export function StreamRow({ item, hidePic = false, reasonStyle = 'chip', actionL
               {item.reason && <Reason reason={item.reason} style={reasonStyle} />}
             </span>
           ) : null}
-          <span className="stream-row-title">{item.title}</span>
+          <span className="stream-row-title" title={item.title}>{item.title}</span>
           {hasMeta && (
             <span className="stream-row-meta">
-              {showPic && item.pic && <span className="stream-row-pic-name">{item.pic.name}</span>}
+              {showPic && item.pic && <span className="stream-row-pic-name" title={item.pic.name}>{item.pic.name}</span>}
               {segments.map((segment, index) => (
                 <span key={index} className="stream-row-seg">
                   {(showPic || index > 0) && <span className="stream-row-sep" aria-hidden="true">·</span>}

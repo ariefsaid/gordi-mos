@@ -34,13 +34,13 @@ interface NavData {
   badges: ReturnType<typeof useNavBadges>
 }
 
-function pagesOf(destination: Destination, roles: string[], isOn: NavLayout['isOn']): PageGroup[] {
-  return pageGroupsFor(destination, roles, isOn)
+function pagesOf(destination: Destination, roles: string[], isOn: NavLayout['isOn'], canReadCafePushes = false): PageGroup[] {
+  return pageGroupsFor(destination, roles, isOn, { canReadCafePushes })
 }
 
 /** An area is a branch (has a pages list) from two pages up; a single page is the area's own row. */
-function branchGroups(destination: Destination, roles: string[], isOn: NavLayout['isOn']): PageGroup[] {
-  const groups = pagesOf(destination, roles, isOn)
+function branchGroups(destination: Destination, roles: string[], isOn: NavLayout['isOn'], canReadCafePushes = false): PageGroup[] {
+  const groups = pagesOf(destination, roles, isOn, canReadCafePushes)
   return pageCount(groups) >= 2 ? groups : []
 }
 
@@ -95,7 +95,7 @@ function Sidebar({ data }: { data: NavData }) {
   }, [pathname])
 
   const admin = footer.find((d) => d.id === 'admin')
-  const adminGroups = admin ? pagesOf(admin, roles, layout.isOn) : []
+  const adminGroups = admin ? pagesOf(admin, roles, layout.isOn, layout.canReadCafePushes) : []
 
   return (
     <aside aria-label={t('nav.sidebar')} className="shell-nav shell-nav--sidebar">
@@ -105,7 +105,7 @@ function Sidebar({ data }: { data: NavData }) {
           <div className="nav-list">
             {destinations.map((destination) => {
               const groups = destination.id === 'work' || destination.zone === 'modules'
-                ? branchGroups(destination, roles, layout.isOn) : []
+                ? branchGroups(destination, roles, layout.isOn, layout.canReadCafePushes) : []
               const open = destination.id === 'work' ? workOpen : openModule === destination.id
               const current = currentPagePath(groups, pathname)
               const id = `nav-children-${destination.id}`
@@ -324,7 +324,7 @@ function Rail({ data, hasPanel }: { data: NavData; hasPanel: boolean }) {
 
   const item = (destination: Destination) => {
     const groups = destination.id === 'work' || destination.id === 'admin' || destination.zone === 'modules'
-      ? branchGroups(destination, roles, isOn) : []
+      ? branchGroups(destination, roles, isOn, layout.canReadCafePushes) : []
     // Folded: the pages sit behind a closed flyout, so only the area's own landing can be the current page here.
     const current = compact ? undefined : currentPagePath(groups, pathname)
     const landing = landingOf(destination)
@@ -366,7 +366,7 @@ function Rail({ data, hasPanel }: { data: NavData; hasPanel: boolean }) {
 function PagesPanel({ data, area }: { data: NavData; area: Destination }) {
   const t = useT()
   const { layout, pathname, badges } = data
-  const groups = pagesOf(area, layout.roles, layout.isOn)
+  const groups = pagesOf(area, layout.roles, layout.isOn, layout.canReadCafePushes)
   const name = t(area.labelKey)
   return (
     <nav className="nav-panel" aria-label={t('shell.nav.pagesOf', { area: name })}>
