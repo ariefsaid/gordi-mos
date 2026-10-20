@@ -1,7 +1,24 @@
-import { describe, expect, it } from 'vitest'
-import { formatQuantityInput, parseQuantityInput } from './quantity-parser'
+import { describe, expect, it, vi } from 'vitest'
+import { formatQuantityInput, getQuantityAmbiguitySuggestions, parseQuantityInput } from './quantity-parser'
 
 describe('parseQuantityInput', () => {
+  it('reuses number formatters for repeated locale reads and displays EN/ID decimals', () => {
+    const NumberFormat = Intl.NumberFormat
+    const numberFormat = vi.spyOn(Intl, 'NumberFormat')
+    numberFormat.mockImplementation(function (locales, options) { return new NumberFormat(locales, options) })
+    try {
+      expect(getQuantityAmbiguitySuggestions('1.234', 'en')).toEqual({ grouped: '1234', decimal: '1.234' })
+      expect(getQuantityAmbiguitySuggestions('1.234', 'en')).toEqual({ grouped: '1234', decimal: '1.234' })
+      expect(getQuantityAmbiguitySuggestions('1.234', 'id')).toEqual({ grouped: '1234', decimal: '1,234' })
+      expect(formatQuantityInput(1.25, 'en', 2)).toBe('1.25')
+      expect(formatQuantityInput(1.25, 'en', 2)).toBe('1.25')
+      expect(formatQuantityInput(1.25, 'id', 2)).toBe('1,25')
+      expect(numberFormat).toHaveBeenCalledTimes(4)
+    } finally {
+      numberFormat.mockRestore()
+    }
+  })
+
   it.each(['1,5', '1.5'])('accepts %s as 1.5 regardless of the decimal mark', raw => {
     expect(parseQuantityInput(raw, { min: 0 })).toEqual({
       kind: 'valid', value: 1.5, normalized: '1.5',
