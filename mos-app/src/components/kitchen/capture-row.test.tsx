@@ -129,7 +129,20 @@ describe('CaptureQuantityControl', () => {
     render(<CaptureQuantityControl id="q" itemName="Beef Patty" quantityFor="Quantity for Beef Patty" value="" unitName="GR" onQuantityChange={onChange} />)
     fireEvent.change(screen.getByRole('textbox', { name: 'Quantity for Beef Patty' }), { target: { value: '12' } })
     expect(onChange).toHaveBeenCalledWith('12')
-    expect(screen.getByLabelText('GR')).toHaveTextContent('GR')
+    expect(screen.getByRole('textbox', { name: 'Quantity for Beef Patty' })).toHaveAccessibleDescription('GR')
+  })
+
+  it.each([
+    ['EN', 'Quantity for Beef Patty', 'Enter a positive quantity'],
+    ['ID', 'Jumlah untuk Beef Patty', 'Masukkan jumlah positif'],
+  ])('describes the quantity with its unit and any error in %s', (_language, quantityFor, error) => {
+    const { rerender } = render(<CaptureQuantityControl id="q" itemName="Beef Patty" quantityFor={quantityFor} value="" unitName="GR" onQuantityChange={vi.fn()} />)
+    expect(screen.getByRole('textbox', { name: quantityFor })).toHaveAccessibleDescription('GR')
+    rerender(<>
+      <CaptureQuantityControl id="q" itemName="Beef Patty" quantityFor={quantityFor} value="-1" unitName="KG" invalid describedById="quantity-error" onQuantityChange={vi.fn()} />
+      <p id="quantity-error">{error}</p>
+    </>)
+    expect(screen.getByRole('textbox', { name: quantityFor })).toHaveAccessibleDescription(`KG ${error}`)
   })
 
   it('offers a change-unit choice only when the item has more than one unit', () => {
