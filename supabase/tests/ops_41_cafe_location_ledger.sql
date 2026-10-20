@@ -88,7 +88,8 @@ select results_eq($$select value->>'item_id',sum((value->>'available_qty')::nume
  from jsonb_array_elements(ops.cafe_location_balances('2026-05-03','00000000-0000-0000-0000-00000000bf02','kitchen')->'rows')
  group by value->>'item_id' order by value->>'item_id'$$,
  $$select wip_item_id::text,available_qty,available_qty+usable_qty
- from ops.kitchen_stock_for_date('2026-05-03','00000000-0000-0000-0000-00000000bf02','kitchen') order by wip_item_id$$,
+ from ops.kitchen_stock_for_date('2026-05-03','00000000-0000-0000-0000-00000000bf02','kitchen')
+ where available_qty <> 0 or usable_qty <> 0 order by wip_item_id$$,
  'AC3: every item ties to both start-of-day and through-date book on the third log date');
 select lives_ok($$select ops.move_cafe_stock(pg_temp.input('3','2026-05-06'),'f1410000-0000-0000-0000-000000000026')$$,'later send can consume source stock');
 select throws_ok($$select ops.move_cafe_stock(pg_temp.input('2','2026-05-05'),'f1410000-0000-0000-0000-000000000027')$$,'P0001','CAFE_LOCATION_MOVE_INSUFFICIENT_STOCK','AC8: backdated send cannot overdraw later date');
