@@ -45,7 +45,7 @@ function safeError(operation: string, error: { code?: string; message?: string }
   const token = error.message?.match(/STAFF_[A-Z_]+/)?.[0]
   const code = error.code === '42501' ? 'FORBIDDEN'
     : error.code === 'P0002' ? 'NOT_FOUND'
-      : error.code === '23505' || error.code === '23P01' ? 'CONFLICT'
+      : error.code === '23505' || error.code === '23P01' || error.code === 'P0003' ? 'CONFLICT'
         : error.code === '22023' || error.code === '23514' ? 'INVALID'
           : 'UNAVAILABLE'
   return new ContractError(code, token ?? `${operation} failed`)
