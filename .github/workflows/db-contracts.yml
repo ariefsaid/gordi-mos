@@ -200,6 +200,18 @@ jobs:
         if: steps.scope.outputs.render == 'true'
         run: bash scripts/applied-path-check.sh --out artifacts/applied-path
 
+      # Keep this as the last database-mutating check: rollback/reapply leaves the stack at the
+      # migrated schema, while earlier DB assertions should see the pristine reset state.
+      - name: Prove executable migration rollbacks
+        if: steps.scope.outputs.render == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref || 'dev' }}
+        run: |
+          git check-ref-format "refs/heads/${BASE_REF}"
+          git fetch --quiet --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          db="supabase_db_$(sed -n 's/^project_id *= *"\(.*\)"/\1/p' supabase/config.toml | head -1)"
+          bash scripts/prove-migration-rollbacks.sh "origin/${BASE_REF}" "$db"
+
       - name: Upload applied-path artifacts on failure
         if: failure() && steps.scope.outputs.render == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
