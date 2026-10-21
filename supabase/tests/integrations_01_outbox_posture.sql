@@ -483,7 +483,7 @@ select is(
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000a1',
             array[v.role], 'integrations.esb_push') order by v.role)
      from pg_temp.access_role_vocabulary() v(role)),
-  array['admin=5','finance=0','manager=0','member=0','ops_lead=5','supervisor=0']::text[],
+  array['admin=5','finance=0','hr=0','manager=0','member=0','ops_lead=5','supervisor=0']::text[],
   'esb_push_select_ops_lead_or_admin, role by role over the whole access-role vocabulary: only ops_lead and admin read anything when it is the ONLY role claimed, and both read every posting state — the per-role census, whose LENGTH is what reddens when the vocabulary grows (combinations are D9''s)');
 
 -- ── D9. The admitted SET, swept over the whole POWER SET of the vocabulary ───────────────────
@@ -625,7 +625,7 @@ select is(
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000a1',
             array[v.role], 'integrations.esb_push_groups') order by v.role)
      from pg_temp.access_role_vocabulary() v(role)),
-  array['admin=5','finance=0','manager=0','member=0','ops_lead=5','supervisor=0']::text[],
+  array['admin=5','finance=0','hr=0','manager=0','member=0','ops_lead=5','supervisor=0']::text[],
   'esb_push_groups_select_ops_lead_or_admin, role by role over the whole access-role vocabulary: only ops_lead and admin read approval groups when it is the ONLY role claimed — the per-role census; combinations are the sweep straight below');
 
 -- ...and the power set on the group table, for the reason D9 gives at length: one role at a time
