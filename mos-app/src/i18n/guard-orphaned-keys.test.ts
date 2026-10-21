@@ -43,6 +43,8 @@ const KNOWN_DYNAMIC_PREFIXES: Record<string, string> = {
   // The runs-due pill left the Tasks toolbar in ticket 743 (round 3); ticket 754 re-homes it
   // (Home/Café) and its `processes.due.summary.*` plural consumers with it. The strings stay in
   // the catalog until then — owned by that relocation, not dead.
+  'attendance.clock.refuse.': 'clock-panel.tsx — t(`attendance.clock.refuse.${reason}.title|body`) over the server refusal reasons',
+  'attendance.status.': 'attendance-today-panel.tsx — t(`attendance.status.${row.status}`) over the server status words',
   'processes.due.summary.': 'runs-due pill (removed from tasks-toolbar.tsx, ticket 743 r3) re-homes these',
 }
 

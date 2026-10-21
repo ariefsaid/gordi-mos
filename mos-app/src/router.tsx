@@ -127,6 +127,7 @@ const AdminUsersPage = lazyPage(() => import('./pages/admin-users-page').then((m
 const AdminPersonPage = lazyPage(() => import('./pages/admin-person-page').then((m) => ({ default: m.AdminPersonPage })))
 const AdminTeamsPage = lazyPage(() => import('./pages/admin-teams-page').then((m) => ({ default: m.AdminTeamsPage })))
 const AdminAttendancePage = lazyPage(() => import('./pages/admin-attendance-page').then((m) => ({ default: m.AdminAttendancePage })))
+const AdminAttendanceSettingsPage = lazyPage(() => import('./pages/admin-attendance-settings-page').then((m) => ({ default: m.AdminAttendanceSettingsPage })))
 const AdminAccessPage = lazyPage(() => import('./pages/admin-access-page').then((m) => ({ default: m.AdminAccessPage })))
 const AdminModulesPage = lazyPage(() =>
   import('./pages/admin-modules-page').then((m) => ({ default: m.AdminModulesPage })),
@@ -581,6 +582,11 @@ const routeTable: RouteObject[] = [
               {
                 path: ROUTE_PATHS.adminShiftBuilder,
                 element: withSuspense(<AdminAttendancePage />),
+                handle: pageHandle('management'),
+              },
+              {
+                path: ROUTE_PATHS.adminAttendanceSettings,
+                element: withSuspense(<AdminAttendanceSettingsPage />),
                 handle: pageHandle('management'),
               },
               {

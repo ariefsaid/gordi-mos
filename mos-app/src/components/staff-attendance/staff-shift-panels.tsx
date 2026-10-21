@@ -8,16 +8,11 @@ import {
   publishStaffRoster, removeStaffShift, saveStaffShift, saveStandingHours,
   type LedStaffTeam, type StaffRoster, type StaffShift, type StandingRule, type StandingSchedule, type ShiftTemplate,
 } from '@/lib/db/staff-attendance'
+import { formatDay, formatTime, todayInJakarta } from './attendance-format'
 import './staff-shift-panels.css'
 
 type FetchState = 'loading' | 'ready' | 'error'
 type Translate = ReturnType<typeof useT>
-
-function todayInJakarta(): string {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? ''
-  return `${get('year')}-${get('month')}-${get('day')}`
-}
 
 function mondayOf(date: string): string {
   const day = new Date(`${date}T12:00:00Z`)
@@ -38,10 +33,6 @@ function moveDate(dateValue: string, days: number): string {
   return date.toISOString().slice(0, 10)
 }
 
-function formatDay(date: string, locale: string): string {
-  return new Intl.DateTimeFormat(locale === 'id' ? 'id-ID' : 'en-US', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(`${date}T12:00:00+07:00`))
-}
-
 function formatWeek(weekStart: string, locale: string): string {
   const end = moveWeek(weekStart, 1)
   const endDate = new Date(`${end}T12:00:00Z`)
@@ -49,10 +40,6 @@ function formatWeek(weekStart: string, locale: string): string {
   const formatter = new Intl.DateTimeFormat(locale === 'id' ? 'id-ID' : 'en-US', { day: 'numeric', month: 'short', timeZone: 'Asia/Jakarta' })
   const startDate = new Date(`${weekStart}T12:00:00+07:00`)
   return `${formatter.format(startDate)} – ${formatter.format(endDate)}`
-}
-
-function formatTime(timestamp: string, locale: string): string {
-  return new Intl.DateTimeFormat(locale === 'id' ? 'id-ID' : 'en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Jakarta' }).format(new Date(timestamp))
 }
 
 function errorText(t: Translate, error: unknown): string {

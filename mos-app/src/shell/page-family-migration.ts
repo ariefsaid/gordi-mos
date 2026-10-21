@@ -143,6 +143,12 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
     symbol: 'AdminModulesPage',
   },
   {
+    path: '/admin/attendance-settings',
+    family: 'management',
+    sourceFile: 'pages/admin-attendance-settings-page.tsx',
+    symbol: 'AdminAttendanceSettingsPage',
+  },
+  {
     path: '/admin/agents',
     family: 'management',
     sourceFile: 'pages/admin-agent-connections-page.tsx',

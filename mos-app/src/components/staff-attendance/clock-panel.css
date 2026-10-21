@@ -1,0 +1,33 @@
+.clock-panel { display: grid; gap: var(--mos-space-4); min-width: 0; padding-bottom: calc(var(--mos-control-height) + var(--mos-space-6)); }
+.clock-panel h2 { margin: 0; font: var(--mos-type-group); }
+.clock-panel p { margin: 0; font: var(--mos-type-body); }
+.clock-panel__shift { display: grid; gap: var(--mos-space-1); padding-block: var(--mos-space-3); border-block: 1px solid var(--mos-line); font: var(--mos-type-body); }
+.clock-panel__shift > strong { font: var(--mos-type-control); }
+.clock-panel__facts { display: grid; margin: 0; }
+.clock-panel__facts > div { display: grid; gap: var(--mos-space-1); padding-block: var(--mos-space-2); border-top: 1px solid var(--mos-line); }
+.clock-panel__facts dt { color: var(--mos-muted); font: var(--mos-type-meta); }
+.clock-panel__facts dd { margin: 0; font: var(--mos-type-body); overflow-wrap: anywhere; }
+.clock-panel__statement { margin: 0; padding: var(--mos-space-3); border-inline-start: 2px solid var(--mos-line); background: var(--mos-band); font: var(--mos-type-body); }
+.clock-panel__check { display: flex; justify-content: space-between; gap: var(--mos-space-3); padding-block: var(--mos-space-2); border-top: 1px solid var(--mos-line); font: var(--mos-type-body); }
+.clock-panel__note { display: grid; gap: var(--mos-space-1); padding: var(--mos-space-3); border: 1px solid var(--mos-line); border-radius: var(--radius-sm); background: var(--mos-band); }
+.clock-panel__note--error { border-color: var(--mos-error-text); }
+.clock-panel__file { display: inline-flex; flex-direction: column; justify-content: center; gap: var(--mos-space-2); min-height: var(--mos-control-height); max-width: 100%; font: var(--mos-type-control); }
+.clock-panel__file input { max-width: 100%; min-height: var(--mos-control-height); font: var(--mos-type-body); }
+.clock-panel__bar { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--mos-space-3); min-height: var(--mos-control-height); padding: var(--mos-space-3) 0; border-top: 1px solid var(--mos-line); background: var(--mos-surface); font: var(--mos-type-meta); }
+.clock-panel__bar button { min-height: var(--mos-control-height); padding: 0 var(--mos-space-4); border: 1px solid var(--mos-line); border-radius: var(--radius-sm); background: var(--mos-surface); color: var(--mos-ink); font: var(--mos-type-control); cursor: pointer; }
+.clock-panel__bar .staff-attendance__primary { border-color: var(--mos-accent); background: var(--mos-accent); color: var(--mos-primary-ink); }
+.clock-panel__bar button:disabled { opacity: 0.6; cursor: not-allowed; }
+.clock-panel__row { flex-wrap: wrap; }
+.clock-panel__detail { display: grid; gap: var(--mos-space-3); flex-basis: 100%; min-width: 0; }
+.clock-panel__selfie { max-width: 240px; border-radius: var(--radius-sm); }
+.clock-panel__status--late, .clock-panel__status--early_leave { background: var(--mos-warning-tint, var(--mos-band)); }
+.clock-panel__status--missing, .clock-panel__status--no_clock_out { background: var(--mos-error-tint, var(--mos-band)); color: var(--mos-error-text); }
+.clock-panel__status--in, .clock-panel__status--out { background: var(--mos-success-tint); color: var(--mos-success-text); }
+.attendance-admin__defaults { display: grid; margin: 0; }
+.attendance-admin__defaults > div { display: flex; justify-content: space-between; gap: var(--mos-space-3); padding-block: var(--mos-space-2); border-top: 1px solid var(--mos-line); font: var(--mos-type-body); }
+.attendance-admin__defaults dt { color: var(--mos-muted); }
+.attendance-admin__defaults dd { margin: 0; text-align: end; }
+@media (max-width: 767.98px) {
+  .clock-panel__bar { flex-wrap: wrap; }
+  .clock-panel__bar button { flex: 1 1 140px; }
+}

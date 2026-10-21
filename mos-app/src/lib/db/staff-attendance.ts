@@ -51,12 +51,12 @@ function safeError(operation: string, error: { code?: string; message?: string }
   return new ContractError(code, token ?? `${operation} failed`)
 }
 
-function jsonRows<T>(value: unknown, operation: string): T[] {
+export function jsonRows<T>(value: unknown, operation: string): T[] {
   if (!Array.isArray(value)) throw new ContractError('UNAVAILABLE', `${operation} returned invalid data`)
   return value as T[]
 }
 
-async function rpc<T>(operation: string, name: string, args?: Record<string, unknown>): Promise<T> {
+export async function rpc<T>(operation: string, name: string, args?: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.schema('ops').rpc(name, args)
   if (error) throw safeError(operation, error)
   return data as T
