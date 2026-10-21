@@ -73,7 +73,7 @@ describe('AdminAttendanceSettingsPage', () => {
     const user = userEvent.setup()
     renderPage('id')
     await screen.findByRole('heading', { level: 1, name: 'Pengaturan kehadiran' })
-    await user.click(screen.getByRole('combobox', { name: 'Site' }))
+    await user.click(screen.getByRole('combobox', { name: 'Lokasi' }))
     await user.click(await screen.findByRole('option', { name: 'Cikal' }))
     expect(await screen.findByText(/Site ini belum punya titik peta/)).toBeInTheDocument()
   })
