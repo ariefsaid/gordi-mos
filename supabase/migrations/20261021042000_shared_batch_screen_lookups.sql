@@ -29,7 +29,7 @@ as $$
 $$;
 comment on function mos.process_occurrence_authority(uuid[], uuid[]) is
   'Batched Process occurrence affordances; delegates every result to the existing scalar authority predicates.';
-revoke all on function mos.process_occurrence_authority(uuid[], uuid[]) from public, anon, service_role;
+revoke execute on function mos.process_occurrence_authority(uuid[], uuid[]) from public, anon, service_role;
 grant execute on function mos.process_occurrence_authority(uuid[], uuid[]) to authenticated;
 
 create or replace function shared.cafe_opening_teams(p_source_team_ids uuid[], p_branch_ids uuid[])
@@ -67,5 +67,5 @@ as $$
 $$;
 comment on function shared.cafe_opening_teams(uuid[], uuid[]) is
   'Batched org-scoped equivalent of cafe_opening_team for source Teams and branch choices.';
-revoke all on function shared.cafe_opening_teams(uuid[], uuid[]) from public, anon, service_role;
+revoke execute on function shared.cafe_opening_teams(uuid[], uuid[]) from public, anon, service_role;
 grant execute on function shared.cafe_opening_teams(uuid[], uuid[]) to authenticated;
