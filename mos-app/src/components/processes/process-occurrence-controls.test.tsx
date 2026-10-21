@@ -9,7 +9,7 @@ import type { PeopleRow } from '@/lib/database.types'
 import type { PersonOption } from '@/lib/db/directory'
 import type { DueProcessRun, PendingTaskRow, ProcessOccurrenceSummary } from '@/lib/db/processes.types'
 import {
-  cancelRun, canCloseProcessRun, canStartProcessForTeam, completeRun, listPendingTasks,
+  cancelRun, completeRun, listPendingTasks, listProcessOccurrenceAuthorities,
   listProcessOccurrenceSummaries, listStartableProcessRuns, startRun,
 } from '@/lib/db/processes'
 import { getPeople } from '@/lib/db/directory'
@@ -19,10 +19,9 @@ import { ProcessOccurrenceControls } from './process-occurrence-controls'
 vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
 vi.mock('@/lib/db/processes', () => ({
   cancelRun: vi.fn(),
-  canCloseProcessRun: vi.fn(),
-  canStartProcessForTeam: vi.fn(),
   completeRun: vi.fn(),
   listPendingTasks: vi.fn(),
+  listProcessOccurrenceAuthorities: vi.fn(),
   listProcessOccurrenceSummaries: vi.fn(),
   listStartableProcessRuns: vi.fn(),
   startRun: vi.fn(),
@@ -32,10 +31,9 @@ vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn() }))
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockCancelRun = vi.mocked(cancelRun)
-const mockCanCloseProcessRun = vi.mocked(canCloseProcessRun)
-const mockCanStartProcessForTeam = vi.mocked(canStartProcessForTeam)
 const mockCompleteRun = vi.mocked(completeRun)
 const mockListPendingTasks = vi.mocked(listPendingTasks)
+const mockAuthorities = vi.mocked(listProcessOccurrenceAuthorities)
 const mockListOccurrences = vi.mocked(listProcessOccurrenceSummaries)
 const mockListStartable = vi.mocked(listStartableProcessRuns)
 const mockStartRun = vi.mocked(startRun)
@@ -126,8 +124,10 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(auth())
   mockListOccurrences.mockResolvedValue(occurrencePage([RUN]))
   mockListStartable.mockResolvedValue([DUE])
-  mockCanStartProcessForTeam.mockResolvedValue(true)
-  mockCanCloseProcessRun.mockResolvedValue(true)
+  mockAuthorities.mockImplementation(async (teamIds, runIds) => [
+    ...teamIds.map((target_id) => ({ authority_kind: 'start' as const, target_id, allowed: true })),
+    ...runIds.map((target_id) => ({ authority_kind: 'close' as const, target_id, allowed: true })),
+  ])
   mockListPendingTasks.mockResolvedValue([])
   mockGetPeople.mockResolvedValue(PEOPLE)
   mockViewerTeams.mockResolvedValue([])
@@ -313,26 +313,35 @@ describe('ProcessOccurrenceControls', () => {
     expect(complete).not.toHaveClass('btn-outline')
   })
 
-  it('uses the runtime close authority for an open occurrence', async () => {
+  it('shows occurrence actions only when the batched close authority allows them', async () => {
     const starterView = renderControls()
     expect(await screen.findByRole('button', { name: 'Complete occurrence' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cancel occurrence' })).toBeInTheDocument()
     starterView.unmount()
 
-    mockCanCloseProcessRun.mockResolvedValue(false)
+    mockAuthorities.mockResolvedValueOnce([
+      { authority_kind: 'start', target_id: TEAM_ID, allowed: true },
+      { authority_kind: 'close', target_id: RUN_ID, allowed: false },
+    ])
     mockUseAuth.mockReturnValue(auth('another-person', ['member']))
     const memberView = renderControls()
     expect(await screen.findByRole('heading', { level: 4, name: '17 Jul 2026' })).toBeInTheDocument()
     expect(screen.queryAllByRole('button', { name: 'Complete occurrence' })).toHaveLength(0)
     memberView.unmount()
 
-    mockCanCloseProcessRun.mockResolvedValue(true)
+    mockAuthorities.mockResolvedValueOnce([
+      { authority_kind: 'start', target_id: TEAM_ID, allowed: true },
+      { authority_kind: 'close', target_id: RUN_ID, allowed: true },
+    ])
     mockUseAuth.mockReturnValue(auth('another-person', ['ops_lead']))
     renderControls()
     expect(await screen.findByRole('button', { name: 'Complete occurrence' })).toBeInTheDocument()
   })
 
-  it('keeps successful per-occurrence authority answers when another check fails and retries the failed enrichment', async () => {
+  it.each([
+    { locale: 'en' as const, error: "Couldn't check occurrence permissions", retry: 'Try again', complete: 'Complete occurrence' },
+    { locale: 'id' as const, error: 'Izin kejadian tidak dapat diperiksa', retry: 'Coba lagi', complete: 'Selesaikan kejadian' },
+  ])('fails closed and retries a failed batch authority check in $locale', async ({ locale, error, retry, complete }) => {
     const runB: ProcessOccurrenceSummary = {
       ...RUN,
       run: { ...RUN.run, id: 'run-2', owning_team_id: 'team-2', caption: 'Café Closing · 18 Jul 2026' },
@@ -341,25 +350,21 @@ describe('ProcessOccurrenceControls', () => {
     }
     mockListOccurrences.mockResolvedValue(occurrencePage([RUN, runB]))
     mockListStartable.mockResolvedValue([])
-    mockCanStartProcessForTeam.mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('temporary'))
-    mockCanCloseProcessRun.mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('temporary'))
-    renderControls()
+    mockAuthorities.mockRejectedValueOnce(new Error('temporary'))
+    renderControls(WORK_LINE_ID, false, false, locale)
 
-    expect(await screen.findByRole('button', { name: 'Complete occurrence' })).toBeInTheDocument()
-    expect(screen.getByText('Café Closing · Open')).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't check occurrence permissions")
-    expect(screen.getAllByRole('button', { name: 'Complete occurrence' })).toHaveLength(1)
+    expect(await screen.findByRole('alert')).toHaveTextContent(error)
+    expect(screen.getAllByRole('heading', { level: 4, name: '17 Jul 2026' })).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: complete })).not.toBeInTheDocument()
 
-    mockCanStartProcessForTeam.mockResolvedValue(true)
-    mockCanCloseProcessRun.mockResolvedValue(true)
-    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await userEvent.click(screen.getByRole('button', { name: retry }))
 
-    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Complete occurrence' })).toHaveLength(2))
+    await waitFor(() => expect(screen.getAllByRole('button', { name: complete })).toHaveLength(2))
   })
 
   it('fails closed when an open occurrence has no starter and the viewer is unauthenticated', async () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated' })
-    mockCanCloseProcessRun.mockResolvedValue(false)
+    mockAuthorities.mockResolvedValue([])
     mockListOccurrences.mockResolvedValue(occurrencePage([{ ...RUN, run: { ...RUN.run, started_by: null } }]))
     renderControls()
 

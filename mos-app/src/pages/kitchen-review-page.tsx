@@ -14,6 +14,7 @@ import { WastePhotoStrip } from '@/components/kitchen/waste-photo-strip'
 import {
   listSubmittedKitchenLogs,
   hasSubmittedKitchenProduction,
+  listSubmittedKitchenProductionGates,
   KITCHEN_LOGS_PAGE_SIZE,
   fetchPlanMaps,
   listStreamPairs,
@@ -512,18 +513,22 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
         streams.set(key, { logDate: row.log_date, stream: { branch, activity: row.activity } })
       }
     }
-    const [plans, photos, gates] = await Promise.all([
+    const transferKeys = new Set(rows
+      .filter(row => row.action === 'transfer' || row.action === 'outlet_send')
+      .map(row => streamDateKey(row.log_date, row.branch_id, row.activity)))
+    const gateContexts = [...streams].filter(([key]) => transferKeys.has(key))
+    const [plans, photos, pending] = await Promise.all([
       fetchPlanMaps([...streams.values()]),
       listKitchenWastePhotos(rows.filter(row => row.action === 'waste').map(row => row.id)),
-      Promise.all([...streams].filter(([key]) => rows.some(row => (row.action === 'transfer' || row.action === 'outlet_send')
-        && streamDateKey(row.log_date, row.branch_id, row.activity) === key))
-        .map(async ([key, context]) => [key, await hasSubmittedKitchenProduction(
-          context.logDate, context.stream.branch.id, context.stream.activity,
-        )] as const)),
+      listSubmittedKitchenProductionGates(gateContexts.map(([, context]) => ({
+        logDate: context.logDate,
+        branchId: context.stream.branch.id,
+        activity: context.stream.activity,
+      }))),
     ])
     const photosByLog: Record<string, KitchenWastePhoto[]> = {}
     for (const photo of photos) (photosByLog[photo.logId] ??= []).push(photo)
-    return { plans, photosByLog, pending: gates.filter(([, pending]) => pending).map(([key]) => key) }
+    return { plans, photosByLog, pending: [...pending] }
   }, [])
 
   const fetchQueue = useCallback(async () => {
