@@ -2,7 +2,7 @@
 -- bucket, the lead's queue, HR views and the timed cover job. Time rules run on a fixed clock.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(99);
+select plan(119);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select set_config('app.attendance_now', '2026-10-25 21:00:00+00', true); -- Mon 04:00 Jakarta
@@ -315,11 +315,61 @@ select is((select (t->>'no_show') from jsonb_array_elements(ops.list_staff_month
 select is((select (t->>'shifts_worked') from jsonb_array_elements(ops.list_staff_monthly_totals('2026-10-15')) t where t->>'full_name' = 'Office 203'), '1', 'AC-040 worked shifts come from clock records');
 select is((select count(*)::int from jsonb_array_elements(ops.list_staff_monthly_totals('2026-11-15')) t where (t->>'sick_undocumented')::int > 0 or (t->>'no_show')::int > 0), 0, 'AC-040 a month shows only its own days');
 
+-- ── Owner rule: nobody decides their own request; a lead's goes to admin or hr, hr's goes to admin ──
+reset role;
+insert into shared.team_lead_assignments (org_id, team_id, lead_person_id) values (pg_temp.p('a1'), pg_temp.p('5b01'), pg_temp.p('f105'));
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary) values (pg_temp.p('a1'), pg_temp.p('f401'), pg_temp.p('5b02'), false);
+set local role authenticated;
+select pg_temp.as_('f105');
+select set_config('app.a8', ops.report_staff_absence('leave', current_setting('app.s5')::uuid, null, null)::text, true);
+reset role;
+select is(pg_temp.notes('d3', 'Absence request%'), 1, 'AC-020 a lead''s own request reaches admin');
+select is(pg_temp.notes('f401', 'Absence request%'), 2, 'AC-020 a lead''s own request reaches hr');
+select is(pg_temp.notes('d1', 'Absence request%'), 1, 'AC-020 a lead''s own request does not reach the co-lead');
+set local role authenticated;
+select pg_temp.as_('d1');
+select throws_ok($$select ops.decide_staff_absence(current_setting('app.a8')::uuid, true)$$, '42501', 'STAFF_ABSENCE_FORBIDDEN', 'AC-020 a co-lead cannot decide a lead''s own absence');
+select pg_temp.as_('f105');
+select throws_ok($$select ops.decide_staff_absence(current_setting('app.a8')::uuid, true)$$, '42501', 'STAFF_ABSENCE_FORBIDDEN', 'AC-020 nobody decides their own absence');
+select is((select (a->>'can_decide')::boolean from jsonb_array_elements(ops.list_staff_cover_queue()->'absences') a where a->>'person_name' = 'Crew 105'), false, 'AC-020 the queue shows a lead their own request as not theirs to decide');
+select pg_temp.as_('f401', 'hr');
+select is((select (a->>'can_decide')::boolean from jsonb_array_elements(ops.list_staff_cover_queue()->'absences') a where a->>'person_name' = 'Crew 105'), true, 'AC-020 the queue shows hr a lead''s own request as theirs to decide');
+select lives_ok($$select ops.decide_staff_absence(current_setting('app.a8')::uuid, true)$$, 'AC-020 hr decides a lead''s own absence');
+
+select set_config('app.a9', ops.report_staff_absence('leave', null, pg_temp.p('5b02'), '2026-11-05')::text, true);
+reset role;
+select is(pg_temp.notes('d3', 'Absence request%'), 2, 'AC-020 an hr holder''s own request reaches admin');
+select is(pg_temp.notes('d4', 'Absence request%'), 1, 'AC-020 an hr holder''s own request does not reach the Team lead');
+select is(pg_temp.notes('f401', 'Absence request%'), 2, 'AC-020 an hr holder is not told of their own request');
+set local role authenticated;
+select pg_temp.as_('f401', 'hr');
+select throws_ok($$select ops.decide_staff_absence(current_setting('app.a9')::uuid, true)$$, '42501', 'STAFF_ABSENCE_FORBIDDEN', 'AC-020 an hr holder cannot decide their own absence');
+select pg_temp.as_('d4');
+select throws_ok($$select ops.decide_staff_absence(current_setting('app.a9')::uuid, true)$$, '42501', 'STAFF_ABSENCE_FORBIDDEN', 'AC-020 the Team lead cannot decide an hr holder''s absence');
+select pg_temp.as_('d3', 'admin');
+select lives_ok($$select ops.decide_staff_absence(current_setting('app.a9')::uuid, true)$$, 'AC-020 admin decides an hr holder''s absence');
+
+reset role;
+select set_config('app.o3', (select id::text from ops.staff_shift_offers where shift_id = current_setting('app.s3')::uuid), true);
+set local role authenticated;
+select pg_temp.as_('f105');
+select set_config('app.c8', ops.claim_staff_shift(current_setting('app.o3')::uuid)::text, true);
+select throws_ok($$select ops.decide_staff_claim(current_setting('app.c8')::uuid, true)$$, '42501', 'STAFF_CLAIM_FORBIDDEN', 'AC-016 nobody decides their own cover claim');
+select pg_temp.as_('d1');
+select throws_ok($$select ops.decide_staff_claim(current_setting('app.c8')::uuid, true)$$, '42501', 'STAFF_CLAIM_FORBIDDEN', 'AC-016 a co-lead cannot decide a lead''s cover claim');
+select is((select (c->>'can_decide')::boolean from jsonb_array_elements(ops.list_staff_cover_queue()->'claims') c where c->>'claimant_name' = 'Crew 105'), false, 'AC-016 the queue shows the co-lead the claim as not theirs to decide');
+select pg_temp.as_('d3', 'admin');
+select is((select (c->>'can_decide')::boolean from jsonb_array_elements(ops.list_staff_cover_queue()->'claims') c where c->>'claimant_name' = 'Crew 105'), true, 'AC-016 the queue shows admin the claim as theirs to decide');
+select lives_ok($$select ops.decide_staff_claim(current_setting('app.c8')::uuid, true)$$, 'AC-016 admin confirms a lead''s cover claim');
+
 -- ── hr revoked: the next request loses the access (ADR-0063) ─────────────────────────────────────
 select pg_temp.as_('d3', 'admin');
 update shared.person_access_roles set revoked_at = now() where person_id = pg_temp.p('f401') and access_role = 'hr';
 select pg_temp.as_('f401', 'member');
 select throws_ok($$select ops.list_staff_monthly_totals('2026-10-15')$$, '42501', 'STAFF_ABSENCE_FORBIDDEN', 'AC-034 revoking hr removes the view on the next request');
+reset role;
+select is((select count(*)::int from ops._attendance_recipients(pg_temp.p('a1'), pg_temp.p('5b05'), null)), 0, 'AC-020 a revoked hr holder receives no requests for a Team without a lead');
+set local role authenticated;
 
 -- ── structure: every new table is closed and forced; every definer function is pinned ────────────
 reset role;
