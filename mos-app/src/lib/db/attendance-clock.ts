@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { ContractError } from './contract'
 import { jsonRows, rpc } from './staff-attendance'
 
-export type ClockRefusalReason =
+type ClockRefusalReason =
   | 'consent_needed' | 'no_shift' | 'too_early' | 'shift_over' | 'already_in' | 'photo_needed'
   | 'weak_gps' | 'too_far' | 'site_not_set' | 'closed'
 export type ClockRefusal = {
@@ -10,7 +10,7 @@ export type ClockRefusal = {
   distance_m?: number; radius_m?: number; accuracy_m?: number; max_accuracy_m?: number; opens_at?: string
 }
 export type ClockPosition = { latitude: number; longitude: number; accuracy: number }
-export type ClockRecord = {
+type ClockRecord = {
   id: string; status: 'in' | 'out' | 'closed'; late: boolean; late_minutes: number | null
   early_leave: boolean; early_minutes: number | null; closure: 'no_clock_out' | null
   clock_in_at: string | null; clock_out_at: string | null
@@ -29,7 +29,7 @@ export type AttendanceSettings = {
   late_grace_min: number; clock_in_open_min: number; max_accuracy_m: number; missing_alert_min: number
   no_clockout_close_min: number; uncovered_alert_min: number; leave_cutoff_days: number; selfie_retention_days: number
 }
-export type TeamAttendanceStatus = 'scheduled' | 'in' | 'late' | 'out' | 'early_leave' | 'missing' | 'no_clock_out'
+type TeamAttendanceStatus = 'scheduled' | 'in' | 'late' | 'out' | 'early_leave' | 'missing' | 'no_clock_out'
 export type TeamAttendanceRow = {
   person_id: string; person_name: string; start_at: string; end_at: string; status: TeamAttendanceStatus
   record_id: string | null; clock_in_at: string | null; clock_out_at: string | null

@@ -3,8 +3,8 @@
 -- Rules live in checked SECURITY DEFINER actions; direct table access stays closed.
 -- DOWN: supabase/rollbacks/20261022020000_ops_staff_attendance_stage3_clock.sql (guarded: refuses while
 --   attendance records, consents, alerts or settings exist). Summary: unschedule job 'ops-attendance-jobs';
---   drop the storage policies attendance_selfies_select/insert and the attendance-selfies bucket (only
---   after the bucket is empty; never delete storage.objects with SQL); drop the ops.*attendance* functions
+--   drop the storage policies attendance_selfies_select/insert (the empty bucket stays; Storage blocks
+--   deleting it in SQL, and objects are never deleted with SQL); drop the ops.*attendance* functions
 --   and the tables attendance_selfie_purge_queue, attendance_alerts, attendance_record_history,
 --   attendance_records, attendance_consents, attendance_settings.
 
@@ -297,7 +297,8 @@ revoke execute on function ops._attendance_has_absence(uuid, uuid, timestamptz) 
 
 -- ── Selfie storage: <org>/<attendance-record>/<random-id>.jpg, private and insert-only ─────────
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('attendance-selfies', 'attendance-selfies', false, 307200, array['image/jpeg']);
+values ('attendance-selfies', 'attendance-selfies', false, 307200, array['image/jpeg'])
+on conflict (id) do update set public = false, file_size_limit = 307200, allowed_mime_types = array['image/jpeg'];
 
 create or replace function ops.attendance_selfie_record_id(p_name text)
 returns uuid
@@ -707,6 +708,8 @@ begin
   if v_org is null or v_actor is null or not shared.is_org_member() then raise exception 'STAFF_FORBIDDEN' using errcode = '42501'; end if;
   if nullif(btrim(p_reason), '') is null then raise exception 'STAFF_REASON_REQUIRED' using errcode = '22023'; end if;
   if p_person_id is null or p_shift_start_at is null then raise exception 'STAFF_CLOCK_INVALID' using errcode = '22023'; end if;
+  -- Nobody corrects their own record; a Team lead's own record goes to hr.
+  if p_person_id = v_actor and not shared.has_access_role('hr') then raise exception 'STAFF_ATTENDANCE_FORBIDDEN' using errcode = '42501'; end if;
   select * into r from ops.attendance_records where org_id = v_org and person_id = p_person_id and shift_start_at = p_shift_start_at for update;
   if found then
     v_team := r.team_id;

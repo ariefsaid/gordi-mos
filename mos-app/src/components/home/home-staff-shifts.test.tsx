@@ -34,6 +34,11 @@ describe('HomeStaffShifts', () => {
     expect(screen.getByRole('link', { name: 'View my shifts' })).toHaveAttribute('href', '/work/shifts')
   })
 
+  it('AC-035 links straight to clock in/out', async () => {
+    renderCard()
+    expect(await screen.findByRole('link', { name: 'Clock in / out' })).toHaveAttribute('href', '/work/shifts?view=clock')
+  })
+
   it('announces an error and retries into the empty state in Indonesian', async () => {
     const user = userEvent.setup()
     mockList.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([])

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(70);
+select plan(71);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select set_config('app.attendance_now', '2026-10-21 23:00:00+00', true);
@@ -191,6 +191,7 @@ select ok(ops.correct_attendance_record('00000000-0000-0000-0000-00000000f104','
 select is(jsonb_array_length(ops.get_attendance_record(current_setting('app.a104')::uuid)->'history'),1,'AC-033 the change and the original both appear in record history');
 select is((ops.get_attendance_record(current_setting('app.a104')::uuid)->'history'->0->'before'->>'status') || '>' || (ops.get_attendance_record(current_setting('app.a104')::uuid)->'history'->0->'after'->>'status'),'closed>out','AC-033 the original state is kept beside the corrected state');
 select is((ops.get_attendance_record(current_setting('app.a104')::uuid)->>'late')::boolean,false,'AC-033 a corrected clock-in re-evaluates the late flag');
+select throws_ok($$select ops.correct_attendance_record('00000000-0000-0000-0000-0000000000d1','2026-10-22 00:00:00+00','2026-10-22 00:05:00+00',null,'Own record')$$,'42501','STAFF_ATTENDANCE_FORBIDDEN','AC-033 nobody corrects their own record');
 select ok(ops.correct_attendance_record('00000000-0000-0000-0000-00000000f105','2026-10-22 00:00:00+00','2026-10-22 00:20:00+00',null,'Clocked in on paper') is not null,'AC-033 a lead can record a clock-in that never reached the server');
 
 -- Settings apply from the next shift only.

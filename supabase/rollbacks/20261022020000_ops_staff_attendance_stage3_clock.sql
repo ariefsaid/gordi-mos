@@ -22,7 +22,7 @@ begin
 end $$;
 drop policy attendance_selfies_insert on storage.objects;
 drop policy attendance_selfies_select on storage.objects;
-delete from storage.buckets where id = 'attendance-selfies';
+-- The empty private bucket stays: Storage blocks bucket deletion in SQL. Remove it through the Storage API if it is no longer wanted.
 drop function ops.confirm_attendance_selfie_purged(text[]);
 drop function ops.claim_attendance_selfie_purge(integer);
 drop function ops.run_attendance_jobs();

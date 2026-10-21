@@ -5,7 +5,7 @@ type PositionCallback = (position: { coords: { latitude: number; longitude: numb
 type ErrorCallback = (error: { code: number }) => void
 
 function mockGeolocation(run: (ok: PositionCallback, fail: ErrorCallback) => void) {
-  const getCurrentPosition = vi.fn((ok: PositionCallback, fail: ErrorCallback) => run(ok, fail))
+  const getCurrentPosition = vi.fn((ok: PositionCallback, fail: ErrorCallback, ...rest: unknown[]) => { void rest; run(ok, fail) })
   Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition, watchPosition: vi.fn() } })
   return getCurrentPosition
 }
