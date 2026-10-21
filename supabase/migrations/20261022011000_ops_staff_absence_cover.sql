@@ -268,7 +268,7 @@ end;
 $$;
 revoke execute on function ops._attendance_notify_team(uuid,uuid,uuid,text,text,text,text,uuid,text) from public, anon, authenticated;
 
--- A caller who may decide for a Team: its designated lead or an admin. hr alone may not (ADR-0063).
+-- A caller who may decide for a Team: its designated lead, an admin, or hr when the Team has no lead (owner, 2026-10-21).
 create or replace function ops._attendance_can_lead(p_team uuid)
 returns boolean
 language sql
@@ -277,7 +277,11 @@ security definer
 set search_path = ''
 as $$
   select shared.current_org_id() is not null and shared.current_person_id() is not null
-     and (shared.has_access_role('admin') or shared.is_designated_team_lead(p_team, shared.current_person_id()))
+     and (shared.has_access_role('admin') or shared.is_designated_team_lead(p_team, shared.current_person_id())
+          or (shared.has_access_role('hr') and not exists (
+                select 1 from shared.team_lead_assignments a
+                  join shared.people p on p.org_id = a.org_id and p.id = a.lead_person_id and p.archived_at is null
+                 where a.org_id = shared.current_org_id() and a.team_id = p_team)))
 $$;
 revoke execute on function ops._attendance_can_lead(uuid) from public, anon, authenticated;
 

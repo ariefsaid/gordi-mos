@@ -266,7 +266,7 @@ select is((select count(*)::int from ops.staff_shift_outcomes o where o.person_i
 select is((select count(*)::int from ops.staff_shift_outcomes o where o.person_id = pg_temp.p('f203')), 0, 'AC-019 a clock-in is not a no-show');
 select is((ops.run_staff_attendance_jobs())->>'no_show', '0', 'AC-019 running the job again records nothing new');
 
--- ── AC-020 a Team with no lead: requests reach hr; hr cannot decide them ─────────────────────────
+-- ── AC-020 a Team with no lead: requests reach hr, and hr decides them ───────────────────────────
 set local role authenticated;
 select pg_temp.as_('f501');
 select set_config('app.a7', ops.report_staff_absence('leave', current_setting('app.s7')::uuid, null, null)::text, true);
@@ -275,10 +275,10 @@ select is(pg_temp.notes('f401', 'Absence request%'), 1, 'AC-020 a leave request 
 set local role authenticated;
 select pg_temp.as_('f401', 'hr');
 select is((select count(*)::int from jsonb_array_elements(ops.list_staff_cover_queue()->'absences') a where a->>'person_name' = 'Unled 501'), 1, 'AC-020 hr sees it in the queue');
-select is((select (a->>'can_decide')::boolean from jsonb_array_elements(ops.list_staff_cover_queue()->'absences') a where a->>'person_name' = 'Unled 501'), false, 'AC-020 but is told it cannot decide');
-select throws_ok($$select ops.decide_staff_absence(current_setting('app.a7')::uuid, true)$$, '42501', 'STAFF_ABSENCE_FORBIDDEN', 'AC-020 hr receives the request without approving it');
+select is((select (a->>'can_decide')::boolean from jsonb_array_elements(ops.list_staff_cover_queue()->'absences') a where a->>'person_name' = 'Unled 501'), true, 'AC-020 and is told it can decide');
+select lives_ok($$select ops.decide_staff_absence(current_setting('app.a7')::uuid, true)$$, 'AC-020 hr approves a request from a Team without a lead');
 select pg_temp.as_('d3', 'admin');
-select lives_ok($$select ops.decide_staff_absence(current_setting('app.a7')::uuid, true)$$, 'AC-020 an admin settles it');
+select throws_ok($$select ops.decide_staff_absence(current_setting('app.a7')::uuid, true)$$, 'P0003', 'STAFF_ABSENCE_NOT_PENDING', 'AC-020 the decision stands');
 
 -- ── standing-hours shifts have no row: absences key on the occurrence ────────────────────────────
 select pg_temp.as_('d4');
