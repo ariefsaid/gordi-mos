@@ -34,10 +34,13 @@ describe('AdminSettingsNav', () => {
     renderNav()
 
     await user.click(screen.getByRole('combobox', { name: 'Admin settings' }))
-    for (const name of ['People', 'Teams', 'Access levels', 'Agent apps']) {
+    for (const name of ['People', 'Teams', 'Shift builder', 'Access levels', 'Agent apps']) {
       expect(await screen.findByRole('option', { name })).toBeInTheDocument()
     }
     await user.click(screen.getByRole('option', { name: 'Teams' }))
     expect(screen.getByTestId('where')).toHaveTextContent('/admin/teams')
+    await user.click(screen.getByRole('combobox', { name: 'Admin settings' }))
+    await user.click(screen.getByRole('option', { name: 'Shift builder' }))
+    expect(screen.getByTestId('where')).toHaveTextContent('/admin/shift-builder')
   })
 })

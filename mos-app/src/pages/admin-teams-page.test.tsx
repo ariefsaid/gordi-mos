@@ -10,14 +10,21 @@ vi.mock('@/lib/db/admin-access', () => ({
   saveTeamLeadAssignment: vi.fn(),
 }))
 vi.mock('@/lib/db/admin-users', () => ({ listTeams: vi.fn() }))
+vi.mock('@/lib/db/staff-attendance', () => ({
+  listAttendanceAdminDirectory: vi.fn(),
+  saveAttendanceTeamSite: vi.fn(),
+}))
 
 import { listTeamLeadAssignments, listTeamLeadCandidates, saveTeamLeadAssignment } from '@/lib/db/admin-access'
+import { listAttendanceAdminDirectory, saveAttendanceTeamSite } from '@/lib/db/staff-attendance'
 import { listTeams } from '@/lib/db/admin-users'
 import { AdminTeamsPage } from './admin-teams-page'
 
 const mockAssignments = vi.mocked(listTeamLeadAssignments)
 const mockCandidates = vi.mocked(listTeamLeadCandidates)
 const mockSave = vi.mocked(saveTeamLeadAssignment)
+const mockDirectory = vi.mocked(listAttendanceAdminDirectory)
+const mockSaveSite = vi.mocked(saveAttendanceTeamSite)
 
 const CANDIDATES = [
   { person_id: 'person-1', full_name: 'Ari Lead' },
@@ -35,7 +42,7 @@ function renderPage(locale: 'en' | 'id' = 'en') {
 }
 
 async function choose(user: ReturnType<typeof userEvent.setup>, label: string, option: string) {
-  const trigger = screen.getByRole('combobox', { name: label })
+  const trigger = await screen.findByRole('combobox', { name: label })
   await waitFor(() => expect(trigger).toBeEnabled())
   await user.click(trigger)
   await user.click(await screen.findByRole('option', { name: option }))
@@ -53,6 +60,14 @@ beforeEach(() => {
     { team_id: 'team-2', team_name: 'Cikal Bar', business_unit_id: 'bu-1', lead_person_id: null, lead_name: null },
   ])
   mockCandidates.mockImplementation(async (teamId) => (teamId === 'team-1' ? CANDIDATES : []))
+  mockDirectory.mockResolvedValue({
+    sites: [{ id: 'site-1', name: 'HQ', latitude: null, longitude: null, attendance_radius_m: 100 }],
+    teams: [
+      { id: 'team-1', name: 'Gordi HQ Bar', site_id: null },
+      { id: 'team-2', name: 'Cikal Bar', site_id: null },
+    ],
+  })
+  mockSaveSite.mockResolvedValue(undefined)
   vi.mocked(listTeams).mockResolvedValue([
     { id: 'team-1', name: 'Gordi HQ Bar', branch_name: 'Gordi HQ', activity: 'bar' },
     { id: 'team-2', name: 'Cikal Bar', branch_name: 'Cikal', activity: 'bar' },
@@ -64,8 +79,10 @@ describe('AdminTeamsPage', () => {
   it('lists each Team with its stream, active member count and lead — no Save buttons', async () => {
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: 'Teams' })).toBeInTheDocument()
+    await screen.findByRole('combobox', { name: 'Lead for Gordi HQ Bar' })
     const bar = rowOf('Gordi HQ Bar')
     expect(within(bar).getByText('Gordi HQ · Bar')).toBeInTheDocument()
+    expect(within(bar).getByRole('combobox', { name: 'Site for Gordi HQ Bar' })).toHaveTextContent('Choose a Site')
     await waitFor(() => expect(bar).toHaveTextContent('2 active members'))
     expect(await within(bar).findByRole('combobox', { name: 'Lead for Gordi HQ Bar' })).toHaveTextContent('Ari Lead')
     expect(screen.queryByRole('button', { name: /save/i })).toBeNull()
@@ -74,6 +91,7 @@ describe('AdminTeamsPage', () => {
   it('a Team with no active members explains itself and offers no choice', async () => {
     renderPage()
     await screen.findByRole('heading', { level: 1, name: 'Teams' })
+    await screen.findByRole('combobox', { name: 'Lead for Cikal Bar' })
     const cikal = rowOf('Cikal Bar')
     await waitFor(() => expect(within(cikal).getByText('No active members in this Team.')).toBeInTheDocument())
     expect(within(cikal).getByRole('combobox', { name: 'Lead for Cikal Bar' })).toBeDisabled()
@@ -88,6 +106,26 @@ describe('AdminTeamsPage', () => {
     await waitFor(() => expect(mockSave).toHaveBeenCalledWith('team-1', 'person-2'))
     expect(mockSave).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(within(rowOf('Gordi HQ Bar')).getByRole('status')).toHaveTextContent('Saved'))
+  })
+
+  it('AC-036 choosing a Site saves immediately and confirms beside that Team', async () => {
+    const user = userEvent.setup()
+    mockSaveSite.mockImplementationOnce(async () => {
+      mockDirectory.mockResolvedValue({
+        sites: [{ id: 'site-1', name: 'HQ', latitude: null, longitude: null, attendance_radius_m: 100 }],
+        teams: [
+          { id: 'team-1', name: 'Gordi HQ Bar', site_id: 'site-1' },
+          { id: 'team-2', name: 'Cikal Bar', site_id: null },
+        ],
+      })
+    })
+    renderPage()
+    await screen.findByRole('heading', { level: 1, name: 'Teams' })
+    await choose(user, 'Site for Gordi HQ Bar', 'HQ')
+    await waitFor(() => expect(mockSaveSite).toHaveBeenCalledWith('team-1', 'site-1'))
+    const row = rowOf('Gordi HQ Bar')
+    await waitFor(() => expect(within(row).getByRole('status')).toHaveTextContent('Saved'))
+    expect(within(row).getByRole('combobox', { name: 'Site for Gordi HQ Bar' })).toHaveTextContent('HQ')
   })
 
   it('No designated lead clears the designation', async () => {
@@ -181,7 +219,9 @@ describe('AdminTeamsPage', () => {
   it('reads in Indonesian', async () => {
     renderPage('id')
     expect(await screen.findByRole('heading', { level: 1, name: 'Tim' })).toBeInTheDocument()
+    await screen.findByRole('combobox', { name: 'Ketua untuk Gordi HQ Bar' })
     expect(screen.getByRole('combobox', { name: 'Ketua untuk Gordi HQ Bar' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Site untuk Gordi HQ Bar' })).toBeInTheDocument()
     await waitFor(() => expect(screen.getAllByText('anggota aktif').length).toBeGreaterThan(0))
     expect(screen.getByRole('combobox', { name: 'Ketua untuk Gordi HQ Bar' }).closest('[data-team-lead-row]')).toHaveTextContent('2 anggota aktif')
   })
