@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(74);
+select plan(81);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select set_config('app.attendance_now', '2026-10-21 23:00:00+00', true);
@@ -229,6 +229,31 @@ select public.t_clock('2027-04-15 00:00:00+00');
 select is((ops.run_attendance_jobs()->>'locations_cleared')::int,1,'AC-042 locations older than 6 months are wiped');
 select ok((select in_latitude is null and in_distance_m is null and out_latitude is null and clock_in_at is not null from ops.attendance_records where id = current_setting('app.a103')::uuid),'AC-042 the wiped record keeps its clock times');
 select ok((select count(*) > 0 from ops.attendance_records where in_latitude is not null),'AC-042 newer locations are kept');
+
+-- Nobody corrects their own record, hr and admin included.
+set local role authenticated;
+select public.t_as('00000000-0000-0000-0000-0000000000d2', 'hr');
+select throws_ok($$select ops.correct_attendance_record('00000000-0000-0000-0000-0000000000d2','2026-10-22 00:00:00+00','2026-10-22 00:05:00+00',null,'Own record')$$,'42501','STAFF_ATTENDANCE_FORBIDDEN','AC-033 an hr holder cannot correct their own record');
+select public.t_as('00000000-0000-0000-0000-0000000000d3','admin');
+select throws_ok($$select ops.correct_attendance_record('00000000-0000-0000-0000-0000000000d3','2026-10-22 00:00:00+00','2026-10-22 00:05:00+00',null,'Own record')$$,'42501','STAFF_ATTENDANCE_FORBIDDEN','AC-033 an admin cannot correct their own record');
+
+-- Alerts for a Team without a lead go to active hr holders only.
+reset role;
+select is((select count(*)::int from ops._attendance_alert_recipients('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000005b09') where person_id = '00000000-0000-0000-0000-0000000000d2'),1,'AC-018 an active hr holder is told about a Team without a lead');
+set local role authenticated;
+select public.t_as('00000000-0000-0000-0000-0000000000d2', 'member');
+reset role;
+select is((select count(*)::int from ops._attendance_alert_recipients('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000005b09') where person_id = '00000000-0000-0000-0000-0000000000d2'),0,'AC-018 a revoked hr holder is no longer told');
+
+-- Superseded images are queued within the hour; recent ones wait.
+insert into storage.objects (bucket_id, name, created_at) values
+  ('attendance-selfies','00000000-0000-0000-0000-0000000000a1/' || current_setting('app.a103') || '/00000000-0000-0000-0000-00000000c001.jpg','2027-04-14 00:00:00+00'),
+  ('attendance-selfies','00000000-0000-0000-0000-0000000000a1/' || current_setting('app.a103') || '/00000000-0000-0000-0000-00000000c002.jpg','2027-04-15 00:00:00+00');
+select ops.run_attendance_jobs();
+select is((select count(*)::int from ops.attendance_selfie_purge_queue where path like '%/00000000-0000-0000-0000-00000000c001.jpg'),1,'ADR-0064 a superseded image on an accepted record is queued for deletion');
+select is((select count(*)::int from ops.attendance_selfie_purge_queue where path like '%/00000000-0000-0000-0000-00000000c002.jpg'),0,'ADR-0064 an image uploaded in the last hour is not yet queued');
+select ops.run_attendance_jobs();
+select is((select count(*)::int from ops.attendance_selfie_purge_queue where path like '%/00000000-0000-0000-0000-00000000c001.jpg'),1,'ADR-0064 queuing a superseded image is idempotent');
 
 select * from finish();
 rollback;
