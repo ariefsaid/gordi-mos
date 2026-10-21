@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(71);
+select plan(74);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select set_config('app.attendance_now', '2026-10-21 23:00:00+00', true);
@@ -224,6 +224,14 @@ select is((ops.run_attendance_jobs()->>'selfies_queued')::int,3,'AC-042 selfies 
 select is((select count(*)::int from ops.attendance_records where selfie_path is not null),2,'AC-042 the newer selfies are kept');
 select is((select count(*)::int from ops.attendance_records where selfie_path is null and selfie_purged_at is not null),3,'AC-042 the old references are cleared at once');
 select is((ops.run_attendance_jobs()->>'selfies_queued')::int,0,'AC-042 the retention job is idempotent');
+
+-- Location retention: coordinates, accuracy and distance go after 6 months; the clock times stay.
+update ops.attendance_records set created_at = '2027-04-01 00:00:00+00' where status <> 'pending';
+update ops.attendance_records set created_at = '2026-10-01 00:00:00+00' where id = current_setting('app.a103')::uuid;
+select public.t_clock('2027-04-15 00:00:00+00');
+select is((ops.run_attendance_jobs()->>'locations_cleared')::int,1,'AC-042 locations older than 6 months are wiped');
+select ok((select in_latitude is null and in_distance_m is null and out_latitude is null and clock_in_at is not null from ops.attendance_records where id = current_setting('app.a103')::uuid),'AC-042 the wiped record keeps its clock times');
+select ok((select count(*) > 0 from ops.attendance_records where in_latitude is not null),'AC-042 newer locations are kept');
 
 select * from finish();
 rollback;

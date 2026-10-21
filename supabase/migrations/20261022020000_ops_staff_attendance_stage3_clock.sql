@@ -782,7 +782,7 @@ set search_path = ''
 as $$
 declare
   v_now timestamptz := ops._attendance_now(); v_org record; v_row record; v_rcpt record; v_name text;
-  v_missing integer := 0; v_closed integer := 0; v_pending integer := 0; v_selfies integer := 0;
+  v_missing integer := 0; v_closed integer := 0; v_pending integer := 0; v_selfies integer := 0; v_locations integer := 0;
 begin
   perform pg_advisory_xact_lock(hashtextextended('ops-attendance-jobs', 0));
   for v_org in select id from shared.orgs loop
@@ -858,8 +858,17 @@ begin
       update ops.attendance_records set selfie_path = null, selfie_purged_at = v_now, updated_at = v_now where id = v_row.id;
       v_selfies := v_selfies + 1;
     end loop;
+
+    -- Location retention: coordinates, accuracy and distance are wiped after 6 months (owner, 2026-10-21); times and flags stay.
+    with wiped as (update ops.attendance_records r
+         set in_latitude = null, in_longitude = null, in_accuracy_m = null, in_distance_m = null,
+             out_latitude = null, out_longitude = null, out_accuracy_m = null, out_distance_m = null, updated_at = v_now
+       where r.org_id = v_org.id and r.created_at <= v_now - interval '6 months'
+         and (r.in_latitude is not null or r.out_latitude is not null or r.in_distance_m is not null or r.out_distance_m is not null)
+       returning 1)
+    select v_locations + count(*) into v_locations from wiped;
   end loop;
-  return jsonb_build_object('missing_alerts', v_missing, 'closed_no_clock_out', v_closed, 'abandoned_attempts', v_pending, 'selfies_queued', v_selfies);
+  return jsonb_build_object('missing_alerts', v_missing, 'closed_no_clock_out', v_closed, 'abandoned_attempts', v_pending, 'selfies_queued', v_selfies, 'locations_cleared', v_locations);
 end;
 $$;
 revoke execute on function ops.run_attendance_jobs() from public, anon, authenticated;
