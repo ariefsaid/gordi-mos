@@ -65,6 +65,9 @@ import { AdminPersonPage } from './pages/admin-person-page'
 import { AdminAccessPage } from './pages/admin-access-page'
 import { AdminAgentConnectionsPage } from './pages/admin-agent-connections-page'
 import { AdminTeamsPage } from './pages/admin-teams-page'
+import { AdminAttendancePage } from './pages/admin-attendance-page'
+import { AdminAttendanceSettingsPage } from './pages/admin-attendance-settings-page'
+import { StaffShiftsPage } from './pages/staff-shifts-page'
 import { RecoveryPage } from './pages/recovery-page'
 import { SliceStubPage } from './pages/slice-stub-page'
 
@@ -162,6 +165,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/work/signals/:signalId', SignalRecordPage, 'v4'],
   ['/work/objectives', ObjectivesPage, 'dev'],
   ['/work/objectives/:objectiveId', ObjectiveRecordPage, 'redesign'],
+  ['/work/shifts', StaffShiftsPage, 'attendance'],
   ['/work/projects', ProjectsProcessesPage, 'dev'],
   ['/work/projects/:workLineId', WorkLineRecordPage, 'redesign'],
   ['/work/events', EventsWorkspacePage, 'dev'], 
@@ -206,6 +210,8 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/admin/modules', AdminModulesPage, 'dev'],
   ['/admin/people/:personId', AdminPersonPage, 'redesign'],
   ['/admin/teams', AdminTeamsPage, 'redesign'],
+  ['/admin/shift-builder', AdminAttendancePage, 'attendance'],
+  ['/admin/attendance-settings', AdminAttendanceSettingsPage, 'attendance'],
   ['/admin/access', AdminAccessPage, 'redesign'],
   ['/admin/agents', AdminAgentConnectionsPage, 'review-stamp'],
   ['/recovery', RecoveryPage, 'dev'],

@@ -98,7 +98,7 @@ export function AttendanceTodayPanel({ teams }: { teams: LedStaffTeam[] }) {
 
   return <section className="staff-attendance__panel" aria-label={t('attendance.today.title')}>
     <div className="staff-attendance__toolbar">
-      <Select label={t('attendance.today.team')} value={teamId} onChange={(event) => setTeamId(event.target.value)}>
+      <Select className="staff-attendance__select-label" label={t('attendance.today.team')} value={teamId} onChange={(event) => setTeamId(event.target.value)} fullWidth>
         {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
       </Select>
       <label className="staff-attendance__select-label">{t('attendance.today.date')}<input type="date" value={date} onChange={(event) => event.target.value && setDate(event.target.value)} /></label>

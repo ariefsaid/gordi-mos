@@ -34,12 +34,14 @@ export function ClockPanel() {
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<Failure | null>(null)
   const [outcome, setOutcome] = useState<Outcome | null>(null)
+  const alertRef = useRef<HTMLDivElement>(null)
   const attempt = useRef<{ id: string; orgId: string; uploaded: Blob | null } | null>(null)
 
   const refresh = useCallback(async () => {
     try { setState(await getMyClockState()); setLoad('ready') } catch { setLoad('error') }
   }, [])
   useEffect(() => { void refresh() }, [refresh])
+  useEffect(() => { if (failure) alertRef.current?.scrollIntoView?.({ block: 'nearest' }) }, [failure])
 
   async function consent() {
     if (!agreed) { setAgreeError(true); return }
@@ -161,7 +163,7 @@ export function ClockPanel() {
       </>}
       {clockingOut && <p className="staff-attendance__muted">{t('attendance.clock.out.note')}</p>}
     </>}
-    {failure && refusalKey && <div className="clock-panel__note clock-panel__note--error" role="alert">
+    {failure && refusalKey && <div ref={alertRef} className="clock-panel__note clock-panel__note--error" role="alert">
       <strong>{t(`${refusalKey}.title` as MessageKey, vars)}</strong>
       <p>{t(`${refusalKey}.body` as MessageKey, vars)}</p>
     </div>}
