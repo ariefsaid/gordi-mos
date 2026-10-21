@@ -13,31 +13,31 @@ export type MyAbsence = {
   local_date: string; start_at: string; end_at: string; team_name: string; site_name: string
   reason: string | null; decision_reason: string | null; recorded_by_other: boolean
 }
-export type OpenShift = {
+type OpenShift = {
   offer_id: string; shift_id: string; kind: 'absence' | 'swap'; status: 'open' | 'claimed'
   local_date: string; start_at: string; end_at: string; template_name: string; team_name: string; site_name: string
   my_claim_id: string | null; my_claim_status: 'pending' | null; can_claim: boolean
 }
-export type MyOffer = {
+type MyOffer = {
   offer_id: string; shift_id: string; kind: 'absence' | 'swap'; status: 'open' | 'claimed'
   local_date: string; start_at: string; end_at: string; template_name: string; site_name: string; claimant_name: string | null
 }
 export type OpenShiftsView = { open: OpenShift[]; mine: MyOffer[] }
 
-export type QueueAbsence = {
+type QueueAbsence = {
   id: string; person_name: string; team_name: string; kind: AbsenceKind; local_date: string
   start_at: string; end_at: string; reason: string | null; can_decide: boolean
 }
-export type QueueClaim = {
+type QueueClaim = {
   id: string; offer_kind: 'absence' | 'swap'; claimant_name: string; person_name: string; team_name: string
   local_date: string; start_at: string; end_at: string; can_decide: boolean
 }
-export type QueueUncovered = {
+type QueueUncovered = {
   offer_id: string; offer_kind: 'absence' | 'swap'; person_name: string; team_name: string; team_id: string; site_id: string
   local_date: string; start_at: string; end_at: string; can_decide: boolean
 }
-export type QueueSick = { id: string; person_name: string; team_name: string; local_date: string; documented: boolean }
-export type QueueCandidate = { person_id: string; full_name: string; site_id: string }
+type QueueSick = { id: string; person_name: string; team_name: string; local_date: string; documented: boolean }
+type QueueCandidate = { person_id: string; full_name: string; site_id: string }
 export type CoverQueue = {
   absences: QueueAbsence[]; claims: QueueClaim[]; uncovered: QueueUncovered[]; sick: QueueSick[]; candidates: QueueCandidate[]
 }

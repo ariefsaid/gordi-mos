@@ -541,7 +541,8 @@ grant execute on function ops.cancel_staff_absence(uuid) to authenticated;
 
 -- ── Doctor's note photo: private, insert-only bucket read through a checking function ────────────
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('staff-notes', 'staff-notes', false, 5242880, array['image/jpeg','image/png','image/webp']);
+values ('staff-notes', 'staff-notes', false, 5242880, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do nothing;
 
 create or replace function ops.staff_note_absence_id(p_name text)
 returns uuid

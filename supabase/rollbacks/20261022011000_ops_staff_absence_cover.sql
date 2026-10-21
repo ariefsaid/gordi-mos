@@ -13,7 +13,8 @@ begin
 end $$;
 drop policy staff_notes_select on storage.objects;
 drop policy staff_notes_insert on storage.objects;
-delete from storage.buckets where id = 'staff-notes';
+-- Supabase protects storage.buckets from SQL DELETE. Leave its empty, private row in place;
+-- an operator can remove it with the Storage API after this rollback if required.
 drop function ops.set_noshow_recording_from(timestamptz);
 drop function ops._attendance_clock_counts(uuid,date,date);
 drop function ops.list_staff_monthly_totals(date);
