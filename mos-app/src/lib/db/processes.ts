@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { refreshOpenTaskCount } from '@/lib/open-task-count-store'
 import { keysetBeforeFilter, keysetPageFromProbe } from './keyset-filter'
-import type { DueProcessRun, PendingTaskRow, ProcessOccurrenceSummary, ProcessRunRollup, ProcessRunRow, SpawnResult, TaskDefLookup } from './processes.types'
+import type { DueProcessRun, PendingTaskRow, ProcessOccurrenceAuthority, ProcessOccurrenceSummary, ProcessRunRollup, ProcessRunRow, SpawnResult, TaskDefLookup } from './processes.types'
 
 // Data layer for mos.process_runs + friends (Step 6 / ADR-0051). Reads/writes mos via
 // supabase.schema('mos') on the existing client — same client, RLS is the authority (mirrors
@@ -41,6 +41,23 @@ export async function canCloseProcessRun(runId: string): Promise<boolean> {
   const { data, error } = await mos().rpc('can_close_process_run_id', { p_run_id: runId })
   if (error) throw new Error(`canCloseProcessRun failed — ${error.message}`)
   return data === true
+}
+
+/** Read page-level Process start and close affordances through the unchanged scalar policies. */
+export async function listProcessOccurrenceAuthorities(
+  teamIds: readonly string[],
+  runIds: readonly string[],
+): Promise<ProcessOccurrenceAuthority[]> {
+  const uniqueTeamIds = [...new Set(teamIds.filter(Boolean))]
+  const uniqueRunIds = [...new Set(runIds.filter(Boolean))]
+  if (uniqueTeamIds.length === 0 && uniqueRunIds.length === 0) return []
+
+  const { data, error } = await mos().rpc('process_occurrence_authority', {
+    p_team_ids: uniqueTeamIds,
+    p_run_ids: uniqueRunIds,
+  })
+  if (error) throw new Error(`listProcessOccurrenceAuthorities failed — ${error.message}`)
+  return (data ?? []) as ProcessOccurrenceAuthority[]
 }
 
 /** List due (not-yet-spawned) occurrences for the viewer's authorized Teams via
