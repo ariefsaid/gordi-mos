@@ -23,10 +23,8 @@ import {
   getTodayOpeningForTeam,
   listCafeViewerTeams,
   listStartableCafeTeams,
-  resolveCafeOpeningTeamsForBranches,
-  resolveCafeOpeningTeamsForTeamIds,
+  resolveCafeOpeningTeams,
   wibToday,
-  type CafeOpeningTeam,
 } from '@/lib/db/cafe-opening'
 import { listActiveBranches } from '@/lib/db/branches'
 import { rememberCafeLocation, rememberCafeOpeningTeam, rememberedCafeOpeningTeamId } from '@/lib/cafe-opening-location'
@@ -200,18 +198,16 @@ function CafeRootPageBody() {
             due: true,
           })),
         ]
-        // Ops leads/admins can be authorized for a branch without holding a profile membership.
-        // Their started branches never appear in due_process_runs(), so include every active
-        // branch's canonical Opening Team under the existing elevated Café gate as well. Resolve
-        // independent branches and source Teams in parallel, then fetch team labels in batches.
-        const elevatedPromise = canPushCafe(accessRoles)
-          ? resolveCafeOpeningTeamsForBranches(branches.map((branch) => branch.id))
-          : Promise.resolve(new Map<string, CafeOpeningTeam>())
-        const sourceTeamsPromise = resolveCafeOpeningTeamsForTeamIds(sources.map((source) => source.sourceTeamId))
-        const [elevated, openingTeamsBySource] = await Promise.all([elevatedPromise, sourceTeamsPromise])
+        // Ops leads/admins can be authorized for branches without a profile membership. Their
+        // started branches never appear in due_process_runs(), so include active branches in the
+        // same batch as profile/due Team resolution under the existing elevated Café gate.
+        const openingTeams = await resolveCafeOpeningTeams({
+          sourceTeamIds: sources.map((source) => source.sourceTeamId),
+          branchIds: canPushCafe(accessRoles) ? branches.map((branch) => branch.id) : [],
+        })
         const resolvedSources = [
-          ...sources.map((source) => ({ source, team: openingTeamsBySource.get(source.sourceTeamId) ?? null })),
-          ...[...elevated.values()].map((team) => ({
+          ...sources.map((source) => ({ source, team: openingTeams.bySourceTeamId.get(source.sourceTeamId) ?? null })),
+          ...[...openingTeams.byBranchId.values()].map((team) => ({
             source: { sourceTeamId: team.id, isPrimary: false, due: false },
             team,
           })),

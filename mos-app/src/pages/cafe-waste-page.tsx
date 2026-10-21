@@ -234,6 +234,7 @@ export function CafeWastePage() {
   const [loadRetry, setLoadRetry] = useState(0)
   const [catalogReady, setCatalogReady] = useState(false)
   const [items, setItems] = useState<CafeLogItem[]>([])
+  const itemsById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items])
   const [esbItemCount, setEsbItemCount] = useState(0)
   const [businessUnitId, setBusinessUnitId] = useState('')
   const [entries, setEntries] = useState<Record<string, WasteEntry>>({})
@@ -995,7 +996,7 @@ export function CafeWastePage() {
                 <h2 id="cwl-resume-title">{t('kitchen.waste.resumableDrafts')}</h2>
                 <ul>
                   {resumableDrafts.map(draft => {
-                    const item = items.find(candidate => candidate.id === draft.itemId)
+                    const item = itemsById.get(draft.itemId)
                     if (!item) return null
                     const current = entries[draft.itemId]
                     const alreadyEditing = Boolean(current?.logId || current?.preparing || current?.quantity.trim())

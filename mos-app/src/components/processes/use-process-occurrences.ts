@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
-import { canCloseProcessRun, canStartProcessForTeam, listProcessOccurrenceSummaries, listStartableProcessRuns, startRun } from '@/lib/db/processes'
+import { listProcessOccurrenceAuthorities, listProcessOccurrenceSummaries, listStartableProcessRuns, startRun } from '@/lib/db/processes'
 import type { DueProcessRun, ProcessOccurrenceSummary } from '@/lib/db/processes.types'
 import type { ProcessOccurrenceCursor } from '@/lib/db/processes'
 import { dueKey, narrowToViewerTeams } from './use-due-runs'
@@ -92,24 +92,24 @@ export function useProcessOccurrences(workLineId: string | null, onChanged?: () 
       setStartable(narrowToViewerTeams(nextStartable, viewerTeams.map((team) => team.id)))
       setState('ready')
 
-      // Authority calls are enrichment: readable occurrences and the server-filtered due list
-      // paint independently, while stale/erroring checks fail closed for their affordances.
+      // Authority is enrichment: readable occurrences paint independently, but a failed batch
+      // leaves every affordance closed.
       const teamIds = [...new Set(occurrencePage.rows.map((summary) => summary.run.owning_team_id))]
-      const [startAnswers, closeAnswers] = await Promise.all([
-        Promise.allSettled(teamIds.map(async (teamId) => [teamId, await canStartProcessForTeam(teamId)] as const)),
-        Promise.allSettled(occurrencePage.rows.map(async (summary) => [summary.run.id, await canCloseProcessRun(summary.run.id)] as const)),
-      ])
-      if (!isCurrent()) return
-      setStartableTeamIds(new Set(startAnswers
-        .filter((answer): answer is PromiseFulfilledResult<readonly [string, boolean]> => answer.status === 'fulfilled' && answer.value[1])
-        .map((answer) => answer.value[0])))
-      setClosableRunIds(new Set(closeAnswers
-        .filter((answer): answer is PromiseFulfilledResult<readonly [string, boolean]> => answer.status === 'fulfilled' && answer.value[1])
-        .map((answer) => answer.value[0])))
-      setAuthorityError(
-        startAnswers.some((answer) => answer.status === 'rejected')
-        || closeAnswers.some((answer) => answer.status === 'rejected'),
-      )
+      try {
+        const authorities = await listProcessOccurrenceAuthorities(
+          teamIds,
+          occurrencePage.rows.map((summary) => summary.run.id),
+        )
+        if (!isCurrent()) return
+        setStartableTeamIds(new Set(authorities
+          .filter((authority) => authority.authority_kind === 'start' && authority.allowed)
+          .map((authority) => authority.target_id)))
+        setClosableRunIds(new Set(authorities
+          .filter((authority) => authority.authority_kind === 'close' && authority.allowed)
+          .map((authority) => authority.target_id)))
+      } catch {
+        if (isCurrent()) setAuthorityError(true)
+      }
     } catch {
       if (!isCurrent()) return
       setState('error')
@@ -135,21 +135,25 @@ export function useProcessOccurrences(workLineId: string | null, onChanged?: () 
       setOccurrences((current) => [...current, ...page.rows])
       setHasMore(page.hasMore)
       const teamIds = [...new Set(page.rows.map((summary) => summary.run.owning_team_id))]
-      const [startAnswers, closeAnswers] = await Promise.all([
-        Promise.allSettled(teamIds.map(async (teamId) => [teamId, await canStartProcessForTeam(teamId)] as const)),
-        Promise.allSettled(page.rows.map(async (summary) => [summary.run.id, await canCloseProcessRun(summary.run.id)] as const)),
-      ])
-      if (!isCurrent()) return
-      setStartableTeamIds((current) => new Set([
-        ...current,
-        ...startAnswers.filter((answer): answer is PromiseFulfilledResult<readonly [string, boolean]> => answer.status === 'fulfilled' && answer.value[1]).map((answer) => answer.value[0]),
-      ]))
-      setClosableRunIds((current) => new Set([
-        ...current,
-        ...closeAnswers.filter((answer): answer is PromiseFulfilledResult<readonly [string, boolean]> => answer.status === 'fulfilled' && answer.value[1]).map((answer) => answer.value[0]),
-      ]))
-      setAuthorityError((current) => current || startAnswers.some((answer) => answer.status === 'rejected')
-        || closeAnswers.some((answer) => answer.status === 'rejected'))
+      try {
+        const authorities = await listProcessOccurrenceAuthorities(
+          teamIds,
+          page.rows.map((summary) => summary.run.id),
+        )
+        if (!isCurrent()) return
+        setStartableTeamIds((current) => new Set([
+          ...current,
+          ...authorities.filter((authority) => authority.authority_kind === 'start' && authority.allowed)
+            .map((authority) => authority.target_id),
+        ]))
+        setClosableRunIds((current) => new Set([
+          ...current,
+          ...authorities.filter((authority) => authority.authority_kind === 'close' && authority.allowed)
+            .map((authority) => authority.target_id),
+        ]))
+      } catch {
+        if (isCurrent()) setAuthorityError(true)
+      }
     } catch {
       if (isCurrent()) setMoreError(true)
     } finally {
