@@ -197,7 +197,7 @@ returns text
 language sql
 immutable
 set search_path = ''
-as $$ select 'attendance-2026-10'::text $$;
+as $$ select 'attendance-2026-10-r2'::text $$;
 revoke execute on function ops._attendance_notice_version() from public, anon, authenticated;
 
 create or replace function ops._attendance_settings_at(p_org_id uuid, p_at timestamptz)

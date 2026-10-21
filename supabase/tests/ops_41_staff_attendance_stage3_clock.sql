@@ -53,20 +53,20 @@ select public.t_as('00000000-0000-0000-0000-00000000f102');
 select public.t_clock('2026-10-21 23:55:00+00');
 select is(ops.begin_attendance_clock_in('2026-10-22 00:00:00+00')->>'reason','consent_needed','AC-035 clock-in asks for consent before any capture');
 select throws_ok($$select ops.record_attendance_consent('old-notice','en')$$,'22023','STAFF_NOTICE_STALE','AC-035 consent is recorded only against the current notice');
-select ops.record_attendance_consent('attendance-2026-10','id');
-select ops.record_attendance_consent('attendance-2026-10','id');
+select ops.record_attendance_consent('attendance-2026-10-r2','id');
+select ops.record_attendance_consent('attendance-2026-10-r2','id');
 reset role;
 select is((select count(*)::int from ops.attendance_consents where person_id = '00000000-0000-0000-0000-00000000f102' and language = 'id'),1,
   'AC-035 consent keeps one row with the notice version and language');
 set local role authenticated;
 select public.t_as('00000000-0000-0000-0000-00000000f101');
-select ops.record_attendance_consent('attendance-2026-10','en');
+select ops.record_attendance_consent('attendance-2026-10-r2','en');
 select public.t_as('00000000-0000-0000-0000-00000000f103');
-select ops.record_attendance_consent('attendance-2026-10','en');
+select ops.record_attendance_consent('attendance-2026-10-r2','en');
 select public.t_as('00000000-0000-0000-0000-00000000f104');
-select ops.record_attendance_consent('attendance-2026-10','en');
+select ops.record_attendance_consent('attendance-2026-10-r2','en');
 select public.t_as('00000000-0000-0000-0000-00000000f105');
-select ops.record_attendance_consent('attendance-2026-10','en');
+select ops.record_attendance_consent('attendance-2026-10-r2','en');
 
 -- Window: opens 30 minutes before the shift.
 select public.t_as('00000000-0000-0000-0000-00000000f101');

@@ -25,7 +25,7 @@ const shift: ClockShift = {
   site_ready: true, radius_m: 100, max_accuracy_m: 50, record: null,
 }
 const state = (patch: Partial<ClockState> = {}): ClockState => ({
-  notice_version: 'attendance-2026-10', consented: true, now: '2026-10-22T00:05:00Z', shifts: [shift], ...patch,
+  notice_version: 'attendance-2026-10-r2', consented: true, now: '2026-10-22T00:05:00Z', shifts: [shift], ...patch,
 })
 const position = { latitude: 0.0007, longitude: 0, accuracy: 20 }
 
@@ -76,7 +76,7 @@ describe('ClockPanel', () => {
     renderPanel('id')
     await user.click(await screen.findByRole('checkbox', { name: 'Saya setuju dengan pernyataan di atas.' }))
     await user.click(screen.getByRole('button', { name: 'Setuju dan lanjutkan' }))
-    await waitFor(() => expect(recordAttendanceConsent).toHaveBeenCalledWith('attendance-2026-10', 'id'))
+    await waitFor(() => expect(recordAttendanceConsent).toHaveBeenCalledWith('attendance-2026-10-r2', 'id'))
     expect(await screen.findByRole('button', { name: 'Catat masuk' })).toBeInTheDocument()
   })
 
