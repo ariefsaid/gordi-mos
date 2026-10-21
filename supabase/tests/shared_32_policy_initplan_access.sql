@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(13);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -86,6 +86,11 @@ select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000
 select set_eq($$select id::text from mos.user_views$$,
   array['00000000-0000-0000-0000-000000007901'],
   'ops lead sees only their own private view / ops lead hanya melihat tampilan pribadinya');
+
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}');
+select set_eq($$select id::text from mos.user_views$$,
+  array['00000000-0000-0000-0000-000000007901'],
+  'manager sees only their own private view / manager hanya melihat tampilan pribadinya');
 
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 select set_eq($$select id::text from mos.user_views$$,
