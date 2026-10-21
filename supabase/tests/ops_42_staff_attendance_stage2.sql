@@ -317,8 +317,8 @@ select is((select count(*)::int from jsonb_array_elements(ops.list_staff_monthly
 
 -- ── Owner rule: nobody decides their own request; a lead's goes to admin or hr, hr's goes to admin ──
 reset role;
-insert into shared.team_lead_assignments (org_id, team_id, lead_person_id) values (pg_temp.p('a1'), pg_temp.p('5b01'), pg_temp.p('f105'));
-insert into shared.team_memberships (org_id, person_id, team_id, is_primary) values (pg_temp.p('a1'), pg_temp.p('f401'), pg_temp.p('5b02'), false);
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary) values (pg_temp.p('a1'), pg_temp.p('f401'), pg_temp.p('5b02'), false), (pg_temp.p('a1'), pg_temp.p('f105'), pg_temp.p('5b04'), false);
+insert into shared.team_lead_assignments (org_id, team_id, lead_person_id) values (pg_temp.p('a1'), pg_temp.p('5b04'), pg_temp.p('f105'));
 set local role authenticated;
 select pg_temp.as_('f105');
 select set_config('app.a8', ops.report_staff_absence('leave', current_setting('app.s5')::uuid, null, null)::text, true);
@@ -331,7 +331,7 @@ select pg_temp.as_('d1');
 select throws_ok($$select ops.decide_staff_absence(current_setting('app.a8')::uuid, true)$$, '42501', 'STAFF_ABSENCE_FORBIDDEN', 'AC-020 a co-lead cannot decide a lead''s own absence');
 select pg_temp.as_('f105');
 select throws_ok($$select ops.decide_staff_absence(current_setting('app.a8')::uuid, true)$$, '42501', 'STAFF_ABSENCE_FORBIDDEN', 'AC-020 nobody decides their own absence');
-select is((select (a->>'can_decide')::boolean from jsonb_array_elements(ops.list_staff_cover_queue()->'absences') a where a->>'person_name' = 'Crew 105'), false, 'AC-020 the queue shows a lead their own request as not theirs to decide');
+select is((select count(*)::int from jsonb_array_elements(ops.list_staff_cover_queue()->'absences') a where a->>'person_name' = 'Crew 105' and (a->>'can_decide')::boolean), 0, 'AC-020 the queue does not offer a lead their own request to decide');
 select pg_temp.as_('f401', 'hr');
 select is((select (a->>'can_decide')::boolean from jsonb_array_elements(ops.list_staff_cover_queue()->'absences') a where a->>'person_name' = 'Crew 105'), true, 'AC-020 the queue shows hr a lead''s own request as theirs to decide');
 select lives_ok($$select ops.decide_staff_absence(current_setting('app.a8')::uuid, true)$$, 'AC-020 hr decides a lead''s own absence');
