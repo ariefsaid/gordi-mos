@@ -15,6 +15,11 @@ import './clock-panel.css'
 type Load = 'loading' | 'ready' | 'error'
 
 /** A WIB wall-clock time on a date as an instant. */
+// A clock-out earlier in the day than the clock-in belongs to the next day (overnight shift).
+function afterInstant(out: string, inAt: string): string {
+  return Date.parse(out) > Date.parse(inAt) ? out : new Date(Date.parse(out) + 86_400_000).toISOString()
+}
+
 function wibInstant(date: string, time: string): string {
   return new Date(`${date}T${time}:00+07:00`).toISOString()
 }
@@ -53,7 +58,8 @@ function RecordDetail({ row, onSaved }: { row: TeamAttendanceRow; onSaved: () =>
     if (!clockIn) { setError(t('attendance.today.clockInRequired')); return }
     setError('')
     try {
-      await correctAttendanceRecord(row.person_id, row.start_at, wibInstant(date, clockIn), clockOut ? wibInstant(date, clockOut) : null, reason)
+      const inAt = wibInstant(date, clockIn)
+      await correctAttendanceRecord(row.person_id, row.start_at, inAt, clockOut ? afterInstant(wibInstant(date, clockOut), inAt) : null, reason)
       onSaved()
     } catch { setError(t('attendance.today.saveError')) }
   }

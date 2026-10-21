@@ -168,7 +168,7 @@ begin
         for v_rcpt in select person_id from ops._attendance_alert_recipients(v_org.id, v_row.team_id) loop
           insert into mos.notifications (org_id, owner_id, severity, title, body, metadata)
           values (v_org.id, v_rcpt.person_id, 'warning', v_name || ' has not clocked in / ' || v_name || ' belum mencatat masuk',
-            'No clock-in or absence 30 minutes into the shift. / Belum ada catatan masuk atau ketidakhadiran setelah shift berjalan.',
+            'No clock-in or absence since the shift started. / Belum ada catatan masuk atau ketidakhadiran sejak shift dimulai.',
             jsonb_build_object('source', 'staff_attendance', 'kind', 'missing', 'entity', jsonb_build_object('type', 'staff_attendance', 'id', v_row.person_id, 'route', '/work/shifts')));
         end loop;
       end if;
