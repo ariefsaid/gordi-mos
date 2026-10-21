@@ -2,7 +2,7 @@
 -- bucket, the lead's queue, HR views and the timed cover job. Time rules run on a fixed clock.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(124);
+select plan(129);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select set_config('app.attendance_now', '2026-10-25 21:00:00+00', true); -- Mon 04:00 Jakarta
@@ -401,6 +401,20 @@ select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.
             where n.nspname = 'ops' and p.proname = any(array['report_staff_absence','claim_staff_shift','list_staff_absences','set_noshow_recording_from'])
               and has_function_privilege('anon', p.oid, 'execute')), 0, 'AC-034 anonymous callers reach none of them');
 select is((select count(*)::int from storage.buckets where id = 'staff-notes' and not public), 1, 'AC-013 the note bucket is private');
+
+-- ── NFR-002 doctor's-note retention: 2 years, queued for the Storage API worker, reference cleared at once ──
+reset role;
+update ops.staff_absences set note_added_at = ops._attendance_now() - interval '2 years 1 day' where id = current_setting('app.a1')::uuid;
+insert into ops.staff_absences (org_id, person_id, team_id, site_id, shift_id, local_date, shift_start_at, shift_end_at, kind, status, note_path, note_added_at, recorded_by)
+select org_id, person_id, team_id, site_id, shift_id, local_date + 1, shift_start_at + interval '1 day', shift_end_at + interval '1 day', kind, 'accepted',
+       pg_temp.p('a1') || '/' || id || '/' || pg_temp.p('c003') || '.jpg', ops._attendance_now() - interval '2 years' + interval '1 day', recorded_by
+  from ops.staff_absences where id = current_setting('app.a1')::uuid;
+select is((ops.run_attendance_jobs()->>'notes_queued')::int, 1, 'NFR-002 a note older than 2 years is queued for deletion');
+select is((select count(*)::int from ops.attendance_selfie_purge_queue where bucket = 'staff-notes' and path like '%/' || pg_temp.p('c001') || '.jpg'), 1, 'NFR-002 the queued note names the staff-notes bucket');
+select is((select note_path from ops.staff_absences where id = current_setting('app.a1')::uuid), null, 'NFR-002 the old note reference is cleared at once');
+select is((select count(*)::int from ops.staff_absences where note_path like '%/' || pg_temp.p('c003') || '.jpg')
+        + (select count(*)::int from ops.attendance_selfie_purge_queue where path like '%/' || pg_temp.p('c003') || '.jpg'), 1, 'NFR-002 a note under 2 years keeps its reference and is not queued');
+select is((ops.run_attendance_jobs()->>'notes_queued')::int + (select count(*)::int from ops.attendance_selfie_purge_queue where bucket = 'staff-notes'), 1, 'NFR-002 running the job again queues nothing new');
 
 select * from finish();
 rollback;
