@@ -20,7 +20,7 @@ export function HomeStaffShifts() {
   useEffect(() => { void load() }, [load])
 
   return <section className="home-staff-shifts" aria-labelledby="home-staff-shifts-title">
-    <div className="home-staff-shifts__heading"><h2 id="home-staff-shifts-title">{t('attendance.home.title')}</h2><Link to="/work/shifts">{t('attendance.home.all')}</Link></div>
+    <div className="home-staff-shifts__heading"><h2 id="home-staff-shifts-title">{t('attendance.home.title')}</h2><span><Link to="/work/shifts?view=clock">{t('attendance.home.clock')}</Link> · <Link to="/work/shifts">{t('attendance.home.all')}</Link></span></div>
     {state === 'loading' && <p role="status">{t('attendance.home.loading')}</p>}
     {state === 'error' && <div className="home-staff-shifts__error"><p role="alert">{t('attendance.home.error')}</p><button type="button" onClick={() => void load()}>{t('common.retry')}</button></div>}
     {state === 'ready' && shifts.length === 0 && <p>{t('attendance.home.empty')}</p>}

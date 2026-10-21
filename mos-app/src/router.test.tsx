@@ -436,6 +436,7 @@ describe('router — /admin redirects from inside AdminRoute', () => {
       'admin/access',
       'admin/access/modules',
       'admin/agents',
+      'admin/attendance-settings',
       'admin/modules',
       'admin/people',
       'admin/people/:personId',

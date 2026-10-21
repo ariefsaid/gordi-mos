@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useStaffCoverText } from '@/i18n/staff-cover'
 import { useAuth } from '@/auth/use-auth'
@@ -7,11 +8,13 @@ import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { listLedStaffTeams, type LedStaffTeam } from '@/lib/db/staff-attendance'
+import { ClockPanel } from '@/components/staff-attendance/clock-panel'
+import { AttendanceTodayPanel } from '@/components/staff-attendance/attendance-today-panel'
 import { MyShiftsPanel, StaffRosterPanel, StandingHoursPanel } from '@/components/staff-attendance/staff-shift-panels'
 import './staff-shifts-page.css'
 
 type PageState = 'loading' | 'ready' | 'error'
-type View = 'mine' | 'roster' | 'standing' | 'absence' | 'cover' | 'requests' | 'hr'
+type View = 'mine' | 'clock' | 'today' | 'roster' | 'standing' | 'absence' | 'cover' | 'requests' | 'hr'
 
 export function StaffShiftsPage() {
   const t = useT()
@@ -23,7 +26,8 @@ export function StaffShiftsPage() {
   useDocumentTitle(t('common.docTitle', { page: t('nav.work.shifts') }))
   const [state, setState] = useState<PageState>('loading')
   const [teams, setTeams] = useState<LedStaffTeam[]>([])
-  const [view, setView] = useState<View>('mine')
+  const [params] = useSearchParams()
+  const [view, setView] = useState<View>(params.get('view') === 'clock' ? 'clock' : 'mine')
   const load = useCallback(async () => {
     setState('loading')
     try {
@@ -42,7 +46,9 @@ export function StaffShiftsPage() {
       {state === 'ready' && <>
         <nav className="staff-shifts__tabs" aria-label={t('attendance.nav.aria')}>
           <button type="button" aria-pressed={view === 'mine'} onClick={() => setView('mine')}>{t('attendance.nav.mine')}</button>
+          <button type="button" aria-pressed={view === 'clock'} onClick={() => setView('clock')}>{t('attendance.nav.clock')}</button>
           {teams.length > 0 && <>
+            <button type="button" aria-pressed={view === 'today'} onClick={() => setView('today')}>{t('attendance.nav.today')}</button>
             <button type="button" aria-pressed={view === 'roster'} onClick={() => setView('roster')}>{t('attendance.nav.roster')}</button>
             <button type="button" aria-pressed={view === 'standing'} onClick={() => setView('standing')}>{t('attendance.nav.standing')}</button>
           </>}
@@ -56,6 +62,8 @@ export function StaffShiftsPage() {
         {view === 'requests' && <RequestsPanel />}
         {view === 'hr' && <HrPanel />}
         {view === 'mine' && <MyShiftsPanel />}
+        {view === 'clock' && <ClockPanel />}
+        {view === 'today' && teams.length > 0 && <AttendanceTodayPanel teams={teams} />}
         {view === 'roster' && teams.length > 0 && <StaffRosterPanel teams={teams} />}
         {view === 'standing' && teams.length > 0 && <StandingHoursPanel teams={teams} />}
       </>}

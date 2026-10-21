@@ -149,6 +149,7 @@ export const ADMIN_SECTIONS: Section[] = [
   { path: '/admin/people', label: 'People', labelKey: 'nav.admin.people', Icon: PeopleIcon },
   { path: '/admin/teams', label: 'Teams', labelKey: 'nav.admin.teams', Icon: PeopleIcon },
   { path: '/admin/shift-builder', label: 'Shift builder', labelKey: 'admin.settings.nav.attendance', Icon: TodayIcon },
+  { path: '/admin/attendance-settings', label: 'Attendance settings', labelKey: 'admin.settings.nav.attendanceSettings', Icon: TodayIcon },
   { path: '/admin/access', label: 'Access levels', labelKey: 'nav.admin.roles', Icon: ShieldIcon },
   { path: '/admin/modules', label: 'Modules', labelKey: 'nav.admin.modules', Icon: ItemsIcon },
   { path: '/admin/agents', label: 'Agent apps', labelKey: 'admin.settings.nav.agents', Icon: ShieldIcon },

@@ -40,6 +40,7 @@ export const ROUTE_PATHS = {
   adminPeople: 'admin/people',
   adminTeams: 'admin/teams',
   adminShiftBuilder: 'admin/shift-builder',
+  adminAttendanceSettings: 'admin/attendance-settings',
   adminAccess: 'admin/access',
   adminModules: 'admin/modules',
   adminAgents: 'admin/agents',
@@ -82,6 +83,7 @@ export type RouteParityId =
   | 'adminPeople'
   | 'adminTeams'
   | 'adminShiftBuilder'
+  | 'adminAttendanceSettings'
   | 'adminAccess'
   | 'adminModules'
   | 'adminAgents'
@@ -138,6 +140,7 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'adminPeople', path: absolutePath(ROUTE_PATHS.adminPeople), kind: 'visible-root' },
   { id: 'adminTeams', path: absolutePath(ROUTE_PATHS.adminTeams), kind: 'utility', owner: 'admin-settings' },
   { id: 'adminShiftBuilder', path: absolutePath(ROUTE_PATHS.adminShiftBuilder), kind: 'utility', owner: 'admin-settings' },
+  { id: 'adminAttendanceSettings', path: absolutePath(ROUTE_PATHS.adminAttendanceSettings), kind: 'utility', owner: 'admin-settings' },
   { id: 'adminAccess', path: absolutePath(ROUTE_PATHS.adminAccess), kind: 'utility', owner: 'admin-settings' },
   // Preview ship state: absent from the live table unless the dev launch opted in.
   { id: 'adminModules', path: absolutePath(ROUTE_PATHS.adminModules), kind: 'utility', owner: 'admin-settings' },

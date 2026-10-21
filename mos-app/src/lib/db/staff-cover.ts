@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { ContractError } from './contract'
 import { prepareEvidencePhoto } from './photo-evidence'
+import { jsonRows as rows, rpc } from './staff-attendance'
 
 // Stage 2 of staff attendance: absences, cover, the lead's queue and the HR views. Every rule runs in a
 // checked database action; this module only calls them and names the failure the screen should explain.
@@ -57,26 +58,6 @@ export type MonthlyTotal = {
 const NOTE_BUCKET = 'staff-notes'
 const SIGNED_URL_SECONDS = 60 * 60
 
-function safeError(operation: string, error: { code?: string; message?: string }): ContractError {
-  const token = error.message?.match(/STAFF_[A-Z_]+/)?.[0]
-  const code = error.code === '42501' ? 'FORBIDDEN'
-    : error.code === 'P0002' ? 'NOT_FOUND'
-      : error.code === '23505' || error.code === '23P01' || error.code === 'P0003' ? 'CONFLICT'
-        : error.code === '22023' || error.code === '23514' ? 'INVALID'
-          : 'UNAVAILABLE'
-  return new ContractError(code, token ?? `${operation} failed`)
-}
-
-async function rpc<T>(operation: string, name: string, args?: Record<string, unknown>): Promise<T> {
-  const { data, error } = await supabase.schema('ops').rpc(name, args)
-  if (error) throw safeError(operation, error)
-  return data as T
-}
-
-function rows<T>(value: unknown, operation: string): T[] {
-  if (!Array.isArray(value)) throw new ContractError('UNAVAILABLE', `${operation} returned invalid data`)
-  return value as T[]
-}
 
 export type ReportAbsenceInput = {
   kind: AbsenceKind
