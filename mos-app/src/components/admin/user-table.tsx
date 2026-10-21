@@ -82,6 +82,7 @@ const ROLE_COLOR: Record<string, TagColor> = {
   member: 'gray',
   manager: 'gray',
   supervisor: 'gray',
+  hr: 'gray',
 }
 
 function RoleChips({ roles }: { roles: string[] }) {

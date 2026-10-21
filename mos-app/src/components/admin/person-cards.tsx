@@ -234,7 +234,7 @@ export function PositionCard({ person, roles, headed, refresh }: { person: Admin
 // ── Access level ───────────────────────────────────────────────────────────────
 
 // Never self-assignable (CONTEXT.md, Access role): the database refuses it too.
-const SELF_GUARDED_ROLES = new Set(['admin', 'finance', 'manager', 'supervisor'])
+const SELF_GUARDED_ROLES = new Set(['admin', 'finance', 'manager', 'supervisor', 'hr'])
 
 export function AccessCard({ person, people, refresh }: { person: AdminPersonRow; people: readonly AdminPersonRow[]; refresh: () => Promise<void> }) {
   const t = useT()
