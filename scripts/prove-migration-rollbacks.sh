@@ -97,10 +97,23 @@ if ((${#migrations[@]} == 0)); then
   exit 0
 fi
 
+# psql reads stdin inside the container, so `\ir` files are inlined here, relative to the including file.
+expand_includes() {
+  local dir line
+  dir="$(dirname "$1")"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" =~ ^\\ir[[:space:]]+([^[:space:]]+) ]]; then
+      expand_includes "$dir/${BASH_REMATCH[1]}"
+    else
+      printf '%s\n' "$line"
+    fi
+  done < "$1"
+}
+
 run_sql() {
   local action="$1" path="$2"
   echo "${action}: $path"
-  if ! docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -X -v ON_ERROR_STOP=1 -f - < "$path"; then
+  if ! expand_includes "$path" | docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -X -v ON_ERROR_STOP=1 -f -; then
     if [[ "$action" == rollback ]]; then
       echo "MIGRATION ROLLBACK PROOF FAIL: rollback proof failed for $path" >&2
     else
