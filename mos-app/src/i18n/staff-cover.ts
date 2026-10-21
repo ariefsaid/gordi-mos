@@ -242,7 +242,7 @@ export const staffCoverMessages = {
 export type StaffCoverKey = keyof typeof staffCoverMessages.en
 export type StaffCoverText = (key: StaffCoverKey, vars?: Record<string, string | number>) => string
 
-export function staffCoverText(locale: Locale, key: StaffCoverKey, vars: Record<string, string | number> = {}): string {
+function staffCoverText(locale: Locale, key: StaffCoverKey, vars: Record<string, string | number> = {}): string {
   return staffCoverMessages[locale][key].replace(/\$\{(\w+)\}/g, (_, name: string) => String(vars[name] ?? ''))
 }
 
