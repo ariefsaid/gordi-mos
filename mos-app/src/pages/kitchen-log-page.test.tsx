@@ -14,6 +14,7 @@ import { Profiler, StrictMode, Suspense, type ReactNode } from 'react'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import * as dateFormat from '@/lib/format/date'
 import { MemoryRouter, Route, Routes, createMemoryRouter, RouterProvider, Link } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import * as kitchenItemList from '@/lib/kitchen-item-list'
@@ -22,7 +23,7 @@ vi.mock('@/auth/use-auth')
 const locationMocks = vi.hoisted(() => ({ choices: vi.fn() }))
 vi.mock('@/lib/use-cafe-location-choices', async importActual => {
   const actual = await importActual<typeof import('@/lib/use-cafe-location-choices')>()
-  return { ...actual, useCafeLocationChoices: locationMocks.choices }
+  return { ...actual, useCafeLocationChoices: locationMocks.choices, readCafeLocationChoices: async () => locationMocks.choices() }
 })
 import { useAuth } from '@/auth/use-auth'
 
@@ -318,7 +319,7 @@ async function renderTransferPage(
 
 import { KitchenLogPage } from './kitchen-log-page'
 import { rememberStream } from '@/lib/cafe-stream'
-import { activeCafeLocation, rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
+import { activeCafeLocation, rememberCafeLocation, rememberCafeOpeningTeam } from '@/lib/cafe-opening-location'
 import { cafeCaptureDraftStorageKey, writeCafeCaptureDraft } from '@/lib/cafe-capture-storage'
 
 beforeEach(() => {
@@ -327,7 +328,8 @@ beforeEach(() => {
   // #440: the Café stream is remembered for the whole module (sessionStorage), so a test that
   // switches streams would otherwise seed the NEXT test's opening stream. Clear it per test.
   rememberStream(null)
-  resetCafeLocations()
+  rememberCafeLocation('40000000-0000-0000-0000-000000000001', null)
+  rememberCafeOpeningTeam('40000000-0000-0000-0000-000000000001', null)
   locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], defaults: null, retry: vi.fn() })
   mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS)
   mockListActiveBranches.mockResolvedValue(BRANCHES)
@@ -1228,6 +1230,53 @@ describe('AC-022: transfer over-availability rejects submit — "Only N availabl
   })
 })
 
+describe('outlet sends', () => {
+  it.each(['en', 'id'] as const)('captures a same-stream outlet send in %s', async locale => {
+    locationMocks.choices.mockImplementation((selected?: ProductionStream | null) => selected === null
+      ? { status: 'idle', locations: [], defaults: null, retry: vi.fn() }
+      : { status: 'ready', locations: [
+      { id: 'kitchen', name: 'Kitchen', use: 'both', archived_at: null, branch_ids: [BRANCH_RUMAH_RAMES.id] },
+      { id: 'outlet', name: 'Outlet', use: 'storage', archived_at: null, branch_ids: [BRANCH_RUMAH_RAMES.id] },
+    ], defaults: { production_location_id: 'kitchen', storage_location_id: 'kitchen' }, retry: vi.fn() })
+    mockInsertKitchenLogBatch.mockResolvedValue(['outlet-log'])
+    mockFetchPlanMap.mockResolvedValue({ w1: { outlet_send: 4 } })
+    await renderTransferPage(VIEWER_MEMBER, undefined, locale)
+    const label = locale === 'id' ? 'Kirim ke outlet Rumah Rames' : 'Send to Rumah Rames outlet'
+    fireEvent.click(await movementTabAsync(new RegExp(`^${label}`)))
+    expect(screen.getByRole('combobox', { name: locale === 'id' ? 'Ke penyimpanan' : 'To storage' })).toHaveTextContent('Outlet')
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Ayam Bakar/i }), { target: { value: '4' } })
+    fireEvent.click(screen.getAllByRole('button', { name: locale === 'id' ? /^kirim/i : /^submit/i }).find(button => !button.hasAttribute('aria-pressed'))!)
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledWith([
+      expect.objectContaining({ action: 'outlet_send', destination_branch_id: null, from_storage_location_id: 'kitchen', to_storage_location_id: 'outlet', qty_porsi: 4 }),
+    ]))
+  })
+
+  it.each(['en', 'id'] as const)('other kitchens without an outlet place do not offer a send in %s', async locale => {
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_GORDI_HQ, activity: 'kitchen', produces: true })
+    mockListCafeDestinations.mockResolvedValue([...CAFE_DESTINATIONS, { origin_branch_id: BRANCH_GORDI_HQ.id, origin_activity: 'kitchen', destination_branch_id: BRANCH_RADIANT.id }])
+    await renderTransferPage(VIEWER_MEMBER, undefined, locale)
+    await screen.findAllByText('Ayam Bakar')
+    expect(screen.queryByText(locale === 'id' ? 'Kirim ke outlet Gordi HQ' : 'Send to Gordi HQ outlet')).not.toBeInTheDocument()
+  })
+})
+
+describe('Issue 1551: shared Jakarta date on kitchen capture', () => {
+  it.each([
+    ['en', 'Tue 6 Oct'],
+    ['id', 'Sel, 6 Okt'],
+  ] as const)('uses the shared Jakarta date on the capture page (%s)', async (locale, label) => {
+    const today = vi.spyOn(dateFormat, 'wibToday').mockReturnValue('2026-10-06')
+    try {
+      await renderPage(VIEWER_MEMBER, appUrl('/cafe'), undefined, undefined, locale)
+      const date = await screen.findByText(label)
+      expect(date).toHaveAttribute('dateTime', '2026-10-06')
+      expect(today).toHaveBeenCalled()
+    } finally {
+      today.mockRestore()
+    }
+  })
+})
+
 // ── AC-030: successful submit ──────────────────────────────────────────────────
 describe('AC-030: successful submit (increment semantics)', () => {
   it.each(['1,5', '1.5'])('production accepts %s and saves 1.5', async raw => {
@@ -1737,7 +1786,7 @@ describe('Submit error state', () => {
 
 describe('capture retry identity and saved drafts', () => {
   it('does not restore yesterday’s staged quantities into today’s capture form', async () => {
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    const today = dateFormat.wibToday()
     const yesterdayDate = new Date(`${today}T00:00:00.000Z`)
     yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1)
     const yesterday = yesterdayDate.toISOString().slice(0, 10)
@@ -1814,7 +1863,7 @@ describe('capture retry identity and saved drafts', () => {
 
   it('restores a matching saved draft after an explicit stream choice when no default stream is available', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    const today = dateFormat.wibToday()
     writeCafeCaptureDraft({
       orgId: '10000000-0000-0000-0000-000000000001',
       personId: '40000000-0000-0000-0000-000000000001',
@@ -1901,7 +1950,7 @@ describe('capture retry identity and saved drafts', () => {
       }] },
     })
     mockInsertKitchenLogBatch.mockResolvedValue([requestId])
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    const today = dateFormat.wibToday()
     writeCafeCaptureDraft({
       orgId: '10000000-0000-0000-0000-000000000001',
       personId: '40000000-0000-0000-0000-000000000001',
@@ -2214,6 +2263,29 @@ describe('R4 / FR-018: Log summary line', () => {
     const card = await screen.findByRole('row', { name: /ayam bakar/i })
     expect(card).toHaveTextContent(/Available\s*3/)
     expect(card).not.toHaveTextContent('Stock')
+  })
+
+  it.each([
+    ['en', /Stock\s*—/i],
+    ['id', /Stok\s*—/i],
+  ] as const)('shows unknown stock as absent when the record is missing (%s)', async (locale, expected) => {
+    mockFetchStockMap.mockResolvedValue({ w1: { stok: null, tersedia: 9 }, w2: { stok: 0, tersedia: 0 } })
+    await renderPage(VIEWER_MEMBER, appUrl('/cafe'), undefined, undefined, locale)
+    const row = await screen.findByRole('row', { name: /ayam bakar/i })
+    expect(row).toHaveTextContent(expected)
+  })
+
+  it.each([
+    ['en', /Available\s*9/i, /Stock\s*—/i],
+    ['id', /Tersedia\s*9/i, /Stok\s*—/i],
+  ] as const)('keeps derived transfer availability visible when the saved stock is unknown (%s)', async (locale, available, stock) => {
+    mockFetchStockMap.mockResolvedValue({ w1: { stok: null, tersedia: 9 }, w2: { stok: 0, tersedia: 0 } })
+    await renderTransferPage(VIEWER_MEMBER, undefined, locale)
+    await screen.findAllByText('Ayam Bakar')
+    await userEvent.setup().click(movementTab(/radiant/i))
+    const row = screen.getByRole('row', { name: /ayam bakar/i })
+    expect(row).toHaveTextContent(available)
+    expect(row).toHaveTextContent(stock)
   })
 
   it('directs a row without a capture unit to Café item settings', async () => {
@@ -3090,6 +3162,15 @@ describe('AC-006 / FR-014/015: unitless plan fact + effective target + already-l
     mockFetchPlanMap.mockResolvedValue(AC6_PLAN)
     mockFetchStockMap.mockResolvedValue(AC6_STOCK)
     mockFetchActualsMap.mockResolvedValue(AC6_ACTUALS)
+  })
+
+  it('formats logged actual quantities with Indonesian decimal marks', async () => {
+    mockFetchActualsMap.mockResolvedValue({
+      w1: { [PRODUCE_KEY]: [loggedUnit('u1-porsi', 1.25, 'porsi')] },
+    })
+    await renderPage(VIEWER_MEMBER, appUrl('/cafe'), undefined, undefined, 'id')
+    await screen.findAllByText('Ayam Bakar')
+    expect(screen.getByRole('row', { name: /ayam bakar/i })).toHaveTextContent(/Tercatat hari ini\s*1,25 porsi/)
   })
 
   it('AC-006: a logged row keeps the plan unitless, shows actual history, and keeps the gate', async () => {

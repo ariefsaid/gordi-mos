@@ -43,6 +43,7 @@ vi.mock('@/lib/db/cafe-receipts', async importOriginal => {
     newCafeReceiptClientKey: () => `receipt-key-${++keyMocks.key}`,
     listCafeReceivableItems: vi.fn(),
     listCafeReceipts: vi.fn(),
+    listCafeReceiptStatuses: vi.fn().mockResolvedValue([]),
     submitCafeReceipt: vi.fn(),
     saveCafeReceiptLineExplanation: vi.fn(),
     sendCafeReceiptForReview: vi.fn(),
@@ -69,6 +70,7 @@ import { messages } from '@/i18n/messages'
 import {
   listCafeReceiptDifferences,
   listCafeReceipts,
+  listCafeReceiptStatuses,
   listCafeReceivableItems,
   saveCafeReceiptLineExplanation,
   sendCafeReceiptForReview,
@@ -222,6 +224,7 @@ beforeEach(() => {
   locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], defaults: null, retry: vi.fn() })
   poMocks.list.mockReset().mockResolvedValue(EMPTY_PO_CACHE as never)
   vi.mocked(listCafeReceipts).mockResolvedValue([])
+  vi.mocked(listCafeReceiptStatuses).mockResolvedValue([])
   vi.mocked(canManageCafeReceiptIssues).mockResolvedValue(false)
   vi.mocked(countCafeReceiptIssuesNeedingPo).mockResolvedValue(0)
   itemSettingsMocks.list.mockResolvedValue([{
@@ -510,7 +513,7 @@ describe('CafeReceivePage', () => {
 
     const bean = screen.getByRole('row', { name: /Coffee bean/ })
     expect(within(bean).getByText('PO lists: bag 1 kg')).toBeInTheDocument()
-    expect(within(bean).getByLabelText('kg')).toBeInTheDocument()
+    expect(within(bean).getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveAccessibleDescription(/kg/)
     expect(within(screen.getByRole('row', { name: /Fresh milk/ })).queryByText(/PO lists:/)).toBeNull()
   })
 
@@ -601,7 +604,7 @@ describe('CafeReceivePage', () => {
     fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
     const bean = screen.getByRole('textbox', { name: 'Received for Coffee bean' })
     const beanRow = bean.closest('[role="row"]') as HTMLElement
-    expect(within(beanRow).getByLabelText('kg')).toBeInTheDocument()
+    expect(bean).toHaveAccessibleDescription(/kg/)
     expect(beanRow).toHaveTextContent('PO lists: bag')
     expect(screen.queryByRole('button', { name: 'Discard draft' })).toBeNull()
     expect(Object.keys(localStorage).filter(key => key.includes('receive'))).toEqual([])
@@ -612,6 +615,7 @@ describe('CafeReceivePage', () => {
     renderPage()
     const bean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
     fireEvent.change(bean, { target: { value: '2,5' } })
+    fireEvent.blur(bean)
     fireEvent.click(screen.getByRole('checkbox', { name: 'Damaged or wrong for Coffee bean' }))
 
     fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock quantities' }))
@@ -657,7 +661,9 @@ describe('CafeReceivePage', () => {
   it('AC-1011 Send refuses a damaged line until its named reason and private photo are present', async () => {
     mockSubmit.mockResolvedValue(submitResult('receipt-1', [receiptLine({ conditions: ['damaged_wrong'] })]))
     renderPage()
-    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
+    const quantity = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
+    fireEvent.change(quantity, { target: { value: '2.5' } })
+    fireEvent.blur(quantity)
     fireEvent.click(screen.getByRole('checkbox', { name: 'Damaged or wrong for Coffee bean' }))
     fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock quantities' }))
 
@@ -1221,7 +1227,7 @@ describe('issue 1425 condition evidence', () => {
     expect(mockSaveExplanation).not.toHaveBeenCalled()
   })
 
-  it('FR-1010 a reason saved on the server after the device draft started wins on reopen', async () => {
+  it.each(['en', 'id'] as const)('FR-1010 a newer server reason replaces the draft with a line notice (%s)', async locale => {
     vi.mocked(listCafeReceipts).mockResolvedValue([countedReceipt([receiptLine({ conditions: ['damaged_wrong'], condition_updated_at: '2026-10-06T02:00:00Z' })])])
     const first = renderPage()
     await continueListed()
@@ -1231,10 +1237,13 @@ describe('issue 1425 condition evidence', () => {
     vi.mocked(listCafeReceipts).mockResolvedValue([countedReceipt([receiptLine({
       conditions: ['damaged_wrong'], condition_reason: 'Saved on the tablet', condition_updated_at: '2026-10-06T02:05:00Z',
     })])])
-    renderPage()
-    await continueListed()
+    renderPage(locale)
+    fireEvent.click(await screen.findByRole('button', { name: messages[locale]['cafe.receive.continue'] }))
+    const list = await screen.findByRole('list', { name: messages[locale]['cafe.receive.counted.linesAria'] })
+    fireEvent.click(within(list).getByRole('button', { name: /^Coffee bean/ }))
 
-    expect(screen.getByRole('textbox', { name: 'Reason for Coffee bean' })).toHaveValue('Saved on the tablet')
+    expect(screen.getByRole('textbox', { name: messages[locale]['cafe.receive.reasonLabel'].replace('${item}', 'Coffee bean') })).toHaveValue('Saved on the tablet')
+    expect(within(await lineRegion('Coffee bean')).getByText(messages[locale]['cafe.receive.draftReplaced'])).toHaveAttribute('role', 'status')
   })
 
   it('FR-1010 a draft for a receipt that was sent elsewhere is removed from the device', async () => {
@@ -1245,10 +1254,10 @@ describe('issue 1425 condition evidence', () => {
     first.unmount()
     expect(Object.keys(localStorage).filter(key => key.startsWith('mos.cafe.receiptExplanations.'))).toHaveLength(1)
 
-    vi.mocked(listCafeReceipts).mockResolvedValue([countedReceipt([receiptLine({ conditions: ['damaged_wrong'] })], { status: 'Submitted' })])
+    vi.mocked(listCafeReceipts).mockResolvedValue([])
+    vi.mocked(listCafeReceiptStatuses).mockResolvedValue([{ id: 'receipt-1', status: 'Submitted' }])
     renderPage()
-    await screen.findByRole('heading', { name: 'Your recent receipts' })
-
+    await waitFor(() => expect(listCafeReceiptStatuses).toHaveBeenLastCalledWith(['receipt-1']))
     await waitFor(() => expect(Object.keys(localStorage).filter(key => key.startsWith('mos.cafe.receiptExplanations.'))).toEqual([]))
   })
 
@@ -1314,15 +1323,17 @@ describe('issue 1425 condition evidence', () => {
     expect(await screen.findByRole('heading', { name: 'Quantities locked' })).toBeInTheDocument()
   })
 
-  it('DESIGN compact capture row: the damage flag appears only once its row has a quantity', async () => {
-    renderPage()
-    const bean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
+  it.each(['en', 'id'] as const)('keeps the damage flag out of the typing interaction until blur (%s)', async locale => {
+    renderPage(locale)
+    const bean = await screen.findByRole('textbox', { name: messages[locale]['cafe.receive.quantityFor'].replace('${item}', 'Coffee bean') })
     expect(screen.queryByRole('checkbox', { name: /^Damaged or wrong for/ })).toBeNull()
 
     fireEvent.change(bean, { target: { value: '2' } })
 
-    expect(screen.getByRole('checkbox', { name: 'Damaged or wrong for Coffee bean' })).toBeInTheDocument()
-    expect(screen.queryByRole('checkbox', { name: 'Damaged or wrong for Fresh milk' })).toBeNull()
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    fireEvent.blur(bean)
+    expect(screen.getByRole('checkbox', { name: messages[locale]['cafe.receive.damageFlagFor'].replace('${item}', 'Coffee bean') })).toBeInTheDocument()
+    expect(screen.getAllByRole('checkbox')).toHaveLength(1)
   })
 
   it('the counted step explains flagging once, not under every line', async () => {

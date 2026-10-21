@@ -9,7 +9,7 @@ import type { PeopleRow } from '@/lib/database.types'
 import type { PersonOption } from '@/lib/db/directory'
 import type { DueProcessRun, PendingTaskRow, ProcessOccurrenceSummary } from '@/lib/db/processes.types'
 import {
-  cancelRun, canCloseProcessRun, canStartProcessForTeam, completeRun, listPendingTasks,
+  cancelRun, completeRun, listPendingTasks, listProcessOccurrenceAuthorities,
   listProcessOccurrenceSummaries, listStartableProcessRuns, startRun,
 } from '@/lib/db/processes'
 import { getPeople } from '@/lib/db/directory'
@@ -19,10 +19,9 @@ import { ProcessOccurrenceControls } from './process-occurrence-controls'
 vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
 vi.mock('@/lib/db/processes', () => ({
   cancelRun: vi.fn(),
-  canCloseProcessRun: vi.fn(),
-  canStartProcessForTeam: vi.fn(),
   completeRun: vi.fn(),
   listPendingTasks: vi.fn(),
+  listProcessOccurrenceAuthorities: vi.fn(),
   listProcessOccurrenceSummaries: vi.fn(),
   listStartableProcessRuns: vi.fn(),
   startRun: vi.fn(),
@@ -32,10 +31,9 @@ vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn() }))
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockCancelRun = vi.mocked(cancelRun)
-const mockCanCloseProcessRun = vi.mocked(canCloseProcessRun)
-const mockCanStartProcessForTeam = vi.mocked(canStartProcessForTeam)
 const mockCompleteRun = vi.mocked(completeRun)
 const mockListPendingTasks = vi.mocked(listPendingTasks)
+const mockAuthorities = vi.mocked(listProcessOccurrenceAuthorities)
 const mockListOccurrences = vi.mocked(listProcessOccurrenceSummaries)
 const mockListStartable = vi.mocked(listStartableProcessRuns)
 const mockStartRun = vi.mocked(startRun)
@@ -88,18 +86,27 @@ function auth(viewerId = VIEWER_ID, accessRoles = ['member']): AuthState {
   }
 }
 
-function controlsTree(workLineId = WORK_LINE_ID, setupIncomplete = false, canManageSetup = false) {
+function controlsTree(workLineId = WORK_LINE_ID, setupIncomplete = false, canManageSetup = false, locale: 'en' | 'id' = 'en') {
   return (
     <MemoryRouter>
-      <I18nProvider>
+      <I18nProvider initialLocale={locale}>
         <ProcessOccurrenceControls workLineId={workLineId} setupIncomplete={setupIncomplete} canManageSetup={canManageSetup} onViewTasks={vi.fn()} />
       </I18nProvider>
     </MemoryRouter>
   )
 }
 
-function renderControls(workLineId = WORK_LINE_ID, setupIncomplete = false, canManageSetup = false) {
-  return render(controlsTree(workLineId, setupIncomplete, canManageSetup))
+function renderControls(workLineId = WORK_LINE_ID, setupIncomplete = false, canManageSetup = false, locale: 'en' | 'id' = 'en') {
+  return render(controlsTree(workLineId, setupIncomplete, canManageSetup, locale))
+}
+
+function occurrencePage(rows: ProcessOccurrenceSummary[], hasMore = false) {
+  const last = rows.at(-1)
+  return {
+    rows,
+    nextCursor: hasMore && last ? { scheduled_date: last.run.scheduled_date, id: last.run.id } : null,
+    hasMore,
+  }
 }
 
 function deferred<T>() {
@@ -115,10 +122,12 @@ function deferred<T>() {
 beforeEach(() => {
   vi.clearAllMocks()
   mockUseAuth.mockReturnValue(auth())
-  mockListOccurrences.mockResolvedValue([RUN])
+  mockListOccurrences.mockResolvedValue(occurrencePage([RUN]))
   mockListStartable.mockResolvedValue([DUE])
-  mockCanStartProcessForTeam.mockResolvedValue(true)
-  mockCanCloseProcessRun.mockResolvedValue(true)
+  mockAuthorities.mockImplementation(async (teamIds, runIds) => [
+    ...teamIds.map((target_id) => ({ authority_kind: 'start' as const, target_id, allowed: true })),
+    ...runIds.map((target_id) => ({ authority_kind: 'close' as const, target_id, allowed: true })),
+  ])
   mockListPendingTasks.mockResolvedValue([])
   mockGetPeople.mockResolvedValue(PEOPLE)
   mockViewerTeams.mockResolvedValue([])
@@ -129,7 +138,7 @@ beforeEach(() => {
 
 describe('ProcessOccurrenceControls', () => {
   it('explains how to recover when no active steps are configured', async () => {
-    mockListOccurrences.mockResolvedValue([])
+    mockListOccurrences.mockResolvedValue(occurrencePage([]))
     mockListStartable.mockResolvedValue([])
     renderControls(WORK_LINE_ID, true)
 
@@ -138,7 +147,7 @@ describe('ProcessOccurrenceControls', () => {
   })
 
   it('leaves setup guidance to the record Get started region for a manager', async () => {
-    mockListOccurrences.mockResolvedValue([])
+    mockListOccurrences.mockResolvedValue(occurrencePage([]))
     mockListStartable.mockResolvedValue([])
     renderControls(WORK_LINE_ID, true, true)
 
@@ -164,8 +173,25 @@ describe('ProcessOccurrenceControls', () => {
     expect(mockStartRun).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { locale: 'en' as const, label: 'Load more items', pastLabel: 'Past occurrences' },
+    { locale: 'id' as const, label: 'Muat item lainnya', pastLabel: 'Kejadian sebelumnya' },
+  ])('lets users load the next occurrence history page in $locale', async ({ locale, label, pastLabel }) => {
+    const older = { ...RUN, run: { ...RUN.run, status: 'completed' as const, scheduled_date: '2026-07-16' }, rollup: { ...RUN.rollup, status: 'completed' as const } }
+    mockListOccurrences
+      .mockResolvedValueOnce(occurrencePage([RUN], true))
+      .mockResolvedValueOnce(occurrencePage([older]))
+    renderControls(WORK_LINE_ID, false, false, locale)
+
+    await screen.findByRole('heading', { level: 4, name: '17 Jul 2026' })
+    await userEvent.click(screen.getByRole('button', { name: label }))
+    await userEvent.click(await screen.findByRole('button', { name: new RegExp(pastLabel) }))
+    expect(await screen.findByRole('heading', { level: 4, name: '16 Jul 2026' })).toBeInTheDocument()
+    expect(mockListOccurrences).toHaveBeenLastCalledWith(WORK_LINE_ID, { scheduled_date: RUN.run.scheduled_date, id: RUN.run.id })
+  })
+
   it('keeps the Process title out of occurrence rows and leaves Start to the record header', async () => {
-    mockListOccurrences.mockResolvedValue([RUN])
+    mockListOccurrences.mockResolvedValue(occurrencePage([RUN]))
     renderControls()
 
     expect(await screen.findByRole('heading', { level: 4, name: '17 Jul 2026' })).toBeInTheDocument()
@@ -181,7 +207,7 @@ describe('ProcessOccurrenceControls', () => {
       run: { ...RUN.run, status: 'cancelled' as const, cancelled_at: '2026-07-17T10:00:00Z', cancelled_by: VIEWER_ID, cancel_reason: 'Merged into the event.' },
       rollup: { ...RUN.rollup, status: 'cancelled' as const },
     }
-    mockListOccurrences.mockResolvedValue([cancelled])
+    mockListOccurrences.mockResolvedValue(occurrencePage([cancelled]))
     renderControls()
 
     await screen.findByRole('heading', { name: 'Ready to start' })
@@ -242,11 +268,11 @@ describe('ProcessOccurrenceControls', () => {
   })
 
   it('does not offer pending assignment after an occurrence is terminal', async () => {
-    mockListOccurrences.mockResolvedValue([{
+    mockListOccurrences.mockResolvedValue(occurrencePage([{
       ...RUN,
       run: { ...RUN.run, status: 'completed', completed_at: '2026-07-17T10:00:00Z', completed_by: VIEWER_ID },
       rollup: { ...RUN.rollup, status: 'completed', pending_unresolved: 1 },
-    }])
+    }]))
     renderControls()
 
     const past = await screen.findByRole('button', { name: /Past occurrences/ })
@@ -258,10 +284,10 @@ describe('ProcessOccurrenceControls', () => {
   })
 
   it('uses singular task wording for a one-task occurrence', async () => {
-    mockListOccurrences.mockResolvedValue([{
+    mockListOccurrences.mockResolvedValue(occurrencePage([{
       ...RUN,
       rollup: { ...RUN.rollup, total: 1, open: 1, done: 0, completion_pct: 0 },
-    }])
+    }]))
     renderControls()
 
     expect(await screen.findByText('1 task')).toBeInTheDocument()
@@ -287,54 +313,59 @@ describe('ProcessOccurrenceControls', () => {
     expect(complete).not.toHaveClass('btn-outline')
   })
 
-  it('uses the runtime close authority for an open occurrence', async () => {
+  it('shows occurrence actions only when the batched close authority allows them', async () => {
     const starterView = renderControls()
     expect(await screen.findByRole('button', { name: 'Complete occurrence' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cancel occurrence' })).toBeInTheDocument()
     starterView.unmount()
 
-    mockCanCloseProcessRun.mockResolvedValue(false)
+    mockAuthorities.mockResolvedValueOnce([
+      { authority_kind: 'start', target_id: TEAM_ID, allowed: true },
+      { authority_kind: 'close', target_id: RUN_ID, allowed: false },
+    ])
     mockUseAuth.mockReturnValue(auth('another-person', ['member']))
     const memberView = renderControls()
     expect(await screen.findByRole('heading', { level: 4, name: '17 Jul 2026' })).toBeInTheDocument()
     expect(screen.queryAllByRole('button', { name: 'Complete occurrence' })).toHaveLength(0)
     memberView.unmount()
 
-    mockCanCloseProcessRun.mockResolvedValue(true)
+    mockAuthorities.mockResolvedValueOnce([
+      { authority_kind: 'start', target_id: TEAM_ID, allowed: true },
+      { authority_kind: 'close', target_id: RUN_ID, allowed: true },
+    ])
     mockUseAuth.mockReturnValue(auth('another-person', ['ops_lead']))
     renderControls()
     expect(await screen.findByRole('button', { name: 'Complete occurrence' })).toBeInTheDocument()
   })
 
-  it('keeps successful per-occurrence authority answers when another check fails and retries the failed enrichment', async () => {
+  it.each([
+    { locale: 'en' as const, error: "Couldn't check occurrence permissions", retry: 'Try again', complete: 'Complete occurrence' },
+    { locale: 'id' as const, error: 'Izin kejadian tidak dapat diperiksa', retry: 'Coba lagi', complete: 'Selesaikan kejadian' },
+  ])('fails closed and retries a failed batch authority check in $locale', async ({ locale, error, retry, complete }) => {
     const runB: ProcessOccurrenceSummary = {
       ...RUN,
       run: { ...RUN.run, id: 'run-2', owning_team_id: 'team-2', caption: 'Café Closing · 18 Jul 2026' },
       team_name: 'Café Closing',
       rollup: { ...RUN.rollup, process_run_id: 'run-2', caption: 'Café Closing · 18 Jul 2026', pending_unresolved: 0 },
     }
-    mockListOccurrences.mockResolvedValue([RUN, runB])
+    mockListOccurrences.mockResolvedValue(occurrencePage([RUN, runB]))
     mockListStartable.mockResolvedValue([])
-    mockCanStartProcessForTeam.mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('temporary'))
-    mockCanCloseProcessRun.mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('temporary'))
-    renderControls()
+    mockAuthorities.mockRejectedValueOnce(new Error('temporary'))
+    renderControls(WORK_LINE_ID, false, false, locale)
 
-    expect(await screen.findByRole('button', { name: 'Complete occurrence' })).toBeInTheDocument()
-    expect(screen.getByText('Café Closing · Open')).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't check occurrence permissions")
-    expect(screen.getAllByRole('button', { name: 'Complete occurrence' })).toHaveLength(1)
+    expect(await screen.findByRole('alert')).toHaveTextContent(error)
+    expect(screen.getAllByRole('heading', { level: 4, name: '17 Jul 2026' })).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: complete })).not.toBeInTheDocument()
 
-    mockCanStartProcessForTeam.mockResolvedValue(true)
-    mockCanCloseProcessRun.mockResolvedValue(true)
-    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await userEvent.click(screen.getByRole('button', { name: retry }))
 
-    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Complete occurrence' })).toHaveLength(2))
+    await waitFor(() => expect(screen.getAllByRole('button', { name: complete })).toHaveLength(2))
   })
 
   it('fails closed when an open occurrence has no starter and the viewer is unauthenticated', async () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated' })
-    mockCanCloseProcessRun.mockResolvedValue(false)
-    mockListOccurrences.mockResolvedValue([{ ...RUN, run: { ...RUN.run, started_by: null } }])
+    mockAuthorities.mockResolvedValue([])
+    mockListOccurrences.mockResolvedValue(occurrencePage([{ ...RUN, run: { ...RUN.run, started_by: null } }]))
     renderControls()
 
     expect(await screen.findByRole('heading', { level: 4, name: '17 Jul 2026' })).toBeInTheDocument()
@@ -343,8 +374,8 @@ describe('ProcessOccurrenceControls', () => {
   })
 
   it('ignores an older occurrence load after the work line changes', async () => {
-    const oldLoad = deferred<ProcessOccurrenceSummary[]>()
-    const newLoad = deferred<ProcessOccurrenceSummary[]>()
+    const oldLoad = deferred<ReturnType<typeof occurrencePage>>()
+    const newLoad = deferred<ReturnType<typeof occurrencePage>>()
     const oldRun = { ...RUN, team_name: 'Line A occurrence', run: { ...RUN.run, work_line_id: 'work-line-a' } }
     const newRun = { ...RUN, team_name: 'Line B occurrence', run: { ...RUN.run, work_line_id: 'work-line-b' } }
     mockListOccurrences.mockImplementation((workLineId) => workLineId === 'work-line-a' ? oldLoad.promise : newLoad.promise)
@@ -352,10 +383,10 @@ describe('ProcessOccurrenceControls', () => {
     const view = renderControls('work-line-a')
     view.rerender(controlsTree('work-line-b'))
 
-    await act(async () => { newLoad.resolve([newRun]); await newLoad.promise })
+    await act(async () => { newLoad.resolve(occurrencePage([newRun])); await newLoad.promise })
     expect(await screen.findByText('Line B occurrence · Open')).toBeInTheDocument()
 
-    await act(async () => { oldLoad.resolve([oldRun]); await oldLoad.promise })
+    await act(async () => { oldLoad.resolve(occurrencePage([oldRun])); await oldLoad.promise })
     await waitFor(() => expect(screen.queryByText('Line A occurrence · Open')).not.toBeInTheDocument())
     expect(screen.getByText('Line B occurrence · Open')).toBeInTheDocument()
   })
@@ -376,7 +407,7 @@ describe('ProcessOccurrenceControls', () => {
       id: 'pending-b', process_run_id: 'run-2', task_def_id: 'def-b',
       candidate_person_ids: ['person-2'], reason: 'multiple', resolved_at: null, title: 'B step',
     }
-    mockListOccurrences.mockResolvedValue([RUN, runB])
+    mockListOccurrences.mockResolvedValue(occurrencePage([RUN, runB]))
     mockListStartable.mockResolvedValue([])
     mockListPendingTasks.mockImplementation((runId) => runId === RUN_ID ? firstPending.promise : secondPending.promise)
     renderControls()

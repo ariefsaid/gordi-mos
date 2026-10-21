@@ -8,6 +8,7 @@ import type { Question } from '@/lib/cafe-records/url-state'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 
 export const MOVEMENT_LABEL: Record<Movement, MessageKey> = {
+  sent: 'records.movement.sent',
   made: 'records.movement.made',
   transferred: 'records.movement.transferred',
   wasted: 'records.movement.wasted',
@@ -17,6 +18,7 @@ export const MOVEMENT_LABEL: Record<Movement, MessageKey> = {
 }
 
 export const QUESTION_LABEL: Record<Question, MessageKey> = {
+  sent: 'records.question.sent',
   made: 'records.question.made',
   transferred: 'records.question.transferred',
   wasted: 'records.question.wasted',
@@ -35,7 +37,7 @@ export const SOURCE_LABEL = {
 } as const satisfies Record<string, MessageKey>
 
 export const QUESTION_SOURCE: Record<Exclude<Question, 'everything'>, keyof typeof SOURCE_LABEL> = {
-  made: 'logs', transferred: 'logs', wasted: 'logs', received: 'receipts', requested: 'requests', counted: 'counts',
+  sent: 'logs', made: 'logs', transferred: 'logs', wasted: 'logs', received: 'receipts', requested: 'requests', counted: 'counts',
 }
 
 /** The status word for a source: Count's pending state is "Pending confirmation", the rest "Pending approval". */
@@ -73,6 +75,7 @@ export function postingBadge(t: Translate, entry: RecordEntry): { status: Status
       default: return null
     }
   }
+  if (raw.source === 'log' && raw.log.action === 'outlet_send') return { status: 'done', label: t('records.posting.noPosting') }
   if (raw.source === 'log' && raw.log.posted_to_esb) return { status: 'posted', label: t('records.posting.sent') }
   return null
 }

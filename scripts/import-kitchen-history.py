@@ -16,10 +16,10 @@ Resolution rules (the ruling's "keyed by ERP identifier, never by name"):
     ambiguous rows are REPORTED, never guessed;
   * branches resolve in SQL by shared.branches.code (rumah_rames / radiant / cikal); the
     incumbent's labels map structurally (DD-WAY-13: labels are presentation):
-    Production → produce; "Transfer to Bungur"/"Transfer to RRS" → transfer to
-    rumah_rames (the no-op); "Transfer to Radiant"/"Transfer to GGS" → radiant;
-    "Transfer to Cikal" → cikal. A transfer whose destination the current books refuse
-    (ops.allowed_kitchen_destinations — today the Rumah Rames no-op) is REPORTED, never loaded;
+    Production → produce; Approved "Transfer to Bungur"/"Transfer to RRS" logs →
+    outlet_send logs plus same-stream location moves using the two supplied place ids;
+    "Transfer to Radiant"/"Transfer to GGS" → radiant; "Transfer to Cikal" → cikal.
+    Plans for outlet sends are reported, never loaded;
   * people columns (submitted_by / reviewed_by / plan_by) land NULL — people carry
     no ERP identifier and name-matching is what the ruling forbids (AC-011);
   * batch_id lands NULL on every imported log — Teable's shared batch ids cannot
@@ -68,14 +68,14 @@ NS = uuid.uuid5(uuid.NAMESPACE_URL, "https://ops.gordi.id/mos#kitchen-history-im
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 # The incumbent's three labels + two legacy aliases (the old app's normalize_action_type),
-# mapped to the stored model: (action, destination branch code). 'Transfer to Bungur' is the
-# no-op (destination = origin Rumah Rames); Bungur/RRS and Radiant/GGS are the same branches
-# under old names. Anything else is reported, never guessed.
+# Bungur/RRS are outlet sends, not book transfers; Radiant/GGS are legacy aliases.
+# Anything else is reported, never guessed.
 ACTION_MAP = {
     "Production": ("produce", None),
-    "Transfer to Bungur": ("transfer", "rumah_rames"),
+    "Transfer to Bungur": ("outlet_send", None),
     "Transfer to Radiant": ("transfer", "radiant"),
-    "Transfer to RRS": ("transfer", "rumah_rames"),
+    "Transfer to RRS": ("outlet_send", None),
+    "Kirim ke Rumah Rames": ("outlet_send", None),
     "Transfer to GGS": ("transfer", "radiant"),
     "Transfer to Cikal": ("transfer", "cikal"),
 }
@@ -193,6 +193,9 @@ def parse_log(rec: object, wip_index: dict[str, dict | None]) -> dict:
     qty = fields.get("qty_porsi")
     if isinstance(qty, bool) or not isinstance(qty, (int, float)) or qty <= 0:
         raise ParseSkip(f"invalid qty_porsi: {qty!r}")
+    is_send = action == "outlet_send"
+    if is_send and fields.get("status") != "Approved":
+        raise ParseSkip("send_not_approved")
     posted_raw = fields.get("posted_to_esb")
     if isinstance(posted_raw, bool):
         posted = posted_raw
@@ -202,7 +205,8 @@ def parse_log(rec: object, wip_index: dict[str, dict | None]) -> dict:
         posted = False
     bom, porsi = esb_keys(fields, wip_index)
     return {
-        "kind": "log", "src_id": src_id, "det_id": str(uuid.uuid5(NS, f"kitchen_log:{src_id}")),
+        "kind": "move" if is_send else "log", "src_id": src_id,
+        "det_id": str(uuid.uuid5(NS, f"rames_send:{src_id}" if is_send else f"kitchen_log:{src_id}")),
         "log_date": log_date, "wip_link_id": link, "action": action, "dest_code": dest_code,
         "esb_bom_id": bom, "esb_pd_porsi": porsi,
         "qty": qty, "notes": as_text(fields.get("notes")),
@@ -217,6 +221,8 @@ def parse_log(rec: object, wip_index: dict[str, dict | None]) -> dict:
 def parse_plan(rec: object, wip_index: dict[str, dict | None]) -> dict:
     src_id, created_at, log_date, action, dest_code, link = parse_common(rec, "plan", wip_index)
     fields = rec["fields"]
+    if action == "outlet_send":
+        raise ParseSkip("send_plan_not_loaded")
     qty = fields.get("planned_qty")
     if isinstance(qty, bool) or not isinstance(qty, (int, float)) or qty < 0:
         raise ParseSkip(f"invalid planned_qty: {qty!r}")
@@ -291,18 +297,22 @@ def sql_literal(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
-def build_sql(rows: list[dict], org_slug: str, bu_code: str) -> str:
+def build_sql(rows: list[dict], org_slug: str, bu_code: str,
+              kitchen_location: str | None = None, outlet_location: str | None = None) -> str:
     payload = json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
     if "$json$" in payload:
         # A note containing the dollar-quote tag would end the literal early — refuse
         # rather than load a truncated payload.
         die("export contains the literal '$json$' (dollar-quote collision) — inspect the notes fields")
+    kitchen_sql = sql_literal(kitchen_location) + "::uuid" if kitchen_location else "null::uuid"
+    outlet_sql = sql_literal(outlet_location) + "::uuid" if outlet_location else "null::uuid"
     return f"""\\set ON_ERROR_STOP on
 begin;
 -- environment: resolve org by slug, BU by stable code, the two stream branches by code.
 -- Exactly-one is enforced below; a short count means the canonical catalog is not loaded.
 create temp table _imp_env on commit drop as
-select o.id as org_id, bu.id as bu_id, rr.id as br_rr, rad.id as br_rad
+select o.id as org_id, bu.id as bu_id, rr.id as br_rr, rad.id as br_rad,
+       {kitchen_sql} as kitchen_location, {outlet_sql} as outlet_location
   from shared.orgs o
   join shared.business_units bu on bu.org_id = o.id and bu.code = {sql_literal(bu_code)}
   join shared.branches rr  on rr.org_id  = o.id and rr.code  = 'rumah_rames'
@@ -312,6 +322,16 @@ do $$
 begin
   if (select count(*) from _imp_env) <> 1 then
     raise exception 'kitchen history import: environment resolution failed — expected exactly one org={org_slug} BU={bu_code} branch rumah_rames+radiant; is the canonical catalog loaded?';
+  end if;
+  if {kitchen_sql} is not null and (
+    {kitchen_sql} = {outlet_sql} or
+    (select count(*) from ops.locations l join ops.location_branches b
+       on b.org_id=l.org_id and b.location_id=l.id
+     where l.org_id=(select org_id from _imp_env) and b.branch_id=(select br_rr from _imp_env)
+       and l.id in ({kitchen_sql},{outlet_sql}) and l.archived_at is null
+       and l.use in ('storage','both')) <> 2
+  ) then
+    raise exception 'kitchen history import: invalid location ids';
   end if;
 end $$;
 
@@ -329,9 +349,11 @@ $json$) as (kind text, src_id text, det_id uuid, log_date date, wip_link_id text
 -- retired item, and the catalog never hard-deletes.
 create temp table _imp_resolved on commit drop as
 select p.*, w.id as wip_item_id,
+       (select u.id from ops.item_units u where u.org_id=w.org_id and u.wip_item_id=w.id
+         and u.is_default and u.confirmed_at is not null) as item_unit_id,
        count(w.id) over (partition by p.kind, p.src_id)::int as n_matches,
        dest.id as dest_branch_id,
-       (p.action <> 'transfer' or exists (
+       (p.kind = 'move' or p.action <> 'transfer' or exists (
           select 1 from ops.allowed_kitchen_destinations(
             (select org_id from _imp_env), (select br_rr from _imp_env), 'kitchen') allowed
            where allowed.destination_branch_id = dest.id)) as dest_allowed
@@ -355,14 +377,18 @@ with ins_logs as (
     (id, org_id, business_unit_id, log_date, branch_id, activity, action,
      destination_branch_id, wip_item_id, qty_porsi, notes, status, source,
      submitted_by, reviewed_by, reviewed_at, batch_id, posted_to_esb, esb_doc_num,
-     posted_at, created_at)
+     posted_at, created_at,from_storage_location_id,to_storage_location_id,item_unit_id)
   select r.det_id, e.org_id, e.bu_id, r.log_date, e.br_rr, 'kitchen', r.action,
          r.dest_branch_id,
          r.wip_item_id, r.qty, r.notes, 'Approved', 'teable_import',
-         null, null, r.reviewed_at, null, coalesce(r.posted_to_esb, false),
-         r.esb_doc_num, r.posted_at, coalesce(r.created_at, now())
+         null, null, r.reviewed_at, null, case when r.kind='move' then false else coalesce(r.posted_to_esb, false) end,
+         case when r.kind='move' then null else r.esb_doc_num end,
+         case when r.kind='move' then null else r.posted_at end, coalesce(r.created_at, now()),
+         case when r.kind='move' then e.kitchen_location end, case when r.kind='move' then e.outlet_location end,
+         case when r.kind='move' then r.item_unit_id end
     from _imp_resolved r, _imp_env e
-   where r.kind = 'log' and r.n_matches = 1 and r.dest_allowed
+   where r.kind in ('log','move') and r.n_matches = 1 and r.dest_allowed
+     and (r.kind<>'move' or r.item_unit_id is not null)
   on conflict do nothing
   returning 1
 ), ins_plans as (
@@ -376,16 +402,30 @@ with ins_logs as (
    where r.kind = 'plan' and r.n_matches = 1 and r.dest_allowed
   on conflict do nothing
   returning 1
+), ins_moves as (
+  insert into ops.location_movements
+    (id,org_id,branch_id,activity,item_id,item_unit_id,from_location_id,to_location_id,
+     quantity,movement_date,kind,source_type,source_id,note)
+  select r.det_id,e.org_id,e.br_rr,'kitchen',r.wip_item_id,r.item_unit_id,
+         e.kitchen_location,e.outlet_location,r.qty,r.log_date,'move', 'import',r.det_id,
+         left('Kitchen app send' || case when r.notes is null then '' else ': ' || r.notes end,500)
+    from _imp_resolved r, _imp_env e
+   where r.kind='move' and r.n_matches=1 and r.item_unit_id is not null
+  on conflict do nothing
+  returning 1
 )
 select jsonb_build_object(
   'logs_loaded',   (select count(*) from ins_logs),
   'plans_loaded',  (select count(*) from ins_plans),
+  'moves_loaded',  (select count(*) from ins_moves),
   'unresolved', coalesce((select jsonb_agg(jsonb_build_object(
       'src_id', src_id, 'kind', kind,
       'reason', case when n_matches = 0 then 'wip_item_not_in_catalog'
                      when n_matches > 1 then 'wip_item_ambiguous'
+                     when kind='move' and item_unit_id is null then 'item_unit_unresolved'
                      else 'destination_not_allowed' end)
-    order by src_id) from _imp_resolved where n_matches <> 1 or not dest_allowed), '[]'::jsonb));
+    order by src_id) from _imp_resolved where n_matches <> 1 or not dest_allowed
+      or (kind='move' and item_unit_id is null)), '[]'::jsonb));
 commit;
 """
 
@@ -431,7 +471,13 @@ def main() -> None:
                         help="exit 0 even when rows were skipped or unresolved")
     parser.add_argument("--dry-run", action="store_true",
                         help="print the generated SQL to stdout; no database contact")
+    parser.add_argument("--rames-kitchen-location", type=uuid.UUID, help="kitchen storage location id (required with outlet id)")
+    parser.add_argument("--rames-outlet-location", type=uuid.UUID, help="outlet storage location id (required with kitchen id)")
     args = parser.parse_args()
+    if bool(args.rames_kitchen_location) != bool(args.rames_outlet_location):
+        die("--rames-kitchen-location and --rames-outlet-location are required together")
+    if args.rames_kitchen_location and args.rames_kitchen_location == args.rames_outlet_location:
+        die("kitchen and outlet location ids must differ")
 
     db_url = args.db_url or os.environ.get("KITCHEN_IMPORT_DB_URL", "")
     if not db_url and not args.dry_run:
@@ -449,11 +495,15 @@ def main() -> None:
     plan_rows, superseded = supersede_plans(plan_rows)
 
     rows = log_rows + plan_rows
+    if any(row["kind"] == "move" for row in rows) and not args.rames_kitchen_location:
+        die("outlet sends require --rames-kitchen-location and --rames-outlet-location")
     skips = wip_skips + log_skips + plan_skips + superseded
     for src_id, kind, reason in skips:
         print(f"SKIP {src_id} ({kind}): {reason}", file=sys.stderr)
 
-    sql = build_sql(rows, args.org_slug, args.bu_code)
+    sql = build_sql(rows, args.org_slug, args.bu_code,
+                    str(args.rames_kitchen_location) if args.rames_kitchen_location else None,
+                    str(args.rames_outlet_location) if args.rames_outlet_location else None)
     print(f"REPORT: {len(skips)} parse-skipped, {len(rows)} rows emitted", file=sys.stderr)
 
     if args.dry_run:
@@ -468,7 +518,8 @@ def main() -> None:
         for item in report.get("unresolved", []):
             print(f"UNRESOLVED {item['src_id']} ({item['kind']}): {item['reason']}", file=sys.stderr)
         print(f"REPORT: logs_loaded={report['logs_loaded']} "
-              f"plans_loaded={report['plans_loaded']} unresolved={unresolved}", file=sys.stderr)
+              f"plans_loaded={report['plans_loaded']} moves_loaded={report['moves_loaded']} "
+              f"unresolved={unresolved}", file=sys.stderr)
 
     if (skips or unresolved) and not args.allow_unresolved:
         sys.exit(3)

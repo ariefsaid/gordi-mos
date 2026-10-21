@@ -16,6 +16,8 @@ vi.mock('@/lib/supabase', async () => {
         if (filter === 'is.null') rows = rows.filter(row => row[field] == null)
         if (filter.startsWith('lt.')) rows = rows.filter(row => row[field] != null && String(row[field]) < filter.slice(3))
         if (filter.startsWith('gte.')) rows = rows.filter(row => row[field] != null && String(row[field]) >= filter.slice(4))
+        if (filter.startsWith('gt.')) rows = rows.filter(row => row[field] != null && String(row[field]) > filter.slice(3))
+        if (filter.startsWith('in.(')) rows = rows.filter(row => filter.slice(4, -1).split(',').includes(String(row[field])))
       }
       for (const filter of url.searchParams.getAll('or')) {
         if (/id\.(lt|gt)\./.test(filter)) continue
@@ -47,19 +49,28 @@ vi.mock('@/lib/supabase', async () => {
       })
       const keyset = url.searchParams.getAll('or').find(value => /id\.(lt|gt)\./.test(value))
       if (keyset) {
-        const allDate = keyset.match(/^log_date\.gt\.([^,]+),and\(log_date\.eq\.([^,]+),or\(created_at\.gt\.([^,]+),and\(created_at\.eq\.([^,]+),id\.gt\.([^)]+)\)\)\)$/)
-        if (allDate) {
-          const [, date, , createdAt, , id] = allDate
-          rows = rows.filter(row => String(row.log_date) > date
-            || (row.log_date === date && (String(row.created_at) > createdAt
-              || (row.created_at === createdAt && String(row.id) > id))))
+        const taskDue = keyset.match(/^\(?due_date\.gt\.([^,]+),and\(due_date\.eq\.([^,]+),id\.gt\.([^)]+)\),due_date\.is\.null\)?$/)
+        const taskDueNull = keyset.match(/^\(?and\(due_date\.is\.null,id\.gt\.([^)]+)\)\)?$/)
+        if (taskDue) {
+          const [, date, , id] = taskDue
+          rows = rows.filter(row => row.due_date == null || String(row.due_date) > date || (row.due_date === date && String(row.id) > id))
+        } else if (taskDueNull) {
+          rows = rows.filter(row => row.due_date == null && String(row.id) > taskDueNull[1])
         } else {
-          const match = keyset.match(/\((\w+)\.(lt|gt)\.([^,]+),and\(\w+\.eq\.[^,]+,id\.(?:lt|gt)\.([^)]+)\)/)
-          if (!match) throw new Error(`Unexpected cursor: ${keyset}`)
-          const [, field, op, timestamp, id] = match
-          const after = (a: string, b: string) => (op === 'gt' ? a > b : a < b)
-          const includesNull = keyset.includes(`${field}.is.null`)
-          rows = rows.filter(row => (includesNull && row[field] == null) || after(String(row[field]), timestamp) || (row[field] === timestamp && after(String(row.id), id)))
+          const allDate = keyset.match(/^log_date\.gt\.([^,]+),and\(log_date\.eq\.([^,]+),or\(created_at\.gt\.([^,]+),and\(created_at\.eq\.([^,]+),id\.gt\.([^)]+)\)\)\)$/)
+          if (allDate) {
+            const [, date, , createdAt, , id] = allDate
+            rows = rows.filter(row => String(row.log_date) > date
+              || (row.log_date === date && (String(row.created_at) > createdAt
+                || (row.created_at === createdAt && String(row.id) > id))))
+          } else {
+            const match = keyset.match(/\((\w+)\.(lt|gt)\.([^,]+),and\(\w+\.eq\.[^,]+,id\.(?:lt|gt)\.([^)]+)\)/)
+            if (!match) throw new Error(`Unexpected cursor: ${keyset}`)
+            const [, field, op, timestamp, id] = match
+            const after = (a: string, b: string) => (op === 'gt' ? a > b : a < b)
+            const includesNull = keyset.includes(`${field}.is.null`)
+            rows = rows.filter(row => (includesNull && row[field] == null) || after(String(row[field]), timestamp) || (row[field] === timestamp && after(String(row.id), id)))
+          }
         }
       }
       // Model the API's default cap as well as explicit per-request limits.
@@ -71,7 +82,9 @@ vi.mock('@/lib/supabase', async () => {
 import { listReadableSignals } from './signals'
 import { fetchActualsMap, listSubmittedKitchenLogs } from './kitchen-logs'
 import { listFollowUpEvents, listFollowUpEventsPage, listFollowUps, listFollowUpsPage, listFollowUpsWindow } from './follow-ups'
-import { hasOlderDoneTasks, listOlderDoneTasks, listTaskEvents, listTaskEventsPage, TASKS_OLDER_DONE_PAGE_SIZE, type OlderDoneTaskCursor } from './tasks'
+import { hasOlderDoneTasks, listOlderDoneTasks, listTaskEvents, listTaskEventsPage, listTasksPage, TASKS_LIST_PAGE_SIZE, TASKS_OLDER_DONE_PAGE_SIZE, type OlderDoneTaskCursor } from './tasks'
+import { listEventsOverlapping, EVENTS_PAGE_SIZE } from './events'
+import { listProcessOccurrenceSummaries, PROCESS_OCCURRENCES_PAGE_SIZE } from './processes'
 
 function fixture(index: number) {
   return {
@@ -79,6 +92,10 @@ function fixture(index: number) {
     // More than a page shares a timestamp. Input order deliberately differs from id order.
     occurred_at: index > 500 ? '2026-10-05T09:00:00+00:00' : '2026-10-05T08:00:00+00:00',
     created_at: index > 500 ? '2026-10-05T09:00:00+00:00' : '2026-10-05T08:00:00+00:00',
+    starts_at: index > 500 ? '2026-10-05T09:00:00+00:00' : '2026-10-05T08:00:00+00:00',
+    ends_at: '2026-10-05T10:00:00+00:00', scheduled_date: index > 500 ? '2026-10-05' : '2026-10-04',
+    work_line_id: 'work-line-1', owning_team_id: 'team-1', process_run_id: `run-${index}`,
+    due_date: '2026-10-05', completed_at: null, archived_at: null, title: `Task ${index}`,
     log_date: '2026-10-05', status: 'Submitted', branch_id: 'branch-1', activity: 'kitchen',
     wip_item_id: 'item-1', item_unit_id: null, qty_porsi: 1,
     action: 'produce', wip_items: { name: 'Example item' }, retracted_at: index % 3 === 0 ? '2026-10-05T09:00:00Z' : null,
@@ -234,17 +251,35 @@ describe('server list paging boundaries', () => {
       created_at: index > 50 ? '2026-10-05T09:00:00Z' : '2026-10-05T08:00:00Z',
     }))
     const expected = [...harness.rows].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)) || String(b.id).localeCompare(String(a.id))).map(row => row.id)
-    for (const readPage of [listTaskEvents, listFollowUpEvents] as const) {
-      const ids: string[] = []
-      let page = await readPage(readPage === listTaskEvents ? 'task-1' : 'fu-1')
-      while (page.length > 0) {
-        ids.push(...page.map(row => row.id))
-        if (page.length < 50) break
-        page = await readPage(readPage === listTaskEvents ? 'task-1' : 'fu-1', page.at(-1)!)
-      }
-      expect(ids).toEqual(expected)
-      expect(new Set(ids).size).toBe(103)
+    const taskIds: string[] = []
+    let taskPage = await listTaskEventsPage('task-1')
+    while (taskPage.rows.length > 0) {
+      taskIds.push(...taskPage.rows.map(row => row.id))
+      if (!taskPage.hasMore || !taskPage.nextCursor) break
+      taskPage = await listTaskEventsPage('task-1', taskPage.nextCursor)
     }
+    expect(taskIds).toEqual(expected)
+    expect(new Set(taskIds).size).toBe(103)
+
+    const taskEventIds: string[] = []
+    let taskEvents = await listTaskEvents('task-1')
+    while (taskEvents.length > 0) {
+      taskEventIds.push(...taskEvents.map((event) => event.id))
+      if (taskEvents.length < 50) break
+      taskEvents = await listTaskEvents('task-1', taskEvents.at(-1)!)
+    }
+    expect(taskEventIds).toEqual(expected)
+    expect(new Set(taskEventIds).size).toBe(103)
+
+    const followUpIds: string[] = []
+    let followUpPage = await listFollowUpEvents('fu-1')
+    while (followUpPage.length > 0) {
+      followUpIds.push(...followUpPage.map(row => row.id))
+      if (followUpPage.length < 50) break
+      followUpPage = await listFollowUpEvents('fu-1', followUpPage.at(-1)!)
+    }
+    expect(followUpIds).toEqual(expected)
+    expect(new Set(followUpIds).size).toBe(103)
     expect(harness.requests.every(url => url.searchParams.get('limit') === '51')).toBe(true)
   })
 
@@ -307,6 +342,90 @@ describe('server list paging boundaries', () => {
     expect(sizes).toEqual([50, 50, 3])
     expect(ids).toEqual(expected)
     expect(new Set(ids).size).toBe(103)
+  })
+
+  it('Tasks: active and recently Done rows page by due date without leaking older Done rows or losing null-date ties', async () => {
+    const cutoff = '2026-09-05T00:00:00Z'
+    harness.rows = Array.from({ length: 1103 }, (_, index) => ({
+      ...fixture(index + 1),
+      due_date: index < 900 ? '2026-10-05' : null,
+      status: index >= 1101 ? 'Done' : 'Open',
+      completed_at: index === 1101 ? '2026-09-06T00:00:00Z' : index === 1102 ? '2026-09-04T00:00:00Z' : null,
+    }))
+    const expected = [...harness.rows]
+      .filter(row => row.status !== 'Done' || String(row.completed_at) >= cutoff)
+      .sort((a, b) => a.due_date === null
+        ? b.due_date === null ? String(a.id).localeCompare(String(b.id)) : 1
+        : b.due_date === null ? -1 : String(a.due_date).localeCompare(String(b.due_date)) || String(a.id).localeCompare(String(b.id)))
+      .map(row => row.id)
+    const ids: string[] = []
+    const sizes: number[] = []
+    let before: { due_date: string | null; id: string } | null = null
+    let page = await listTasksPage({}, before, cutoff)
+    while (page.rows.length > 0) {
+      sizes.push(page.rows.length)
+      ids.push(...page.rows.map(row => row.id))
+      before = page.nextCursor
+      if (!page.hasMore || !before) break
+      page = await listTasksPage({}, before, cutoff)
+    }
+    expect(sizes.slice(0, 2)).toEqual([TASKS_LIST_PAGE_SIZE, TASKS_LIST_PAGE_SIZE])
+    expect(sizes.at(-1)).toBe(expected.length % TASKS_LIST_PAGE_SIZE)
+    expect(ids).toEqual(expected)
+    expect(new Set(ids).size).toBe(expected.length)
+    expect(ids).not.toContain(harness.rows.at(-1)?.id)
+    expect(harness.requests.every(url => url.searchParams.get('limit') === String(TASKS_LIST_PAGE_SIZE + 1))).toBe(true)
+  })
+
+  it('Events: month-overlap pages continue oldest-first through equal starts without gaps or duplicates', async () => {
+    harness.rows = Array.from({ length: 103 }, (_, index) => ({
+      ...fixture(index + 1), starts_at: index > 50 ? '2026-10-05T09:00:00Z' : '2026-10-05T08:00:00Z',
+      ends_at: '2026-10-05T10:00:00Z', archived_at: null,
+    }))
+    const expected = [...harness.rows].sort((a, b) => String(a.starts_at).localeCompare(String(b.starts_at)) || String(a.id).localeCompare(String(b.id))).map(row => row.id)
+    const ids: string[] = []
+    const sizes: number[] = []
+    let before: { starts_at: string; id: string } | null = null
+    let page = await listEventsOverlapping({ startISO: '2026-10-01T00:00:00Z', endISO: '2026-11-01T00:00:00Z' }, before)
+    while (page.rows.length > 0) {
+      sizes.push(page.rows.length)
+      ids.push(...page.rows.map(row => row.id))
+      before = page.nextCursor
+      if (!page.hasMore || !before) break
+      page = await listEventsOverlapping({ startISO: '2026-10-01T00:00:00Z', endISO: '2026-11-01T00:00:00Z' }, before)
+    }
+    expect(sizes).toEqual([EVENTS_PAGE_SIZE, EVENTS_PAGE_SIZE, 3])
+    expect(ids).toEqual(expected)
+    expect(new Set(ids).size).toBe(103)
+  })
+
+  it('Process runs and rollups: occurrence history pages traverse tied scheduled dates', async () => {
+    harness.rows = Array.from({ length: 103 }, (_, index) => {
+      const row = fixture(index + 1)
+      return {
+        ...row, process_run_id: row.id,
+        scheduled_date: index > 50 ? '2026-10-05' : '2026-10-04',
+        status: 'completed', caption: `Run ${index}`, period_key: '2026-10-05', definition_version: 1,
+        started_by: null, completed_at: null, completed_by: null, cancelled_at: null, cancelled_by: null, cancel_reason: null,
+      }
+    })
+    const expected = [...harness.rows].sort((a, b) => String(b.scheduled_date).localeCompare(String(a.scheduled_date)) || String(b.id).localeCompare(String(a.id))).map(row => row.id)
+    const ids: string[] = []
+    const sizes: number[] = []
+    let before: { scheduled_date: string; id: string } | null = null
+    let page = await listProcessOccurrenceSummaries('work-line-1', before)
+    while (page.rows.length > 0) {
+      sizes.push(page.rows.length)
+      ids.push(...page.rows.map(summary => summary.run.id))
+      before = page.nextCursor
+      if (!page.hasMore || !before) break
+      page = await listProcessOccurrenceSummaries('work-line-1', before)
+    }
+    expect(sizes).toEqual([PROCESS_OCCURRENCES_PAGE_SIZE, PROCESS_OCCURRENCES_PAGE_SIZE, 3])
+    expect(ids).toEqual(expected)
+    expect(new Set(ids).size).toBe(103)
+    expect(harness.requests.filter(url => url.pathname.endsWith('/process_runs')).every(url => url.searchParams.get('limit') === String(PROCESS_OCCURRENCES_PAGE_SIZE + 1))).toBe(true)
+    expect(harness.requests.filter(url => url.pathname.endsWith('/process_run_rollup')).every(url => url.searchParams.has('process_run_id'))).toBe(true)
   })
 
   it('Follow-up list errors remain visible to the owning list state', async () => {

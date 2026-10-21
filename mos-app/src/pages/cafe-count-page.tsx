@@ -18,6 +18,7 @@ import { useSearchParamState } from '@/lib/use-search-param-state'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
+import { canPushCafe, canReviewCafe } from '@/lib/kitchen-gates'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { CafeCountFollowUp } from '@/components/kitchen/cafe-count-followup'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -96,6 +97,7 @@ function restoreEntries(items: readonly CafeCountableItem[], draft: CountDraft |
 }
 
 const KIND_FILTERS: readonly KitchenItemKindFilter[] = ['All', 'RAW', 'WIP']
+const FLOOR_STATE_POLL_INTERVAL_MS = 30_000
 
 function byItem(lines: readonly CafeCountFloorLine[]): Record<string, CafeCountFloorLine> {
   return Object.fromEntries(lines.map(line => [line.itemId, line]))
@@ -118,9 +120,8 @@ export function CafeCountPage() {
     ? locationChoices.defaults?.storage_location_id ?? null
     : null
   const today = useMemo(() => wibToday(), [])
-  const canBackdate = auth.status === 'authenticated'
-    && (auth.viewer.accessRoles.includes('ops_lead') || auth.viewer.accessRoles.includes('admin'))
-  const canSeeExcluded = auth.status === 'authenticated' && (canBackdate || auth.viewer.accessRoles.includes('supervisor'))
+  const canBackdate = auth.status === 'authenticated' && canPushCafe(auth.viewer.accessRoles)
+  const canSeeExcluded = auth.status === 'authenticated' && canReviewCafe(auth.viewer.accessRoles)
   // The server takes a back-dated count at most 7 days old.
   const dateBounds = canBackdate ? { min: addDays(today, -7), max: today } : cafeReceiptArrivalDateBounds(today, false)
   const [logDate, setLogDate] = useState(today)
@@ -199,6 +200,32 @@ export function CafeCountPage() {
     // draftScope follows stream and logDate, both listed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canCapture, canSeeExcluded, catalogReady, logDate, retryKey, stream, stream?.activity, stream?.branch.id])
+
+  const floorHasWaitingLine = Object.values(floorLines).some(line => line.state === 'waiting')
+  useEffect(() => {
+    if (!catalogReady || !stream || !canCapture) return
+    let active = true
+    let reading = false
+    const refreshFloorLines = () => {
+      if (!active || document.visibilityState !== 'visible' || reading) return
+      reading = true
+      void listCafeCountFloorLines(stream, logDate).then(lines => {
+        if (active) setFloorLines(byItem(lines))
+      }).catch(() => undefined).finally(() => { reading = false })
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refreshFloorLines()
+    }
+    window.addEventListener('focus', refreshFloorLines)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    const interval = floorHasWaitingLine ? window.setInterval(refreshFloorLines, FLOOR_STATE_POLL_INTERVAL_MS) : undefined
+    return () => {
+      active = false
+      window.removeEventListener('focus', refreshFloorLines)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      if (interval !== undefined) window.clearInterval(interval)
+    }
+  }, [canCapture, catalogReady, floorHasWaitingLine, logDate, stream])
 
   // FR-011: unsent entries stay on this device per person, stream and date until submitted or discarded.
   useEffect(() => {

@@ -29,6 +29,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     ...actual,
     listSubmittedKitchenLogs: vi.fn(),
     hasSubmittedKitchenProduction: vi.fn().mockResolvedValue(false),
+    listSubmittedKitchenProductionGates: vi.fn().mockResolvedValue(new Set<string>()),
     fetchPlanMaps: vi.fn(),
     listStreamPairs: vi.fn(),
     approveKitchenLog: vi.fn(),
@@ -41,6 +42,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
 import {
   listSubmittedKitchenLogs,
   hasSubmittedKitchenProduction,
+  listSubmittedKitchenProductionGates,
   fetchPlanMaps,
   listStreamPairs,
   approveKitchenLog,
@@ -72,6 +74,10 @@ import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 vi.mock('@/lib/db/cafe-count', () => ({
   listCafeCountLines: vi.fn().mockResolvedValue([]),
   listCafeCountNotCounted: vi.fn().mockResolvedValue([]),
+  listCafeCountPostingQueue: vi.fn().mockResolvedValue([]),
+  listCafeCountPostingSwitches: vi.fn().mockResolvedValue([]),
+  setCafeCountPostingEnabled: vi.fn(),
+  releaseCafeCountPosting: vi.fn(),
   confirmCafeCountLine: vi.fn(),
   confirmCafeCountLines: vi.fn(),
   rejectCafeCountLine: vi.fn(),
@@ -100,8 +106,7 @@ import { listKitchenWastePhotos } from '@/lib/db/kitchen-waste-photos'
 import { KitchenReviewPage } from './kitchen-review-page'
 import { rememberStream } from '@/lib/cafe-stream'
 import { streamDateKey } from '@/lib/kitchen-action-label'
-import { rememberCafeLocation } from '@/lib/cafe-opening-location'
-import { resetCafeLocations } from '@/lib/cafe-opening-location'
+import { rememberCafeLocation, rememberCafeOpeningTeam } from '@/lib/cafe-opening-location'
 import type { PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -155,7 +160,7 @@ function chooseStream(optionName: string) {
   fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
 }
 
-function viewer(accessRoles: string[]): AuthState {
+function viewer(accessRoles: string[], canReadCafePushes = accessRoles.includes('ops_lead') || accessRoles.includes('admin')): AuthState {
   return {
     status: 'authenticated',
     viewer: {
@@ -167,6 +172,7 @@ function viewer(accessRoles: string[]): AuthState {
       roles: [],
       isManager: false,
       accessRoles,
+      canReadCafePushes,
       affiliated: [],
     },
     signOut: vi.fn(),
@@ -210,10 +216,12 @@ beforeEach(() => {
   // outranks the FR-041 role default — so clear it per test, or one test's switch decides the
   // next test's opening filter.
   rememberStream(null)
-  resetCafeLocations()
+  rememberCafeLocation('p-lead', null)
+  rememberCafeOpeningTeam('p-lead', null)
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockList.mockResolvedValue([])
   vi.mocked(hasSubmittedKitchenProduction).mockResolvedValue(false)
+  vi.mocked(listSubmittedKitchenProductionGates).mockResolvedValue(new Set())
   mockWastePhotos.mockResolvedValue([])
   mockPlan.mockResolvedValue({})
   mockPlanBatch.mockImplementation(async contexts => Promise.all(contexts.map(async context => [
@@ -286,6 +294,19 @@ describe('KitchenReviewPage — states', () => {
     mockPlan.mockResolvedValue({ w1: { produce: 1.5 } })
     render(<KitchenReviewPage />, { wrapper })
     expect(await screen.findByText(/3 × 0\.5 pack \(1\.5 pack\)/)).toBeInTheDocument()
+  })
+
+  it('uses Indonesian decimal marks for captured and canonical quantities', async () => {
+    mockList.mockResolvedValue([{
+      ...PROD_LOG,
+      qty_porsi: 1.5,
+      entry_quantity: 3,
+      entry_unit_factor: 0.5,
+      entry_unit_name: 'pack',
+    }])
+    mockPlan.mockResolvedValue({ w1: { produce: 1.5 } })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
+    expect(await screen.findByText(/3 × 0,5 pack \(1,5 pack\)/)).toBeInTheDocument()
   })
 
   it('empty: renders the shared awaiting EmptyState without a completion control', async () => {
@@ -576,6 +597,20 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     expect(screen.queryByRole('link', { name: /view pushes/i })).not.toBeInTheDocument()
   })
 
+  it('AC-062: an admitted Retail Ops manager sees the Review notice link to Pushes', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor', 'manager'], true))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-005' })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    await pickLog('nasi goreng')
+    fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
+
+    expect(await screen.findByRole('link', { name: /view pushes/i })).toHaveAttribute('href', '/cafe/pushes')
+  })
+
   it('AC: P0003 (already actioned) → friendly notice + re-fetch', async () => {
     mockList.mockResolvedValueOnce([PROD_LOG]).mockResolvedValueOnce([])
     mockPlan.mockResolvedValue({ w1: { produce: 8 } })
@@ -725,14 +760,17 @@ describe('KitchenReviewPage — production-first gate (FR-042, AC-042)', () => {
       updated_at: '2026-09-28T09:00:00Z',
     }
     mockList.mockResolvedValue([olderProduction, olderTransfer, newerTransfer])
-    vi.mocked(hasSubmittedKitchenProduction).mockImplementation(async date => date === '2026-09-25')
+    vi.mocked(listSubmittedKitchenProductionGates).mockImplementation(async gates => new Set(
+      gates.filter(gate => gate.logDate === '2026-09-25').map(gate => streamDateKey(gate.logDate, gate.branchId, gate.activity)),
+    ))
     mockPlan.mockResolvedValue({ w1: { produce: 8 }, w2: { [`transfer:${RADIANT_ID}`]: 40 } })
     render(<KitchenReviewPage />, { wrapper })
 
     await screen.findByText('Earlier transfer')
-    expect(vi.mocked(hasSubmittedKitchenProduction).mock.calls).toEqual(expect.arrayContaining([
-      ['2026-09-25', BRANCH_ID, 'kitchen'],
-      ['2026-09-28', BRANCH_ID, 'kitchen'],
+    expect(vi.mocked(listSubmittedKitchenProductionGates)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(listSubmittedKitchenProductionGates).mock.calls[0]?.[0]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ logDate: '2026-09-25', branchId: BRANCH_ID, activity: 'kitchen' }),
+      expect.objectContaining({ logDate: '2026-09-28', branchId: BRANCH_ID, activity: 'kitchen' }),
     ]))
     await pickLog('Earlier transfer')
     expect(screen.getByRole('button', { name: /approve earlier transfer/i })).toBeDisabled()
@@ -1099,6 +1137,31 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     expect(screen.getByRole('button', { name: /approve cold brew/i })).toBeDisabled()
     await pickLog('es kopi')
     expect(screen.getByRole('button', { name: /approve es kopi/i })).not.toBeDisabled()
+  })
+
+  it('outlet send approval confirms a place move, not waste or an ERP batch', async () => {
+    mockList.mockResolvedValue([{ ...PROD_LOG, action: 'outlet_send', action_type: 'Send to Rumah Rames outlet', destination_branch_id: null }])
+    mockPlan.mockResolvedValue({ [PROD_LOG.wip_item_id]: { outlet_send: PROD_LOG.qty_porsi } })
+    mockApprove.mockResolvedValue({ batch_id: null })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText(PROD_LOG.wip_item_name)
+    await pickLog(PROD_LOG.wip_item_name)
+    expect(screen.getAllByText(/Send to Rumah Rames outlet/).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`approve ${PROD_LOG.wip_item_name}`, 'i') }))
+    await screen.findByText('Outlet send approved. Stock moved between places; nothing is sent to ESB.')
+    expect(mockApprove).toHaveBeenCalledWith(PROD_LOG.id, PROD_LOG.updated_at, null)
+  })
+
+  it.each(['en', 'id'] as const)('outlet send refusal is plain and retryable in %s', async locale => {
+    mockList.mockResolvedValue([{ ...PROD_LOG, action: 'outlet_send', action_type: 'Send to Rumah Rames outlet', destination_branch_id: null }])
+    mockPlan.mockResolvedValue({ [PROD_LOG.wip_item_id]: { outlet_send: PROD_LOG.qty_porsi } })
+    mockApprove.mockRejectedValue(new KitchenRpcError('P0001', 'CAFE_LOCATION_MOVE_INSUFFICIENT_STOCK'))
+    render(<KitchenReviewPage />, { wrapper: locale === 'id' ? idWrapper : wrapper })
+    await screen.findByText(PROD_LOG.wip_item_name)
+    await pickLog(PROD_LOG.wip_item_name)
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`${locale === 'id' ? 'setujui' : 'approve'} ${PROD_LOG.wip_item_name}`, 'i') }))
+    await screen.findByText(locale === 'id' ? /stok di dapur tidak cukup/i : /not enough stock at the kitchen/i)
+    expect(screen.getByRole('button', { name: new RegExp(`${locale === 'id' ? 'setujui' : 'approve'} ${PROD_LOG.wip_item_name}`, 'i') })).toBeEnabled()
   })
 
   it('FR-043: the server\'s P0004 ordering refusal surfaces as guidance, not a raw error', async () => {
@@ -1607,6 +1670,16 @@ describe('KitchenReviewPage — server paging', () => {
     expect(screen.queryByRole('button', { name: /Load more/ })).not.toBeInTheDocument()
   })
 
+  it('loads the next server page in Indonesian', async () => {
+    const first = page(1, 50)
+    mockList.mockResolvedValueOnce(first).mockResolvedValueOnce(page(51, 1))
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
+    await screen.findByText('Paged item 1')
+    fireEvent.click(screen.getByRole('button', { name: 'Muat item lainnya' }))
+    await screen.findByText('Paged item 51')
+    expect(screen.getByText('51 item dimuat · akhir daftar')).toBeInTheDocument()
+  })
+
   it('keeps loaded rows on a next-page failure and retries the same cursor', async () => {
     const first = page(1, 50)
     mockList.mockResolvedValueOnce(first).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(page(51, 1))
@@ -1620,13 +1693,21 @@ describe('KitchenReviewPage — server paging', () => {
     expect(mockList.mock.calls[1]).toEqual(mockList.mock.calls[2])
   })
 
-  it('keeps transfers gated when the pending production is outside the loaded window', async () => {
+  it.each([
+    [wrapper, /finish production approvals first/i],
+    [idWrapper, /Selesaikan persetujuan Produksi dulu/],
+  ] as const)('keeps transfers gated when pending production is outside the loaded window in both locales', async (pageWrapper, gateText) => {
     mockList.mockResolvedValue([XFER_LOG])
-    vi.mocked(hasSubmittedKitchenProduction).mockResolvedValue(true)
-    render(<KitchenReviewPage />, { wrapper })
+    vi.mocked(listSubmittedKitchenProductionGates).mockImplementation(async gates => new Set(
+      gates.map(gate => streamDateKey(gate.logDate, gate.branchId, gate.activity)),
+    ))
+    render(<KitchenReviewPage />, { wrapper: pageWrapper })
     await screen.findByText('Cold Brew')
-    expect(screen.getByText(/finish production approvals first/i)).toBeInTheDocument()
-    expect(vi.mocked(hasSubmittedKitchenProduction)).toHaveBeenCalledWith(expect.any(String), BRANCH_ID, 'kitchen')
+    expect(screen.getByText(gateText)).toBeInTheDocument()
+    expect(vi.mocked(listSubmittedKitchenProductionGates)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(listSubmittedKitchenProductionGates).mock.calls[0]?.[0]).toEqual([
+      expect.objectContaining({ logDate: expect.any(String), branchId: BRANCH_ID, activity: 'kitchen' }),
+    ])
   })
 })
 

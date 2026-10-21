@@ -160,6 +160,20 @@ export async function moveCafeStock(input: MoveStockInput, ctx: WriteContext): P
   return { movement_id: asString(result.movement_id, 'movement id'), row_version: asRowVersion(result.row_version) }
 }
 
+export type PlaceStockInput = {
+  stream: StreamRef; to_location_id: UUID; as_of: string; item_unit_id?: UUID; quantity?: Decimal
+}
+
+/** Opening allocation: places unassigned stream stock at a place (ops lead or admin). */
+export async function placeCafeUnassignedStock(input: PlaceStockInput, ctx: WriteContext): Promise<{ rows_written: number }> {
+  const { data, error } = await supabase.schema('ops').rpc('place_cafe_unassigned_stock', {
+    p_input: input, p_client_request_id: ctx.client_request_id,
+  })
+  if (error) throw contractError('placeCafeUnassignedStock', error)
+  const result = asObject(data, 'placeCafeUnassignedStock')
+  return { rows_written: Number(result.rows_written ?? 0) }
+}
+
 export type CaptureLocations = {
   production_location_id?: UUID | null
   from_storage_location_id?: UUID | null

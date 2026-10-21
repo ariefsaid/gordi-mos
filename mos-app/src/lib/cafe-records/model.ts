@@ -10,14 +10,15 @@ import { ZERO, addDec, compareDec, parseDecimal, type Dec } from './decimal'
 import type { Question, SortDir, SortKey } from './url-state'
 
 type SourceKey = 'log' | 'count' | 'receipt' | 'request'
-export type Movement = 'made' | 'transferred' | 'wasted' | 'received' | 'requested' | 'counted'
+export type Movement = 'sent' | 'made' | 'transferred' | 'wasted' | 'received' | 'requested' | 'counted'
 /** pending = Submitted; locked = a Counted receipt (quantities locked, not yet sent for approval). */
 export type StatusBasis = 'pending' | 'approved' | 'rejected' | 'confirmed' | 'locked'
 
-const MOVEMENT_ORDER: readonly Movement[] = ['made', 'transferred', 'wasted', 'received', 'requested', 'counted']
+const MOVEMENT_ORDER: readonly Movement[] = ['made', 'transferred', 'sent', 'wasted', 'received', 'requested', 'counted']
 const STATUS_ORDER: Record<Movement, readonly StatusBasis[]> = {
   made: ['pending', 'approved', 'rejected'],
   transferred: ['pending', 'approved', 'rejected'],
+  sent: ['pending', 'approved', 'rejected'],
   wasted: ['approved', 'pending', 'rejected'],
   received: ['locked', 'pending', 'approved', 'rejected'],
   requested: ['pending', 'approved', 'rejected'],
@@ -110,7 +111,7 @@ function fromLog(log: CafeRecordLog, ctx: BuildContext): RecordEntry {
   const { unit, qty, entered } = logUnit(log, ctx)
   return {
     key: `log:${log.id}`, source: 'log', parentId: null,
-    movement: log.action === 'produce' ? 'made' : log.action === 'transfer' ? 'transferred' : 'wasted',
+    movement: log.action === 'outlet_send' ? 'sent' : log.action === 'produce' ? 'made' : log.action === 'transfer' ? 'transferred' : 'wasted',
     itemKey: log.wip_item_id, itemName: ctx.itemName(log.wip_item_id, streamKey) ?? log.item_name ?? '',
     streamKey, branchId: log.branch_id, activity: log.activity,
     destinationBranchId: log.action === 'transfer' ? log.destination_branch_id : null,
@@ -316,7 +317,7 @@ export function sortEntries(entries: readonly RecordEntry[], sort: SortKey, dir:
 
 // ── Day summary ───────────────────────────────────────────────────────────────────────────────────
 
-export type DayColumn = 'made' | 'transferred' | 'wasted' | 'counted'
+export type DayColumn = 'sent' | 'made' | 'transferred' | 'wasted' | 'counted'
 type DayCell = { value: Dec | null; reason: 'none' | 'source' | null; entries: number }
 
 export interface DayRow {
@@ -335,12 +336,12 @@ export interface SourceHealth {
   counts: boolean
 }
 
-const DAY_COLUMN_OF: Partial<Record<Movement, DayColumn>> = { made: 'made', transferred: 'transferred', wasted: 'wasted', counted: 'counted' }
+const DAY_COLUMN_OF: Partial<Record<Movement, DayColumn>> = { sent: 'sent', made: 'made', transferred: 'transferred', wasted: 'wasted', counted: 'counted' }
 
 /**
  * Day basis: made and transferred = pending + approved; waste = approved; Count = latest Confirmed that day.
  * HANDOVER: R/handover/records-gaps.md §2. Ingredient use / waste rate — the Waste column is a quantity, never a rate; no actual ingredient consumption is read.
- * Pass entries filtered by item / destination / search but NOT by question: every row keeps all four columns,
+ * Pass entries filtered by item / destination / search but NOT by question: every row keeps all movement columns,
  * and the question only decides which rows are selected.
  */
 export function buildDayRows(entries: readonly RecordEntry[], question: Question, health: SourceHealth): DayRow[] {
@@ -361,7 +362,7 @@ export function buildDayRows(entries: readonly RecordEntry[], question: Question
     if (!row) {
       row = {
         id: key, date: entry.date, itemKey: entry.itemKey, itemName: entry.itemName, streamKey: entry.streamKey, unit: entry.unit,
-        cells: { made: blank(), transferred: blank(), wasted: blank(), counted: blank() }, _received: false,
+        cells: { sent: blank(), made: blank(), transferred: blank(), wasted: blank(), counted: blank() }, _received: false,
       }
       rows.set(key, row)
     }
@@ -383,7 +384,7 @@ export function buildDayRows(entries: readonly RecordEntry[], question: Question
           : row.cells[question].entries > 0
     if (!selected) continue
     // Complete source + no movement on an existing row = 0. Failed/partial source (or an unreadable quantity) = "—".
-    for (const column of ['made', 'transferred', 'wasted'] as const) {
+    for (const column of ['made', 'transferred', 'sent', 'wasted'] as const) {
       const cell = row.cells[column]
       if (!health.logs || (cell.entries > 0 && cell.value === null)) row.cells[column] = { value: null, reason: 'source', entries: cell.entries }
       else if (cell.entries === 0) row.cells[column] = { value: ZERO, reason: 'none', entries: 0 }

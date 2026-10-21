@@ -61,6 +61,7 @@ interface CachedViewerResult {
   roles: ViewerRole[]
   isManager: boolean
   affiliated: string[]
+  canReadCafePushes: boolean
 }
 
 export interface ViewerResult extends CachedViewerResult {
@@ -100,39 +101,34 @@ async function resolveViewerData(userId: string): Promise<CachedViewerResult> {
     // Warn on RLS/read error so misconfiguration doesn't silently masquerade as an orphan.
     if (personError) console.warn('viewer: person read failed', personError)
     // Orphan: no people row or read error → fail closed, no throw
-    return { person: null, roles: [], isManager: false, affiliated: [] }
+    return { person: null, roles: [], isManager: false, affiliated: [], canReadCafePushes: false }
   }
 
-  // 2. Fetch the person's held role_ids ordered by created_at asc (FR-007 — earliest-assigned first).
-  const { data: personRoles, error: prError } = await supabase
-    .from('person_roles')
-    .select('role_id, created_at')
-    .eq('person_id', person.id)
-    .order('created_at', { ascending: true })
+  // The authority reads share no dependency once the person row is known.
+  const [personRolesResult, rolesResult, allPersonRolesResult, affiliationResult, cafePushReadResult] = await Promise.all([
+    supabase
+      .from('person_roles')
+      .select('role_id, created_at')
+      .eq('person_id', person.id)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('roles')
+      .select('id,business_unit_id,name,reports_to_role_id'),
+    // Known O(org) read — acceptable at ~15 people. P1-4+ optimization: push isManager
+    // derivation to a DB view/RPC to avoid reading the full junction table client-side.
+    supabase.from('person_roles').select('role_id'),
+    supabase.schema('shared').rpc('is_cafe_affiliated'),
+    supabase.schema('shared').rpc('can_read_cafe_pushes'),
+  ])
+  const { data: personRoles, error: prError } = personRolesResult
+  const { data: allRoles, error: rolesError } = rolesResult
+  const { data: allPersonRoles, error: allPrError } = allPersonRolesResult
+  const { data: affiliatedRpc, error: affiliationError } = affiliationResult
+  const { data: canReadCafePushesRpc, error: cafePushReadError } = cafePushReadResult
 
-  if (prError) {
-    throw new Error(`resolveViewer: person_roles read failed — ${prError.message}`)
-  }
-
-  // 3. Fetch only the role fields used for the shell label and manager derivation.
-  const { data: allRoles, error: rolesError } = await supabase
-    .from('roles')
-    .select('id,business_unit_id,name,reports_to_role_id')
-
-  if (rolesError) {
-    throw new Error(`resolveViewer: roles read failed — ${rolesError.message}`)
-  }
-
-  // 4. Build the set of held role_ids (roles with ≥1 current holder) from person_roles.
-  //    Known O(org) read — acceptable at ~15 people. P1-4+ optimization: push isManager
-  //    derivation to a DB view/RPC to avoid reading the full junction table client-side.
-  const { data: allPersonRoles, error: allPrError } = await supabase
-    .from('person_roles')
-    .select('role_id')
-
-  if (allPrError) {
-    throw new Error(`resolveViewer: all person_roles read failed — ${allPrError.message}`)
-  }
+  if (prError) throw new Error(`resolveViewer: person_roles read failed — ${prError.message}`)
+  if (rolesError) throw new Error(`resolveViewer: roles read failed — ${rolesError.message}`)
+  if (allPrError) throw new Error(`resolveViewer: all person_roles read failed — ${allPrError.message}`)
 
   const viewerRoleIds = (personRoles ?? []).map((pr) => pr.role_id)
   const roles = allRoles ?? []
@@ -152,18 +148,15 @@ async function resolveViewerData(userId: string): Promise<CachedViewerResult> {
     })
 
   const isManager = deriveIsManager({ viewerRoleIds, roles, heldRoleIds })
-  // The affiliation answer resolves ONCE, here (#744 FR-004): shared.is_cafe_affiliated() is the
-  // same predicate the write policies consult, so no surface re-derives it. Fail closed: a failed
-  // read answers unaffiliated — RLS, not this field, is the write authority (NFR-001).
-  const { data: affiliatedRpc, error: affiliationError } = await supabase
-    .schema('shared')
-    .rpc('is_cafe_affiliated')
+  // Failed affiliation reads fail closed; RLS remains the write authority (NFR-001).
   if (affiliationError) console.warn('viewer: affiliation read failed', affiliationError)
+  if (cafePushReadError) console.warn('viewer: Café Pushes read fact failed', cafePushReadError)
   const affiliated = affiliatedRpc === true ? ['cafe'] : []
   return {
     person,
     roles: viewerRoles,
     isManager,
     affiliated,
+    canReadCafePushes: canReadCafePushesRpc === true,
   }
 }

@@ -48,10 +48,6 @@ export function roleLabel(slug: string): string {
   return ROLE_META[slug]?.label ?? slug
 }
 
-/** Human description for a role slug, or empty string if unknown. */
-export function roleDescription(slug: string): string {
-  return ROLE_META[slug]?.description ?? ''
-}
 
 /**
  * Locale-facing role label + description (#201, the Admin surfaces' i18n pass).

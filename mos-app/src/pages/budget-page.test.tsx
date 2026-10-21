@@ -8,11 +8,13 @@ import { AuthContext, type AuthState } from '@/auth/context'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { PeopleRow } from '@/lib/database.types'
+import type { BudgetRow } from '@/lib/plan-budget-logic'
+import * as planBudgetLogic from '@/lib/plan-budget-logic'
 
 vi.mock('@/lib/db/plan-budget', () => ({
   listIngredientCostLines: vi.fn(),
   listBomLines: vi.fn(),
-  listBudgets: vi.fn(),
+  listBudgetsPage: vi.fn(),
   getCertifiedMetric: vi.fn(),
   captureBudget: vi.fn(),
 }))
@@ -21,7 +23,7 @@ vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn() }))
 import {
   listIngredientCostLines,
   listBomLines,
-  listBudgets,
+  listBudgetsPage,
   getCertifiedMetric,
   captureBudget,
 } from '@/lib/db/plan-budget'
@@ -58,9 +60,9 @@ const authed: AuthState = {
   signOut: async () => {},
 }
 
-function renderPage() {
+function renderPage(locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter>
         <AuthContext.Provider value={authed}>
           <BudgetPage />
@@ -74,7 +76,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(getCertifiedMetric).mockResolvedValue({ key: 'cogs.budgeted', name: 'Budgeted COGS', certified: true })
   vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-1', name: 'Finance' }])
-  vi.mocked(listBudgets).mockResolvedValue([])
+  vi.mocked(listBudgetsPage).mockResolvedValue({ rows: [], cursor: null, hasMore: false })
 })
 
 describe('BudgetPage — head (r5 F-9)', () => {
@@ -90,11 +92,14 @@ describe('BudgetPage — head (r5 F-9)', () => {
 })
 
 describe('BudgetPage — states', () => {
-  it('loading: shows a busy skeleton before data resolves', () => {
+  it.each([
+    { locale: 'en' as const, name: 'Loading…' },
+    { locale: 'id' as const, name: 'Memuat…' },
+  ])('loading: shows a busy skeleton with a localized accessible name in $locale', ({ locale, name }) => {
     vi.mocked(listBomLines).mockReturnValue(new Promise(() => {}))
     vi.mocked(listIngredientCostLines).mockResolvedValue([])
-    renderPage()
-    expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
+    renderPage(locale)
+    expect(screen.getByRole('status', { name })).toBeInTheDocument()
   })
 
   it('empty: names the snapshot source without leaking internal schema strings', async () => {
@@ -134,6 +139,33 @@ describe('BudgetPage — populated (fresh + certified)', () => {
     expect(await screen.findByText(/Rp 9.000/)).toBeInTheDocument()
   })
 
+  it.each([
+    {
+      locale: 'en' as const,
+      preview: 'Budgeted COGS preview',
+      capture: 'Capture budget scenario',
+      linkedCost: 'Linked cost line for Fresh Milk',
+      bom: 'Linked BOM evidence',
+      scenarios: 'Captured scenarios',
+    },
+    {
+      locale: 'id' as const,
+      preview: 'Pratinjau HPP anggaran',
+      capture: 'Catat skenario anggaran',
+      linkedCost: 'Baris biaya tertaut untuk Fresh Milk',
+      bom: 'Bukti BOM tertaut',
+      scenarios: 'Skenario yang dicatat',
+    },
+  ])('provides localized accessible names for budget regions and cost links in $locale', async ({ locale, preview, capture, linkedCost, bom, scenarios }) => {
+    renderPage(locale)
+    await screen.findByText(/Rp 9.000/)
+    expect(screen.getByRole('region', { name: preview })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: capture })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: linkedCost })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: bom })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: scenarios })).toBeInTheDocument()
+  })
+
   it('AC-PB-007: each BOM line shows a drill link to the linked cost line (link-never-copy)', async () => {
     renderPage()
     await screen.findByText(/Rp 9.000/)
@@ -169,6 +201,32 @@ describe('BudgetPage — populated (fresh + certified)', () => {
     expect(input.closest('.mk-textinput')).toHaveClass('mk-textinput--full')
   })
 
+  it.each([
+    ['en', /Basis as of —/],
+    ['id', /Dasar biaya per —/],
+  ] as const)('keeps a missing cost basis absent when capturing in %s', async (locale, basisCopy) => {
+    vi.mocked(captureBudget).mockResolvedValue('MISSING-BASIS-BUDGET')
+    vi.mocked(listBomLines).mockResolvedValue([
+      { menu_item_esb_code: 'MENU-CAPPUC', ingredient_esb_code: 'ING-MILK', recipe_qty: 1, qty_unit: 'L' },
+    ])
+    vi.mocked(listIngredientCostLines).mockResolvedValue([
+      { ingredient_esb_code: 'ING-MILK', name: 'Fresh Milk', unit_cost: 9000, unit: 'L', as_of: FRESH },
+    ])
+    const compute = vi.spyOn(planBudgetLogic, 'computeBudgetedCogs').mockReturnValue({
+      lines: [{ ingredient_esb_code: 'ING-MILK', ingredient_name: 'Fresh Milk', recipe_qty: 1, qty_unit: 'L', unit_cost: 9000, cost_as_of: null, line_total: 9000 }],
+      total: 9000, complete: true, basis_as_of: null,
+    })
+    try {
+      renderPage(locale)
+      expect(await screen.findByText(basisCopy)).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: /capture budget|catat anggaran/i }))
+      await waitFor(() => expect(captureBudget).toHaveBeenCalledTimes(1))
+      expect(vi.mocked(captureBudget).mock.calls[0][0].costBasisAsOf).toBeNull()
+    } finally {
+      compute.mockRestore()
+    }
+  })
+
   it('AC-PB-008: capture submits a budget with the linked shape (no unit cost on lines)', async () => {
     vi.mocked(captureBudget).mockResolvedValue('NEW-BUDGET')
     renderPage()
@@ -188,6 +246,32 @@ describe('BudgetPage — populated (fresh + certified)', () => {
       expect(Object.keys(line)).not.toContain('unit_cost')
     }
     expect(await screen.findByText(/saved scenario/i)).toBeInTheDocument()
+  })
+})
+
+describe('BudgetPage — scenario paging', () => {
+  const baseline: BudgetRow = {
+    id: 'budget-1', menu_item_esb_code: 'MENU-CAPPUC', menu_item_name: 'Cappuccino', scenario_label: 'Baseline',
+    scenario_type: 'baseline', owning_bu_id: 'bu-1', total_budgeted_cogs: 9000,
+    cost_basis_as_of: FRESH, certified_metric_key: 'cogs.budgeted', is_complete: true,
+  }
+  const promo: BudgetRow = { ...baseline, id: 'budget-2', scenario_label: 'Promo', scenario_type: 'promo' }
+
+  it.each([
+    { locale: 'en' as const, more: 'Load more items' },
+    { locale: 'id' as const, more: 'Muat item lainnya' },
+  ])('loads additional scenarios in $locale only when the user continues the list', async ({ locale, more }) => {
+    vi.mocked(listBudgetsPage).mockResolvedValueOnce({
+      rows: [baseline], cursor: { id: 'budget-1', createdAt: '2026-10-01T00:00:00Z' }, hasMore: true,
+    }).mockResolvedValueOnce({ rows: [promo], cursor: null, hasMore: false })
+    vi.mocked(listBomLines).mockResolvedValue([{ menu_item_esb_code: 'MENU-CAPPUC', ingredient_esb_code: 'ING-MILK', recipe_qty: 1, qty_unit: 'L' }])
+    vi.mocked(listIngredientCostLines).mockResolvedValue([{ ingredient_esb_code: 'ING-MILK', name: 'Milk', unit_cost: 9000, unit: 'L', as_of: FRESH }])
+
+    renderPage(locale)
+    await screen.findByRole('row', { name: /Baseline/ })
+    fireEvent.click(screen.getByRole('button', { name: more }))
+    await screen.findByRole('row', { name: /Promo/ })
+    expect(listBudgetsPage).toHaveBeenLastCalledWith('MENU-CAPPUC', { id: 'budget-1', createdAt: '2026-10-01T00:00:00Z' })
   })
 })
 

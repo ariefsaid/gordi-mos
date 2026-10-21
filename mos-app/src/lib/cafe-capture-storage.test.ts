@@ -51,18 +51,26 @@ describe('Cafe capture draft storage', () => {
       ]))
   })
 
-  it('expires drafts after seven days and removes expired storage', () => {
-    vi.setSystemTime(new Date(Date.now() - CAFE_CAPTURE_DRAFT_TTL_MS - 1))
+  it('keeps production drafts at 23h59 and removes count drafts at 24h', () => {
+    expect(CAFE_CAPTURE_DRAFT_TTL_MS).toBe(24 * 60 * 60 * 1000)
+    const now = Date.now()
+    const countScope: CafeCaptureDraftScope = { ...BASE_SCOPE, form: 'count' }
     localStorage.setItem(cafeCaptureDraftStorageKey(BASE_SCOPE), JSON.stringify({
       version: 2,
       scope: BASE_SCOPE,
-      value: { entries: ['old'] },
-      updatedAt: new Date(Date.now() - CAFE_CAPTURE_DRAFT_TTL_MS - 1).toISOString(),
+      value: { entries: ['recent'] },
+      updatedAt: new Date(now - (23 * 60 * 60 * 1000 + 59 * 60 * 1000)).toISOString(),
     }))
-    vi.setSystemTime(new Date('2026-10-02T10:00:00.000Z'))
+    localStorage.setItem(cafeCaptureDraftStorageKey(countScope), JSON.stringify({
+      version: 2,
+      scope: countScope,
+      value: { entries: ['expired'] },
+      updatedAt: new Date(now - 24 * 60 * 60 * 1000).toISOString(),
+    }))
 
-    expect(readCafeCaptureDraft(BASE_SCOPE)).toBeNull()
-    expect(localStorage.getItem(cafeCaptureDraftStorageKey(BASE_SCOPE))).toBeNull()
+    expect(readCafeCaptureDraft(BASE_SCOPE)?.value).toEqual({ entries: ['recent'] })
+    expect(readCafeCaptureDraft(countScope)).toBeNull()
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(countScope))).toBeNull()
   })
 
   it('clears only the exact stream and date draft', () => {

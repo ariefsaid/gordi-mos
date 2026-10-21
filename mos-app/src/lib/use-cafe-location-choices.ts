@@ -4,6 +4,7 @@ import {
   listCafeLocations,
   type CafeLocation,
   type StreamLocationDefaults,
+  type StreamRef,
 } from '@/lib/db/cafe-locations'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 
@@ -27,6 +28,16 @@ type ChoiceSnapshot = {
 
 const EMPTY: ChoiceSnapshot = { scope: null, status: 'idle', locations: [], defaults: null }
 
+// Capture bootstrap needs the same choices before restoring a saved movement.
+export async function readCafeLocationChoices(stream: StreamRef | null) {
+  if (!stream) return { locations: [], defaults: null }
+  const [locations, defaults] = await Promise.all([
+    listCafeLocations({ branch_id: stream.branch_id, archived: false }),
+    getCafeStreamLocationDefaults(stream),
+  ])
+  return { locations, defaults }
+}
+
 /** Reads only active locations offered to this branch and convenience defaults for this stream. */
 export function useCafeLocationChoices(stream: ProductionStream | null) {
   const branchId = stream?.branch.id ?? null
@@ -42,10 +53,7 @@ export function useCafeLocationChoices(stream: ProductionStream | null) {
     }
     let active = true
     setSnapshot({ scope, status: 'loading', locations: [], defaults: null })
-    void Promise.all([
-      listCafeLocations({ branch_id: branchId, archived: false }),
-      getCafeStreamLocationDefaults({ branch_id: branchId, activity }),
-    ]).then(([locations, defaults]) => {
+    void readCafeLocationChoices({ branch_id: branchId, activity }).then(({ locations, defaults }) => {
       if (active) setSnapshot({ scope, status: 'ready', locations, defaults })
     }).catch(() => {
       if (active) setSnapshot({ scope, status: 'error', locations: [], defaults: null })

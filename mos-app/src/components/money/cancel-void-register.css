@@ -1,0 +1,13 @@
+.cancel-void { min-width: 0; overflow-wrap: anywhere; }
+.cancel-void p { max-width: 75ch; margin-block: 8px; }
+.cancel-void h4 { margin-block: 16px 8px; font-weight: 600; }
+.cancel-void__filter { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.cancel-void__cases { display: grid; gap: 16px; list-style: none; padding: 0; }
+.cancel-void__case { min-width: 0; border-block-end: 1px solid var(--border); padding-block-end: 16px; }
+.cancel-void__case summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; }
+.cancel-void__form { display: grid; gap: 12px; max-width: 560px; }
+.cancel-void__form label { display: grid; gap: 8px; }
+.cancel-void__form textarea { width: 100%; min-height: 100px; padding: 9px 10px; border: 1px solid var(--input); border-radius: var(--radius-sm); background: var(--background); color: var(--foreground); font: inherit; resize: vertical; }
+.cancel-void__form textarea:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.cancel-void__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cancel-void__totals { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }

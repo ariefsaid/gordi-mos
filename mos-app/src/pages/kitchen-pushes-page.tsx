@@ -5,8 +5,7 @@
 // This is the human seam for FR-074's dead-letter surfacing (the worker dead-
 // letters after MAX_RETRY; an ops_lead must see it to escalate).
 //
-// - Role-gated: ops_lead/admin only (member → forbidden panel, no read call).
-//   RLS is the authority; the UI gate is a courtesy (design-plan §0).
+// - Read-gated: the server fact admits Retail Ops managers alongside ops leads/admins; other viewers see no rows.
 // - READ-ONLY v1: no retry/resend/reset actions. Dead-letter manual retry is
 //   DEFERRED. The surface reads + shows status so the lead can escalate.
 // - Status badges via Tag, every state a person word from the i18n catalog — no raw
@@ -32,6 +31,7 @@ import { Panel } from '@/components/cafe/redesign/worksheet'
 import { CafeCloseReviewWorkspace } from '@/components/cafe/redesign/cafe-close-review-workspace'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
+import { canPushCafe } from '@/lib/kitchen-gates'
 import { useT } from '@/i18n/use-t'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { CafeQueueEmpty } from '@/components/cafe/redesign/cafe-queue-empty'
@@ -93,9 +93,10 @@ export function KitchenPushesPage() {
   const t = useT()
   const auth = useAuth()
   const isDesktop = useIsDesktop()
-  // ── Role gate (FR-074 / AC-007) — ops_lead/admin only ──────────────────────
+  // ── Read gate: the server fact admits Retail Ops managers; lead/admin access remains unchanged.
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const allowed = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
+  const canReadCafePushes = auth.status === 'authenticated' && auth.viewer.canReadCafePushes === true
+  const allowed = canReadCafePushes || canPushCafe(accessRoles)
 
   const [rows, setRows] = useState<EsbPushRow[]>([])
   const [hasMore, setHasMore] = useState(false)
@@ -144,7 +145,7 @@ export function KitchenPushesPage() {
     )
   }
 
-  // ── Forbidden (non-lead) — intent is clear, NOT an empty table ─────────────
+  // ── Forbidden non-readers see an explicit restricted state, not an empty table ───────
   if (!allowed) {
     return (
       <CafePageFrame page="pushes" streamBar={ALL_STREAMS_BAR} state="permission">
@@ -183,6 +184,7 @@ export function KitchenPushesPage() {
       meta={headMeta}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
+      <p>{t('kitchen.pushes.outletSend')}</p>
       {load.kind === 'loading' && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (

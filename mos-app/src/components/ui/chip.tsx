@@ -33,22 +33,23 @@ export function Chip({
 }: ChipProps) {
   const cls = ['mk-chip', clickable ? 'mk-chip--clickable' : null, className]
     .filter(Boolean).join(' ')
+  const fullLabel = typeof label === 'string' ? label : undefined
   const lead = avatarUrl || avatarColor
     ? <Avatar avatarUrl={avatarUrl} placeholder={typeof label === 'string' ? label : undefined} size="sm" type={avatarType} backgroundColor={avatarColor} />
     : Icon != null ? <span className="mk-chip__icon">{Icon}</span> : null
 
   if (clickable) {
     return (
-      <button type="button" className={cls} style={style} onClick={onClick}>
+      <button type="button" className={cls} style={style} onClick={onClick} aria-label={fullLabel}>
         {lead}
-        <span className="mk-chip__label">{label}</span>
+        <span className="mk-chip__label" title={fullLabel}>{label}</span>
       </button>
     )
   }
   return (
     <span className={cls} style={style}>
       {lead}
-      <span className="mk-chip__label">{label}</span>
+      <span className="mk-chip__label" title={fullLabel}>{label}</span>
     </span>
   )
 }

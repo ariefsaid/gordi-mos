@@ -27,7 +27,7 @@ export function CafeDecisionQueue<Row extends CafeDecisionRecord>({
   streamFilter, streamCatalog, viewerId, copy, load, decide, ownerOf, title, meta, detail, lines, state, groupLabel,
 }: {
   streamFilter: string; streamCatalog: readonly ProductionStream[]; viewerId: string | null; copy: CafeDecisionCopy
-  load: () => Promise<Row[]>; decide: (row: Row, decision: 'approve' | 'reject', note: string) => Promise<{ status: Row['status']; row_version: number }>
+  load: () => Promise<Row[]>; decide: (row: Row, decision: 'approve' | 'reject', note: string) => Promise<Pick<Row, 'status' | 'row_version'> & Partial<Row>>
   ownerOf: (row: Row) => string; title: (row: Row, person: string) => string; meta: (row: Row) => ReactNode[]
   detail?: (row: Row) => ReactNode; lines: (row: Row) => ReadonlyArray<{ id: string; name: string; quantity: string; unit: string }>
   state: (row: Row) => ReactNode; groupLabel?: (row: Row) => string
@@ -92,7 +92,7 @@ export function CafeDecisionQueue<Row extends CafeDecisionRecord>({
     setBusyId(row.id); setActionError(false)
     try {
       const result = await decide(row, decision, decision === 'reject' ? note : '')
-      setRows(current => current.map(item => item.id === row.id ? { ...item, status: result.status, row_version: result.row_version } : item))
+      setRows(current => current.map(item => item.id === row.id ? { ...item, ...result } : item))
       setRejecting(null); setNote('')
     } catch { setActionError(true) } finally { setBusyId(null) }
   }

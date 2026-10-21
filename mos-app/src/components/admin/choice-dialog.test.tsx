@@ -1,5 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { ChoiceDialog, type ChoiceChange } from './choice-dialog'
 
 afterEach(cleanup)
@@ -48,6 +50,47 @@ describe('ChoiceDialog: one Save, the same per-row writes', () => {
     expect(screen.getByRole('button', { name: 'Save picks' })).toBeDisabled()
     expect(screen.getByRole('checkbox', { name: 'Charlie' })).toBeDisabled()
     expect(screen.getByText('Only admin')).toBeInTheDocument()
+  })
+
+  it.each(['en', 'id'] as const)('keeps keyboard focus on a row during save in %s', async (locale) => {
+    const user = userEvent.setup()
+    let settleWrite: () => void = () => {}
+    const write = vi.fn(() => new Promise<void>((resolve) => { settleWrite = resolve }))
+    const refresh = vi.fn().mockResolvedValue(undefined)
+    const onClose = vi.fn()
+    render(
+      <I18nProvider initialLocale={locale}>
+        <ChoiceDialog
+          title="Pick"
+          choices={choices}
+          saved={new Set(['a'])}
+          saveLabel="Save picks"
+          write={write}
+          refresh={refresh}
+          onClose={onClose}
+        />
+      </I18nProvider>,
+    )
+
+    const checkbox = screen.getByRole('checkbox', { name: 'Bravo' })
+    checkbox.focus()
+    await user.keyboard(' ')
+    expect(checkbox).toBeChecked()
+    expect(document.activeElement).toBe(checkbox)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save picks' }))
+    await waitFor(() => expect(checkbox).toHaveAttribute('aria-busy', 'true'))
+    expect(checkbox).toHaveAttribute('aria-disabled', 'true')
+    expect(checkbox).toBeEnabled()
+    expect(document.activeElement).toBe(checkbox)
+
+    await user.keyboard(' ')
+    expect(checkbox).toBeChecked()
+    expect(document.activeElement).toBe(checkbox)
+    expect(write).toHaveBeenCalledOnce()
+
+    settleWrite()
+    await waitFor(() => expect(onClose).toHaveBeenCalledWith(true))
   })
 
   it('stays open on a failed row with Retry, which repeats only that write', async () => {

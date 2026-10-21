@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { getBusinessUnits } from '@/lib/db/directory'
+import { can, hasAccessRole } from '@/lib/capabilities'
 import { canWorkAnyLane } from '@/lib/follow-up-lanes'
 import {
   listFollowUpsPage,
@@ -63,8 +64,8 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
   const [params] = useSearchParams()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const accessRoles = useMemo(() => viewer?.accessRoles ?? [], [viewer])
-  const canConfirm = accessRoles.includes('finance') || accessRoles.includes('admin')
-  const [canChase, setCanChase] = useState(accessRoles.includes('admin'))
+  const canConfirm = can(accessRoles, 'followup.confirm')
+  const [canChase, setCanChase] = useState(hasAccessRole(accessRoles, 'admin'))
   const [rows, setRows] = useState<FollowUpRow[]>([])
   const [state, setState] = useState<FollowUpFetchState>('loading')
   const [hasMore, setHasMore] = useState(false)
@@ -112,7 +113,7 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
       .then((bus) => {
         if (!cancelled) setCanChase(canWorkAnyLane(viewer.roles, bus, accessRoles))
       })
-      .catch(() => setCanChase(accessRoles.includes('admin')))
+      .catch(() => setCanChase(hasAccessRole(accessRoles, 'admin')))
     return () => { cancelled = true }
   }, [accessRoles, viewer])
 
@@ -145,7 +146,7 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
   const run = useCallback(async (row: FollowUpRow, verb: FollowUpTransition) => {
     if (verb === 'partial' || verb === 'settle' || verb === 'promise') {
       setActive({ id: row.id, verb })
-      setForm({ ...EMPTY_FORM, amount: verb === 'settle' ? String(row.running_balance) : '' })
+      setForm({ ...EMPTY_FORM, amount: verb === 'settle' && row.running_balance !== null ? String(row.running_balance) : '' })
       return
     }
     await transitionFollowUp(row.id, verb, {})
@@ -155,7 +156,7 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
   const submit = useCallback(async (row: FollowUpRow, verb: FollowUpTransition) => {
     const payload = verb === 'promise'
       ? { promise_date: form.promise_date, note: form.note }
-      : { amount: Number(form.amount || row.running_balance), cash_in_date: form.cash_in_date, evidence: form.evidence, note: form.note }
+      : { amount: form.amount !== '' ? Number(form.amount) : row.running_balance ?? undefined, cash_in_date: form.cash_in_date, evidence: form.evidence, note: form.note }
     await transitionFollowUp(row.id, verb, payload)
     setActive(null)
     load(loadedCountRef.current)

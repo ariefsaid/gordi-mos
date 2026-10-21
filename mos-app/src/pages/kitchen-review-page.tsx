@@ -14,6 +14,7 @@ import { WastePhotoStrip } from '@/components/kitchen/waste-photo-strip'
 import {
   listSubmittedKitchenLogs,
   hasSubmittedKitchenProduction,
+  listSubmittedKitchenProductionGates,
   KITCHEN_LOGS_PAGE_SIZE,
   fetchPlanMaps,
   listStreamPairs,
@@ -42,7 +43,7 @@ import { listActiveBranches } from '@/lib/db/branches'
 // only her primary — the same read useCafeStream already runs for "Your Team" tagging.
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import type { CafeViewerTeam } from '@/lib/db/cafe-opening'
-import { isReviewerEligibleTeam } from '@/lib/kitchen-gates'
+import { canAdminCafe, canPushCafe, canReviewCafe, isCafeSupervisor, isReviewerEligibleTeam } from '@/lib/kitchen-gates'
 import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 import { deriveActionLabel, movementKey, streamDateKey, streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import type { Translate } from '@/i18n/use-t'
@@ -96,10 +97,17 @@ function isOffPlan(log: ReviewLogRow, planQty: number): boolean {
   return log.qty_porsi !== planQty
 }
 
+const reviewQuantityFormatters = new Map<string, Intl.NumberFormat>()
+
 function formatLogEntryQuantity(log: ReviewLogRow): string {
   if (log.entry_quantity == null || log.entry_unit_name == null) return String(log.qty_porsi)
   const locale = document.documentElement.lang || 'en'
-  const format = (quantity: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 3 }).format(quantity)
+  let formatter = reviewQuantityFormatters.get(locale)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, { maximumFractionDigits: 3 })
+    reviewQuantityFormatters.set(locale, formatter)
+  }
+  const format = (quantity: number) => formatter.format(quantity)
   const factor = log.entry_unit_factor ?? 1
   const enteredUnit = factor === 1 ? log.entry_unit_name : formatUnitMultiple(factor, log.entry_unit_name, locale)
   const entered = factor === 1
@@ -402,12 +410,13 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
 
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const canReadCafePushes = auth.status === 'authenticated' && auth.viewer.canReadCafePushes === true
   // #236 (FR-040/041): stream supervisors join the review surface. The page-level split is
   // DISPLAY ONLY — the write contract (who may decide which stream's rows) is the server's
   // guard/policy (NFR-002); everything here merely mirrors it so refusals are rare, not possible.
-  const isLeadOrAdmin = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
-  const isSupervisor = accessRoles.includes('supervisor')
-  const allowed = isLeadOrAdmin || isSupervisor
+  const isLeadOrAdmin = canPushCafe(accessRoles)
+  const isSupervisor = isCafeSupervisor(accessRoles)
+  const allowed = canReviewCafe(accessRoles)
 
   // The date and the open log live in the URL (UX-STANDARD NV4): no date = every pending
   // date, oldest first, so an older backlog is never hidden behind today.
@@ -504,18 +513,22 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
         streams.set(key, { logDate: row.log_date, stream: { branch, activity: row.activity } })
       }
     }
-    const [plans, photos, gates] = await Promise.all([
+    const transferKeys = new Set(rows
+      .filter(row => row.action === 'transfer' || row.action === 'outlet_send')
+      .map(row => streamDateKey(row.log_date, row.branch_id, row.activity)))
+    const gateContexts = [...streams].filter(([key]) => transferKeys.has(key))
+    const [plans, photos, pending] = await Promise.all([
       fetchPlanMaps([...streams.values()]),
       listKitchenWastePhotos(rows.filter(row => row.action === 'waste').map(row => row.id)),
-      Promise.all([...streams].filter(([key]) => rows.some(row => row.action === 'transfer'
-        && streamDateKey(row.log_date, row.branch_id, row.activity) === key))
-        .map(async ([key, context]) => [key, await hasSubmittedKitchenProduction(
-          context.logDate, context.stream.branch.id, context.stream.activity,
-        )] as const)),
+      listSubmittedKitchenProductionGates(gateContexts.map(([, context]) => ({
+        logDate: context.logDate,
+        branchId: context.stream.branch.id,
+        activity: context.stream.activity,
+      }))),
     ])
     const photosByLog: Record<string, KitchenWastePhoto[]> = {}
     for (const photo of photos) (photosByLog[photo.logId] ??= []).push(photo)
-    return { plans, photosByLog, pending: gates.filter(([, pending]) => pending).map(([key]) => key) }
+    return { plans, photosByLog, pending: [...pending] }
   }, [])
 
   const fetchQueue = useCallback(async () => {
@@ -627,7 +640,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
 
   const rowGated = useCallback(
     (log: ReviewLogRow) =>
-      log.action === 'transfer' && pendingProductionStreams.has(streamDateKey(log.log_date, log.branch_id, log.activity)),
+      (log.action === 'transfer' || log.action === 'outlet_send') && pendingProductionStreams.has(streamDateKey(log.log_date, log.branch_id, log.activity)),
     [pendingProductionStreams],
   )
 
@@ -723,9 +736,9 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
       const { batch_id } = await approveKitchenLog(logId, expectedUpdatedAt, reviewNote)
       removeRow(logId)
       setNotice(batch_id === null
-        ? t('kitchen.review.notice.wasteHeld')
+        ? t(logs.find(log => log.id === logId)?.action === 'outlet_send' ? 'kitchen.review.notice.outletSent' : 'kitchen.review.notice.wasteHeld')
         : t('kitchen.review.notice.approved', { batchId: batch_id }))
-      setNoticeCanViewPushes(isLeadOrAdmin && batch_id !== null)
+      setNoticeCanViewPushes(canReadCafePushes && batch_id !== null)
     } catch (err) {
       handleDecisionError(err)
     } finally {
@@ -799,7 +812,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
     const stale: string[] = []
     // Noop is a real approval with no ERP document. Keep it on the proven per-row seam;
     // only non-noop rows may enter the grouping RPC.
-    const noop = eligible.filter(log => log.action === 'transfer' && log.destination_branch_id === log.branch_id)
+    const noop = eligible.filter(log => log.action === 'outlet_send' || (log.action === 'transfer' && log.destination_branch_id === log.branch_id))
     const documentRows = eligible.filter(log => !noop.includes(log))
     for (const log of noop) {
       try {
@@ -809,7 +822,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
         removeRow(log.id)
       } catch (err) {
         if (err instanceof KitchenRpcError && err.code === 'P0003') { stale.push(log.id); removeRow(log.id) }
-        else failed++
+        else { failed++; handleDecisionError(err) }
       }
     }
     // The RPC deliberately mints one document only for a uniform stream/date. The UI keeps
@@ -848,19 +861,27 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
     setBulkAction(null)
     if (failed > 0 || stale.length > 0) {
       setNotice(t('kitchen.review.notice.bulkTruth', { approved, failed, stale: stale.length }))
-      setNoticeCanViewPushes(isLeadOrAdmin && approved > 0)
+      setNoticeCanViewPushes(canReadCafePushes && approved > 0)
     } else if (approved > 0) {
       setNotice(
         approved === 1
           ? t('kitchen.review.notice.approved', { batchId: batches[0] ?? '—' })
           : t('kitchen.review.notice.bulkApproved', { approved, batchId: batches.join(', ') }),
       )
-      setNoticeCanViewPushes(isLeadOrAdmin)
+      setNoticeCanViewPushes(canReadCafePushes)
     }
     if (stale.length > 0) setRetryKey(k => k + 1)
   }
 
   function handleDecisionError(err: unknown) {
+    if (err instanceof Error && err.message.includes('CAFE_LOCATION_MOVE_INSUFFICIENT_STOCK')) {
+      setActionError(t('kitchen.review.outletSend.insufficient'))
+      return
+    }
+    if (err instanceof Error && err.message.includes('CAFE_LOCATION_MOVE_BALANCE_UNALLOCATED')) {
+      setActionError(t('kitchen.review.outletSend.noOpening'))
+      return
+    }
     if (err instanceof KitchenRpcError && err.code === 'P0003') {
       setNotice(t('kitchen.review.notice.staleRefresh'))
       setRetryKey(k => k + 1)
@@ -887,7 +908,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
     .map(({ logDate, action }) => {
       const rows = visibleLogs.filter(l => l.log_date === logDate && l.action_type === action)
       const actionLabel = rows[0]
-        ? deriveActionLabel(t, { action: rows[0].action, destinationBranchId: rows[0].destination_branch_id }, branchCatalog)
+        ? deriveActionLabel(t, { action: rows[0].action, destinationBranchId: rows[0].destination_branch_id }, branchCatalog, branchCatalog.find(branch => branch.id === rows[0].branch_id))
         : action
       const dateLabel = formatWeekdayDayMonth(logDate)
       // The gate is scoped to this date's rows as well as to each stream.
@@ -932,7 +953,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
         <button type="button" className="kr-master-row" aria-pressed={log.id === selectedLogId} onClick={() => setSelectedLogId(log.id)}>
           <span className="kr-master-row__identity">{log.wip_item_name}</span>
           <Tag color={offPlan ? 'amber' : 'green'}><span className="krow-dot" aria-hidden="true" />{offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}</Tag>
-          <span className="kr-master-row__meta">{formatWeekdayDayMonth(log.log_date)} · {deriveActionLabel(t, { action: log.action, destinationBranchId: log.destination_branch_id }, branchCatalog)}{streamFilter === ALL_STREAMS ? ` · ${rowStreamLabel(t, streamCatalog, log)}` : ''}</span>
+          <span className="kr-master-row__meta">{formatWeekdayDayMonth(log.log_date)} · {deriveActionLabel(t, { action: log.action, destinationBranchId: log.destination_branch_id }, branchCatalog, branchCatalog.find(branch => branch.id === log.branch_id))}{streamFilter === ALL_STREAMS ? ` · ${rowStreamLabel(t, streamCatalog, log)}` : ''}</span>
           {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
           <span className="kr-master-row__meta">{t('kitchen.review.qty.plan')} {plan} · {t('kitchen.review.qty.logged')} {formatLogEntryQuantity(log)} · {peopleMap.get(log.submitted_by ?? '') ?? '—'}</span>
         </button>
@@ -951,7 +972,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
     return <article className="kr-workbench">
       <h2>{log.wip_item_name}</h2>
       <div className="kr-workbench__meta">
-        <span>{formatWeekdayDayMonth(log.log_date)} · {deriveActionLabel(t, { action: log.action, destinationBranchId: log.destination_branch_id }, branchCatalog)}</span>
+        <span>{formatWeekdayDayMonth(log.log_date)} · {deriveActionLabel(t, { action: log.action, destinationBranchId: log.destination_branch_id }, branchCatalog, branchCatalog.find(branch => branch.id === log.branch_id))}</span>
         {streamFilter === ALL_STREAMS && <span>{rowStreamLabel(t, streamCatalog, log)}</span>}
         <span className="kr-workbench__submitter"><Avatar size="sm" placeholder={name} /><span>{name}</span><span>{formatTime(log.created_at)}</span></span>
         {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
@@ -1151,7 +1172,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
       {!isOnline && <Notice tone="attention" role="alert">{t('kitchen.review.offline')}</Notice>}
 
       {notice && (
-        <Notice tone="success" action={noticeCanViewPushes ? <Link to="/cafe/pushes">{t('kitchen.review.notice.viewPushes')}</Link> : undefined}>
+        <Notice tone="success" action={noticeCanViewPushes && canReadCafePushes ? <Link to="/cafe/pushes">{t('kitchen.review.notice.viewPushes')}</Link> : undefined}>
           {notice}
         </Notice>
       )}
@@ -1189,7 +1210,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
           selected={selectedLog !== null}
           onBack={() => setSelectedLogId(null)}
           backLabel={t('kitchen.review.master.back')}
-          master={<DataTable columns={columns} rows={[]} groups={tableGroups} isDesktop={isDesktop} renderCard={renderReviewCard} caption={t('kitchen.review.caption')} />}
+          master={<DataTable columns={columns} rows={[]} groups={tableGroups} isDesktop={isDesktop} virtualize={isDesktop && visibleLogs.length >= KITCHEN_LOGS_PAGE_SIZE} renderCard={renderReviewCard} caption={t('kitchen.review.caption')} />}
           detail={reviewWorkbench}
         />
       )}
@@ -1203,6 +1224,8 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
           reviewableStreamKeys={myStreamKeys}
           viewerId={viewerId}
           refreshKey={retryKey}
+          canManagePosting={canAdminCafe(accessRoles)}
+          canReleasePosting={isLeadOrAdmin}
         /></div>
         </div>
       </div>

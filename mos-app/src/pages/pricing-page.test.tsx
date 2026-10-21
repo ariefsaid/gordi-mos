@@ -3,17 +3,19 @@
 // COGS -> margin (AC-PB-005, read-only), the fail-loud freshness/certification warning (AC-PB-006),
 // and that the price is never written (MOS is the pre-flight, not the price-setter — ADR-0022 D5).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import type { BudgetRow } from '@/lib/plan-budget-logic'
+import { formatWibDateTime } from '@/lib/format/date'
 
 vi.mock('@/lib/db/plan-budget', () => ({
-  listBudgets: vi.fn(),
+  listBudgetsPage: vi.fn(),
   getCertifiedMetric: vi.fn(),
 }))
 vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn(() => ({ status: 'authenticated' })) }))
 
-import { listBudgets, getCertifiedMetric } from '@/lib/db/plan-budget'
+import { listBudgetsPage, getCertifiedMetric } from '@/lib/db/plan-budget'
 import { PricingPage } from './pricing-page'
 
 // Same time bomb as budget-page.test.tsx, and I wrongly cleared this file when I fixed that one:
@@ -26,9 +28,11 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString
 const FRESH = daysAgo(5)    // well inside STALENESS_DAYS (30)
 const STALE = daysAgo(200)  // unambiguously outside it
 
-function renderPage() {
+function budgetPage(rows: BudgetRow[]) { return { rows, cursor: null, hasMore: false } }
+
+function renderPage(locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter>
         <PricingPage />
       </MemoryRouter>
@@ -39,11 +43,16 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(getCertifiedMetric).mockResolvedValue({ key: 'cogs.budgeted', name: 'Budgeted COGS', certified: true })
+  vi.mocked(listBudgetsPage).mockResolvedValue(budgetPage([{
+    id: 'b1', menu_item_esb_code: 'MENU-CAPPUC', menu_item_name: 'Cappuccino', scenario_label: 'Baseline',
+    scenario_type: 'baseline', owning_bu_id: 'bu-1', total_budgeted_cogs: 9000,
+    cost_basis_as_of: FRESH, certified_metric_key: 'cogs.budgeted', is_complete: true,
+  }]))
 })
 
 describe('PricingPage — head (r5 F-9)', () => {
   it('r5 F-9: the head speaks the Pricing-specific job sentence — never the shared job.money', async () => {
-    vi.mocked(listBudgets).mockResolvedValue([])
+    vi.mocked(listBudgetsPage).mockResolvedValue(budgetPage([]))
     renderPage()
     await screen.findByText(/no budgets captured yet/i)
     const head = screen.getByTestId('page-head')
@@ -54,19 +63,19 @@ describe('PricingPage — head (r5 F-9)', () => {
 
 describe('PricingPage — states', () => {
   it('loading: shows a busy skeleton', () => {
-    vi.mocked(listBudgets).mockReturnValue(new Promise(() => {}))
+    vi.mocked(listBudgetsPage).mockReturnValue(new Promise(() => {}))
     renderPage()
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
   it('empty: names the upstream capture step when no budgets exist', async () => {
-    vi.mocked(listBudgets).mockResolvedValue([])
+    vi.mocked(listBudgetsPage).mockResolvedValue(budgetPage([]))
     renderPage()
     expect(await screen.findByText(/no budgets captured yet/i)).toBeInTheDocument()
   })
 
   it('error: retryable', async () => {
-    vi.mocked(listBudgets).mockRejectedValue(new Error('boom'))
+    vi.mocked(listBudgetsPage).mockRejectedValue(new Error('boom'))
     renderPage()
     expect(await screen.findByRole('button', { name: /retry|try again/i })).toBeInTheDocument()
   })
@@ -74,7 +83,7 @@ describe('PricingPage — states', () => {
 
 describe('PricingPage — AC-PB-005: read-only margin check', () => {
   beforeEach(() => {
-    vi.mocked(listBudgets).mockResolvedValue([
+    vi.mocked(listBudgetsPage).mockResolvedValue(budgetPage([
       {
         id: 'b1',
         menu_item_esb_code: 'MENU-CAPPUC',
@@ -87,7 +96,7 @@ describe('PricingPage — AC-PB-005: read-only margin check', () => {
         certified_metric_key: 'cogs.budgeted',
         is_complete: true,
       },
-    ])
+    ]))
   })
 
   it('computes gross margin + margin-% from the candidate price vs the linked COGS', async () => {
@@ -100,6 +109,20 @@ describe('PricingPage — AC-PB-005: read-only margin check', () => {
     await waitFor(() => {
       expect(screen.getByTestId('pricing-result')).toHaveTextContent('Rp 21.000')
       expect(screen.getByTestId('pricing-result')).toHaveTextContent('70%')
+    })
+  })
+
+  it.each([
+    { locale: 'en' as const, prefix: 'Basis as of', scenario: 'Budget scenario', candidate: 'Candidate price (Rp)' },
+    { locale: 'id' as const, prefix: 'Dasar biaya per', scenario: 'Skenario anggaran', candidate: 'Harga kandidat (Rp)' },
+  ])('shows the linked basis date on both margin tiles in $locale', async ({ locale, prefix, scenario, candidate }) => {
+    renderPage(locale)
+    await screen.findByRole('combobox', { name: scenario })
+    fireEvent.change(screen.getByLabelText(candidate), { target: { value: '30000' } })
+    const result = await screen.findByTestId('pricing-result')
+    await waitFor(() => {
+      expect(within(result).getAllByText(prefix)).toHaveLength(2)
+      expect(within(result).getAllByText(formatWibDateTime(FRESH))).toHaveLength(2)
     })
   })
 
@@ -124,6 +147,43 @@ describe('PricingPage — AC-PB-005: read-only margin check', () => {
     expect(await screen.findByText(/Rp 9.000/)).toBeInTheDocument()
     expect(screen.getByText(/basis as of/i)).toBeInTheDocument()
   })
+
+  it.each([
+    ['en', 'Basis as of'],
+    ['id', 'Dasar biaya per'],
+  ] as const)('shows an unrecorded budget basis as absent in %s', async (locale, basisLabel) => {
+    vi.mocked(listBudgetsPage).mockResolvedValue(budgetPage([{
+      id: 'b1', menu_item_esb_code: 'MENU-CAPPUC', menu_item_name: 'Cappuccino', scenario_label: 'Baseline',
+      scenario_type: 'baseline', owning_bu_id: 'bu-1', total_budgeted_cogs: 9000,
+      cost_basis_as_of: null, certified_metric_key: 'cogs.budgeted', is_complete: true,
+    }]))
+    renderPage(locale)
+    const basis = await screen.findByRole('region', { name: /linked budget basis|dasar anggaran tertaut/i })
+    expect(basis.textContent).toContain(`${basisLabel}—`)
+  })
+})
+
+describe('PricingPage — scenario paging', () => {
+  it('loads another budget option in Indonesian when the user continues the list', async () => {
+    const first: BudgetRow = {
+      id: 'b1', menu_item_esb_code: 'MENU-1', menu_item_name: 'Menu one', scenario_label: 'Baseline',
+      scenario_type: 'baseline', owning_bu_id: 'bu-1', total_budgeted_cogs: 1000,
+      cost_basis_as_of: FRESH, certified_metric_key: 'cogs.budgeted', is_complete: true,
+    }
+    const next: BudgetRow = { ...first, id: 'b2', scenario_label: 'Promo', scenario_type: 'promo' }
+    vi.mocked(listBudgetsPage).mockResolvedValueOnce({ rows: [first], cursor: { id: 'b1', createdAt: '2026-10-01T00:00:00Z' }, hasMore: true })
+      .mockResolvedValueOnce({ rows: [next], cursor: null, hasMore: false })
+
+    renderPage('id')
+    const scenarioSelect = await screen.findByRole('combobox', { name: 'Skenario anggaran' })
+    fireEvent.click(scenarioSelect)
+    await screen.findByRole('option', { name: /Baseline/i })
+    fireEvent.keyDown(scenarioSelect, { key: 'Escape' })
+    fireEvent.click(screen.getByRole('button', { name: 'Muat item lainnya' }))
+    fireEvent.click(screen.getByRole('combobox', { name: 'Skenario anggaran' }))
+    await screen.findByRole('option', { name: /Promo/i })
+    expect(listBudgetsPage).toHaveBeenLastCalledWith(undefined, { id: 'b1', createdAt: '2026-10-01T00:00:00Z' })
+  })
 })
 
 describe('PricingPage — AC-PB-006: fail-loud freshness warning', () => {
@@ -138,7 +198,7 @@ describe('PricingPage — AC-PB-006: fail-loud freshness warning', () => {
   })
 
   it('renders a freshness warning when the cost basis is stale', async () => {
-    vi.mocked(listBudgets).mockResolvedValue([
+    vi.mocked(listBudgetsPage).mockResolvedValue(budgetPage([
       {
         id: 'b1',
         menu_item_esb_code: 'MENU-CROISS',
@@ -151,7 +211,7 @@ describe('PricingPage — AC-PB-006: fail-loud freshness warning', () => {
         certified_metric_key: 'cogs.budgeted',
         is_complete: true,
       },
-    ])
+    ]))
     renderPage()
     const warn = await screen.findByTestId('pricing-freshness-warning')
     expect(warn).toBeInTheDocument()
@@ -160,7 +220,7 @@ describe('PricingPage — AC-PB-006: fail-loud freshness warning', () => {
 
   it('renders a fail-loud warning when the metric definition is uncertified', async () => {
     vi.mocked(getCertifiedMetric).mockResolvedValue({ key: 'cogs.budgeted', name: 'Budgeted COGS', certified: false })
-    vi.mocked(listBudgets).mockResolvedValue([
+    vi.mocked(listBudgetsPage).mockResolvedValue(budgetPage([
       {
         id: 'b1',
         menu_item_esb_code: 'MENU-X',
@@ -173,7 +233,7 @@ describe('PricingPage — AC-PB-006: fail-loud freshness warning', () => {
         certified_metric_key: 'cogs.budgeted',
         is_complete: true,
       },
-    ])
+    ]))
     renderPage()
     // "not certified" surfaces in BOTH the fail-loud badge and the pricing warning.
     expect((await screen.findAllByText(/not certified/i)).length).toBeGreaterThanOrEqual(1)

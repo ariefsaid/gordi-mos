@@ -3,6 +3,7 @@ import { useAuth } from './use-auth'
 import { AccessBoundary, type AccessBoundaryProps } from '@/shell/access-boundary'
 import type { ModuleId } from '@/lib/db/module-settings'
 import { useModuleAvailability } from '@/lib/module-availability'
+import { hasAnyAccessRole } from '@/lib/capabilities'
 
 // Generic access-role route gate (OD-C-2). Nested under ProtectedRoute, so the session is already
 // authenticated here; a session lacking ANY of `anyOf` meets the shell's access boundary instead
@@ -24,7 +25,7 @@ export function RequireAccessRole({ anyOf, scope, moduleId }: RequireAccessRoleP
   // denial — there is no viewer to tell anything to. It stays a redirect so no boundary flashes
   // in front of a viewer who turns out to hold the role.
   if (auth.status !== 'authenticated') return <Navigate to="/" replace />
-  const roleAdmitted = anyOf.some((role) => auth.viewer.accessRoles.includes(role))
+  const roleAdmitted = hasAnyAccessRole(auth.viewer.accessRoles, anyOf)
   if (moduleId ? !isOn(moduleId, roleAdmitted) : !roleAdmitted) return <AccessBoundary scope={scope} />
   return <Outlet />
 }

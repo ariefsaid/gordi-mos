@@ -11,6 +11,10 @@ import {
   needsVarianceNote,
   transferExceedsAvailable,
   isReviewerEligibleTeam,
+  canAdminCafe,
+  canReviewCafe,
+  canPushCafe,
+  isCafeSupervisor,
 } from './kitchen-gates'
 import type { KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
 import type { CafeViewerTeam } from '@/lib/db/cafe-opening'
@@ -43,6 +47,20 @@ function line(over: Partial<KitchenLogLine>): KitchenLogLine {
     ...over,
   }
 }
+
+describe('Café role gates', () => {
+  it('keeps review, push, supervisor, and admin access sets distinct', () => {
+    for (const role of ['ops_lead', 'admin', 'supervisor']) expect(canReviewCafe([role])).toBe(true)
+    for (const role of ['ops_lead', 'admin']) expect(canPushCafe([role])).toBe(true)
+    expect(canReviewCafe(['member'])).toBe(false)
+    expect(canPushCafe(['supervisor'])).toBe(false)
+    expect(canAdminCafe(['admin'])).toBe(true)
+    expect(canAdminCafe(['ops_lead'])).toBe(false)
+    expect(isCafeSupervisor(['supervisor'])).toBe(true)
+    expect(isCafeSupervisor(['supervisor', 'ops_lead'])).toBe(true)
+    expect(isCafeSupervisor(['ops_lead'])).toBe(false)
+  })
+})
 
 describe('isStockConsuming', () => {
   it('a produce is NOT stock-consuming (it produces stock)', () => {

@@ -33,9 +33,11 @@ for (const actor of personas) {
     await expect(phoneNav.getByRole('link')).toHaveText(actor.cafe ? ['Home', 'Work', 'Café'] : ['Home', 'Work'])
     await phoneNav.getByRole('button', { name: 'More' }).click()
     const more = page.getByRole('dialog', { name: 'More', exact: true })
-    for (const label of ['Home', 'Work', 'Inbox']) {
+    for (const label of ['Home', 'Work']) {
       await expect(more.getByRole('link', { name: label, exact: true })).toBeVisible()
     }
+    // Inbox is the top-bar bell, never a menu row.
+    await expect(more.getByRole('link', { name: 'Inbox', exact: true })).toHaveCount(0)
     // Money stays out of the fixed tabs and appears in More only for the roles that reach it.
     await expect(phoneNav.getByRole('link', { name: 'Money', exact: true })).toHaveCount(0)
     await expect(more.getByRole('link', { name: 'Money', exact: true })).toHaveCount(money ? 1 : 0)
@@ -61,7 +63,9 @@ for (const actor of personas) {
     // Home owns its phone action bar; Inbox keeps the shared quick-action launcher available.
     await page.goto('inbox')
     await expect(page.getByRole('heading', { name: 'Inbox', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'Actions', exact: true }).click()
+    const launcher = page.getByRole('button', { name: 'Actions', exact: true })
+    await expect(launcher).toBeVisible()
+    await launcher.click()
     await expect(dialog.getByRole('option', { name: 'Create task', exact: true })).toBeVisible()
     await expect(dialog.getByRole('option', { name: 'Share signal', exact: true })).toBeVisible()
     await expect(dialog.getByRole('option', { name: 'Log Café production', exact: true })).toHaveCount(actor.capture ? 1 : 0)
@@ -73,7 +77,8 @@ for (const actor of personas) {
     for (const label of ['Home', 'Work', 'Café']) {
       await expect(nav.getByRole('link', { name: label, exact: true }).first()).toBeVisible()
     }
-    await expect(page.getByRole('button', { name: 'Inbox', exact: true })).toBeVisible()
+    // On the Inbox page the desktop bell is a link marked as the current page.
+    await expect(page.getByRole('link', { name: 'Inbox', exact: true })).toHaveAttribute('aria-current', 'page')
     await nav.getByRole('link', { name: 'Work', exact: true }).first().click()
     for (const label of ['Signals', 'Tasks', 'Projects & Processes', 'Objectives']) {
       await expect(nav.getByRole('link', { name: new RegExp(`^${label}(,|\\s|$)`) }).first()).toBeVisible()

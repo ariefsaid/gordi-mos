@@ -4,8 +4,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
-import { canCloseProcessRun, canStartProcessForTeam, listProcessOccurrenceSummaries, listStartableProcessRuns, startRun } from '@/lib/db/processes'
+import { listProcessOccurrenceAuthorities, listProcessOccurrenceSummaries, listStartableProcessRuns, startRun } from '@/lib/db/processes'
 import type { DueProcessRun, ProcessOccurrenceSummary } from '@/lib/db/processes.types'
+import type { ProcessOccurrenceCursor } from '@/lib/db/processes'
 import { dueKey, narrowToViewerTeams } from './use-due-runs'
 
 type ProcessOccurrencesFetchState = 'loading' | 'ready' | 'error'
@@ -13,6 +14,10 @@ type ProcessOccurrencesFetchState = 'loading' | 'ready' | 'error'
 export type ProcessOccurrencesData = {
   state: ProcessOccurrencesFetchState
   occurrences: readonly ProcessOccurrenceSummary[]
+  hasMore: boolean
+  loadingMore: boolean
+  moreError: boolean
+  loadMore: () => Promise<void>
   // Runs the viewer may start now, narrowed to their own Teams when they hold any.
   startable: readonly DueProcessRun[]
   startableTeamIds: ReadonlySet<string>
@@ -34,6 +39,9 @@ export function useProcessOccurrences(workLineId: string | null, onChanged?: () 
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const [state, setState] = useState<ProcessOccurrencesFetchState>('loading')
   const [occurrences, setOccurrences] = useState<ProcessOccurrenceSummary[]>([])
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [moreError, setMoreError] = useState(false)
   const [startable, setStartable] = useState<DueProcessRun[]>([])
   const [startableTeamIds, setStartableTeamIds] = useState<Set<string>>(new Set())
   const [closableRunIds, setClosableRunIds] = useState<Set<string>>(new Set())
@@ -44,6 +52,8 @@ export function useProcessOccurrences(workLineId: string | null, onChanged?: () 
   const [startError, setStartError] = useState(false)
   const mountedRef = useRef(true)
   const loadGenerationRef = useRef(0)
+  const cursorRef = useRef<ProcessOccurrenceCursor | null>(null)
+  const moreInFlightRef = useRef(false)
   const loadIdentityRef = useRef({ workLineId })
   loadIdentityRef.current = { workLineId }
 
@@ -62,37 +72,44 @@ export function useProcessOccurrences(workLineId: string | null, onChanged?: () 
     setStartError(false)
     setActionError(false)
     setAuthorityError(false)
+    setHasMore(false)
+    setLoadingMore(false)
+    setMoreError(false)
+    cursorRef.current = null
+    moreInFlightRef.current = false
     setStartableTeamIds(new Set())
     setClosableRunIds(new Set())
     try {
-      const [nextOccurrences, nextStartable, viewerTeams] = await Promise.all([
+      const [occurrencePage, nextStartable, viewerTeams] = await Promise.all([
         listProcessOccurrenceSummaries(workLineId),
         listStartableProcessRuns(workLineId),
         viewerId ? listCafeViewerTeams(viewerId).catch(() => []) : Promise.resolve([]),
       ])
       if (!isCurrent()) return
-      setOccurrences(nextOccurrences)
+      cursorRef.current = occurrencePage.nextCursor
+      setOccurrences(occurrencePage.rows)
+      setHasMore(occurrencePage.hasMore)
       setStartable(narrowToViewerTeams(nextStartable, viewerTeams.map((team) => team.id)))
       setState('ready')
 
-      // Authority calls are enrichment: readable occurrences and the server-filtered due list
-      // paint independently, while stale/erroring checks fail closed for their affordances.
-      const teamIds = [...new Set(nextOccurrences.map((summary) => summary.run.owning_team_id))]
-      const [startAnswers, closeAnswers] = await Promise.all([
-        Promise.allSettled(teamIds.map(async (teamId) => [teamId, await canStartProcessForTeam(teamId)] as const)),
-        Promise.allSettled(nextOccurrences.map(async (summary) => [summary.run.id, await canCloseProcessRun(summary.run.id)] as const)),
-      ])
-      if (!isCurrent()) return
-      setStartableTeamIds(new Set(startAnswers
-        .filter((answer): answer is PromiseFulfilledResult<readonly [string, boolean]> => answer.status === 'fulfilled' && answer.value[1])
-        .map((answer) => answer.value[0])))
-      setClosableRunIds(new Set(closeAnswers
-        .filter((answer): answer is PromiseFulfilledResult<readonly [string, boolean]> => answer.status === 'fulfilled' && answer.value[1])
-        .map((answer) => answer.value[0])))
-      setAuthorityError(
-        startAnswers.some((answer) => answer.status === 'rejected')
-        || closeAnswers.some((answer) => answer.status === 'rejected'),
-      )
+      // Authority is enrichment: readable occurrences paint independently, but a failed batch
+      // leaves every affordance closed.
+      const teamIds = [...new Set(occurrencePage.rows.map((summary) => summary.run.owning_team_id))]
+      try {
+        const authorities = await listProcessOccurrenceAuthorities(
+          teamIds,
+          occurrencePage.rows.map((summary) => summary.run.id),
+        )
+        if (!isCurrent()) return
+        setStartableTeamIds(new Set(authorities
+          .filter((authority) => authority.authority_kind === 'start' && authority.allowed)
+          .map((authority) => authority.target_id)))
+        setClosableRunIds(new Set(authorities
+          .filter((authority) => authority.authority_kind === 'close' && authority.allowed)
+          .map((authority) => authority.target_id)))
+      } catch {
+        if (isCurrent()) setAuthorityError(true)
+      }
     } catch {
       if (!isCurrent()) return
       setState('error')
@@ -100,6 +117,52 @@ export function useProcessOccurrences(workLineId: string | null, onChanged?: () 
   }, [workLineId, viewerId])
 
   useEffect(() => { void load() }, [load, retryNonce])
+
+  const loadMore = useCallback(async () => {
+    const before = cursorRef.current
+    if (!workLineId || !before || moreInFlightRef.current || !mountedRef.current) return
+    const generation = loadGenerationRef.current
+    const isCurrent = () => mountedRef.current
+      && loadGenerationRef.current === generation
+      && loadIdentityRef.current.workLineId === workLineId
+    moreInFlightRef.current = true
+    setLoadingMore(true)
+    setMoreError(false)
+    try {
+      const page = await listProcessOccurrenceSummaries(workLineId, before)
+      if (!isCurrent()) return
+      cursorRef.current = page.nextCursor
+      setOccurrences((current) => [...current, ...page.rows])
+      setHasMore(page.hasMore)
+      const teamIds = [...new Set(page.rows.map((summary) => summary.run.owning_team_id))]
+      try {
+        const authorities = await listProcessOccurrenceAuthorities(
+          teamIds,
+          page.rows.map((summary) => summary.run.id),
+        )
+        if (!isCurrent()) return
+        setStartableTeamIds((current) => new Set([
+          ...current,
+          ...authorities.filter((authority) => authority.authority_kind === 'start' && authority.allowed)
+            .map((authority) => authority.target_id),
+        ]))
+        setClosableRunIds((current) => new Set([
+          ...current,
+          ...authorities.filter((authority) => authority.authority_kind === 'close' && authority.allowed)
+            .map((authority) => authority.target_id),
+        ]))
+      } catch {
+        if (isCurrent()) setAuthorityError(true)
+      }
+    } catch {
+      if (isCurrent()) setMoreError(true)
+    } finally {
+      if (isCurrent()) {
+        moreInFlightRef.current = false
+        setLoadingMore(false)
+      }
+    }
+  }, [workLineId])
 
   const start = useCallback(async (row: DueProcessRun) => {
     setStartingKey(dueKey(row))
@@ -118,7 +181,8 @@ export function useProcessOccurrences(workLineId: string | null, onChanged?: () 
   const retry = useCallback(() => setRetryNonce((nonce) => nonce + 1), [])
 
   return {
-    state, occurrences, startable, startableTeamIds, closableRunIds, authorityError, actionError, setActionError,
+    state, occurrences, hasMore, loadingMore, moreError, loadMore,
+    startable, startableTeamIds, closableRunIds, authorityError, actionError, setActionError,
     startingKey, startError, load, retry, start,
   }
 }

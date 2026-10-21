@@ -43,7 +43,7 @@ function makeSchema(
     const result = () => {
       const i = counters[table] ?? 0
       counters[table] = i + 1
-      const queue = responses[table] ?? []
+      const queue = responses[table] ?? (table === 'sales_margin_daily_rollup' ? responses.sales_margin_daily : undefined) ?? []
       return queue[Math.min(i, queue.length - 1)] ?? { data: null, error: null }
     }
     const builder: Record<string, unknown> = {}
@@ -104,7 +104,7 @@ const NULL_COGS_ROW: SalesMarginDailyRow = {
 }
 
 describe('listSalesMarginDaily', () => {
-  it('queries the reporting schema and sales_margin_daily table, ordered by date', async () => {
+  it('queries the reporting schema and aggregated sales_margin_daily view, ordered by date', async () => {
     const rec = freshRec()
     schemaMock.mockImplementation((name: string) => {
       rec.schemaNames.push(name)
@@ -117,7 +117,7 @@ describe('listSalesMarginDaily', () => {
     const rows = await listSalesMarginDaily()
 
     expect(schemaMock).toHaveBeenCalledWith('reporting')
-    expect(rec.fromTables).toContain('sales_margin_daily')
+    expect(rec.fromTables).toContain('sales_margin_daily_rollup')
     expect(rec.orders).toContainEqual(['margin_date', { ascending: true }])
     expect(rec.gtes[0][0]).toBe('margin_date')
     expect(rec.ranges).toEqual([[0, 999]])

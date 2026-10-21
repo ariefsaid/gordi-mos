@@ -103,6 +103,18 @@ describe('which sources a view must read', () => {
 })
 
 describe('Café Records page', () => {
+  it.each(['summary', 'entries', 'day'])('shows outlet sends separately in the %s reading', async reading => {
+    reads.logs.mockImplementation(page([log({ action: 'outlet_send', activity: 'kitchen', qty_porsi: 4 })]))
+    renderPage(`?question=sent&reading=${reading}`)
+    expect(await screen.findByRole('button', { name: /Pickled onion/ })).toBeInTheDocument()
+    expect(screen.getAllByText('4').length).toBeGreaterThan(0)
+    if (reading === 'entries') {
+      await userEvent.click(screen.getByRole('button', { name: /Opens the entry/ }))
+      expect((await screen.findAllByText('No ESB posting')).length).toBeGreaterThan(0)
+      expect(screen.getAllByText('Sent to outlet').length).toBeGreaterThan(0)
+    }
+  })
+
   it('opens on all readable records, the day summary, today, in the viewer\'s own stream', async () => {
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: 'Records' })).toBeInTheDocument()

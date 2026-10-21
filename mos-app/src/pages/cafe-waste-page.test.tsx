@@ -206,6 +206,19 @@ afterEach(() => {
 
 describe('CafeWastePage', () => {
   it.each([
+    ['en', /^Resume Oat Latte/, /^Resume Oat milk/],
+    ['id', /^Lanjutkan Oat Latte/, /^Lanjutkan Oat milk/],
+  ] as const)('renders resumed draft names from the item-ID map in %s', async (locale, latteName, milkName) => {
+    mockListWasteDrafts.mockResolvedValue([
+      wasteDraft(),
+      wasteDraft({ logId: 'milk-draft', itemId: 'raw-1', itemUnitId: 'unit-litre', unitName: 'litre' }),
+    ])
+    renderPage(locale)
+
+    expect(await screen.findByRole('button', { name: latteName })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: milkName })).toBeInTheDocument()
+  })
+  it.each([
     ['en', 'Read-only — your Café access does not allow capture', 'Not recorded', 'Café waste items'],
     ['id', 'Hanya-baca — akses Café Anda tidak mengizinkan pencatatan', 'Belum tercatat', 'Barang limbah Café'],
   ] as const)('shows %s read-only waste facts without capture controls', async (locale, notice, notRecorded, caption) => {

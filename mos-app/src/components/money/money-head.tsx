@@ -26,7 +26,7 @@ export function PeriodControl({ period, range, latestDate, onChange, onRangeChan
   useEffect(() => {
     setDraft({ from: rangeFrom ?? fallback.from, to: rangeTo ?? fallback.to })
     setInvalid(false)
-    if (rangeFrom && rangeTo) setCustomOpen(true)
+    setCustomOpen(Boolean(rangeFrom && rangeTo))
   }, [fallback.from, fallback.to, rangeFrom, rangeTo])
   const edit = (field: 'from' | 'to', value: string) => {
     const next = { ...draft, [field]: value }
@@ -80,11 +80,11 @@ export function MoneyFreshness({ latestDate, syncedAt, freshMessage, staleMessag
       {stale
         ? staleMessage ?? t('money.freshness.stale', {
           through: formatWeekdayDayMonth(latestDate, locale),
-          synced: syncedAt ? formatWibWeekdayTime(syncedAt, locale) : '',
+          synced: syncedAt ? formatWibWeekdayTime(syncedAt, locale) : t('money.freshness.unknownTime'),
         })
         : freshMessage ?? t('money.freshness', {
           through: formatWeekdayDayMonth(latestDate, locale),
-          synced: syncedAt ? formatWibWeekdayTime(syncedAt, locale) : '',
+          synced: syncedAt ? formatWibWeekdayTime(syncedAt, locale) : t('money.freshness.unknownTime'),
         })}
     </span>
   )

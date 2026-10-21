@@ -25,7 +25,7 @@ vi.mock('@/lib/db/deployment-stamp', () => ({ readDeploymentStamp: vi.fn().mockR
 
 import { MobileDrawer } from './mobile-drawer'
 
-function setAuthAs(accessRoles: string[] = [], affiliated: string[] = []) {
+function setAuthAs(accessRoles: string[] = [], affiliated: string[] = [], canReadCafePushes = false) {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -33,7 +33,7 @@ function setAuthAs(accessRoles: string[] = [], affiliated: string[] = []) {
         id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Cahya Cafe',
         email: 'c@example.test', archived_at: null, must_change_password: false, created_at: '', updated_at: '',
       },
-      roles: [], isManager: false, accessRoles, affiliated,
+      roles: [], isManager: false, accessRoles, canReadCafePushes, affiliated,
     },
     signOut: vi.fn(),
   })
@@ -44,8 +44,8 @@ function LocationDisplay() {
   return <div data-testid="location">{location.pathname}</div>
 }
 
-function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'], locale, affiliated = [], path = '/' }: { open?: boolean; onClose?: () => void; accessRoles?: string[]; locale?: 'id'; affiliated?: string[]; path?: string } = {}) {
-  setAuthAs(accessRoles, affiliated)
+function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'], locale, affiliated = [], path = '/', canReadCafePushes = false }: { open?: boolean; onClose?: () => void; accessRoles?: string[]; locale?: 'id'; affiliated?: string[]; path?: string; canReadCafePushes?: boolean } = {}) {
+  setAuthAs(accessRoles, affiliated, canReadCafePushes)
   return render(
     <ThemeProvider>
       <I18nProvider initialLocale={locale}>
@@ -70,14 +70,14 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
   // ruling) replaces that model: navigation mirrors what the ROUTE admits, and the module routes
   // are ungated. The drawer is the phone's only route to a module's screens, so hiding them here
   // is precisely what left kitchen staff with no phone nav (#242).
-  it('an org-wide admin sees Work, Admin settings, Personal profile — and the module links their routes admit', () => {
+  it('an org-wide admin sees Work and Admin settings (Personal profile is in the account menu) — and the module links their routes admit', () => {
     renderDrawer({ accessRoles: ['admin'] })
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     expect(screen.getByText(/^v0\.11\.0 · web/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^Work$/ })).toHaveAttribute('href', '/work')
     expect(screen.getByRole('link', { name: /Admin settings/i })).toHaveAttribute('href', '/admin/people')
-    expect(screen.getByRole('link', { name: /Personal profile/i })).toHaveAttribute('href', '/profile')
+    expect(screen.queryByRole('link', { name: /Personal profile/i })).toBeNull()
     // At the collapsed root, Café is one route entry with a chevron; children appear when active or affiliated (home-shell.md §1.1).
     expect(screen.getByRole('link', { name: /^Café$/ })).toHaveAttribute('href', '/cafe')
     expect(screen.queryByRole('link', { name: /^Log$/ })).toBeNull()
@@ -108,6 +108,16 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
     expect(screen.queryByRole('link', { name: /^Pushes$/ })).toBeNull()
   })
 
+  it('offers Pushes only when the viewer outbox-read fact admits them', () => {
+    renderDrawer({ accessRoles: ['manager'], canReadCafePushes: true, path: '/cafe' })
+    expect(document.querySelector('a[href="/cafe/pushes"]')).toBeInTheDocument()
+  })
+
+  it('does not offer Pushes to a manager whose read fact is false', () => {
+    renderDrawer({ accessRoles: ['manager'], canReadCafePushes: false, path: '/cafe' })
+    expect(document.querySelector('a[href="/cafe/pushes"]')).toBeNull()
+  })
+
   it('hides Work and Money when their org switches are off', () => {
     moduleSwitches.isOn.mockImplementation((moduleId, roleAdmitted = true) =>
       roleAdmitted && moduleId !== 'work' && moduleId !== 'money',
@@ -117,9 +127,9 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
     expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
   })
 
-  it('admin sees the Inbox root but not Money without a revenue-view role', () => {
+  it('admin sees no Inbox row (it is the top-bar bell) and no Money without a revenue-view role', () => {
     renderDrawer({ accessRoles: ['admin'] })
-    expect(screen.getByRole('link', { name: /Inbox/ })).toHaveAttribute('href', '/inbox')
+    expect(screen.queryByRole('link', { name: /Inbox/ })).toBeNull()
     expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
   })
 })
@@ -140,7 +150,6 @@ describe('AC-022: Money in More follows its revenue-view role gate', () => {
     (_who, accessRoles) => {
       renderDrawer({ accessRoles })
       expect(screen.getByRole('link', { name: /^Money$/ })).toHaveAttribute('href', '/money')
-      expect(screen.getByRole('link', { name: /Inbox/ })).toBeInTheDocument()
     },
   )
 })
@@ -201,7 +210,8 @@ describe('More menu navigation + a11y', () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
     renderDrawer({ onClose, accessRoles: ['admin'] })
-    await user.click(screen.getByRole('link', { name: /Personal profile/i }))
+    await user.click(screen.getByRole('button', { name: /Cahya Cafe/i }))
+    await user.click(screen.getByRole('menuitem', { name: /Personal profile/i }))
     expect(screen.getByTestId('location').textContent).toBe('/profile')
     expect(onClose).toHaveBeenCalled()
   })

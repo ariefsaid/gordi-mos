@@ -1,5 +1,7 @@
 // Pure role-scope predicates used by the shipped Home's Objectives door.
 
+import { hasAccessRole } from './capabilities'
+
 export type RoleScopeNode = {
   id: string
   business_unit_id: string | null
@@ -14,7 +16,7 @@ export function isOwnerDirector(viewerRoles: RoleScopeNode[]): boolean {
 // Org-wide write authority: the admin access role only (mirrors shared.is_org_wide()). Role-tree
 // position grants none; the Tasks default view is a separate read default (task-default-view.ts).
 export function hasOrgWideAuthority(accessRoles: readonly string[]): boolean {
-  return accessRoles.includes('admin')
+  return hasAccessRole(accessRoles, 'admin')
 }
 
 /** Return each business unit whose apex role the viewer holds. */

@@ -7,6 +7,9 @@ import {
   counterpartActivity,
   isIntraBranch,
   movementsForStream,
+  outletSendPlaces,
+  movementKey,
+  OUTLET_SEND,
   streamProduces,
   streamKey,
   PRODUCE,
@@ -124,6 +127,30 @@ describe('movementsForStream', () => {
       { action: 'transfer', destinationBranchId: RADIANT.id },
       { action: 'transfer', destinationBranchId: CIKAL.id },
     ])
+  })
+})
+
+describe('outlet send places', () => {
+  const kitchen = { id: 'kitchen', use: 'both' as const, archived_at: null, branch_ids: [RRS.id], name: 'Kitchen', parent_id: null, row_version: 1, updated_at: '', updated_by: null }
+  const outlet = { ...kitchen, id: 'outlet', use: 'storage' as const }
+  const defaults = { branch_id: RRS.id, activity: 'kitchen' as const, production_location_id: kitchen.id, storage_location_id: kitchen.id, row_version: 1 }
+  const origin = { ...RRS_KITCHEN, produces: true }
+
+  it('offers the send alongside branch transfers only with an unambiguous separate outlet', () => {
+    const places = outletSendPlaces(origin, [kitchen, outlet], defaults)
+    expect(places).toEqual({ from: 'kitchen', to: 'outlet' })
+    expect(movementsForStream(origin, STREAMS, DESTINATIONS, places !== null)).toContainEqual(OUTLET_SEND)
+    expect(movementKey(OUTLET_SEND)).toBe('outlet_send')
+  })
+
+  it('fails closed for missing, archived, ambiguous or other-branch places, absent defaults, bar and receiving-only streams', () => {
+    for (const locations of [[kitchen], [kitchen, { ...outlet, archived_at: '2026-01-01' }], [kitchen, outlet, { ...outlet, id: 'other' }], [kitchen, { ...outlet, branch_ids: [GHQ.id] }]]) {
+      expect(outletSendPlaces(origin, locations, defaults)).toBeNull()
+    }
+    expect(outletSendPlaces(origin, [kitchen, outlet], null)).toBeNull()
+    expect(outletSendPlaces({ ...origin, activity: 'bar' }, [kitchen, outlet], defaults)).toBeNull()
+    expect(outletSendPlaces({ ...origin, produces: false }, [kitchen, outlet], defaults)).toBeNull()
+    expect(outletSendPlaces(null, [kitchen, outlet], defaults)).toBeNull()
   })
 })
 

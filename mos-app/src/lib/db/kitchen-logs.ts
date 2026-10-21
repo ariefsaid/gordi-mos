@@ -109,6 +109,8 @@ export async function listStreamItemIds(stream: ProductionStream): Promise<Set<s
   const { data, error } = await ops()
     .from('stream_items')
     .select('wip_item_id')
+    .is('hidden_at', null)
+    .eq('is_listed', true)
     .eq('branch_id', stream.branch.id)
     .eq('activity', stream.activity)
   if (error) throw new Error(`listStreamItemIds failed — ${error.message}`)
@@ -123,6 +125,7 @@ export function streamItemKey(branchId: string, activity: string, wipItemId: str
 /** Every stream's list in the org, as streamItemKey values. */
 export async function listAllStreamItemKeys(): Promise<Set<string>> {
   const { data, error } = await ops().from('stream_items').select('branch_id,activity,wip_item_id')
+    .is('hidden_at', null).eq('is_listed', true)
   if (error) throw new Error(`listAllStreamItemKeys failed — ${error.message}`)
   return new Set(((data ?? []) as { branch_id: string; activity: string; wip_item_id: string }[])
     .map(row => streamItemKey(row.branch_id, row.activity, row.wip_item_id)))
@@ -384,7 +387,7 @@ export async function resolveKitchenBuId(): Promise<string> {
  */
 interface StockForDateRow {
   wip_item_id: string
-  usable_qty: number
+  usable_qty: number | null
   available_qty: number
 }
 
@@ -460,7 +463,7 @@ export async function fetchKitchenStock(
         wip_item_name: item.mosName,
         category: item.category,
         on_stream: offered.has(item.id),
-        stok: s?.usable_qty ?? 0,
+        stok: s?.usable_qty ?? null,
         tersedia: s?.available_qty ?? 0,
       }
     })
@@ -612,6 +615,15 @@ export type KitchenLogsWindow = {
   stream?: { branchId: string; activity: ProductionActivity }
 }
 
+/** Counts Submitted kitchen logs without downloading their rows. */
+export async function countSubmittedKitchenLogs(): Promise<number> {
+  const { count, error } = await ops().from('kitchen_logs')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'Submitted')
+  if (error) throw new Error(`countSubmittedKitchenLogs failed — ${error.message}`)
+  return count ?? 0
+}
+
 /**
  * Page Submitted kitchen logs oldest-first by log date, then submission time (FR-040). An
  * optional date narrows the queue; omitting it returns every pending log.
@@ -695,6 +707,32 @@ export async function hasSubmittedKitchenProduction(logDate: string, branchId: s
     .eq('status', 'Submitted').eq('action', 'produce').limit(1)
   if (error) throw new Error(`hasSubmittedKitchenProduction failed — ${error.message}`)
   return (data ?? []).length > 0
+}
+
+/** Return every requested stream/date that still has Submitted production, using one bounded read. */
+export async function listSubmittedKitchenProductionGates(
+  gates: readonly { logDate: string; branchId: string; activity: ProductionActivity }[],
+): Promise<Set<string>> {
+  const unique = new Map(gates.map((gate) => [
+    streamDateKey(gate.logDate, gate.branchId, gate.activity), gate,
+  ]))
+  if (unique.size === 0) return new Set()
+
+  const filters = [...unique.values()].map((gate) =>
+    `and(log_date.eq.${gate.logDate},branch_id.eq.${gate.branchId},activity.eq.${gate.activity})`,
+  )
+  const { data, error } = await ops().from('kitchen_logs')
+    .select('log_date,branch_id,activity')
+    .or(filters.join(','))
+    .eq('status', 'Submitted')
+    .eq('action', 'produce')
+  if (error) throw new Error(`listSubmittedKitchenProductionGates failed — ${error.message}`)
+
+  return new Set(((data ?? []) as Array<{
+    log_date: string
+    branch_id: string
+    activity: ProductionActivity
+  }>).map((row) => streamDateKey(row.log_date, row.branch_id, row.activity)))
 }
 
 /**

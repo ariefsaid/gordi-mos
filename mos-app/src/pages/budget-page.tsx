@@ -11,6 +11,7 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsRecordSplit } from '@/shell/use-is-split-width'
 import { useAuth } from '@/auth/use-auth'
+import { useBudgetPages } from '@/hooks/use-budget-pages'
 import { useT } from '@/i18n/use-t'
 import { saveErrorMessage } from '@/lib/save-error'
 import { formatDayMonthYear } from '@/lib/format/date'
@@ -18,7 +19,7 @@ import { getBusinessUnits, type BusinessUnitOption } from '@/lib/db/directory'
 import {
   listIngredientCostLines,
   listBomLines,
-  listBudgets,
+  listBudgetsPage,
   getCertifiedMetric,
   captureBudget,
 } from '@/lib/db/plan-budget'
@@ -33,6 +34,7 @@ import {
 } from '@/lib/plan-budget-logic'
 import { FailLoudBadge } from '@/components/plan/fail-loud-badge'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { ListPaging } from '@/components/ui/list-paging'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { TextInput } from '@/components/ui/text-input'
@@ -62,7 +64,15 @@ export function BudgetPage() {
 
   const [bom, setBom] = useState<BomLine[]>([])
   const [costs, setCosts] = useState<IngredientCostLine[]>([])
-  const [budgets, setBudgets] = useState<BudgetRow[]>([])
+  const {
+    rows: budgets,
+    hasMore: budgetsHasMore,
+    loadingMore: loadingMoreBudgets,
+    moreError: budgetsMoreError,
+    invalidate: invalidateBudgetPages,
+    replacePage: replaceBudgetPage,
+    loadMore: loadMoreBudgetPage,
+  } = useBudgetPages()
   const [metric, setMetric] = useState<CertifiedMetric | null>(null)
   const [bus, setBus] = useState<BusinessUnitOption[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
@@ -104,22 +114,23 @@ export function BudgetPage() {
 
   // Refresh the scenario list whenever the selected menu changes (or after a save).
   useEffect(() => {
+    invalidateBudgetPages()
     if (!selectedMenu) {
-      setBudgets([])
+      replaceBudgetPage({ rows: [], cursor: null, hasMore: false })
       return
     }
     let active = true
-    listBudgets(selectedMenu)
-      .then((rows) => {
-        if (active) setBudgets(rows)
+    listBudgetsPage(selectedMenu)
+      .then((page) => {
+        if (active) replaceBudgetPage(page)
       })
       .catch(() => {
-        if (active) setBudgets([])
+        if (active) replaceBudgetPage({ rows: [], cursor: null, hasMore: false })
       })
     return () => {
       active = false
     }
-  }, [selectedMenu, savedId])
+  }, [selectedMenu, savedId, invalidateBudgetPages, replaceBudgetPage])
 
   const menuCodes = useMemo(
     () => Array.from(new Set(bom.map((x) => x.menu_item_esb_code))).sort(),
@@ -183,7 +194,7 @@ export function BudgetPage() {
         scenarioLabel,
         scenarioType,
         owningBuId: owningBu,
-        costBasisAsOf: cogs.basis_as_of ?? new Date().toISOString(),
+        costBasisAsOf: cogs.basis_as_of,
         isComplete: cogs.complete,
         lines: selectedBom.map((b) => ({
           ingredient_esb_code: b.ingredient_esb_code,
@@ -202,7 +213,7 @@ export function BudgetPage() {
   if (load.kind === 'loading') {
     return (
       <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.plan.budget')} meta={HEAD_META_PLACEHOLDER} state="loading">
-        <div role="status" aria-label="Loading" aria-busy="true">
+        <div role="status" aria-label={t('common.loading')} aria-busy="true">
           <SkeletonRows count={4} />
         </div>
       </PageFamilyFrame>
@@ -253,7 +264,7 @@ export function BudgetPage() {
       </section>
 
       <div className="bp-workspace">
-        <section className="bp-readiness" aria-label="Budgeted COGS preview">
+        <section className="bp-readiness" aria-label={tx('moneyB.budget.aria.preview')}>
           <div className="bp-cogs-head">
             <h2 className="bp-h2">{tx('moneyB.budget.readiness')}</h2>
             <FailLoudBadge status={status} />
@@ -264,7 +275,7 @@ export function BudgetPage() {
           )}
         </section>
 
-        <section className="bp-capture" aria-label="Capture budget scenario">
+        <section className="bp-capture" aria-label={tx('moneyB.budget.aria.capture')}>
           <h2 className="bp-h2">{tx('moneyB.budget.captureHeading')}</h2>
           <p className="bp-help">{tx('moneyB.budget.captureHelp')}</p>
           <p className="bp-selected-menu">{t('moneyB.budget.selectedMenu' as MessageKey, { menu: selectedMenu })}</p>
@@ -291,7 +302,7 @@ export function BudgetPage() {
           </div>
         </section>
 
-        <section className="bp-bom" aria-label="Linked BOM evidence">
+        <section className="bp-bom" aria-label={tx('moneyB.budget.aria.bom')}>
           <h2 className="bp-h2">{tx('moneyB.budget.linkedBom')}</h2>
           <div className="bp-table-scroll">
             <table className="bp-table bp-table--bom">
@@ -302,7 +313,7 @@ export function BudgetPage() {
                 return <tr key={line.ingredient_esb_code} data-testid="budget-bom-line" data-ingredient={line.ingredient_esb_code}>
                   <th scope="row"><span className="bp-ing-name">{line.ingredient_name}</span><span className="bp-ing-code">{line.ingredient_esb_code}</span></th>
                   <td className="tabular"><span className="bp-mobile-label">{tx('moneyB.budget.quantity')}</span>{line.recipe_qty} {line.qty_unit}</td>
-                  <td className="tabular"><span className="bp-mobile-label">{tx('moneyB.budget.unitCost')}</span>{cost ? <a className="bp-cost-link" href={`#cost-line-${line.ingredient_esb_code}`} aria-label={`Linked cost line for ${line.ingredient_name}`} data-testid="drill-cost-line" onClick={(event) => { event.preventDefault(); window.history.pushState(null, '', `#cost-line-${line.ingredient_esb_code}`); setCostsOpen(true); setSelectedCost(cost) }}>{formatIDR(line.unit_cost!)}</a> : <span className="bp-muted">{tx('moneyB.budget.noLinkedCost')}</span>}</td>
+                  <td className="tabular"><span className="bp-mobile-label">{tx('moneyB.budget.unitCost')}</span>{cost ? <a className="bp-cost-link" href={`#cost-line-${line.ingredient_esb_code}`} aria-label={t('moneyB.budget.aria.linkedCost' as MessageKey, { ingredient: line.ingredient_name })} data-testid="drill-cost-line" onClick={(event) => { event.preventDefault(); window.history.pushState(null, '', `#cost-line-${line.ingredient_esb_code}`); setCostsOpen(true); setSelectedCost(cost) }}>{formatIDR(line.unit_cost!)}</a> : <span className="bp-muted">{tx('moneyB.budget.noLinkedCost')}</span>}</td>
                   <td className="tabular"><span className="bp-mobile-label">{tx('moneyB.linkedCost.asOf')}</span>{line.cost_as_of ? shortDate(line.cost_as_of) : '—'}</td>
                   <td className="tabular"><span className="bp-mobile-label">{tx('moneyB.budget.lineTotal')}</span>{line.line_total !== null ? formatIDR(line.line_total) : '—'}</td>
                 </tr>
@@ -312,17 +323,19 @@ export function BudgetPage() {
         </section>
       </div>
 
-      <section id="captured-scenarios" className="bp-section bp-scenarios" aria-label="Captured scenarios">
+      <section id="captured-scenarios" className="bp-section bp-scenarios" aria-label={tx('moneyB.budget.aria.scenarios')}>
         <h2 className="bp-h2">{t('moneyB.budget.scenariosFor' as MessageKey, { menu: selectedMenu })}</h2>
         {budgets.length === 0 ? <p className="bp-muted">{tx('moneyB.budget.noScenarios')}</p> : (
           <div className="bp-table-scroll"><table className="bp-table">
             <caption>{tx('moneyB.budget.scenarioCaption')}</caption>
             <thead><tr><th scope="col">{tx('moneyB.budget.scenario')}</th><th scope="col">{tx('moneyB.budget.type')}</th><th scope="col">{tx('moneyB.budget.readiness')}</th><th scope="col">{tx('moneyB.budget.basisAsOfColumn')}</th></tr></thead>
             <tbody>{budgets.map((budget) => <tr key={budget.id} id={`budget-scenario-${budget.id}`} data-testid="budget-scenario-row">
-              <th scope="row">{budget.scenario_label}</th><td>{budget.scenario_type}</td><td className="tabular">{formatIDR(budget.total_budgeted_cogs)}</td><td className="tabular">{shortDate(budget.cost_basis_as_of)}</td>
+              <th scope="row">{budget.scenario_label}</th><td>{budget.scenario_type}</td><td className="tabular">{formatIDR(budget.total_budgeted_cogs)}</td><td className="tabular">{budget.cost_basis_as_of ? shortDate(budget.cost_basis_as_of) : '—'}</td>
             </tr>)}</tbody>
           </table></div>
         )}
+        <ListPaging count={budgets.length} hasMore={budgetsHasMore} loading={loadingMoreBudgets} error={budgetsMoreError}
+          onLoadMore={() => { void loadMoreBudgetPage((cursor) => listBudgetsPage(selectedMenu, cursor)) }} />
       </section>
 
       <section className="bp-section bp-costlines">

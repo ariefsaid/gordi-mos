@@ -12,7 +12,9 @@ import { Select } from '@/components/ui/select'
 import { listRecipeFindings, type RecipeFindingsData } from '@/lib/db/recipe-findings'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
-import { canViewMargin } from '@/lib/capabilities'
+import { canReviewMoneyBranch, canViewBranchCancelVoid, canViewMargin, canViewRevenue } from '@/lib/capabilities'
+import { CancelVoidRegister } from '@/components/money/cancel-void-register'
+import { BranchCancelVoidPage } from '@/components/money/branch-cancel-void-page'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
@@ -178,6 +180,12 @@ function DaysTable({ page, period }: { page: BranchPage; period: number }) {
 }
 
 export function MoneyBranchPage() {
+  const auth = useAuth()
+  const roles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  return !canViewRevenue(roles) && canViewBranchCancelVoid(roles) ? <BranchCancelVoidPage /> : <RevenueMoneyBranchPage />
+}
+
+function RevenueMoneyBranchPage() {
   const t = useT()
   const { locale } = useI18n()
   const { code = '' } = useParams()
@@ -206,10 +214,13 @@ export function MoneyBranchPage() {
   const syncedAt = useMemo(() => (data ? latestBy(data.revenue, (r) => r.snapshot_as_of) : null), [data])
   // A supervisor who sees one branch was sent here from /money; a link back would send them here again.
   const onlyBranch = !canSeeMargin && data !== null && new Set(data.revenue.map((r) => r.branch_code)).size === 1
-  const canSeeFindings = accessRoles.some(r => ['finance', 'manager', 'ops_lead'].includes(r)) && !page?.isB2B
+  const canSeeFindings = canReviewMoneyBranch(accessRoles) && !page?.isB2B
+  const registerWindow = data?.latestDate ? resolveMoneyWindow(displayView, data.latestDate) : null
+  const canReview = canReviewMoneyBranch(accessRoles) && displayView.channel !== 'B2B' && !page?.isB2B
+  const register = canReview && registerWindow ? <CancelVoidRegister key={code} branch={code} start={registerWindow.from} end={registerWindow.to} /> : null
   const findingStart = page?.days[0]?.date ?? ''
   const findingEnd = page?.latestDate ?? ''
-  const companies = [...new Set(data?.revenue.filter(r => r.branch_code === code).map(r => r.esb_code))].sort().join(',')
+  const companies = [...new Set(data?.revenue.filter(r => r.branch_code === code).flatMap(r => r.esb_codes ?? [r.esb_code]))].sort().join(',')
   const findingScope = `${code}:${findingStart}:${findingEnd}:${companies}`
   const [findings, setFindings] = useState<{ scope: string; data: RecipeFindingsData } | null>(null)
   const [findingStatus, setFindingStatus] = useState('loading')
@@ -331,7 +342,7 @@ export function MoneyBranchPage() {
     const days = view.range ? resolveMoneyWindow(view, view.range.to).days : view.period
     return frame(<>{filters}<EmptyState variant={filtered ? 'quiet' : 'awaiting'} title={filtered ? t('money.filter.empty.title') : t('money.branch.notFound.title')} copy={filtered ? t('money.filter.empty.copy') : t('money.branch.notFound.copy', { days: String(days) })}>
       {filtered && <Button variant="outline" onClick={() => writeView({ ...view, period: 30, range: null, channel: 'all' }, null)}>{t('money.filter.clear')}</Button>}
-    </EmptyState></>, 'empty')
+    </EmptyState>{register}</>, 'empty')
   }
 
   let askStatus: ReactNode = null
@@ -355,7 +366,7 @@ export function MoneyBranchPage() {
       {askStatus && <div ref={askStatusRef} tabIndex={-1} className="money-branch__ask-result">{askStatus}</div>}
       {load.status === 'error' && <MoneyLoadError kept tooMany={load.tooMany} onRetry={() => void read()} />}
       <MoneyFigures label={t('money.overview.figures')} className="money-branch__figures">
-        <MoneyFigure lead label={t('money.overview.revenue', { days: String(page.daysCount) })} value={formatIDRCompact(page.total)} delta={<MoneyDelta value={page.vsPrevious} t={t} />} basis={t('money.table.col.vsPrevious')} />
+        <MoneyFigure lead label={t('money.overview.revenue', { days: String(page.daysCount) })} value={formatIDRCompact(page.total)} delta={<MoneyDelta value={page.vsPrevious} t={t} />} basis={t('money.table.col.vsPrevious')} extra={page.totalPartial ? t('money.table.partial') : undefined} />
         <MoneyFigure
           label={t('money.overview.latestOn', { date: formatWeekdayDayMonth(lastReceived, locale) })}
           value={lastDay ? formatIDRCompact(lastDay.value!) : t('money.table.notReceived')}
@@ -378,6 +389,7 @@ export function MoneyBranchPage() {
         findingsLink={page.margin && canSeeFindings ? <a href="#recipe-findings" className="money-branch__link">{t('money.findings.view')}</a> : undefined}
       />
       <DaysTable page={page} period={page.daysCount} />
+      {register}
       {canSeeMargin && page.isB2B && <Notice tone="info">{t('money.note.b2b')}</Notice>}
       {data.marginFailed && !page.isB2B && <MoneyLoadError margin onRetry={() => void read()} />}
       {canSeeFindings && <div className="money-check-basis">
