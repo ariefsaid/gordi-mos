@@ -165,13 +165,10 @@ select public.t_as('00000000-0000-0000-0000-0000000000b4');
 select throws_ok($$select ops.get_attendance_record(current_setting('app.a101')::uuid)$$,'42501',null,'AC-034 a Person in another org gets nothing');
 select is((select count(*)::int from storage.objects where bucket_id = 'attendance-selfies'),0,'AC-034 another org sees no selfie objects');
 
--- HR reads every Team once stage 2 adds the hr role; until then this is skipped, never faked.
+-- HR reads every Team's records.
+select public.t_as('00000000-0000-0000-0000-0000000000d2', 'hr');
+select is((ops.get_attendance_record(current_setting('app.a101')::uuid))->>'status', 'out', 'AC-034 hr reads every Team''s record');
 reset role;
-select case
-  when exists(select 1 from pg_constraint c join pg_type t on t.oid = c.contypid where t.typname = 'access_role' and pg_get_constraintdef(c.oid) like '%''hr''%')
-  then (select is((ops.get_attendance_record(current_setting('app.a101')::uuid))->>'status', 'out', 'AC-034 hr reads every Team''s record')
-          from (select public.t_as('00000000-0000-0000-0000-0000000000d2', 'hr')) as switched)
-  else skip('AC-034 hr read waits for the hr role from stage 2', 1) end;
 
 -- Storage is insert-only and bound to a pending attempt.
 set local role authenticated;
