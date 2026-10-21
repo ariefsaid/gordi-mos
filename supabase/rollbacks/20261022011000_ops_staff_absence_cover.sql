@@ -62,5 +62,33 @@ drop table ops.staff_shift_offers;
 drop table ops.staff_absences;
 drop table ops.staff_cover_config;
 alter table ops.staff_shifts drop column cover_for_person_id, drop column origin;
--- get_staff_roster: restore the admin-or-lead check from 20261022001000_ops_staff_attendance_stage1.sql.
+-- get_staff_roster: the admin-or-lead check from 20261022001000_ops_staff_attendance_stage1.sql.
+create or replace function ops.get_staff_roster(p_team_id uuid, p_week_start date)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare v_org uuid := shared.current_org_id(); v_actor uuid := shared.current_person_id(); v_roster ops.staff_rosters; v_result jsonb;
+begin
+  if v_org is null or v_actor is null or not shared.is_org_member() then raise exception 'STAFF_FORBIDDEN' using errcode = '42501'; end if;
+  if not (shared.has_access_role('admin') or shared.is_designated_team_lead(p_team_id,v_actor)) then raise exception 'STAFF_ROSTER_FORBIDDEN' using errcode = '42501'; end if;
+  if p_week_start is null or p_week_start <> ops._attendance_week_start(p_week_start) then raise exception 'STAFF_WEEK_INVALID' using errcode = '22023'; end if;
+  select * into v_roster from ops.staff_rosters where org_id=v_org and team_id=p_team_id and week_start=p_week_start;
+  select jsonb_build_object(
+    'team_id',t.id,'team_name',t.name,'site_id',coalesce(v_roster.site_id,t.site_id),'site_name',s.name,
+    'week_start',p_week_start,'status',coalesce(v_roster.status,'draft'),
+    'shifts',coalesce((select jsonb_agg(jsonb_build_object('id',x.id,'person_id',x.person_id,'person_name',p.full_name,'local_date',x.local_date,'template_id',x.template_id,'template_name',x.template_name,'start_at',x.start_at,'end_at',x.end_at) order by x.local_date,x.start_at,p.full_name)
+      from ops.staff_shifts x join shared.people p on p.id=x.person_id and p.org_id=x.org_id where x.org_id=v_org and x.roster_id=v_roster.id and x.removed_at is null),'[]'::jsonb),
+    'members',coalesce((select jsonb_agg(jsonb_build_object('person_id',p.id,'full_name',p.full_name) order by p.full_name)
+      from shared.team_memberships m join shared.people p on p.id=m.person_id and p.org_id=m.org_id
+      where m.org_id=v_org and m.team_id=t.id and p.archived_at is null and m.effective_from<=p_week_start+6 and (m.effective_to is null or m.effective_to>=p_week_start)),'[]'::jsonb)
+  ) into v_result from shared.teams t left join shared.sites s on s.id=coalesce(v_roster.site_id,t.site_id) and s.org_id=t.org_id where t.org_id=v_org and t.id=p_team_id and t.archived_at is null;
+  if v_result is null then raise exception 'STAFF_TEAM_NOT_FOUND' using errcode = 'P0002'; end if;
+  return v_result;
+end;
+$$;
+revoke execute on function ops.get_staff_roster(uuid,date) from public, anon;
+grant execute on function ops.get_staff_roster(uuid,date) to authenticated;
 commit;
