@@ -105,7 +105,7 @@ function absolutePath(path: string): string {
 export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'home', path: absolutePath(ROUTE_PATHS.home), kind: 'visible-root' },
   { id: 'workTasks', path: absolutePath(ROUTE_PATHS.workTasks), kind: 'visible-root' },
-  { id: 'workShifts', path: absolutePath(ROUTE_PATHS.workShifts), kind: 'child' },
+  { id: 'workShifts', path: absolutePath(ROUTE_PATHS.workShifts), kind: 'visible-root' },
   { id: 'workSignals', path: absolutePath(ROUTE_PATHS.workSignals), kind: 'visible-root' },
   { id: 'workProjects', path: absolutePath(ROUTE_PATHS.workProjects), kind: 'visible-root' },
   { id: 'workObjectives', path: absolutePath(ROUTE_PATHS.workObjectives), kind: 'visible-root' },

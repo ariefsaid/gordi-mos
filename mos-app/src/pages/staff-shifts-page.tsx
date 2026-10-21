@@ -6,6 +6,7 @@ import { useAuth } from '@/auth/use-auth'
 import { AbsencePanel, CoverPanel, HrPanel, RequestsPanel } from '@/components/staff-attendance/staff-cover-panels'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { useWorkHomeBack } from '@/shell/work-collection-switcher'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { listLedStaffTeams, type LedStaffTeam } from '@/lib/db/staff-attendance'
 import { ClockPanel } from '@/components/staff-attendance/clock-panel'
@@ -24,6 +25,7 @@ export function StaffShiftsPage() {
   const roles = viewer?.accessRoles ?? []
   const reads = roles.includes('hr') || roles.includes('admin')
   useDocumentTitle(t('common.docTitle', { page: t('nav.work.shifts') }))
+  const workBack = useWorkHomeBack()
   const [state, setState] = useState<PageState>('loading')
   const [teams, setTeams] = useState<LedStaffTeam[]>([])
   const [params] = useSearchParams()
@@ -40,7 +42,7 @@ export function StaffShiftsPage() {
   useEffect(() => { void load() }, [load])
 
   return (
-    <PageFamilyFrame family="management" title={t('attendance.mine.title')} jobSentence={t('attendance.mine.job')} state={state === 'loading' ? 'loading' : state === 'error' ? 'error' : 'default'}>
+    <PageFamilyFrame family="management" back={workBack} title={t('attendance.mine.title')} jobSentence={t('attendance.mine.job')} state={state === 'loading' ? 'loading' : state === 'error' ? 'error' : 'default'}>
       {state === 'loading' && <LoadingShell count={3} label={t('attendance.mine.loading')} />}
       {state === 'error' && <ErrorState message={t('attendance.mine.loadError')} onRetry={load} />}
       {state === 'ready' && <>
