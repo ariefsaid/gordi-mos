@@ -21,6 +21,12 @@ class StreamUsageTest(unittest.TestCase):
         cls.module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.module)
 
+    def test_psql_password_travels_in_the_environment_not_the_command_line(self):
+        target, env = self.module.psql_target('postgresql://ops:s%40cret@db.example.test:5432/postgres')
+        self.assertEqual(target, 'postgresql://ops@db.example.test:5432/postgres')
+        self.assertEqual(env['PGPASSWORD'], 's@cret')
+        self.assertEqual(self.module.psql_target('postgresql://localhost/postgres')[0], 'postgresql://localhost/postgres')
+
     def test_production_wins_per_branch_activity_not_globally(self):
         rows = [self.row('A', '1', 'Simple Manufacturing', 2, 0, True),
                 self.row('A', '2', 'Simple Manufacturing', 0, 3, False),

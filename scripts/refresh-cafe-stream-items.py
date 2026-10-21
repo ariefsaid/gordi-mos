@@ -11,11 +11,12 @@ for reconciliation evidence before applying. No item settings, counts or members
 import argparse
 import json
 import math
+import os
 import shlex
 import subprocess
 import sys
 from datetime import date, datetime, timedelta
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 EXCLUDED = {'Stock Opname', 'Stock Opname Minus Resolve', 'Inventory Revaluation', 'Purchase Invoice Adjustment'}
@@ -84,6 +85,18 @@ def parse_rows(text):
     return rows
 
 
+def psql_target(db_url: str) -> tuple[str, dict[str, str]]:
+    """The URL without its password, and an environment carrying it, so the process list never shows it."""
+    parts = urlsplit(db_url)
+    env = dict(os.environ)
+    if parts.password is None:
+        return db_url, env
+    env['PGPASSWORD'] = unquote(parts.password)
+    host = parts.netloc.rsplit('@', 1)[1]
+    user = parts.netloc.rsplit('@', 1)[0].split(':', 1)[0]
+    return urlunsplit(parts._replace(netloc=f'{user}@{host}')), env
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     source = parser.add_mutually_exclusive_group(required=True)
@@ -135,7 +148,8 @@ def main():
                 raise ValueError('--apply requires a PostgreSQL --db-url')
             if urlsplit(args.db_url).hostname not in ('localhost', '127.0.0.1', '::1') and not args.allow_remote:
                 raise ValueError('remote target requires owner authorization and --allow-remote')
-            subprocess.run(['psql', args.db_url, '-X', '-v', 'ON_ERROR_STOP=1'], input=sql, text=True, check=True)
+            target, env = psql_target(args.db_url)
+            subprocess.run(['psql', target, '-X', '-v', 'ON_ERROR_STOP=1'], input=sql, text=True, check=True, env=env)
         else:
             sys.stdout.write(sql)
     except (ValueError, KeyError, TypeError, OSError, subprocess.CalledProcessError) as error:
