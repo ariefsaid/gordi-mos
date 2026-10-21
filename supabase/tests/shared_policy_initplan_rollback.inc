@@ -39,10 +39,18 @@ begin
        and obj_description(policy.oid, 'pg_policy') like v_prefix || '%'
   loop
     v_snapshot := convert_from(decode(substr(v_policy.policy_comment, length(v_prefix) + 1), 'hex'), 'UTF8')::jsonb;
+    v_original_comment := v_snapshot ->> 'comment';
 
     if not (v_snapshot ?& array['created_qual', 'created_with_check']) then
       raise notice 'Skipping policy % on %.%: migration-created definition is not recorded',
         v_policy.policyname, v_policy.schemaname, v_policy.tablename;
+      execute format(
+        'comment on policy %I on %I.%I is %L',
+        v_policy.policyname,
+        v_policy.schemaname,
+        v_policy.tablename,
+        v_original_comment
+      );
       continue;
     end if;
 
@@ -50,12 +58,18 @@ begin
        or v_policy.with_check is distinct from (v_snapshot ->> 'created_with_check') then
       raise notice 'Skipping policy % on %.%: its definition changed after the initplan migration',
         v_policy.policyname, v_policy.schemaname, v_policy.tablename;
+      execute format(
+        'comment on policy %I on %I.%I is %L',
+        v_policy.policyname,
+        v_policy.schemaname,
+        v_policy.tablename,
+        v_original_comment
+      );
       continue;
     end if;
 
     v_qual := v_snapshot ->> 'qual';
     v_with_check := v_snapshot ->> 'with_check';
-    v_original_comment := v_snapshot ->> 'comment';
 
     v_alter_policy := format('alter policy %I on %I.%I',
       v_policy.policyname, v_policy.schemaname, v_policy.tablename);
