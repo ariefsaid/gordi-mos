@@ -35,6 +35,7 @@ const CATALOG_FILE = join(SRC, 'i18n', 'messages.ts')
  */
 const KNOWN_DYNAMIC_PREFIXES: Record<string, string> = {
   'assistant.rating.reason.': 'AssistantPanel.tsx — t(`assistant.rating.reason.${r}`) over DOWNVOTE_REASONS',
+  'attendance.day.': 'staff-shift-panels.tsx — t(`attendance.day.${day}`) over weekday numbers',
   'tasks.status.': 'tasks-toolbar.tsx — t(`tasks.status.${key}` as const)',
   'signals.record.field.': 'signal-record.tsx — t(`signals.record.field.${rev.field}`)',
   'followUps.action.': 'follow-up-queue-table.tsx / follow-ups-page.tsx — t(`followUps.action.${verb}`)',

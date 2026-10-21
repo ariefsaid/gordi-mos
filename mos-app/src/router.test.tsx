@@ -439,6 +439,7 @@ describe('router — /admin redirects from inside AdminRoute', () => {
       'admin/modules',
       'admin/people',
       'admin/people/:personId',
+      'admin/shift-builder',
       'admin/teams',
     ])
   })

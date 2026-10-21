@@ -25,7 +25,7 @@ export type StaffShift = {
   end_at: string
   crew?: string[]
 }
-export type RosterMember = { person_id: string; full_name: string }
+type RosterMember = { person_id: string; full_name: string }
 export type StaffRoster = {
   team_id: string; team_name: string; site_id: string | null; site_name: string | null
   week_start: string; status: 'draft' | 'published'; shifts: StaffShift[]; members: RosterMember[]
@@ -34,7 +34,7 @@ export type LedStaffTeam = { id: string; name: string; site_id: string | null; s
 export type StandingRule = {
   active: boolean; working_days: number[]; start_time: string | null; end_time: string | null
 }
-export type StandingException = StandingRule & { person_id: string; full_name: string }
+type StandingException = StandingRule & { person_id: string; full_name: string }
 export type StandingSchedule = {
   effective_from: string; team_name: string; site_name: string | null
   current_default: StandingRule | null; current_exceptions: StandingException[]

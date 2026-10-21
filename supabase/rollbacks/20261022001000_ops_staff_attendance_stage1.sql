@@ -29,12 +29,12 @@ drop function ops.save_attendance_site(uuid,double precision,double precision,in
 drop function ops._attendance_shift_overlaps(uuid,date,timestamptz,timestamptz,uuid);
 drop function ops._attendance_standing_version(uuid,uuid,date);
 drop function ops._attendance_week_start(date);
-drop function ops._attendance_days_valid(smallint[]);
 drop function ops._attendance_now();
 drop table ops.staff_shifts;
 drop table ops.staff_rosters;
 drop table ops.staff_standing_hours;
 drop table ops.staff_shift_templates;
+drop function ops._attendance_days_valid(smallint[]);
 drop index shared.people_org_id_id_uk;
 drop index shared.sites_org_id_id_uk;
 drop index shared.teams_org_id_id_uk;
