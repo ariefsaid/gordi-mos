@@ -28,7 +28,7 @@ export interface CreatePersonInput {
   access_roles: string[] // never 'manager'
 }
 
-export const ASSIGNABLE_ROLES = ['member', 'ops_lead', 'admin', 'finance', 'manager', 'supervisor'] as const
+export const ASSIGNABLE_ROLES = ['member', 'ops_lead', 'admin', 'finance', 'manager', 'supervisor', 'hr'] as const
 
 // ROLE_META — single source of truth for human-readable role labels + descriptions.
 // The DB stores/sends the SLUG (member | ops_lead | admin | finance | manager); only the
@@ -41,6 +41,7 @@ export const ROLE_META: Record<string, { label: string; description: string }> =
   finance: { label: 'Finance', description: 'Sees financial reports' },
   manager: { label: 'Manager', description: 'Sees revenue and margin for the whole company' },
   supervisor: { label: 'Supervisor (access)', description: 'Sees revenue only for the branches you pick' },
+  hr: { label: 'HR', description: "Sees every Team's shifts, absences and attendance; no money access" },
 }
 
 /** Human label for a role slug; falls back to the slug itself for unknown roles. */
