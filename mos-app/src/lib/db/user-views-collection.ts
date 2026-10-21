@@ -119,7 +119,6 @@ export async function createCollectionView(
   return toPersisted(data as unknown as CollectionViewRow)
 }
 
-/** Renames a collection view. kind/context are immutable (DB trigger) and are never sent. */
 export async function renameCollectionView(id: string, name: string): Promise<void> {
   const { error } = await mos()
     .from('user_views')
@@ -128,7 +127,6 @@ export async function renameCollectionView(id: string, name: string): Promise<vo
   if (error) throw new Error(`renameCollectionView failed — ${error.message}`)
 }
 
-/** Soft-archives a collection view (lifecycle=archived + archived_at) — no hard delete. */
 export async function archiveCollectionView(id: string): Promise<void> {
   const now = new Date().toISOString()
   const { error } = await mos()

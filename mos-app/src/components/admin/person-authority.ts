@@ -5,6 +5,7 @@
 import type { MessageKey } from '@/i18n/messages'
 import type { Translate } from '@/i18n/use-t'
 import { localizedRoleMeta } from '@/lib/db/admin-users.types'
+import { hasAccessRole } from '@/lib/capabilities'
 import { buHeadsForViewer, type RoleScopeNode } from '@/lib/role-scope'
 import {
   AUTHORITY_ACTIONS,
@@ -29,7 +30,7 @@ export interface PersonAuthority {
 export function heldAuthorityRoles(accessRoles: readonly string[], leadsATeam: boolean, headsABusinessUnit: boolean): AuthorityRole[] {
   const held = new Set<AuthorityRole>(['member'])
   for (const role of ['ops_lead', 'admin', 'finance', 'manager', 'supervisor'] as const) {
-    if (accessRoles.includes(role)) held.add(role)
+    if (hasAccessRole(accessRoles, role)) held.add(role)
   }
   if (leadsATeam) held.add('team_lead')
   if (headsABusinessUnit) held.add('bu_head')

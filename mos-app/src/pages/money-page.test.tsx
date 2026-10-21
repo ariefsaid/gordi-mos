@@ -274,6 +274,13 @@ describe('MoneyPage — period and sort live in the URL', () => {
     expect(screen.getByText('Revenue · 4 days')).toBeInTheDocument()
   })
 
+  it.each(['en', 'id'] as const)('shows the selected custom end, not the latest sync date, in %s', async locale => {
+    renderMoney(['manager'], '/money?period=custom&from=2026-10-01&to=2026-10-03', locale)
+    await screen.findByRole('table')
+    expect(screen.getByText(locale === 'en' ? 'Thu 1 Oct – Sat 3 Oct' : 'Kam, 1 Okt – Sab, 3 Okt')).toBeVisible()
+    expect(mockRev).toHaveBeenCalledWith({ fromDate: '2026-09-24', toDate: '2026-10-03' })
+  })
+
   it('keeps the previous figures visibly busy while a selected window is refetched', async () => {
     const user = userEvent.setup()
     renderMoney(['manager'])

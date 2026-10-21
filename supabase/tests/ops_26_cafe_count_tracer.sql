@@ -16,6 +16,9 @@ select ops.refresh_cafe_item_references($source$[
   {"esb_product_id":"SYNTH-ERP-P-1366-UNIT-INACTIVE","esb_product_detail_id":"SYNTH-ERP-PD-1366-UNIT-INACTIVE","name":"Inactive unit count item","category":"KITCHEN","unit_name":"case","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},
   {"esb_product_id":"SYNTH-ERP-P-1366-NONSTOCK","esb_product_detail_id":"SYNTH-ERP-PD-1366-NONSTOCK","name":"Non-stock count item","category":"KITCHEN","unit_name":"case","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":true,"is_active":true}
 ]$source$::jsonb);
+select ops.refresh_cafe_stream_items((select jsonb_agg(jsonb_build_object('esb_product_id', item.esb_product_id, 'branch_code', branch))
+  from ops.wip_items item cross join unnest(array['gordi_hq','rumah_rames']) branch
+  where item.org_id='00000000-0000-0000-0000-0000000000a1' and item.esb_product_id like 'SYNTH-ERP-P-1366-%'));
 select set_config('app.allow_test_seeds', 'off', true);
 select set_config('app.count_raw_id', (select id::text from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1366-RAW'), true);
 select set_config('app.count_wip_id', (select id::text from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1366-WIP'), true);

@@ -29,7 +29,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return <div className="rec-fields__row"><dt>{label}</dt><dd>{children}</dd></div>
 }
 
-const DAY_ORDER: DayColumn[] = ['made', 'transferred', 'wasted', 'counted']
+const DAY_ORDER: DayColumn[] = ['made', 'transferred', 'sent', 'wasted', 'counted']
 
 export function ItemHistoryPanel({ text, itemKey, itemName, entries, coverage, rangeText, streamText, reviewer: _reviewer, onClose, onOpenEntry }: PanelBase & {
   itemKey: string
@@ -47,7 +47,7 @@ export function ItemHistoryPanel({ text, itemKey, itemName, entries, coverage, r
   const nameOnly = itemKey.startsWith('request-name:')
   // The panel is narrow: the short column words (the full ones are on the Day summary).
   const heads: Record<DayColumn, string> = {
-    made: t('records.day.made'), transferred: t('records.day.out'), wasted: t('records.day.waste'), counted: t('records.day.count'),
+    sent: t('records.movement.sent'), made: t('records.day.made'), transferred: t('records.day.out'), wasted: t('records.day.waste'), counted: t('records.day.count'),
   }
   return (
     <RecordPanelHost

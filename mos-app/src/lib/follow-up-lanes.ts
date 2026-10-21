@@ -1,4 +1,5 @@
 import type { RolesRow } from '@/lib/database.types'
+import { hasAccessRole } from './capabilities'
 
 type FollowUpLane = 'b2b_sales' | 'retail_ops'
 
@@ -13,7 +14,7 @@ function roleBusinessUnitCodes(roles: readonly Pick<RolesRow, 'business_unit_id'
 }
 
 function canWorkLane(lane: FollowUpLane, roles: readonly Pick<RolesRow, 'business_unit_id'>[], businessUnits: readonly { id: string; code?: string | null }[], accessRoles: readonly string[] = []): boolean {
-  if (accessRoles.includes('admin')) return true
+  if (hasAccessRole(accessRoles, 'admin')) return true
   return roleBusinessUnitCodes(roles, businessUnits).has(lane)
 }
 

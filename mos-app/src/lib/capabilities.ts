@@ -40,8 +40,8 @@ const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
 // users-and-settings role and reads no money of its own — the Director reads Money by holding
 // manager beside admin. The database policies on reporting.sales_daily_revenue and
 // reporting.sales_margin_daily (MONEY_READ_POLICY_MIGRATION) state the same two lists, and
-// capabilities.test.ts reads that file to pin them equal. Every shell surface that decides whether
-// Money renders reads these through canViewRevenue / REVENUE_VIEW_ROLES, never its own literal.
+// capabilities.test.ts reads that file to pin them equal. Money doors use these sets or named
+// branch/planning policies below; none retypes its own role list.
 export const MONEY_READ_POLICY_MIGRATION = '20260907000002_reporting_money_read_roles.sql'
 
 /** Roles that admit to Revenue VIEW. supervisor is scoped by RLS to their own grants. */
@@ -50,6 +50,23 @@ export const REVENUE_VIEW_ROLES = ['finance', 'manager', 'supervisor'] as const
 /** Roles that admit to Margin/COGS VIEW — supervisor excluded, revenue-only. */
 export const MARGIN_VIEW_ROLES = ['finance', 'manager'] as const
 
+/** Money branch's route additionally admits ops_lead for its cancel/void register. */
+export const MONEY_BRANCH_ROUTE_ROLES = [...REVENUE_VIEW_ROLES, 'ops_lead'] as const
+export const MONEY_PLANNING_ROLES = ['finance', 'admin'] as const
+
+const MONEY_BRANCH_REVIEW_ROLES = ['finance', 'manager', 'ops_lead'] as const
+const TEAM_TASK_VIEW_ROLES = ['ops_lead', 'supervisor', 'manager'] as const
+
+/** True iff the access-role claim contains `role`. */
+export function hasAccessRole(accessRoles: readonly string[], role: string): boolean {
+  return accessRoles.includes(role)
+}
+
+/** True iff the access-role claim contains any role in the supplied policy set. */
+export function hasAnyAccessRole(accessRoles: readonly string[], roles: readonly string[]): boolean {
+  return roles.some((role) => hasAccessRole(accessRoles, role))
+}
+
 /** True iff any of the viewer's accessRoles is granted `capability` (v1 seed). */
 export function can(accessRoles: readonly string[], capability: string): boolean {
   return accessRoles.some((role) => (ROLE_CAPABILITIES[role] ?? []).includes(capability))
@@ -57,10 +74,25 @@ export function can(accessRoles: readonly string[], capability: string): boolean
 
 /** Revenue-VIEW visibility — the one answer every Money door reads. RLS is the hard boundary. */
 export function canViewRevenue(accessRoles: readonly string[]): boolean {
-  return REVENUE_VIEW_ROLES.some((r) => accessRoles.includes(r))
+  return hasAnyAccessRole(accessRoles, REVENUE_VIEW_ROLES)
 }
 
 /** Margin/COGS-VIEW visibility — the narrower tier inside the revenue read. */
 export function canViewMargin(accessRoles: readonly string[]): boolean {
-  return MARGIN_VIEW_ROLES.some((r) => accessRoles.includes(r))
+  return hasAnyAccessRole(accessRoles, MARGIN_VIEW_ROLES)
+}
+
+/** Branch findings and cancel/void review have the same role audience, apart from the page door. */
+export function canReviewMoneyBranch(accessRoles: readonly string[]): boolean {
+  return hasAnyAccessRole(accessRoles, MONEY_BRANCH_REVIEW_ROLES)
+}
+
+/** An ops lead without Money read access sees only the branch cancel/void register. */
+export function canViewBranchCancelVoid(accessRoles: readonly string[]): boolean {
+  return hasAccessRole(accessRoles, 'ops_lead')
+}
+
+/** Team-scope is the initial Tasks view for stored ops lead, supervisor, or manager roles. */
+export function canViewTeamTasks(accessRoles: readonly string[]): boolean {
+  return hasAnyAccessRole(accessRoles, TEAM_TASK_VIEW_ROLES)
 }

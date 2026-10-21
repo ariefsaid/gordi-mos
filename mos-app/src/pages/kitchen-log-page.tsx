@@ -37,7 +37,7 @@ import {
 // Plan/Stock/Review open on the same books, and every switch carries across (issue 456).
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { useCafeOpeningStatus } from '@/lib/use-cafe-opening-started'
-import { availableCafeLocationDefault, useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
+import { availableCafeLocationDefault, readCafeLocationChoices, useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
 import { recordsHref } from '@/lib/cafe-records/url-state'
 import { formatUnitMultiple, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
 import { parseQuantityInput } from '@/lib/quantity-parser'
@@ -68,6 +68,7 @@ import {
   deriveActionLabel,
   movementKey,
   movementsForStream,
+  outletSendPlaces,
   streamProduces,
   streamKey,
   streamLabel,
@@ -203,6 +204,7 @@ function restoreKitchenCaptureDraft(
     || !saved.lines || typeof saved.lines !== 'object' || Array.isArray(saved.lines)
     || !saved.movement || typeof saved.movement !== 'object'
     || (saved.movement.action !== 'produce'
+      && saved.movement.action !== 'outlet_send'
       && !(saved.movement.action === 'transfer' && typeof saved.movement.destinationBranchId === 'string'))) {
     return { lines: blankLines, movement: fallbackMovement }
   }
@@ -262,6 +264,17 @@ async function readLatestItemLogDates(stream: ProductionStream | null, itemIds: 
     reportError(error, { source: 'kitchen-log.recent-item-order' })
     return {}
   }
+}
+
+const captureQuantityFormatters = new Map<string, Intl.NumberFormat>()
+
+function formatCaptureQuantity(quantity: number, locale: string): string {
+  let formatter = captureQuantityFormatters.get(locale)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 2 })
+    captureQuantityFormatters.set(locale, formatter)
+  }
+  return formatter.format(quantity)
 }
 
 export function KitchenLogPage({ mode = 'production', leading }: {
@@ -350,28 +363,29 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   // submit production against them (DD-MVP-9).
   const streamCanProduce = streamProduces(stream, streamOptions)
   const streamNonProducing = stream !== null && !streamCanProduce
+  const sourceLocationChoices = useCafeLocationChoices(canCapture ? stream : null)
+  const outletPlaces = outletSendPlaces(stream, sourceLocationChoices.locations, sourceLocationChoices.defaults)
   const allMovementOptions = stream
-    ? movementsForStream(stream, streamOptions, cafeStream.destinations)
+    ? movementsForStream(stream, streamOptions, cafeStream.destinations, outletPlaces !== null)
     : []
   const movementOptions = allMovementOptions.filter(movement =>
-    mode === 'production' ? movement.action === 'produce' : movement.action === 'transfer',
+    mode === 'production' ? movement.action === 'produce' : movement.action !== 'produce',
   )
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   useEffect(() => {
-    if (mode !== 'transfer' || movementOptions.length === 0) return
+    if (mode !== 'transfer' || movementOptions.length === 0 || sourceLocationChoices.status !== 'ready') return
     if (!movementOptions.some(option => movementKey(option) === movementKey(movement))) {
       setMovement(defaultTransferMovement(movementOptions, stream, {}) ?? movementOptions[0])
     }
-  }, [mode, movementOptions, movement, stream])
+  }, [mode, movementOptions, movement, stream, sourceLocationChoices.status])
   const transferDestinationChosen = mode !== 'transfer' || (
-    movement.action === 'transfer' && movementOptions.some(option => movementKey(option) === movementKey(movement))
+    movement.action !== 'produce' && movementOptions.some(option => movementKey(option) === movementKey(movement))
   )
   const destinationBranch = movement.action === 'transfer'
     ? branches.find(branch => branch.id === movement.destinationBranchId) ?? null
     : null
   const destinationStream = stream && destinationBranch ? { branch: destinationBranch, activity: stream.activity } : null
-  const sourceLocationChoices = useCafeLocationChoices(canCapture ? stream : null)
   const destinationLocationChoices = useCafeLocationChoices(canCapture ? destinationStream : null)
   const locationScope = `${mode}:${stream?.branch.id ?? ''}:${stream?.activity ?? ''}:${movementKey(movement)}`
   const [selectedLocationState, setSelectedLocationState] = useState<{ scope: string; values: LocationFieldValues } | null>(null)
@@ -386,8 +400,10 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
       : sourceLocationChoices.status === 'ready'
         ? availableCafeLocationDefault(sourceLocationChoices.locations, sourceLocationChoices.defaults?.storage_location_id, 'storage') : null,
   }
-  const locationValues = selectedLocationState?.scope === locationScope ? selectedLocationState.values : defaultLocationValues
-  const needsDestinationLocations = mode === 'transfer' && transferDestinationChosen
+  const locationValues = movement.action === 'outlet_send'
+    ? { production_location_id: null, from_storage_location_id: outletPlaces?.from ?? null, to_storage_location_id: outletPlaces?.to ?? null }
+    : selectedLocationState?.scope === locationScope ? selectedLocationState.values : defaultLocationValues
+  const needsDestinationLocations = mode === 'transfer' && movement.action === 'transfer' && transferDestinationChosen
   const locationLoadState = sourceLocationChoices.status === 'error' || (needsDestinationLocations && destinationLocationChoices.status === 'error')
     ? 'error'
     : sourceLocationChoices.status === 'ready' && (!needsDestinationLocations || destinationLocationChoices.status === 'ready')
@@ -395,7 +411,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   const locationChoices: LocationChoices = {
     production: sourceLocationChoices.locations.filter(location => location.use === 'production' || location.use === 'both'),
     from: sourceLocationChoices.locations.filter(location => location.use === 'storage' || location.use === 'both'),
-    to: (mode === 'transfer' ? destinationLocationChoices.locations : sourceLocationChoices.locations)
+    to: (movement.action === 'transfer' ? destinationLocationChoices.locations : sourceLocationChoices.locations)
       .filter(location => location.use === 'storage' || location.use === 'both'),
     storage: sourceLocationChoices.locations.filter(location => location.use === 'storage' || location.use === 'both'),
   }
@@ -560,7 +576,8 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
     : undefined
   const transferDestinationName = transferDestination
     ? branchDisplayName(transferDestination)
-    : movement.action === 'transfer' ? t('kitchen.actionType.transferTo.fallback') : null
+    : movement.action === 'outlet_send' ? t('kitchen.outlet.destination', { branch: stream?.branch.name ?? '' })
+      : movement.action === 'transfer' ? t('kitchen.actionType.transferTo.fallback') : null
   const summaryAriaLabel = mode === 'transfer'
     ? t('kitchen.transfer.summary.aria', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
     : t('kitchen.log.summary.aria')
@@ -670,8 +687,11 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
         resolveKitchenBuId(),
       ])
       const resolvedStream = catalog.stream
+      const places = mode === 'transfer' && resolvedStream
+        ? await readCafeLocationChoices({ branch_id: resolvedStream.branch.id, activity: resolvedStream.activity }).catch(() => ({ locations: [], defaults: null }))
+        : { locations: [], defaults: null }
       const availableMovements = mode === 'transfer' && resolvedStream
-        ? movementsForStream(resolvedStream, catalog.options, catalog.destinations).filter(option => option.action === 'transfer')
+        ? movementsForStream(resolvedStream, catalog.options, catalog.destinations, outletSendPlaces(resolvedStream, places.locations, places.defaults) !== null).filter(option => option.action !== 'produce')
         : [PRODUCE]
       const fallbackMovement = availableMovements[0] ?? PRODUCE
       const currentDraftScope = resolvedStream && draftOrgId && draftPersonId
@@ -940,8 +960,12 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
         readLatestItemLogDates(nextStream, items.map(item => item.id), mode === 'production'),
       ])
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
+      const places = mode === 'transfer'
+        ? await readCafeLocationChoices({ branch_id: nextStream.branch.id, activity: nextStream.activity }).catch(() => ({ locations: [], defaults: null }))
+        : { locations: [], defaults: null }
+      if (gen !== requestGen.current) return
       const availableMovements = mode === 'transfer'
-        ? movementsForStream(nextStream, streamOptions, cafeStream.destinations).filter(option => option.action === 'transfer')
+        ? movementsForStream(nextStream, streamOptions, cafeStream.destinations, outletSendPlaces(nextStream, places.locations, places.defaults) !== null).filter(option => option.action !== 'produce')
         : [PRODUCE]
       const fallbackMovement = (mode === 'transfer' ? defaultTransferMovement(availableMovements, nextStream, plan) : undefined) ?? availableMovements[0] ?? PRODUCE
       const currentDraftScope = draftOrgId && draftPersonId
@@ -1345,7 +1369,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
     }
   }
   const destinationLabel = (option: KitchenMovement) => {
-    const base = deriveActionLabel(t, option, branches)
+    const base = deriveActionLabel(t, option, branches, stream?.branch)
     const planned = planCounts[movementKey(option)] ?? 0
     return planned > 0 ? t('cafe.transfer.destinationPlanned', { label: base, count: planned }) : base
   }
@@ -1477,9 +1501,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
       unit,
     }]
   })
-  const formatCaptureQty = (quantity: number) => new Intl.NumberFormat(
-    document.documentElement.lang || 'en', { useGrouping: false, maximumFractionDigits: 2 },
-  ).format(quantity)
+  const formatCaptureQty = (quantity: number) => formatCaptureQuantity(quantity, document.documentElement.lang || 'en')
   // Stock and plan figures are in the item's default unit (the Stock page says the same); an item with
   // no unit yet says so instead of showing a bare number.
   const renderUnitValue = (value: ReactNode, item: CaptureFormItem, show = true) => {
@@ -1492,7 +1514,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
     )
   }
   // A stock figure the database has no row for is unknown, not zero.
-  const renderStockValue = (item: CaptureFormItem, value: number) => stockMap[item.id]
+  const renderStockValue = (item: CaptureFormItem, value: number) => stockMap[item.id]?.stok !== null && stockMap[item.id]?.stok !== undefined
     ? renderUnitValue(formatCaptureQty(value), item)
     : <span className="kl-unit-value" title={t('kitchen.log.stock.none')}><strong>—</strong></span>
   const defaultUnitOf = (item: CaptureFormItem) => (item.units.find(unit => unit.is_default) ?? item.units[0])?.name
@@ -1735,7 +1757,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   // A fact that is the same for every row is said once above the sheet, not repeated down a column.
   const noPlanForAll = visibleItems.every(item => !lines[item.id]?.plan_qty)
   const noRecordedForAll = visibleItems.every(item => (actualsMap[item.id]?.[movementKey(movement)] ?? []).length === 0)
-  const availableMatchesStock = visibleItems.every(item => lines[item.id]?.tersedia === lines[item.id]?.stok)
+  const availableMatchesStock = visibleItems.every(item => stockMap[item.id]?.stok != null && lines[item.id]?.tersedia === lines[item.id]?.stok)
   const productionWorksheet = mode === 'production' && canCapture && !streamNonProducing
   const transferWorksheet = mode === 'transfer' && canCapture && !streamNonProducing && transferDestinationChosen
   const logTableReadOnly = (
@@ -1758,13 +1780,15 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
     const quantity = lines[item.id]?.plan_qty ?? 0
     return { label: t('kitchen.log.col.plan'), value: quantity > 0 ? formatCaptureQty(quantity) : '–', unit: quantity > 0 ? unitOfItem(item) : null }
   }
-  const stockFigure = (item: CaptureFormItem, label: string, quantity: number): CaptureFigure => stockMap[item.id]
-    ? { label, value: formatCaptureQty(quantity), unit: unitOfItem(item) }
-    : { label, value: '—', unit: null }
+  const stockFigure = (item: CaptureFormItem, label: string, quantity: number): CaptureFigure => ({
+    label, value: formatCaptureQty(quantity), unit: unitOfItem(item),
+  })
+  const recordedStockFigure = (item: CaptureFormItem, label: string, quantity: number): CaptureFigure =>
+    stockMap[item.id]?.stok != null ? stockFigure(item, label, quantity) : { label, value: '—', unit: null }
   const figureSpecs: { label: string; of: (item: CaptureFormItem) => CaptureFigure }[] = [
     ...(noPlanForAll ? [] : [{ label: t('kitchen.log.col.plan'), of: planFigure }]),
     ...(transferWorksheet ? [{ label: t('kitchen.stock.col.tersedia'), of: (item: CaptureFormItem) => stockFigure(item, t('kitchen.stock.col.tersedia'), lines[item.id]?.tersedia ?? 0) }] : []),
-    ...(transferWorksheet && availableMatchesStock ? [] : [{ label: t('kitchen.log.col.stock'), of: (item: CaptureFormItem) => stockFigure(item, t('kitchen.log.col.stock'), lines[item.id]?.stok ?? 0) }]),
+    ...(transferWorksheet && availableMatchesStock ? [] : [{ label: t('kitchen.log.col.stock'), of: (item: CaptureFormItem) => recordedStockFigure(item, t('kitchen.log.col.stock'), lines[item.id]?.stok ?? 0) }]),
   ]
   const recordedLabel = transferWorksheet
     ? t('kitchen.transfer.col.quantity', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
@@ -2054,7 +2078,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
                 })}
                 loadState={locationLoadState}
                 onRetry={retryLocationChoices}
-                disabled={status.kind === 'submitting'}
+                disabled={status.kind === 'submitting' || movement.action === 'outlet_send'}
               />}
             </>
           )}
@@ -2157,7 +2181,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
               body={t('kitchen.log.discard.confirmBody', {
                 count: draftCount,
                 qty: t(draftCount === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
-                actionType: deriveActionLabel(t, movement, branches),
+                actionType: deriveActionLabel(t, movement, branches, stream?.branch),
               })}
               confirmLabel={t('kitchen.log.discard')}
               cancelLabel={t('common.cancel')}
@@ -2179,7 +2203,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
               body={t('kitchen.log.movementSwitch.confirmBody', {
                 count: draftCount,
                 qty: t(draftCount === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
-                actionType: deriveActionLabel(t, movement, branches),
+                actionType: deriveActionLabel(t, movement, branches, stream?.branch),
               })}
               confirmLabel={t('kitchen.log.movementSwitch.confirm')}
               cancelLabel={t('common.cancel')}

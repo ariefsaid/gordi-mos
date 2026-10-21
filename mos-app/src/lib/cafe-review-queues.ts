@@ -2,34 +2,33 @@
 // Receipt review / Request review links all read this list, so a queue exists in one place.
 import type { MessageKey } from '@/i18n/messages'
 import type { WaitingKey } from './use-cafe-waiting'
+import { canPushCafe, canReviewCafe } from './kitchen-gates'
 
 export type ReviewQueueId = 'logs' | 'counts' | 'receipts' | 'requests' | 'failed-sends'
 
 export interface ReviewQueue {
   id: ReviewQueueId
   labelKey: MessageKey
-  /** Access roles that may open the queue; the same gate its route had. */
-  anyOf: readonly string[]
+  /** Review queues admit supervisors; failed sends remain limited to Pushes roles. */
+  audience: 'review' | 'push'
   /** The waiting counts that make up the queue's own number. */
   waiting: readonly WaitingKey[]
 }
 
-const REVIEWERS = ['ops_lead', 'admin', 'supervisor'] as const
-
 const REVIEW_QUEUES: readonly ReviewQueue[] = [
-  { id: 'logs', labelKey: 'kitchen.review.workspace.logs', anyOf: REVIEWERS, waiting: ['logs'] },
-  { id: 'counts', labelKey: 'kitchen.review.workspace.counts', anyOf: REVIEWERS, waiting: ['counts'] },
-  { id: 'receipts', labelKey: 'cafe.review.queue.receipts', anyOf: REVIEWERS, waiting: ['receipts'] },
-  { id: 'requests', labelKey: 'cafe.review.queue.requests', anyOf: REVIEWERS, waiting: ['requests'] },
+  { id: 'logs', labelKey: 'kitchen.review.workspace.logs', audience: 'review', waiting: ['logs'] },
+  { id: 'counts', labelKey: 'kitchen.review.workspace.counts', audience: 'review', waiting: ['counts'] },
+  { id: 'receipts', labelKey: 'cafe.review.queue.receipts', audience: 'review', waiting: ['receipts'] },
+  { id: 'requests', labelKey: 'cafe.review.queue.requests', audience: 'review', waiting: ['requests'] },
   // Supervisors never see failed ESB sends: Sent to ESB is an ops lead's / admin's page.
-  { id: 'failed-sends', labelKey: 'cafe.review.queue.failed', anyOf: ['ops_lead', 'admin'], waiting: ['failed'] },
+  { id: 'failed-sends', labelKey: 'cafe.review.queue.failed', audience: 'push', waiting: ['failed'] },
 ]
 
 /** The tab shown when nothing is waiting anywhere. */
 const DEFAULT_REVIEW_QUEUE: ReviewQueueId = 'logs'
 
 export function reviewQueuesFor(accessRoles: readonly string[]): ReviewQueue[] {
-  return REVIEW_QUEUES.filter((queue) => queue.anyOf.some((role) => accessRoles.includes(role)))
+  return REVIEW_QUEUES.filter((queue) => queue.audience === 'push' ? canPushCafe(accessRoles) : canReviewCafe(accessRoles))
 }
 
 export function reviewQueuePath(id: ReviewQueueId): string {

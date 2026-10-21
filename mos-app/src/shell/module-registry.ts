@@ -2,10 +2,11 @@ import type React from 'react'
 import type { MessageKey } from '@/i18n/messages'
 import { SHOW_FOLLOWUPS, SHOW_PLAN_BUDGET } from '@/config/features'
 import { isShipGated } from '@/lib/ship-gate'
+import { hasAnyAccessRole } from '@/lib/capabilities'
 import type { ModuleId } from '@/lib/db/module-settings'
 import type { ModuleAccessCheck } from '@/lib/module-availability'
 import { reviewQueuePath, reviewQueuesFor } from '@/lib/cafe-review-queues'
-import { ADMIN_SECTIONS, CAFE_ROUTE_SECTIONS, CAFE_SECTIONS, MONEY_SECTIONS, sectionForPath, visibleSections, type Section } from './sections'
+import { ADMIN_SECTIONS, CAFE_ROUTE_SECTIONS, CAFE_SECTIONS, MONEY_SECTIONS, sectionForPath, visibleSections, type Section, type ViewerNavFacts } from './sections'
 import {
   HomeIcon, TasksIcon, InboxIcon, WorkLineIcon, ObjectiveIcon,
   WorkIcon, SignalsIcon, MoneyIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
@@ -18,8 +19,8 @@ import {
  * Desktop sidebar and rail, the collapsed rail's flyouts, the pages panel, ⌘K "Go to", the phone tab bar
  * and the More drawer all draw from the three zones below; nothing keeps a parallel list of its own.
  *
- *  - `WORKSPACE`       — Home, Work and Inbox route owners. `globalNavigationDestinations` merges these with
- *                        admitted modules in the shared shell order; Inbox also remains a top-bar door.
+ *  - `WORKSPACE`       — Home, Work and Inbox route owners. `globalNavigationDestinations` merges Home and Work
+ *                        with admitted modules in the shared shell order; Inbox has no menu row (it is the top-bar bell).
  *  - `MODULE_REGISTRY` — the modules, in registry order (Money, Café, then future Shift, Events, then
  *                        Roastery, Ecommerce). Each entry carries what a module owns: its ship gate (the
  *                        landing path asked of `lib/ship-gate.ts`), admission roles (`anyOf`, Money resolves
@@ -27,7 +28,7 @@ import {
  *                        icon, EN/ID names (`labelKey` into the catalog) and order. Each PAGE keeps its own
  *                        anyOf/capability/feature gate (`sections.ts`); this organises existing rules, it is
  *                        not a runtime on/off switch.
- *  - `UTILITY`         — Admin settings and Personal profile, pinned at the foot.
+ *  - `UTILITY`         — Admin settings, pinned at the foot, and Personal profile, in the account menu.
  *
  * Work declares its children in the owner-ruled order (OD-REDESIGN-57(ii), P-13): Signals · Tasks ·
  * Projects & Processes · Objectives · Events. Events is ship-gated (#348), so four of the five render.
@@ -197,14 +198,12 @@ export function admittedModules(accessRoles: string[], isOn: ModuleAccessCheck):
 export function globalNavigationDestinations(accessRoles: string[], isOn: ModuleAccessCheck): Destination[] {
   const home = WORKSPACE.find((destination) => destination.id === 'home')!
   const work = WORKSPACE.find((destination) => destination.id === 'work')!
-  const inbox = WORKSPACE.find((destination) => destination.id === 'inbox')!
   const modules = admittedModules(accessRoles, isOn)
   const live = (destination: Destination) => isLive(destination, accessRoles, isOn)
   return [
     ...(live(home) ? [home] : []),
     ...(live(work) ? [work] : []),
     ...modules.filter((destination) => destination.id === 'money'),
-    ...(live(inbox) ? [inbox] : []),
     ...modules.filter((destination) => destination.id === 'cafe'),
     ...modules.filter((destination) => destination.id !== 'money' && destination.id !== 'cafe'),
   ]
@@ -270,11 +269,16 @@ const CAFE_GROUPS = ['cafe.nav.today', 'cafe.nav.stock', 'cafe.nav.close', 'cafe
  * Café: its home row, then Today / Stock / Close / Setup, empty groups omitted, a nested page (Receipt issues
  * under Receive) directly after its parent.
  */
-export function pageGroupsFor(destination: Destination, accessRoles: string[], isOn: ModuleAccessCheck): PageGroup[] {
+export function pageGroupsFor(
+  destination: Destination,
+  accessRoles: string[],
+  isOn: ModuleAccessCheck,
+  viewerFacts: ViewerNavFacts = {},
+): PageGroup[] {
   if ((destination.id === 'work' || destination.zone === 'modules') && !isOn(destination.id as ModuleId)) return []
   if (destination.id === 'money') return [{ key: 'money', items: moneySectionsForViewer(accessRoles, isOn) }]
   if (destination.id === 'cafe') {
-    const visible = visibleSections(destination.children ?? [], accessRoles, isOn)
+    const visible = visibleSections(destination.children ?? [], accessRoles, isOn, viewerFacts)
     const home: Section = { path: '/cafe', label: 'Café home', labelKey: 'nav.cafe.today', Icon: destination.Icon }
     const groups: PageGroup[] = [{ key: 'home', items: [home] }]
     for (const group of CAFE_GROUPS) {
@@ -336,11 +340,12 @@ export function viewerAdmittedToRoute(
   path: string,
   accessRoles: string[],
   isOn: ModuleAccessCheck,
+  viewerFacts: ViewerNavFacts = {},
 ): boolean {
   const destination = destinationForPath(path)
   if (!destination || !isLive(destination, accessRoles, isOn)) return false
   const section = sectionForPath(path)
-  return section == null || visibleSections([section], accessRoles, isOn).length === 1
+  return section == null || visibleSections([section], accessRoles, isOn, viewerFacts).length === 1
 }
 
 const UTILITY: Destination[] = [
@@ -367,12 +372,14 @@ const UTILITY: Destination[] = [
   },
 ]
 
-/**
- * The Utility entries pinned at the foot of a nav surface: Admin settings when the viewer's roles admit it,
- * then Personal profile (a footer link everywhere; owner 2026-10-14).
- */
+/** The Utility entries pinned at the foot of a nav surface: Admin settings when the viewer's roles admit it. */
 export function footerAreas(accessRoles: string[]): Destination[] {
-  return UTILITY.filter((u) => isLive(u, accessRoles, () => true))
+  return UTILITY.filter((u) => u.id !== 'profile' && isLive(u, accessRoles, () => true))
+}
+
+/** Personal profile, opened from the account menu, unless the release ships without it. */
+export function profileArea(): Destination | undefined {
+  return UTILITY.find((u) => u.id === 'profile' && isLive(u, [], () => true))
 }
 
 /** All destinations across the zones, in registry order (for resolution scans). */
@@ -402,16 +409,21 @@ export interface GoToEntry {
  * questions as the menus ask, nothing else: the ship gate and admission for the area, `visibleSections`
  * for its pages, the viewer's roles for Review's queues. Search is acceleration, never the only way in.
  */
-export function goToEntries(accessRoles: string[], isOn: ModuleAccessCheck): GoToEntry[] {
+export function goToEntries(
+  accessRoles: string[],
+  isOn: ModuleAccessCheck,
+  viewerFacts: ViewerNavFacts = {},
+): GoToEntry[] {
   const roots: Destination[] = [
     ...globalNavigationDestinations(accessRoles, isOn),
+    ...WORKSPACE.filter((d) => d.id === 'inbox' && isLive(d, accessRoles, isOn)),
     ...UTILITY.filter((d) => isLive(d, accessRoles, isOn)),
   ]
   const queues = reviewQueuesFor(accessRoles)
   return roots.flatMap((destination) => {
     const rootId = `n-${destination.id}`
     const root: GoToEntry = { id: rootId, labelKey: destination.labelKey, Icon: destination.Icon, path: destination.primaryPath ?? destination.links[0].path, trail: [] }
-    const pages = destination.id === 'inbox' || destination.id === 'profile' || destination.id === 'home' ? [] : pageGroupsFor(destination, accessRoles, isOn)
+    const pages = destination.id === 'inbox' || destination.id === 'profile' || destination.id === 'home' ? [] : pageGroupsFor(destination, accessRoles, isOn, viewerFacts)
     const rows = pages.flatMap((group) => group.items.flatMap<GoToEntry>((item) => {
       const trail: MessageKey[] = [destination.labelKey, ...(group.headingKey ? [group.headingKey] : [])]
       const row: GoToEntry = { id: `n-child${item.path.replace(/\//g, '-')}`, labelKey: item.labelKey ?? 'nav.home', Icon: item.Icon, path: item.path, trail, parentId: rootId }
@@ -440,7 +452,7 @@ function isLive(d: Destination, accessRoles: string[], isOn: ModuleAccessCheck):
   if (entry !== undefined && isShipGated(entry)) return false
   if (d.links.every((link) => isShipGated(link.path))) return false
   if (d.id === 'money') return moneyDestinationForViewer(accessRoles, isOn) !== null
-  const roleAdmitted = !d.anyOf || d.anyOf.some((role) => accessRoles.includes(role))
+  const roleAdmitted = !d.anyOf || hasAnyAccessRole(accessRoles, d.anyOf)
   if (d.id === 'work') return isOn('work', roleAdmitted)
   if (d.zone === 'modules') return isOn(d.id as ModuleId, roleAdmitted)
   return roleAdmitted

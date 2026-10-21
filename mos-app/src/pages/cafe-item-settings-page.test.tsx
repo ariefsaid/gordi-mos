@@ -31,6 +31,7 @@ vi.mock('@/lib/use-cafe-stream', async () => {
     return { ...catalog, stream: chosen, resolve, adopt, setStream }
   } }
 })
+vi.mock('@/lib/db/cafe-stream-items', () => ({ listAvailableCafeStreamItems: vi.fn(), setCafeStreamItem: vi.fn() }))
 vi.mock('@/lib/db/cafe-item-settings', () => ({
   canManageCafeItemSettings: vi.fn(), listCafeItemSettings: vi.fn(), saveCafeItemSettings: vi.fn(),
 }))
@@ -39,6 +40,7 @@ vi.mock('@/lib/db/cafe-missing-item-reports', () => ({
 }))
 
 import { useAuth } from '@/auth/use-auth'
+import { listAvailableCafeStreamItems, setCafeStreamItem } from '@/lib/db/cafe-stream-items'
 import { canManageCafeItemSettings, listCafeItemSettings, saveCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { listCafeMissingItemReports, resolveCafeMissingItemReport } from '@/lib/db/cafe-missing-item-reports'
 import { CafeItemSettingsPage } from './cafe-item-settings-page'
@@ -102,6 +104,27 @@ beforeEach(() => {
   mockListReports.mockResolvedValue([REPORT])
   mockResolveReport.mockResolvedValue()
   mockSaveItem.mockResolvedValue()
+})
+
+it('reserves stream-list actions for ops leads and admins, not settings-only managers', async () => {
+  renderPage()
+  await screen.findByRole('button', { name: /ERP Oat milk/ })
+  expect(screen.queryByRole('button', { name: 'Add item' })).not.toBeInTheDocument()
+})
+
+it.each(['ops_lead', 'admin'] as const)('%s can hide a selected item and reload the stream list', async role => {
+  const user = userEvent.setup()
+  mockUseAuth.mockReturnValue({ ...VIEWER, viewer: { ...VIEWER.viewer, accessRoles: [role] } })
+  vi.mocked(setCafeStreamItem).mockResolvedValue()
+  vi.mocked(listAvailableCafeStreamItems).mockResolvedValue([])
+  renderPage()
+  await openItem(user)
+  await user.click(screen.getByRole('button', { name: 'Hide from this stream' }))
+  mockListItems.mockResolvedValue([])
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Hide item' }))
+  await waitFor(() => expect(screen.queryByRole('region', { name: 'ERP Oat milk' })).not.toBeInTheDocument())
+  expect(setCafeStreamItem).toHaveBeenCalledWith(expect.objectContaining({ activity: 'kitchen' }), 'item-1', true)
+  expect(await screen.findByRole('button', { name: 'Add item' })).toBeEnabled()
 })
 
 it('accepts only the three Café item kind select values', () => {

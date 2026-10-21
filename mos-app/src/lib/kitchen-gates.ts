@@ -11,6 +11,7 @@
 
 import type { KitchenLogLine, KitchenMovement, ProductionActivity } from '@/lib/db/kitchen-logs.types'
 import type { CafeViewerTeam } from '@/lib/db/cafe-opening'
+import { hasAccessRole, hasAnyAccessRole } from './capabilities'
 
 /**
  * Café Review access predicate (JQ-1). Review admits stream supervisors as well as
@@ -19,8 +20,19 @@ import type { CafeViewerTeam } from '@/lib/db/cafe-opening'
  * Role-based (not a `can()` capability) because no `shared.role_capabilities` grant backs
  * these routes; the raw access-role membership is the honest source.
  */
+export const CAFE_REVIEW_ROLES = ['ops_lead', 'admin', 'supervisor'] as const
+export const CAFE_PUSH_ROLES = ['ops_lead', 'admin'] as const
+
+export function canAdminCafe(accessRoles: readonly string[]): boolean {
+  return hasAccessRole(accessRoles, 'admin')
+}
+
 export function canReviewCafe(accessRoles: readonly string[]): boolean {
-  return accessRoles.includes('ops_lead') || accessRoles.includes('admin') || accessRoles.includes('supervisor')
+  return hasAnyAccessRole(accessRoles, CAFE_REVIEW_ROLES)
+}
+
+export function isCafeSupervisor(accessRoles: readonly string[]): boolean {
+  return hasAccessRole(accessRoles, 'supervisor')
 }
 
 // Café Plan editor access (#784 AC-057, DB half #778): same widened set as canReviewCafe —
@@ -41,7 +53,7 @@ export function isReviewerEligibleTeam(
 
 /** The Café Pushes route is intentionally narrower than Review (FR-040 / #236). */
 export function canPushCafe(accessRoles: readonly string[]): boolean {
-  return accessRoles.includes('ops_lead') || accessRoles.includes('admin')
+  return hasAnyAccessRole(accessRoles, CAFE_PUSH_ROLES)
 }
 
 /** Indonesian operator copy (NFR-012 — ID content). */
@@ -82,7 +94,7 @@ export function effectiveTarget(
   movement: KitchenMovement,
   { plan, stok }: { plan: number; stok: number },
 ): number {
-  if (isStockConsuming(movement)) return plan
+  if (movement.action !== 'produce') return plan
   return Math.max(plan - stok, 0)
 }
 

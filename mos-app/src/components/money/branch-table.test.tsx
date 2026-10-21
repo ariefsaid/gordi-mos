@@ -4,7 +4,7 @@
 // in the app the router's transition then never lands (a sort survived no period change).
 import { Profiler } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
@@ -71,6 +71,25 @@ describe('BranchTable — one term for recipe vs stock cost (#1453)', () => {
       </I18nProvider>,
     )
     expect(screen.getByRole('columnheader', { name: new RegExp(`^${term}`) })).toBeInTheDocument()
+  })
+})
+
+describe('BranchTable — marks incomplete totals', () => {
+  it.each([
+    ['en', 'Partial total'],
+    ['id', 'Total sebagian'],
+  ] as const)('shows a partial marker beside a branch total in %s', (locale, label) => {
+    const rows = ROWS.filter((row) => !(row.branch_code === 'beta' && row.revenue_date === LATEST))
+    const data = buildBranchTable(rows, null, 7)!
+    render(
+      <I18nProvider initialLocale={locale}>
+        <MemoryRouter>
+          <BranchTable data={data} selection={{ period: 7, range: null, branchCode: null, channel: 'all' }} sort={{ column: 'revenue', desc: true }} onSortChange={() => {}} />
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    expect(within(screen.getByRole('row', { name: /Beta/ })).getByText(label)).toBeInTheDocument()
+    expect(within(screen.getByRole('row', { name: /Alpha/ })).queryByText(label)).toBeNull()
   })
 })
 

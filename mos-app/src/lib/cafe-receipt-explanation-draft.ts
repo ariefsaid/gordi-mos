@@ -51,6 +51,18 @@ export function writeCafeReceiptExplanationDrafts(viewerId: string, receiptId: s
   } catch { /* storage disabled: the explanation still saves, it just does not outlive the page */ }
 }
 
+// Enumerate this person's stored receipts, not just the recent history window.
+export function cafeReceiptExplanationDraftIds(viewerId: string): string[] {
+  try {
+    const prefix = `${STORAGE_KEY}.${viewerId}.`
+    return Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
+      .filter((stored): stored is string => Boolean(stored?.startsWith(prefix)))
+      .map(stored => stored.slice(prefix.length))
+  } catch {
+    return []
+  }
+}
+
 /** Remove the drafts of the listed receipts that are no longer Counted (sent from this or another device). */
 export function pruneCafeReceiptExplanationDrafts(viewerId: string, receipts: readonly { id: string; status: string }[]): void {
   for (const receipt of receipts) {

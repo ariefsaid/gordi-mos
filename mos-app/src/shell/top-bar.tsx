@@ -5,7 +5,7 @@ import { SHOW_ASSISTANT } from '@/config/features'
 import { useModuleAvailability } from '@/lib/module-availability'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useUnreadCount } from '@/hooks/useUnreadCount'
 import { useIsDesktop } from './use-is-desktop'
 import { useOptionalOverlayHost } from './overlay-host'
@@ -122,6 +122,9 @@ function NotificationBell() {
   const t = useT()
   const host = useOptionalOverlayHost()
   const isPhone = !useIsDesktop()
+  // On a desktop Inbox page no nav row names the place, so the bell is a plain link marked as the
+  // current page; on a phone the breadcrumb leaf already carries it.
+  const onInbox = useLocation().pathname === '/inbox' && !isPhone
   const { unreadCount } = useUnreadCount()
   const label = unreadCount > 0 ? t('topBar.inboxUnread', { count: unreadCount }) : t('dest.inbox')
 
@@ -136,10 +139,11 @@ function NotificationBell() {
     </>
   )
 
-  if (isPhone) {
+  if (isPhone || onInbox) {
     return (
       <Link
         to="/inbox"
+        aria-current={onInbox ? 'page' : undefined}
         aria-label={label}
         title={label}
         className="top-bar__icon-btn"

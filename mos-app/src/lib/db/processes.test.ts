@@ -6,17 +6,17 @@ vi.mock('../supabase', () => {
   const schema = vi.fn()
   return { supabase: { schema } }
 })
-vi.mock('@/lib/open-task-count-store', () => ({ announceOpenTaskCountChanged: vi.fn() }))
+vi.mock('@/lib/open-task-count-store', () => ({ refreshOpenTaskCount: vi.fn() }))
 
 import {
   startRun, listDueRuns, listPendingTasks, resolvePendingTask,
-  getRunRollup, listRunTasks, completeRun, cancelRun, listRunRollups, listTaskDefs,
+  getRunRollup, completeRun, cancelRun, listRunRollups, listTaskDefs,
   listProcessOccurrenceSummaries, listStartableProcessRuns, canStartProcessForTeam, canCloseProcessRun,
+  listProcessOccurrenceAuthorities,
 } from './processes'
 import { supabase } from '@/lib/supabase'
-import { announceOpenTaskCountChanged } from '@/lib/open-task-count-store'
+import { refreshOpenTaskCount } from '@/lib/open-task-count-store'
 import type { DueProcessRun, ProcessOccurrenceSummary, ProcessRunRollup, ProcessRunRow } from './processes.types'
-import type { TaskListRow } from './tasks.types'
 
 const schemaMock = vi.mocked(supabase.schema)
 
@@ -52,6 +52,8 @@ function makeClient(responses: Record<string, Result[]>, rec: Recorder) {
     builder.is = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.in = vi.fn((c: string, v: unknown) => { rec.ins.push([c, v]); return builder })
     builder.order = vi.fn(() => builder)
+    builder.or = vi.fn(() => builder)
+    builder.limit = vi.fn(() => builder)
     builder.single = vi.fn(() => Promise.resolve(nextResult(key)))
     builder.maybeSingle = vi.fn(() => Promise.resolve(nextResult(key)))
     builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve(nextResult(key)).then(resolve)
@@ -117,6 +119,36 @@ describe('runtime process authority', () => {
 
     await expect(canCloseProcessRun(RUN_ID)).resolves.toBe(false)
     expect(rec.rpcs).toContainEqual(['can_close_process_run_id', { p_run_id: RUN_ID }])
+  })
+
+  it('loads start and close authority for a screen in one batched RPC', async () => {
+    const rec = freshRec()
+    const answers = [
+      { authority_kind: 'start', target_id: TEAM_ID, allowed: true },
+      { authority_kind: 'close', target_id: 'run-1', allowed: false },
+    ]
+    mockSupabase({ 'rpc.process_occurrence_authority': [{ data: answers, error: null }] }, rec)
+
+    await expect(listProcessOccurrenceAuthorities([TEAM_ID, TEAM_ID], ['run-1', 'run-1'])).resolves.toEqual(answers)
+    expect(rec.rpcs).toEqual([['process_occurrence_authority', {
+      p_team_ids: [TEAM_ID], p_run_ids: ['run-1'],
+    }]])
+  })
+
+  it('propagates batch authority failures so the caller can fail closed', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.process_occurrence_authority': [{ data: null, error: { message: 'offline' } }] }, rec)
+
+    await expect(listProcessOccurrenceAuthorities([TEAM_ID], [])).rejects.toThrow(/offline/)
+    expect(rec.rpcs).toHaveLength(1)
+  })
+
+  it('skips the authority RPC when the screen has no Team or run IDs', async () => {
+    const rec = freshRec()
+    mockSupabase({}, rec)
+
+    await expect(listProcessOccurrenceAuthorities([], [])).resolves.toEqual([])
+    expect(rec.rpcs).toEqual([])
   })
 
   it('propagates process authority RPC errors for callers to fail closed', async () => {
@@ -277,7 +309,7 @@ describe('resolvePendingTask', () => {
 
     await resolvePendingTask(PENDING_ID, PIC_ID)
 
-    expect(announceOpenTaskCountChanged).toHaveBeenCalledOnce()
+    expect(refreshOpenTaskCount).toHaveBeenCalledOnce()
   })
 
   it('AC-621: calls mos.resolve_pending_task with the RPC args and returns the new task id', async () => {
@@ -301,7 +333,7 @@ describe('resolvePendingTask', () => {
   })
 })
 
-// ── getRunRollup / listRunTasks / completeRun (B4) ───────────────────────────
+// ── getRunRollup / completeRun (B4) ─────────────────────────────────────────
 describe('getRunRollup', () => {
   it('reads mos.process_run_rollup filtered by process_run_id', async () => {
     const rec = freshRec()
@@ -324,27 +356,6 @@ describe('getRunRollup', () => {
     mockSupabase({ 'mos.process_run_rollup': [{ data: null, error: { message: 'not found' } }] }, rec)
 
     await expect(getRunRollup(RUN_ID)).rejects.toThrow(/not found/)
-  })
-})
-
-describe('listRunTasks', () => {
-  it('reads mos.tasks filtered by process_run_id (reuses TaskListRow, no re-implemented fetch)', async () => {
-    const rec = freshRec()
-    const taskRow = { id: 'task-1', title: 'Open the café' } as unknown as TaskListRow
-    mockSupabase({ 'mos.tasks': [{ data: [taskRow], error: null }] }, rec)
-
-    const rows = await listRunTasks(RUN_ID)
-
-    expect(rec.fromTables).toContain('mos.tasks')
-    expect(rec.eqs).toContainEqual(['process_run_id', RUN_ID])
-    expect(rows).toEqual([taskRow])
-  })
-
-  it('re-throws when the read errors', async () => {
-    const rec = freshRec()
-    mockSupabase({ 'mos.tasks': [{ data: null, error: { message: 'read failed' } }] }, rec)
-
-    await expect(listRunTasks(RUN_ID)).rejects.toThrow(/read failed/)
   })
 })
 
@@ -418,7 +429,7 @@ describe('listProcessOccurrenceSummaries', () => {
     const rows = await listProcessOccurrenceSummaries(WORK_LINE_ID)
 
     const expected: ProcessOccurrenceSummary[] = [{ run, team_name: 'Café Operations', rollup }]
-    expect(rows).toEqual(expected)
+    expect(rows).toEqual({ rows: expected, nextCursor: null, hasMore: false })
     expect(rec.fromTables).toContain('mos.process_runs')
     expect(rec.ins).toContainEqual(['process_run_id', [RUN_ID]])
     expect(rec.ins).toContainEqual(['id', [TEAM_ID]])
@@ -428,7 +439,7 @@ describe('listProcessOccurrenceSummaries', () => {
     const rec = freshRec()
     mockSupabase({ 'mos.process_runs': [{ data: [], error: null }] }, rec)
 
-    await expect(listProcessOccurrenceSummaries(WORK_LINE_ID)).resolves.toEqual([])
+    await expect(listProcessOccurrenceSummaries(WORK_LINE_ID)).resolves.toEqual({ rows: [], nextCursor: null, hasMore: false })
     expect(rec.fromTables).toEqual(['mos.process_runs'])
   })
 

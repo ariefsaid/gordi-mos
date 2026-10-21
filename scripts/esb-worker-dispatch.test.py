@@ -1860,8 +1860,9 @@ for gate_on, excluded_expected in ((False, True), (True, False)):
           ("endpoint.neq.purchase-request" in query) == excluded_expected, query)
 f = Fake(esb_push=lambda *a: [])
 run(lambda: W.Outbox(pr_cfg(ESB_PURCHASE_REQUEST_ENABLED="")).pending(), f)
-check("gate: with both families off the drain excludes both in one filter",
-      "and=(endpoint.neq.goods-receipt,endpoint.neq.purchase-request)" in urllib.parse.unquote(f.calls[0]["url"]),
+check("gate: with all posting families off the drain excludes them in one filter",
+      "and=(endpoint.neq.goods-receipt,endpoint.neq.purchase-request,endpoint.neq.count-journal)"
+      in urllib.parse.unquote(f.calls[0]["url"]),
       f.calls[0]["url"])
 
 # ── --plan composes and sends nothing ───────────────────────────────────────────────────
@@ -1876,6 +1877,255 @@ run(lambda: W.run_tick(pr_cfg(ESB_WORKER_MAP_FILE=os.path.join(TMP, "goo-pr-nopr
                        outbox=None, plan_only=True, out=out), f)
 check("--plan reports a refused request and calls nothing", f.calls == [] and "REFUSED" in out.getvalue(),
       out.getvalue())
+
+# ── Count variance item journals (issues 1373–1375) ──────────────────────────────────────
+COUNT_GROUP = "dddddddd-0000-0000-0000-000000001473"
+COUNT_KEY = "MOS-CC-DDDDDDDD00000000000000001473"
+COUNT_PATH = "/inventory/item-journal"
+COUNT_LINES = ("eeeeeeee-0000-0000-0000-000000001471", "eeeeeeee-0000-0000-0000-000000001472")
+COUNT_UNITS = ("fffffff1-0000-0000-0000-000000001471", "fffffff2-0000-0000-0000-000000001472")
+count_map = {
+    "target_env": "goo",
+    "branches": {"rumah_rames": {"branch_id": 176, "location_id": 510}},
+    "items": {},
+    "item_units": {COUNT_UNITS[0]: {"product_detail_id": 9071},
+                   COUNT_UNITS[1]: {"product_detail_id": 9072}},
+    "count_variance_purpose_id": 18,
+}
+with open(os.path.join(TMP, "goo-count.json"), "w", encoding="utf-8") as fh:
+    json.dump(count_map, fh)
+count_map_no_purpose = {key: value for key, value in count_map.items() if key != "count_variance_purpose_id"}
+with open(os.path.join(TMP, "goo-count-no-purpose.json"), "w", encoding="utf-8") as fh:
+    json.dump(count_map_no_purpose, fh)
+
+
+def count_env(**over: str) -> dict[str, str]:
+    e = env("goo", ESB_WORKER_MAP_FILE=os.path.join(TMP, "goo-count.json"),
+            ESB_PUSH_ENABLED="1", ESB_COUNT_JOURNAL_ENABLED="1")
+    e.update(over)
+    return e
+
+
+def count_cfg(**over: str):
+    return W.load_config(count_env(**over), offline=False, drains=True)
+
+
+def count_rows(**payload_over):
+    rows = []
+    for n, (line, unit, variance) in enumerate(zip(COUNT_LINES, COUNT_UNITS, (-0.25, 1.5)), start=1):
+        payload = {"line_id": line, "branch_code": "rumah_rames", "count_date": "2026-10-19",
+                   "activity": "kitchen", "item_unit_id": unit, "variance": variance,
+                   "mos_key": COUNT_KEY}
+        payload.update(payload_over)
+        rows.append({"id": f"bbbbbbbb-0000-0000-0000-00000000147{n}", "org_id": ORG,
+                     "source_module": "cafe_count", "source_ref": line, "endpoint": "count-journal",
+                     "target_env": "goo", "status": "pending", "retry_count": 0,
+                     "push_group_id": COUNT_GROUP, "payload": payload})
+    return rows
+
+
+COUNT_P1, COUNT_P2 = [r["id"] for r in count_rows()]
+
+
+class FakeCount:
+    def __init__(self, *, creates=None, authorizes=None, lookups=None) -> None:
+        self.creates = list(creates or [{"status": "ok", "result": {"itemJournalNum": "IJ-0001"}}])
+        self.authorizes = list(authorizes or [{"status": "ok", "result": None}])
+        self.lookups = list(lookups or [])
+
+    def esb(self, fake, method, url, body):
+        path = urllib.parse.urlsplit(url).path
+        if path.endswith("/authorize"):
+            return FakeGr._next(self.authorizes, "authorize")
+        if method == "GET":
+            return FakeGr._next(self.lookups, "lookup")
+        return FakeGr._next(self.creates, "create")
+
+    def routes(self, **over):
+        routes = {"auth/login": _login_ok, "rpc/claim_esb_pushes": _claim_ok,
+                  "rpc/set_cafe_count_group_posting": lambda *a: {"updated": 2},
+                  "esb_push_groups": lambda *a: None, "esb_push": lambda *a: None,
+                  "inventory/item-journal": self.esb}
+        routes.update(over)
+        return routes
+
+
+def count_tick(esb: FakeCount, *, meta=None, rows=None, cfg=None):
+    cfg = cfg or count_cfg()
+    f = Fake(**esb.routes())
+    ob = W.Outbox(cfg)
+    ob._group_meta[COUNT_GROUP] = {"id": COUNT_GROUP, **(meta or {})}
+    rows = rows if rows is not None else count_rows()
+    n, out = tick(cfg, rows, f, outbox=ob)
+    return n, out, f, rows
+
+
+count_units = {COUNT_UNITS[0]: {"product_detail_id": 9071}, COUNT_UNITS[1]: {"product_detail_id": 9072}}
+catalog = Fake(**{"rest/v1/item_units": lambda *a: [
+    {"id": COUNT_UNITS[0], "esb_product_detail_id": "9011"},
+    {"id": COUNT_UNITS[1], "esb_product_detail_id": "9012"}]})
+record_units = run(lambda: W.count_journal_units(gk_pr, count_rows(), db=True), catalog)
+check("AC-033 the ERP of record resolves stock product details from its own catalog only",
+      record_units == {COUNT_UNITS[0]: {"product_detail_id": 9011}, COUNT_UNITS[1]: {"product_detail_id": 9012}}
+      and len(catalog.calls) == 1, repr(record_units))
+check_raises("AC-033 an unresolved catalog unit is permanently refused", W.Permanent,
+             lambda: run(lambda: W.count_journal_units(gk_pr, count_rows(), db=True),
+                         Fake(**{"rest/v1/item_units": lambda *a: []})), needle="no ERP product detail")
+check_raises("AC-033 catalog identifiers are never guessed in an offline rehearsal", W.Permanent,
+             lambda: W.count_journal_units(gk_pr, count_rows(), db=False), needle="no database")
+
+count_req = W.compose_count_journal(count_cfg(), count_rows(), count_units)
+check("AC-030 one item journal carries the mapped branch/location, date, MOS key and every signed non-zero variance",
+      count_req.path == COUNT_PATH and count_req.body == {
+          "itemJournalDate": "2026-10-19", "branchID": 176, "locationID": 510,
+          "additionalInfo": COUNT_KEY,
+          "itemJournalDetails": [{"productDetailID": 9071, "qty": -0.25, "purposeID": 18},
+                                 {"productDetailID": 9072, "qty": 1.5, "purposeID": 18}]},
+      json.dumps(count_req.body, indent=1))
+check("AC-1374 the item journal omits cost, template, product ID and zero-variance lines",
+      "hpp" not in json.dumps(count_req.body).lower()
+      and "requestTemplateID" not in count_req.body
+      and "productID" not in json.dumps(count_req.body)
+      and len(count_req.body["itemJournalDetails"]) == 2,
+      json.dumps(count_req.body, indent=1))
+count_shape_overrides = {
+    "create_path": "/inventory/count-journal", "result_number": "docNum",
+    "authorize_path": "/inventory/count-journal/{doc}/release",
+    "date_field": "journalDate", "branch_field": "branch", "location_field": "location",
+    "info_field": "key", "details_field": "lines", "detail_product_field": "productDetail",
+    "detail_quantity_field": "signedQuantity", "detail_purpose_field": "purpose",
+}
+with open(os.path.join(TMP, "count-shape.json"), "w", encoding="utf-8") as fh:
+    json.dump(count_shape_overrides, fh)
+shape_cfg = count_cfg(ESB_COUNT_JOURNAL_SHAPE_FILE=os.path.join(TMP, "count-shape.json"))
+shape_req = W.compose_count_journal(shape_cfg, count_rows(), count_units)
+check("AC-1374 the unproven ERP body fields and paths are deployment shape, not scattered worker assumptions",
+      shape_req.path == "/inventory/count-journal"
+      and shape_req.result_key == "docNum"
+      and shape_req.body["journalDate"] == "2026-10-19"
+      and shape_req.body["lines"][0] == {"productDetail": 9071, "signedQuantity": -0.25, "purpose": 18}
+      and shape_cfg.count_shape.authorize_path == "/inventory/count-journal/{doc}/release",
+      repr(shape_req))
+check_raises("AC-1374 a zero variance is never journalled", W.Permanent,
+             lambda: W.compose_count_journal(count_cfg(), count_rows(variance=0), count_units), needle="zero")
+check_raises("AC-1374 duplicate ERP product details are refused", W.Permanent,
+             lambda: W.compose_count_journal(count_cfg(), count_rows(item_unit_id=COUNT_UNITS[0]),
+                                             count_units), needle="same ESB product detail")
+check_raises("AC-1374 missing count variance purpose is refused, never guessed", W.Permanent,
+             lambda: W.compose_count_journal(
+                 W.load_config(count_env(ESB_WORKER_MAP_FILE=os.path.join(TMP, "goo-count-no-purpose.json")),
+                               offline=False, drains=True), count_rows(), count_units), needle="count_variance_purpose_id")
+
+for label, cfg, rows in (
+        ("branch", count_cfg(), count_rows(branch_code="not-mapped")),
+        ("purpose", count_cfg(ESB_WORKER_MAP_FILE=os.path.join(TMP, "goo-count-no-purpose.json")), count_rows()),
+        ("stock unit", count_cfg(), count_rows(item_unit_id="not-mapped"))):
+    n, out, f, _ = count_tick(FakeCount(), cfg=cfg, rows=rows)
+    check(f"AC-033 missing {label} mapping permanently refuses the group without ERP calls",
+          n == 2 and not esb_calls(f) and len(member_closes(f)) == 2
+          and all(value["status"] == "dead_letter" for value in member_closes(f).values()), out)
+
+n, out, f, rows = count_tick(FakeCount())
+check("AC-1374 the group creates one journal and authorizes the returned number exactly once",
+      n == 0 and esb_calls(f) == [("POST", COUNT_PATH), ("PATCH", f"{COUNT_PATH}/IJ-0001/authorize")],
+      repr(esb_calls(f)) + out)
+check("AC-1374 every line records the ERP-returned number and reaches posted",
+      {k: (v["status"], v["esb_doc_num"]) for k, v in member_closes(f).items()}
+      == {COUNT_P1: ("posted", "IJ-0001"), COUNT_P2: ("posted", "IJ-0001")}, repr(member_closes(f)))
+check("AC-1374 write-ahead stages precede create, retain the number for authorization, then close",
+      [p.get("posting_stage", "-") for p in group_patches(f)]
+      == ["create_sent", "awaiting_authorization", None]
+      and group_patches(f)[1].get("esb_doc_num") == "IJ-0001"
+      and group_patches(f)[-1].get("status") == "posted",
+      repr(group_patches(f)))
+
+count_sent = {"posting_stage": "create_sent", "status": "failed"}
+count_found = {"status": "ok", "result": {"count": 1, "data": [
+    {"itemJournalNum": "IJ-0001", "additionalInfo": COUNT_KEY, "statusID": 3}]}}
+count_new = {"status": "ok", "result": {"count": 1, "data": [
+    {"itemJournalNum": "IJ-0001", "additionalInfo": COUNT_KEY, "statusID": 1}]}}
+for label, lookup, expected_calls, expected_failures in (
+        ("already authorized", count_found, [("GET", COUNT_PATH)], 0),
+        ("awaiting authorization", count_new, [("GET", COUNT_PATH), ("PATCH", f"{COUNT_PATH}/IJ-0001/authorize")], 0),
+        ("missing created journal", {"status": "ok", "result": {"count": 0, "data": []}}, [("GET", COUNT_PATH)], 2)):
+    n, out, f, rows = count_tick(FakeCount(lookups=[lookup]),
+                                meta={"posting_stage": "awaiting_authorization", "esb_doc_num": "IJ-0001"})
+    check(f"AC-032 recovery of {label} never sends another create",
+          n == expected_failures and esb_calls(f) == expected_calls, out + repr(esb_calls(f)))
+
+n, out, f, rows = count_tick(FakeCount(lookups=[count_found]), meta=count_sent)
+check("AC-031 a retry adopts the exact MOS-key match and never creates or authorizes twice",
+      n == 0 and esb_calls(f) == [("GET", COUNT_PATH)]
+      and all(v["esb_doc_num"] == "IJ-0001" for v in member_closes(f).values()), repr(esb_calls(f)))
+lookup_q = urllib.parse.parse_qs(urllib.parse.urlsplit(f.to(COUNT_PATH)[0]["url"]).query)
+check("AC-1374 recovery lookup filters with the stable MOS key",
+      lookup_q.get("additionalInfo") == [COUNT_KEY], repr(lookup_q))
+n, out, f, rows = count_tick(FakeCount(lookups=[count_new]), meta=count_sent)
+check("AC-1374 a found but unapproved journal is authorized once without another create",
+      n == 0 and esb_calls(f) == [("GET", COUNT_PATH), ("PATCH", f"{COUNT_PATH}/IJ-0001/authorize")],
+      repr(esb_calls(f)))
+n, out, f, rows = count_tick(FakeCount(lookups=[{"status": "ok", "result": {"count": 0, "data": []}}]),
+                            meta=count_sent)
+check("AC-1374 only a complete lookup proving absence permits the one create",
+      n == 0 and esb_calls(f) == [("GET", COUNT_PATH), ("POST", COUNT_PATH),
+                                  ("PATCH", f"{COUNT_PATH}/IJ-0001/authorize")], repr(esb_calls(f)))
+for label, lookup in (
+        ("multiple exact matches", {"status": "ok", "result": {"count": 2, "data": [
+            count_found["result"]["data"][0], {**count_found["result"]["data"][0], "itemJournalNum": "IJ-0009"}]}}),
+        ("incomplete list", {"status": "ok", "result": {"count": 51, "data": [
+            {"itemJournalNum": f"IJ-{i:04}", "additionalInfo": "MOS-OTHER", "statusID": 3}
+            for i in range(50)]}}),
+        ("missing completeness total", {"status": "ok", "result": {"data": []}}),
+        ("lookup refusal", http_refusal(400, "unknown filter")),
+        ("lookup timeout", W.Transient("lookup timed out", kind="timeout"))):
+    n, out, f, rows = count_tick(FakeCount(lookups=[lookup]), meta=count_sent)
+    closes = member_closes(f)
+    check(f"AC-1374 undecidable lookup ({label}) halts with no second create",
+          bool(esb_calls(f)) and all(method == "GET" for method, _ in esb_calls(f))
+      and n == 2 and len(closes) == 2
+          and all(v["status"] == "dead_letter" and "person" in v["last_error"] for v in closes.values()),
+          repr(esb_calls(f)) + repr(closes))
+
+n, out, f, rows = count_tick(FakeCount(authorizes=[http_refusal(400, "period is closed")]))
+check("AC-032 an authorization refusal dead-letters the count with its returned number and no second create",
+      n == 2 and len(f.to("/authorize")) == 1
+      and all(v["status"] == "dead_letter" and v["esb_doc_num"] == "IJ-0001"
+              for v in member_closes(f).values())
+      and group_patches(f)[-1]["status"] == "dead_letter", repr(group_patches(f)))
+n, out, f, rows = count_tick(FakeCount(authorizes=[W.Transient("authorize timed out", kind="timeout")]))
+check("AC-1374 an ambiguous authorization keeps the created number and awaiting stage for retry",
+      n == 2 and all(v["status"] == "failed" for v in member_closes(f).values())
+      and any(p.get("posting_stage") == "awaiting_authorization" and p.get("esb_doc_num") == "IJ-0001"
+              for p in group_patches(f)), repr(group_patches(f)))
+n, out, f, rows = count_tick(FakeCount(creates=[{"status": "ok", "result": {}}]))
+check("AC-032 a create without a returned document reference is never posted or authorized",
+      n == 2 and esb_calls(f) == [("POST", COUNT_PATH)]
+      and all(value["status"] == "failed" and not value.get("esb_doc_num") for value in member_closes(f).values())
+      and group_patches(f)[0].get("posting_stage") == "create_sent", repr(group_patches(f)))
+
+n, out, f, rows = count_tick(FakeCount(creates=[W.Transient("create timed out", kind="timeout")]))
+check("AC-1374 an ambiguous create retains create_sent and does not claim a document number",
+      n == 2 and all(v["status"] == "failed" for v in member_closes(f).values())
+      and any(p.get("posting_stage") == "create_sent" for p in group_patches(f))
+      and not any(v.get("esb_doc_num") for v in member_closes(f).values()), repr(group_patches(f)))
+
+n, out, f, rows = count_tick(FakeCount(), cfg=count_cfg(ESB_COUNT_JOURNAL_ENABLED=""))
+check("gate: the independent count-journal worker flag defaults off and writes nothing",
+      n == 0 and f.calls == [] and "ESB_COUNT_JOURNAL_ENABLED" in out, repr(f.calls) + out)
+for gate_on, excluded_expected in ((False, True), (True, False)):
+    f = Fake(esb_push=lambda *a: [])
+    run(lambda: W.Outbox(count_cfg(ESB_COUNT_JOURNAL_ENABLED="1" if gate_on else "")).pending(), f)
+    query = urllib.parse.unquote(f.calls[0]["url"])
+    check(f"gate: the drain {'excludes' if excluded_expected else 'includes'} count-journal rows when the "
+          f"worker flag is {'on' if gate_on else 'off'}",
+          ("endpoint.neq.count-journal" in query) == excluded_expected, query)
+
+out = io.StringIO()
+f = Fake()
+run(lambda: W.run_tick(count_cfg(), count_rows(), outbox=None, plan_only=True, out=out), f)
+check("AC-1374 --plan prints the item-journal create and authorize without network calls",
+      f.calls == [] and f"POST {COUNT_PATH}" in out.getvalue() and COUNT_KEY in out.getvalue()
+      and "authorize" in out.getvalue(), out.getvalue())
 
 print(f"{_pass} passed, {_fail} failed")
 sys.exit(1 if _fail else 0)

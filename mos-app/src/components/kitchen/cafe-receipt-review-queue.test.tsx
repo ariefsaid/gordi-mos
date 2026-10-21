@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { messages } from '@/i18n/messages'
 
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
 vi.mock('@/lib/db/cafe-receipts', async importOriginal => {
@@ -39,9 +40,10 @@ function receipt(id: string, receivedBy: string, overrides: Partial<CafeReceipt>
 function renderQueue(
   streamFilter = ALL_STREAMS,
   streamCatalog: readonly ProductionStream[] = [{ branch: BRANCH, activity: 'kitchen' }],
+  locale: 'en' | 'id' = 'en',
 ) {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <CafeReceiptReviewQueue streamFilter={streamFilter} streamCatalog={streamCatalog} viewerId="me" />
     </I18nProvider>,
   )
@@ -58,6 +60,30 @@ beforeEach(() => {
 })
 
 describe('CafeReceiptReviewQueue', () => {
+  it.each(['en', 'id'] as const)('shows a large queue and allows switching while photos are pending (%s)', async locale => {
+    const rows = Array.from({ length: 50 }, (_, index) => receipt(`r-${index}`, 'receiver'))
+    vi.mocked(listCafeReceipts).mockImplementation(async (_statuses, options) => {
+      if (options?.photosFor?.length === 0) return rows
+      return new Promise(() => {})
+    })
+    renderQueue(ALL_STREAMS, undefined, locale)
+    expect(await screen.findAllByRole('button', { name: /^Shift member/ })).toHaveLength(50)
+    expect(screen.getByText(messages[locale]['cafe.receipts.photosLoading'])).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: messages[locale]['cafe.receipts.review.approve'] })).toBeEnabled()
+    fireEvent.click(screen.getAllByRole('button', { name: /^Shift member/ })[49]!)
+    await waitFor(() => expect(listCafeReceipts).toHaveBeenCalledWith(['Submitted'], {
+      ids: ['r-49'], photosFor: ['Submitted'],
+    }))
+  })
+  it('keeps the receipt decidable when the selected photo read fails', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValueOnce([receipt('r-1', 'receiver')])
+      .mockRejectedValueOnce(new Error('storage unavailable'))
+    renderQueue()
+    expect(await screen.findByText('Photos unavailable')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled()
+    expect(screen.queryByText('Loading photos…')).toBeNull()
+  })
+
   it('AC-1542 reads unsent receipts using the selected stream from the catalog', async () => {
     const streamCatalog: ProductionStream[] = [
       { branch: BRANCH, activity: 'kitchen' },
@@ -93,18 +119,22 @@ describe('CafeReceiptReviewQueue', () => {
   })
 
   it('AC-1012 the reviewer sees each conditioned line’s reason and private photo', async () => {
-    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-evidence', 'receiver', {
+    const withEvidence = receipt('r-evidence', 'receiver', {
       lines: [{
         id: 'line-evidence', item_unit_id: 'unit-l', item_name: 'Fresh milk', item_category: 'Dairy', unit_name: 'l', received_quantity: '11',
         conditions: ['damaged_wrong'], condition_reason: 'Seal broken on arrival', condition_updated_at: null,
         photos: [{ lineId: 'line-evidence', path: 'org/receipt/line/photo.jpg', url: 'https://private.test/photo' }],
       }],
-    })])
+    })
+    vi.mocked(listCafeReceipts).mockResolvedValueOnce([{
+      ...withEvidence, lines: withEvidence.lines.map(line => ({ ...line, photos: [] })),
+    }]).mockResolvedValue([withEvidence])
     renderQueue()
     const row = (await screen.findByText('Received by Shift member')).closest('li')!
     expect(within(row).getByText('Seal broken on arrival')).toBeInTheDocument()
     expect(within(row).getByText('Damaged or wrong')).toBeInTheDocument()
-    expect(within(row).getByRole('link', { name: 'Open photo 1 of 1' })).toHaveAttribute('href', 'https://private.test/photo')
+    expect(await within(row).findByRole('link', { name: 'Open photo 1 of 1' })).toHaveAttribute('href', 'https://private.test/photo')
+    expect(listCafeReceipts).toHaveBeenLastCalledWith(['Submitted'], { ids: ['r-evidence'], photosFor: ['Submitted'] })
     expect(within(row).getAllByText('Fresh milk')).toHaveLength(1)
   })
 
@@ -239,7 +269,7 @@ describe('CafeReceiptReviewQueue', () => {
       expect(within(row).getByText('Counted, not sent · locked 2h ago')).toBeInTheDocument()
       expect(within(row).queryByRole('button', { name: 'Approve' })).toBeNull()
       expect(within(row).queryByRole('button', { name: 'Reject' })).toBeNull()
-      expect(vi.mocked(listCafeReceipts)).toHaveBeenCalledWith(['Submitted'], { photosFor: ['Submitted'] })
+      expect(vi.mocked(listCafeReceipts)).toHaveBeenCalledWith(['Submitted'], { photosFor: [] })
     } finally {
       vi.useRealTimers()
     }

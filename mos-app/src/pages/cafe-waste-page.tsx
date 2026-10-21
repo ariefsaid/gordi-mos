@@ -86,6 +86,26 @@ type WasteRow = KitchenListRow<CafeLogItem>
 type PageLoadState = 'loading' | 'ready' | 'error'
 
 const WASTE_KIND_OPTIONS: readonly KitchenItemKindFilter[] = ['All', 'WIP', 'RAW']
+const wasteQuantityFormatters = new Map<string, Intl.NumberFormat>()
+const wasteDraftDateFormatters = new Map<string, Intl.DateTimeFormat>()
+
+function formatWasteQuantity(quantity: number, locale: string): string {
+  let formatter = wasteQuantityFormatters.get(locale)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 2 })
+    wasteQuantityFormatters.set(locale, formatter)
+  }
+  return formatter.format(quantity)
+}
+
+function formatWasteDraftDateTime(value: string, locale: string): string {
+  let formatter = wasteDraftDateFormatters.get(locale)
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'medium' })
+    wasteDraftDateFormatters.set(locale, formatter)
+  }
+  return formatter.format(new Date(value))
+}
 
 type StoredWasteEntry = Pick<WasteEntry,
   'client_request_id' | 'client_attempted' | 'quantity' | 'unitId' | 'unitFactor' | 'unitBasisKnown'
@@ -214,6 +234,7 @@ export function CafeWastePage() {
   const [loadRetry, setLoadRetry] = useState(0)
   const [catalogReady, setCatalogReady] = useState(false)
   const [items, setItems] = useState<CafeLogItem[]>([])
+  const itemsById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items])
   const [esbItemCount, setEsbItemCount] = useState(0)
   const [businessUnitId, setBusinessUnitId] = useState('')
   const [entries, setEntries] = useState<Record<string, WasteEntry>>({})
@@ -417,9 +438,7 @@ export function CafeWastePage() {
     const quantity = quantityValue(entry?.quantity ?? '')
     return entry && quantity !== null ? [{ item, entry, quantity }] : []
   })
-  const formatWasteQty = (quantity: number) => new Intl.NumberFormat(
-    document.documentElement.lang || 'en', { useGrouping: false, maximumFractionDigits: 2 },
-  ).format(quantity)
+  const formatWasteQty = (quantity: number) => formatWasteQuantity(quantity, document.documentElement.lang || 'en')
   const workbenchEntries = staged.map(line => ({
     id: line.item.id,
     name: `${kindPrefix(line.item.kind)}${line.item.name}`,
@@ -977,13 +996,11 @@ export function CafeWastePage() {
                 <h2 id="cwl-resume-title">{t('kitchen.waste.resumableDrafts')}</h2>
                 <ul>
                   {resumableDrafts.map(draft => {
-                    const item = items.find(candidate => candidate.id === draft.itemId)
+                    const item = itemsById.get(draft.itemId)
                     if (!item) return null
                     const current = entries[draft.itemId]
                     const alreadyEditing = Boolean(current?.logId || current?.preparing || current?.quantity.trim())
-                    const timestamp = new Intl.DateTimeFormat(document.documentElement.lang || 'en', {
-                      dateStyle: 'medium', timeStyle: 'medium',
-                    }).format(new Date(draft.createdAt))
+                    const timestamp = formatWasteDraftDateTime(draft.createdAt, document.documentElement.lang || 'en')
                     return (
                       <li key={draft.logId}>
                         <button

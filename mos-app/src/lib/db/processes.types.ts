@@ -66,6 +66,13 @@ export interface ProcessOccurrenceSummary {
   rollup: ProcessRunRollup
 }
 
+/** A screen-level process action check, delegated to the existing scalar authority predicates. */
+export type ProcessOccurrenceAuthority = {
+  authority_kind: 'start' | 'close'
+  target_id: string
+  allowed: boolean
+}
+
 /** A batched `mos.process_task_defs` lookup row (design fix wave items 2/4, Rule 11 — shared by
  * listPendingTasks' title resolution and the Occurrence group-by's "via <role>" provenance line). */
 export interface TaskDefLookup {

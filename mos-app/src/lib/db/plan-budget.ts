@@ -9,6 +9,7 @@
 // This layer NEVER sends org_id (RLS scopes it); throws non-secret on error (no DSN/token/SQL).
 
 import { supabase } from '@/lib/supabase'
+import { readAllPages } from '@/lib/db/reporting-shared'
 import type {
   BomLine,
   IngredientCostLine,
@@ -24,39 +25,69 @@ const mos = () => supabase.schema('mos')
 const COST_SELECT = 'ingredient_esb_code,name,unit_cost,unit,as_of'
 const BOM_SELECT = 'menu_item_esb_code,ingredient_esb_code,recipe_qty,qty_unit,as_of'
 
-/** List the ingredient cost lines for the caller's org (RLS: finance/admin). */
+/** Read linked ingredient prices in stable, API-bounded windows (RLS: finance/admin). */
 export async function listIngredientCostLines(): Promise<IngredientCostLine[]> {
-  const { data, error } = await reporting()
+  return readAllPages<IngredientCostLine>('listIngredientCostLines', (from, to) => reporting()
     .from('ingredient_cost_lines')
     .select(COST_SELECT)
     .order('ingredient_esb_code', { ascending: true })
-  if (error) throw new Error(`listIngredientCostLines failed — ${error.message}`)
-  return (data ?? []) as unknown as IngredientCostLine[]
+    .range(from, to))
 }
 
 /** List the BOM lines for the caller's org, optionally filtered to one menu item (RLS: finance/admin). */
 export async function listBomLines(menuItemEsbCode?: string): Promise<BomLine[]> {
-  let q = reporting().from('bom_lines').select(BOM_SELECT)
-  if (menuItemEsbCode) q = q.eq('menu_item_esb_code', menuItemEsbCode)
-  q = q.order('menu_item_esb_code', { ascending: true })
-  const { data, error } = await q
-  if (error) throw new Error(`listBomLines failed — ${error.message}`)
-  return (data ?? []) as unknown as BomLine[]
+  return readAllPages<BomLine>('listBomLines', (from, to) => {
+    let query = reporting().from('bom_lines').select(BOM_SELECT)
+    if (menuItemEsbCode) query = query.eq('menu_item_esb_code', menuItemEsbCode)
+    return query.order('menu_item_esb_code', { ascending: true })
+      .order('ingredient_esb_code', { ascending: true })
+      .range(from, to)
+  })
 }
 
 // ── mos captured records ───────────────────────────────────────────────────────
 
 const BUDGET_SELECT =
-  'id,menu_item_esb_code,menu_item_name,scenario_label,scenario_type,owning_bu_id,total_budgeted_cogs,cost_basis_as_of,certified_metric_key,is_complete'
+  'id,menu_item_esb_code,menu_item_name,scenario_label,scenario_type,owning_bu_id,total_budgeted_cogs,cost_basis_as_of,certified_metric_key,is_complete,created_at'
 
-/** List budgets for the caller's org, optionally filtered to one menu item (RLS: finance/admin). */
-export async function listBudgets(menuItemEsbCode?: string): Promise<BudgetRow[]> {
-  let q = mos().from('budgets').select(BUDGET_SELECT).is('archived_at', null)
-  if (menuItemEsbCode) q = q.eq('menu_item_esb_code', menuItemEsbCode)
-  q = q.order('created_at', { ascending: false })
-  const { data, error } = await q
+const BUDGETS_PAGE_SIZE = 50
+
+export type BudgetPageCursor = { id: string; createdAt: string }
+export type BudgetPage = { rows: BudgetRow[]; cursor: BudgetPageCursor | null; hasMore: boolean }
+
+/** Newest-first budget scenarios for one user-visible page. */
+export async function listBudgetsPage(
+  menuItemEsbCode?: string,
+  before?: BudgetPageCursor,
+): Promise<BudgetPage> {
+  let query = mos().from('budgets').select(BUDGET_SELECT).is('archived_at', null)
+  if (menuItemEsbCode) query = query.eq('menu_item_esb_code', menuItemEsbCode)
+  if (before) query = query.or(`created_at.lt.${before.createdAt},and(created_at.eq.${before.createdAt},id.lt.${before.id})`)
+  const { data, error } = await query.order('created_at', { ascending: false })
+    .order('id', { ascending: false }).limit(BUDGETS_PAGE_SIZE + 1)
   if (error) throw new Error(`listBudgets failed — ${error.message}`)
-  return (data ?? []) as unknown as BudgetRow[]
+  const fetched = (data ?? []) as unknown as Array<BudgetRow & { created_at: string }>
+  const hasMore = fetched.length > BUDGETS_PAGE_SIZE
+  const page = fetched.slice(0, BUDGETS_PAGE_SIZE)
+  const rows: BudgetRow[] = page
+  const last = page.at(-1)
+  return {
+    rows,
+    hasMore,
+    cursor: hasMore && last ? { id: last.id, createdAt: last.created_at } : null,
+  }
+}
+
+/** List every scenario for non-interactive calculations, using bounded server pages. */
+export async function listBudgets(menuItemEsbCode?: string): Promise<BudgetRow[]> {
+  const rows: BudgetRow[] = []
+  let cursor: BudgetPageCursor | undefined
+  for (;;) {
+    const page = await listBudgetsPage(menuItemEsbCode, cursor)
+    rows.push(...page.rows)
+    if (!page.cursor) return rows
+    cursor = page.cursor
+  }
 }
 
 /** Read one certified-metric definition by key (RLS: finance/admin). null when absent. */
@@ -77,7 +108,7 @@ export interface CaptureBudgetInput {
   scenarioLabel: string
   scenarioType: 'baseline' | 'promo' | 'new_branch' | 'menu'
   owningBuId: string
-  costBasisAsOf: string
+  costBasisAsOf: string | null
   certifiedMetricKey?: string
   isComplete: boolean
   notes?: string

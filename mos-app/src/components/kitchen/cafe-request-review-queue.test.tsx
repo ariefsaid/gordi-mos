@@ -15,7 +15,7 @@ function request(id: string, requestedBy: string, overrides: Partial<CafePurchas
   return {
     id, branch_id: 'branch-1', activity: 'kitchen', required_by: '2026-10-08', note: 'For the weekend menu',
     status: 'Submitted', requested_by: requestedBy, requested_at: '2026-10-06T02:00:00Z',
-    reviewed_by: null, reviewed_at: null, review_note: null, row_version: 1,
+    reviewed_by: null, reviewed_at: null, review_note: null, row_version: 1, posting: null,
     lines: [{ id: `${id}-l1`, item_name: 'Coffee bean', item_category: 'Bar', unit_name: 'kg', quantity: '2.5' }],
     ...overrides,
   }
@@ -48,7 +48,7 @@ async function openRequest(person: string) {
 describe('CafeRequestReviewQueue', () => {
   it('FR-1053 lists each request with requester, needed-by date, note and lines, and approves with its version', async () => {
     vi.mocked(listCafePurchaseRequests).mockResolvedValue([request('q-1', 'requester')])
-    vi.mocked(reviewCafePurchaseRequest).mockResolvedValue({ status: 'Approved', row_version: 2 })
+    vi.mocked(reviewCafePurchaseRequest).mockResolvedValue({ status: 'Approved', row_version: 2, posting: { state: 'queued' } })
     renderQueue()
     const row = await openRequest('Shift member')
     expect(listCafePurchaseRequests).toHaveBeenCalledWith(['Submitted'])
@@ -56,7 +56,22 @@ describe('CafeRequestReviewQueue', () => {
     expect(within(row).getByText('2.5 × kg')).toBeInTheDocument()
     fireEvent.click(within(row).getByRole('button', { name: 'Approve' }))
     await waitFor(() => expect(reviewCafePurchaseRequest).toHaveBeenCalledWith('q-1', 'approve', 1, ''))
-    expect(await within(row).findByRole('status')).toHaveTextContent('Approved · not posted to ESB')
+    expect(await within(row).findByRole('status')).toHaveTextContent('Approved · queued for ESB')
+  })
+
+  it.each([
+    [{ state: 'not_posted' as const }, 'Approved · not posted to ESB'],
+    [{ state: 'posted' as const, esb_number: 'PR-SYNTH-014' }, 'Approved · posted to ESB (PR-SYNTH-014)'],
+    [{ state: 'failed' as const }, 'Approved · posting to ESB failed; tell procurement'],
+    [null, 'Approved · posting state not loaded; refresh to see it'],
+  ])('shows the read-back posting result after approval: %j', async (posting, expected) => {
+    vi.mocked(listCafePurchaseRequests).mockResolvedValue([request('q-posting', 'requester')])
+    vi.mocked(reviewCafePurchaseRequest).mockResolvedValue({ status: 'Approved', row_version: 2, posting })
+    renderQueue()
+    const row = await openRequest('Shift member')
+    fireEvent.click(within(row).getByRole('button', { name: 'Approve' }))
+    expect(await within(row).findByRole('status')).toHaveTextContent(expected)
+    expect(within(row).queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
   })
 
   it('FR-1053 the requester’s own request cannot be approved from the queue, and says who approves it', async () => {
@@ -83,7 +98,7 @@ describe('CafeRequestReviewQueue', () => {
 
   it('FR-1053 a reject needs a note before it can be sent', async () => {
     vi.mocked(listCafePurchaseRequests).mockResolvedValue([request('q-3', 'requester')])
-    vi.mocked(reviewCafePurchaseRequest).mockResolvedValue({ status: 'Rejected', row_version: 2 })
+    vi.mocked(reviewCafePurchaseRequest).mockResolvedValue({ status: 'Rejected', row_version: 2, posting: null })
     renderQueue()
     const row = await openRequest('Shift member')
     fireEvent.click(within(row).getByRole('button', { name: 'Reject' }))
@@ -100,6 +115,17 @@ describe('CafeRequestReviewQueue', () => {
     vi.mocked(listCafePurchaseRequests).mockResolvedValue([request('q-4', 'requester')])
     renderQueue('branch-1|bar')
     expect(await screen.findByText('No requests to review')).toBeInTheDocument()
+  })
+
+  it('retries an unreadable queue without claiming that requests are unposted', async () => {
+    vi.mocked(listCafePurchaseRequests).mockRejectedValueOnce(new Error('posting read unavailable'))
+      .mockResolvedValue([request('q-retry', 'requester')])
+    renderQueue()
+    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
+    const row = await openRequest('Shift member')
+    expect(within(row).getByRole('button', { name: 'Approve' })).toBeEnabled()
+    expect(screen.queryByText(/not posted to ESB/)).not.toBeInTheDocument()
+    expect(listCafePurchaseRequests).toHaveBeenCalledTimes(2)
   })
 
   it('states a failed decision and offers a refresh', async () => {

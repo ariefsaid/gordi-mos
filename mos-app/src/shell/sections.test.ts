@@ -34,7 +34,7 @@ describe('Café navigation registry', () => {
     expect(visibleSections(CAFE_SECTIONS, ['ops_lead'], () => false)).toEqual([])
   })
 
-  it('keeps the admission gates: Issues for everyone, Review for leads and supervisors, Sent to ESB for leads', () => {
+  it('keeps the admission gates: Issues for everyone, Review for leads and supervisors, Pushes for outbox readers', () => {
     const nested = (roles: string[]) => visibleSections(CAFE_SECTIONS, roles, allModulesOn).filter(section => section.parentPath).map(section => section.path)
     expect(nested([])).toEqual(['/cafe/receive/issues'])
     expect(nested(['supervisor'])).toEqual(['/cafe/receive/issues'])
@@ -42,5 +42,7 @@ describe('Café navigation registry', () => {
     expect(visibleSections(CAFE_SECTIONS, [], allModulesOn).some(section => section.path === '/cafe/review' || section.path === '/cafe/pushes')).toBe(false)
     expect(visibleSections(CAFE_SECTIONS, ['supervisor'], allModulesOn).some(section => section.path === '/cafe/review')).toBe(true)
     expect(visibleSections(CAFE_SECTIONS, ['supervisor'], allModulesOn).some(section => section.path === '/cafe/pushes')).toBe(false)
+    expect(visibleSections(CAFE_SECTIONS, ['manager'], allModulesOn, { canReadCafePushes: true }).some(section => section.path === '/cafe/pushes')).toBe(true)
+    expect(visibleSections(CAFE_SECTIONS, ['manager'], allModulesOn, { canReadCafePushes: false }).some(section => section.path === '/cafe/pushes')).toBe(false)
   })
 })

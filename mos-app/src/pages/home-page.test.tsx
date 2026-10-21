@@ -33,7 +33,6 @@ const mockListRevenue = vi.mocked(listSalesDailyRevenue)
 
 vi.mock('../lib/db/reporting-margin', () => ({
   listSalesMarginDaily: vi.fn(),
-  latestMarginReportingDate: vi.fn(() => null),
 }))
 import { listSalesMarginDaily } from '@/lib/db/reporting-margin'
 const mockListMargin = vi.mocked(listSalesMarginDaily)

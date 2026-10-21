@@ -418,7 +418,7 @@ describe('RecordCollection engine', () => {
     expect(c.state.savedViews.error).toBeTruthy()
   })
 
-  it('FR-V3-007: save/rename/archive lifecycle updates the saved-view list and surfaces pending/error states', async () => {
+  it('FR-V3-007: loading and saving a view updates the saved-view list', async () => {
     const view: PersistedCollectionView = {
       id: 'v-1', name: 'My open work', scope: 'private', kind: 'collection', context: 'work',
       lifecycle: 'active', spec: makeSpec(TASK_COLLECTION_NEUTRAL_QUERY, 'table'), createdAt: '', updatedAt: '', archivedAt: null,
@@ -427,8 +427,8 @@ describe('RecordCollection engine', () => {
       list: vi.fn(async () => [view]),
       get: async () => view,
       create: vi.fn(async () => view),
-      rename: vi.fn(async () => {}),
-      archive: vi.fn(async () => {}),
+      rename: vi.fn<CollectionViewStore['rename']>(),
+      archive: vi.fn<CollectionViewStore['archive']>(),
     }
     const c = createRecordCollectionController(makeDescriptor({ store }), INITIAL)
     await flush()
@@ -446,12 +446,11 @@ describe('RecordCollection engine', () => {
 
     await c.renameSavedView('v-1', 'Renamed')
     expect(store.rename).toHaveBeenCalledWith('v-1', 'Renamed')
-    expect(c.state.savedViews.items.find((v) => v.id === 'v-1')?.name).toBe('Renamed')
+    expect(c.state.savedViews.items.find((item) => item.id === 'v-1')?.name).toBe('Renamed')
 
     await c.archiveSavedView('v-1')
     expect(store.archive).toHaveBeenCalledWith('v-1')
     expect(c.state.savedViews.items).toHaveLength(0)
-    // archiving the applied view clears only the saved identity.
     expect(c.state.query.savedViewId).toBeNull()
   })
 
@@ -486,17 +485,6 @@ describe('RecordCollection engine', () => {
     expect(c.state.savedViews.error).toContain('list failed')
   })
 
-  it('FR-V3-007: selectVisible adds only the given ids and clearSelection empties the set', async () => {
-    const c = createRecordCollectionController(makeDescriptor(), INITIAL)
-    await flush()
-    c.toggleSelected('t-2')
-    c.selectVisible(['t-1'])
-    expect(c.state.selectedIds.has('t-1')).toBe(true)
-    expect(c.state.selectedIds.has('t-2')).toBe(true)
-    c.clearSelection()
-    expect(c.state.selectedIds.size).toBe(0)
-  })
-
   it('NFR-V3-001: retry re-runs the loader with the same typed query', async () => {
     const loadSpy = vi.fn()
     const c = createRecordCollectionController(makeDescriptor({ loadSpy }), INITIAL)
@@ -509,6 +497,23 @@ describe('RecordCollection engine', () => {
     expect(c.state.query).toEqual(queryBefore)
   })
 
+  it('FR-V3-007: selectVisible adds only given ids and clearSelection empties the selection', async () => {
+    const controller = createRecordCollectionController(makeDescriptor(), INITIAL)
+    await flush()
+    controller.toggleSelected('t-2')
+    controller.selectVisible(['t-1'])
+    expect(controller.state.selectedIds).toEqual(new Set(['t-1', 't-2']))
+    controller.clearSelection()
+    expect(controller.state.selectedIds.size).toBe(0)
+  })
+
+  it('NFR-V3-001: runBulkAction is a no-op without a descriptor action', async () => {
+    const controller = createRecordCollectionController(makeDescriptor(), INITIAL)
+    await flush()
+    controller.toggleSelected('t-1')
+    await expect(controller.runBulkAction('archive' as never)).resolves.toBeUndefined()
+  })
+
   it('FR-V3-007: toggleGroup collapses and re-expands a typed group id', async () => {
     const c = createRecordCollectionController(makeDescriptor(), INITIAL)
     await flush()
@@ -516,14 +521,6 @@ describe('RecordCollection engine', () => {
     expect(c.state.collapsedGroupIds.has('grp-a')).toBe(true)
     c.toggleGroup('grp-a')
     expect(c.state.collapsedGroupIds.has('grp-a')).toBe(false)
-  })
-
-  it('NFR-V3-001: runBulkAction is a no-op when the descriptor grants no bulk capability', async () => {
-    const c = createRecordCollectionController(makeDescriptor(), INITIAL)
-    await flush()
-    c.toggleSelected('t-1')
-    // TaskCollectionAction is `never`; nothing to run and no throw.
-    await expect(c.runBulkAction('archive' as never)).resolves.toBeUndefined()
   })
 
   it('FR-V3-003/004/006 seam: openRecord is a no-op when no host is wired yet (parallel Issue 4)', async () => {

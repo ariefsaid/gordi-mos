@@ -13,6 +13,7 @@
 // and is not in the catalog; it appears in exactly one place on each side of the seam — one
 // arm of the SQL CASE, and BRANCH_DISPLAY_ALIAS below.
 
+import type { CafeLocation, StreamLocationDefaults } from '@/lib/db/cafe-locations'
 import type { Translate } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import type {
@@ -42,6 +43,7 @@ export function branchDisplayName(branch: BranchOption): string {
 
 /** Stable client-side index for a movement (see `MovementKey`). */
 export function movementKey(movement: KitchenLogMovement): MovementKey {
+  if (movement.action === 'outlet_send') return 'outlet_send'
   if (movement.action === 'waste') return 'waste'
   return movement.action === 'produce'
     ? 'produce'
@@ -70,6 +72,22 @@ export function movementsEqual(a: KitchenMovement, b: KitchenMovement): boolean 
 
 /** The production movement, present only when the selected stream's catalog row permits it. */
 export const PRODUCE: KitchenMovement = { action: 'produce', destinationBranchId: null }
+export const OUTLET_SEND: KitchenMovement = { action: 'outlet_send', destinationBranchId: null }
+
+// A single separate storage place is unambiguous; multiple alternatives need an explicit setup.
+export function outletSendPlaces(
+  stream: ProductionStream | null,
+  locations: readonly CafeLocation[],
+  defaults: StreamLocationDefaults | null,
+): { from: string; to: string } | null {
+  if (!stream || stream.activity !== 'kitchen' || !stream.produces) return null
+  const active = locations.filter(place => !place.archived_at && place.branch_ids.includes(stream.branch.id))
+  const production = active.find(place => place.id === defaults?.production_location_id && (place.use === 'production' || place.use === 'both'))
+  const from = active.find(place => place.id === defaults?.storage_location_id && (place.use === 'storage' || place.use === 'both'))
+  if (!production || !from) return null
+  const outlets = active.filter(place => (place.use === 'storage' || place.use === 'both') && place.id !== production.id && place.id !== from.id)
+  return outlets.length === 1 ? { from: from.id, to: outlets[0].id } : null
+}
 
 /**
  * Read the producing fact for one selected stream from the same live stream-Team catalog the
@@ -97,6 +115,7 @@ export function movementsForStream(
   origin: ProductionStream,
   catalog: readonly ProductionStream[],
   cafeDestinations: readonly CafeDestination[] = [],
+  hasOutlet = false,
 ): KitchenMovement[] {
   if (!streamProduces(origin, catalog)) return []
 
@@ -120,7 +139,8 @@ export function movementsForStream(
     ...destinations.map((stream): KitchenMovement => ({
       action: 'transfer',
       destinationBranchId: stream.branch.id,
-    }))
+    })),
+    ...(hasOutlet && origin.activity === 'kitchen' ? [OUTLET_SEND] : []),
   ]
 }
 
@@ -163,7 +183,9 @@ export function deriveActionLabel(
   t: Translate,
   movement: KitchenLogMovement,
   branches: readonly BranchOption[],
+  origin?: BranchOption | null,
 ): string {
+  if (movement.action === 'outlet_send') return t('kitchen.actionType.outletSend', { branch: origin?.name ?? t('kitchen.actionType.transferTo.fallback') })
   if (movement.action === 'waste') return t('kitchen.actionType.waste')
   if (movement.action === 'produce') return t('kitchen.actionType.production')
   const branch = branches.find((b) => b.id === movement.destinationBranchId)
@@ -215,7 +237,7 @@ export function defaultTransferMovement(
   origin: ProductionStream | null | undefined,
   plan: PlanMap,
 ): KitchenMovement | undefined {
-  const transfers = moves.filter(move => move.action === 'transfer')
+  const transfers = moves.filter(move => move.action !== 'produce')
   const planned = transfers.find(move => Object.values(plan).some(byMovement => (byMovement[movementKey(move)] ?? 0) > 0))
   return planned ?? transfers.find(move => isIntraBranch(move, origin)) ?? transfers[0]
 }

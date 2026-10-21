@@ -6,7 +6,7 @@ import { MemoryRouter, Route, Routes, Link, useLocation } from 'react-router-dom
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { Locale } from '@/i18n/messages'
 
-vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
+vi.mock('@/lib/db/tasks')
 
 vi.mock('@/lib/db/directory', () => ({
   getBusinessUnits: vi.fn().mockResolvedValue([]),

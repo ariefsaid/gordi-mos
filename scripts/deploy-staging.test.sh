@@ -3,7 +3,6 @@
 # network or GitHub is touched. Refusal cases assert the staging push was NOT made.
 set -uo pipefail
 cd "$(dirname "$0")/.."
-SCRIPT="$(pwd)/scripts/deploy-staging.sh"
 tmp="$(mktemp -d -t deploystaging.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
 pass=0; fail=0
@@ -19,7 +18,14 @@ FAKE_FUNCTION_SECRET_VALUE='test-only-function-secret-value'; export FAKE_FUNCTI
 LONG_WORKTREE_PADDING='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; export LONG_WORKTREE_PADDING
 ROOT_REPO="$(pwd -P)"; calls="$tmp/calls"; ARGVLOG="$tmp/argv"; : > "$ARGVLOG"; allout="$tmp/allout"; : > "$allout"
 REAL_GREP="$(command -v grep)"; export REAL_GREP
-mkdir -p "$tmp/bin" "$tmp/mig"
+mkdir -p "$tmp/bin" "$tmp/mig" "$tmp/repo/scripts" "$tmp/repo/supabase" "$tmp/repo/mos-app/src/lib"
+# Exercise real deployment behavior with a non-held function in an isolated source tree.
+cp scripts/deploy-staging.sh "$tmp/repo/scripts/"
+cp -R scripts/lib "$tmp/repo/scripts/"
+cp -R supabase/functions "$tmp/repo/supabase/"
+cp -R mos-app/src/lib/agent mos-app/src/lib/viewspec "$tmp/repo/mos-app/src/lib/"
+SCRIPT="$tmp/repo/scripts/deploy-staging.sh"
+ROOT_REPO="$tmp/repo"
 
 cat > "$tmp/bin/op-get.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -85,7 +91,7 @@ case "$*" in
     smoke_host="${FAKE_URL#*@}"; smoke_host="${smoke_host%%[:/?]*}"
     smoke_ref="${smoke_host#db.}"; smoke_ref="${smoke_ref%.supabase.co}"
     for arg in "$@"; do
-      case "$arg" in agent-chat|compose-view|mcp) fn="$arg" ;; esac
+      case "$arg" in agent-chat|test-function|compose-view|mcp) fn="$arg" ;; esac
       [ "$prev" != --project-ref ] || project_ref="$arg"
       prev="$arg"
     done
@@ -364,6 +370,22 @@ if [ "$long_bytes" -gt 65536 ]; then ok "long porcelain fixture exceeds 64 KiB (
 run "long worktree list is read without SIGPIPE" 0 "" FAKE_LONG_WORKTREE_LIST=1 STAGING_OP_ENV_FILE= -- --yes --no-pr
 has "long worktree list completes the staging deploy" "Staging deploy complete."
 
+echo "held assistant functions"
+for changed in supabase/functions/agent-chat/index.ts supabase/functions/_shared/cors.ts supabase/functions/_shared/jwtSegment.ts; do
+  run "held assistant change succeeds without function coordinates: $changed" 0 "" \
+    STAGING_OP_ENV_FILE="$tmp/op-no-functions.env" FAKE_STAGING_MISSING_SECRET=AGENT_MODEL_API_KEY \
+    FAKE_FN_DIFF="$changed" -- --yes --no-pr
+  expect_not "agent-chat is never deployed" "supabase functions-deploy agent-chat"
+  expect_not "held assistant never reads the function token" "op-get fake-function-item"
+  expect_not "held assistant never lists secrets" "supabase secrets-list"
+  expect_not "held assistant never sets secrets" "supabase secrets-set"
+  expect "migrations still deploy" "supabase push"
+  expect "successful deploy still stamps" "psql deployment-stamp"
+  has "agent-chat is reported held" "held (not deployed): agent-chat"
+  has "hold lasts until assistant switch-on" "held until assistant switch-on"
+done
+cp -R "$tmp/repo/supabase/functions/agent-chat" "$tmp/repo/supabase/functions/test-function"
+
 echo "verify"
 run "max-version mismatch fails" 1 "" FAKE_MAX=20260101000001 -- --yes
 has "mismatch named" "VERIFY FAILED"
@@ -371,8 +393,8 @@ expect_not "no promotion push after failed verify" "git-push"
 run "trusted clients > 0 fails loudly" 1 "" FAKE_TRUSTED=2 -- --yes
 has "trusted clients named" "trusted_agent_clients"
 expect_not "no promotion push when trusted clients exist" "git-push"
-run "a failed database verify stops before any function deploys" 1 "" FAKE_TRUSTED=2 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
-expect_not "no function deploy after a failed database verify" "supabase functions-deploy agent-chat"
+run "a failed database verify stops before any function deploys" 1 "" FAKE_TRUSTED=2 FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
+expect_not "no function deploy after a failed database verify" "supabase functions-deploy test-function"
 run "missing authenticator setting fails" 1 "" FAKE_ROLCONFIG="statement_timeout=8s" -- --yes
 has "rolconfig named" "pgrst.db_pre_request"
 run "no flagged sample org fails" 1 "" FAKE_SAMPLE_ORGS=0/0 -- --yes
@@ -385,50 +407,51 @@ run "two flagged orgs fail" 1 "" FAKE_SAMPLE_ORGS=2/2 -- --yes --no-pr
 has "the count failure is named" "flagged/sample-shaped: '2/2'"
 
 echo "edge function secrets"
-run "invalid function env name fails safely before secrets are read" 1 "" FAKE_SCAN_ENV_NAME=$'BAD\tNAME' FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
-has "invalid env name failure identifies only the function" "invalid environment variable name in function agent-chat"
+run "invalid function env name fails safely before secrets are read" 1 "" FAKE_SCAN_ENV_NAME=$'BAD\tNAME' FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
+has "invalid env name failure identifies only the function" "invalid environment variable name in function test-function"
 hasnt "invalid env name is not echoed" $'BAD\tNAME'
 expect_not "invalid env name stops before the function token or secret values are read" "op-get fake-function-item"
 expect_not "invalid env name stops before staging secret listing" "supabase secrets-list"
 expect_not "invalid env name stops before migration push" "supabase push"
-expect_not "invalid env name stops before function deploy" "supabase functions-deploy agent-chat"
-run "a missing function secret is set once before deploy" 0 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+expect_not "invalid env name stops before function deploy" "supabase functions-deploy test-function"
+run "a missing function secret is set once before deploy" 0 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
 expect "staging function secrets listed with the deploy token" "supabase secrets-list-token-env-ok"
 expect "missing function secret is set" "supabase secrets-set-name APP_ALLOWED_ORIGINS"
 expect "secret value reaches the set env-file" "supabase secrets-set-value-ok"
 if [ "$(grep -c '^supabase secrets-set$' "$calls")" = 1 ]; then ok "all missing function secrets use one set call"; else bad "expected one function secrets set call"; fi
-if before "supabase secrets-set-name APP_ALLOWED_ORIGINS" "supabase functions-deploy agent-chat"; then ok "function secret is set before deploy"; else bad "function secret is not set before deploy"; fi
+if before "supabase secrets-set-name APP_ALLOWED_ORIGINS" "supabase functions-deploy test-function"; then ok "function secret is set before deploy"; else bad "function secret is not set before deploy"; fi
 has "secret summary names the set key" "function secrets set: APP_ALLOWED_ORIGINS"
 hasnt "function secret value never reaches stdout or stderr" "$FAKE_FUNCTION_SECRET_VALUE"
 if grep -qE '^(argv function-secret|.*test-only-function-secret-value)' "$ARGVLOG"; then bad "function secret value reached argv log"; else ok "function secret value never reaches argv log"; fi
-run "already-present function secrets are not reset" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+run "already-present function secrets are not reset" 0 "" FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
 expect_not "no set call when all required function secrets already exist" "supabase secrets-set"
 has "already-present secret summary is clear" "function secrets: none missing"
-run "missing secret mapping stops before deploy" 1 "" FAKE_STAGING_MISSING_SECRET=AGENT_MODEL_API_KEY FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+run "missing secret mapping stops before deploy" 1 "" FAKE_STAGING_MISSING_SECRET=AGENT_MODEL_API_KEY FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
 has "missing mapping names the secret and key to add" "STAGING_FN_SECRET_AGENT_MODEL_API_KEY"
-expect_not "no function deploy after missing mapping" "supabase functions-deploy agent-chat"
-run "multiline function secret is rejected before setting" 1 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_FUNCTION_SECRET_MULTILINE=1 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+expect_not "no function deploy after missing mapping" "supabase functions-deploy test-function"
+run "multiline function secret is rejected before setting" 1 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_FUNCTION_SECRET_MULTILINE=1 FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
 has "multiline rejection names only the secret" "function secret APP_ALLOWED_ORIGINS contains a newline"
 hasnt "multiline rejection hides the value" "$FAKE_FUNCTION_SECRET_VALUE"
 hasnt "multiline rejection hides the second line" "second-line=value"
 expect_not "multiline function secret is not set" "supabase secrets-set"
-expect_not "multiline function secret is not deployed" "supabase functions-deploy agent-chat"
-run "failed secrets set stops before function deploy" 1 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_SECRETS_SET_RC=1 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+expect_not "multiline function secret is not deployed" "supabase functions-deploy test-function"
+run "failed secrets set stops before function deploy" 1 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_SECRETS_SET_RC=1 FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
 hasnt "failed secret set does not print the value" "$FAKE_FUNCTION_SECRET_VALUE"
 expect "failed secret set was attempted" "supabase secrets-set"
-expect_not "no function deploy after failed secrets set" "supabase functions-deploy agent-chat"
-run "platform SUPABASE names are ignored" 0 "" FAKE_STAGING_MISSING_SECRET=SUPABASE_URL FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+expect_not "no function deploy after failed secrets set" "supabase functions-deploy test-function"
+run "platform SUPABASE names are ignored" 0 "" FAKE_STAGING_MISSING_SECRET=SUPABASE_URL FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
 expect_not "platform-provided secrets are never set" "supabase secrets-set"
 has "ignored platform secret reports no missing app secrets" "function secrets: none missing"
-run "dry-run lists candidate function secrets without reading their values" 0 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --dry-run
+run "dry-run lists candidate function secrets without reading their values" 0 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --dry-run
 has "dry-run lists required function secret names" "APP_ALLOWED_ORIGINS"
 expect_not "dry-run does not read function secret values" "op-get fake-function-item"
 expect_not "dry-run does not list or set function secrets" "supabase secrets-list"
 expect_not "dry-run never deploys a function" "supabase functions-deploy"
 
 echo "edge functions"
-run "changed agent-chat deploys and passes smoke checks" 0 "sentinel-for-function-cli\n" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\nsupabase/functions/compose-view/index.ts\nsupabase/functions/mcp/index.ts\nsupabase/functions/_shared/cors.ts\n' -- --yes --no-pr
-expect "agent-chat deployed" "supabase functions-deploy agent-chat"
+run "changed non-held function deploys and passes smoke checks" 0 "sentinel-for-function-cli\n" FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\nsupabase/functions/agent-chat/index.ts\nsupabase/functions/compose-view/index.ts\nsupabase/functions/mcp/index.ts\nsupabase/functions/_shared/cors.ts\n' -- --yes --no-pr
+expect "non-held function deployed" "supabase functions-deploy test-function"
+expect_not "agent-chat is held alongside deployable functions" "supabase functions-deploy agent-chat"
 expect "function token read from the secret store" "op-get fake-function-item fake-function-vault FAKE_TOKEN"
 expect "token supplied through the CLI environment" "supabase token-env-ok"
 expect "database password is not forwarded to edge deploy" "supabase db-password-not-forwarded"
@@ -437,19 +460,19 @@ expect "deploy carries the project ref derived from the smoke host" "supabase pr
 expect "deploy cannot read the caller's stdin" "supabase deploy-stdin-closed"
 expect "unauthenticated POST smoke check ran" "curl POST"
 expect "backend stamp follows a successful function deploy and smoke checks" "psql deployment-stamp"
-if before "supabase functions-deploy agent-chat" "psql deployment-stamp"; then ok "deployment stamp follows the successful function deploy"; else bad "deployment stamp precedes the function deploy"; fi
-if before "supabase push" "supabase functions-deploy agent-chat"; then ok "edge deploy follows a successful migration push"; else bad "edge deploy follows a successful migration push"; fi
+if before "supabase functions-deploy test-function" "psql deployment-stamp"; then ok "deployment stamp follows the successful function deploy"; else bad "deployment stamp precedes the function deploy"; fi
+if before "supabase push" "supabase functions-deploy test-function"; then ok "edge deploy follows a successful migration push"; else bad "edge deploy follows a successful migration push"; fi
 expected_origins="$(grep '^const DEFAULT_APP_ORIGINS' supabase/functions/_shared/cors.ts | tr -cd "'" | wc -c | awk '{print int($1 / 2)}' | tr -d ' ')"
 actual_preflights="$(grep -c '^curl OPTIONS$' "$calls" || true)"
 if [ "$actual_preflights" = "$expected_origins" ]; then ok "each source allowlisted origin receives a preflight"; else bad "preflight count $actual_preflights differs from source allowlist count $expected_origins"; fi
-has "compose-view and mcp are reported held" "held (not deployed): compose-view mcp"
+has "assistant functions are reported held" "held (not deployed): agent-chat compose-view mcp"
 hasnt "shared folder is never listed" "_shared"
 expect_not "compose-view is not deployed" "supabase functions-deploy compose-view"
 expect_not "mcp is not deployed" "supabase functions-deploy mcp"
 if grep -qF "$FAKE_ACCESS_TOKEN" "$ARGVLOG" "$allout"; then bad "access token reached argv log or output"; else ok "access token never reached argv log or output"; fi
-BASHX=-x run "traced function deploy hides the access token" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+BASHX=-x run "traced function deploy hides the access token" 0 "" FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
 if grep -qF "$FAKE_ACCESS_TOKEN" "$ARGVLOG" "$allout"; then bad "traced run exposed the access token"; else ok "traced run keeps the access token private"; fi
-run "a failed function deploy stops the run" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_DEPLOY_RC=1 -- --yes --no-pr
+run "a failed function deploy stops the run" 1 "" FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' FAKE_DEPLOY_RC=1 -- --yes --no-pr
 has "deployment failure is clear" "edge function deploy failed"
 has "deployment diagnostics include the redacted CLI reason" "deployment rejected"
 hasnt "deployment diagnostics hide the host" "$SECRET_HOST"
@@ -457,37 +480,41 @@ hasnt "deployment diagnostics hide the project ref" "$SECRET_PROJECT_REF"
 hasnt "deployment diagnostics hide the token" "$FAKE_ACCESS_TOKEN"
 expect_not "no smoke check after failed deploy" "curl POST"
 expect_not "no deployment stamp after a failed function deploy" "psql deployment-stamp"
-run "a gateway 401 with its gateway code fails handler auth" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_POST_HANDLER=0 -- --yes --no-pr
+run "a gateway 401 with its gateway code fails handler auth" 1 "" FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' FAKE_POST_HANDLER=0 -- --yes --no-pr
 has "gateway 401 is not mistaken for handler auth" "unauthenticated POST smoke check failed"
-run "an unauthenticated POST returning 200 fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_POST_STATUS=200 -- --yes --no-pr
+run "an unauthenticated POST returning 200 fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' FAKE_POST_STATUS=200 -- --yes --no-pr
 has "200 smoke failure is clear" "unauthenticated POST smoke check failed"
 expect_not "no promotion push after a failed smoke check" "git-push"
-run "a preflight that fails to echo the origin fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_CORS_MISMATCH=1 -- --yes --no-pr
+run "a preflight that fails to echo the origin fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' FAKE_CORS_MISMATCH=1 -- --yes --no-pr
 has "preflight echo failure is clear" "CORS preflight smoke check failed"
 expect_not "no deployment stamp after a failed function smoke check" "psql deployment-stamp"
-run "dry-run never deploys changed functions" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --dry-run
+run "dry-run never deploys changed functions" 0 "" FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --dry-run
 expect_not "dry-run never deploys a function" "supabase functions-deploy"
 expect_not "dry-run never smoke-checks a function" "curl POST"
 expect_not "dry-run never reads the function token" "op-get fake-function-item"
 run "no function changes: silent" 0 "" -- --yes --no-pr
 hasnt "no function warning" "edge functions changed"
 run "shared module change redeploys every function importing it" 0 "" FAKE_FN_DIFF=$'supabase/functions/_shared/cors.ts\n' -- --yes --no-pr
-expect "shared cors change deploys agent-chat" "supabase functions-deploy agent-chat"
+expect "shared cors change deploys non-held importer" "supabase functions-deploy test-function"
+expect_not "shared cors change holds agent-chat" "supabase functions-deploy agent-chat"
 expect_not "shared cors change holds compose-view" "supabase functions-deploy compose-view"
-has "shared cors change reports compose-view held" "held (not deployed): compose-view"
+has "shared cors change reports assistant functions held" "held (not deployed): agent-chat compose-view"
 run "a shared module reached through another shared module redeploys its importers, never the held ones" 0 "" FAKE_FN_DIFF=$'supabase/functions/_shared/jwtSegment.ts\n' -- --yes --no-pr
-expect "transitive shared change deploys agent-chat" "supabase functions-deploy agent-chat"
+expect "transitive shared change deploys non-held importer" "supabase functions-deploy test-function"
+expect_not "transitive shared change holds agent-chat" "supabase functions-deploy agent-chat"
 expect_not "mcp imports the changed module but is never deployed" "supabase functions-deploy mcp"
-has "held importers are reported" "held (not deployed): compose-view mcp"
+has "held importers are reported" "held (not deployed): agent-chat compose-view mcp"
 run "a shared module nothing imports deploys nothing" 0 "" FAKE_FN_DIFF=$'supabase/functions/_shared/no-such-module.ts\n' -- --yes --no-pr
 expect_not "unimported shared module deploys nothing" "supabase functions-deploy"
 run "only mcp changed: nothing deploys" 0 "" FAKE_FN_DIFF=$'supabase/functions/mcp/index.ts\n' -- --yes --no-pr
 expect_not "a direct mcp change is never deployed" "supabase functions-deploy"
-run "agent library change redeploys agent-chat" 0 "" FAKE_FN_DIFF=$'mos-app/src/lib/agent/runtime/port.ts\n' -- --yes --no-pr
-expect "agent library dependency deploys agent-chat" "supabase functions-deploy agent-chat"
+run "agent library change redeploys non-held importers" 0 "" FAKE_FN_DIFF=$'mos-app/src/lib/agent/runtime/port.ts\n' -- --yes --no-pr
+expect "agent library dependency deploys non-held importer" "supabase functions-deploy test-function"
+expect_not "agent library dependency holds agent-chat" "supabase functions-deploy agent-chat"
 hasnt "agent library dependency does not touch compose-view" "compose-view"
 run "viewspec library change redeploys its importers" 0 "" FAKE_FN_DIFF=$'mos-app/src/lib/viewspec/types.ts\n' -- --yes --no-pr
-expect "viewspec dependency deploys agent-chat" "supabase functions-deploy agent-chat"
+expect "viewspec dependency deploys non-held importer" "supabase functions-deploy test-function"
+expect_not "viewspec dependency holds agent-chat" "supabase functions-deploy agent-chat"
 run "changes are read from the stamped commit to origin/main" 0 "" -- --yes --no-pr
 expect "the stamp is read before the change list" "psql stamp-read"
 expect "the change list starts at the stamped commit" "git diff --name-only $FAKE_STAMP_DEFAULT aaaa"
@@ -496,12 +523,12 @@ expect "the change list starts at origin/staging" "git diff --name-only stage-ol
 run "a malformed stamp is refused before migration push" 1 "" FAKE_STAMP_SHA="x'; drop table t; --" -- --yes --no-pr
 has "malformed stamp is explained" "the deployment stamp is not a commit SHA"
 expect_not "no migration push after a malformed stamp" "supabase push"
-run "function secret-store names are checked before migration push" 1 "" STAGING_OP_ENV_FILE="$tmp/op-no-functions.env" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+run "function secret-store names are checked before migration push" 1 "" STAGING_OP_ENV_FILE="$tmp/op-no-functions.env" FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
 has "missing function coordinates are named" "STAGING_FUNCTIONS_OP_ITEM"
 expect_not "no migration push when function secret-store names are missing" "supabase push"
-run "invalid function host is rejected before migration push" 1 "" FAKE_URL="postgresql://deployer:${SECRET_PW}@db.invalid.example.test:5432/postgres" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+run "invalid function host is rejected before migration push" 1 "" FAKE_URL="postgresql://deployer:${SECRET_PW}@db.invalid.example.test:5432/postgres" FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
 expect_not "no migration push when the function host cannot provide a project ref" "supabase push"
-run "unreadable app origins are rejected before migration push" 1 "" FAKE_NO_ORIGINS=1 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+run "unreadable app origins are rejected before migration push" 1 "" FAKE_NO_ORIGINS=1 FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
 expect_not "no migration push when app origins cannot be read" "supabase push"
 full_main_sha=abcdef0123456789abcdef0123456789abcdef01
 run "stamp records the full origin/main SHA" 0 "" FAKE_HEAD="$full_main_sha" FAKE_ORIGIN_MAIN="$full_main_sha" -- --yes --no-promote
@@ -510,22 +537,22 @@ run "deployment stamp write failure stops promotion" 1 "" FAKE_STAMP_RC=1 -- --y
 has "stamp write failure is explained" "could not update the backend deployment stamp"
 expect_not "no promotion after a stamp write failure" "git-push"
 
-run "function-only deployment needs confirmation" 1 "" FAKE_DRY_OUT="Remote database is up to date." FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --no-pr
+run "function-only deployment needs confirmation" 1 "" FAKE_DRY_OUT="Remote database is up to date." FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --no-pr
 has "function-only change is included in confirmation" "Deploy 0 migration(s) and 1 edge function(s) to staging?"
 expect_not "function-only change does not deploy without confirmation" "supabase functions-deploy"
 run "y confirms function-only deployment" 0 "y
-" FAKE_DRY_OUT="Remote database is up to date." FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --no-pr
-expect "function-only deployment follows confirmation" "supabase functions-deploy agent-chat"
+" FAKE_DRY_OUT="Remote database is up to date." FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --no-pr
+expect "function-only deployment follows confirmation" "supabase functions-deploy test-function"
 
 echo "server ops step"
 OPS_MAIN=(FAKE_HEAD="$full_main_sha" FAKE_ORIGIN_MAIN="$full_main_sha")
-run "changed snapshot code updates the server clone and runs the snapshot once" 0 "" "${OPS_MAIN[@]}" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\nscripts/reporting_snapshot.py\n' -- --yes --no-pr
+run "changed snapshot code updates the server clone and runs the snapshot once" 0 "" "${OPS_MAIN[@]}" FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\nscripts/reporting_snapshot.py\n' -- --yes --no-pr
 expect "server clone moved to the deployed commit" "ssh update fake-ops-box"
 expect "clone update is the exact fetch and checkout of the deployed commit" "ssh update-command-ok"
 expect "snapshot ran through the server runner" "ssh snapshot fake-ops-box"
 if [ "$(grep -c '^ssh snapshot' "$calls")" = 1 ]; then ok "snapshot runs exactly once"; else bad "snapshot did not run exactly once"; fi
-order="$(grep -E '^(supabase push|supabase functions-deploy agent-chat|ssh update |ssh snapshot|psql deployment-stamp$)' "$calls" | tr '\n' ' ')"
-case "$order" in "supabase push supabase functions-deploy agent-chat ssh update fake-ops-box ssh snapshot fake-ops-box psql deployment-stamp ") ok "order: migrations, functions, server ops, stamp" ;; *) bad "unexpected order: $order" ;; esac
+order="$(grep -E '^(supabase push|supabase functions-deploy test-function|ssh update |ssh snapshot|psql deployment-stamp$)' "$calls" | tr '\n' ' ')"
+case "$order" in "supabase push supabase functions-deploy test-function ssh update fake-ops-box ssh snapshot fake-ops-box psql deployment-stamp ") ok "order: migrations, functions, server ops, stamp" ;; *) bad "unexpected order: $order" ;; esac
 hasnt "ssh host alias is redacted from output" "fake-ops-box"
 run "other script changes leave the server alone" 0 "" FAKE_FN_DIFF=$'scripts/gh-post.sh\nscripts/deploy-staging.sh\n' -- --yes --no-pr
 expect_not "no server update when ops scripts are unchanged" "ssh "
@@ -542,7 +569,7 @@ printf 'STAGING_OPS_REPO_DIR=~/repo;rm -rf ~\n' > "$tmp/op-bad-path.env"; grep -
 run "a path carrying shell text is refused" 1 "" "${OPS_MAIN[@]}" STAGING_OP_ENV_FILE="$tmp/op-bad-path.env" FAKE_FN_DIFF=$'scripts/reporting_snapshot.py\n' -- --yes --no-pr
 has "bad path is explained" "must be plain paths"
 expect_not "no ssh with a shell-text path" "ssh "
-run "a failed function deploy stops before the server step" 1 "" "${OPS_MAIN[@]}" FAKE_DEPLOY_RC=1 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\nscripts/reporting_snapshot.py\n' -- --yes --no-pr
+run "a failed function deploy stops before the server step" 1 "" "${OPS_MAIN[@]}" FAKE_DEPLOY_RC=1 FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\nscripts/reporting_snapshot.py\n' -- --yes --no-pr
 expect_not "no server update after a failed function deploy" "ssh "
 expect_not "no stamp after a failed function deploy" "psql deployment-stamp"
 run "a failed clone update stops before the snapshot and the stamp" 1 "" "${OPS_MAIN[@]}" FAKE_SSH_UPDATE_RC=1 FAKE_FN_DIFF=$'scripts/reporting_snapshot.py\n' -- --yes
@@ -559,7 +586,7 @@ run "ops-only change needs confirmation" 1 "" "${OPS_MAIN[@]}" FAKE_DRY_OUT="Rem
 has "ops step is named in the confirmation" "then update the server ops clone"
 expect_not "no server update without confirmation" "ssh "
 run "dry run names the functions and the server step and touches nothing" 0 "" "${OPS_MAIN[@]}" FAKE_FN_DIFF=$'supabase/functions/_shared/cors.ts\nscripts/reporting_snapshot.py\n' -- --dry-run
-has "dry run lists the functions to deploy" "Dry run: edge functions to deploy: agent-chat"
+has "dry run lists the functions to deploy" "Dry run: edge functions to deploy: test-function"
 has "dry run names the server step" "Dry run: would update the server ops clone and run the reporting snapshot."
 expect_not "dry run never contacts the server" "ssh "
 expect_not "dry run never deploys" "supabase functions-deploy"
@@ -605,9 +632,9 @@ run "push failure identifies the recovery backup" 1 "" FAKE_PUSH_RC=1 -- --yes -
 has "push failure names the backup path" "pre-push dump is at $tmp/dumps/pre-deploy-"
 expect "failed push was attempted" "supabase push"
 expect_not "no deployment stamp after a failed database push" "psql deployment-stamp"
-run "database, edge and direct-promotion order" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes
-order="$(grep -E '^(pg_dump|pg_restore-list|supabase push|supabase functions-deploy agent-chat|git-push)' "$calls" | tr '\n' ' ')"
-case "$order" in pg_dump\ pg_restore-list\ supabase\ push\ supabase\ functions-deploy\ agent-chat\ git-push\ push\ origin\ aaaa:refs/heads/staging*) ok "order: backup, database push, edge deploy, direct promotion" ;; *) bad "unexpected DB/edge/promotion order: $order" ;; esac
+run "database, edge and direct-promotion order" 0 "" FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes
+order="$(grep -E '^(pg_dump|pg_restore-list|supabase push|supabase functions-deploy test-function|git-push)' "$calls" | tr '\n' ' ')"
+case "$order" in pg_dump\ pg_restore-list\ supabase\ push\ supabase\ functions-deploy\ test-function\ git-push\ push\ origin\ aaaa:refs/heads/staging*) ok "order: backup, database push, edge deploy, direct promotion" ;; *) bad "unexpected DB/edge/promotion order: $order" ;; esac
 if grep -q 'rehearse-migrations\.sh' "$SCRIPT"; then bad "removed migration helper is still called"; else ok "no removed migration helper call remains"; fi
 
 echo "pooler url file"

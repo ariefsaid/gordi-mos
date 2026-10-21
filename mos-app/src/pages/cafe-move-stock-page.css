@@ -10,4 +10,6 @@
 .move-stock__label { color: var(--mos-ink); font: var(--mos-type-label); }
 .move-stock__muted { color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
 .move-stock__actions { margin-top: var(--mos-section-gap); }
+.move-stock__actions .action-bar__buttons { flex-wrap: wrap; }
+.move-stock__actions .btn { max-width: 100%; white-space: normal; text-align: center; }
 @media (max-width: 767.98px) { .move-stock__qty { grid-template-columns: minmax(0, 1fr); } }

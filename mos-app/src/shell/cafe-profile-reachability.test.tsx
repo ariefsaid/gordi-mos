@@ -35,7 +35,7 @@ vi.mock('@/components/catalog/use-work-write-authority', () => ({
     retry: vi.fn(),
   }),
 }))
-vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn().mockResolvedValue([]) }))
+vi.mock('@/lib/db/tasks')
 vi.mock('@/lib/db/signals', () => ({ searchSignalsByBody: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/follow-ups', () => ({ searchFollowUpsByCounterparty: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/directory', () => ({ searchPeopleByName: vi.fn().mockResolvedValue([]) }))
@@ -53,6 +53,8 @@ import { searchPeopleByName } from '@/lib/db/directory'
 import { searchObjectivesByName } from '@/lib/db/objectives'
 import { searchWorkLinesByName } from '@/lib/db/work-lines'
 import { CommandMenu } from '@/components/command/command-menu'
+
+vi.mocked(searchTasksByTitle).mockResolvedValue([])
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockUseIsNarrow = vi.mocked(useIsNarrow)

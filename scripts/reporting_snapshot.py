@@ -7,6 +7,7 @@ This script deliberately does not load .env files.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -880,6 +881,14 @@ def build_recipe_history_source_query() -> str:
     """
 
 
+def _recipe_contents(recipe: Mapping[str, Any]) -> tuple:
+    # Source hashes also cover labels and row ordering; only recipe contents create MOS versions.
+    fields = ("product_id", "detail_id", "qty", "unit_id", "unit",
+              "detail_active", "product_active", "product_deleted")
+    return (recipe.get("active"), recipe.get("menu_deleted"),
+            Counter(tuple(line.get(field) for field in fields) for line in recipe["lines"]))
+
+
 def plan_recipe_versions(
     source_rows: list[Mapping[str, Any]],
     latest_versions: list[Mapping[str, Any]],
@@ -894,8 +903,8 @@ def plan_recipe_versions(
         version_hash = _required_text(row.get("recipe_version_hash"), "recipe_version_hash")
         previous = latest.get((esb_code, row["menu_id"]))
         if previous and (
-            previous["warehouse_version_hash"] == version_hash
-            or row["observed_at"] <= previous["source_observed_at"]
+            row["observed_at"] <= previous["source_observed_at"]
+            or _recipe_contents(previous["recipe"]) == _recipe_contents(row["recipe"])
         ):
             continue
         versions.append({
@@ -938,7 +947,7 @@ def run_recipe_history_snapshot(config: SnapshotConfig, snapshot_as_of: datetime
             )
             reporting_cur.execute("""
                 select distinct on (esb_code, menu_id)
-                       esb_code, menu_id, version, warehouse_version_hash, source_observed_at
+                       esb_code, menu_id, version, warehouse_version_hash, source_observed_at, recipe
                 from reporting.recipe_versions where org_id = %s
                 order by esb_code, menu_id, version desc
             """, (config.org_id,))
@@ -1352,6 +1361,47 @@ def run_stock_on_hand_snapshot(config: SnapshotConfig, snapshot_as_of: datetime)
     return copied
 
 
+CANCEL_VOID_COLUMNS = (
+    "row_id", "case_id", "is_case", "esb_code", "branch_code", "sales_date", "sales_num",
+    "action_kind", "node_kind", "menu_name", "review_value_idr", "review_value_basis",
+    "line_total", "creator_account", "last_editor_account", "minutes_to_last_edit",
+    "reason_text", "reason_scope", "source_evidence_hash",
+)
+
+
+def normalize_cancel_void_row(row: Mapping[str, Any], *, snapshot_as_of: Any,
+                              org_id: str, source_contract_version: str) -> dict[str, Any]:
+    result = {column: row.get(column) for column in CANCEL_VOID_COLUMNS}
+    for field in ("row_id", "case_id", "esb_code", "branch_code", "sales_num", "action_kind",
+                  "node_kind", "review_value_basis", "reason_scope"):
+        result[field] = _required_text(row.get(field), field)
+    if row.get("sales_date") is None or not isinstance(row.get("is_case"), bool):
+        raise ValueError("register date and case flag are required")
+    result.update(org_id=org_id, snapshot_as_of=snapshot_as_of,
+                  source_contract_version=source_contract_version)
+    return result
+
+
+def run_cancel_void_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int | None:
+    columns = ("org_id", *CANCEL_VOID_COLUMNS, "snapshot_as_of", "source_contract_version")
+    mutable = [column for column in columns if column not in ("org_id", "esb_code", "row_id")]
+    return _copy_window(
+        config,
+        source_query=f"""select {', '.join(CANCEL_VOID_COLUMNS)}
+            from public.cancel_void_register_rows(current_date - (%s::int - 1), current_date)
+            order by esb_code, row_id""",
+        normalize=normalize_cancel_void_row,
+        upsert_sql=f"""insert into reporting.cancel_void_register ({', '.join(columns)})
+            values ({', '.join('%(' + column + ')s' for column in columns)})
+            on conflict (org_id, esb_code, row_id) do update set
+            {', '.join(column + ' = excluded.' + column for column in mutable)}
+            where reporting.cancel_void_register.snapshot_as_of <= excluded.snapshot_as_of""",
+        target_table="reporting.cancel_void_register",
+        snapshot_as_of=snapshot_as_of,
+        source_contract_version="cancel_void_register.v1",
+    )
+
+
 def run_all_snapshots(config: SnapshotConfig) -> dict[str, int | None]:
     """Run the reporting snapshots sharing one snapshot_as_of.
 
@@ -1370,6 +1420,7 @@ def run_all_snapshots(config: SnapshotConfig) -> dict[str, int | None]:
     recipe_history = run_recipe_history_snapshot(config, snapshot_as_of)
     recipe_findings = run_recipe_findings_snapshot(config, snapshot_as_of)
     stock_on_hand = run_stock_on_hand_snapshot(config, snapshot_as_of)
+    cancel_void = run_cancel_void_snapshot(config, snapshot_as_of)
     return {
         "revenue": revenue_count,
         "margin": margin_count,
@@ -1379,6 +1430,7 @@ def run_all_snapshots(config: SnapshotConfig) -> dict[str, int | None]:
         "recipe_history": recipe_history,
         "recipe_findings": recipe_findings,
         "stock_on_hand": stock_on_hand,
+        "cancel_void": cancel_void,
     }
 
 
@@ -1394,7 +1446,7 @@ def main() -> int:
         f"pending_bills={shown('pending_bills')} "
         f"pending_bills_skipped={shown('pending_bills_skipped')} "
         f"recipe_history={shown('recipe_history')} recipe_findings={shown('recipe_findings')} "
-        f"stock_on_hand={shown('stock_on_hand')} window_days={config.window_days}"
+        f"stock_on_hand={shown('stock_on_hand')} cancel_void={shown('cancel_void')} window_days={config.window_days}"
     )
     return 0
 

@@ -1,7 +1,7 @@
 // Context files intentionally mix a Provider component with a reader hook —
 // the react-refresh rule is suppressed per the established pattern (breadcrumb-title.tsx).
 /* eslint-disable react-refresh/only-export-components */
-import { Suspense, createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { getSignalPostAuthority, loadMentionRosters, type MentionRosters } from '@/lib/db/signals'
@@ -148,8 +148,13 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
     return () => { cancelled = true }
   }, [isOpen])
 
+  const contextValue = useMemo(
+    () => ({ open, postCount, canPost, canTag, registerInline }),
+    [open, postCount, canPost, canTag, registerInline],
+  )
+
   return (
-    <SignalComposerContext.Provider value={{ open, postCount, canPost, canTag, registerInline }}>
+    <SignalComposerContext.Provider value={contextValue}>
       {children}
       {isOpen && viewer && canPost && (
         <ModalShell

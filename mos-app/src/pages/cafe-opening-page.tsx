@@ -23,10 +23,8 @@ import {
   getTodayOpeningForTeam,
   listCafeViewerTeams,
   listStartableCafeTeams,
-  resolveCafeOpeningTeamsForBranches,
-  resolveCafeOpeningTeamsForTeamIds,
+  resolveCafeOpeningTeams,
   wibToday,
-  type CafeOpeningTeam,
 } from '@/lib/db/cafe-opening'
 import { listActiveBranches } from '@/lib/db/branches'
 import { rememberCafeLocation, rememberCafeOpeningTeam, rememberedCafeOpeningTeamId } from '@/lib/cafe-opening-location'
@@ -38,7 +36,7 @@ import { useCafeTodayStream } from '@/lib/use-cafe-today-stream'
 import { useCafeTodayJobs } from '@/lib/use-cafe-today-jobs'
 import { useModuleAvailability } from '@/lib/module-availability'
 import { streamLabel } from '@/lib/kitchen-action-label'
-import { canPushCafe } from '@/lib/kitchen-gates'
+import { canPushCafe, canReviewCafe } from '@/lib/kitchen-gates'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { CAFE_OPENING_ENABLED } from '@/lib/cafe-opening-enabled'
 import './cafe-opening-page.css'
@@ -200,18 +198,16 @@ function CafeRootPageBody() {
             due: true,
           })),
         ]
-        // Ops leads/admins can be authorized for a branch without holding a profile membership.
-        // Their started branches never appear in due_process_runs(), so include every active
-        // branch's canonical Opening Team under the existing elevated Café gate as well. Resolve
-        // independent branches and source Teams in parallel, then fetch team labels in batches.
-        const elevatedPromise = canPushCafe(accessRoles)
-          ? resolveCafeOpeningTeamsForBranches(branches.map((branch) => branch.id))
-          : Promise.resolve(new Map<string, CafeOpeningTeam>())
-        const sourceTeamsPromise = resolveCafeOpeningTeamsForTeamIds(sources.map((source) => source.sourceTeamId))
-        const [elevated, openingTeamsBySource] = await Promise.all([elevatedPromise, sourceTeamsPromise])
+        // Ops leads/admins can be authorized for branches without a profile membership. Their
+        // started branches never appear in due_process_runs(), so include active branches in the
+        // same batch as profile/due Team resolution under the existing elevated Café gate.
+        const openingTeams = await resolveCafeOpeningTeams({
+          sourceTeamIds: sources.map((source) => source.sourceTeamId),
+          branchIds: canPushCafe(accessRoles) ? branches.map((branch) => branch.id) : [],
+        })
         const resolvedSources = [
-          ...sources.map((source) => ({ source, team: openingTeamsBySource.get(source.sourceTeamId) ?? null })),
-          ...[...elevated.values()].map((team) => ({
+          ...sources.map((source) => ({ source, team: openingTeams.bySourceTeamId.get(source.sourceTeamId) ?? null })),
+          ...[...openingTeams.byBranchId.values()].map((team) => ({
             source: { sourceTeamId: team.id, isPrimary: false, due: false },
             team,
           })),
@@ -344,12 +340,13 @@ function CafeToday({ contextLine, context, state, children }: { contextLine?: st
   const t = useT()
   const auth = useAuth()
   const roles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const canReadCafePushes = auth.status === 'authenticated' && auth.viewer.canReadCafePushes === true
   const affiliated = auth.status === 'authenticated' ? auth.viewer.affiliated : []
   const canCapture = auth.status === 'authenticated' && canCaptureCafe({ affiliated, accessRoles: roles })
   // Leads (and stream supervisors) see what is waiting for them; the rows inside gate themselves by role.
-  const reviewer = roles.some(role => ['ops_lead', 'admin', 'supervisor'].includes(role))
+  const reviewer = canReviewCafe(roles)
   const { isOn } = useModuleAvailability()
-  const sections = visibleSections(CAFE_SECTIONS.filter((section) => section.path !== '/cafe'), roles, isOn)
+  const sections = visibleSections(CAFE_SECTIONS.filter((section) => section.path !== '/cafe'), roles, isOn, { canReadCafePushes })
   const groups = ['cafe.nav.today', 'cafe.nav.stock', 'cafe.nav.close', 'cafe.nav.setup'] as const
   const isDesktop = useIsDesktop()
   // Café home states which stream its numbers belong to, and reads each job's state for that stream.

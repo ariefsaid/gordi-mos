@@ -65,17 +65,18 @@ export interface StreamPair {
 }
 
 /** Actions available to plans and production capture. */
-export type KitchenAction = 'produce' | 'transfer'
+export type KitchenAction = 'produce' | 'transfer' | 'outlet_send'
 
 /** Stored café-log actions; waste is log-only and is never a planned or ERP-posted movement. */
 export type KitchenLogAction = KitchenAction | 'waste'
 
 /**
- * A movement within a stream. `destinationBranchId` is null for a produce and required for
+ * A movement within a stream. `destinationBranchId` is null for produce/outlet_send and required for
  * a transfer — the same shape as the `kitchen_logs_destination_matches_action` CHECK. A
  * transfer whose destination equals its origin is a within-books move: it still leaves the
  * kitchen's hands (so it consumes stock) but the ERP already books that branch as holding
- * it, so it has no ERP counterpart.
+ * it, so it has no ERP counterpart. An outlet_send instead moves places within the same
+ * stream, keeping its stock and branch book unchanged.
  */
 export interface KitchenMovement {
   action: KitchenAction
@@ -159,8 +160,8 @@ export type ActualsMap = Record<string, Partial<Record<MovementKey, ActualUnitTo
 // Per WIP item: `stok` = on-hand usable stock (the start-of-day net of approved
 // logs), `tersedia` = available for transfer (FR-023). Stepper shows plan·stok·tersedia.
 export interface ItemStock {
-  /** on-hand usable stock for the date (start-of-day net of approved logs) */
-  stok: number
+  /** on-hand usable stock for the date (start-of-day net of approved logs); null when unrecorded */
+  stok: number | null
   /** available for a transfer right now (FR-023 tersedia) */
   tersedia: number
 }
@@ -180,8 +181,8 @@ export interface KitchenStockRow {
   wip_item_name: string
   /** optional category display label from ops.wip_items (read-only UI sugar). */
   category?: string | null
-  /** usable_qty — the net of approved logs for the date (FR-060). */
-  stok: number
+  /** usable_qty — the net of approved logs for the date (FR-060); null when unrecorded. */
+  stok: number | null
   /** available_qty — usable net of transfers already committed (FR-061). */
   tersedia: number
 }
@@ -259,7 +260,7 @@ export interface ReviewLogRow {
   updated_at: string
 }
 
-/** A null batch id is the explicit held-ERP result for approved waste. */
+/** Waste and same-stream outlet sends approve without an ERP batch. */
 export interface ApproveResult {
   batch_id: string | null
 }

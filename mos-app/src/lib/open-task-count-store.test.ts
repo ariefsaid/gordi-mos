@@ -4,7 +4,7 @@ vi.mock('@/lib/db/open-task-count', () => ({ getMyOpenTaskCount: vi.fn() }))
 
 import { getMyOpenTaskCount } from '@/lib/db/open-task-count'
 import {
-  announceOpenTaskCountChanged,
+  refreshOpenTaskCount,
   __resetOpenTaskCountForTests,
   getOpenTaskCountSnapshot,
   subscribeOpenTaskCount,
@@ -27,13 +27,13 @@ afterEach(() => {
 describe('open task count refresh', () => {
   it('refreshes when the browser returns to focus', async () => {
     mockCount.mockResolvedValueOnce(2).mockResolvedValueOnce(3)
-    const unsubscribe = subscribeOpenTaskCount(vi.fn())
+    const unsubscribe = subscribeOpenTaskCount('viewer', vi.fn())
     watchOpenTaskCount('viewer')
-    await vi.waitFor(() => expect(getOpenTaskCountSnapshot()).toEqual({ personId: 'viewer', count: 2 }))
+    await vi.waitFor(() => expect(getOpenTaskCountSnapshot('viewer')).toEqual({ personId: 'viewer', count: 2 }))
 
     window.dispatchEvent(new Event('focus'))
 
-    await vi.waitFor(() => expect(getOpenTaskCountSnapshot()).toEqual({ personId: 'viewer', count: 3 }))
+    await vi.waitFor(() => expect(getOpenTaskCountSnapshot('viewer')).toEqual({ personId: 'viewer', count: 3 }))
     expect(mockCount).toHaveBeenCalledTimes(2)
     unsubscribe()
   })
@@ -41,12 +41,12 @@ describe('open task count refresh', () => {
   it('retries when the watched count previously failed to load', async () => {
     mockCount.mockRejectedValueOnce(new Error('temporary read failure')).mockResolvedValueOnce(4)
     watchOpenTaskCount('viewer')
-    await vi.waitFor(() => expect(getOpenTaskCountSnapshot()).toEqual({ personId: 'viewer', count: null }))
+    await vi.waitFor(() => expect(getOpenTaskCountSnapshot('viewer')).toEqual({ personId: 'viewer', count: null }))
 
     watchOpenTaskCount('viewer')
 
     expect(mockCount).toHaveBeenCalledTimes(2)
-    await vi.waitFor(() => expect(getOpenTaskCountSnapshot()).toEqual({ personId: 'viewer', count: 4 }))
+    await vi.waitFor(() => expect(getOpenTaskCountSnapshot('viewer')).toEqual({ personId: 'viewer', count: 4 }))
   })
 
   it('starts a newer read for each write invalidation and ignores superseded counts', async () => {
@@ -76,17 +76,17 @@ describe('open task count refresh', () => {
     mockCount.mockReturnValueOnce(oldRead).mockReturnValueOnce(firstRefresh).mockReturnValueOnce(secondRefresh)
 
     const changed = vi.fn()
-    const unsubscribe = subscribeOpenTaskCount(changed, scope)
+    const unsubscribe = subscribeOpenTaskCount('viewer', changed, scope)
     watchOpenTaskCount('viewer', scope)
     await vi.waitFor(() => expect(mockCount).toHaveBeenCalledTimes(1))
 
-    announceOpenTaskCountChanged()
+    void refreshOpenTaskCount()
     await vi.waitFor(() => expect(mockCount).toHaveBeenCalledTimes(2))
-    announceOpenTaskCountChanged()
+    void refreshOpenTaskCount()
     await vi.waitFor(() => expect(mockCount).toHaveBeenCalledTimes(3))
     resolveSecondRefresh(5)
     await vi.waitFor(() => {
-      expect(getOpenTaskCountSnapshot(scope)).toEqual({ personId: 'viewer', count: 5 })
+      expect(getOpenTaskCountSnapshot('viewer', scope)).toEqual({ personId: 'viewer', count: 5 })
     })
 
     const notificationsAfterFreshRead = changed.mock.calls.length
@@ -95,7 +95,7 @@ describe('open task count refresh', () => {
     resolveOldRead(3)
     await oldReadDrained
 
-    expect(getOpenTaskCountSnapshot(scope)).toEqual({ personId: 'viewer', count: 5 })
+    expect(getOpenTaskCountSnapshot('viewer', scope)).toEqual({ personId: 'viewer', count: 5 })
     expect(changed).toHaveBeenCalledTimes(notificationsAfterFreshRead)
     unsubscribe()
   })
@@ -103,10 +103,10 @@ describe('open task count refresh', () => {
   it('returns to unknown when a refresh fails after a successful count', async () => {
     mockCount.mockResolvedValueOnce(4).mockRejectedValueOnce(new Error('temporary read failure'))
     watchOpenTaskCount('viewer')
-    await vi.waitFor(() => expect(getOpenTaskCountSnapshot()).toEqual({ personId: 'viewer', count: 4 }))
+    await vi.waitFor(() => expect(getOpenTaskCountSnapshot('viewer')).toEqual({ personId: 'viewer', count: 4 }))
 
-    announceOpenTaskCountChanged()
+    void refreshOpenTaskCount()
 
-    await vi.waitFor(() => expect(getOpenTaskCountSnapshot()).toEqual({ personId: 'viewer', count: null }))
+    await vi.waitFor(() => expect(getOpenTaskCountSnapshot('viewer')).toEqual({ personId: 'viewer', count: null }))
   })
 })

@@ -1,3 +1,15 @@
+.cafe-stream-items-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mos-inline-gap);
+  margin-block-end: var(--mos-toolbar-gap);
+}
+
+.cafe-stream-items-actions .btn {
+  min-height: 44px;
+}
+
 .cafe-item-reports {
   margin: 0 0 var(--mos-group-above);
   padding: var(--mos-panel-pad);

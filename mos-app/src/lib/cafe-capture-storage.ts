@@ -1,6 +1,6 @@
 export type CafeCaptureForm = 'production' | 'transfer' | 'waste' | 'count'
 
-export const CAFE_CAPTURE_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000
+export const CAFE_CAPTURE_DRAFT_TTL_MS = 24 * 60 * 60 * 1000
 
 export interface CafeCaptureDraftScope {
   orgId: string

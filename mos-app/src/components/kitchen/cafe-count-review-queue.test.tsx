@@ -5,16 +5,18 @@ import type { CafeCountLine } from '@/lib/db/cafe-count'
 
 vi.mock('@/lib/db/cafe-count', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/db/cafe-count')>()
-  return { ...actual, listCafeCountLines: vi.fn(), confirmCafeCountLine: vi.fn(), confirmCafeCountLines: vi.fn(), rejectCafeCountLine: vi.fn(), listCafeCountNotCounted: vi.fn() }
+  return { ...actual, listCafeCountLines: vi.fn(), confirmCafeCountLine: vi.fn(), confirmCafeCountLines: vi.fn(), rejectCafeCountLine: vi.fn(), listCafeCountNotCounted: vi.fn(), listCafeCountPostingQueue: vi.fn(), listCafeCountPostingSwitches: vi.fn(), setCafeCountPostingEnabled: vi.fn(), releaseCafeCountPosting: vi.fn() }
 })
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn(async () => [
   { id: 'person-floor', full_name: 'Floor Counter' }, { id: 'person-recount', full_name: 'Shift Recounter' },
 ]) }))
 vi.mock('@/lib/db/cafe-opening', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/db/cafe-opening')>(), wibToday: () => '2026-10-06' }))
+vi.mock('@/lib/db/cafe-count-corrections', () => ({ refreshCafeCountExpected: vi.fn() }))
 const desktop = vi.hoisted(() => ({ value: true }))
 vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => desktop.value }))
 
-import { confirmCafeCountLine, confirmCafeCountLines, listCafeCountLines, listCafeCountNotCounted, rejectCafeCountLine } from '@/lib/db/cafe-count'
+import { confirmCafeCountLine, confirmCafeCountLines, listCafeCountLines, listCafeCountNotCounted, listCafeCountPostingQueue, listCafeCountPostingSwitches, rejectCafeCountLine, releaseCafeCountPosting, setCafeCountPostingEnabled } from '@/lib/db/cafe-count'
+import { refreshCafeCountExpected } from '@/lib/db/cafe-count-corrections'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeCountReviewQueue } from './cafe-count-review-queue'
 
@@ -39,14 +41,16 @@ function line(overrides: Partial<CafeCountLine> & Pick<CafeCountLine, 'id' | 'it
   }
 }
 
-function renderQueue({ streamFilter = ALL_STREAMS, viewerId = 'person-reviewer' }: { streamFilter?: string; viewerId?: string } = {}) {
+function renderQueue({ streamFilter = ALL_STREAMS, viewerId = 'person-reviewer', canManagePosting = false, canReleasePosting = false, locale = 'en' }: { streamFilter?: string; viewerId?: string; canManagePosting?: boolean; canReleasePosting?: boolean; locale?: 'en' | 'id' } = {}) {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <CafeCountReviewQueue
         viewerId={viewerId}
         streamFilter={streamFilter}
         streamCatalog={[STREAM]}
         canReviewAll
+        canManagePosting={canManagePosting}
+        canReleasePosting={canReleasePosting}
         reviewableStreamKeys={new Set()}
       />
     </I18nProvider>,
@@ -55,6 +59,10 @@ function renderQueue({ streamFilter = ALL_STREAMS, viewerId = 'person-reviewer' 
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(listCafeCountPostingQueue).mockResolvedValue([])
+  vi.mocked(listCafeCountPostingSwitches).mockResolvedValue([])
+  vi.mocked(setCafeCountPostingEnabled).mockResolvedValue(undefined)
+  vi.mocked(releaseCafeCountPosting).mockResolvedValue({ released_lines: 0, expected_out_of_date_lines: 0, held_lines: 0 })
   desktop.value = true
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
   mockList.mockResolvedValue([
@@ -97,6 +105,17 @@ describe('CafeCountReviewQueue', () => {
     expect(screen.getAllByText('Expected balance is not ready yet.').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /stock/i })).not.toBeInTheDocument() // no door to Stock while the balance is not ready
+  })
+
+  it('formats count quantities with Indonesian decimal and grouping marks', async () => {
+    mockList.mockResolvedValue([line({
+      id: 'locale', item_name: 'Rice', counted_quantity: '1234.5000',
+      expected_balance: '1000.2500', variance: '234.2500',
+    })])
+    renderQueue({ locale: 'id' })
+    await openRow(/Rice/)
+    expect(fact('Hitungan pertama')).toHaveTextContent('1.234,5 kg')
+    expect(fact('Expected balance')).toHaveTextContent('1.000,25 kg')
   })
 
   it('loads Submitted Counts across dates, oldest first, with each date in the shared short format', async () => {
@@ -213,6 +232,47 @@ describe('CafeCountReviewQueue', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm selected (1)' }))
     await waitFor(() => expect(confirmCafeCountLines).toHaveBeenCalledWith([expect.objectContaining({ id: 'other', row_version: 2 })]))
     expect(await screen.findByText('1 could not be confirmed. Refresh to see the latest.')).toBeInTheDocument()
+  })
+
+  it('reviewers see unavailable Expected and its reason, then request a worker refresh on the linked unconfirmed count', async () => {
+    mockList.mockResolvedValue([line({ id: 'unavailable', item_name: 'Flour correction', expected_status: 'unavailable',
+      expected_state: 'unavailable', expected_balance: null, variance: null,
+      unavailable_reason: 'erp_balance_or_conversion_unavailable', correction_of: 'original' })])
+    vi.mocked(refreshCafeCountExpected).mockResolvedValue(undefined)
+    renderQueue()
+    expect(await screen.findByText('Expected balance unavailable')).toBeInTheDocument()
+    expect(screen.getByText(/The ESB balance or its unit conversion could not be verified/)).toBeInTheDocument()
+    expect(screen.getByText('Correction of confirmed count original')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh expected balance' }))
+    await waitFor(() => expect(refreshCafeCountExpected).toHaveBeenCalledWith('unavailable'))
+    await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('button', { name: 'Confirm count' })).not.toBeInTheDocument()
+  })
+
+  it('AC-029 and AC-034 an admin enables one branch and a reviewer releases only through the currentness-checked action', async () => {
+    const postingRows = [
+      { line_id: 'held-current', branch_id: 'branch-1', branch_name: 'Cafe Branch', activity: 'kitchen' as const,
+        count_date: '2026-10-06', item_name: 'Raw flour', unit_name: 'kg', posting_status: 'held' as const,
+        esb_doc_num: null, posting_error: null, expected_out_of_date: false, posting_enabled: false },
+      { line_id: 'held-stale', branch_id: 'branch-1', branch_name: 'Cafe Branch', activity: 'kitchen' as const,
+        count_date: '2026-10-05', item_name: 'Rice', unit_name: 'kg', posting_status: 'held' as const,
+        esb_doc_num: null, posting_error: null, expected_out_of_date: true, posting_enabled: false },
+    ]
+    vi.mocked(listCafeCountPostingQueue).mockResolvedValueOnce(postingRows).mockResolvedValue(postingRows.map(row => ({ ...row, posting_enabled: true })))
+    vi.mocked(listCafeCountPostingSwitches).mockResolvedValueOnce([{ branch_id: 'branch-1', branch_name: 'Cafe Branch', posting_enabled: false }])
+      .mockResolvedValue([{ branch_id: 'branch-1', branch_name: 'Cafe Branch', posting_enabled: true }])
+    vi.mocked(releaseCafeCountPosting).mockResolvedValue({ released_lines: 1, expected_out_of_date_lines: 1, held_lines: 1 })
+    renderQueue({ canManagePosting: true, canReleasePosting: true })
+
+    const toggle = await screen.findByRole('checkbox', { name: 'Enable Count journal posting for Cafe Branch' })
+    expect(toggle).not.toBeChecked()
+    expect(await screen.findByText('Expected out of date · held')).toBeInTheDocument()
+    fireEvent.click(toggle)
+    await waitFor(() => expect(setCafeCountPostingEnabled).toHaveBeenCalledWith('branch-1', true))
+    fireEvent.click(await screen.findByRole('button', { name: 'Release 2 held counts for Cafe Branch' }))
+    await waitFor(() => expect(releaseCafeCountPosting).toHaveBeenCalledWith('branch-1'))
+    expect(await screen.findByText('Released: 1. Expected out of date and still held: 1.')).toBeInTheDocument()
+    expect(screen.getByText('Expected out of date · held')).toBeInTheDocument()
   })
 
   it('AC-024 a reject needs a note and leaves the line rejected for the counter to enter again', async () => {

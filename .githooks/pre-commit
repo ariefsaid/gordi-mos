@@ -2,16 +2,16 @@
 # Pre-commit gate — blocks broken commits from any actor (agent, human, script).
 # Briefs advise; hooks enforce.
 #
-# Design rule: FAST + SCOPED. Only gates what is actually staged: conflict markers and lint.
+# Design rule: FAST + SCOPED. Only gates what is actually staged: secrets, conflict markers and lint.
 # Tests run once, later: scripts/pre-pr-verify.sh runs the tests for changed files and CI runs
 # the full suite — a commit that waits on a test run gets bypassed, which defeats the point.
 #
 # Install: ./scripts/setup-hooks.sh (also run by mos-app's npm `prepare`).
-# Self-test: scripts/pre-commit-hook.test.sh
+# Self-test: scripts/pre-commit-hook.test.sh and scripts/gitleaks.test.sh
 # Escape hatch: `git commit --no-verify` — for humans mid-rebase. Agents doing it is
 # a red flag; scripts/agent-git-shim/git blocks it for dispatches.
 set -uo pipefail
-cd "$(git rev-parse --show-toplevel)"
+cd "$(git rev-parse --show-toplevel)" || exit
 
 STAGED="$(git diff --cached --name-only --diff-filter=ACMR)"
 [ -z "$STAGED" ] && exit 0
@@ -20,7 +20,18 @@ fail=0
 note() { printf '\033[31m✗ pre-commit: %s\033[0m\n' "$1"; fail=1; }
 ok()   { printf '\033[32m✓ %s\033[0m\n' "$1"; }
 
-# ── 1. Merge-conflict markers (instant; markers have reached main before) ─────────
+# ── 1. Staged secret scan ────────────────────────────────────────────────────────
+if command -v gitleaks >/dev/null 2>&1; then
+  if gitleaks git --staged --redact --no-banner; then
+    ok "gitleaks: staged changes clean"
+  else
+    note "gitleaks scan failed on staged changes"
+  fi
+else
+  printf '\033[33m⚠ pre-commit: gitleaks not installed — secret scan SKIPPED (install gitleaks to enable)\033[0m\n'
+fi
+
+# ── 2. Merge-conflict markers (instant; markers have reached main before) ────────
 # grep -c consumes the whole stream: no SIGPIPE under pipefail, so a marker deep in a
 # large diff cannot flip this check green (regression-tested).
 markers="$(git diff --cached | grep -cE '^\+(<<<<<<< |>>>>>>> )' || true)"
@@ -34,7 +45,7 @@ if [ ! -d mos-app/node_modules ]; then
   # ponytail: a worktree/fresh clone without deps can still commit — CI still gates it.
   printf '\033[33m⚠ pre-commit: mos-app/node_modules missing — lint SKIPPED (npm install to enable); tests run at pre-PR verify and in CI\033[0m\n'
 else
-  # ── 2. ESLint on the staged mos-app TS/TSX (seconds) ────────────────────────────
+  # ── 3. ESLint on the staged mos-app TS/TSX (seconds) ────────────────────────────
   TS_FILES="$(echo "$STAGED" | grep -E '^mos-app/.*\.(ts|tsx)$' | sed 's|^mos-app/||' || true)"
   if [ -n "$TS_FILES" ]; then
     # shellcheck disable=SC2086
@@ -45,7 +56,7 @@ else
     fi
   fi
 
-  # ── 3. Stylelint on the staged CSS ──────────────────────────────────────────────
+  # ── 4. Stylelint on the staged CSS ──────────────────────────────────────────────
   CSS_FILES="$(echo "$STAGED" | grep -E '^mos-app/src/.*\.css$' | sed 's|^mos-app/||' || true)"
   if [ -n "$CSS_FILES" ]; then
     # shellcheck disable=SC2086

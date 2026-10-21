@@ -48,7 +48,16 @@ select is(ops.classify_cafe_item_kind('OTHER', 'Inventory', false, true, true), 
   'classification: categories outside KITCHEN/BAR are excluded');
 
 select lives_ok($$select ops.refresh_cafe_item_references((select source_rows from cafe_reference_test_source))$$,
-  'refresh: synthetic source rows populate the shared item/detail/stream catalog');
+  'refresh: synthetic source rows populate the shared item/detail catalog');
+-- Stream placement is a separate usage snapshot; the reference tests keep their explicit mapped streams.
+select ops.refresh_cafe_stream_items((
+  select jsonb_agg(jsonb_build_object('esb_product_id', 'SYNTH-ERP-P-1240-RAW', 'branch_code', branch.code))
+    || '[{"esb_product_id":"SYNTH-ERP-P-1240-WIP","branch_code":"gordi_hq"}]'::jsonb
+  from shared.branches branch
+  where branch.org_id='00000000-0000-0000-0000-0000000000a1' and branch.archived_at is null
+    and exists(select 1 from shared.teams team where team.org_id=branch.org_id and team.branch_id=branch.id
+      and team.activity='kitchen' and team.archived_at is null)
+));
 insert into ops.cafe_item_settings (org_id, branch_id, activity, wip_item_id)
 select item.org_id, '00000000-0000-0000-0000-00000000bf01', 'kitchen', item.id
   from ops.wip_items item
@@ -113,13 +122,13 @@ select is((select count(*)::int from ops.stream_items stream_item join ops.wip_i
   where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW' and stream_item.activity = 'kitchen'),
   (select count(DISTINCT team.branch_id)::int from shared.teams team join shared.orgs org on org.id = team.org_id
     where org.id = '00000000-0000-0000-0000-0000000000a1' and team.activity = 'kitchen' and team.branch_id is not null and team.archived_at is null),
-  'refresh: category membership makes the RAW item available on each live kitchen stream');
+  'usage: explicit branch usage makes the RAW item available on each mapped kitchen stream');
 select is((select count(*)::int from ops.stream_items stream_item join ops.wip_items item on item.id = stream_item.wip_item_id
   where item.esb_product_id = 'SYNTH-ERP-P-1240-WIP' and stream_item.branch_id = '00000000-0000-0000-0000-00000000bf01' and stream_item.activity = 'bar'), 1,
-  'refresh: an ERP branch code narrows WIP membership to the matching bar stream');
+  'usage: an explicit branch code places WIP membership on the matching bar stream');
 select is((select count(*)::int from ops.stream_items stream_item join ops.wip_items item on item.id = stream_item.wip_item_id
   where item.esb_product_id = 'SYNTH-ERP-P-1240-WIP' and stream_item.branch_id <> '00000000-0000-0000-0000-00000000bf01'), 0,
-  'refresh: branch-scoped WIP is not added to other branches');
+  'usage: branch-scoped WIP is not added to other branches');
 select is((select count(*)::int from ops.cafe_item_references reference
   where reference.esb_product_id = 'SYNTH-ERP-P-1240-RAW' and reference.kind is null),
   3 * (select count(DISTINCT team.branch_id)::int from shared.teams team join shared.orgs org on org.id = team.org_id

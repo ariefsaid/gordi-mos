@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { TASK_EVENTS_PAGE_SIZE, taskDoneRecentCutoff } from './task-paging'
 import { containsPattern } from './like-pattern'
 import { keysetBeforeFilter, keysetPageFromProbe } from './keyset-filter'
-import { announceOpenTaskCountChanged } from '@/lib/open-task-count-store'
+import { refreshOpenTaskCount } from '@/lib/open-task-count-store'
 import { getReadScope, sharePending } from '@/lib/scoped-reads'
 import type { ReadLease } from '@/lib/scoped-reads'
 import type {
@@ -25,8 +25,7 @@ const mos = () => supabase.schema('mos')
 // Raw mos.tasks columns only — no cross-schema FK embeds.
 // PostgREST CANNOT FK-embed across schemas (mos→shared) under the mos profile (PGRST200).
 // Display-name resolution is client-side via directory.ts (Fix C1).
-// LIST_SELECT is exported for processes.ts rollup reuse (Rule 11 — never re-implement task fetching).
-export const LIST_SELECT = [
+const LIST_SELECT = [
   'id', 'org_id', 'title', 'business_unit_id', 'team_id', 'status',
   'responsible_person_id', 'accountable_person_id', 'consulted_person_ids',
   'informed_person_ids', 'due_date', 'objective_id', 'work_line_id',
@@ -49,16 +48,20 @@ export interface TaskListFilters {
 }
 
 const TASKS_LIST_MAX_ROWS = 1000
+export const TASKS_LIST_PAGE_SIZE = 50
 export const TASKS_OLDER_DONE_PAGE_SIZE = 50
+export type TaskListCursor = Pick<TaskListRow, 'due_date' | 'id'>
+export type TaskListPage = { rows: TaskListRow[]; nextCursor: TaskListCursor | null; hasMore: boolean }
 
-function taskListReadKey(filters: TaskListFilters, cutoff: string): string {
+function taskListReadKey(filters: TaskListFilters, cutoff: string, before?: TaskListCursor | null): string {
   return `mos.tasks:list:${JSON.stringify({
     select: LIST_SELECT,
     businessUnitId: filters.businessUnitId || null,
     status: filters.status ?? null,
     includeArchived: Boolean(filters.includeArchived),
     recentDoneSince: cutoff,
-    order: ['due_date', 'asc', 'nulls_last'],
+    before: before ?? null,
+    order: ['due_date', 'asc', 'nulls_last', 'id', 'asc'],
   })}`
 }
 
@@ -83,6 +86,37 @@ export async function listTasks(
   }
 
   const key = taskListReadKey(f, cutoff)
+  if (readLease) return readLease.read(key, load)
+  const scope = getReadScope()
+  return scope ? sharePending(scope, key, load) : load()
+}
+
+/** Fetch one bounded window of active and recently completed Tasks, ordered by due date. */
+export async function listTasksPage(
+  filters: TaskListFilters = {},
+  before: TaskListCursor | null = null,
+  cutoff = taskDoneRecentCutoff(),
+  readLease?: ReadLease,
+): Promise<TaskListPage> {
+  const load = async (): Promise<TaskListPage> => {
+    let query = mos().from('tasks').select(LIST_SELECT)
+    if (!filters.includeArchived) query = query.is('archived_at', null)
+    if (filters.businessUnitId) query = query.eq('business_unit_id', filters.businessUnitId)
+    if (filters.status) query = query.eq('status', filters.status)
+    query = query.or(`status.neq.Done,completed_at.gte.${cutoff}`)
+    if (before?.due_date) {
+      query = query.or(`due_date.gt.${before.due_date},and(due_date.eq.${before.due_date},id.gt.${before.id}),due_date.is.null`)
+    } else if (before) {
+      query = query.is('due_date', null).gt('id', before.id)
+    }
+    const { data, error } = await query.order('due_date', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true }).limit(TASKS_LIST_PAGE_SIZE + 1)
+    if (error) throw new Error(`listTasksPage failed — ${error.message}`)
+    return keysetPageFromProbe((data ?? []) as unknown as TaskListRow[], TASKS_LIST_PAGE_SIZE,
+      (row) => ({ due_date: row.due_date, id: row.id }))
+  }
+
+  const key = taskListReadKey(filters, cutoff, before)
   if (readLease) return readLease.read(key, load)
   const scope = getReadScope()
   return scope ? sharePending(scope, key, load) : load()
@@ -256,7 +290,7 @@ export async function createTask(input: CreateTaskInput): Promise<string> {
     ...taskInsert,
   }).select('id').single()
   if (error) throw new Error(`createTask failed — ${error.message}`)
-  announceOpenTaskCountChanged()
+  void refreshOpenTaskCount()
   const id = (data as { id: string }).id
   await logEvent(id, input.createdBy, 'created')
   return id
@@ -265,7 +299,7 @@ export async function createTask(input: CreateTaskInput): Promise<string> {
 async function updateTask(id: string, patch: Record<string, unknown>): Promise<void> {
   const { error } = await mos().from('tasks').update(patch).eq('id', id)
   if (error) throw new Error(`updateTask failed — ${error.message}`)
-  announceOpenTaskCountChanged()
+  void refreshOpenTaskCount()
 }
 
 /** Change status, then log a `status_changed` event recording from→to (FR-031/055). */

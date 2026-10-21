@@ -331,6 +331,10 @@ describe('router — Money gates (dev security series preserved)', () => {
     )
   })
 
+  it('branch register admits ops leads without changing the revenue gate', () => {
+    expect(gatesOnPath('/money/branch/GHQ')).toEqual(['accessRole:finance|manager|ops_lead|supervisor'])
+  })
+
   it('I-2: the Money read gate consumes the REVENUE_VIEW_ROLES constant (identity, not value)', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money'),
@@ -369,7 +373,6 @@ describe('router — Money gates (dev security series preserved)', () => {
       'dashboard',
       'dashboard/detail',
       'money',
-      'money/branch/:code',
       'money/detail',
       'money/pending-bills',
       'sales',
@@ -414,11 +417,11 @@ describe('router — Café review + pushes are role-gated', () => {
     expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/receive/review', 'cafe/request/review', 'cafe/review', 'kitchen/review'])
   })
 
-  it('AC-006: /cafe/pushes stays behind RequireAccessRole(ops_lead|admin) — posting state is not a review queue', () => {
+  it('AC-060: /cafe/pushes admits managers to the read-fact-gated page without changing lead/admin access', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'cafe/pushes'),
     )!
-    expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin']} scope="link" moduleId="cafe" />)
+    expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin', 'manager']} scope="link" moduleId="cafe" />)
     expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/pushes', 'kitchen/pushes'])
   })
 })

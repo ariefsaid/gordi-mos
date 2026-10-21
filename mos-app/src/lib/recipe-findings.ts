@@ -3,6 +3,8 @@ import type { RecipeFinding } from '@/lib/db/recipe-findings'
 import type { Translate } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 
+const comparisonFormatters = new Map<string, Intl.NumberFormat>()
+
 export const FINDING_CLASSES = ['warehouse_artefact', 'team_input', 'esb_system'] as const
 export const FINDING_RULES = ['missing_recipe_mapping', 'quantity_difference_candidate', 'recipe_edited_after_sale', 'unit_comparison_unverified', 'excluded_demand_stock_unassigned', 'eligibility_excluded', 'package_exclusion'] as const
 export const FINDING_SORT: SortingState = [{ id: 'impact', desc: true }, { id: 'day', desc: true }, { id: 'id', desc: false }]
@@ -61,7 +63,11 @@ export function findingComparison(row: RecipeFinding, t: Translate, locale: stri
       : statuses.includes('ambiguous_stock_unit') ? 'money.findings.units.ambiguous' : 'money.findings.units.missing'
     return t('money.findings.unitsBlocked', { reason: t(reason) })
   }
-  const number = new Intl.NumberFormat(locale, { maximumFractionDigits: 4 })
+  let number = comparisonFormatters.get(locale)
+  if (!number) {
+    number = new Intl.NumberFormat(locale, { maximumFractionDigits: 4 })
+    comparisonFormatters.set(locale, number)
+  }
   return t('money.findings.comparison', { expected: number.format(row.expected_qty_day_comparable), actual: number.format(row.actual_qty_day_comparable), unit: row.comparison_unit })
 }
 

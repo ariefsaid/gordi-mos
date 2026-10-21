@@ -29,9 +29,10 @@ import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
-import { canReviewCafe } from '@/lib/kitchen-gates'
+import { canPushCafe, canReviewCafe } from '@/lib/kitchen-gates'
 import {
   explanationDiffers,
+  cafeReceiptExplanationDraftIds,
   pruneCafeReceiptExplanationDrafts,
   readCafeReceiptExplanationDrafts,
   sameServerStamp,
@@ -43,6 +44,7 @@ import {
   listCafeOpenPoIdentities,
   listCafeReceiptDifferences,
   listCafeReceipts,
+  listCafeReceiptStatuses,
   listCafeReceivableItems,
   newCafeReceiptClientKey,
   normalizeCafeReceiptQuantity,
@@ -82,7 +84,7 @@ import { Notice } from '@/components/ui/notice'
 import '@/components/ui/Disclosure.css'
 import './cafe-receive-page.css'
 
-type Entry = { quantity: string; unitId: string; changingUnit: boolean; damagedWrong: boolean; storageLocationOverride?: string | null }
+type Entry = { quantity: string; unitId: string; changingUnit: boolean; damagedWrong: boolean; showDamageFlag?: boolean; storageLocationOverride?: string | null }
 type LoadState = 'loading' | 'ready' | 'error'
 /** `forbidden`: the identity read refuses a member receiving outside their own branch, so a retry cannot help. */
 type OpenPoState = { branchId: string | null; status: LoadState | 'forbidden'; cache: CafeOpenPoIdentityCache | null }
@@ -101,6 +103,7 @@ type Counted = {
   /** Each line's explanation as the server holds it, so Send saves exactly the lines that differ. */
   server: Record<string, ServerExplanation>
   photosUnavailable: boolean
+  replacedDraftLineIds: string[]
 }
 
 type ServerExplanation = CafeReceiptExplanation & { condition_updated_at: string | null }
@@ -155,6 +158,7 @@ function restoreEntries(items: readonly CafeReceivableItem[], stored: Record<str
     }
     entries[item.id] = {
       quantity: entry.quantity, unitId: entry.unitId, changingUnit: false, damagedWrong: entry.damagedWrong,
+      showDamageFlag: Boolean(entry.quantity.trim()),
       ...(entry.storageLocationOverride === undefined ? {} : { storageLocationOverride: entry.storageLocationOverride }),
     }
   }
@@ -216,7 +220,7 @@ export function CafeReceivePage() {
   const [receiveLocationChoice, setReceiveLocationChoice] = useState<{ scope: string; id: string | null } | null>(null)
   const receiveStorageLocationId = receiveLocationChoice?.scope === locationScope
     ? receiveLocationChoice.id : defaultStorageLocationId
-  const canBackdate = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
+  const canBackdate = canPushCafe(accessRoles)
   const canReview = canReviewCafe(accessRoles)
   const isDesktop = useIsDesktop()
   const today = useMemo(() => wibToday(), [])
@@ -354,6 +358,9 @@ export function CafeReceivePage() {
   const loadRecent = useCallback(() => {
     if (!viewerId || !canCapture) return
     // Only a Counted receipt's photos show here (after Continue), so only those are read and signed.
+    void listCafeReceiptStatuses(cafeReceiptExplanationDraftIds(viewerId))
+      .then(receipts => pruneCafeReceiptExplanationDrafts(viewerId, receipts))
+      .catch(() => { /* Keep drafts when their status cannot be checked. */ })
     void listCafeReceipts(['Counted', 'Submitted', 'Approved', 'Rejected'], { receivedBy: viewerId, limit: 10, photosFor: ['Counted'] })
       .then(receipts => {
         setRecent(receipts)
@@ -509,6 +516,9 @@ export function CafeReceivePage() {
         const draft = drafts[line.id]
         return draft && sameServerStamp(draft.serverUpdatedAt, line.condition_updated_at) ? { ...line, ...explanationOf(draft) } : line
       }),
+      replacedDraftLineIds: lines.filter(line => drafts[line.id]
+        && !sameServerStamp(drafts[line.id].serverUpdatedAt, line.condition_updated_at)
+        && explanationDiffers(drafts[line.id], line)).map(line => line.id),
       server: Object.fromEntries(lines.map(line => [line.id, { ...explanationOf(line), condition_updated_at: line.condition_updated_at }])),
       photosUnavailable,
     })
@@ -670,14 +680,15 @@ export function CafeReceivePage() {
         selectedUnitId={entry?.unitId}
         changingUnit={entry?.changingUnit}
         onQuantityChange={quantity => patchEntry(item.id, { quantity })}
+        onQuantityBlur={() => patchEntry(item.id, { showDamageFlag: Boolean(entry?.quantity.trim()) })}
         onToggleUnit={() => patchEntry(item.id, { changingUnit: !entry?.changingUnit })}
         onUnitChange={unitId => patchEntry(item.id, { unitId })}
       >
         {poUnit?.itemUnitId && poUnit.itemUnitId !== entry?.unitId && poUnitName && (
           <span className="cafe-receive__open-po-note">{t('cafe.receive.openPos.poUnit', { unit: poUnitName })}</span>
         )}
-        {/* DESIGN "Compact capture row": the flag shows once the row has a quantity to flag. */}
-        {entry?.quantity.trim() && (
+        {/* Wait until typing ends before adding a control below the quantity. */}
+        {entry?.showDamageFlag && (
           <label className="cafe-receive__damage-flag">
             <input
               type="checkbox"
@@ -939,6 +950,7 @@ export function CafeReceivePage() {
                       line={line}
                       draftKey={viewerId ? receivePhotoDraftKey(viewerId, counted.receiptId, line.id) : undefined}
                       dirty={explanationDiffers(line, counted.server[line.id])}
+                      draftReplaced={counted.replacedDraftLineIds.includes(line.id)}
                       photosUnavailable={counted.photosUnavailable}
                       disabled={busy}
                       validation={evidenceValidation[line.id]}

@@ -133,10 +133,17 @@ describe('buildBranchTable', () => {
   it('a day a branch has not sent is left out of both periods, never counted as zero', () => {
     const beta = buildBranchTable(revenueRows(), null, 7)!.branches.find((r) => r.code === 'beta')!
     expect(beta.revenue).toBe(12_000_000)
+    expect(beta.partial).toBe(true)
     // 6 complete day pairs: 12,0 jt against 9,0 jt.
     expect(beta.vsPrevious).toBeCloseTo(1 / 3, 10)
     expect(beta.latestDay).toBeNull()
     expect(beta.vsWeekday).toBeNull()
+  })
+
+  it('marks a company total partial when one of its branch days is missing', () => {
+    const table = buildBranchTable(revenueRows(), null, 7)!
+    expect(table.branches.find((row) => row.code === 'alpha')?.partial).toBe(false)
+    expect(table.company.partial).toBe(true)
   })
 
   it('B2B invoices sit in their own group, apart from the branches', () => {

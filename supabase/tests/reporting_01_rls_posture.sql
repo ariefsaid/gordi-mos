@@ -25,6 +25,7 @@ select tables_are('reporting', array[
   'recipe_versions',
   'recipe_deduction_findings',
   'recipe_finding_snapshots',
+  'cancel_void_register',
   'esb_stock_snapshots',
   'esb_stock_coverage',
   'esb_stock_on_hand'

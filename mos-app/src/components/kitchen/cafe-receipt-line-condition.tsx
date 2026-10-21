@@ -51,6 +51,7 @@ export function CafeReceiptLineCondition({
   line,
   draftKey,
   dirty,
+  draftReplaced = false,
   photosUnavailable = false,
   disabled,
   validation,
@@ -62,6 +63,7 @@ export function CafeReceiptLineCondition({
   draftKey?: string
   /** The flag or reason differs from what the server holds. */
   dirty: boolean
+  draftReplaced?: boolean
   /** The photo read failed, so whether the line has a photo is not known here. */
   photosUnavailable?: boolean
   disabled: boolean
@@ -120,6 +122,7 @@ export function CafeReceiptLineCondition({
 
   return (
     <section className="cafe-receive__condition" aria-label={line.item_name}>
+      {draftReplaced && <p role="status">{t('cafe.receive.draftReplaced')}</p>}
       <label className="cafe-receive__damage-flag">
         <input
           type="checkbox"

@@ -70,7 +70,7 @@ function marginCell(pick: (m: NonNullable<Figures['margin']>) => number | null, 
 
 const COLUMN_META: Record<MoneyColumn, ColumnMeta> = {
   branch: { labelKey: 'money.table.col.branch', cell: () => null },
-  revenue: { labelKey: 'money.table.col.revenue', cell: (row) => <Money value={row.revenue} /> },
+  revenue: { labelKey: 'money.table.col.revenue', cell: (row, t) => <>{<Money value={row.revenue} />}{row.partial && <Muted>{t('money.table.partial')}</Muted>}</> },
   'vs-previous': { labelKey: 'money.table.col.vsPrevious', cell: (row, t) => <MoneyDelta value={row.vsPrevious} t={t} /> },
   'latest-day': {
     labelKey: 'money.table.col.latestDay',
@@ -216,7 +216,7 @@ export function BranchTable({ data, selection, sort, onSortChange }: BranchTable
       >
         <div className="branch-card__head">
           {href ? <Link to={href} className="money-table__name">{name}</Link> : <span className="money-table__name">{name}</span>}
-          <span className="branch-card__revenue tabular">{formatIDR(row.revenue)}</span>
+          <span className="branch-card__revenue tabular">{formatIDR(row.revenue)}{row.partial && <> <Muted>{t('money.table.partial')}</Muted></>}</span>
         </div>
         {company && missingNote && <p className="money-table__note">{missingNote}</p>}
         <div className="branch-card__trend">

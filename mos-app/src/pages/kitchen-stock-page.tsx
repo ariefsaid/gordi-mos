@@ -56,6 +56,8 @@ import { Panel } from '@/components/cafe/redesign/worksheet'
 import { StockComparison } from '@/components/cafe/redesign/cafe-stock-comparison'
 import { formatWeekdayDayMonth, wibToday } from '@/lib/format/date'
 import { Notice } from '@/components/ui/notice'
+import { Select } from '@/components/ui/select'
+import { fetchCafeLocationBalances, listCafeLocations, type CafeLocation, type LocationBalances } from '@/lib/db/cafe-locations'
 import './kitchen-stock-page.css'
 
 type LoadState =
@@ -98,6 +100,11 @@ function KitchenStockPageForViewer() {
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [rows, setRows] = useState<KitchenStockRow[]>([])
   const [unitNames, setUnitNames] = useState<Record<string, string | null>>({})
+  const [defaultUnitIds, setDefaultUnitIds] = useState<Record<string, string | null>>({})
+  const [place, setPlace] = useState('all')
+  const [places, setPlaces] = useState<{ locations: CafeLocation[]; balances: LocationBalances } | null>(null)
+  const [placesState, setPlacesState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [placesRetry, setPlacesRetry] = useState(0)
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const [search, setSearch] = useSearchParamState('q', '')
@@ -109,21 +116,28 @@ function KitchenStockPageForViewer() {
     return next
   })
   const searchQuery = search.trim().toLowerCase()
-  const searchedRows = rows.filter(row => (
+  const placeRows = place === 'all' ? rows : rows.map(row => {
+    const unitId = defaultUnitIds[row.wip_item_id]
+    const balancesKnown = placesState === 'ready' && places && places.balances.coverage !== 'unavailable' && unitId
+    const balance = balancesKnown ? places.balances.rows.find(balance => balance.item_id === row.wip_item_id && balance.item_unit_id === unitId && balance.location_id === (place === 'unassigned' ? null : place)) : null
+    return { ...row, stok: balancesKnown ? Number(balance?.usable_qty ?? (balance ? NaN : 0)) : NaN, tersedia: balancesKnown ? Number(balance?.available_qty ?? (balance ? NaN : 0)) : NaN }
+  })
+  const searchedRows = placeRows.filter(row => (
     !searchQuery || row.wip_item_name.toLowerCase().includes(searchQuery)
   ))
-  const negativeCount = searchedRows.filter(row => row.stok < 0 || row.tersedia < 0).length
-  const visibleRows = negativeOnly === '1' ? searchedRows.filter(row => row.stok < 0 || row.tersedia < 0) : searchedRows
-  const negativeRows = visibleRows.filter(row => row.stok < 0 || row.tersedia < 0)
-  const otherRows = visibleRows.filter(row => row.stok >= 0 && row.tersedia >= 0)
+  const hasNegativeBalance = (row: KitchenStockRow) => (row.stok !== null && row.stok < 0) || row.tersedia < 0
+  const negativeCount = searchedRows.filter(hasNegativeBalance).length
+  const visibleRows = negativeOnly === '1' ? searchedRows.filter(hasNegativeBalance) : searchedRows
+  const negativeRows = visibleRows.filter(hasNegativeBalance)
+  const otherRows = visibleRows.filter(row => !hasNegativeBalance(row))
   const stockGroups = [
     ...(negativeRows.length ? [{ key: 'negative', label: t('kitchen.stock.negativeGroup'), rows: negativeRows }] : []),
     ...(otherRows.length ? [{ key: 'other', label: t('kitchen.stock.otherGroup'), rows: otherRows }] : []),
   ]
   // Number and unit are separate cells so the figures keep one right edge whatever the unit's width.
-  const formatStockQuantity = (quantity: number, unitName: string | null | undefined) => (
+  const formatStockQuantity = (quantity: number | null, unitName: string | null | undefined) => (
     <>
-      <span className="ks-qty__num">{formatQuantityWithUnit(quantity, '', document.documentElement.lang || 'en').trimEnd()}</span>
+      <span className="ks-qty__num">{quantity !== null && Number.isFinite(quantity) ? formatQuantityWithUnit(quantity, '', document.documentElement.lang || 'en').trimEnd() : '—'}</span>
       {' '}
       <span className="ks-qty__unit">{unitName ?? t('kitchen.stock.unitNotSet')}</span>
     </>
@@ -138,7 +152,7 @@ function KitchenStockPageForViewer() {
         {!unitNames[row.wip_item_id] && <span className="ks-unit-warning">{t('kitchen.stock.unitNotSet')}</span>}
       </span>
     </div>
-    <div className="ks-value" data-label={t('kitchen.stock.col.stok')}><span className={`ks-qty ${row.stok < 0 ? 'ks-negative tabular' : 'tabular'}`}>{formatStockQuantity(row.stok, unitNames[row.wip_item_id])}</span></div>
+    <div className="ks-value" data-label={t('kitchen.stock.col.stok')}><span className={`ks-qty ${row.stok !== null && row.stok < 0 ? 'ks-negative tabular' : 'tabular'}`}>{formatStockQuantity(row.stok, unitNames[row.wip_item_id])}</span></div>
     <div className="ks-value" data-label={t('kitchen.stock.col.tersedia')}><span className={`ks-qty ${row.tersedia < 0 ? 'ks-negative tabular' : 'tabular'}`}>{formatStockQuantity(row.tersedia, unitNames[row.wip_item_id])}</span></div>
   </div>
 
@@ -155,6 +169,14 @@ function KitchenStockPageForViewer() {
   // as on capture: an explicit choice, never a silent fallback to the catalog's first branch.
   // A read surface that guesses is worse than one that asks — it answers "how much stock is
   // there" about books the person never picked.
+  // One place adopts a finished stock read: rows, their unit labels and default units.
+  const showRead = useCallback((data: KitchenStockRow[], settings: CafeItemSetting[]) => {
+    setRows(data)
+    setUnitNames(stockUnitNames(settings))
+    setDefaultUnitIds(Object.fromEntries(settings.map(item => [item.id, item.defaultUnitId])))
+    setLoad({ kind: 'ready' })
+  }, [])
+
   const bootstrap = useCallback(async () => {
     const gen = ++requestGen.current
     setLoad({ kind: 'loading' })
@@ -168,14 +190,12 @@ function KitchenStockPageForViewer() {
       }
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
       adoptStream(catalog)
-      setRows(data)
-      setUnitNames(stockUnitNames(settings))
-      setLoad({ kind: 'ready' })
+      showRead(data, settings)
     } catch {
       if (gen !== requestGen.current) return
       setLoad({ kind: 'error' })
     }
-  }, [asOf, resolveStream, adoptStream])
+  }, [asOf, resolveStream, adoptStream, showRead])
 
   // Switching the stream re-reads the rows: the same dish has a different balance in
   // another stream's books (OD-WAY-28) — a kept list would show one stream's numbers
@@ -183,25 +203,40 @@ function KitchenStockPageForViewer() {
   const applyStream = useCallback(async (next: ProductionStream) => {
     const gen = ++requestGen.current
     chooseStream(next) // the whole Café module follows this choice (#440)
+    setPlace('all')
     setLoad({ kind: 'loading' })
     try {
       const data = await fetchKitchenStock(asOf, next)
       const settings = data.length > 0 ? await listCafeItemSettings(next) : []
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
-      setRows(data)
-      setUnitNames(stockUnitNames(settings))
-      setLoad({ kind: 'ready' })
+      showRead(data, settings)
     } catch {
       if (gen !== requestGen.current) return
       setLoad({ kind: 'error' })
     }
-  }, [asOf, chooseStream])
+  }, [asOf, chooseStream, showRead])
 
   // Read once authenticated (an unauthenticated viewer never triggers the read).
   useEffect(() => {
     if (auth.status !== 'authenticated') return
     void bootstrap()
   }, [auth.status, bootstrap, retryKey])
+
+  // Place reads fail independently so the stream's existing All places view remains usable.
+  useEffect(() => {
+    if (auth.status !== 'authenticated' || !stream) return
+    let active = true
+    setPlaces(null); setPlacesState('loading')
+    void Promise.all([
+      listCafeLocations({ branch_id: stream.branch.id, archived: false }),
+      fetchCafeLocationBalances(asOf, { branch_id: stream.branch.id, activity: stream.activity }),
+    ]).then(([locations, balances]) => {
+      if (!active) return
+      setPlaces({ locations: locations.filter(location => location.use === 'storage' || location.use === 'both'), balances })
+      setPlacesState('ready')
+    }).catch(() => { if (active) setPlacesState('error') })
+    return () => { active = false }
+  }, [asOf, auth.status, stream, placesRetry])
 
   // ── Auth loading / unauth ──────────────────────────────────────────────────
   if (auth.status === 'loading') {
@@ -269,6 +304,8 @@ function KitchenStockPageForViewer() {
       {((load.kind === 'ready' && stream !== null) || (load.kind === 'loading' && streamOptions.length > 0)) && (
         <div className="ks-block">
           <LocationBalanceSection />
+          {placesState === 'error' && <ErrorState message={t('kitchen.stock.placesError')} onRetry={() => setPlacesRetry(count => count + 1)} />}
+          {place !== 'all' && places?.balances.coverage === 'unavailable' && <Notice tone="info">{t('kitchen.stock.placeUnavailable')}</Notice>}
           {rows.length > 0 && <Notice tone="info">{t('kitchen.stock.erpPending')}</Notice>}
           <div className="ks-collection-head">
             <KitchenToolbar
@@ -278,11 +315,17 @@ function KitchenStockPageForViewer() {
               ariaLabel={t('kitchen.stock.toolbarAria')}
               resultCount={load.kind === 'ready' ? { shown: visibleRows.length, total: rows.length } : undefined}
               sortLabel={t('cafe.toolbar.sorted.negativeFirst')}
-              trailing={load.kind === 'ready' && rows.length > 0 ? (
-                <button type="button" className="ks-negative-toggle" aria-pressed={negativeOnly === '1'} onClick={() => setNegativeOnly(negativeOnly === '1' ? '' : '1')}>
+              trailing={<>
+                <Select label={t('kitchen.stock.place')} value={place} disabled={placesState !== 'ready'} onChange={event => setPlace(event.target.value)}>
+                  <option value="all">{t('kitchen.stock.allPlaces')}</option>
+                  {places?.locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}
+                  <option value="unassigned">{t('kitchen.stock.unassignedPlace')}</option>
+                </Select>
+                <Link className="btn btn-outline" to="/cafe/locations/change-location" state={{ changeLocationFrom: 'stock' }}>{t('kitchen.stock.changeLocation')}</Link>
+                {load.kind === 'ready' && rows.length > 0 && <button type="button" className="ks-negative-toggle" aria-pressed={negativeOnly === '1'} onClick={() => setNegativeOnly(negativeOnly === '1' ? '' : '1')}>
                   <span>{t('kitchen.stock.kpi.negative')}</span><span className="tabular">{negativeCount}</span>
-                </button>
-              ) : undefined}
+                </button>}
+              </>}
               extraChips={negativeOnly === '1' ? [{ key: 'negative', label: t('kitchen.stock.kpi.negative'), clear: () => setNegativeOnly('') }] : undefined}
             />
           </div>
