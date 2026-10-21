@@ -46,6 +46,7 @@ function withSuspense(element: ReactNode, fallback: ReactNode = <LoadingShell ro
 
 
 const HomePage = lazyPage(() => import('./pages/home-page').then((m) => ({ default: m.HomePage })))
+const StaffShiftsPage = lazyPage(() => import('./pages/staff-shifts-page').then((m) => ({ default: m.StaffShiftsPage })))
 const WorkHomePage = lazyPage(() => import('./pages/work-home-page').then((m) => ({ default: m.WorkHomePage })))
 const TasksLayout = lazyPage(() => import('./pages/tasks-layout').then((m) => ({ default: m.TasksLayout })))
 const TaskDrawer = lazyPage(() => import('./components/tasks/task-drawer').then((m) => ({ default: m.TaskDrawer })))
@@ -125,6 +126,7 @@ const PricingPage = lazyPage(() => import('./pages/pricing-page').then((m) => ({
 const AdminUsersPage = lazyPage(() => import('./pages/admin-users-page').then((m) => ({ default: m.AdminUsersPage })))
 const AdminPersonPage = lazyPage(() => import('./pages/admin-person-page').then((m) => ({ default: m.AdminPersonPage })))
 const AdminTeamsPage = lazyPage(() => import('./pages/admin-teams-page').then((m) => ({ default: m.AdminTeamsPage })))
+const AdminAttendancePage = lazyPage(() => import('./pages/admin-attendance-page').then((m) => ({ default: m.AdminAttendancePage })))
 const AdminAccessPage = lazyPage(() => import('./pages/admin-access-page').then((m) => ({ default: m.AdminAccessPage })))
 const AdminModulesPage = lazyPage(() =>
   import('./pages/admin-modules-page').then((m) => ({ default: m.AdminModulesPage })),
@@ -148,6 +150,7 @@ const DevViewsPage = lazyPage(() => import('./pages/dev-views-page').then((m) =>
 //   AppShell (layout route — rail + header + context row, persistent across navigation)
 //     /                          Home
 //     /work/tasks[/new|/:taskId] Tasks (split-view shell + drawer children)
+//     /work/shifts               My shifts, Team roster and standing hours
 //     /work/signals              Signals
 //     /work/objectives           Objectives (org-readable; write scope resolved in the page)
 //     /work/projects             Projects & Processes (org-readable; write scope resolved in the page)
@@ -267,6 +270,11 @@ const routeTable: RouteObject[] = [
           // mutation handlers, and the database is the boundary either way (NFR-004). The rail
           // dropped this gate in #188; the route follows, or the rail links somewhere that
           // bounces.
+          {
+            path: ROUTE_PATHS.workShifts,
+            element: withSuspense(<StaffShiftsPage />),
+            handle: pageHandle('management'),
+          },
           {
             path: ROUTE_PATHS.workObjectives,
             element: withSuspense(<ObjectivesPage />),
@@ -568,6 +576,11 @@ const routeTable: RouteObject[] = [
               {
                 path: ROUTE_PATHS.adminTeams,
                 element: withSuspense(<AdminTeamsPage />),
+                handle: pageHandle('management'),
+              },
+              {
+                path: ROUTE_PATHS.adminShiftBuilder,
+                element: withSuspense(<AdminAttendancePage />),
                 handle: pageHandle('management'),
               },
               {

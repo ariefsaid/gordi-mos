@@ -1,0 +1,48 @@
+import { useCallback, useEffect, useState } from 'react'
+import { useT } from '@/i18n/use-t'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { useDocumentTitle } from '@/shell/use-document-title'
+import { listLedStaffTeams, type LedStaffTeam } from '@/lib/db/staff-attendance'
+import { MyShiftsPanel, StaffRosterPanel, StandingHoursPanel } from '@/components/staff-attendance/staff-shift-panels'
+import './staff-shifts-page.css'
+
+type PageState = 'loading' | 'ready' | 'error'
+type View = 'mine' | 'roster' | 'standing'
+
+export function StaffShiftsPage() {
+  const t = useT()
+  useDocumentTitle(t('common.docTitle', { page: t('nav.work.shifts') }))
+  const [state, setState] = useState<PageState>('loading')
+  const [teams, setTeams] = useState<LedStaffTeam[]>([])
+  const [view, setView] = useState<View>('mine')
+  const load = useCallback(async () => {
+    setState('loading')
+    try {
+      setTeams(await listLedStaffTeams())
+      setState('ready')
+    } catch {
+      setState('error')
+    }
+  }, [])
+  useEffect(() => { void load() }, [load])
+
+  return (
+    <PageFamilyFrame family="management" title={t('attendance.mine.title')} jobSentence={t('attendance.mine.job')} state={state === 'loading' ? 'loading' : state === 'error' ? 'error' : 'default'}>
+      {state === 'loading' && <LoadingShell count={3} label={t('attendance.mine.loading')} />}
+      {state === 'error' && <ErrorState message={t('attendance.mine.loadError')} onRetry={load} />}
+      {state === 'ready' && <>
+        <nav className="staff-shifts__tabs" aria-label={t('attendance.nav.aria')}>
+          <button type="button" aria-pressed={view === 'mine'} onClick={() => setView('mine')}>{t('attendance.nav.mine')}</button>
+          {teams.length > 0 && <>
+            <button type="button" aria-pressed={view === 'roster'} onClick={() => setView('roster')}>{t('attendance.nav.roster')}</button>
+            <button type="button" aria-pressed={view === 'standing'} onClick={() => setView('standing')}>{t('attendance.nav.standing')}</button>
+          </>}
+        </nav>
+        {view === 'mine' && <MyShiftsPanel />}
+        {view === 'roster' && teams.length > 0 && <StaffRosterPanel teams={teams} />}
+        {view === 'standing' && teams.length > 0 && <StandingHoursPanel teams={teams} />}
+      </>}
+    </PageFamilyFrame>
+  )
+}

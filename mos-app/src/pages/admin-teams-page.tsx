@@ -1,6 +1,5 @@
-// AdminTeamsPage — Admin Settings › Teams. Each Team with its stream (when it is one), its active
-// member count and its lead. A lead is one of the Team's active members, designated explicitly and
-// org-scoped by the database; choosing one here saves at once and reports beside the row, the same
+// AdminTeamsPage — Admin Settings › Teams. Each Team with its stream (when it is one), active
+// member count, designated lead, and physical Site. Changes save at once and report beside the row, the same
 // grammar as every row in the person panel. There is no per-row Save, so nothing chosen can be
 // left unsaved by navigating away.
 
@@ -20,6 +19,7 @@ import { AdminSettingsNav } from '@/components/admin/admin-settings-nav'
 import { RowStatus } from '@/components/admin/row-status'
 import { useRowCommits, type RowCommitStatus } from '@/components/admin/use-row-commits'
 import { listTeamLeadAssignments, listTeamLeadCandidates, saveTeamLeadAssignment } from '@/lib/db/admin-access'
+import { listAttendanceAdminDirectory, saveAttendanceTeamSite, type AttendanceSite } from '@/lib/db/staff-attendance'
 import { listTeams } from '@/lib/db/admin-users'
 import type { TeamLeadAssignment, TeamLeadCandidate } from '@/lib/db/admin-access.types'
 import { teamStreamLabel, type TeamOption } from '@/lib/db/admin-users.types'
@@ -38,6 +38,8 @@ export function AdminTeamsPage() {
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [assignments, setAssignments] = useState<TeamLeadAssignment[]>([])
   const [teamOptions, setTeamOptions] = useState<TeamOption[]>([])
+  const [sites, setSites] = useState<AttendanceSite[]>([])
+  const [teamSites, setTeamSites] = useState<Record<string, string>>({})
   const [candidates, setCandidates] = useState<Record<string, CandidateState>>({})
   const commits = useRowCommits<string>()
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -62,14 +64,17 @@ export function AdminTeamsPage() {
     setLoadState('loading')
     try {
       const assignmentsPromise = listTeamLeadAssignments()
+      const directoryPromise = listAttendanceAdminDirectory()
       // Stream labels only; a failure here must not cost the admin the leads themselves.
       const optionsPromise = listTeams().catch(() => [] as TeamOption[])
       const rows = await assignmentsPromise
       setAssignments(rows)
-      // Candidates depend on the assignments alone — fan out before the labels settle (#1359). The
-      // roster waits for them: a Team's group (no members / needs a lead) depends on its count, and
-      // rows must not jump groups after first paint.
+      // Candidate reads depend on the assignments alone — fan out before the optional labels and
+      // Site directory settle (#1359). The roster waits so groups do not jump after first paint.
       const candidatesPromise = Promise.all(rows.map((row) => loadCandidates(row.team_id)))
+      const directory = await directoryPromise
+      setSites(directory.sites)
+      setTeamSites(Object.fromEntries(directory.teams.map((team) => [team.id, team.site_id ?? ''])))
       setTeamOptions(await optionsPromise)
       await candidatesPromise
       setLoadState('loaded')
@@ -79,6 +84,22 @@ export function AdminTeamsPage() {
   }, [loadCandidates])
 
   useEffect(() => { void load() }, [load])
+
+  function chooseSite(assignment: TeamLeadAssignment, siteId: string) {
+    const key = `site:${assignment.team_id}`
+    const saved = teamSites[assignment.team_id] ?? ''
+    void commits.commit(key, siteId, saved,
+      async () => {
+        await saveAttendanceTeamSite(assignment.team_id, siteId || null)
+        setTeamSites((current) => ({ ...current, [assignment.team_id]: siteId }))
+      },
+      async () => {
+        const directory = await listAttendanceAdminDirectory()
+        setSites(directory.sites)
+        setTeamSites(Object.fromEntries(directory.teams.map((team) => [team.id, team.site_id ?? ''])))
+      },
+    )
+  }
 
   function chooseLead(assignment: TeamLeadAssignment, leadId: string) {
     const teamId = assignment.team_id
@@ -129,15 +150,15 @@ export function AdminTeamsPage() {
           {assignments.length === 0 ? (
             <EmptyState variant="blank" title={t('admin.access.teamEmptyTitle')} copy={t('admin.access.teamEmptyCopy')} />
           ) : <>
-            {(['needs-lead', 'no-members', 'assigned'] as const).map((group) => {
-              const rows = assignments.filter((row) => groupOf(row, candidates) === group).sort((a, b) => {
+            {(['needs-site', 'needs-lead', 'no-members', 'assigned'] as const).map((group) => {
+              const rows = assignments.filter((row) => groupOf(row, candidates, teamSites) === group).sort((a, b) => {
                 const sign = sortDir === 'desc' ? -1 : 1
                 const byName = a.team_name.localeCompare(b.team_name)
                 if (sortKey === 'members') return sign * ((candidates[a.team_id]?.candidates.length ?? 0) - (candidates[b.team_id]?.candidates.length ?? 0)) || byName
                 return sign * byName
               })
-              if (group !== 'needs-lead' && rows.length === 0) return null
-              const title = group === 'needs-lead' ? t('admin.teamsPage.needsLead') : group === 'no-members' ? t('admin.teamsPage.noMembers') : t('admin.access.teamTitle')
+              if (group !== 'needs-lead' && group !== 'needs-site' && rows.length === 0) return null
+              const title = group === 'needs-site' ? t('admin.teamsPage.needsSite') : group === 'needs-lead' ? t('admin.teamsPage.needsLead') : group === 'no-members' ? t('admin.teamsPage.noMembers') : t('admin.access.teamTitle')
               const open = !collapsed.has(group)
               return <section className={`teams-group teams-group--${group}`} key={group} aria-label={title}>
                 <GroupHeader
@@ -151,7 +172,7 @@ export function AdminTeamsPage() {
                 />
                 <div id={`teams-${group}-body`} role="table" aria-label={title} hidden={!open}>
                 <div className="admin-teams__header" role="row">
-                  <span role="columnheader" aria-sort={sortKey === 'team' ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}><SortButton dir={sortKey === 'team' ? sortDir : null} onClick={() => sortBy('team')}>{t('admin.teamsPage.col.team')}</SortButton></span><span role="columnheader">{t('admin.teamsPage.col.stream')}</span><span role="columnheader">{t('admin.teamsPage.col.lead')}</span><span role="columnheader"><span className="sr-only">{t('admin.teamsPage.col.status')}</span></span><span role="columnheader" className="admin-teams__num" aria-sort={sortKey === 'members' ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}><SortButton dir={sortKey === 'members' ? sortDir : null} onClick={() => sortBy('members')}>{t('admin.teamsPage.col.members')}</SortButton></span>
+                  <span role="columnheader" aria-sort={sortKey === 'team' ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}><SortButton dir={sortKey === 'team' ? sortDir : null} onClick={() => sortBy('team')}>{t('admin.teamsPage.col.team')}</SortButton></span><span role="columnheader">{t('admin.teamsPage.col.stream')}</span><span role="columnheader">{t('admin.teamsPage.col.lead')}</span><span role="columnheader">{t('admin.teamsPage.col.site')}</span><span role="columnheader"><span className="sr-only">{t('admin.teamsPage.col.status')}</span></span><span role="columnheader" className="admin-teams__num" aria-sort={sortKey === 'members' ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}><SortButton dir={sortKey === 'members' ? sortDir : null} onClick={() => sortBy('members')}>{t('admin.teamsPage.col.members')}</SortButton></span>
                 </div>
                 <div role="rowgroup">
                   {rows.map((assignment) => <TeamRow
@@ -160,8 +181,12 @@ export function AdminTeamsPage() {
                     value={commits.display(`lead:${assignment.team_id}`, assignment.lead_person_id ?? '')}
                     status={commits.status(`lead:${assignment.team_id}`, assignment.lead_person_id ?? '')}
                     error={commits.error(`lead:${assignment.team_id}`)}
-                    offline={offline}
                     onChoose={(leadId) => chooseLead(assignment, leadId)}
+                    siteId={commits.display(`site:${assignment.team_id}`, teamSites[assignment.team_id] ?? '')}
+                    siteStatus={commits.status(`site:${assignment.team_id}`, teamSites[assignment.team_id] ?? '')}
+                    siteError={commits.error(`site:${assignment.team_id}`)} sites={sites} offline={offline}
+                    onChooseSite={(siteId) => chooseSite(assignment, siteId)}
+                    onRetrySite={() => void commits.retry(`site:${assignment.team_id}`)}
                     onRetry={() => void commits.retry(`lead:${assignment.team_id}`)}
                     onRetryCandidates={() => void loadCandidates(assignment.team_id)}
                   />)}
@@ -176,22 +201,29 @@ export function AdminTeamsPage() {
   )
 }
 
-/** Which roster group a Team sits in: has a lead, has nobody who could lead, or still needs one. */
-function groupOf(row: TeamLeadAssignment, candidates: Record<string, CandidateState>): 'needs-lead' | 'no-members' | 'assigned' {
+/** Keep Teams without a Site visible first; otherwise group by lead availability. */
+function groupOf(row: TeamLeadAssignment, candidates: Record<string, CandidateState>, teamSites: Record<string, string>): 'needs-site' | 'needs-lead' | 'no-members' | 'assigned' {
+  if (!teamSites[row.team_id]) return 'needs-site'
   if (row.lead_person_id) return 'assigned'
   const state = candidates[row.team_id]
   return state?.status === 'loaded' && state.candidates.length === 0 ? 'no-members' : 'needs-lead'
 }
 
-function TeamRow({ assignment, stream, candidateState, value, status, error, offline, onChoose, onRetry, onRetryCandidates }: {
+function TeamRow({ assignment, stream, candidateState, value, status, error, siteId, siteStatus, siteError, sites, offline, onChoose, onChooseSite, onRetrySite, onRetry, onRetryCandidates }: {
   assignment: TeamLeadAssignment
   stream: string | undefined
   candidateState: CandidateState
   value: string
   status: RowCommitStatus | undefined
   error: string | undefined
+  siteId: string
+  siteStatus: RowCommitStatus | undefined
+  siteError: string | undefined
+  sites: AttendanceSite[]
   offline: boolean
   onChoose: (leadId: string) => void
+  onChooseSite: (siteId: string) => void
+  onRetrySite: () => void
   onRetry: () => void
   onRetryCandidates: () => void
 }) {
@@ -240,6 +272,14 @@ function TeamRow({ assignment, stream, candidateState, value, status, error, off
             />
           </div>
         )}
+      </div>
+      <div className="admin-teams__site" role="cell">
+        <span className="admin-teams__phone-label">{t('admin.teamsPage.col.site')}</span>
+        <Select aria-label={t('admin.teamsPage.siteLabel', { team: assignment.team_name })} value={siteId} onChange={(event) => onChooseSite(event.target.value)} disabled={offline || siteStatus === 'saving'} fullWidth>
+          <option value="">{t('admin.teamsPage.chooseSite')}</option>
+          {sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}
+        </Select>
+        <RowStatus status={siteStatus} error={siteError} item={t('admin.teamsPage.siteLabel', { team: assignment.team_name })} onRetry={onRetrySite} />
       </div>
       <div className="admin-teams__status" role="cell">
         <RowStatus status={status} error={error} item={t('admin.teamsPage.leadLabel', { team: assignment.team_name })} onRetry={onRetry} />
