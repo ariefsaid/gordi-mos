@@ -69,6 +69,15 @@ rc=0
 out="$(bash "$SCRIPT" "$BASE" fake-db 2>&1)" || rc=$?
 assert 'numeric migration prefixes wider than 14 digits are proven' '[ "$rc" -eq 0 ] && [ "$(call_count)" -eq 6 ] && grep -q "rollback wide" "$FAKE_DOCKER_LOG_DIR/call.1.sql" && grep -q "migration wide" "$FAKE_DOCKER_LOG_DIR/call.6.sql"'
 
+mkdir -p supabase/tests
+printf '%s\n' 'select 7; -- included body' > supabase/tests/a_rollback.inc
+printf '%s\n' '-- DOWN: shared body.' '\ir ../tests/a_rollback.inc' > supabase/rollbacks/20260101000001_a.sql
+clear_log
+rc=0
+out="$(bash "$SCRIPT" "$BASE" fake-db 2>&1)" || rc=$?
+assert 'psql includes are inlined before reaching the container' '[ "$rc" -eq 0 ] && grep -q "included body" "$FAKE_DOCKER_LOG_DIR"/call.*.sql && ! grep -q "\\\\ir" "$FAKE_DOCKER_LOG_DIR"/call.*.sql'
+printf '%s\n' '-- DOWN: restore the pre-a migration state.' 'select 1; -- rollback a' > supabase/rollbacks/20260101000001_a.sql
+
 clear_log
 printf '%s\n' '-- DOWN: executable rollback.' 'select 1; -- FAIL_ROLLBACK' > supabase/rollbacks/20260101000001_a.sql
 rc=0
@@ -93,4 +102,4 @@ rc=0
 out="$(bash "$SCRIPT" no-such-base fake-db 2>&1)" || rc=$?
 assert 'unknown base ref fails before running SQL' '[ "$rc" -ne 0 ] && grep -q "unknown ref" <<< "$out"'
 
-echo "$pass/8 passed"
+echo "$pass/9 passed"
