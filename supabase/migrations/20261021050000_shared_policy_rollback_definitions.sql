@@ -1,6 +1,6 @@
 -- Record exact catalog clauses created by the initplan migration for guarded DOWN.
 -- Existing snapshots are backfilled only when their current clauses match that migration's transformation.
--- DOWN: run supabase/rollbacks/20261021050000_shared_policy_rollback_definitions.sql after the 20261021043000 rollback.
+-- DOWN: run the 20261021050000 rollback first; it retains metadata for the 20261021043000 rollback to consume.
 
 do $policy_rollback_definitions$
 declare
