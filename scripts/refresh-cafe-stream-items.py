@@ -5,8 +5,9 @@
 receives one SELECT as its final argument; --catalog supplies the same item/detail JSON used by
 the item-reference importer. --branch-map is explicit ERP-code=MOS-code pairs; unknown codes
 stay unknown so the private refresh reports them. Run the catalog import before this script.
-Only --apply contacts MOS; --db-url is supplied at runtime. Run --dry-run SQL in a transaction
-for reconciliation evidence before applying. No item settings, counts or memberships are deleted.
+Only --apply contacts MOS; its database URL comes from CAFE_STREAM_ITEMS_DB_URL. The deprecated
+--db-url fallback must be password-free. Run --dry-run SQL in a transaction for reconciliation
+evidence before applying. No item settings, counts or memberships are deleted.
 """
 import argparse
 import json
@@ -109,12 +110,14 @@ def main():
     parser.add_argument('--as-of', type=date.fromisoformat, default=datetime.now(ZoneInfo('Asia/Jakarta')).date())
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--dry-run', action='store_true')
-    parser.add_argument('--db-url', help='MOS database URL, supplied at runtime')
+    parser.add_argument('--db-url', help='deprecated password-free fallback (prefer CAFE_STREAM_ITEMS_DB_URL)')
     parser.add_argument('--allow-remote', action='store_true', help='owner-authorized remote target')
     args = parser.parse_args()
     try:
         if args.days < 1 or args.days > 3660 or (args.apply and args.dry_run):
             raise ValueError('invalid window or conflicting run modes')
+        if args.db_url and urlsplit(args.db_url).password is not None:
+            raise ValueError('--db-url must not contain a password; set CAFE_STREAM_ITEMS_DB_URL instead')
         pairs = [pair.split('=') for pair in args.branch_map.split(',')]
         if any(len(pair) != 2 or not all(pair) for pair in pairs):
             raise ValueError('branch map must contain ERP=MOS pairs')
@@ -144,11 +147,12 @@ def main():
                + literal(json.dumps(usage)) + '::jsonb);\n' + ('commit;' if args.apply else 'rollback;') + '\n')
         print(f'Window {args.as_of - timedelta(days=args.days)}..<{args.as_of}; {len(usage)} memberships', file=sys.stderr)
         if args.apply:
-            if not args.db_url or urlsplit(args.db_url).scheme not in ('postgres', 'postgresql'):
-                raise ValueError('--apply requires a PostgreSQL --db-url')
-            if urlsplit(args.db_url).hostname not in ('localhost', '127.0.0.1', '::1') and not args.allow_remote:
+            db_url = os.environ.get('CAFE_STREAM_ITEMS_DB_URL') or args.db_url
+            if not db_url or urlsplit(db_url).scheme not in ('postgres', 'postgresql'):
+                raise ValueError('--apply requires CAFE_STREAM_ITEMS_DB_URL or a password-free --db-url')
+            if urlsplit(db_url).hostname not in ('localhost', '127.0.0.1', '::1') and not args.allow_remote:
                 raise ValueError('remote target requires owner authorization and --allow-remote')
-            target, env = psql_target(args.db_url)
+            target, env = psql_target(db_url)
             subprocess.run(['psql', target, '-X', '-v', 'ON_ERROR_STOP=1'], input=sql, text=True, check=True, env=env)
         else:
             sys.stdout.write(sql)
