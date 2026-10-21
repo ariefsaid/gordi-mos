@@ -25,7 +25,7 @@
 .staff-attendance__primary { border-color: var(--mos-accent); background: var(--mos-accent); color: var(--mos-primary-ink); }
 .staff-attendance__quiet { color: var(--mos-error-text) !important; }
 .staff-attendance__roster-actions { justify-content: flex-end; }
-.staff-attendance__effectivity { display: grid; gap: var(--mos-space-1); padding: var(--mos-space-3); border-inline-start: 3px solid var(--mos-accent); background: var(--mos-band); }
+.staff-attendance__effectivity { display: grid; gap: var(--mos-space-1); padding: var(--mos-space-3); border: 1px solid var(--mos-line); border-radius: var(--radius-sm); background: var(--mos-band); }
 .staff-attendance__effectivity p, .staff-attendance__subpanel > p { margin: 0; color: var(--mos-muted); font: var(--mos-type-meta); }
 .staff-attendance__subpanel { display: grid; gap: var(--mos-space-3); min-width: 0; padding-top: var(--mos-space-4); border-top: 1px solid var(--mos-line); }
 .staff-attendance__subpanel h2 { margin: 0; font: var(--mos-type-group); }

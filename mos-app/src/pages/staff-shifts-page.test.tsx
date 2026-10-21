@@ -19,24 +19,40 @@ vi.mock('@/lib/db/staff-attendance', () => ({
 
 import {
   copyStaffRoster, getStaffRoster, listLedStaffTeams, listMyStaffShifts,
-  listStaffSiteTemplates, listStaffStandingHours, publishStaffRoster, saveStaffShift, saveStandingHours,
+  listStaffSiteTemplates, listStaffStandingHours, publishStaffRoster, removeStaffShift, saveStaffShift, saveStandingHours,
 } from '@/lib/db/staff-attendance'
 import { StaffShiftsPage } from './staff-shifts-page'
 
+function currentWeekStart(): string {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? ''
+  const date = new Date(`${value('year')}-${value('month')}-${value('day')}T12:00:00Z`)
+  date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7))
+  return date.toISOString().slice(0, 10)
+}
+
+function addWeeks(dateValue: string, weeks: number): string {
+  const date = new Date(`${dateValue}T12:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + weeks * 7)
+  return date.toISOString().slice(0, 10)
+}
+
+const weekStart = currentWeekStart()
+const nextWeekStart = addWeeks(weekStart, 1)
 const team = { id: 'team-1', name: 'Radiant Crew', site_id: 'site-1', site_name: 'Radiant' }
 const personalShift = {
   id: 'shift-1', team_id: 'team-1', team_name: 'Radiant Crew', site_id: 'site-1', site_name: 'Radiant',
-  local_date: '2026-10-26', template_name: 'Morning', start_at: '2026-10-26T00:00:00Z', end_at: '2026-10-26T08:00:00Z',
+  local_date: weekStart, template_name: 'Morning', start_at: `${weekStart}T00:00:00Z`, end_at: `${weekStart}T08:00:00Z`,
   crew: ['Nisa', 'Rani'],
 }
 const roster = {
-  team_id: 'team-1', team_name: 'Radiant Crew', site_id: 'site-1', site_name: 'Radiant', week_start: '2026-10-26', status: 'draft' as const,
+  team_id: 'team-1', team_name: 'Radiant Crew', site_id: 'site-1', site_name: 'Radiant', week_start: weekStart, status: 'draft' as const,
   shifts: [], members: [{ person_id: 'person-1', full_name: 'Ayu Crew' }],
 }
-const scheduledShift = { ...personalShift, person_id: 'person-1', person_name: 'Ayu Crew' }
+const scheduledShift = { ...personalShift, template_id: 'template-1', person_id: 'person-1', person_name: 'Ayu Crew' }
 const shiftTemplate = { id: 'template-1', site_id: 'site-1', name: 'Morning', start_time: '07:00:00', end_time: '15:00:00', archived_at: null }
 const standing = {
-  effective_from: '2026-10-26', team_name: 'Radiant Crew', site_name: 'Radiant',
+  effective_from: nextWeekStart, team_name: 'Radiant Crew', site_name: 'Radiant',
   current_default: null, current_exceptions: [],
   default: { active: true, working_days: [0, 1, 2, 3, 4], start_time: '09:00:00', end_time: '17:00:00' },
   exceptions: [],
@@ -58,7 +74,7 @@ beforeEach(() => {
   vi.mocked(removeStaffShift).mockResolvedValue(undefined)
   vi.mocked(publishStaffRoster).mockResolvedValue(1)
   vi.mocked(copyStaffRoster).mockResolvedValue(1)
-  vi.mocked(saveStandingHours).mockResolvedValue('2026-10-26')
+  vi.mocked(saveStandingHours).mockResolvedValue(nextWeekStart)
 })
 
 describe('StaffShiftsPage', () => {
@@ -104,7 +120,7 @@ describe('StaffShiftsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Team roster' }))
     await user.click(await screen.findByRole('button', { name: 'Edit' }))
     await user.click(screen.getByRole('button', { name: 'Save shift' }))
-    await waitFor(() => expect(saveStaffShift).toHaveBeenCalledWith('team-1', 'person-1', '2026-10-26', 'template-1', 'shift-1'))
+    await waitFor(() => expect(saveStaffShift).toHaveBeenCalledWith('team-1', 'person-1', weekStart, 'template-1', 'shift-1'))
   })
 
   it('AC-004 removes a shift after confirmation', async () => {

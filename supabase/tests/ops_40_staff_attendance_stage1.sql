@@ -85,7 +85,8 @@ select ok(exists(select 1 from jsonb_array_elements(ops.get_staff_roster('000000
     and ((shift->>'start_at')::timestamptz at time zone 'Asia/Jakarta')::time=time '07:00'),
   'AC-003 changing a Site template leaves existing assignment hours and names unchanged');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
-select is(ops.get_staff_roster('00000000-0000-0000-0000-000000005b01','2026-10-26')->>'team_name','Gordi Crew',
+select is(ops.get_staff_roster('00000000-0000-0000-0000-000000005b01','2026-10-26')->>'team_name',
+  (select name from shared.teams where id='00000000-0000-0000-0000-000000005b01'),
   'AC-001 an administrator can read the Team roster through its checked action');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is(ops.publish_staff_roster('00000000-0000-0000-0000-000000005b01','2026-10-26'),5,
@@ -105,20 +106,21 @@ select ok(exists(select 1 from jsonb_array_elements(ops.get_staff_roster('000000
 
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select set_config('app.staff_conflict_shift',ops.save_staff_shift('00000000-0000-0000-0000-000000005b02','00000000-0000-0000-0000-00000000f205','2026-10-27',current_setting('app.staff_pagi')::uuid,null)::text,true);
-select throws_ok($$select ops.save_standing_hours('00000000-0000-0000-0000-000000005b02',null,array[0,1,2,3,4],'09:00','17:00',true)$$,
+select throws_ok($$select ops.save_standing_hours('00000000-0000-0000-0000-000000005b02',null,array[0,1,2,3,4]::smallint[],'09:00','17:00',true)$$,
   '23P01','STAFF_STANDING_CONFLICT','AC-006 standing hours cannot overlap an existing future roster shift');
 select ops.remove_staff_shift(current_setting('app.staff_conflict_shift')::uuid);
-select is(ops.save_standing_hours('00000000-0000-0000-0000-000000005b02',null,array[0,1,2,3,4],'09:00','17:00',true),date '2026-10-26',
+select is(ops.save_standing_hours('00000000-0000-0000-0000-000000005b02',null,array[0,1,2,3,4]::smallint[],'09:00','17:00',true),date '2026-10-26',
   'AC-006 standing-hour changes take effect next Monday');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f201","access_roles":["member"]}');
 select is(jsonb_array_length(ops.list_my_staff_shifts('2026-10-19')),0,
   'AC-006 the current week remains unchanged');
 select is(jsonb_array_length(ops.list_my_staff_shifts('2026-10-26')),5,
   'AC-006 Team standing hours generate five weekday shifts');
-select is(jsonb_array_length(ops.list_my_staff_shifts('2026-10-26')->0->'crew'),4,
+select is(ops.list_my_staff_shifts('2026-10-26')->0->'crew',
+  '["Office 202","Office 203","Office 204","Office 205","Peer"]'::jsonb,
   'AC-007 the Person sees only names assigned to the same shift');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
-select is(ops.save_standing_hours('00000000-0000-0000-0000-000000005b02','00000000-0000-0000-0000-00000000f201',array[0,1,2,3],'10:00','18:00',true),date '2026-10-26',
+select is(ops.save_standing_hours('00000000-0000-0000-0000-000000005b02','00000000-0000-0000-0000-00000000f201',array[0,1,2,3]::smallint[],'10:00','18:00',true),date '2026-10-26',
   'AC-006 a Person exception is effective from next Monday');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f201","access_roles":["member"]}');
 select is(jsonb_array_length(ops.list_my_staff_shifts('2026-10-26')),4,
@@ -135,6 +137,8 @@ select is(jsonb_array_length(ops.list_my_staff_shifts('2026-10-26')),5,
 reset role;
 select is((select count(*)::int from mos.notifications where metadata->>'source'='staff_roster' and metadata->>'week_start'='2026-10-26'),5,
   'AC-004 publishing the roster creates exactly five Inbox rows');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
+set local role authenticated;
 select is(jsonb_array_length(ops.get_staff_roster('00000000-0000-0000-0000-000000005b01','2026-10-26')->'shifts'),5,
   'AC-004 published shifts remain visible after notifications are written');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f105","access_roles":["member"]}');
