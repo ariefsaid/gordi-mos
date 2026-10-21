@@ -2,7 +2,7 @@
 -- bucket, the lead's queue, HR views and the timed cover job. Time rules run on a fixed clock.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(119);
+select plan(124);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select set_config('app.attendance_now', '2026-10-25 21:00:00+00', true); -- Mon 04:00 Jakarta
@@ -361,6 +361,23 @@ select is((select (c->>'can_decide')::boolean from jsonb_array_elements(ops.list
 select pg_temp.as_('d3', 'admin');
 select is((select (c->>'can_decide')::boolean from jsonb_array_elements(ops.list_staff_cover_queue()->'claims') c where c->>'claimant_name' = 'Crew 105'), true, 'AC-016 the queue shows admin the claim as theirs to decide');
 select lives_ok($$select ops.decide_staff_claim(current_setting('app.c8')::uuid, true)$$, 'AC-016 admin confirms a lead''s cover claim');
+
+-- ── Owner rule, by proxy: recording or assigning for a lead goes through the same decider rule ──
+select pg_temp.as_('d1');
+select set_config('app.s9', ops.save_staff_shift(pg_temp.p('5b01'), pg_temp.p('f102'), '2026-11-09', current_setting('app.pagi')::uuid)::text, true);
+select set_config('app.s10', ops.save_staff_shift(pg_temp.p('5b01'), pg_temp.p('f105'), '2026-11-10', current_setting('app.pagi')::uuid)::text, true);
+select ops.publish_staff_roster(pg_temp.p('5b01'), '2026-11-09');
+select throws_ok($$select ops.report_staff_absence('leave', current_setting('app.s10')::uuid, null, null, pg_temp.p('f105'))$$, '42501', 'STAFF_ABSENCE_FORBIDDEN', 'AC-020 a co-lead cannot record a lead''s leave');
+select pg_temp.as_('d3', 'admin');
+select lives_ok($$select ops.report_staff_absence('leave', current_setting('app.s10')::uuid, null, null, pg_temp.p('f105'))$$, 'AC-020 admin can record a lead''s leave');
+select pg_temp.as_('f102');
+select set_config('app.o9', ops.offer_staff_shift(current_setting('app.s9')::uuid)::text, true);
+select pg_temp.as_('f105');
+select throws_ok($$select ops.assign_staff_cover(current_setting('app.o9')::uuid, pg_temp.p('f105'))$$, '42501', 'STAFF_OFFER_FORBIDDEN', 'AC-014 a lead cannot assign themselves');
+select pg_temp.as_('d1');
+select throws_ok($$select ops.assign_staff_cover(current_setting('app.o9')::uuid, pg_temp.p('f105'))$$, '42501', 'STAFF_OFFER_FORBIDDEN', 'AC-014 a co-lead cannot assign a lead');
+select pg_temp.as_('d3', 'admin');
+select lives_ok($$select ops.assign_staff_cover(current_setting('app.o9')::uuid, pg_temp.p('f105'))$$, 'AC-014 admin can assign a lead');
 
 -- ── hr revoked: the next request loses the access (ADR-0063) ─────────────────────────────────────
 select pg_temp.as_('d3', 'admin');

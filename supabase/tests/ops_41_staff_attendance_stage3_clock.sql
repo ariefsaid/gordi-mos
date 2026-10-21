@@ -240,9 +240,7 @@ select throws_ok($$select ops.correct_attendance_record('00000000-0000-0000-0000
 -- Alerts for a Team without a lead go to active hr holders only.
 reset role;
 select is((select count(*)::int from ops._attendance_alert_recipients('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000005b09') where person_id = '00000000-0000-0000-0000-0000000000d2'),1,'AC-018 an active hr holder is told about a Team without a lead');
-set local role authenticated;
-select public.t_as('00000000-0000-0000-0000-0000000000d2', 'member');
-reset role;
+update shared.person_access_roles set revoked_at = now() where person_id = '00000000-0000-0000-0000-0000000000d2' and access_role::text = 'hr' and revoked_at is null;
 select is((select count(*)::int from ops._attendance_alert_recipients('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000005b09') where person_id = '00000000-0000-0000-0000-0000000000d2'),0,'AC-018 a revoked hr holder is no longer told');
 
 -- Superseded images are queued within the hour; recent ones wait.

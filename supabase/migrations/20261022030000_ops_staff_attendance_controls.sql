@@ -285,7 +285,7 @@ begin
 
   if v_behalf then
     -- Recording for someone else is the Team lead's act (or an admin's); it is accepted without the cutoff.
-    if not ops._attendance_can_lead(v_team) then raise exception 'STAFF_ABSENCE_FORBIDDEN' using errcode = '42501'; end if;
+    if not ops._attendance_can_lead(v_team) or not ops._attendance_can_decide(v_team, v_target) then raise exception 'STAFF_ABSENCE_FORBIDDEN' using errcode = '42501'; end if;
     v_status := case when p_kind = 'sick' then 'accepted' else 'approved' end;
     v_flagged := p_kind = 'sick' and v_date = v_today;
   elsif p_kind = 'sick' then
@@ -399,6 +399,40 @@ end;
 $$;
 revoke execute on function ops.decide_staff_claim(uuid,boolean,text) from public, anon;
 grant execute on function ops.decide_staff_claim(uuid,boolean,text) to authenticated;
+
+create or replace function ops.assign_staff_cover(p_offer_id uuid, p_person_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare v_org uuid := shared.current_org_id(); v_actor uuid := shared.current_person_id(); v_offer ops.staff_shift_offers; v_shift ops.staff_shifts; v_err text; v_claim ops.staff_shift_claims; v_now timestamptz := ops._attendance_now();
+begin
+  if v_org is null or v_actor is null or not shared.is_org_member() then raise exception 'STAFF_FORBIDDEN' using errcode = '42501'; end if;
+  if p_person_id is null then raise exception 'STAFF_CLAIM_INVALID' using errcode = '22023'; end if;
+  select * into v_offer from ops.staff_shift_offers where id = p_offer_id and org_id = v_org for update;
+  if v_offer.id is null then raise exception 'STAFF_OFFER_NOT_FOUND' using errcode = 'P0002'; end if;
+  select * into v_shift from ops.staff_shifts where id = v_offer.shift_id and org_id = v_org for update;
+  if not ops._attendance_can_lead(v_shift.team_id) or not ops._attendance_can_decide(v_shift.team_id, p_person_id) then raise exception 'STAFF_OFFER_FORBIDDEN' using errcode = '42501'; end if;
+  if v_offer.status not in ('open','claimed') or v_shift.removed_at is not null or v_shift.end_at <= v_now then raise exception 'STAFF_OFFER_CLOSED' using errcode = 'P0003'; end if;
+  v_err := ops._attendance_cover_eligible(v_org, v_shift, p_person_id);
+  if v_err is not null then raise exception '%', v_err using errcode = case v_err when 'STAFF_SHIFT_OVERLAP' then '23P01' else '42501' end; end if;
+  select * into v_claim from ops.staff_shift_claims where org_id = v_org and offer_id = v_offer.id and status = 'pending' for update;
+  if v_claim.id is not null then
+    if v_claim.claimant_id = p_person_id then
+      update ops.staff_shift_claims set status = 'confirmed', decided_by = v_actor, decided_at = v_now where id = v_claim.id;
+    else
+      update ops.staff_shift_claims set status = 'void', decided_by = v_actor, decided_at = v_now where id = v_claim.id;
+      perform ops._attendance_notify(v_org, v_claim.claimant_id, 'info', 'Claim not accepted / Pengambilan shift tidak diterima',
+        'Your lead assigned the shift on ' || to_char(v_shift.local_date, 'DD Mon') || ' to someone else. / Lead menugaskan shift ' || to_char(v_shift.local_date, 'DD Mon') || ' kepada orang lain.',
+        'staff_shift', v_shift.id, '/work/shifts/cover');
+    end if;
+  end if;
+  perform ops._attendance_fill_offer(v_org, v_offer, v_shift, p_person_id, v_actor);
+end;
+$$;
+revoke execute on function ops.assign_staff_cover(uuid,uuid) from public, anon;
+grant execute on function ops.assign_staff_cover(uuid,uuid) to authenticated;
 
 create or replace function ops.list_staff_cover_queue()
 returns jsonb
