@@ -22,7 +22,7 @@ Deno.test('AC-042 deletes queued selfies through the Storage API and then confir
     'POST http://x/rest/v1/rpc/confirm_attendance_selfie_purged',
   ])
   assert.deepEqual(calls[1].body, { prefixes: ['org/a/1.jpg', 'org/b/2.jpg'] })
-  assert.deepEqual(calls[2].body, { p_paths: ['org/a/1.jpg', 'org/b/2.jpg'] })
+  assert.deepEqual(calls[2].body, { p_bucket: 'attendance-selfies', p_paths: ['org/a/1.jpg', 'org/b/2.jpg'] })
 })
 
 Deno.test('AC-042 with nothing queued it does nothing', async () => {
@@ -43,6 +43,8 @@ Deno.test("NFR-002 doctor's notes are deleted from their own bucket and confirme
   const deletes = calls.filter((c) => c.url.includes('/storage/v1/'))
   assert.deepEqual(deletes.map((c) => c.url), ['http://x/storage/v1/object/attendance-selfies', 'http://x/storage/v1/object/staff-notes'])
   assert.deepEqual(deletes[1].body, { prefixes: ['n/2.jpg'] })
+  const confirms = calls.filter((c) => c.url.endsWith('confirm_attendance_selfie_purged'))
+  assert.deepEqual(confirms.map((c) => c.body), [{ p_bucket: 'attendance-selfies', p_paths: ['s/1.jpg'] }, { p_bucket: 'staff-notes', p_paths: ['n/2.jpg'] }])
 })
 
 Deno.test('a claimed path in any other bucket is never deleted', async () => {

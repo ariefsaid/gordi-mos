@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(84);
+select plan(87);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select set_config('app.attendance_now', '2026-10-21 23:00:00+00', true);
@@ -259,6 +259,14 @@ create temp table t_net_before as select count(*) n from net.http_request_queue;
 select ops.dispatch_attendance_photo_purge();
 select is((select count(*) from net.http_request_queue),(select n from t_net_before),'AC-042 with no Vault rows the dispatcher calls nothing');
 select ok(not exists (select 1 from pg_extension where extname = 'pg_cron') or exists (select 1 from cron.job where jobname = 'attendance-photo-purge' and schedule = '17 * * * *'),'AC-042 the purge is scheduled hourly when pg_cron is present');
+
+-- Queue rows are keyed by bucket + path; confirmation is per bucket; only the two known buckets are accepted.
+insert into ops.attendance_selfie_purge_queue (bucket, path, org_id) values
+  ('attendance-selfies','dup/x.jpg','00000000-0000-0000-0000-0000000000a1'),
+  ('staff-notes','dup/x.jpg','00000000-0000-0000-0000-0000000000a1');
+select is(ops.confirm_attendance_selfie_purged('staff-notes', array['dup/x.jpg']), 1, 'AC-042 confirming a path in one bucket closes one queue row');
+select is((select bucket from ops.attendance_selfie_purge_queue where path = 'dup/x.jpg' and deleted_at is null), 'attendance-selfies', 'AC-042 the same path in the other bucket stays queued');
+select throws_ok($$insert into ops.attendance_selfie_purge_queue (bucket, path, org_id) values ('other','y.jpg','00000000-0000-0000-0000-0000000000a1')$$, '23514', null, 'AC-042 a queue row for any other bucket is refused');
 
 select * from finish();
 rollback;

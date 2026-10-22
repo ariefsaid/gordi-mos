@@ -57,3 +57,26 @@ exception when others then
   raise notice 'pg_cron scheduling skipped: %', sqlerrm;
 end
 $$;
+
+-- Confirmation names the bucket as well as the path, so the same path in two buckets is two queue rows and
+-- confirming one never closes the other. (The bucket column is already limited to the two known buckets by its check.)
+alter table ops.attendance_selfie_purge_queue drop constraint attendance_selfie_purge_queue_pkey;
+alter table ops.attendance_selfie_purge_queue add primary key (bucket, path);
+
+drop function ops.confirm_attendance_selfie_purged(text[]);
+create function ops.confirm_attendance_selfie_purged(p_bucket text, p_paths text[])
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare v_count integer;
+begin
+  update ops.attendance_selfie_purge_queue set deleted_at = ops._attendance_now()
+  where bucket = p_bucket and path = any(p_paths) and deleted_at is null;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function ops.confirm_attendance_selfie_purged(text, text[]) from public, anon, authenticated;
+grant execute on function ops.confirm_attendance_selfie_purged(text, text[]) to service_role;

@@ -46,7 +46,7 @@ export async function purgePhotos({ url, key, fetchImpl = fetch, limit = 100 }: 
       body: JSON.stringify({ prefixes: paths }),
     })
     if (!removed.ok) throw new Error(`storage delete failed: ${removed.status}`)
-    const confirmed = await rest('confirm_attendance_selfie_purged', { p_paths: paths })
+    const confirmed = await rest('confirm_attendance_selfie_purged', { p_bucket: bucket, p_paths: paths })
     if (!confirmed.ok) throw new Error(`confirm failed: ${confirmed.status}`)
   }
   return { deleted: rows.length }
