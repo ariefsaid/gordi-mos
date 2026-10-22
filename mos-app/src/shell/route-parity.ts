@@ -8,6 +8,7 @@
 export const ROUTE_PATHS = {
   home: '/',
   workTasks: 'work/tasks',
+  workShifts: 'work/shifts',
   workSignals: 'work/signals',
   workProjects: 'work/projects',
   workObjectives: 'work/objectives',
@@ -38,6 +39,8 @@ export const ROUTE_PATHS = {
   cafePushes: 'cafe/pushes',
   adminPeople: 'admin/people',
   adminTeams: 'admin/teams',
+  adminShiftBuilder: 'admin/shift-builder',
+  adminAttendanceSettings: 'admin/attendance-settings',
   adminAccess: 'admin/access',
   adminModules: 'admin/modules',
   adminAgents: 'admin/agents',
@@ -51,6 +54,7 @@ type RouteParityOwner = 'breadcrumb' | 'admin-settings' | 'agent-consent'
 export type RouteParityId =
   | 'home'
   | 'workTasks'
+  | 'workShifts'
   | 'workSignals'
   | 'workProjects'
   | 'workObjectives'
@@ -78,6 +82,8 @@ export type RouteParityId =
   | 'cafePushes'
   | 'adminPeople'
   | 'adminTeams'
+  | 'adminShiftBuilder'
+  | 'adminAttendanceSettings'
   | 'adminAccess'
   | 'adminModules'
   | 'adminAgents'
@@ -99,6 +105,7 @@ function absolutePath(path: string): string {
 export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'home', path: absolutePath(ROUTE_PATHS.home), kind: 'visible-root' },
   { id: 'workTasks', path: absolutePath(ROUTE_PATHS.workTasks), kind: 'visible-root' },
+  { id: 'workShifts', path: absolutePath(ROUTE_PATHS.workShifts), kind: 'visible-root' },
   { id: 'workSignals', path: absolutePath(ROUTE_PATHS.workSignals), kind: 'visible-root' },
   { id: 'workProjects', path: absolutePath(ROUTE_PATHS.workProjects), kind: 'visible-root' },
   { id: 'workObjectives', path: absolutePath(ROUTE_PATHS.workObjectives), kind: 'visible-root' },
@@ -132,6 +139,8 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'cafePushes', path: absolutePath(ROUTE_PATHS.cafePushes), kind: 'child' },
   { id: 'adminPeople', path: absolutePath(ROUTE_PATHS.adminPeople), kind: 'visible-root' },
   { id: 'adminTeams', path: absolutePath(ROUTE_PATHS.adminTeams), kind: 'utility', owner: 'admin-settings' },
+  { id: 'adminShiftBuilder', path: absolutePath(ROUTE_PATHS.adminShiftBuilder), kind: 'utility', owner: 'admin-settings' },
+  { id: 'adminAttendanceSettings', path: absolutePath(ROUTE_PATHS.adminAttendanceSettings), kind: 'utility', owner: 'admin-settings' },
   { id: 'adminAccess', path: absolutePath(ROUTE_PATHS.adminAccess), kind: 'utility', owner: 'admin-settings' },
   // Preview ship state: absent from the live table unless the dev launch opted in.
   { id: 'adminModules', path: absolutePath(ROUTE_PATHS.adminModules), kind: 'utility', owner: 'admin-settings' },

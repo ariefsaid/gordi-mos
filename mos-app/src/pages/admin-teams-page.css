@@ -1,18 +1,18 @@
-/* Teams: groups of rows, Team | stream | lead | save status | members. */
+/* Teams: groups of rows, Team | stream | lead | Site | save status | members. */
 .teams-roster { display: flex; flex-direction: column; gap: var(--mos-space-6); }
 .teams-group { min-width: 0; }
 /* The group band and the column labels under it are two blocks: one 8px step between them. */
 .teams-group__head { margin-bottom: var(--mos-space-2); }
 /* The count is the last column so its right edge is the table's right edge; header and cells align to it together. */
 .admin-teams__header, .admin-teams__row {
-  display: grid; grid-template-columns: minmax(180px, 1.15fr) minmax(140px, .9fr) minmax(220px, 1.4fr) minmax(96px, .45fr) minmax(110px, .5fr);
+  display: grid; grid-template-columns: minmax(160px, 1.05fr) minmax(120px, .8fr) minmax(190px, 1.2fr) minmax(170px, 1fr) minmax(96px, .45fr) minmax(110px, .5fr);
   align-items: center; column-gap: var(--mos-field-gap); padding-inline: var(--mos-row-pad-x);
 }
 .admin-teams__num { text-align: end; font-variant-numeric: var(--mos-numeric); }
 .admin-teams__unit { display: none; }
 .admin-teams__row { min-height: var(--mos-row-min); padding-block: var(--mos-row-pad-y); border-top: 1px solid var(--mos-line); }
 .admin-teams__row:hover { background: var(--mos-hover); }
-.admin-teams__name, .admin-teams__stream, .admin-teams__members, .admin-teams__lead, .admin-teams__status { min-width: 0; }
+.admin-teams__name, .admin-teams__stream, .admin-teams__members, .admin-teams__lead, .admin-teams__site, .admin-teams__status { min-width: 0; }
 .admin-teams__team { font: var(--mos-type-control); font-weight: var(--mos-weight-semibold); overflow-wrap: anywhere; }
 .admin-teams__stream { color: var(--mos-muted); font: var(--mos-type-meta); overflow-wrap: anywhere; }
 .admin-teams__members { color: var(--mos-ink); font: var(--mos-type-body); font-variant-numeric: var(--mos-numeric); }
@@ -20,20 +20,24 @@
 .admin-teams__lead .picker__label { display: block; margin-bottom: var(--mos-space-1); color: var(--mos-ink); font: var(--mos-type-label); }
 .admin-teams__phone-label { display: none; }
 .admin-teams__lead .picker__trigger { min-height: var(--mos-control-height); }
-.admin-teams__status .row-status { justify-content: flex-start; }
+.admin-teams__status .row-status, .admin-teams__site .row-status { justify-content: flex-start; }
 .admin-team-lead-row__candidate-error { margin-top: var(--mos-inline-gap); }
 .admin-teams__row .error-state { margin: 0; }
 /* Phone only: the save model and the sort, in the place the desktop has them (job line, column headers). */
 .admin-teams__phone-bar { display: none; }
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .admin-teams__header, .admin-teams__row { grid-template-columns: minmax(120px, 1fr) minmax(90px, .7fr) minmax(150px, 1.2fr) minmax(120px, .9fr) minmax(50px, .35fr) minmax(80px, .45fr); column-gap: var(--mos-space-2); }
+}
 @media (max-width: 767.98px) {
   .admin-teams__phone-bar { display: grid; gap: var(--mos-row-gap); margin: 0 0 var(--mos-field-gap); }
   .admin-teams__saves-note { margin: 0; color: var(--mos-muted); font: var(--mos-type-subnav); }
   .admin-teams__header { display: none; }
-  .admin-teams__row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'name members' 'stream stream' 'lead lead' 'status status'; gap: var(--mos-stack-gap) var(--mos-row-gap); align-items: start; padding: var(--mos-row-pad-y) 0; }
+  .admin-teams__row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'name members' 'stream stream' 'lead lead' 'site site' 'status status'; gap: var(--mos-stack-gap) var(--mos-row-gap); align-items: start; padding: var(--mos-row-pad-y) 0; }
   .admin-teams__name { grid-area: name; }
   .admin-teams__members { grid-area: members; text-align: end; color: var(--mos-muted); font: var(--mos-type-meta); }
   .admin-teams__stream { grid-area: stream; }
   .admin-teams__lead { grid-area: lead; }
+  .admin-teams__site { grid-area: site; }
   .admin-teams__status { grid-area: status; }
   .admin-teams__status:empty, .admin-teams__stream:empty { display: none; }
   .admin-teams__unit { display: inline; }

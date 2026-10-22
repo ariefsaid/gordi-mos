@@ -53,7 +53,7 @@ for utility in git grep sed cat; do
 done
 output="$(cd "$tmp/repo" && PATH="$tmp/no-gitleaks" "$BASH_BIN" "$HOOK" 2>&1)"
 rc=$?
-report "missing gitleaks prints a skip notice without blocking" "$([ "$rc" -eq 0 ] && [[ "$output" == *'gitleaks not installed — secret scan SKIPPED'* ]] && echo true || echo false)"
+report "missing gitleaks blocks the commit with an install hint" "$([ "$rc" -eq 1 ] && [[ "$output" == *'brew install gitleaks'* ]] && [[ "$output" != *'secret scan SKIPPED'* ]] && echo true || echo false)"
 
 scanner_job="$(awk '/^  gitleaks:$/ { in_job = 1 } /^  guard-self-tests:$/ { in_job = 0 } in_job { print }' "$WORKFLOW")"
 report "CI scans every pull request in a failing gitleaks job" "$(grep -Fq '  pull_request:' "$WORKFLOW" && [ -n "$scanner_job" ] && ! grep -Eq '^[[:space:]]+(if|continue-on-error):' <<< "$scanner_job" && echo true || echo false)"

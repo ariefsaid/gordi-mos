@@ -23,8 +23,10 @@ const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
   admin: [
     'objective.manage', 'objective.edit_content', 'workline.manage', 'followup.confirm',
     'signal.mention_bu', 'signal.retract',
-    'process.start', 'process.adopt',
+    'process.start', 'process.adopt', 'attendance.read_all',
   ],
+  // ADR-0063: HR reads every Team's attendance records; no roster, approval or money capability.
+  hr: ['attendance.read_all', 'attendance.correct', 'attendance.receive_unled'],
   finance: ['followup.confirm', 'signal.mention_bu', 'signal.retract'],
   ops_lead: [
     'objective.edit_content', 'workline.manage',

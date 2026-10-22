@@ -35,6 +35,7 @@ const CATALOG_FILE = join(SRC, 'i18n', 'messages.ts')
  */
 const KNOWN_DYNAMIC_PREFIXES: Record<string, string> = {
   'assistant.rating.reason.': 'AssistantPanel.tsx — t(`assistant.rating.reason.${r}`) over DOWNVOTE_REASONS',
+  'attendance.day.': 'staff-shift-panels.tsx — t(`attendance.day.${day}`) over weekday numbers',
   'tasks.status.': 'tasks-toolbar.tsx — t(`tasks.status.${key}` as const)',
   'signals.record.field.': 'signal-record.tsx — t(`signals.record.field.${rev.field}`)',
   'followUps.action.': 'follow-up-queue-table.tsx / follow-ups-page.tsx — t(`followUps.action.${verb}`)',
@@ -43,6 +44,8 @@ const KNOWN_DYNAMIC_PREFIXES: Record<string, string> = {
   // The runs-due pill left the Tasks toolbar in ticket 743 (round 3); ticket 754 re-homes it
   // (Home/Café) and its `processes.due.summary.*` plural consumers with it. The strings stay in
   // the catalog until then — owned by that relocation, not dead.
+  'attendance.clock.refuse.': 'clock-panel.tsx — t(`attendance.clock.refuse.${reason}.title|body`) over the server refusal reasons',
+  'attendance.status.': 'attendance-today-panel.tsx — t(`attendance.status.${row.status}`) over the server status words',
   'processes.due.summary.': 'runs-due pill (removed from tasks-toolbar.tsx, ticket 743 r3) re-homes these',
 }
 

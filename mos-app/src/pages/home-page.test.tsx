@@ -51,6 +51,10 @@ vi.mock('@/lib/cafe-opening-enabled', () => ({
   get CAFE_OPENING_ENABLED() { return openingSwitch.on },
 }))
 
+vi.mock('../lib/db/staff-attendance', () => ({ listNextMyStaffShifts: vi.fn() }))
+import { listNextMyStaffShifts } from '@/lib/db/staff-attendance'
+const mockListNextShifts = vi.mocked(listNextMyStaffShifts)
+
 vi.mock('../lib/db/home-cafe', () => ({ loadHomeCafeDoor: vi.fn() }))
 import { loadHomeCafeDoor } from '@/lib/db/home-cafe'
 const mockLoadHomeCafeDoor = vi.mocked(loadHomeCafeDoor)
@@ -260,6 +264,7 @@ beforeEach(() => {
   mockListSignals.mockResolvedValue([])
   mockCountSignals.mockResolvedValue(0)
   mockListAllTeams.mockResolvedValue([])
+  mockListNextShifts.mockResolvedValue([])
   openingSwitch.on = true
   mockLoadHomeCafeDoor.mockResolvedValue(null)
   mockLoadHomeObjectiveProgress.mockResolvedValue([])

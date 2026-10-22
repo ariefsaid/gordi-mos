@@ -24,6 +24,8 @@ import { HomePage } from './pages/home-page'
 import { LoginPage } from './pages/login-page'
 import { TasksLayout } from './pages/tasks-layout'
 import { WorkHomePage } from './pages/work-home-page'
+import { StaffShiftsPage } from './pages/staff-shifts-page'
+import { AdminAttendancePage } from './pages/admin-attendance-page'
 import { TaskDrawer } from './components/tasks/task-drawer'
 import { SignalsArchivePage, SignalRecordPage } from './pages/signals-archive-page'
 import { ProfilePage } from './pages/profile-page'
@@ -65,6 +67,7 @@ import { AdminPersonPage } from './pages/admin-person-page'
 import { AdminAccessPage } from './pages/admin-access-page'
 import { AdminAgentConnectionsPage } from './pages/admin-agent-connections-page'
 import { AdminTeamsPage } from './pages/admin-teams-page'
+import { AdminAttendanceSettingsPage } from './pages/admin-attendance-settings-page'
 import { RecoveryPage } from './pages/recovery-page'
 import { SliceStubPage } from './pages/slice-stub-page'
 
@@ -152,6 +155,7 @@ describe('AC-019: every route but login loads on demand, behind one loading shel
 const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenance: string]> = [
   ['/', HomePage, 'dev'],
   ['/work', WorkHomePage, 'work-lane-a'],
+  ['/work/shifts', StaffShiftsPage, 'dev'],
   ['/work/tasks', TasksLayout, 'dev'],
   ['/work/tasks/:taskId', TaskDrawer, 'dev'],
   // Signals supersedes Weekly Updates (v4 redirects /updates here, and routes neither path at an
@@ -206,7 +210,9 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/admin/modules', AdminModulesPage, 'dev'],
   ['/admin/people/:personId', AdminPersonPage, 'redesign'],
   ['/admin/teams', AdminTeamsPage, 'redesign'],
+  ['/admin/attendance-settings', AdminAttendanceSettingsPage, 'attendance'],
   ['/admin/access', AdminAccessPage, 'redesign'],
+  ['/admin/shift-builder', AdminAttendancePage, 'dev'],
   ['/admin/agents', AdminAgentConnectionsPage, 'review-stamp'],
   ['/recovery', RecoveryPage, 'dev'],
 ]
