@@ -258,7 +258,7 @@ select ok(not has_function_privilege('authenticated','ops.dispatch_attendance_ph
 create temp table t_net_before as select count(*) n from net.http_request_queue;
 select ops.dispatch_attendance_photo_purge();
 select is((select count(*) from net.http_request_queue),(select n from t_net_before),'AC-042 with no Vault rows the dispatcher calls nothing');
-select ok(not exists (select 1 from pg_extension where extname = 'pg_cron') or exists (select 1 from cron.job where jobname = 'attendance-photo-purge' and schedule = '17 * * * *'),'AC-042 the purge is scheduled hourly when pg_cron is present');
+select ok(not exists (select 1 from pg_extension where extname = 'pg_cron') or exists (select 1 from cron.job where jobname = 'attendance-photo-purge' and schedule = '17 20 * * *'),'AC-042 the purge is scheduled daily at 03:17 WIB when pg_cron is present');
 
 -- Queue rows are keyed by bucket + path; confirmation is per bucket; only the two known buckets are accepted.
 insert into ops.attendance_selfie_purge_queue (bucket, path, org_id) values
