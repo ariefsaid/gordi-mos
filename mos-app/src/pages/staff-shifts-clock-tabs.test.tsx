@@ -25,14 +25,14 @@ describe('StaffShiftsPage clock tabs', () => {
     vi.mocked(listLedStaffTeams).mockResolvedValue([])
     renderPage('/staff/shifts?view=clock')
     expect(await screen.findByText('clock panel')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Today’s attendance' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Today’s attendance' })).not.toBeInTheDocument()
   })
 
   it('FR-040 offers today’s attendance only to people who lead a Team', async () => {
     const user = userEvent.setup()
     vi.mocked(listLedStaffTeams).mockResolvedValue([{ id: 't1', name: 'Bar', site_id: 's1', site_name: 'HQ' }])
     renderPage()
-    await user.click(await screen.findByRole('button', { name: 'Today’s attendance' }))
+    await user.click(await screen.findByRole('tab', { name: 'Today’s attendance' }))
     expect(screen.getByText('today panel')).toBeInTheDocument()
   })
 })

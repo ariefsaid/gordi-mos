@@ -161,7 +161,7 @@ test.describe('AC-041 staff attendance journeys', () => {
     const memberPage = await signedIn(browser, contexts, member, { viewport: PHONE })
 
     await leadPage.goto('staff/shifts')
-    await leadPage.getByRole('button', { name: 'Team roster', exact: true }).click()
+    await leadPage.getByRole('tab', { name: 'Team roster', exact: true }).click()
     const loaded = leadPage.waitForResponse((response) => response.url().includes('/rpc/get_staff_roster')
       && (response.request().postData() ?? '').includes(nextMonday))
     await leadPage.getByRole('button', { name: 'Next week', exact: true }).click()
@@ -194,19 +194,19 @@ test.describe('AC-041 staff attendance journeys', () => {
 
     const memberPage = await signedIn(browser, contexts, member, { viewport: PHONE })
     await memberPage.goto('staff/shifts')
-    await memberPage.getByRole('button', { name: 'Absence', exact: true }).click()
+    await memberPage.getByRole('tab', { name: 'Absence', exact: true }).click()
     await memberPage.getByRole('button', { name: 'Report sick today', exact: true }).click()
     await expect(memberPage.getByText(/^Accepted\./)).toBeVisible()
 
     const teammatePage = await signedIn(browser, contexts, teammate, { viewport: PHONE })
     await teammatePage.goto('staff/shifts')
-    await teammatePage.getByRole('button', { name: 'Open shifts', exact: true }).click()
+    await teammatePage.getByRole('tab', { name: 'Open shifts', exact: true }).click()
     await teammatePage.getByRole('button', { name: 'Claim this shift', exact: true }).click()
     await expect(teammatePage.getByText('Claim held.')).toBeVisible()
 
     const leadPage = await signedIn(browser, contexts, lead)
     await leadPage.goto('staff/shifts')
-    await leadPage.getByRole('button', { name: 'Requests', exact: true }).click()
+    await leadPage.getByRole('tab', { name: 'Requests', exact: true }).click()
     const claim = leadPage.getByText(new RegExp(`${teammate.name} claimed ${member.name}.s shift`))
     await expect(claim).toBeVisible()
     await leadPage.getByRole('button', { name: 'Confirm cover', exact: true }).click()
@@ -240,7 +240,7 @@ test.describe('AC-041 staff attendance journeys', () => {
 
     const leadPage = await signedIn(browser, contexts, lead)
     await leadPage.goto('staff/shifts')
-    await leadPage.getByRole('button', { name: /^Today.s attendance$/ }).click()
+    await leadPage.getByRole('tab', { name: /^Today.s attendance$/ }).click()
     const row = leadPage.locator('article', { hasText: member.name })
     await expect(row).toContainText('Clocked in')
   })

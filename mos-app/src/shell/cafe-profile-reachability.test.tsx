@@ -301,6 +301,21 @@ describe.runIf(APP_RELEASE_PROFILE === 'cafe')('Cafe profile reachability', () =
     admin.unmount()
   })
 
+  it('keeps Café and Staff both in the phone tab bar, and Staff owns its actions instead of the + launcher', () => {
+    mockUseIsNarrow.mockReturnValue(true)
+    setViewer(VIEWERS.member)
+    const phone = render(wrapNavigation(<BottomTabBar onOpenMore={() => {}} onOpenActionLauncher={() => {}} />))
+    const tabs = within(screen.getByRole('navigation', { name: 'Primary' })).getAllByRole('link').map((link) => link.getAttribute('href'))
+    expect(tabs).toEqual(expect.arrayContaining(['/cafe', '/staff/shifts']))
+    phone.unmount()
+    render(
+      <ThemeProvider><I18nProvider><MemoryRouter initialEntries={['/staff/shifts']}>
+        <BottomTabBar onOpenMore={() => {}} onOpenActionLauncher={() => {}} />
+      </MemoryRouter></I18nProvider></ThemeProvider>,
+    )
+    expect(screen.queryByRole('button', { name: /^actions$/i })).toBeNull()
+  })
+
   it('removes Work and Deputy from the command menu and does not search Work records', async () => {
     render(
       <I18nProvider>

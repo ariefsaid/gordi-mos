@@ -58,13 +58,14 @@ function weekControls(weekStart: string, setWeekStart: (value: string) => void, 
   return <div className="staff-attendance__week"><button type="button" aria-label={t('attendance.week.previous')} onClick={() => setWeekStart(moveWeek(weekStart, -1))}>‹</button><strong>{formatWeek(weekStart, locale)}</strong><button type="button" aria-label={t('attendance.week.next')} onClick={() => setWeekStart(moveWeek(weekStart, 1))}>›</button></div>
 }
 
-function ShiftCard({ shift, locale, t, scope, actions }: { shift: StaffShift; locale: string; t: Translate; scope?: StaffRoster; actions?: ReactNode }) {
-  return <article className="staff-attendance__shift">
+function ShiftCard({ shift, locale, t, scope, actions, inDay }: { shift: StaffShift; locale: string; t: Translate; scope?: StaffRoster; actions?: ReactNode; inDay?: boolean }) {
+  return <article className={inDay ? 'staff-attendance__shift staff-attendance__shift--in-day' : 'staff-attendance__shift'}>
     <div className="staff-attendance__shift-main">
-      <strong>{formatDay(shift.local_date, locale)}</strong>
+      {!inDay && <strong>{formatDay(shift.local_date, locale)}</strong>}
+      {inDay && scope && shift.person_name && <strong>{shift.person_name}</strong>}
       <span className="staff-attendance__time">{formatTime(shift.start_at, locale)}–{formatTime(shift.end_at, locale)} WIB</span>
-      <span>{scope?.team_name ?? shift.team_name} · {scope?.site_name ?? shift.site_name}</span>
-      {shift.person_name && <span>{shift.person_name}</span>}
+      {!(inDay && scope) && <span>{shift.team_name} · {shift.site_name}</span>}
+      {!(inDay && scope) && shift.person_name && <span>{shift.person_name}</span>}
       {shift.crew && shift.crew.length > 0 && <span className="staff-attendance__muted">{t('attendance.shift.crew')}: {shift.crew.join(', ')}</span>}
       {shift.template_name === 'Standing shift' && <span className="staff-attendance__badge">{t('attendance.shift.standing')}</span>}
     </div>
@@ -88,12 +89,12 @@ export function MyShiftsPanel() {
   if (state === 'error') return <ErrorState message={t('attendance.mine.loadError')} onRetry={load} />
   return <section className="staff-attendance__panel" aria-label={t('attendance.mine.title')}>
     <div className="staff-attendance__toolbar">{weekControls(weekStart, setWeekStart, locale, t)}<span>{t('attendance.mine.timezone')}</span></div>
-    <div className="staff-attendance__days-list">{Array.from({ length: 7 }, (_, index) => moveDate(weekStart, index)).map((date) => {
+    {shifts.length === 0 && <p className="staff-attendance__empty">{t('attendance.mine.emptyWeek')}</p>}
+    {shifts.length > 0 && <div className="staff-attendance__days-list">{Array.from({ length: 7 }, (_, index) => moveDate(weekStart, index)).map((date) => {
       const dayShifts = shifts.filter((shift) => shift.local_date === date)
-      return <section className="staff-attendance__day" key={date}><h2>{formatDay(date, locale)}</h2>{dayShifts.length > 0
-        ? dayShifts.map((shift, index) => <ShiftCard key={`${shift.team_id}-${shift.start_at}-${index}`} shift={shift} locale={locale} t={t} />)
-        : <p>{t('attendance.mine.restDay')}</p>}</section>
-    })}</div>
+      if (dayShifts.length === 0) return <p className="staff-attendance__day staff-attendance__day--rest" key={date}><span>{formatDay(date, locale)}</span><span>{t('attendance.mine.restDay')}</span></p>
+      return <section className="staff-attendance__day" key={date}><h2>{formatDay(date, locale)}</h2>{dayShifts.map((shift, index) => <ShiftCard key={`${shift.team_id}-${shift.start_at}-${index}`} shift={shift} locale={locale} t={t} inDay />)}</section>
+    })}</div>}
   </section>
 }
 
@@ -192,9 +193,9 @@ export function StaffRosterPanel({ teams }: { teams: LedStaffTeam[] }) {
       </form>}
       <div className="staff-attendance__actions staff-attendance__roster-actions">
         <button type="button" onClick={() => void copyWeek()} disabled={!team.site_id}>{t('attendance.roster.copy')}</button>
-        <button type="button" className="staff-attendance__primary" disabled={!roster || roster.shifts.length === 0 || isPublished} onClick={() => void publishWeek()}>{t(isPublished ? 'attendance.roster.publishedStatus' : 'attendance.roster.publish')}</button>
+        {!isPublished && <button type="button" className="staff-attendance__primary" disabled={!roster || roster.shifts.length === 0} onClick={() => void publishWeek()}>{t('attendance.roster.publish')}</button>}
       </div>
-      {roster?.shifts.length ? <div className="staff-attendance__list">{roster.shifts.map((shift) => <ShiftCard key={shift.id} shift={shift} locale={locale} t={t} scope={roster} actions={<><button type="button" onClick={() => startEdit(shift)}>{t('attendance.roster.edit')}</button><button type="button" className="staff-attendance__quiet" onClick={() => void removeShift(shift)}>{t('attendance.roster.remove')}</button></>} />)}</div> : <p className="staff-attendance__empty">{t('attendance.roster.empty')}</p>}
+      {roster?.shifts.length ? <div className="staff-attendance__days-list">{Array.from(new Set(roster.shifts.map((shift) => shift.local_date))).sort().map((date) => <section className="staff-attendance__day" key={date}><h2>{formatDay(date, locale)}</h2>{roster.shifts.filter((shift) => shift.local_date === date).map((shift) => <ShiftCard key={shift.id} shift={shift} locale={locale} t={t} scope={roster} inDay actions={<><button type="button" onClick={() => startEdit(shift)}>{t('attendance.roster.edit')}</button><button type="button" className="staff-attendance__quiet" onClick={() => void removeShift(shift)}>{t('attendance.roster.remove')}</button></>} />)}</section>)}</div> : <p className="staff-attendance__empty">{t('attendance.roster.empty')}</p>}
     </>}
     {error && <p className="staff-attendance__error" role="alert">{error}</p>}{notice && <p className="staff-attendance__notice" role="status">{notice}</p>}
   </section>

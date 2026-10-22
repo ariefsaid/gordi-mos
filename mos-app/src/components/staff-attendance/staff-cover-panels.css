@@ -1,7 +1,7 @@
 .staff-cover__form { display: grid; gap: var(--mos-field-gap); padding: var(--mos-space-4); border: 1px solid var(--mos-line); border-radius: var(--radius-sm); background: var(--mos-surface); }
 .staff-cover__form h2 { margin: 0; font: var(--mos-type-group); }
 .staff-cover__form label, .staff-cover__filters label, .staff-cover__inline { display: grid; gap: var(--mos-space-1); min-width: 0; color: var(--mos-ink); font: var(--mos-type-label); }
-.staff-cover__form select, .staff-cover__form textarea, .staff-cover__filters select, .staff-cover__filters input, .staff-cover__inline input, .staff-attendance__actions select {
+.staff-cover__form textarea, .staff-cover__filters input, .staff-cover__inline input {
   box-sizing: border-box; width: 100%; min-height: var(--mos-control-height); padding: var(--mos-control-pad-y) var(--mos-space-3); border: 1px solid var(--mos-line); border-radius: var(--radius-sm); background: var(--mos-surface); color: var(--mos-ink); font: var(--mos-type-body);
 }
 .staff-cover__bar { display: flex; justify-content: flex-end; }
@@ -25,3 +25,4 @@
   .staff-cover__bar .staff-attendance__primary { width: 100%; }
   .staff-cover__filters { grid-template-columns: 1fr; }
 }
+.staff-attendance__actions .mk-select { flex: 1 1 200px; min-width: 0; }

@@ -1,3 +1,1 @@
-.staff-shifts__tabs { display: flex; flex-wrap: wrap; gap: var(--mos-space-2); margin-bottom: var(--mos-space-4); }
-.staff-shifts__tabs button { min-height: var(--mos-control-height); padding: 0 var(--mos-space-3); border: 1px solid var(--mos-line); border-radius: var(--radius-sm); background: var(--mos-surface); color: var(--mos-ink); font: var(--mos-type-control); cursor: pointer; }
-.staff-shifts__tabs button[aria-pressed='true'] { border-color: var(--mos-accent); background: var(--mos-accent-tint); }
+.staff-shifts__tabs { margin-bottom: var(--mos-space-4); }
