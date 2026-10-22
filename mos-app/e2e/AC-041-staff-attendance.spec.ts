@@ -160,7 +160,7 @@ test.describe('AC-041 staff attendance journeys', () => {
     const leadPage = await signedIn(browser, contexts, lead)
     const memberPage = await signedIn(browser, contexts, member, { viewport: PHONE })
 
-    await leadPage.goto('work/shifts')
+    await leadPage.goto('staff/shifts')
     await leadPage.getByRole('button', { name: 'Team roster', exact: true }).click()
     const loaded = leadPage.waitForResponse((response) => response.url().includes('/rpc/get_staff_roster')
       && (response.request().postData() ?? '').includes(nextMonday))
@@ -193,19 +193,19 @@ test.describe('AC-041 staff attendance journeys', () => {
     const shift = await seedPublishedShift(world, member.person, start, new Date(start.getTime() + 2 * 3600_000))
 
     const memberPage = await signedIn(browser, contexts, member, { viewport: PHONE })
-    await memberPage.goto('work/shifts')
+    await memberPage.goto('staff/shifts')
     await memberPage.getByRole('button', { name: 'Absence', exact: true }).click()
     await memberPage.getByRole('button', { name: 'Report sick today', exact: true }).click()
     await expect(memberPage.getByText(/^Accepted\./)).toBeVisible()
 
     const teammatePage = await signedIn(browser, contexts, teammate, { viewport: PHONE })
-    await teammatePage.goto('work/shifts')
+    await teammatePage.goto('staff/shifts')
     await teammatePage.getByRole('button', { name: 'Open shifts', exact: true }).click()
     await teammatePage.getByRole('button', { name: 'Claim this shift', exact: true }).click()
     await expect(teammatePage.getByText('Claim held.')).toBeVisible()
 
     const leadPage = await signedIn(browser, contexts, lead)
-    await leadPage.goto('work/shifts')
+    await leadPage.goto('staff/shifts')
     await leadPage.getByRole('button', { name: 'Requests', exact: true }).click()
     const claim = leadPage.getByText(new RegExp(`${teammate.name} claimed ${member.name}.s shift`))
     await expect(claim).toBeVisible()
@@ -228,7 +228,7 @@ test.describe('AC-041 staff attendance journeys', () => {
       permissions: ['geolocation'],
       geolocation: { ...SITE_PIN, accuracy: 10 },
     })
-    await memberPage.goto('work/shifts?view=clock')
+    await memberPage.goto('staff/shifts?view=clock')
     await memberPage.getByLabel('I agree to the statement above.').check()
     await memberPage.getByRole('button', { name: 'Agree and continue', exact: true }).click()
 
@@ -239,7 +239,7 @@ test.describe('AC-041 staff attendance journeys', () => {
     await expect(memberPage.getByText('Clock-in recorded.', { exact: false })).toBeVisible({ timeout: 20_000 })
 
     const leadPage = await signedIn(browser, contexts, lead)
-    await leadPage.goto('work/shifts')
+    await leadPage.goto('staff/shifts')
     await leadPage.getByRole('button', { name: /^Today.s attendance$/ }).click()
     const row = leadPage.locator('article', { hasText: member.name })
     await expect(row).toContainText('Clocked in')

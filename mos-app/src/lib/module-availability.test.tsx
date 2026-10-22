@@ -26,7 +26,7 @@ function renderProbes() {
 }
 
 const availabilityRows = (overrides: Partial<Record<ModuleId, { enabled?: boolean; person_override?: string }>> = {}): ViewerModuleAvailability[] => {
-  const ids: ModuleId[] = ['work', 'money', 'cafe', 'roastery', 'ecommerce', 'assistant']
+  const ids: ModuleId[] = ['work', 'money', 'cafe', 'staff', 'roastery', 'ecommerce', 'assistant']
   return ids.map((module_id) => ({
     module_id,
     enabled: overrides[module_id]?.enabled ?? module_id !== 'assistant',

@@ -24,7 +24,7 @@ export function StaffShiftsPage() {
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const roles = viewer?.accessRoles ?? []
   const reads = roles.includes('hr') || roles.includes('admin')
-  useDocumentTitle(t('common.docTitle', { page: t('nav.work.shifts') }))
+  useDocumentTitle(t('common.docTitle', { page: t('nav.staff.shifts') }))
   const workBack = useWorkHomeBack()
   const [state, setState] = useState<PageState>('loading')
   const [teams, setTeams] = useState<LedStaffTeam[]>([])

@@ -59,7 +59,7 @@ const standing = {
 }
 
 function renderPage(locale: 'en' | 'id' = 'en') {
-  return render(<I18nProvider initialLocale={locale}><MemoryRouter initialEntries={['/work/shifts']}><StaffShiftsPage /></MemoryRouter></I18nProvider>)
+  return render(<I18nProvider initialLocale={locale}><MemoryRouter initialEntries={['/staff/shifts']}><StaffShiftsPage /></MemoryRouter></I18nProvider>)
 }
 
 beforeEach(() => {

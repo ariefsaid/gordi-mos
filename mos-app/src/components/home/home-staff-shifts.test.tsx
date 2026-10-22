@@ -31,12 +31,12 @@ describe('HomeStaffShifts', () => {
     expect(await screen.findByText('07:00–15:00 WIB')).toBeInTheDocument()
     expect(screen.getByText('Radiant · Radiant Crew')).toBeInTheDocument()
     expect(screen.getByText('On this shift: Nisa, Rani')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'View my shifts' })).toHaveAttribute('href', '/work/shifts')
+    expect(screen.getByRole('link', { name: 'View my shifts' })).toHaveAttribute('href', '/staff/shifts')
   })
 
   it('AC-035 links straight to clock in/out', async () => {
     renderCard()
-    expect(await screen.findByRole('link', { name: 'Clock in / out' })).toHaveAttribute('href', '/work/shifts?view=clock')
+    expect(await screen.findByRole('link', { name: 'Clock in / out' })).toHaveAttribute('href', '/staff/shifts?view=clock')
   })
 
   it('announces an error and retries into the empty state in Indonesian', async () => {

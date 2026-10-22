@@ -8,7 +8,7 @@ import type { Locale } from '@/i18n/messages'
 
 vi.mock('@/auth/use-auth')
 vi.mock('@/lib/db/module-settings', () => ({ getViewerModuleAvailability: vi.fn().mockResolvedValue([
-  ...(['work', 'money', 'cafe', 'roastery', 'ecommerce', 'assistant'] as const).map((module_id) => ({
+  ...(['work', 'money', 'cafe', 'staff', 'roastery', 'ecommerce', 'assistant'] as const).map((module_id) => ({
     module_id,
     enabled: module_id !== 'assistant',
     person_override: 'inherit',

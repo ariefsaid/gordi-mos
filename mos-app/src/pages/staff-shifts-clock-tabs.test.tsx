@@ -14,7 +14,7 @@ vi.mock('@/components/staff-attendance/staff-shift-panels', () => ({
 import { listLedStaffTeams } from '@/lib/db/staff-attendance'
 import { StaffShiftsPage } from './staff-shifts-page'
 
-function renderPage(entry = '/work/shifts') {
+function renderPage(entry = '/staff/shifts') {
   return render(<I18nProvider initialLocale="en"><MemoryRouter initialEntries={[entry]}><StaffShiftsPage /></MemoryRouter></I18nProvider>)
 }
 
@@ -23,7 +23,7 @@ beforeEach(() => { vi.clearAllMocks() })
 describe('StaffShiftsPage clock tabs', () => {
   it('AC-035 offers clock in/out to everyone and opens it from the Home link', async () => {
     vi.mocked(listLedStaffTeams).mockResolvedValue([])
-    renderPage('/work/shifts?view=clock')
+    renderPage('/staff/shifts?view=clock')
     expect(await screen.findByText('clock panel')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Today’s attendance' })).not.toBeInTheDocument()
   })
