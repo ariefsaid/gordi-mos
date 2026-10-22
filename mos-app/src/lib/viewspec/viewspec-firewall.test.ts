@@ -7,7 +7,8 @@
 // appear (service_role literals + a known sibling-fixture UUID), not brand names.
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
+import { machineEntryViolations } from '@/lib/agent/machineEntryScan'
 
 function collectSourceFiles(dir: string): string[] {
   const files: string[] = []
@@ -153,6 +154,14 @@ describe('de-reference firewall — P2 agent stack (AC-P2-CF-002, D4, FR-P2-DI-0
           `${f}:${i + 1} uses service_role in code but is not an exempt index.ts — "${line.trim()}"`,
         ).toBe(true)
       }
+    }
+  })
+
+  it('each service-role machine entry passes the shared bearer-first scan', () => {
+    for (const f of SERVICE_ROLE_MACHINE_ENTRIES) {
+      const dir = dirname(f)
+      const src = ['index.ts', 'handler.ts'].map((n) => readFileSync(resolve(dir, n), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')).join('\n')
+      expect(machineEntryViolations(src), f).toEqual([])
     }
   })
 
