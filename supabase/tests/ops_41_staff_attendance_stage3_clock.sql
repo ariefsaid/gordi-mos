@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(81);
+select plan(84);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select set_config('app.attendance_now', '2026-10-21 23:00:00+00', true);
@@ -252,6 +252,13 @@ select is((select count(*)::int from ops.attendance_selfie_purge_queue where pat
 select is((select count(*)::int from ops.attendance_selfie_purge_queue where path like '%/00000000-0000-0000-0000-00000000c002.jpg'),0,'ADR-0064 an image uploaded in the last hour is not yet queued');
 select ops.run_attendance_jobs();
 select is((select count(*)::int from ops.attendance_selfie_purge_queue where path like '%/00000000-0000-0000-0000-00000000c001.jpg'),1,'ADR-0064 queuing a superseded image is idempotent');
+
+-- Purge dispatch: closed to app roles, inert without Vault rows, scheduled hourly.
+select ok(not has_function_privilege('authenticated','ops.dispatch_attendance_photo_purge()','execute') and not has_function_privilege('anon','ops.dispatch_attendance_photo_purge()','execute'),'AC-042 the purge dispatcher is not executable by app roles');
+create temp table t_net_before as select count(*) n from net.http_request_queue;
+select ops.dispatch_attendance_photo_purge();
+select is((select count(*) from net.http_request_queue),(select n from t_net_before),'AC-042 with no Vault rows the dispatcher calls nothing');
+select ok(not exists (select 1 from pg_extension where extname = 'pg_cron') or exists (select 1 from cron.job where jobname = 'attendance-photo-purge' and schedule = '17 * * * *'),'AC-042 the purge is scheduled hourly when pg_cron is present');
 
 select * from finish();
 rollback;
