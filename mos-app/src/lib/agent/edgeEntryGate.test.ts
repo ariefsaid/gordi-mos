@@ -16,6 +16,9 @@ const OWN_VERIFICATION: Record<string, { reason: string; calls: RegExp }> = {
   // Accepts only agent tokens, which the shared gate refuses: verifyAgentToken checks the signature
   // against the login service's published keys plus iss, aud, exp and the required claims.
   mcp: { reason: 'agent-token verification', calls: /\bverifyAgentToken\(/ },
+  // Machine-to-machine: called hourly by pg_cron with no user session, so there are no user claims
+  // to gate. Accepts only the dedicated shared-secret bearer, compared in constant time.
+  'attendance-photo-purge': { reason: 'shared-secret bearer', calls: /\bbearerMatches\(/ },
 }
 
 const functionNames = readdirSync(FUNCTIONS_DIR, { withFileTypes: true })
