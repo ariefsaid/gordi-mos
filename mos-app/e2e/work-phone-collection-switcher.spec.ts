@@ -9,13 +9,14 @@ const WORK_COLLECTIONS = [
   { path: 'work/tasks', label: 'Tasks' },
   { path: 'work/projects', label: 'Projects & Processes' },
   { path: 'work/objectives', label: 'Objectives' },
+  { path: 'work/shifts', label: 'My shifts' },
 ] as const
 
 for (const actor of [
   { name: 'Director', ...MANAGER },
   { name: 'member', ...VIEWER },
 ]) {
-  test(`${actor.name}: phone Work directory reaches all four collections and comes back; desktop reaches them from the navigation`, async ({ page }) => {
+  test(`${actor.name}: phone Work directory reaches every Work destination and comes back; desktop reaches them from the navigation`, async ({ page }) => {
     await page.setViewportSize(PHONE)
     await loginAs(page, actor.email, actor.password)
     await page.goto('work')

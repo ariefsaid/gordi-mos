@@ -10,7 +10,7 @@ import { ADMIN_SECTIONS, CAFE_ROUTE_SECTIONS, CAFE_SECTIONS, MONEY_SECTIONS, sec
 import {
   HomeIcon, TasksIcon, InboxIcon, WorkLineIcon, ObjectiveIcon,
   WorkIcon, SignalsIcon, MoneyIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
-  ProfileIcon, ShieldIcon,
+  ProfileIcon, ShieldIcon, TodayIcon,
 } from './icons'
 
 /**
@@ -30,8 +30,8 @@ import {
  *                        not a runtime on/off switch.
  *  - `UTILITY`         — Admin settings, pinned at the foot, and Personal profile, in the account menu.
  *
- * Work declares its children in the owner-ruled order (OD-REDESIGN-57(ii), P-13): Signals · Tasks ·
- * Projects & Processes · Objectives · Events. Events is ship-gated (#348), so four of the five render.
+ * Work declares its children in the owner-ruled order (OD-REDESIGN-57(ii), P-13): Signals · Tasks · Shifts ·
+ * Projects & Processes · Objectives · Events. Events is ship-gated (#348), so five of the six render.
  * Admin is anyOf-gated (admin): absent, not disabled, when unauthorized.
  *
  * Adaptive shell: one available page-bearing area gets the single labelled sidebar; two or more get the
@@ -87,6 +87,7 @@ const WORKSPACE: Destination[] = [
     children: [
       { path: '/work/signals', label: 'Signals', labelKey: 'nav.work.signals', Icon: SignalsIcon },
       { path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon },
+      { path: '/work/shifts', label: 'My shifts', labelKey: 'nav.work.shifts', Icon: TodayIcon },
       { path: '/work/projects', label: 'Projects & Processes', labelKey: 'nav.work.projects', Icon: WorkLineIcon },
       { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.work.objectives', Icon: ObjectiveIcon },
     ],

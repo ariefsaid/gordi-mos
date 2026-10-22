@@ -6,6 +6,13 @@ cd "$(dirname "$0")/.."
 HOOK="$(pwd)/.githooks/pre-commit"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+stub="$tmp/stub"; mkdir -p "$stub"
+cat > "$stub/gitleaks" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+chmod +x "$stub/gitleaks"
+export PATH="$stub:$PATH"
 pass=0; fail=0
 
 check() { # $1 name · $2 expected rc · $3.. command runs inside the scratch repo

@@ -30,7 +30,7 @@ Load only what the task needs. `docs/` is local-only (gitignored); in a managed 
 - Review is machine-first. Typecheck, lint, behaviour tests, build, gitleaks, RLS tests and migration order run in CI on every PR and are the merge gate. One security review by someone who did not build the branch, only when the diff touches auth, schema/RLS, migrations, money or CI/gate scripts; `scripts/gh-post.sh` enforces this. Round cap: one review and one re-review; if the second verdict is still not a pass, stop and bring the findings to the owner. No spec or code-quality review rounds. No review of looks.
 - Keep migrations reversible; every business table has RLS and the `org_id` tenancy seam is enforced.
 - `OD-*` decisions are owner-locked until changed; `DD-*` decisions are Director-made and binding until revised, but may be challenged with evidence. Name the decision type when citing it.
-- Main and staging merges require explicit owner assent.
+- Main and staging merges require explicit owner assent. "Release X with Y" is one package under one owner yes: apply no piece of it (server, warehouse, data) early.
 - Escalate only money or promises, irreversible actions outside a signed brief, scope-versus-time choices that change what ships, or facts only the owner holds; decide other matters within delegated scope. Park blocked steps; silence is not assent, and explicit current-task direction overrides project defaults.
 - Never report an action without reading its output; include the line that proves a completion claim. Report when a job finishes, with its proof; never promise timed check-ins.
 - Do not add AI attribution trailers to agent-authored commits; `.githooks/commit-msg` blocks Claude/Anthropic co-author trailers.

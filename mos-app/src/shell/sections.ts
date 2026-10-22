@@ -59,6 +59,7 @@ const SECTIONS: Section[] = [
   { path: '/', label: 'Home', labelKey: 'nav.home', Icon: HomeIcon },
   { path: '/work/signals', label: 'Signals', labelKey: 'nav.work.signals', Icon: SignalsIcon },
   { path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon },
+  { path: '/work/shifts', label: 'My shifts', labelKey: 'nav.work.shifts', Icon: TodayIcon },
   { path: '/work/projects', label: 'Projects & Processes', labelKey: 'nav.work.projects', Icon: WorkLineIcon },
   // No `capability` here: OD-V4-1 removed the objective.manage READ gate everywhere — the rail
   // entry (destinations.tsx), the route (router.tsx) and now this registry. It was inert while
@@ -147,6 +148,8 @@ function moduleForPath(path: string): ModuleId | null {
 export const ADMIN_SECTIONS: Section[] = [
   { path: '/admin/people', label: 'People', labelKey: 'nav.admin.people', Icon: PeopleIcon },
   { path: '/admin/teams', label: 'Teams', labelKey: 'nav.admin.teams', Icon: PeopleIcon },
+  { path: '/admin/shift-builder', label: 'Shift builder', labelKey: 'admin.settings.nav.attendance', Icon: TodayIcon },
+  { path: '/admin/attendance-settings', label: 'Attendance settings', labelKey: 'admin.settings.nav.attendanceSettings', Icon: TodayIcon },
   { path: '/admin/access', label: 'Access levels', labelKey: 'nav.admin.roles', Icon: ShieldIcon },
   { path: '/admin/modules', label: 'Modules', labelKey: 'nav.admin.modules', Icon: ItemsIcon },
   { path: '/admin/agents', label: 'Agent apps', labelKey: 'admin.settings.nav.agents', Icon: ShieldIcon },

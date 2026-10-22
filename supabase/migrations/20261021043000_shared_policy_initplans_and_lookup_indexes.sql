@@ -1,6 +1,6 @@
 -- Evaluate caller-context RLS helpers once per statement and index their lookup paths.
 -- The policy catalog reflects all earlier migrations, so only existing helper calls are wrapped.
--- Reversible snapshots in changed policy comments preserve exact clauses and prior comments for DOWN.
+-- Reversible snapshots preserve original clauses and the exact clauses created by this migration.
 -- DOWN: run supabase/rollbacks/20261021043000_shared_policy_initplans_and_lookup_indexes.sql
 
 do $policy_initplans$
@@ -19,6 +19,8 @@ declare
   v_call text;
   v_alter_policy text;
   v_snapshot text;
+  v_created_qual text;
+  v_created_with_check text;
   v_helpers text[] := array[
     'shared.current_org_id',
     'shared.current_person_id',
@@ -114,6 +116,19 @@ begin
         v_alter_policy := v_alter_policy || format(' with check (%s)', v_with_check);
       end if;
       execute v_alter_policy;
+      select policies.qual, policies.with_check
+        into v_created_qual, v_created_with_check
+        from pg_policies policies
+       where policies.schemaname = v_policy.schemaname
+         and policies.tablename = v_policy.tablename
+         and policies.policyname = v_policy.policyname;
+      v_snapshot := encode(convert_to(jsonb_build_object(
+        'qual', v_policy.qual,
+        'with_check', v_policy.with_check,
+        'created_qual', v_created_qual,
+        'created_with_check', v_created_with_check,
+        'comment', v_policy.policy_comment
+      )::text, 'UTF8'), 'hex');
       execute format(
         'comment on policy %I on %I.%I is %L',
         v_policy.policyname,

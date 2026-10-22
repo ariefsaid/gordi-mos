@@ -21,6 +21,12 @@ class StreamUsageTest(unittest.TestCase):
         cls.module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.module)
 
+    def test_psql_password_travels_in_the_environment_not_the_command_line(self):
+        target, env = self.module.psql_target('postgresql://ops:s%40cret@db.example.test:5432/postgres')
+        self.assertEqual(target, 'postgresql://ops@db.example.test:5432/postgres')
+        self.assertEqual(env['PGPASSWORD'], 's@cret')
+        self.assertEqual(self.module.psql_target('postgresql://localhost/postgres')[0], 'postgresql://localhost/postgres')
+
     def test_production_wins_per_branch_activity_not_globally(self):
         rows = [self.row('A', '1', 'Simple Manufacturing', 2, 0, True),
                 self.row('A', '2', 'Simple Manufacturing', 0, 3, False),
@@ -116,22 +122,61 @@ class StreamUsageTest(unittest.TestCase):
             self.assertIn('"branch_code": "branch_a"', output)
             self.assertIn('rollback;', output)
 
+    def test_apply_prefers_environment_url_and_passes_password_only_to_psql_environment(self):
+        url = 'postgresql://ops:s%40cret@localhost:5432/test'
+        target = 'postgresql://ops@localhost:5432/test'
+        with patch.dict(self.module.os.environ, {'CAFE_STREAM_ITEMS_DB_URL': url}), \
+                patch.object(self.module.subprocess, 'run') as run:
+            result, _, _ = self.main(['--usage', '-', '--apply', '--db-url', 'postgresql://localhost/fallback'])
+        self.assertEqual(result, 0)
+        self.assertEqual(run.call_args.args[0], ['psql', target, '-X', '-v', 'ON_ERROR_STOP=1'])
+        self.assertEqual(run.call_args.kwargs['env']['PGPASSWORD'], 's@cret')
+        self.assertIn('begin;', run.call_args.kwargs['input'])
+        self.assertIn('commit;', run.call_args.kwargs['input'])
+
+    def test_apply_uses_password_free_deprecated_fallback(self):
+        target = 'postgresql://localhost/test'
+        with patch.dict(self.module.os.environ, {}, clear=True), \
+                patch.object(self.module.subprocess, 'run') as run:
+            result, _, _ = self.main(['--usage', '-', '--apply', '--db-url', target])
+        self.assertEqual(result, 0)
+        self.assertEqual(run.call_args.args[0], ['psql', target, '-X', '-v', 'ON_ERROR_STOP=1'])
+
+    def test_password_in_db_url_fallback_is_refused(self):
+        with patch.dict(self.module.os.environ, {}, clear=True), \
+                patch.object(self.module.subprocess, 'run') as run:
+            result, _, error = self.main(['--usage', '-', '--apply', '--db-url', 'postgresql://ops:secret@localhost/test'])
+        self.assertEqual(result, 2)
+        self.assertIn('--db-url must not contain a password', error)
+        run.assert_not_called()
+
+    def test_apply_requires_an_environment_url_or_fallback(self):
+        with patch.dict(self.module.os.environ, {}, clear=True), \
+                patch.object(self.module.subprocess, 'run') as run:
+            result, _, error = self.main(['--usage', '-', '--apply'])
+        self.assertEqual(result, 2)
+        self.assertIn('requires CAFE_STREAM_ITEMS_DB_URL', error)
+        run.assert_not_called()
+
     def test_apply_uses_atomic_sql_and_psql_failure_does_not_print_target(self):
         target = 'postgresql://localhost/test'
-        with patch.object(self.module.subprocess, 'run') as run:
+        with patch.dict(self.module.os.environ, {}, clear=True), \
+                patch.object(self.module.subprocess, 'run') as run:
             result, _, _ = self.main(['--usage', '-', '--apply', '--db-url', target])
             self.assertEqual(result, 0)
             self.assertEqual(run.call_args.args[0], ['psql', target, '-X', '-v', 'ON_ERROR_STOP=1'])
             self.assertIn('begin;', run.call_args.kwargs['input'])
             self.assertIn('commit;', run.call_args.kwargs['input'])
-        with patch.object(self.module.subprocess, 'run', side_effect=subprocess.CalledProcessError(1, ['psql', target])):
+        with patch.dict(self.module.os.environ, {}, clear=True), \
+                patch.object(self.module.subprocess, 'run', side_effect=subprocess.CalledProcessError(1, ['psql', target])):
             result, _, error = self.main(['--usage', '-', '--apply', '--db-url', target])
             self.assertEqual(result, 2)
             self.assertNotIn(target, error)
             self.assertIn('external command failed', error)
 
     def test_apply_refuses_implicit_remote_target(self):
-        with patch.object(self.module.subprocess, 'run') as run:
+        with patch.dict(self.module.os.environ, {}, clear=True), \
+                patch.object(self.module.subprocess, 'run') as run:
             result, _, error = self.main(['--usage', '-', '--apply', '--db-url', 'postgresql://example.invalid/test'])
             self.assertEqual(result, 2)
             self.assertIn('remote target requires owner authorization', error)

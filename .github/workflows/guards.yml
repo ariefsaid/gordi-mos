@@ -44,6 +44,8 @@ jobs:
         run: bash scripts/check-migration-order.test.sh
       - name: migration rollback guard self-test
         run: bash scripts/check-migration-rollback.test.sh
+      - name: executable migration rollback proof self-test
+        run: bash scripts/prove-migration-rollbacks.test.sh
       - name: Migration rollback paths for new versions
         if: github.event_name == 'pull_request'
         run: |

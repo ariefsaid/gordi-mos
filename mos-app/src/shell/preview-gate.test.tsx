@@ -44,7 +44,7 @@ describe('released person Modules card', () => {
     expect(isShipGated('/admin/modules')).toBe(false)
     expect(isShipGated('/admin/access/modules')).toBe(false)
     expect(destinationForPath('/admin/modules')?.id).toBe('admin')
-    expect(visibleSections(ADMIN_SECTIONS, ['admin'], allModulesOn).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/access', '/admin/modules', '/admin/agents'])
+    expect(visibleSections(ADMIN_SECTIONS, ['admin'], allModulesOn).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/shift-builder', '/admin/attendance-settings', '/admin/access', '/admin/modules', '/admin/agents'])
   })
 
   it('keeps the released Locations route available without the local preview opt-in', () => {
@@ -108,7 +108,7 @@ describe('local preview opt-in does not gate released surfaces', () => {
     expect(sectionForPath('/cafe/transfer-routes')?.labelKey).toBe('nav.cafe.transferRoutes')
     expect(destinationForPath('/admin/modules')?.id).toBe('admin')
     expect(isShipGated('/admin/people/modules')).toBe(false)
-    expect(visibleSections(ADMIN_SECTIONS, ['admin'], allModulesOn).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/access', '/admin/modules', '/admin/agents'])
+    expect(visibleSections(ADMIN_SECTIONS, ['admin'], allModulesOn).map((section) => section.path)).toEqual(['/admin/people', '/admin/teams', '/admin/shift-builder', '/admin/attendance-settings', '/admin/access', '/admin/modules', '/admin/agents'])
   })
 
   it('shows Stock comparison right after Count for Count reviewers only', () => {

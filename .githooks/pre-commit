@@ -28,7 +28,7 @@ if command -v gitleaks >/dev/null 2>&1; then
     note "gitleaks scan failed on staged changes"
   fi
 else
-  printf '\033[33m⚠ pre-commit: gitleaks not installed — secret scan SKIPPED (install gitleaks to enable)\033[0m\n'
+  note "gitleaks not installed — install with: brew install gitleaks"
 fi
 
 # ── 2. Merge-conflict markers (instant; markers have reached main before) ────────

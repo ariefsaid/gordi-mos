@@ -8,6 +8,8 @@ import './admin-settings.css'
 const SECTIONS: { to: string; labelKey: MessageKey }[] = [
   { to: '/admin/people', labelKey: 'admin.settings.nav.people' },
   { to: '/admin/teams', labelKey: 'admin.settings.nav.teams' },
+  { to: '/admin/shift-builder', labelKey: 'admin.settings.nav.attendance' },
+  { to: '/admin/attendance-settings', labelKey: 'admin.settings.nav.attendanceSettings' },
   { to: '/admin/access', labelKey: 'admin.settings.nav.access' },
   { to: '/admin/modules', labelKey: 'admin.settings.nav.modules' },
   { to: '/admin/agents', labelKey: 'admin.settings.nav.agents' },

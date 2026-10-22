@@ -64,6 +64,7 @@ import { HomeCafeDoor } from '@/components/home/home-cafe-door'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
+import { HomeStaffShifts } from '@/components/home/home-staff-shifts'
 import { CAFE_OPENING_ENABLED } from '@/lib/cafe-opening-enabled'
 import { loadHomeCafeDoor, type HomeCafeDoorData } from '@/lib/db/home-cafe'
 import { loadHomeObjectiveProgress, type HomeObjectiveProgress } from '@/lib/db/home-objectives'
@@ -550,7 +551,7 @@ export function HomePage() {
     >
       {/* Keep a stable frame around the replacement so the Home surface owns its wide measure while
           the daily brief's own container queries respond to the content width. */}
-      <div className="home-frame">{(() => {
+      <div className="home-frame"><HomeStaffShifts />{(() => {
         // The feed states no count of its own — nothing beside it can read as a confident 0 while
         // the read is still out (the same rule the region counts follow, DIV-G5). `error` routes to
         // the section's ErrorState + Retry, so a failed load never reads as "No Signals yet".
