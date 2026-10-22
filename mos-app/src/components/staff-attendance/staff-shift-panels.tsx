@@ -3,6 +3,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { useT } from '@/i18n/use-t'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Select } from '@/components/ui/select'
+import { ModalShell } from '@/components/ui/modal-shell'
 import {
   copyStaffRoster, getStaffRoster, listMyStaffShifts, listStaffSiteTemplates, listStaffStandingHours,
   publishStaffRoster, removeStaffShift, saveStaffShift, saveStandingHours,
@@ -110,6 +111,7 @@ export function StaffRosterPanel({ teams }: { teams: LedStaffTeam[] }) {
   const [personId, setPersonId] = useState('')
   const [templateId, setTemplateId] = useState('')
   const [editing, setEditing] = useState<StaffShift | null>(null)
+  const [formOpen, setFormOpen] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const team = teams.find((item) => item.id === teamId) ?? null
@@ -126,6 +128,7 @@ export function StaffRosterPanel({ teams }: { teams: LedStaffTeam[] }) {
       setTemplateId((current) => nextTemplates.some((item) => item.id === current && item.archived_at === null) ? current : nextTemplates.find((item) => item.archived_at === null)?.id ?? '')
       setLocalDate(weekStart)
       setEditing(null)
+      setFormOpen(false)
       setError('')
       setState('ready')
     } catch {
@@ -174,7 +177,11 @@ export function StaffRosterPanel({ teams }: { teams: LedStaffTeam[] }) {
   }
 
   function startEdit(shift: StaffShift) {
-    setEditing(shift); setPersonId(shift.person_id ?? ''); setTemplateId(shift.template_id ?? ''); setLocalDate(shift.local_date)
+    setEditing(shift); setPersonId(shift.person_id ?? ''); setTemplateId(shift.template_id ?? ''); setLocalDate(shift.local_date); setFormOpen(true)
+  }
+
+  function closeForm() {
+    setEditing(null); setLocalDate(weekStart); setFormOpen(false)
   }
 
   if (state === 'loading') return <LoadingShell count={5} label={t('attendance.roster.loading')} />
@@ -182,22 +189,31 @@ export function StaffRosterPanel({ teams }: { teams: LedStaffTeam[] }) {
   if (!team) return <p className="staff-attendance__empty">{t('attendance.roster.noTeams')}</p>
   const isPublished = roster?.status === 'published'
   return <section className="staff-attendance__panel" aria-label={t('attendance.roster.title')}>
-    <div className="staff-attendance__toolbar"><Select className="staff-attendance__select-label" label={t('attendance.roster.team')} value={teamId} onChange={(event) => setTeamId(event.target.value)} fullWidth>{teams.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>{weekControls(weekStart, setWeekStart, locale, t)}</div>
+    <div className="staff-attendance__toolbar"><Select className="staff-attendance__select-label" label={t('attendance.roster.team')} value={teamId} onChange={(event) => setTeamId(event.target.value)} fullWidth>{teams.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></div>
     {!(roster?.site_id ?? team.site_id) ? <p className="staff-attendance__empty">{t('attendance.roster.siteRequired')}</p> : <>
       <div className="staff-attendance__status"><strong>{team.name} · {roster?.site_name ?? team.site_name ?? t('attendance.roster.site')}</strong><span className={isPublished ? 'staff-attendance__badge staff-attendance__badge--published' : 'staff-attendance__badge'}>{t(isPublished ? 'attendance.roster.publishedStatus' : 'attendance.roster.draftStatus')}</span></div>
-      {templates.length === 0 ? <p className="staff-attendance__empty">{t('attendance.roster.noTemplates')}</p> : <form className="staff-attendance__form" onSubmit={(event) => void saveShift(event)}>
-        <Select label={t('attendance.roster.person')} value={personId} onChange={(event) => setPersonId(event.target.value)} required fullWidth><option value="">{t('attendance.roster.choosePerson')}</option>{roster?.members.map((member) => <option key={member.person_id} value={member.person_id}>{member.full_name}</option>)}</Select>
-        <label>{t('attendance.roster.date')}<input type="date" value={localDate} min={weekStart} max={moveDate(weekStart, 6)} onChange={(event) => setLocalDate(event.target.value)} required disabled={Boolean(editing)} /></label>
-        <Select label={t('attendance.roster.shift')} value={templateId} onChange={(event) => setTemplateId(event.target.value)} required fullWidth><option value="">{t('attendance.roster.chooseShift')}</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name} · {template.start_time.slice(0, 5)}–{template.end_time.slice(0, 5)}</option>)}</Select>
-        <div className="staff-attendance__actions"><button className="staff-attendance__primary" type="submit" disabled={!(roster?.site_id ?? team.site_id)}>{t(editing ? 'attendance.roster.saveEdit' : 'attendance.roster.addShift')}</button>{editing && <button type="button" onClick={() => { setEditing(null); setLocalDate(weekStart) }}>{t('common.cancel')}</button>}</div>
-      </form>}
-      <div className="staff-attendance__actions staff-attendance__roster-actions">
-        <button type="button" onClick={() => void copyWeek()} disabled={!team.site_id}>{t('attendance.roster.copy')}</button>
-        {!isPublished && <button type="button" className="staff-attendance__primary" disabled={!roster || roster.shifts.length === 0} onClick={() => void publishWeek()}>{t('attendance.roster.publish')}</button>}
+      <div className="staff-attendance__weekbar">
+        {weekControls(weekStart, setWeekStart, locale, t)}
+        <div className="staff-attendance__actions">
+          {templates.length > 0 && <button type="button" className="staff-attendance__primary" onClick={() => { setEditing(null); setLocalDate(weekStart); setFormOpen(true) }}>{t('attendance.roster.addShift')}</button>}
+          <button type="button" onClick={() => void copyWeek()} disabled={!team.site_id}>{t('attendance.roster.copy')}</button>
+          {!isPublished && <button type="button" disabled={!roster || roster.shifts.length === 0} onClick={() => void publishWeek()}>{t('attendance.roster.publish')}</button>}
+        </div>
       </div>
+      {templates.length === 0 && <p className="staff-attendance__empty">{t('attendance.roster.noTemplates')}</p>}
       {roster?.shifts.length ? <div className="staff-attendance__days-list">{Array.from(new Set(roster.shifts.map((shift) => shift.local_date))).sort().map((date) => <section className="staff-attendance__day" key={date}><h2>{formatDay(date, locale)}</h2>{roster.shifts.filter((shift) => shift.local_date === date).map((shift) => <ShiftCard key={shift.id} shift={shift} locale={locale} t={t} scope={roster} inDay actions={<><button type="button" onClick={() => startEdit(shift)}>{t('attendance.roster.edit')}</button><button type="button" className="staff-attendance__quiet" onClick={() => void removeShift(shift)}>{t('attendance.roster.remove')}</button></>} />)}</section>)}</div> : <p className="staff-attendance__empty">{t('attendance.roster.empty')}</p>}
+      <ModalShell open={formOpen && templates.length > 0} onClose={closeForm} ariaLabel={t(editing ? 'attendance.roster.saveEdit' : 'attendance.roster.addShift')} surface="sheet" phoneMode="fullscreen">
+        <form className="staff-attendance__form staff-attendance__dialog" onSubmit={(event) => void saveShift(event)}>
+          <h2>{t(editing ? 'attendance.roster.saveEdit' : 'attendance.roster.addShift')}</h2>
+          <Select label={t('attendance.roster.person')} value={personId} onChange={(event) => setPersonId(event.target.value)} required fullWidth><option value="">{t('attendance.roster.choosePerson')}</option>{roster?.members.map((member) => <option key={member.person_id} value={member.person_id}>{member.full_name}</option>)}</Select>
+          <label>{t('attendance.roster.date')}<input type="date" value={localDate} min={weekStart} max={moveDate(weekStart, 6)} onChange={(event) => setLocalDate(event.target.value)} required disabled={Boolean(editing)} /></label>
+          <Select label={t('attendance.roster.shift')} value={templateId} onChange={(event) => setTemplateId(event.target.value)} required fullWidth><option value="">{t('attendance.roster.chooseShift')}</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name} · {template.start_time.slice(0, 5)}–{template.end_time.slice(0, 5)}</option>)}</Select>
+          {error && <p className="staff-attendance__error" role="alert">{error}</p>}
+          <div className="staff-attendance__actions"><button className="staff-attendance__primary" type="submit" disabled={!(roster?.site_id ?? team.site_id)}>{t(editing ? 'attendance.roster.saveEdit' : 'attendance.roster.addShift')}</button><button type="button" onClick={closeForm}>{t('common.cancel')}</button></div>
+        </form>
+      </ModalShell>
     </>}
-    {error && <p className="staff-attendance__error" role="alert">{error}</p>}{notice && <p className="staff-attendance__notice" role="status">{notice}</p>}
+    {error && !formOpen && <p className="staff-attendance__error" role="alert">{error}</p>}{notice && <p className="staff-attendance__notice" role="status">{notice}</p>}
   </section>
 }
 

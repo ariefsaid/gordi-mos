@@ -21,8 +21,12 @@
 .staff-cover__num { font-variant-numeric: var(--mos-numeric); }
 @media (max-width: 767.98px) {
   .staff-cover__form { padding: var(--mos-space-3); }
-  .staff-cover__bar { position: sticky; bottom: 0; padding-block: var(--mos-space-2); background: var(--mos-surface); }
+  .staff-cover__bar { padding-block: var(--mos-space-2); }
   .staff-cover__bar .staff-attendance__primary { width: 100%; }
   .staff-cover__filters { grid-template-columns: 1fr; }
 }
 .staff-attendance__actions .mk-select { flex: 1 1 200px; min-width: 0; }
+@media (min-width: 768px) {
+  .staff-attendance__actions:has(.mk-select) { flex-wrap: nowrap; }
+  .staff-attendance__actions .mk-select { flex: 0 1 14rem; }
+}

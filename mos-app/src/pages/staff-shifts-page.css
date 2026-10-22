@@ -1,1 +1,3 @@
 .staff-shifts__tabs { margin-bottom: var(--mos-space-4); }
+/* The page track is wide; rows read as units inside a readable measure. */
+#staff-shifts-panel { max-width: 56rem; }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -105,6 +105,7 @@ describe('StaffShiftsPage', () => {
     await user.click(screen.getByRole('tab', { name: 'Team roster' }))
     await screen.findByRole('button', { name: 'Add shift' })
     await user.click(screen.getByRole('button', { name: 'Add shift' }))
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Add shift' }))
     await waitFor(() => expect(saveStaffShift).toHaveBeenCalledWith('team-1', 'person-1', expect.any(String), 'template-1', null))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Publish week' })).toBeEnabled())
     await user.click(screen.getByRole('button', { name: 'Publish week' }))
@@ -151,6 +152,7 @@ describe('StaffShiftsPage', () => {
     await screen.findByText('Radiant Crew · Radiant')
     await user.click(screen.getByRole('tab', { name: 'Team roster' }))
     await user.click(await screen.findByRole('button', { name: 'Add shift' }))
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Add shift' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('already has a shift at that time')
   })
 

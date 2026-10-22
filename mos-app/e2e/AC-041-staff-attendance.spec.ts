@@ -166,11 +166,13 @@ test.describe('AC-041 staff attendance journeys', () => {
       && (response.request().postData() ?? '').includes(nextMonday))
     await leadPage.getByRole('button', { name: 'Next week', exact: true }).click()
     await loaded
-    await expect(leadPage.getByLabel('Shift date')).toHaveValue(nextMonday)
+    await leadPage.getByRole('button', { name: 'Add shift', exact: true }).click()
+    const form = leadPage.getByRole('dialog')
+    await expect(form.getByLabel('Shift date')).toHaveValue(nextMonday)
 
     await chooseSelectOption(leadPage, leadPage.getByRole('combobox', { name: 'Person', exact: true }), member.name)
     await chooseSelectOption(leadPage, leadPage.getByRole('combobox', { name: 'Shift hours', exact: true }), /^E2E Evening/)
-    await leadPage.getByRole('button', { name: 'Add shift', exact: true }).click()
+    await form.getByRole('button', { name: 'Add shift', exact: true }).click()
     await expect(leadPage.getByText('Shift saved.')).toBeVisible()
 
     // A draft week is the lead's working copy: the member sees nothing yet.
