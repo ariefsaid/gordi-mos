@@ -4,22 +4,23 @@
 // tests exercise the real index.ts wiring with Deno.serve captured.
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { machineEntryViolations } from './machineEntryScan'
+import { machineEntryNames, machineEntryViolations } from './machineEntryScan'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const FUNCTIONS_DIR = join(__dirname, '../../../../supabase/functions')
 
 const createClient = vi.fn()
 vi.mock('@supabase/supabase-js', () => ({ createClient }))
 
-const FUNCTIONS_DIR = join(__dirname, '../../../../supabase/functions')
-
 // Functions that authenticate without the shared gate, each with the reason. Nothing else may.
-const OWN_VERIFICATION: Record<string, { reason: string; calls: RegExp; machine?: true }> = {
+const MACHINE_ENTRIES = machineEntryNames(FUNCTIONS_DIR)
+const OWN_VERIFICATION: Record<string, { reason: string; calls: RegExp }> = {
   // Accepts only agent tokens, which the shared gate refuses: verifyAgentToken checks the signature
   // against the login service's published keys plus iss, aud, exp and the required claims.
   mcp: { reason: 'agent-token verification', calls: /\bverifyAgentToken\(/ },
   // Machine-to-machine: called hourly by pg_cron with no user session, so there are no user claims
   // to gate. Accepts only the dedicated shared-secret bearer, compared in constant time.
-  'attendance-photo-purge': { reason: 'shared-secret bearer', calls: /\bbearerMatches\(/, machine: true },
+  'attendance-photo-purge': { reason: 'shared-secret bearer', calls: /\bbearerMatches\(/ },
 }
 
 const functionNames = readdirSync(FUNCTIONS_DIR, { withFileTypes: true })
@@ -49,7 +50,7 @@ describe('edge function gate (source scan)', () => {
     const own = OWN_VERIFICATION[name]
     if (own) {
       expect(src).toMatch(own.calls)
-      if (own.machine) expect(machineEntryViolations(src)).toEqual([])
+      if (MACHINE_ENTRIES.includes(name)) expect(machineEntryViolations(src)).toEqual([])
       return
     }
     const gate = src.search(/\bconst\s+verdict\s*=\s*await\s+requireVerifiedClaims\(/)
