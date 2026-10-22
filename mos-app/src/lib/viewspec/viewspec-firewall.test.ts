@@ -7,7 +7,8 @@
 // appear (service_role literals + a known sibling-fixture UUID), not brand names.
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
+import { machineEntryViolations } from '@/lib/agent/machineEntryScan'
 
 function collectSourceFiles(dir: string): string[] {
   const files: string[] = []
@@ -101,6 +102,12 @@ const SERVICE_ROLE_EXEMPT = [
   resolve(FUNCTIONS_DIR, 'compose-view/index.ts'),
 ]
 
+// A non-agent machine function (hourly retention purge, no user session) that must delete Storage
+// objects and call ops RPCs, which only the service role can do. Entry file only: its handler.ts
+// stays under the strict rule above and receives the key as an injected string. It is NOT exempt
+// from the verifier rule below, since it has no user JWT to verify; it checks its own bearer secret.
+const SERVICE_ROLE_MACHINE_ENTRIES = [resolve(FUNCTIONS_DIR, 'attendance-photo-purge/index.ts')]
+
 describe('de-reference firewall — P2 agent stack (AC-P2-CF-002, D4, FR-P2-DI-002)', () => {
   it('walks a non-empty agent stack including BOTH edge-function index.ts entry points', () => {
     expect(agentStackFiles.length).toBeGreaterThan(10)
@@ -136,7 +143,7 @@ describe('de-reference firewall — P2 agent stack (AC-P2-CF-002, D4, FR-P2-DI-0
 
   it('service_role appears in executable code ONLY in the two index.ts entry points (the auth.getUser exemption)', () => {
     for (const f of agentStackFiles) {
-      const exempt = SERVICE_ROLE_EXEMPT.includes(f)
+      const exempt = SERVICE_ROLE_EXEMPT.includes(f) || SERVICE_ROLE_MACHINE_ENTRIES.includes(f)
       const lines = readFileSync(f, 'utf8').split('\n')
       for (const [i, line] of lines.entries()) {
         if (isCommentLine(line)) continue
@@ -147,6 +154,14 @@ describe('de-reference firewall — P2 agent stack (AC-P2-CF-002, D4, FR-P2-DI-0
           `${f}:${i + 1} uses service_role in code but is not an exempt index.ts — "${line.trim()}"`,
         ).toBe(true)
       }
+    }
+  })
+
+  it('each service-role machine entry passes the shared bearer-first scan', () => {
+    for (const f of SERVICE_ROLE_MACHINE_ENTRIES) {
+      const dir = dirname(f)
+      const src = ['index.ts', 'handler.ts'].map((n) => readFileSync(resolve(dir, n), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')).join('\n')
+      expect(machineEntryViolations(src), f).toEqual([])
     }
   })
 

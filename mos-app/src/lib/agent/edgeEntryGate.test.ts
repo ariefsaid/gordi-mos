@@ -4,6 +4,7 @@
 // tests exercise the real index.ts wiring with Deno.serve captured.
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { machineEntryViolations } from './machineEntryScan'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const createClient = vi.fn()
@@ -12,10 +13,13 @@ vi.mock('@supabase/supabase-js', () => ({ createClient }))
 const FUNCTIONS_DIR = join(__dirname, '../../../../supabase/functions')
 
 // Functions that authenticate without the shared gate, each with the reason. Nothing else may.
-const OWN_VERIFICATION: Record<string, { reason: string; calls: RegExp }> = {
+const OWN_VERIFICATION: Record<string, { reason: string; calls: RegExp; machine?: true }> = {
   // Accepts only agent tokens, which the shared gate refuses: verifyAgentToken checks the signature
   // against the login service's published keys plus iss, aud, exp and the required claims.
   mcp: { reason: 'agent-token verification', calls: /\bverifyAgentToken\(/ },
+  // Machine-to-machine: called hourly by pg_cron with no user session, so there are no user claims
+  // to gate. Accepts only the dedicated shared-secret bearer, compared in constant time.
+  'attendance-photo-purge': { reason: 'shared-secret bearer', calls: /\bbearerMatches\(/, machine: true },
 }
 
 const functionNames = readdirSync(FUNCTIONS_DIR, { withFileTypes: true })
@@ -45,6 +49,7 @@ describe('edge function gate (source scan)', () => {
     const own = OWN_VERIFICATION[name]
     if (own) {
       expect(src).toMatch(own.calls)
+      if (own.machine) expect(machineEntryViolations(src)).toEqual([])
       return
     }
     const gate = src.search(/\bconst\s+verdict\s*=\s*await\s+requireVerifiedClaims\(/)
@@ -52,6 +57,15 @@ describe('edge function gate (source scan)', () => {
     expect(src, 'a refused verdict returns').toMatch(/if\s*\(\s*!verdict\.ok\s*\)\s*\{?\s*return\b/)
     const firstUse = src.search(FIRST_USE)
     expect(firstUse, 'the request is used only after the gate').toBeGreaterThan(gate)
+  })
+
+  it('machine-entry check rejects a body read or an outbound call before bearerMatches', () => {
+    const ok = "export async function handle(req) { if (!(await bearerMatches(h, s))) return json(1); return fetch(u) }"
+    expect(machineEntryViolations(ok)).toEqual([])
+    expect(machineEntryViolations("async function handle(req) { const b = await req.json(); if (!(await bearerMatches(h, s))) return x }")).toContain('request body is read')
+    expect(machineEntryViolations("async function handle(req) { await supabase.storage.from('a').remove([]); if (!(await bearerMatches(h, s))) return x }")).toContain('service-role client or outbound call before bearerMatches')
+    expect(machineEntryViolations("async function handle(req) { const c = createClient(u, k); if (!(await bearerMatches(h, s))) return x }")).toContain('service-role client or outbound call before bearerMatches')
+    expect(machineEntryViolations("async function handle(req) { const r = bearerMatches(h, s); return fetch(u) }")).toContain('bearerMatches result is not checked with an early return')
   })
 
   // The protected-resource metadata document is public discovery data any client may read.
