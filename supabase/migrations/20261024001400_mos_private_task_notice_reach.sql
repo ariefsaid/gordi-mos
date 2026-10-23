@@ -104,6 +104,7 @@ end;
 $$;
 comment on function mos._purge_task_notices_for_ex_admin() is
   'AFTER trigger on shared.person_access_roles: when admin is revoked, deletes that person''s notices about private Tasks they have no other route to read.';
+revoke execute on function mos._notify_task_mentions() from public, anon, authenticated;
 revoke execute on function mos._purge_task_notices_for_ex_admin() from public, anon, authenticated;
 create trigger person_access_roles_purge_task_notices
   after update of revoked_at on shared.person_access_roles
