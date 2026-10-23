@@ -12,6 +12,16 @@ import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { AuthContext } from '@/auth/context'
+// The shared editor is covered in block-document; here a stand-in that types a document.
+vi.mock('./task-draft-description', () => ({
+  TaskDraftDescription: ({ body, onChange }: { body: unknown[] | null; onChange: (blocks: unknown[]) => void }) => (
+    <div>
+      <button type="button" onClick={() => onChange([{ type: 'paragraph', content: [{ type: 'text', text: 'Call the supplier', styles: {} }] }])}>type a document</button>
+      <p data-testid="draft-doc">{body ? JSON.stringify(body) : 'blank'}</p>
+    </div>
+  ),
+}))
+
 import { TaskCreateForm } from './task-create-form'
 import { TaskCreateContext } from './task-create-context'
 import type { TaskRow } from '@/lib/db/tasks.types'
@@ -190,11 +200,31 @@ describe('TaskCreateForm — validation', () => {
   it('Create task submits the trimmed title once every field is valid', async () => {
     const { onCreate } = renderForm({ task: makeDraft({ title: '  Ship the launch ' }) })
     fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
-    await waitFor(() => expect(onCreate).toHaveBeenCalledWith('Ship the launch', ''))
+    await waitFor(() => expect(onCreate).toHaveBeenCalledWith('Ship the launch', null))
+  })
+
+  it('Create task sends the typed description document as the body', async () => {
+    const { onCreate } = renderForm({ task: makeDraft({ title: 'Ship the launch' }) })
+    fireEvent.click(await screen.findByRole('button', { name: 'type a document' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
+    await waitFor(() => expect(onCreate).toHaveBeenCalledWith('Ship the launch', [
+      { type: 'paragraph', content: [{ type: 'text', text: 'Call the supplier', styles: {} }] },
+    ]))
   })
 })
 
 describe('TaskCreateForm — discard, busy and retry', () => {
+  it('a failed create keeps the typed document, and Retry sends it again', async () => {
+    const onCreate = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(undefined)
+    renderForm({ task: makeDraft({ title: 'Ship the launch' }), onCreate })
+    fireEvent.click(await screen.findByRole('button', { name: 'type a document' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
+    fireEvent.click(await screen.findByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(2))
+    expect(screen.getByTestId('draft-doc')).toHaveTextContent('Call the supplier')
+    expect(onCreate.mock.calls[1][1]).toEqual(onCreate.mock.calls[0][1])
+  })
+
   it('Escape on the title discards the whole draft', () => {
     const { onCancel } = renderForm()
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Title' }), { key: 'Escape' })
@@ -313,8 +343,8 @@ describe('TaskCreateForm — discard, busy and retry', () => {
       retry.focus()
       await user.keyboard('{Enter}')
       await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(2))
-      expect(onCreate).toHaveBeenNthCalledWith(1, 'Ship the launch', '')
-      expect(onCreate).toHaveBeenNthCalledWith(2, 'Ship the launch', '')
+      expect(onCreate).toHaveBeenNthCalledWith(1, 'Ship the launch', null)
+      expect(onCreate).toHaveBeenNthCalledWith(2, 'Ship the launch', null)
     } finally { restore() }
   })
 
@@ -358,8 +388,8 @@ describe('TaskCreateForm — discard, busy and retry', () => {
       expect(secondRetry).toBeEnabled()
       expect(create).toBeEnabled()
       expect(onCreate).toHaveBeenCalledTimes(2)
-      expect(onCreate).toHaveBeenNthCalledWith(1, 'Ship the launch', '')
-      expect(onCreate).toHaveBeenNthCalledWith(2, 'Ship the launch', '')
+      expect(onCreate).toHaveBeenNthCalledWith(1, 'Ship the launch', null)
+      expect(onCreate).toHaveBeenNthCalledWith(2, 'Ship the launch', null)
       // Create sits in the page header inside the form, so focus returns to that usable submit action.
       await waitFor(() => expect(create).toHaveFocus())
     } finally { restore() }

@@ -2,11 +2,12 @@ import { useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import { BlockDocumentEditor, type BlockDocumentCopy } from '@/components/block-document/block-document-editor'
+import { BlockDocumentEditor } from '@/components/block-document/block-document-editor'
 import { useCatalogRecordEntryFactory } from '@/components/catalog/use-catalog-record-overlay'
 import { SignalRecordHost } from '@/components/signals/signal-record-host'
 import { useOptionalOverlayHost, type OverlayEntry } from '@/shell/overlay-host'
 import type { RecordRef } from '@/lib/db/document-references'
+import { taskDocumentCopy } from './task-document-copy'
 import { readTaskBody, saveTaskBody } from '@/lib/db/task-body'
 
 // The Task description as a block document (mos.tasks.body): the shared editor with `@` mentions of
@@ -55,27 +56,7 @@ export function TaskDescriptionEditor({ taskId, canEdit, onDirtyChange }: TaskDe
     save: (blocks: unknown[], expectedUpdatedAt: string) => saveTaskBody(taskId, blocks, expectedUpdatedAt, viewerId),
   }), [taskId, viewerId])
 
-  const copy: BlockDocumentCopy = {
-    label: t('tasks.document.label'),
-    loading: t('tasks.document.loading'),
-    loadError: t('tasks.document.loadError'),
-    unreadable: t('tasks.document.unreadable'),
-    empty: t('tasks.document.empty'),
-    placeholder: t('tasks.document.placeholder'),
-    placeholderEmpty: t('tasks.document.placeholderEmpty'),
-    // The Task page already says it is view-only.
-    readOnly: '',
-    save: t('blockDoc.save'),
-    saving: t('blockDoc.saving'),
-    saved: t('blockDoc.saved'),
-    unsaved: t('blockDoc.unsaved'),
-    failed: t('blockDoc.failed'),
-    retry: t('blockDoc.retry'),
-    reload: t('blockDoc.reload'),
-    conflict: t('blockDoc.conflict'),
-    tooLarge: (limit) => t('blockDoc.tooLarge', { limit }),
-    keysHint: t('blockDoc.keysHint'),
-  }
+  const copy = taskDocumentCopy(t)
 
   return (
     <BlockDocumentEditor

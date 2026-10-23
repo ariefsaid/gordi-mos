@@ -43,7 +43,30 @@ import { linkRecordSlashItem, mentionItems, recordItems, useFooterMenu } from '.
 import './block-document-editor.css'
 
 // Text blocks only: no file, image, table, code or other upload-capable block exists in the schema.
-const { paragraph, heading, bulletListItem, numberedListItem, checkListItem, quote } = defaultBlockSpecs
+const { paragraph, heading, bulletListItem, numberedListItem, quote } = defaultBlockSpecs
+
+// The library's checklist note with its checkbox named: the note label ("Checklist note") then the item's own
+// text, so an empty item is still named. Same block type and `checked` prop as the library's.
+const libraryCheckListItem = defaultBlockSpecs.checkListItem
+const libraryRender = libraryCheckListItem.implementation.render as unknown as (
+  this: unknown, block: never, editor: never,
+) => { dom: DocumentFragment; contentDOM?: HTMLElement }
+const checkListItem = {
+  ...libraryCheckListItem,
+  implementation: {
+    ...libraryCheckListItem.implementation,
+    render(this: unknown, block: never, editor: never) {
+      const rendered = libraryRender.call(this, block, editor)
+      const checkbox = rendered.dom.querySelector('input[type="checkbox"]')
+      const id = (block as { id: string }).id
+      rendered.contentDOM?.setAttribute('id', `check-text-${id}`)
+      checkbox?.setAttribute('id', `check-box-${id}`)
+      checkbox?.setAttribute('aria-label', (editor as { dictionary: { slash_menu: { check_list: { title: string } } } }).dictionary.slash_menu.check_list.title)
+      checkbox?.setAttribute('aria-labelledby', `check-box-${id} check-text-${id}`)
+      return rendered
+    },
+  },
+} as typeof libraryCheckListItem
 const blockSpecs = { paragraph, heading, bulletListItem, numberedListItem, checkListItem, quote }
 const textOnlySchema = BlockNoteSchema.create({ blockSpecs })
 
@@ -139,6 +162,12 @@ export interface BlockDocumentEditorProps {
   copy: BlockDocumentCopy
   onDirtyChange?: (dirty: boolean) => void
   onSaved?: () => void
+  /**
+   * A draft document: the host keeps it (its own Create is the save), so there is no save bar, no
+   * conflict check and no store write; every edit goes to `onDocumentChange`. `store.read` seeds it.
+   */
+  draft?: boolean
+  onDocumentChange?: (blocks: BlockDocument) => void
 }
 
 export function BlockDocumentEditor(props: BlockDocumentEditorProps) {
@@ -186,6 +215,8 @@ function DocumentSurface({
   copy,
   onDirtyChange,
   onSaved,
+  draft = false,
+  onDocumentChange,
   onReload,
 }: BlockDocumentEditorProps & {
   initial: BlockDocumentRead
@@ -229,6 +260,8 @@ function DocumentSurface({
   dirtyCallbackRef.current = onDirtyChange
   const savedCallbackRef = useRef(onSaved)
   savedCallbackRef.current = onSaved
+  const documentCallbackRef = useRef(onDocumentChange)
+  documentCallbackRef.current = onDocumentChange
 
   // Names and titles of what the stored document points at.
   useEffect(() => { if (mentions || recordLinks) refreshReferences(stored) }, [mentions, recordLinks, refreshReferences, stored])
@@ -272,6 +305,7 @@ function DocumentSurface({
   const onEdit = useCallback(() => {
     if (!editable || conflictRef.current) return
     if (mentions || recordLinks) refreshReferences(editor.document as BlockDocument)
+    if (draft) { documentCallbackRef.current?.(editor.document as BlockDocument); return }
     const baseline = inFlightSnapshotRef.current ?? savedSnapshotRef.current
     const dirty = JSON.stringify(sanitize(editor.document)) !== JSON.stringify(baseline)
     if (inFlightRef.current) {
@@ -283,7 +317,7 @@ function DocumentSurface({
     setDirty(dirty)
     if (dirty) setSaveState('draft')
     else if (wasDirty) setSaveState('saved')
-  }, [editable, editor, mentions, recordLinks, refreshReferences, sanitize, setDirty])
+  }, [draft, editable, editor, mentions, recordLinks, refreshReferences, sanitize, setDirty])
 
   // Escape hands focus to the bar's Save control; it never persists anything by itself — persistence
   // is the Save click, never a blur. It runs in the capture phase because the editor handles Escape
@@ -301,10 +335,19 @@ function DocumentSurface({
     else editor.domElement?.removeAttribute('aria-describedby')
   }, [editor, editable, keysHintId])
 
+  // The library leaves aria-expanded="false" on the textbox after a menu closes; a textbox may not carry it.
+  useEffect(() => {
+    const dom = editor.domElement
+    if (!dom) return
+    const observer = new MutationObserver(() => { if (dom.getAttribute('aria-expanded') === 'false') dom.removeAttribute('aria-expanded') })
+    observer.observe(dom, { attributes: true, attributeFilter: ['aria-expanded'] })
+    return () => observer.disconnect()
+  }, [editor])
+
   // `@` and `[[` data: the roster loads on the first `@`, records are searched as the query changes.
   const rosterRef = useRef<Promise<MentionRoster> | null>(null)
-  const mentionMenu = useFooterMenu(t('blockDoc.mention.footer'))
-  const linkMenu = useFooterMenu(t('blockDoc.link.footer'))
+  const mentionMenu = useFooterMenu(t('blockDoc.mention.footer'), t('blockDoc.mention.label'))
+  const linkMenu = useFooterMenu(t('blockDoc.link.footer'), t('blockDoc.link.label'))
   const kindLabel = useCallback((kind: RecordLinkKind) => t(KIND_LABEL[kind]), [t])
   const remember = references.remember
   const getSlashItems = useCallback(async (query: string) => {
@@ -337,14 +380,14 @@ function DocumentSurface({
     : saveState === 'tooLarge' ? copy.tooLarge(`${BLOCK_DOCUMENT_MAX_BYTES / 1024} KB`)
     : saveState === 'conflict' ? copy.conflict
     : ''
-  const empty = !editable && stored.length === 0
+  const empty = !editable && !draft && stored.length === 0
 
   return (
     <div className={bare ? 'block-doc block-doc--bare' : 'block-doc'}>
       {!editable && copy.readOnly ? <p className="record-viewer__permission-note" role="note">{copy.readOnly}</p> : null}
       {empty ? <p className="block-doc__empty">{copy.empty}</p> : (
         <DocumentReferencesProvider value={references.value}>
-        <div onKeyDownCapture={editable ? leaveEditor : undefined}>
+        <div onKeyDownCapture={editable && !draft ? leaveEditor : undefined}>
         <BlockNoteView
           editor={editor}
           editable={editable}
@@ -396,7 +439,7 @@ function DocumentSurface({
         </DocumentReferencesProvider>
       )}
       {editable && !empty ? <p id={keysHintId} className="block-doc__hint">{copy.keysHint}</p> : null}
-      {editable ? (
+      {editable && !draft ? (
         <div className="block-doc__bar">
           <p className="block-doc__status" role="status" aria-live="polite">{message}</p>
           {saveState === 'failed' ? (
