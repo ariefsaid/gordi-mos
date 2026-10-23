@@ -203,6 +203,8 @@ as $$
    group by l.id
    order by l.name, l.id
 $$;
+revoke execute on function ops.list_cafe_locations(jsonb) from public, anon, service_role;
+grant execute on function ops.list_cafe_locations(jsonb) to authenticated;
 drop function ops._validate_cafe_location_input(jsonb, uuid);
 create function ops._validate_cafe_location_input(p_input jsonb, p_current_id uuid)
 returns table(location_name text, location_use text, parent_id uuid, branch_ids uuid[])
@@ -269,6 +271,7 @@ begin
   return query select v_name, v_use, v_parent, v_branches;
 end;
 $$;
+revoke execute on function ops._validate_cafe_location_input(jsonb, uuid) from public, anon, authenticated, service_role;
 create or replace function ops.create_cafe_location(p_input jsonb, p_client_request_id uuid)
 returns jsonb
 language plpgsql

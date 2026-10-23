@@ -3,7 +3,7 @@
 -- admin-only. Each acceptance check is named AC<number> after the 2026-10-23 plan.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(78);
+select plan(90);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -324,6 +324,80 @@ select throws_ok($$select ops.set_cafe_route_record_in_esb(
   '{"origin_branch_id":"00000000-0000-0000-0000-00000000bf02","origin_activity":"kitchen","destination_branch_id":"00000000-0000-0000-0000-00000000bf03"}', false)$$,
   '42501', 'CAFE_ROUTE_ESB_ADMIN_ONLY', 'AC8 and AC11 another org''s admin cannot touch this route''s switch');
 reset role;
+
+-- ── Count settlement reads the queued row, not today's switch ───────────────────────────────
+-- Switch off at approval, then on: the noop row is the log's whole lifecycle, so the day settles.
+update ops.cafe_destinations set record_in_esb = false
+ where origin_branch_id = '00000000-0000-0000-0000-00000000bf02' and origin_activity = 'kitchen'
+   and destination_branch_id = '00000000-0000-0000-0000-00000000bf03';
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
+insert into ops.kitchen_logs (id, business_unit_id, log_date, action, wip_item_id, qty_porsi, from_storage_location_id, to_storage_location_id) values
+  ('43000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-00000000bb01', '2026-07-06', 'transfer',
+   '00000000-0000-0000-0000-00000000ab01', 1, pg_temp.loc('RRS Central'), pg_temp.loc('Radiant Counter'));
+select set_config('app.batch_off', pg_temp.approve('43000000-0000-0000-0000-0000000000c1'), true);
+reset role;
+update ops.cafe_destinations set record_in_esb = true
+ where origin_branch_id = '00000000-0000-0000-0000-00000000bf02' and origin_activity = 'kitchen'
+   and destination_branch_id = '00000000-0000-0000-0000-00000000bf03';
+select is(pg_temp.endpoints(current_setting('app.batch_off')), 'noop', 'M1 a transfer approved with the switch off holds a noop row');
+select ok(ops._cafe_count_movements_settled('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf02', '2026-07-06'),
+  'M1 off at approval then on: the noop log counts as settled, so the count is not blocked');
+
+-- Switch on at approval, then off: the queued push keeps its lifecycle and blocks the count until done.
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
+insert into ops.kitchen_logs (id, business_unit_id, log_date, action, wip_item_id, qty_porsi, from_storage_location_id, to_storage_location_id) values
+  ('43000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-00000000bb01', '2026-07-07', 'transfer',
+   '00000000-0000-0000-0000-00000000ab01', 1, pg_temp.loc('RRS Central'), pg_temp.loc('Radiant Counter'));
+select set_config('app.batch_on', pg_temp.approve('43000000-0000-0000-0000-0000000000c2'), true);
+reset role;
+update ops.cafe_destinations set record_in_esb = false
+ where origin_branch_id = '00000000-0000-0000-0000-00000000bf02' and origin_activity = 'kitchen'
+   and destination_branch_id = '00000000-0000-0000-0000-00000000bf03';
+select is(pg_temp.endpoints(current_setting('app.batch_on')), 'simple-transfer', 'M1 a transfer approved with the switch on is queued');
+select ok(not ops._cafe_count_movements_settled('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf02', '2026-07-07'),
+  'M1 on at approval then off: the pending push keeps the count blocked');
+update integrations.esb_push set status = 'in_flight' where source_ref = current_setting('app.batch_on');
+update integrations.esb_push set status = 'posted' where source_ref = current_setting('app.batch_on');
+update ops.kitchen_logs set posted_to_esb = true, esb_doc_num = 'ERP-43', posted_at = clock_timestamp() where id = '43000000-0000-0000-0000-0000000000c2';
+select ok(ops._cafe_count_movements_settled('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf02', '2026-07-07'),
+  'M1 once the queued push is posted the count is unblocked');
+
+-- ── Re-keying a route starts it switched off; the audit shows the switch ────────────────────
+update ops.cafe_destinations set record_in_esb = true
+ where origin_branch_id = '00000000-0000-0000-0000-00000000bf02' and origin_activity = 'kitchen'
+   and destination_branch_id = '00000000-0000-0000-0000-00000000bf03';
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
+select lives_ok($$select * from ops.update_cafe_transfer_route(
+  '{"origin_branch_id":"00000000-0000-0000-0000-00000000bf02","origin_activity":"kitchen","destination_branch_id":"00000000-0000-0000-0000-00000000bf03"}',
+  (select row_version from ops.cafe_destinations where origin_branch_id = '00000000-0000-0000-0000-00000000bf02' and origin_activity = 'kitchen'
+      and destination_branch_id = '00000000-0000-0000-0000-00000000bf03'),
+  '{"origin_branch_id":"00000000-0000-0000-0000-00000000bf02","origin_activity":"kitchen","destination_branch_id":"00000000-0000-0000-0000-00000000bf01"}',
+  '43000000-0000-0000-8000-0000000000f1')$$, 'L1 an admin re-keys a route');
+select is((select record_in_esb from ops.list_cafe_route_esb_switches() where origin_branch_id = '00000000-0000-0000-0000-00000000bf02'
+             and origin_activity = 'kitchen' and destination_branch_id = '00000000-0000-0000-0000-00000000bf01'), false,
+  'L1 the re-keyed route starts with Record in ESB off');
+select is((select (before_route ->> 'record_in_esb') || '>' || (after_route ->> 'record_in_esb') from ops.cafe_transfer_route_audit
+            where request_id = '43000000-0000-0000-8000-0000000000f1'), 'true>false',
+  'L1 the route audit records the switch before and after a re-key');
+reset role;
+
+-- A capability holder who is not an admin reads route history without the switch values.
+insert into shared.role_capabilities (role, capability, scope) values ('ops_lead', 'cafe.transfer_routes.manage', 'org');
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
+select is((select count(*)::int from ops.cafe_transfer_route_audit where before_route ? 'record_in_esb' or after_route ? 'record_in_esb'), 0,
+  'L2 audit rows that carry the switch are hidden from a non-admin');
+select throws_ok($$select ops.update_cafe_transfer_route('{}', 1, '{}', '43000000-0000-0000-8000-0000000000f2')$$, '42501', null,
+  'L1 re-keying needs the admin role, not only the route capability');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
+select ok((select count(*)::int from ops.cafe_transfer_route_audit where after_route ? 'record_in_esb') > 0,
+  'L2 an admin reads the audit rows that carry the switch');
+reset role;
+select is(ops.cafe_route_records_in_esb('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000bf02', 'kitchen',
+  '00000000-0000-0000-0000-00000000bf03'), false, 'L3 the route helper answers only for its own organisation');
 
 -- ── Phase 3: labels come from Location names ────────────────────────────────────────────────
 select is(ops.kitchen_action_label('transfer', '00000000-0000-0000-0000-00000000bf02'), 'Transfer to Rumah Rames',
