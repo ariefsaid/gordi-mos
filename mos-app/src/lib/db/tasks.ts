@@ -3,6 +3,7 @@ import { TASK_EVENTS_PAGE_SIZE, taskDoneRecentCutoff } from './task-paging'
 import { containsPattern } from './like-pattern'
 import { keysetBeforeFilter, keysetPageFromProbe } from './keyset-filter'
 import { refreshOpenTaskCount } from '@/lib/open-task-count-store'
+import { assertBlockDocumentSize, type BlockDocument } from './block-document'
 import { getReadScope, sharePending } from '@/lib/scoped-reads'
 import type { ReadLease } from '@/lib/scoped-reads'
 import type {
@@ -260,6 +261,8 @@ export interface CreateTaskInput {
   accountablePersonId: string
   createdBy: string
   description?: string
+  /** The description as a block document (mos.tasks.body); the database derives `description` from it. */
+  body?: BlockDocument | null
   dueDate?: string | null
   consultedPersonIds?: string[]
   informedPersonIds?: string[]
@@ -286,6 +289,10 @@ export async function createTask(input: CreateTaskInput): Promise<string> {
   // explicit null would be semantically equivalent in SQL, but omitting it keeps old callers
   // and generated inserts stable while the owner-ratification migration is in flight.
   if (input.teamId !== undefined) taskInsert.team_id = input.teamId
+  if (input.body) {
+    assertBlockDocumentSize(input.body)
+    taskInsert.body = input.body
+  }
   const { data, error } = await mos().from('tasks').insert({
     ...taskInsert,
   }).select('id').single()

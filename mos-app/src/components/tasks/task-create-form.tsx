@@ -6,7 +6,7 @@
 import { ActionBar } from '@/components/ui/action-bar'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { usePhoneActionBar } from '@/shell/page-action-bar'
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Picker } from '@/components/ui/picker'
 import { PillIcon } from '@/components/ui/pill'
 import { DateField } from '@/components/ui/date-field'
@@ -15,12 +15,17 @@ import { RecordProperties, type RecordPropertyRow } from '@/components/record/re
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
+import { LoadingShell } from '@/components/ui/state-kit'
+import { blockDocumentHasContent, type BlockDocument } from '@/lib/db/block-document'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { useTaskCreateContext } from './task-create-context'
 import { picLockMessage } from './task-permissions'
 import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import type { TaskTeamOption } from './task-row'
 import './task-create-form.css'
+
+// The editor loads on demand, as on the Task page.
+const TaskDraftDescription = lazy(() => import('./task-draft-description').then((m) => ({ default: m.TaskDraftDescription })))
 
 export type TaskCreateFormProps = {
   task: TaskListRow
@@ -35,7 +40,7 @@ export type TaskCreateFormProps = {
   onEditSupervisor: (taskId: string, personId: string) => Promise<void>
   /** Persist the draft with this title. Reject to keep the form open with every value preserved
    * and Retry offered (existing behaviour — preserved, not reinvented). */
-  onCreate: (title: string, description: string) => Promise<void>
+  onCreate: (title: string, body: BlockDocument | null) => Promise<void>
   /** Escape / Cancel — discards the whole draft. */
   onCancel: () => void
   /** A distinct after-create failure (e.g. linking the new Task to a Signal) — the task row/card
@@ -69,12 +74,12 @@ export function TaskCreateForm({
   const dueFieldId = `${formId}-due`
   const workLineFieldId = `${formId}-workline`
   const offlineReasonId = `${formId}-offline`
-  const { workLineOptions, onEditDue, onEditWorkLine, onTitleChange, onDescriptionChange, formState, onFormStateChange, supervisorHint } = useTaskCreateContext()
+  const { workLineOptions, onEditDue, onEditWorkLine, onTitleChange, formState, onFormStateChange, supervisorHint } = useTaskCreateContext()
 
   const [localTitle, setLocalTitle] = useState(task.title)
-  const [localDescription, setLocalDescription] = useState('')
-  const description = formState?.description ?? localDescription
-  const setDescription = (next: string) => { setLocalDescription(next); onDescriptionChange?.(next) }
+  const [localBody, setLocalBody] = useState<BlockDocument | null>(null)
+  const body = formState?.body ?? localBody
+  const setBody = (next: BlockDocument) => { setLocalBody(next); onFormStateChange?.({ body: next }) }
   const title = onTitleChange ? task.title : localTitle
   const setTitle = (next: string) => { setLocalTitle(next); onTitleChange?.(next) }
   const [titleTouched, setTitleTouched] = useState(false)
@@ -153,7 +158,7 @@ export function TaskCreateForm({
     if (pending) return
     setSaveError(false)
     setPending(true)
-    void onCreate(trimmed, description).then(
+    void onCreate(trimmed, body && blockDocumentHasContent(body) ? body : null).then(
       () => setPending(false),
       () => { setPending(false); setSaveError(true) },
     )
@@ -365,15 +370,9 @@ export function TaskCreateForm({
 
       {/* The document slot: unboxed, no heading, one element another editor can replace. */}
       <section className="task-description-section" aria-label={t('tasks.description.title')}>
-        <label htmlFor={`${formId}-description`} className="sr-only">{t('tasks.create.description')}</label>
-        <textarea
-          id={`${formId}-description`}
-          className="tcf-description"
-          value={description}
-          placeholder={t('tasks.create.descriptionPlaceholder')}
-          disabled={fieldsLocked}
-          onChange={(event) => setDescription(event.target.value)}
-        />
+        <Suspense fallback={<LoadingShell label={t('tasks.document.loading')} />}>
+          <TaskDraftDescription body={body} canEdit={!fieldsLocked} onChange={setBody} />
+        </Suspense>
       </section>
     </form>
     {phoneBar ? (

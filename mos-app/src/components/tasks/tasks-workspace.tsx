@@ -36,6 +36,7 @@ import {
 import type { TaskRow, TaskStatus } from '@/lib/db/tasks.types'
 import { useCreateDraftRef, useCreateDraftState } from '@/shell/create-drafts'
 import { createTask, updateTaskFields, updateTaskStatus } from '@/lib/db/tasks'
+import { blockDocumentHasContent, type BlockDocument } from '@/lib/db/block-document'
 import { getPersonTeams, type TeamOption } from '@/lib/db/directory'
 import { canStartProcessForTeam } from '@/lib/db/processes'
 import { linkSignalTask } from '@/lib/db/signals'
@@ -591,7 +592,7 @@ export function TasksWorkspace({
       ? { ...current, accountable_person_id: personId }
       : current)
   }, [chooseSupervisor, draftTask?.id, setDraftTask])
-  const onEditTitle = useCallback(async (taskId: string, title: string, description?: string) => {
+  const onEditTitle = useCallback(async (taskId: string, title: string, body?: BlockDocument | null) => {
     if (draftTask?.id === taskId) {
       if (!viewerId) throw new Error('inline task creation requires an authenticated viewer')
       draftTitleRef.current = title
@@ -601,7 +602,7 @@ export function TasksWorkspace({
       const existingTaskId = createdDraftTaskRef.current
       const createdTaskId = existingTaskId ?? await createTask({
         title,
-        description: description ?? draftTask.description ?? '',
+        body,
         businessUnitId: draftTask.business_unit_id,
         teamId: draftTask.team_id,
         responsiblePersonId: draftTask.responsible_person_id,
@@ -803,7 +804,7 @@ export function TasksWorkspace({
     setParams(writeCollectionQuery(taskCollectionDescriptor.query, query, next), { replace: true })
   }, [dataContext, draftTask, onNewTask, params, query, setParams, viewerTeams])
   // Cancel, Escape, the back link and leaving the page with text typed into the draft ask first.
-  const draftHasText = Boolean(draftTask && (draftTask.title.trim() !== '' || (draftTask.description ?? '').trim() !== ''))
+  const draftHasText = Boolean(draftTask && (draftTask.title.trim() !== '' || blockDocumentHasContent(draftFormState.body ?? [])))
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
   const requestDiscardNewTask = useCallback(() => {
     if (draftFormState.pending) return
@@ -1037,7 +1038,6 @@ export function TasksWorkspace({
     onEditDue,
     onEditWorkLine,
     onTitleChange: (title) => setDraftTask((current) => current ? { ...current, title } : current),
-    onDescriptionChange: (description) => setDraftTask((current) => current ? { ...current, description } : current),
     formState: draftFormState,
     onFormStateChange: (patch) => setDraftFormState((current) => ({ ...current, ...patch })),
   }), [dataContext, draftFormState, draftTask, onEditDue, onEditWorkLine, setDraftTask, setDraftFormState, supervisorHint])
@@ -1099,7 +1099,7 @@ export function TasksWorkspace({
                   onEditTeam={onEditTeam}
                   onEditPic={onEditPic}
                   onEditSupervisor={onEditSupervisor}
-                  onCreate={(title, description) => onEditTitle(draftTask.id, title, description)}
+                  onCreate={(title, body) => onEditTitle(draftTask.id, title, body)}
                   onCancel={requestDiscardNewTask}
                   linkError={draftLinkError}
                   onRetryLink={onRetryDraftLink}

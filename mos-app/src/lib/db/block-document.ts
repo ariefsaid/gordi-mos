@@ -173,3 +173,15 @@ export function collectDocumentReferences<K extends string>(
   walk(blocks)
   return [...seen.values()]
 }
+
+/** Whether a document holds any text, mention or record link (an untouched editor holds one empty paragraph). */
+export function blockDocumentHasContent(blocks: BlockDocument): boolean {
+  const inlineHas = (nodes: unknown[]): boolean => nodes.some((node) => {
+    if (!isRec(node)) return false
+    if (node.type === 'mention' || node.type === 'recordLink') return true
+    if (node.type === 'link') return Array.isArray(node.content) && inlineHas(node.content)
+    return typeof node.text === 'string' && node.text.trim() !== ''
+  })
+  return blocks.some((block) => isRec(block)
+    && ((Array.isArray(block.content) && inlineHas(block.content)) || (Array.isArray(block.children) && blockDocumentHasContent(block.children))))
+}
