@@ -9,7 +9,7 @@
 --   F ForeignMgr ...b4 (org B)
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(87);
+select plan(108);
 
 select shared._test_seed_directory();
 insert into shared.teams (id, org_id, business_unit_id, name, code) values
@@ -182,5 +182,60 @@ select ok((select count(*) from shared.record_history where table_name = 'meetin
 select is((select count(*)::int from shared.record_history where table_name = 'meetings' and record_key = current_setting('t.m2') and (old_value is not null or new_value is not null)), 0, 'history: the minutes content is never copied');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history where table_name = 'meetings' and record_key = current_setting('t.m2')), 0, 'AC3: a private Meeting''s history is invisible to outsiders');
+-- Security-review fixes (#1840): Private switch, task read arm, Task attach, hardening.
+reset role;
+insert into shared.teams (id, org_id, business_unit_id, name, code, archived_at) values
+ ('00000000-0000-0000-0000-00000000e002','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2','Archived Team','archived-team', now()),
+ ('00000000-0000-0000-0000-00000000e003','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2','Active Team','active-team', null),
+ ('00000000-0000-0000-0000-00000000e0b3','00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000b2','B Team','b-team', null);
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from) values
+ ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d5','00000000-0000-0000-0000-00000000e002',false,current_date),
+ ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d6','00000000-0000-0000-0000-00000000e003',false,current_date);
+insert into mos.meetings (id, org_id, title, owning_team_id, series_id, created_by) values
+ ('00000000-0000-0000-0000-00000000e0b4','00000000-0000-0000-0000-0000000000b1','Org B meeting','00000000-0000-0000-0000-00000000e0b3','00000000-0000-0000-0000-00000000e0b4','00000000-0000-0000-0000-0000000000b4');
+select throws_ok($$ insert into mos.tasks (org_id, title, business_unit_id, responsible_person_id, accountable_person_id, created_by, meeting_id) values ('00000000-0000-0000-0000-0000000000a1', 'cross-org', '00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-00000000e0b4') $$, '23503', null, 'hardening: a Task cannot point at another org''s Meeting, even past the guards');
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
+update mos.meetings set minutes = '[{"type":"paragraph","content":[{"type":"mention","props":{"kind":"team","id":"00000000-0000-0000-0000-00000000e002"}},{"type":"mention","props":{"kind":"team","id":"00000000-0000-0000-0000-00000000e003"}},{"type":"mention","props":{"kind":"person","id":"00000000-0000-0000-0000-0000000000d2"}}]}]'::jsonb where id = current_setting('t.m4')::uuid;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
+select is((select count(*)::int from mos.notifications where metadata->'entity'->>'id' = current_setting('t.m4')), 0, 'hardening: a mention of an archived Team notifies none of its members');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}');
+select is((select count(*)::int from mos.notifications where metadata->'entity'->>'id' = current_setting('t.m4')), 1, 'hardening: a mention of an active Team notifies its members');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
+select throws_ok($$ insert into mos.tasks (title, business_unit_id, responsible_person_id, accountable_person_id, created_by, meeting_id) values ('injected', '00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000d5', '00000000-0000-0000-0000-0000000000d5', '00000000-0000-0000-0000-0000000000d5', current_setting('t.m4')::uuid) $$, '42501', null, 'a reader of a public Meeting cannot attach a Task to it');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
+select lives_ok($$ update mos.meetings set is_private = true where id = current_setting('t.m4')::uuid $$, 'an attendee turns a public Meeting private');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}');
+select is((select count(*)::int from mos.notifications where metadata->'entity'->>'id' = current_setting('t.m4')), 0, 'turning a Meeting private removes its mention notices from people who can no longer read it');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
+select is((select count(*)::int from mos.notifications where metadata->'entity'->>'id' = current_setting('t.m4')), 1, 'turning a Meeting private keeps the notices of its attendees');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
+select throws_ok($$ update mos.meetings set is_private = true where id = current_setting('t.m1')::uuid $$, '42501', null, 'a non-attendee Team member cannot turn a Meeting private');
+select throws_ok($$ select mos.start_next_meeting(current_setting('t.m1')::uuid) $$, '42501', null, 'Start next meeting does not reveal a hidden next meeting');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
+select throws_ok($$ update mos.meetings set owning_team_id = '00000000-0000-0000-0000-00000000e003' where id = current_setting('t.m4')::uuid $$, '42501', null, 'the owning Team cannot be changed to a Team the caller is not in');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
+select throws_ok($$ select mos.create_meeting('Other team', '00000000-0000-0000-0000-00000000e001') $$, '42501', null, 'a Meeting cannot be created for a Team the caller is not in');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
+select lives_ok($$ select mos.create_meeting('Admin picks', '00000000-0000-0000-0000-00000000e001') $$, 'an admin can create a Meeting for any Team');
+select lives_ok($$ update mos.meetings set owning_team_id = '00000000-0000-0000-0000-00000000e003' where id = current_setting('t.m4')::uuid $$, 'an admin can change the owning Team to any Team');
+select hasnt_function('mos', '_meeting_is_private', array['uuid'], 'no function tells a caller whether an unreadable Meeting is private');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
+select set_config('t.outp', mos.create_meeting_task(current_setting('t.m2')::uuid, 'Outsider PIC', '00000000-0000-0000-0000-0000000000d5', null, null, '00000000-0000-0000-0000-0000000000d2')::text, true);
+select lives_ok($$ update mos.meetings set is_private = false where id = current_setting('t.m2')::uuid $$, 'an attendee turns a private Meeting public');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}');
+select is((select count(*)::int from mos.tasks where id = current_setting('t.priv')::uuid), 1, 'a private Task stays readable by the Meeting''s attendees after the Meeting turns public');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
+select is((select count(*)::int from mos.tasks where id = current_setting('t.priv')::uuid), 0, 'a private Task stays hidden from others after the Meeting turns public');
+select throws_ok($$ update mos.tasks set is_private = false where id = current_setting('t.outp')::uuid $$, '42501', null, 'a PIC outside the Meeting still cannot turn the Task public after the Meeting turns public');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
+select lives_ok($$ update mos.tasks set is_private = false where id = current_setting('t.outp')::uuid $$, 'an attendee can still turn the Task public after the Meeting turns public');
+reset role;
+update shared.people set archived_at = now() where id = '00000000-0000-0000-0000-0000000000d6';
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
+select throws_ok($$ insert into mos.meeting_attendees (meeting_id, person_id) values (current_setting('t.m1')::uuid, '00000000-0000-0000-0000-0000000000d6') $$, '42501', null, 'an archived person cannot be added as an attendee');
+update mos.meeting_attendees set removed_at = now() where meeting_id = current_setting('t.m2')::uuid and person_id = '00000000-0000-0000-0000-0000000000d6';
+select throws_ok($$ update mos.meeting_attendees set removed_at = null where meeting_id = current_setting('t.m2')::uuid and person_id = '00000000-0000-0000-0000-0000000000d6' $$, '42501', null, 'an archived person cannot be re-added as an attendee');
 select * from finish();
 rollback;

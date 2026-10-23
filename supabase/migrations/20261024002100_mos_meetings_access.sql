@@ -11,14 +11,7 @@
 -- Meetings are created only through mos.create_meeting / mos.start_next_meeting (no INSERT grant).
 -- Nothing is deleted: Meetings archive, attendees are removed softly.
 --
--- DOWN:
---   drop policy meeting_attendees_select on mos.meeting_attendees;
---   drop policy meeting_attendees_insert on mos.meeting_attendees;
---   drop policy meeting_attendees_update on mos.meeting_attendees;
---   drop policy meetings_select on mos.meetings;
---   drop policy meetings_update on mos.meetings;
---   drop function mos.can_edit_meeting(uuid);
---   drop function mos.can_read_meeting(uuid);
+-- DOWN: supabase/rollbacks/20261024002100_mos_meetings_access.sql
 
 create or replace function mos.can_read_meeting(p_meeting_id uuid)
 returns boolean
@@ -70,8 +63,27 @@ $$;
 comment on function mos.can_edit_meeting(uuid) is
   'Edit gate (#1840): can read, and is a live attendee, a live member of the owning Team, or admin. SECURITY DEFINER for the same reason as can_read_meeting.';
 
-revoke execute on function mos.can_read_meeting(uuid), mos.can_edit_meeting(uuid) from public, anon;
-grant  execute on function mos.can_read_meeting(uuid), mos.can_edit_meeting(uuid) to authenticated;
+-- May the caller name this Team as a Meeting's owner: an admin, or a live member of the Team. Only the
+-- caller's own membership is revealed.
+create or replace function mos.can_pick_meeting_team(p_team_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select shared.has_access_role('admin')
+      or exists (
+        select 1 from shared.team_memberships tm
+        where tm.team_id = p_team_id and tm.person_id = shared.current_person_id()
+          and tm.org_id = shared.current_org_id()
+          and tm.effective_from <= current_date and (tm.effective_to is null or tm.effective_to >= current_date))
+$$;
+comment on function mos.can_pick_meeting_team(uuid) is
+  'Owning-Team choice (#1840): an admin, or a live member of that Team. SECURITY DEFINER to read the caller''s membership.';
+
+revoke execute on function mos.can_read_meeting(uuid), mos.can_edit_meeting(uuid), mos.can_pick_meeting_team(uuid) from public, anon;
+grant  execute on function mos.can_read_meeting(uuid), mos.can_edit_meeting(uuid), mos.can_pick_meeting_team(uuid) to authenticated;
 
 revoke all on mos.meetings, mos.meeting_attendees from public, anon, authenticated;
 grant select, update on mos.meetings to authenticated;

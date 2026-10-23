@@ -16,12 +16,7 @@
 --       SECURITY INVOKER readers: the previous Meeting's Tasks not Done / this Meeting's Tasks.
 --       Task read rules (RLS) decide which rows the caller sees.
 --
--- DOWN:
---   drop function mos.meeting_tasks(uuid);
---   drop function mos.meeting_still_open(uuid);
---   drop function mos.create_meeting_task(uuid, text, uuid, date, uuid, uuid);
---   drop function mos.start_next_meeting(uuid);
---   drop function mos.create_meeting(text, uuid, timestamptz, boolean, uuid, uuid, uuid[]);
+-- DOWN: supabase/rollbacks/20261024002300_mos_meetings_rpcs.sql
 
 create or replace function mos.create_meeting(
   p_title          text,
@@ -51,6 +46,10 @@ begin
     raise exception 'every attendee must be an active person in your organisation' using errcode = '42501';
   end if;
 
+  if not mos.can_pick_meeting_team(p_owning_team_id) then
+    raise exception 'owning_team_id must be a team you belong to' using errcode = '42501';
+  end if;
+
   insert into mos.meetings (org_id, title, starts_at, owning_team_id, work_line_id, objective_id, is_private, created_by)
   values (v_org, p_title, p_starts_at, p_owning_team_id, p_work_line_id, p_objective_id, coalesce(p_is_private, false), v_me)
   returning id into v_id;
@@ -73,13 +72,19 @@ as $$
 declare
   v_me   uuid := shared.current_person_id();
   v_prev mos.meetings;
+  v_next uuid;
   v_id   uuid;
 begin
   if v_me is null or not mos.can_edit_meeting(p_meeting_id) then
     raise exception 'you cannot start the next meeting of this record' using errcode = '42501';
   end if;
   select * into v_prev from mos.meetings where id = p_meeting_id;
-  if exists (select 1 from mos.meetings n where n.previous_meeting_id = p_meeting_id) then
+  select n.id into v_next from mos.meetings n where n.previous_meeting_id = p_meeting_id;
+  if v_next is not null then
+    -- A next meeting the caller cannot read gets the same answer as no right to start one.
+    if not mos.can_read_meeting(v_next) then
+      raise exception 'you cannot start the next meeting of this record' using errcode = '42501';
+    end if;
     raise exception 'this meeting already has a next meeting' using errcode = '23505';
   end if;
 
@@ -92,6 +97,7 @@ begin
   insert into mos.meeting_attendees (meeting_id, person_id, org_id, added_by)
   select v_id, a.person_id, v_prev.org_id, v_me
     from mos.meeting_attendees a
+    join shared.people p on p.id = a.person_id and p.archived_at is null
    where a.meeting_id = v_prev.id and a.removed_at is null;
   return v_id;
 end;

@@ -217,11 +217,20 @@ describe('Task page — "Created in meeting" from the Task\'s own meeting_id', (
     expect(screen.queryByText('Weekly sync')).toBeNull()
   })
 
-  it('treats a Meeting the viewer cannot read as a private one they are not in', async () => {
+  it('shows "Private meeting" on a private Task whose Meeting the viewer cannot read', async () => {
     vi.mocked(getMeeting).mockResolvedValue(null)
     await renderPage(makeTask({ meeting_id: 'm1', is_private: true }))
     fireEvent.click(screen.getByRole('button', { name: 'Record details' }))
     expect(await screen.findByText(/Private meeting/)).toBeInTheDocument()
+  })
+
+  it('shows no Created-in-meeting row on a public Task whose Meeting the viewer cannot read', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(null)
+    await renderPage(makeTask({ meeting_id: 'm1', is_private: false }))
+    fireEvent.click(screen.getByRole('button', { name: 'Record details' }))
+    await waitFor(() => expect(getMeeting).toHaveBeenCalledWith('m1'))
+    expect(screen.queryByText('Created in meeting')).toBeNull()
+    expect(screen.queryByText(/Private meeting/)).toBeNull()
   })
 
   it('reads a Task made outside any Meeting without asking for one', async () => {

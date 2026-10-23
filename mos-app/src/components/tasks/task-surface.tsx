@@ -308,7 +308,7 @@ function ViewSurface({
     return () => { current = false }
   }, [linkedObjectiveId])
 
-  const meeting = useTaskMeetingOrigin(localTask?.meeting_id, viewerId, meetingOrigin)
+  const meeting = useTaskMeetingOrigin(localTask?.meeting_id, viewerId, localTask?.is_private === true, meetingOrigin)
 
   // Notify a host of the resolved title (e.g. for the breadcrumb)
   useEffect(() => {

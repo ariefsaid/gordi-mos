@@ -7,11 +7,7 @@
 --   mos.meeting_attendees who is in the meeting; removal is soft (removed_at), never a DELETE.
 --   mos.tasks.meeting_id  "Created in meeting".
 --
--- DOWN (reverse order of the whole 20261024002xxx set; this file last):
---   drop index mos.tasks_meeting_idx;
---   alter table mos.tasks drop column meeting_id;
---   drop table mos.meeting_attendees;
---   drop table mos.meetings;
+-- DOWN: supabase/rollbacks/20261024002000_mos_meetings_tables.sql
 
 create table mos.meetings (
   id                   uuid primary key default gen_random_uuid(),
@@ -76,6 +72,9 @@ create table mos.meeting_attendees (
 comment on table mos.meeting_attendees is 'People in a Meeting (#1840). Live attendees have removed_at NULL. Read follows the Meeting; add/remove needs edit rights.';
 create index meeting_attendees_person_idx on mos.meeting_attendees (person_id) where removed_at is null;
 
-alter table mos.tasks add column meeting_id uuid references mos.meetings(id);
+alter table mos.tasks add column meeting_id uuid;
+-- Same-org by construction: the Task's org and the Meeting's org must match (NULL meeting_id skips it).
+alter table mos.tasks add constraint tasks_meeting_same_org_fk foreign key (org_id, meeting_id)
+  references mos.meetings (org_id, id);
 comment on column mos.tasks.meeting_id is '"Created in meeting" (#1840): set when the Task is created from a Meeting, immutable afterwards.';
 create index tasks_meeting_idx on mos.tasks (meeting_id) where meeting_id is not null;

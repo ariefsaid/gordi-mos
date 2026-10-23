@@ -3,10 +3,7 @@
 -- Read follows the Meeting's own read rule, so a Private Meeting's history is invisible to outsiders.
 -- Attendees are not audited separately.
 --
--- DOWN:
---   drop trigger record_history_meetings on mos.meetings;
---   delete from shared.record_history_readers where schema_name = 'mos' and table_name = 'meetings';
---   drop function shared._history_reader_mos_meetings(text, text, jsonb);
+-- DOWN: supabase/rollbacks/20261024002500_mos_meetings_history.sql
 
 create or replace function shared._history_reader_mos_meetings(
   p_record_key text,
