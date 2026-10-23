@@ -15,7 +15,7 @@ for (const actor of [
   { name: 'Director', ...MANAGER },
   { name: 'member', ...VIEWER },
 ]) {
-  test(`${actor.name}: phone Work directory reaches all four collections and comes back; desktop reaches them from the navigation`, async ({ page }) => {
+  test(`${actor.name}: phone Work directory reaches every Work destination and comes back; desktop reaches them from the navigation`, async ({ page }) => {
     await page.setViewportSize(PHONE)
     await loginAs(page, actor.email, actor.password)
     await page.goto('work')

@@ -1,7 +1,7 @@
 -- Approval, signed book placement, and same-stream physical sends.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(41);
+select plan(40);
 select set_config('app.allow_test_seeds','on',true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -30,7 +30,7 @@ create function pg_temp.balance(p_location text, p_unit text default '00000000-0
 $$;
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
-select set_config('app.kitchen',ops.create_cafe_location('{"name":"Kitchen","use":"both","branch_ids":["00000000-0000-0000-0000-00000000bf02"]}','f1410000-0000-0000-0000-000000000001')->>'id',true);
+select set_config('app.kitchen',ops.create_cafe_location('{"name":"Kitchen","use":"both","activities":["kitchen"],"branch_ids":["00000000-0000-0000-0000-00000000bf02"]}','f1410000-0000-0000-0000-000000000001')->>'id',true);
 select set_config('app.outlet',ops.create_cafe_location('{"name":"Outlet","use":"storage","branch_ids":["00000000-0000-0000-0000-00000000bf02"]}','f1410000-0000-0000-0000-000000000002')->>'id',true);
 reset role;
 -- Explicit places, null place, and inserted-Approved history, across three dates.
@@ -102,13 +102,10 @@ values ('f1410000-0000-0000-0000-000000000031','00000000-0000-0000-0000-00000000
 ('f1410000-0000-0000-0000-000000000032','00000000-0000-0000-0000-00000000bb01','2026-05-07','00000000-0000-0000-0000-00000000bf02','kitchen','transfer','00000000-0000-0000-0000-00000000bf03','00000000-0000-0000-0000-00000000ab01',3,'sent');
 select pg_temp.approve('f1410000-0000-0000-0000-000000000031');
 select pg_temp.approve('f1410000-0000-0000-0000-000000000032');
-select results_eq($$select kind,from_location_id::text,to_location_id::text,note from ops.location_movements where source_id in ('f1410000-0000-0000-0000-000000000031','f1410000-0000-0000-0000-000000000032') order by source_id$$,
- format('values (''production''::text,null::text,%L::text,''default place''::text),(''transfer'',%L,null,''default place'')',current_setting('app.kitchen'),current_setting('app.kitchen')),'AC1a: defaults land in and deduct from kitchen, not outlet');
-select ok((select to_storage_location_id is null from ops.kitchen_logs where id='f1410000-0000-0000-0000-000000000031'),'AC1a: fallback leaves authored log unchanged');
-select ok((select bool_and(item_unit_id='00000000-0000-0000-0000-00000000de01' and movement_date='2026-05-07')
- from ops.location_movements where source_id in ('f1410000-0000-0000-0000-000000000031','f1410000-0000-0000-0000-000000000032')),
- 'AC1a: older clients use the confirmed default unit and authored log date');
-select is((select endpoint from integrations.esb_push where source_ref=(select batch_id from ops.kitchen_logs where id='f1410000-0000-0000-0000-000000000032')),'simple-transfer','AC1a: normal Radiant outbox unchanged');
+select is((select count(*)::int from ops.location_movements where source_id in ('f1410000-0000-0000-0000-000000000031','f1410000-0000-0000-0000-000000000032')),0,
+ 'AC1a: saved stream defaults no longer decide where stock sits, so a log with no place posts nothing');
+select ok((select to_storage_location_id is null from ops.kitchen_logs where id='f1410000-0000-0000-0000-000000000031'),'AC1a: the authored log is unchanged');
+select is((select endpoint from integrations.esb_push where source_ref=(select batch_id from ops.kitchen_logs where id='f1410000-0000-0000-0000-000000000032')),'noop','AC1a: the Radiant route is off by default, so the outbox row is the no-op');
 select throws_ok($$select ops.place_cafe_unassigned_stock(pg_temp.placement('00000000-0000-0000-0000-00000000de01','0'),'f1410000-0000-0000-0000-000000000033')$$,'22023',null,'placement requires positive quantity');
 select throws_ok($$select ops.place_cafe_unassigned_stock(pg_temp.placement() || '{"to_location_id":"f1410000-0000-0000-0000-000000000099"}','f1410000-0000-0000-0000-000000000034')$$,'22023','CAFE_LOCATION_MOVE_LOCATION_INVALID','placement rejects an unavailable destination');
 reset role;
@@ -117,7 +114,7 @@ values('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000b
 -- On the following day the running book includes the inserted historical debit.
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
-select is((ops.place_cafe_unassigned_stock(pg_temp.placement() || '{"as_of":"2026-05-09"}','f1410000-0000-0000-0000-000000000035')->>'rows_written')::int,1,'admin can place a negative book remainder');
+select is((ops.place_cafe_unassigned_stock(pg_temp.placement() || '{"as_of":"2026-05-09"}','f1410000-0000-0000-0000-000000000035')->>'rows_written')::int,2,'admin can place a negative book remainder');
 select is(pg_temp.balance(current_setting('app.kitchen'),'00000000-0000-0000-0000-00000000de03','2026-05-09'),(-2)::numeric,'negative opening deducts from the chosen place');
 select ok(exists(select 1 from ops.location_movements where kind='opening' and item_unit_id='00000000-0000-0000-0000-00000000de03' and quantity=8 and from_location_id=current_setting('app.kitchen')::uuid and to_location_id is null),'negative remainder writes from place to Unassigned');
 reset role;

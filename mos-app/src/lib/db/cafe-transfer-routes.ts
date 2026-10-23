@@ -111,3 +111,32 @@ export async function removeCafeTransferRoute(
   })
   if (error) throw contractError('removeCafeTransferRoute', error)
 }
+
+export type RouteEsbSwitch = TransferRouteKey & { record_in_esb: boolean }
+
+/** Admin only: whether each route is recorded in ESB. Off by default. */
+export async function listCafeRouteEsbSwitches(): Promise<RouteEsbSwitch[]> {
+  const { data, error } = await ops().rpc('list_cafe_route_esb_switches')
+  if (error) throw contractError('listCafeRouteEsbSwitches', error)
+  if (!Array.isArray(data)) throw new ContractError('INVALID', 'listCafeRouteEsbSwitches returned an invalid response')
+  return data.map((raw): RouteEsbSwitch => {
+    const row = raw as Record<string, unknown>
+    if (typeof row.origin_branch_id !== 'string' || (row.origin_activity !== 'kitchen' && row.origin_activity !== 'bar') ||
+        typeof row.destination_branch_id !== 'string' || typeof row.record_in_esb !== 'boolean') {
+      throw new ContractError('INVALID', 'Route ESB switch response is invalid')
+    }
+    return {
+      origin_branch_id: row.origin_branch_id, origin_activity: row.origin_activity,
+      destination_branch_id: row.destination_branch_id, record_in_esb: row.record_in_esb,
+    }
+  })
+}
+
+/** Admin only: turn recording in ESB on or off for one route. */
+export async function setCafeRouteRecordInEsb(key: TransferRouteKey, enabled: boolean): Promise<boolean> {
+  const { data, error } = await ops().rpc('set_cafe_route_record_in_esb', { p_key: key, p_enabled: enabled })
+  if (error) throw contractError('setCafeRouteRecordInEsb', error)
+  const result = data as Record<string, unknown> | null
+  if (!result || typeof result.record_in_esb !== 'boolean') throw new ContractError('INVALID', 'setCafeRouteRecordInEsb returned an invalid response')
+  return result.record_in_esb
+}

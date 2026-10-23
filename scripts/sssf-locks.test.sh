@@ -11,6 +11,9 @@ ok()  { pass=$((pass+1)); printf '  ok    %s\n' "$1"; }
 bad() { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 
+# A run inside a lock wrapper inherits its held markers; the cases below must start unheld.
+unset MOS_TEST_LOCK_HELD MOS_DB_LOCK_HELD
+
 # The test lock is a 3-slot semaphore by default; these mutex cases pin it to one slot.
 export MOS_TEST_LOCK_SLOTS=1
 for w in db test; do

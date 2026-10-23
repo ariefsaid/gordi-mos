@@ -134,6 +134,8 @@ describe('AC-1134: payment form validation keeps invalid submissions off', () =>
     expect(validate({ amount: '0.25', cashInDate: '2026-10-06', hasProof: true, balance: 0.5, today: '2026-10-06' }).errors).toEqual({ amount: 'invalid' })
     expect(validate({ amount: '0.01', cashInDate: '2026-10-06', hasProof: true, balance: 0.01, today: '2026-10-06' }).canSubmit).toBe(true)
     expect(validate({ amount: '1000.01', cashInDate: '2026-10-06', hasProof: true, balance: 1000.01, today: '2026-10-06' }).canSubmit).toBe(true)
+    // More than two decimals is refused in the form even when it rounds to the remaining balance.
+    expect(validate({ amount: '1000.001', cashInDate: '2026-10-06', hasProof: true, balance: 1000, today: '2026-10-06' }).errors).toEqual({ amount: 'invalid' })
   })
 })
 

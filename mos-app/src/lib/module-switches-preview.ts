@@ -21,6 +21,7 @@ export function moduleFacts(): ModuleFact[] {
     { id: 'work', labelKey: 'dest.work', released: true },
     registryFacts.get('money'),
     registryFacts.get('cafe'),
+    registryFacts.get('staff'),
     { id: 'assistant', labelKey: 'admin.modules.assistant', released: true },
     registryFacts.get('roastery'),
     registryFacts.get('ecommerce'),

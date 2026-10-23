@@ -14,7 +14,7 @@ vi.mock('@/components/staff-attendance/staff-shift-panels', () => ({
 import { listLedStaffTeams } from '@/lib/db/staff-attendance'
 import { StaffShiftsPage } from './staff-shifts-page'
 
-function renderPage(entry = '/work/shifts') {
+function renderPage(entry = '/staff/shifts') {
   return render(<I18nProvider initialLocale="en"><MemoryRouter initialEntries={[entry]}><StaffShiftsPage /></MemoryRouter></I18nProvider>)
 }
 
@@ -23,16 +23,16 @@ beforeEach(() => { vi.clearAllMocks() })
 describe('StaffShiftsPage clock tabs', () => {
   it('AC-035 offers clock in/out to everyone and opens it from the Home link', async () => {
     vi.mocked(listLedStaffTeams).mockResolvedValue([])
-    renderPage('/work/shifts?view=clock')
+    renderPage('/staff/shifts?view=clock')
     expect(await screen.findByText('clock panel')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Today’s attendance' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Today’s attendance' })).not.toBeInTheDocument()
   })
 
   it('FR-040 offers today’s attendance only to people who lead a Team', async () => {
     const user = userEvent.setup()
     vi.mocked(listLedStaffTeams).mockResolvedValue([{ id: 't1', name: 'Bar', site_id: 's1', site_name: 'HQ' }])
     renderPage()
-    await user.click(await screen.findByRole('button', { name: 'Today’s attendance' }))
+    await user.click(await screen.findByRole('tab', { name: 'Today’s attendance' }))
     expect(screen.getByText('today panel')).toBeInTheDocument()
   })
 })

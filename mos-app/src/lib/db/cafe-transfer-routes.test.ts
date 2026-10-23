@@ -5,7 +5,7 @@ const rpcCalls = vi.hoisted(() => ({ schema: vi.fn(), rpc: vi.fn(), ranges: [] a
 vi.mock('@/lib/supabase', () => ({ supabase: { schema: rpcCalls.schema } }))
 
 import {
-  createCafeTransferRoute, listCafeTransferRoutes, removeCafeTransferRoute, updateCafeTransferRoute,
+  createCafeTransferRoute, listCafeRouteEsbSwitches, listCafeTransferRoutes, removeCafeTransferRoute, setCafeRouteRecordInEsb, updateCafeTransferRoute,
 } from './cafe-transfer-routes'
 
 const route = {
@@ -99,5 +99,18 @@ describe('Cafe transfer route RPC client', () => {
     rpcCalls.rpc.mockReturnValue(query({ data: [{ ...row, row_version: Number.MAX_SAFE_INTEGER + 1 }], error: null }))
 
     await expect(createCafeTransferRoute(route, context)).rejects.toMatchObject({ code: 'INVALID' })
+  })
+
+  it('reads and sets the admin-only Record in ESB switch', async () => {
+    rpcCalls.rpc.mockReturnValueOnce(query({ data: [{ ...route, record_in_esb: false }], error: null }))
+    await expect(listCafeRouteEsbSwitches()).resolves.toEqual([{ ...route, record_in_esb: false }])
+    rpcCalls.rpc.mockReturnValueOnce(query({ data: { record_in_esb: true, row_version: 3 }, error: null }))
+    await expect(setCafeRouteRecordInEsb(route, true)).resolves.toBe(true)
+    expect(rpcCalls.rpc).toHaveBeenLastCalledWith('set_cafe_route_record_in_esb', { p_key: route, p_enabled: true })
+  })
+
+  it('reports a non-admin refusal as forbidden', async () => {
+    rpcCalls.rpc.mockReturnValueOnce(query({ data: null, error: { code: '42501', message: 'CAFE_ROUTE_ESB_ADMIN_ONLY' } }))
+    await expect(setCafeRouteRecordInEsb(route, true)).rejects.toMatchObject({ code: 'FORBIDDEN' })
   })
 })

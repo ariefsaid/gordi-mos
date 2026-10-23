@@ -1382,7 +1382,7 @@ describe('fetchActualsMap — the already-logged actuals, stream-scoped (FR-014,
     expect(map['w1'][`transfer:${RADIANT_ID}`]).toEqual([
       { key: 'unit:u-batch-1', item_unit_id: 'u-batch-1', unit_name: 'batch', qty_porsi: 4 },
     ])
-    expect(rec.selects).toContain('id,wip_item_id,action,destination_branch_id,item_unit_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name')
+    expect(rec.selects).toContain('id,wip_item_id,action,destination_branch_id,to_storage_location_id,item_unit_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name')
     expect(rec.selects).toContain('id,unit_name')
     expect(rec.ins).toContainEqual(['id', ['u-batch-1', 'u-batch-2']])
     expect(rec.fromTables).toContain('item_units')

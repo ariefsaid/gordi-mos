@@ -13,7 +13,7 @@ import { resetModuleAvailability, useModuleAvailability } from '@/lib/module-ava
 import type { ModuleId, ViewerModuleAvailability } from '@/lib/db/module-settings'
 
 const dataLayer = vi.hoisted(() => ({ getViewerModuleAvailability: vi.fn(), narrow: false }))
-const moduleIds: ModuleId[] = ['work', 'money', 'cafe', 'assistant', 'roastery', 'ecommerce']
+const moduleIds: ModuleId[] = ['work', 'money', 'cafe', 'staff', 'assistant', 'roastery', 'ecommerce']
 const rows = (blocked: ModuleId[] = []): ViewerModuleAvailability[] => moduleIds.map((module_id) => ({
   module_id, enabled: module_id !== 'money' && module_id !== 'assistant',
   person_override: blocked.includes(module_id) ? 'block' : 'inherit', revision: 'r1',
@@ -169,11 +169,13 @@ describe('Work and Café navigation', () => {
     setViewer(['admin'])
     renderNavigation('/cafe')
 
-    const primary = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(primary).queryByRole('link', { name: 'Work' })).not.toBeInTheDocument()
-    expect(within(primary).queryByRole('link', { name: 'Money' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('navigation', { name: 'Café pages' })).not.toBeInTheDocument()
-    fireEvent.click(await within(primary).findByRole('link', { name: 'Records' }))
+    // Staff is its own switch: with Work off, Café and Staff are the two areas, and both stay reachable.
+    const primary = () => within(screen.getByRole('navigation', { name: 'Primary' }))
+    await waitFor(() => expect(primary().getByRole('link', { name: 'Staff' })).toHaveAttribute('href', '/staff/shifts'))
+    expect(primary().queryByRole('link', { name: 'Work' })).not.toBeInTheDocument()
+    expect(primary().queryByRole('link', { name: 'Money' })).not.toBeInTheDocument()
+    const cafePages = await screen.findByRole('navigation', { name: 'Café pages' })
+    fireEvent.click(within(cafePages).getByRole('link', { name: 'Records' }))
     expect(screen.getByLabelText('Current route')).toHaveTextContent('/cafe/records')
   })
 })

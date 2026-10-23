@@ -26,7 +26,7 @@ function log(over: Partial<CafeRecordLog> = {}): CafeRecordLog {
   n += 1
   return {
     id: `log${String(n).padStart(3, '0')}`, batch_id: null, log_date: '2026-10-14', branch_id: B1, activity: 'kitchen', action: 'produce',
-    action_label: 'Production', destination_branch_id: null, wip_item_id: 'i1', item_unit_id: 'u1', qty_porsi: 10, entry_quantity: null,
+    action_label: 'Production', destination_branch_id: null, production_location_id: null, from_storage_location_id: null, to_storage_location_id: null, wip_item_id: 'i1', item_unit_id: 'u1', qty_porsi: 10, entry_quantity: null,
     entry_unit_factor: null, entry_unit_name: null, notes: null, status: 'Approved', submitted_by: 'p1', created_at: `2026-10-14T03:00:0${n % 10}.000000+00:00`,
     updated_at: '2026-10-14T03:00:00+00:00', reviewed_by: null, reviewed_at: null, review_note: null, posted_to_esb: false, posted_at: null,
     esb_doc_num: null, superseded_by: null, item_name: 'Pickled onion (ERP)', ...over,
@@ -113,7 +113,7 @@ describe('status groups', () => {
 
   it('outlet sends are separate from transfers and waste in Records', () => {
     const entries = entriesOf({ logs: [log({ action: 'outlet_send', destination_branch_id: null, qty_porsi: 4 })] })
-    expect(entries[0]).toMatchObject({ movement: 'sent', destinationBranchId: null })
+    expect(entries[0]).toMatchObject({ movement: 'sent', destinationKey: null })
     expect(summarize(entries, 'transferred')).toEqual([])
     expect(summarize(entries, 'wasted')).toEqual([])
     expect(summarize(entries, 'sent')[0].rows[0].entries).toBe(1)
@@ -122,7 +122,7 @@ describe('status groups', () => {
   it('transfers are grouped per destination and carry it on the row', () => {
     const entries = entriesOf({ logs: [log({ action: 'transfer', destination_branch_id: B2, qty_porsi: 3 }), log({ action: 'transfer', destination_branch_id: B1, qty_porsi: 4 })] })
     const rows = summarize(entries, 'transferred')[0].rows
-    expect(rows.map(r => r.destinationBranchId).sort()).toEqual([B1, B2].sort())
+    expect(rows.map(r => r.destinationKey).sort()).toEqual([B1, B2].sort())
   })
 
   it('waste: approved first, pending and rejected separately; Draft is never in the data', () => {

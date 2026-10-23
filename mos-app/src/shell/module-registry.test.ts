@@ -10,9 +10,25 @@ const allModulesOn = (_moduleId: ModuleId, roleAdmitted = true) => roleAdmitted
 const cafe = (roles: string[]) => admittedModules(roles, allModulesOn).find((m) => m.id === 'cafe')!
 const cafePaths = (roles: string[]) => pageGroupsFor(cafe(roles), roles, allModulesOn).flatMap((group) => group.items.map((item) => item.path))
 
+describe('the Staff module is its own switch', () => {
+  it('shows for every role and ignores the Work switch', () => {
+    const staffOnly = (moduleId: string) => moduleId === 'staff'
+    expect(admittedModules(['member'], staffOnly).map((m) => m.id)).toEqual(['staff'])
+    expect(goToEntries(['member'], staffOnly).map((e) => e.path)).toContain('/staff/shifts')
+    expect(viewerAdmittedToRoute('/staff/shifts', ['member'], staffOnly)).toBe(true)
+  })
+
+  it('disappears from navigation and route admission when Staff is off for the org', () => {
+    const staffOff = (moduleId: string) => moduleId !== 'staff'
+    expect(admittedModules(['member'], staffOff).map((m) => m.id)).not.toContain('staff')
+    expect(goToEntries(['member'], staffOff).map((e) => e.path)).not.toContain('/staff/shifts')
+    expect(viewerAdmittedToRoute('/staff/shifts', ['member'], staffOff)).toBe(false)
+  })
+})
+
 describe('the module registry feeds every navigation surface', () => {
   it('lists admitted modules in registry order, and never a ship-gated one', () => {
-    expect(admittedModules(['finance'], allModulesOn).map((m) => m.id)).toEqual(['money', 'cafe'])
+    expect(admittedModules(['finance'], allModulesOn).map((m) => m.id)).toEqual(['money', 'cafe', 'staff'])
     expect(admittedModules(['admin'], allModulesOn).map((m) => m.id)).not.toContain('ecommerce')
     expect(admittedModules(['admin'], allModulesOn).map((m) => m.id)).not.toContain('roastery')
   })

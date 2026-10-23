@@ -7,14 +7,17 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
   // `streamCatalogFrom` is pure catalog arithmetic, not IO — the hook's job is to feed it the
   // right rows, so the real one stays and only the read is mocked.
   const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
-  return { ...actual, listStreamPairs: vi.fn(), listCafeDestinations: vi.fn() }
+  return { ...actual, listStreamPairs: vi.fn() }
 })
+vi.mock('@/lib/cafe-visit-cache', () => ({ getCafeLocations: vi.fn(), getCafeSites: vi.fn() }))
 vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn() }))
 vi.mock('@/auth/use-auth')
 
 import { listActiveBranches } from '@/lib/db/branches'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
-import { listCafeDestinations, listStreamPairs } from '@/lib/db/kitchen-logs'
+import { listStreamPairs } from '@/lib/db/kitchen-logs'
+import { getCafeLocations, getCafeSites } from '@/lib/cafe-visit-cache'
+import type { CafeLocation } from '@/lib/db/cafe-locations'
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import { useAuth } from '@/auth/use-auth'
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
@@ -38,11 +41,10 @@ const PAIRS = BRANCHES.flatMap(b => [
   { branch_id: b.id, activity: 'kitchen' as const, produces: b !== BRANCH_RAD },
   { branch_id: b.id, activity: 'bar' as const, produces: true },
 ])
-const DESTINATIONS = [{
-  origin_branch_id: BRANCH_RR.id,
-  origin_activity: 'kitchen' as const,
-  destination_branch_id: BRANCH_RAD.id,
-}]
+const place = (id: string, name: string, branch: string, activity: string, site: string | null = null): CafeLocation => ({
+  id, name, use: 'both', parent_id: null, branch_ids: [branch], archived_at: null, row_version: 1, updated_at: '', updated_by: null,
+  site_id: site, activities: [activity],
+})
 const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const, produces: true }
 
 beforeEach(() => {
@@ -51,7 +53,8 @@ beforeEach(() => {
   for (const personId of ['p-1', 'p-routes', 'p-krishna']) rememberCafeLocation(personId, null)
   vi.mocked(listActiveBranches).mockResolvedValue(BRANCHES)
   vi.mocked(listStreamPairs).mockResolvedValue(PAIRS)
-  vi.mocked(listCafeDestinations).mockResolvedValue(DESTINATIONS)
+  vi.mocked(getCafeLocations).mockResolvedValue([])
+  vi.mocked(getCafeSites).mockResolvedValue([])
   vi.mocked(fetchDefaultStream).mockResolvedValue(RADIANT_BAR)
   // Unauthenticated by default (matches the pre-existing, unmocked React.createContext default of
   // `{status: 'loading'}` every other case here relied on) — `viewerId` is null, so authenticated
@@ -68,8 +71,6 @@ describe('useCafeStream — the shared Café bootstrap', () => {
 
     expect(resolved.options).toHaveLength(4) // two branches × two activities, from the pairs
     expect(resolved.branches).toEqual(BRANCHES)
-    expect(resolved.destinations).toEqual([])
-    expect(listCafeDestinations).not.toHaveBeenCalled()
     expect(resolved.stream).toEqual(RADIANT_BAR)
     // #781 item 3: the person's own default, kept alongside `stream` for display even once a
     // session switch has moved `stream` elsewhere — CafeStreamBar's "Your Team" tag and "Back
@@ -82,17 +83,26 @@ describe('useCafeStream — the shared Café bootstrap', () => {
     expect(result.current.branches).toEqual([])
   })
 
-  it('reads org-scoped destination rows only for an authenticated viewer', async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      status: 'authenticated',
-      viewer: { person: { id: 'p-routes' } },
-    } as ReturnType<typeof useAuth>)
-
+  it('offers one picker entry per production Location, named with where it is, and opens on the person\'s only one', async () => {
+    vi.mocked(getCafeLocations).mockResolvedValue([place('loc-bar', 'Radiant Bar', BRANCH_RAD.id, 'bar', 'site-rad')])
+    vi.mocked(getCafeSites).mockResolvedValue([{ id: 'site-rad', name: 'Radiant site' }])
     const { result } = renderHook(() => useCafeStream())
     const resolved = await act(async () => result.current.resolve())
 
-    expect(listCafeDestinations).toHaveBeenCalledOnce()
-    expect(resolved.destinations).toEqual(DESTINATIONS)
+    const bar = resolved.options.find(option => option.branch.id === BRANCH_RAD.id && option.activity === 'bar')
+    expect(bar?.location).toEqual({ id: 'loc-bar', name: 'Radiant Bar', siteName: 'Radiant site', holdsStock: true })
+    expect(resolved.stream?.location?.id).toBe('loc-bar')
+  })
+
+  it('asks which Location when the person\'s stream has several, rather than guessing', async () => {
+    vi.mocked(getCafeLocations).mockResolvedValue([
+      place('loc-a', 'Radiant Bar A', BRANCH_RAD.id, 'bar'), place('loc-b', 'Radiant Bar B', BRANCH_RAD.id, 'bar'),
+    ])
+    const { result } = renderHook(() => useCafeStream())
+    const resolved = await act(async () => result.current.resolve())
+
+    expect(resolved.options.filter(option => option.branch.id === BRANCH_RAD.id && option.activity === 'bar')).toHaveLength(2)
+    expect(resolved.stream).toBeNull()
   })
 
   it('adopt() is what puts a resolved catalog on screen', async () => {

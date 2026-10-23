@@ -32,6 +32,9 @@
 .btn-destructive { background: var(--mos-danger-fill); color: var(--mos-primary-ink); }
 .btn-destructive:hover:not(:disabled):not([aria-disabled='true']) { filter: brightness(0.92); }
 
+/* A quiet destructive action: ghost weight, danger colour; kept away from the primary. */
+.btn-ghost.btn-danger-text { color: var(--mos-error-text); }
+
 /* Full-width touch variant for phone submit bars. */
 .btn-touch { width: 100%; }
 

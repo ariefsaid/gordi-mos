@@ -22,6 +22,8 @@ const FINANCE = { email: 'fitri.dev@example.test', password: VIEWER.password }
 const ADMIN_SETTINGS_TABS: Record<string, string> = {
   '/admin/people': 'People',
   '/admin/teams': 'Teams',
+  '/admin/shift-builder': 'Shift builder',
+  '/admin/attendance-settings': 'Attendance settings',
   '/admin/access': 'Access levels',
   '/admin/modules': 'Modules',
   '/admin/agents': 'Agent apps',
@@ -214,7 +216,7 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
     await expect(nav).toBeVisible()
     const switcher = nav.getByRole('combobox')
     expect((await switcher.boundingBox())!.height, 'the switcher meets the 44px phone tap floor').toBeGreaterThanOrEqual(TAP_FLOOR)
-    for (const [path, label] of [['/admin/teams', 'Teams'], ['/admin/access', 'Access levels'], ['/admin/agents', 'Agent apps'], ['/admin/people', 'People']]) {
+    for (const [path, label] of [['/admin/teams', 'Teams'], ['/admin/shift-builder', 'Shift builder'], ['/admin/attendance-settings', 'Attendance settings'], ['/admin/access', 'Access levels'], ['/admin/agents', 'Agent apps'], ['/admin/people', 'People']]) {
       await chooseSelectOption(page, switcher, label)
       await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).toBe(path)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${path}: no horizontal scroll`).toBe(true)

@@ -2,7 +2,7 @@
 -- bucket, the lead's queue, HR views and the timed cover job. Time rules run on a fixed clock.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(99);
+select plan(129);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select set_config('app.attendance_now', '2026-10-25 21:00:00+00', true); -- Mon 04:00 Jakarta
@@ -315,11 +315,78 @@ select is((select (t->>'no_show') from jsonb_array_elements(ops.list_staff_month
 select is((select (t->>'shifts_worked') from jsonb_array_elements(ops.list_staff_monthly_totals('2026-10-15')) t where t->>'full_name' = 'Office 203'), '1', 'AC-040 worked shifts come from clock records');
 select is((select count(*)::int from jsonb_array_elements(ops.list_staff_monthly_totals('2026-11-15')) t where (t->>'sick_undocumented')::int > 0 or (t->>'no_show')::int > 0), 0, 'AC-040 a month shows only its own days');
 
+-- ── Owner rule: nobody decides their own request; a lead's goes to admin or hr, hr's goes to admin ──
+reset role;
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary) values (pg_temp.p('a1'), pg_temp.p('f401'), pg_temp.p('5b02'), false), (pg_temp.p('a1'), pg_temp.p('f105'), pg_temp.p('5b04'), false);
+insert into shared.team_lead_assignments (org_id, team_id, lead_person_id) values (pg_temp.p('a1'), pg_temp.p('5b04'), pg_temp.p('f105'));
+set local role authenticated;
+select pg_temp.as_('f105');
+select set_config('app.a8', ops.report_staff_absence('leave', current_setting('app.s5')::uuid, null, null)::text, true);
+reset role;
+select is(pg_temp.notes('d3', 'Absence request%'), 1, 'AC-020 a lead''s own request reaches admin');
+select is(pg_temp.notes('f401', 'Absence request%'), 2, 'AC-020 a lead''s own request reaches hr');
+select is(pg_temp.notes('d1', 'Absence request%'), 1, 'AC-020 a lead''s own request does not reach the co-lead');
+set local role authenticated;
+select pg_temp.as_('d1');
+select throws_ok($$select ops.decide_staff_absence(current_setting('app.a8')::uuid, true)$$, '42501', 'STAFF_ABSENCE_FORBIDDEN', 'AC-020 a co-lead cannot decide a lead''s own absence');
+select pg_temp.as_('f105');
+select throws_ok($$select ops.decide_staff_absence(current_setting('app.a8')::uuid, true)$$, '42501', 'STAFF_ABSENCE_FORBIDDEN', 'AC-020 nobody decides their own absence');
+select is((select count(*)::int from jsonb_array_elements(ops.list_staff_cover_queue()->'absences') a where a->>'person_name' = 'Crew 105' and (a->>'can_decide')::boolean), 0, 'AC-020 the queue does not offer a lead their own request to decide');
+select pg_temp.as_('f401', 'hr');
+select is((select (a->>'can_decide')::boolean from jsonb_array_elements(ops.list_staff_cover_queue()->'absences') a where a->>'person_name' = 'Crew 105'), true, 'AC-020 the queue shows hr a lead''s own request as theirs to decide');
+select lives_ok($$select ops.decide_staff_absence(current_setting('app.a8')::uuid, true)$$, 'AC-020 hr decides a lead''s own absence');
+
+select set_config('app.a9', ops.report_staff_absence('leave', null, pg_temp.p('5b02'), '2026-11-05')::text, true);
+reset role;
+select is(pg_temp.notes('d3', 'Absence request%'), 2, 'AC-020 an hr holder''s own request reaches admin');
+select is(pg_temp.notes('d4', 'Absence request%'), 1, 'AC-020 an hr holder''s own request does not reach the Team lead');
+select is(pg_temp.notes('f401', 'Absence request%'), 2, 'AC-020 an hr holder is not told of their own request');
+set local role authenticated;
+select pg_temp.as_('f401', 'hr');
+select throws_ok($$select ops.decide_staff_absence(current_setting('app.a9')::uuid, true)$$, '42501', 'STAFF_ABSENCE_FORBIDDEN', 'AC-020 an hr holder cannot decide their own absence');
+select pg_temp.as_('d4');
+select throws_ok($$select ops.decide_staff_absence(current_setting('app.a9')::uuid, true)$$, '42501', 'STAFF_ABSENCE_FORBIDDEN', 'AC-020 the Team lead cannot decide an hr holder''s absence');
+select pg_temp.as_('d3', 'admin');
+select lives_ok($$select ops.decide_staff_absence(current_setting('app.a9')::uuid, true)$$, 'AC-020 admin decides an hr holder''s absence');
+
+reset role;
+select set_config('app.o3', (select id::text from ops.staff_shift_offers where shift_id = current_setting('app.s3')::uuid), true);
+set local role authenticated;
+select pg_temp.as_('f105');
+select set_config('app.c8', ops.claim_staff_shift(current_setting('app.o3')::uuid)::text, true);
+select throws_ok($$select ops.decide_staff_claim(current_setting('app.c8')::uuid, true)$$, '42501', 'STAFF_CLAIM_FORBIDDEN', 'AC-016 nobody decides their own cover claim');
+select pg_temp.as_('d1');
+select throws_ok($$select ops.decide_staff_claim(current_setting('app.c8')::uuid, true)$$, '42501', 'STAFF_CLAIM_FORBIDDEN', 'AC-016 a co-lead cannot decide a lead''s cover claim');
+select is((select (c->>'can_decide')::boolean from jsonb_array_elements(ops.list_staff_cover_queue()->'claims') c where c->>'claimant_name' = 'Crew 105'), false, 'AC-016 the queue shows the co-lead the claim as not theirs to decide');
+select pg_temp.as_('d3', 'admin');
+select is((select (c->>'can_decide')::boolean from jsonb_array_elements(ops.list_staff_cover_queue()->'claims') c where c->>'claimant_name' = 'Crew 105'), true, 'AC-016 the queue shows admin the claim as theirs to decide');
+select lives_ok($$select ops.decide_staff_claim(current_setting('app.c8')::uuid, true)$$, 'AC-016 admin confirms a lead''s cover claim');
+
+-- ── Owner rule, by proxy: recording or assigning for a lead goes through the same decider rule ──
+select pg_temp.as_('d1');
+select set_config('app.s9', ops.save_staff_shift(pg_temp.p('5b01'), pg_temp.p('f102'), '2026-11-09', current_setting('app.pagi')::uuid)::text, true);
+select set_config('app.s10', ops.save_staff_shift(pg_temp.p('5b01'), pg_temp.p('f105'), '2026-11-10', current_setting('app.pagi')::uuid)::text, true);
+select ops.publish_staff_roster(pg_temp.p('5b01'), '2026-11-09');
+select throws_ok($$select ops.report_staff_absence('leave', current_setting('app.s10')::uuid, null, null, pg_temp.p('f105'))$$, '42501', 'STAFF_ABSENCE_FORBIDDEN', 'AC-020 a co-lead cannot record a lead''s leave');
+select pg_temp.as_('d3', 'admin');
+select lives_ok($$select ops.report_staff_absence('leave', current_setting('app.s10')::uuid, null, null, pg_temp.p('f105'))$$, 'AC-020 admin can record a lead''s leave');
+select pg_temp.as_('f102');
+select set_config('app.o9', ops.offer_staff_shift(current_setting('app.s9')::uuid)::text, true);
+select pg_temp.as_('f105');
+select throws_ok($$select ops.assign_staff_cover(current_setting('app.o9')::uuid, pg_temp.p('f105'))$$, '42501', 'STAFF_OFFER_FORBIDDEN', 'AC-014 a lead cannot assign themselves');
+select pg_temp.as_('d1');
+select throws_ok($$select ops.assign_staff_cover(current_setting('app.o9')::uuid, pg_temp.p('f105'))$$, '42501', 'STAFF_OFFER_FORBIDDEN', 'AC-014 a co-lead cannot assign a lead');
+select pg_temp.as_('d3', 'admin');
+select lives_ok($$select ops.assign_staff_cover(current_setting('app.o9')::uuid, pg_temp.p('f105'))$$, 'AC-014 admin can assign a lead');
+
 -- ── hr revoked: the next request loses the access (ADR-0063) ─────────────────────────────────────
 select pg_temp.as_('d3', 'admin');
 update shared.person_access_roles set revoked_at = now() where person_id = pg_temp.p('f401') and access_role = 'hr';
 select pg_temp.as_('f401', 'member');
 select throws_ok($$select ops.list_staff_monthly_totals('2026-10-15')$$, '42501', 'STAFF_ABSENCE_FORBIDDEN', 'AC-034 revoking hr removes the view on the next request');
+reset role;
+select is((select count(*)::int from ops._attendance_recipients(pg_temp.p('a1'), pg_temp.p('5b05'), null)), 0, 'AC-020 a revoked hr holder receives no requests for a Team without a lead');
+set local role authenticated;
 
 -- ── structure: every new table is closed and forced; every definer function is pinned ────────────
 reset role;
@@ -334,6 +401,20 @@ select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.
             where n.nspname = 'ops' and p.proname = any(array['report_staff_absence','claim_staff_shift','list_staff_absences','set_noshow_recording_from'])
               and has_function_privilege('anon', p.oid, 'execute')), 0, 'AC-034 anonymous callers reach none of them');
 select is((select count(*)::int from storage.buckets where id = 'staff-notes' and not public), 1, 'AC-013 the note bucket is private');
+
+-- ── NFR-002 doctor's-note retention: 2 years, queued for the Storage API worker, reference cleared at once ──
+reset role;
+update ops.staff_absences set note_added_at = ops._attendance_now() - interval '2 years 1 day' where id = current_setting('app.a1')::uuid;
+insert into ops.staff_absences (org_id, person_id, team_id, site_id, shift_id, local_date, shift_start_at, shift_end_at, kind, status, note_path, note_added_at, recorded_by)
+select org_id, person_id, team_id, site_id, shift_id, local_date + 1, shift_start_at + interval '1 day', shift_end_at + interval '1 day', kind, 'accepted',
+       pg_temp.p('a1') || '/' || id || '/' || pg_temp.p('c003') || '.jpg', ops._attendance_now() - interval '2 years' + interval '1 day', recorded_by
+  from ops.staff_absences where id = current_setting('app.a1')::uuid;
+select is((ops.run_attendance_jobs()->>'notes_queued')::int, 1, 'NFR-002 a note older than 2 years is queued for deletion');
+select is((select count(*)::int from ops.attendance_selfie_purge_queue where bucket = 'staff-notes' and path like '%/' || pg_temp.p('c001') || '.jpg'), 1, 'NFR-002 the queued note names the staff-notes bucket');
+select is((select note_path from ops.staff_absences where id = current_setting('app.a1')::uuid), null, 'NFR-002 the old note reference is cleared at once');
+select is((select count(*)::int from ops.staff_absences where note_path like '%/' || pg_temp.p('c003') || '.jpg')
+        + (select count(*)::int from ops.attendance_selfie_purge_queue where path like '%/' || pg_temp.p('c003') || '.jpg'), 1, 'NFR-002 a note under 2 years keeps its reference and is not queued');
+select is((ops.run_attendance_jobs()->>'notes_queued')::int + (select count(*)::int from ops.attendance_selfie_purge_queue where bucket = 'staff-notes'), 1, 'NFR-002 running the job again queues nothing new');
 
 select * from finish();
 rollback;

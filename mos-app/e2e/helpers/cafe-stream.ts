@@ -4,7 +4,7 @@ import { expect } from '@playwright/test'
 /** The accessible name the stream menu and the one-step choice group share (EN / ID). */
 export const STREAM_CONTROL_NAME = /production stream|stream produksi/i
 
-/** The page head's stream statement ("Rumah Rames · Kitchen"), present once a stream resolved. */
+/** The page head's stream statement ("Rumah Rames Kitchen"), present once a stream resolved. */
 export function streamStatement(page: Page): Locator {
   return page.getByTestId('cafe-stream')
 }

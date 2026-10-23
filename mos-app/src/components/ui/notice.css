@@ -26,8 +26,9 @@
 .notice__action { flex: 0 0 auto; display: inline-flex; align-items: center; gap: var(--mos-space-2); margin-inline-start: auto; }
 .notice__action a, .notice__action button { color: inherit; font-weight: var(--mos-weight-semibold); }
 .notice__action .btn { color: var(--mos-ink); }
+.notice__action .btn-primary { color: var(--mos-primary-ink); }
 @media (max-width: 767.98px) {
-  .notice__action { flex-basis: 100%; margin-inline-start: calc(var(--mos-icon-md) + var(--mos-space-3)); }
+  .notice__action { flex-basis: calc(100% - var(--mos-icon-md) - var(--mos-space-3)); margin-inline-start: calc(var(--mos-icon-md) + var(--mos-space-3)); }
   .notice__action a, .notice__action button:not(.btn) { display: inline-flex; align-items: center; min-height: var(--mos-control-height); padding-inline: var(--mos-space-1); }
   .notice__text a { padding: 14px 10px; margin: -14px -10px; }
 }

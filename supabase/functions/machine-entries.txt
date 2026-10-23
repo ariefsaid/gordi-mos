@@ -1,0 +1,3 @@
+# Machine-entry edge functions: no browser caller, no user session. One per line.
+# Read by scripts/deploy-staging.sh (skips the CORS preflight smoke check) and by the edge guards.
+attendance-photo-purge

@@ -12,7 +12,7 @@ import { useCallback, useSyncExternalStore } from 'react'
  * seam, and never leaves the browser. Key `mos.rail.collapsed`, joining the `mos.*` family the
  * theme, locale, assistant and Tasks-view prefs already use.
  *
- * Shape is `useTasksViewPref`'s module-store-over-`useSyncExternalStore` pattern, verbatim: one
+ * Shape is a module-store over `useSyncExternalStore`: one
  * snapshot and one subscriber set, so the two consumers that must agree — the rail itself and the
  * top bar's brand column, which draws the divider on the rail's boundary — re-render together off
  * ONE source. Two independent `useState`s would let the divider drift off the rail edge for a frame.
