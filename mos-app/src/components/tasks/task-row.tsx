@@ -123,7 +123,7 @@ type InlineCommitFeedbackProps = {
   errorId?: string
 }
 
-function InlineCommitFeedback({ error, retry, liveMessage, errorId }: InlineCommitFeedbackProps) {
+export function InlineCommitFeedback({ error, retry, liveMessage, errorId }: InlineCommitFeedbackProps) {
   const t = useT()
   return <>
     {error && <span id={errorId} role="alert" className="task-row-save-error">

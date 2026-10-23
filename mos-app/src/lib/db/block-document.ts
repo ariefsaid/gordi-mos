@@ -37,17 +37,22 @@ export class BlockDocumentTooLargeError extends Error {
 export interface BlockDocumentInlineOptions {
   /** `mention` nodes: a person or Team, stored as kind + id. */
   mentions?: boolean
-  /** `recordLink` nodes: a Task, Objective, Project/Process or Signal, stored as kind + id. */
+  /** `recordLink` nodes: a Task, Objective, Project/Process, Signal or Meeting, stored as kind + id. */
   recordLinks?: boolean
+  /** Extra block types (a Meeting's task rows): each type maps to the sanitizer that returns its one stored shape, or null to drop it. */
+  blocks?: Record<string, (block: Record<string, unknown>) => Record<string, unknown> | null>
 }
 
 const MENTION_KINDS = ['person', 'team'] as const
 export type MentionNodeKind = (typeof MENTION_KINDS)[number]
-const RECORD_LINK_KINDS = ['task', 'objective', 'project', 'signal'] as const
+const RECORD_LINK_KINDS = ['task', 'objective', 'project', 'signal', 'meeting'] as const
 export type RecordLinkKind = (typeof RECORD_LINK_KINDS)[number]
 
 const SAFE_LINK = /^(?:https?|mailto|tel):/i
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** A stored record id: only a uuid survives a load. */
+export const isDocumentId = (value: unknown): value is string => typeof value === 'string' && UUID.test(value)
 
 /** Only http, https, mailto and tel links render as links; anything else is plain text. */
 export function isSafeDocumentLink(href: unknown): boolean {
@@ -86,7 +91,7 @@ function sanitizeText(node: unknown): Rec | null {
 function sanitizeReference(node: unknown, options: BlockDocumentInlineOptions): Rec | null {
   if (!isRec(node) || !isRec(node.props)) return null
   const { kind, id } = node.props
-  if (typeof id !== 'string' || !UUID.test(id)) return null
+  if (!isDocumentId(id)) return null
   if (node.type === 'mention' && options.mentions && isMentionKind(kind)) return { type: 'mention', props: { kind, id: id.toLowerCase() } }
   if (node.type === 'recordLink' && options.recordLinks && isRecordLinkKind(kind)) return { type: 'recordLink', props: { kind, id: id.toLowerCase() } }
   return null
@@ -115,23 +120,30 @@ function sanitizeProps(type: (typeof BLOCK_TYPES)[number], raw: unknown): Rec {
   return out
 }
 
-function sanitizeBlock(block: unknown, depth: number, inline: ReturnType<typeof sanitizeInline>): Rec | null {
+type Sanitizers = { inline: ReturnType<typeof sanitizeInline>; custom: NonNullable<BlockDocumentInlineOptions['blocks']> }
+
+const safeId = (block: Rec): Rec => (typeof block.id === 'string' && /^[\w-]{1,64}$/.test(block.id) ? { id: block.id } : {})
+
+function sanitizeBlock(block: unknown, depth: number, ctx: Sanitizers): Rec | null {
+  if (isRec(block) && typeof block.type === 'string' && Object.hasOwn(ctx.custom, block.type)) {
+    const kept = ctx.custom[block.type](block)
+    return kept && { ...kept, ...safeId(block) }
+  }
   if (!isRec(block) || !isBlockType(block.type)) return null
-  const out: Rec = { type: block.type }
-  if (typeof block.id === 'string' && /^[\w-]{1,64}$/.test(block.id)) out.id = block.id
+  const out: Rec = { type: block.type, ...safeId(block) }
   const props = sanitizeProps(block.type, block.props)
   if (Object.keys(props).length > 0) out.props = props
   if (typeof block.content === 'string') out.content = [{ type: 'text', text: block.content, styles: {} }]
-  else if (Array.isArray(block.content)) out.content = block.content.flatMap(inline)
+  else if (Array.isArray(block.content)) out.content = block.content.flatMap(ctx.inline)
   if (Array.isArray(block.children) && depth < MAX_DEPTH) {
-    const children = sanitizeBlocks(block.children, depth + 1, inline)
+    const children = sanitizeBlocks(block.children, depth + 1, ctx)
     if (children.length > 0) out.children = children
   }
   return out
 }
 
-function sanitizeBlocks(blocks: unknown[], depth: number, inline: ReturnType<typeof sanitizeInline>): Rec[] {
-  return blocks.map((b) => sanitizeBlock(b, depth, inline)).filter((b): b is Rec => b !== null)
+function sanitizeBlocks(blocks: unknown[], depth: number, ctx: Sanitizers): Rec[] {
+  return blocks.map((b) => sanitizeBlock(b, depth, ctx)).filter((b): b is Rec => b !== null)
 }
 
 /**
@@ -140,7 +152,7 @@ function sanitizeBlocks(blocks: unknown[], depth: number, inline: ReturnType<typ
  * links with a known kind and a uuid; everything else is dropped.
  */
 export function sanitizeBlockDocument(blocks: unknown, options: BlockDocumentInlineOptions = {}): BlockDocument {
-  return Array.isArray(blocks) ? sanitizeBlocks(blocks, 0, sanitizeInline(options)) : []
+  return Array.isArray(blocks) ? sanitizeBlocks(blocks, 0, { inline: sanitizeInline(options), custom: options.blocks ?? {} }) : []
 }
 
 function blockDocumentByteLength(blocks: BlockDocument): number {

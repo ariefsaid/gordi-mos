@@ -14,6 +14,10 @@ vi.mock('@/lib/db/meetings', () => ({
   getMeeting: vi.fn(), createMeeting: vi.fn(), updateMeetingFields: vi.fn(), addAttendee: vi.fn(),
   removeAttendee: vi.fn(), startNextMeeting: vi.fn(),
 }))
+// The minutes have their own tests; here the page only hands the slot whether the viewer may edit.
+vi.mock('./meeting-minutes-slot', () => ({
+  MeetingMinutesSlot: ({ canEdit }: { canEdit: boolean }) => <section data-record-section="minutes" data-can-edit={canEdit} />,
+}))
 vi.mock('@/lib/db/record-history', () => ({ countRecordHistory: vi.fn().mockResolvedValue(3) }))
 vi.mock('./meeting-context', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./meeting-context')>()),

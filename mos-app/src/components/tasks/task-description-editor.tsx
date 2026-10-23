@@ -1,12 +1,9 @@
-import { useCallback, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useMemo } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { BlockDocumentEditor, type BlockDocumentCopy } from '@/components/block-document/block-document-editor'
-import { useCatalogRecordEntryFactory } from '@/components/catalog/use-catalog-record-overlay'
-import { SignalRecordHost } from '@/components/signals/signal-record-host'
-import { useOptionalOverlayHost, type OverlayEntry } from '@/shell/overlay-host'
-import type { RecordRef } from '@/lib/db/document-references'
+import { sharedBlockDocumentCopy } from '@/components/block-document/block-document-copy'
+import { useOpenDocumentRecord } from '@/components/block-document/use-open-document-record'
 import { readTaskBody, saveTaskBody } from '@/lib/db/task-body'
 
 // The Task description as a block document (mos.tasks.body): the shared editor with `@` mentions of
@@ -18,37 +15,11 @@ export interface TaskDescriptionEditorProps {
   onDirtyChange?: (dirty: boolean) => void
 }
 
-const PAGE_PATH = {
-  task: '/work/tasks/',
-  objective: '/work/objectives/',
-  project: '/work/projects/',
-  signal: '/work/signals/',
-} as const
-
 export function TaskDescriptionEditor({ taskId, canEdit, onDirtyChange }: TaskDescriptionEditorProps) {
   const t = useT()
   const auth = useAuth()
-  const navigate = useNavigate()
-  const host = useOptionalOverlayHost()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
-  // A pushed record keeps the physical slot that is already showing the stack.
-  const topOwner = host?.session?.frames.at(-1)?.entry.owner
-  const { buildEntry } = useCatalogRecordEntryFactory({ owner: topOwner === 'work' || topOwner === 'signals' ? topOwner : 'tasks' })
-
-  const openRecord = useCallback(({ kind, id }: RecordRef) => {
-    if (!host?.session) { navigate(`${PAGE_PATH[kind]}${id}`); return }
-    if (kind !== 'signal') { void host.push(buildEntry(kind === 'project' ? 'work-line' : kind, id)); return }
-    const entry: OverlayEntry = {
-      key: `signal:${id}`,
-      owner: host.session.frames.at(-1)?.entry.owner ?? 'tasks',
-      tenant: 'record',
-      label: t('signals.record.title'),
-      title: t('signals.record.title'),
-      pageTo: { pathname: `${PAGE_PATH.signal}${id}` },
-      content: <SignalRecordHost signalId={id} mode="panel" onPromote={(to, state) => { void host.openPage(to, state) }} />,
-    }
-    void host.push(entry)
-  }, [buildEntry, host, navigate, t])
+  const openRecord = useOpenDocumentRecord('tasks')
 
   const store = useMemo(() => ({
     read: () => readTaskBody(taskId),
@@ -65,16 +36,7 @@ export function TaskDescriptionEditor({ taskId, canEdit, onDirtyChange }: TaskDe
     placeholderEmpty: t('tasks.document.placeholderEmpty'),
     // The Task page already says it is view-only.
     readOnly: '',
-    save: t('blockDoc.save'),
-    saving: t('blockDoc.saving'),
-    saved: t('blockDoc.saved'),
-    unsaved: t('blockDoc.unsaved'),
-    failed: t('blockDoc.failed'),
-    retry: t('blockDoc.retry'),
-    reload: t('blockDoc.reload'),
-    conflict: t('blockDoc.conflict'),
-    tooLarge: (limit) => t('blockDoc.tooLarge', { limit }),
-    keysHint: t('blockDoc.keysHint'),
+    ...sharedBlockDocumentCopy(t),
   }
 
   return (

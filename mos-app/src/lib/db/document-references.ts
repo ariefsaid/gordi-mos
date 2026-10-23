@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { getPeople, type PersonOption } from './directory'
 import { listAllTeams } from './signals'
 import { containsPattern } from './like-pattern'
+import { getMeetingTitlesByIds, searchMeetingsByTitle } from './meetings'
 import type { RecordLinkKind } from './block-document'
 import type { MentionCandidate } from '@/lib/comments/mentions'
 
@@ -71,7 +72,7 @@ function signalLine(body: string): string {
 }
 
 /**
- * Search Tasks, Objectives, Projects/Processes and Signals the viewer can open, a few per kind.
+ * Search Tasks, Objectives, Projects/Processes, Signals and Meetings the viewer can open, a few per kind.
  * An empty query lists the most recent. Archived Tasks, Objectives and Projects and retracted
  * Signals are left out.
  */
@@ -88,11 +89,12 @@ export async function searchLinkableRecords(query: string): Promise<LinkableReco
   let signals = mos().from('signals').select('id,body').is('retracted_at', null)
   if (like) signals = signals.ilike('body', like)
 
-  const [taskRes, objectiveRes, workLineRes, signalRes] = await Promise.all([
+  const [taskRes, objectiveRes, workLineRes, signalRes, meetings] = await Promise.all([
     tasks.order('last_activity_at', { ascending: false }).limit(PER_KIND_LIMIT),
     objectives.order('name').limit(PER_KIND_LIMIT),
     workLines.order('name').limit(PER_KIND_LIMIT),
     signals.order('created_at', { ascending: false }).limit(PER_KIND_LIMIT),
+    searchMeetingsByTitle(term, PER_KIND_LIMIT),
   ])
   for (const res of [taskRes, objectiveRes, workLineRes, signalRes]) {
     if (res.error) throw new Error(`searchLinkableRecords failed — ${res.error.message}`)
@@ -106,6 +108,7 @@ export async function searchLinkableRecords(query: string): Promise<LinkableReco
       { kind: 'task' as const, id: r.id, title: r.title, detail: r.status })),
     ...((workLineRes.data ?? []) as Array<{ id: string; name: string; type: string }>).map((r) => (
       { kind: 'project' as const, id: r.id, title: r.name, detail: r.type })),
+    ...meetings.map((r) => ({ kind: 'meeting' as const, id: r.id, title: r.title, detail: r.startsAt?.slice(0, 10) ?? null })),
   ]
 }
 
@@ -123,7 +126,9 @@ export async function resolveRecordTitles(refs: readonly RecordRef[]): Promise<M
     if (error) throw new Error(`resolveRecordTitles failed — ${error.message}`)
     for (const row of (data ?? []) as unknown as Array<Record<string, string>>) out.set(recordKey(kind, row.id), pick(row))
   }
+  const meetingIds = ids('meeting')
   await Promise.all([
+    getMeetingTitlesByIds(meetingIds).then((rows) => { for (const row of rows) out.set(recordKey('meeting', row.id), row.title) }),
     read('task', 'tasks', 'title', (r) => r.title),
     read('objective', 'objectives', 'name', (r) => r.name),
     read('project', 'work_lines', 'name', (r) => r.name),

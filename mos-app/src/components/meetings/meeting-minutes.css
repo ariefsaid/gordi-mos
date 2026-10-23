@@ -1,0 +1,43 @@
+/* The minutes' task tables and inline task rows. Tokens only; below 768px each row stacks. */
+.meeting-tasks { margin: var(--mos-section-gap) 0; min-width: 0; }
+.meeting-tasks__head { margin: 0 0 var(--mos-inline-gap); font: var(--mos-type-meta); color: var(--muted-foreground); }
+.meeting-tasks__head strong { font: var(--mos-type-label); color: var(--foreground); }
+.meeting-tasks__empty { margin: 0; color: var(--muted-foreground); font: var(--mos-type-body); }
+.meeting-tasks__table { width: 100%; border-collapse: collapse; font: var(--mos-type-body); }
+.meeting-tasks__table th { padding: var(--mos-inline-gap); text-align: start; font: var(--mos-type-label); color: var(--muted-foreground); background: var(--muted); }
+.meeting-tasks__table td { padding: var(--mos-inline-gap); border-bottom: 1px solid var(--row-divider); vertical-align: middle; min-width: 0; overflow-wrap: anywhere; }
+.meeting-tasks__title { display: flex; align-items: center; gap: var(--mos-inline-gap); }
+.meeting-tasks__open { min-height: var(--mos-control-height); padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--foreground); text-align: start; cursor: pointer; }
+.meeting-tasks__open:hover { text-decoration: underline; text-underline-offset: 3px; }
+.meeting-tasks__add { margin-top: var(--mos-inline-gap); color: var(--text-on-accent-tint); }
+.meeting-tasks__form { display: flex; flex-wrap: wrap; gap: var(--mos-inline-gap); align-items: center; margin-top: var(--mos-inline-gap); }
+.meeting-tasks__input, .meeting-task-row__title:is(input) {
+  flex: 1 1 14rem; min-width: 0; min-height: var(--mos-control-height); padding: 0 var(--mos-inline-gap); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--card); font: inherit; color: var(--foreground);
+}
+.meeting-tasks__error, .meeting-task-row__error { margin: 0; color: var(--status-lost-text); font: var(--mos-type-meta); }
+
+.meeting-cell, .meeting-cell-trigger { display: inline-flex; align-items: center; min-height: var(--mos-control-height); font: inherit; color: var(--foreground); }
+.meeting-cell-trigger { padding: 0; border: 0; background: none; text-align: start; cursor: pointer; }
+.meeting-cell-trigger:hover { text-decoration: underline; text-underline-offset: 3px; }
+.meeting-cell-trigger:focus-visible, .meeting-tasks__open:focus-visible, .meeting-task-row__discard:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-radius: var(--radius-xs); }
+.meeting-cell-editor { display: inline-flex; flex-direction: column; gap: var(--mos-inline-gap); min-width: 0; }
+[data-overdue] { color: var(--status-lost-text); font-weight: 600; }
+
+/* One Task written inline in the minutes. */
+.meeting-task-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap) var(--mos-row-gap); padding: var(--mos-inline-gap) 0; border-bottom: 1px solid var(--row-divider); }
+.meeting-task-row__title { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); flex: 1 1 16rem; min-width: 0; }
+.meeting-task-row__cells { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap) var(--mos-row-gap); min-width: 0; }
+.meeting-task-row--restricted { color: var(--muted-foreground); font-style: italic; }
+.meeting-task-row__creating { color: var(--muted-foreground); font: var(--mos-type-meta); }
+.meeting-task-row__discard { min-width: var(--mos-control-height); min-height: var(--mos-control-height); border: 0; background: none; color: var(--muted-foreground); font-size: var(--mos-size-4); cursor: pointer; }
+
+@media (max-width: 767.98px) {
+  .meeting-tasks__table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .meeting-tasks__table, .meeting-tasks__table tbody, .meeting-tasks__table tr, .meeting-tasks__table td { display: block; }
+  .meeting-tasks__table tr { padding: var(--mos-inline-gap) 0; border-bottom: 1px solid var(--row-divider); }
+  .meeting-tasks__table td { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-row-gap); border-bottom: 0; }
+  .meeting-tasks__table td[data-label]::before { content: attr(data-label); font: var(--mos-type-meta); color: var(--muted-foreground); }
+  .meeting-tasks__open, .meeting-cell, .meeting-cell-trigger, .meeting-task-row__discard { min-height: 44px; }
+  .meeting-task-row__cells { width: 100%; }
+}

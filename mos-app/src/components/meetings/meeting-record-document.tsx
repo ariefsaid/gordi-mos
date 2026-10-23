@@ -249,7 +249,7 @@ function ExistingMeeting({ id, mode, onOpenMeeting, onTitleResolved, onChanged }
           }}
         />
         {!editable ? <p className="rp-readonly meeting-readonly" role="note">{t('meetings.readOnly', { team: teamName })}</p> : null}
-        <MeetingMinutesSlot meetingId={id} canEdit={editable} />
+        <MeetingMinutesSlot meetingId={id} canEdit={editable} isPrivate={meeting.isPrivate} />
         <div className="meeting-reference">
           {details.length > 0 ? (
             <RecordDisclosure title={t('workbench.record.details')}>

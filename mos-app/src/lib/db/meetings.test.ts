@@ -190,9 +190,12 @@ describe('meetings data layer', () => {
     stub({ meetings: [{ data: [{ id: 'm1', title: 'Ops' }], error: null }] })
     expect(await getMeetingTitlesByIds(['m1', 'hidden'])).toEqual([{ id: 'm1', title: 'Ops' }])
     expect(await getMeetingTitlesByIds([])).toEqual([])
-    stub({ meetings: [{ data: [{ id: 'm1', title: 'Ops', starts_at: null }], error: null }] })
+    const calls = stub({ meetings: [{ data: [{ id: 'm1', title: 'Ops', starts_at: null }], error: null }] })
     expect(await searchMeetingsByTitle('op')).toEqual([{ id: 'm1', title: 'Ops', startsAt: null }])
-    expect(await searchMeetingsByTitle('  ')).toEqual([])
+    expect(calls.ilikes).toHaveLength(1)
+    // An empty query lists the newest, with no title filter.
+    expect(await searchMeetingsByTitle('  ')).toEqual([{ id: 'm1', title: 'Ops', startsAt: null }])
+    expect(calls.ilikes).toHaveLength(1)
   })
 
   it('surfaces database errors', async () => {

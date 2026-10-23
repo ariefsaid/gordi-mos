@@ -334,15 +334,12 @@ export async function getMeetingTitlesByIds(ids: string[]): Promise<Array<{ id: 
   return (data ?? []) as Array<{ id: string; title: string }>
 }
 
-/** Meeting search for the `[[` menu and the command palette. RLS decides what the caller can see. */
+/** Meeting search for the `[[` menu and the command palette (empty = the newest). RLS decides what the caller can see. */
 export async function searchMeetingsByTitle(q: string, limit = 20): Promise<Array<{ id: string; title: string; startsAt: string | null }>> {
   const term = q.trim()
-  if (!term) return []
-  const { data, error } = await mos()
-    .from('meetings')
-    .select('id,title,starts_at')
-    .ilike('title', containsPattern(term))
-    .is('archived_at', null)
+  let query = mos().from('meetings').select('id,title,starts_at').is('archived_at', null)
+  if (term) query = query.ilike('title', containsPattern(term))
+  const { data, error } = await query
     .order('starts_at', { ascending: false, nullsFirst: true })
     .limit(limit)
   if (error) throw new Error(`searchMeetingsByTitle failed — ${error.message}`)

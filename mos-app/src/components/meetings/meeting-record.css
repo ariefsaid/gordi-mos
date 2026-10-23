@@ -6,9 +6,8 @@
 .meeting-reference { margin-top: var(--mos-section-above); }
 .meeting-reference .rp-disclosure { font: var(--mos-type-label); color: var(--muted-foreground); }
 
-/* Minutes: one clearly bounded slot straight after the properties. */
+/* Minutes: the slot straight after the properties (its tables: meeting-minutes.css). */
 .meeting-minutes { margin-top: var(--mos-section-above); min-height: 6rem; }
-.meeting-minutes__placeholder { margin: 0; padding: var(--mos-section-gap); border: 1px dashed var(--border); border-radius: var(--radius-sm); color: var(--muted-foreground); font-size: var(--mos-size-3); }
 
 /* Draft title: a heading you type into. */
 .meeting-draft-title { margin: 0; font: inherit; }
