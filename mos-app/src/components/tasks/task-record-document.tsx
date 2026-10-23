@@ -18,6 +18,7 @@ import { ActivityCard } from './activity-card'
 import { ChecklistCard } from './checklist-card'
 import { CommentThread, type TaskComment } from './CommentThread'
 import { TaskDescriptionDocument } from './task-description-document'
+import { usePageDirty } from './use-page-dirty'
 import './task-record-document.css'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { OfflineNotice } from '@/components/ui/offline-notice'
@@ -69,6 +70,7 @@ export function TaskRecordDocument({
   notice, onCommitField, onDirtyChange, fieldCommitsFrozen,
 }: TaskRecordDocumentProps) {
   const t = useT()
+  const { onFieldDirty, onDocumentDirty } = usePageDirty(onDirtyChange)
   const offline = useIsOffline()
   const aboutHeadingRef = useRef<HTMLHeadingElement>(null)
   const { toast, showToast, clearToast } = useToast()
@@ -157,7 +159,7 @@ export function TaskRecordDocument({
     <RecordField
       spec={fieldSpec}
       onCommit={(value) => onCommitField(fieldSpec.key, value)}
-      onDirtyChange={onDirtyChange}
+      onDirtyChange={onFieldDirty}
       commitsFrozen={fieldCommitsFrozen}
     />
   )
@@ -224,7 +226,7 @@ export function TaskRecordDocument({
           factsLabel={t('record.page.facts')}
           note={note}
           onCommitField={onCommitField}
-          onDirtyChange={onDirtyChange}
+          onDirtyChange={onFieldDirty}
           fieldCommitsFrozen={fieldCommitsFrozen}
         />
       )}
@@ -249,7 +251,7 @@ export function TaskRecordDocument({
       {showDescription ? (
         <RecordSection id="description" title={t('tasks.description.title')}>
           <div className="task-description">
-            <TaskDescriptionDocument taskId={task.id} canEdit={editable && !archived && !offline} onDirtyChange={onDirtyChange} />
+            <TaskDescriptionDocument taskId={task.id} canEdit={editable && !archived && !offline} onDirtyChange={onDocumentDirty} />
           </div>
         </RecordSection>
       ) : null}

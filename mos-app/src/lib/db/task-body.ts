@@ -27,9 +27,11 @@ export async function readTaskBody(taskId: string): Promise<BlockDocumentRead | 
 
 /**
  * Conditional save: only replaces the document when `updated_at` still equals `expectedUpdatedAt`.
- * Returns the new `updated_at`. Zero matched rows throws BlockDocumentConflictError — never retried here.
+ * Returns the new `updated_at`; with an `actor` it also records one `field_edited` event. Zero matched rows throws BlockDocumentConflictError — never retried here.
  */
-export async function saveTaskBody(taskId: string, blocks: BlockDocument, expectedUpdatedAt: string): Promise<string> {
+export async function saveTaskBody(
+  taskId: string, blocks: BlockDocument, expectedUpdatedAt: string, actor?: string | null,
+): Promise<string> {
   assertBlockDocumentSize(blocks)
   const { data, error } = await mos()
     .from('tasks')
@@ -40,5 +42,8 @@ export async function saveTaskBody(taskId: string, blocks: BlockDocument, expect
   if (error) throw new Error(`saveTaskBody failed — ${error.message}`)
   const rows = (data ?? []) as Array<{ updated_at: string }>
   if (rows.length === 0) throw new BlockDocumentConflictError()
+  // The Task's activity shows one field edit per save, as a description edit did (no content copied).
+  // The save has landed, so a failed event row never turns it into a failed save.
+  if (actor) await mos().from('task_events').insert({ task_id: taskId, actor_person_id: actor, event_type: 'field_edited' })
   return rows[0].updated_at
 }

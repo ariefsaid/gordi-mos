@@ -53,6 +53,19 @@ describe('task description document data layer', () => {
     expect(JSON.stringify(calls.update)).not.toContain('updated_at')
   })
 
+  it('records one field_edited event per save for the actor, and none without one', async () => {
+    const inserts: unknown[] = []
+    const tasks: Record<string, unknown> = {}
+    for (const name of ['update', 'eq']) tasks[name] = vi.fn(() => tasks)
+    tasks.select = vi.fn(() => Promise.resolve({ data: [{ updated_at: 't2' }], error: null }))
+    schemaMock.mockReturnValue({ from: vi.fn((table: string) => table === 'task_events'
+      ? { insert: vi.fn((row: unknown) => { inserts.push(row); return Promise.resolve({ error: null }) }) }
+      : tasks) } as never)
+    await saveTaskBody('task-1', [], 't1', 'person-1')
+    await saveTaskBody('task-1', [], 't1')
+    expect(inserts).toEqual([{ task_id: 'task-1', actor_person_id: 'person-1', event_type: 'field_edited' }])
+  })
+
   it('refuses when zero rows match (changed elsewhere, or no longer editable)', async () => {
     stub({ data: [], error: null })
     await expect(saveTaskBody('task-1', [], 't1')).rejects.toBeInstanceOf(BlockDocumentConflictError)

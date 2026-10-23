@@ -52,8 +52,8 @@ export function TaskDescriptionEditor({ taskId, canEdit, onDirtyChange }: TaskDe
 
   const store = useMemo(() => ({
     read: () => readTaskBody(taskId),
-    save: (blocks: unknown[], expectedUpdatedAt: string) => saveTaskBody(taskId, blocks, expectedUpdatedAt),
-  }), [taskId])
+    save: (blocks: unknown[], expectedUpdatedAt: string) => saveTaskBody(taskId, blocks, expectedUpdatedAt, viewerId),
+  }), [taskId, viewerId])
 
   const copy: BlockDocumentCopy = {
     label: t('tasks.document.label'),

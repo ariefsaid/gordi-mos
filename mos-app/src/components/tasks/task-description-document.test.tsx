@@ -54,7 +54,7 @@ describe('Task description document', () => {
     await props.store.read()
     expect(readTaskBody).toHaveBeenCalledWith('task-1')
     expect(await props.store.save([{ type: 'paragraph' }], 't1')).toBe('t2')
-    expect(saveTaskBody).toHaveBeenCalledWith('task-1', [{ type: 'paragraph' }], 't1')
+    expect(saveTaskBody).toHaveBeenCalledWith('task-1', [{ type: 'paragraph' }], 't1', null)
   })
 
   it('hands a viewer the read-only document: no edit rights, and the page (not the document) says view-only', async () => {
