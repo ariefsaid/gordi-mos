@@ -1598,6 +1598,18 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
   // (?record=<id>) exactly like a Signal, so a bookmark/refresh of "the task I'm working on"
   // restores it instead of dropping to a bare list. RULED by OD-REDESIGN-19/63 + I1/I7.
   describe('D-A1 — Task open is URL-addressable (?record=)', () => {
+    it('Create task opens the created Task at its own address', async () => {
+      mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
+      const { getLocation } = renderAt(['/work/tasks'])
+      await waitFor(() => screen.getByText('Existing task'))
+      fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
+      fireEvent.change(await screen.findByRole('textbox', { name: /title/i }), { target: { value: 'Fresh task' } })
+      await chooseDraftSupervisor()
+      mockCreateTask.mockResolvedValue('created-task')
+      submitDraft()
+      await waitFor(() => expect(getLocation()?.search).toContain('record=created-task'))
+    })
+
     it('clicking a task row writes ?record=<id> into the URL (bookmarkable/shareable)', async () => {
       mockListTasks.mockResolvedValue([makeTask({ id: 'task-addr', title: 'Addressable task' })])
       const { getLocation } = renderAt(['/work/tasks'])
@@ -2023,7 +2035,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
   // path the live app uses (Close → dirty guard → ConfirmDialog → ModalShell mount) do the
   // focus-stealing, so it reproduces the actual race rather than asserting around it.
   it('D1: opening the leave-guard dialog freezes field commits — ConfirmDialog auto-focus cannot silently save the draft', async () => {
-    const task = makeTask({ id: 'task-d1', title: 'D1 task', description: 'original description' })
+    const task = makeTask({ id: 'task-d1', title: 'D1 task' })
     mockListTasks.mockResolvedValue([task])
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
     mockUpdateTaskFields.mockResolvedValue(undefined) // a SUCCESSFUL commit — the dangerous case (D1's "silent save")
@@ -2032,8 +2044,8 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     await waitFor(() => screen.getByText('D1 task'))
     fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
 
-    fireEvent.click(await screen.findByRole('button', { name: /Edit Description$/ }))
-    const description = screen.getByRole('textbox', { name: 'Description' }) as HTMLTextAreaElement
+    fireEvent.click(await screen.findByRole('button', { name: /Edit Title$/ }))
+    const description = screen.getByRole('textbox', { name: 'Title' }) as HTMLInputElement
     // Sanity: RecordField's own autoFocus really landed DOM focus on the field — otherwise
     // ModalShell's later focus-steal wouldn't fire a blur on it at all and this test would
     // prove nothing.
@@ -2058,7 +2070,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     // committed by the stray blur, never rolled back to the saved baseline either.
     fireEvent.click(screen.getByRole('button', { name: /stay on this page/i }))
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue(draftText)
+    expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue(draftText)
     expect(mockUpdateTaskFields).not.toHaveBeenCalled()
     // The deny resolves the host's in-flight leave request in a microtask (same as
     // AC-V3-008c above) — flush it so the assertion above is the true settled state.

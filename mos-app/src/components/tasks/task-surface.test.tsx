@@ -38,6 +38,10 @@ vi.mock('../../lib/comments/postComment', () => ({
   listComments: vi.fn(),
   postComment: vi.fn(),
 }))
+// The description document is its own editor (block-document tests own it); here only its place on the page.
+vi.mock('./task-description-document', () => ({
+  TaskDescriptionDocument: ({ canEdit }: { canEdit: boolean }) => <div data-testid="task-description" data-can-edit={String(canEdit)} />,
+}))
 vi.mock('../../lib/db/objectives', () => ({
   listObjectives: vi.fn().mockResolvedValue([]),
   readObjective: vi.fn().mockResolvedValue(null),
@@ -167,8 +171,9 @@ function activateFieldByKey(key: string) {
   fireEvent.click(btn)
 }
 
-function openTaskAbout() {
-  return screen.getByRole('region', { name: 'About this task' })
+// Team, Business Unit and the reference facts sit in the Details disclosure at the foot of the page.
+function openTaskDetails() {
+  fireEvent.click(screen.getByRole('button', { name: 'Record details' }))
 }
 
 function chooseRecordOption(label: string) {
@@ -223,8 +228,7 @@ describe('TaskSurface — view mode', () => {
       business_unit_id: null, is_company_wide: false, accountable_person_id: null, period_year: null, period_quarter: null, updated_at: '',
     })
     renderSurface()
-    await screen.findByRole('region', { name: 'About this task' })
-    openTaskAbout()
+    await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
     expect((await screen.findAllByRole('link', { name: 'Archived Objective' }))[0]).toHaveAttribute('href', '/work/objectives/archived-objective')
     fireEvent.click(screen.getByRole('button', { name: /Edit Objective$/ }))
     fireEvent.click(screen.getByRole('combobox', { name: 'Objective' }))
@@ -244,7 +248,7 @@ describe('TaskSurface — view mode', () => {
     expect(screen.queryByRole('button', { name: /Load more/ })).toBeNull()
   })
 
-  it('D1: exposes authored work, essential facts and context, and focuses About from the ownership block', async () => {
+  it('D1: the page reads title, properties, document, Checklist, Comments, then Details and History', async () => {
     const checklist: ChecklistItemRow[] = [{
       id: 'item-0', org_id: 'org', task_id: 'task-abc', label: 'Inspect coil',
       is_done: false, position: 0, created_at: '2026-06-11T00:00:00Z', updated_at: '2026-06-11T00:00:00Z',
@@ -260,31 +264,57 @@ describe('TaskSurface — view mode', () => {
     await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
     expect(screen.getByRole('button', { name: /Edit Title$/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
-    const facts = screen.getByRole('list', { name: 'Key facts' })
-    expect(within(facts).getByRole('button', { name: /Edit Status$/ })).toHaveTextContent('Open')
-    expect(within(facts).getByRole('button', { name: /Edit Due$/ })).toBeInTheDocument()
-    expect(within(facts).getByRole('button', { name: /Edit PIC$/ })).toHaveTextContent('Cahya Cafe')
-    expect(within(facts).getByRole('button', { name: /Edit Supervisor$/ })).toHaveTextContent('Cahya Cafe')
-    expect(screen.getByText('The espresso machine on floor 2 is broken.')).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
-    expect(screen.getByText('Inspect coil')).toBeInTheDocument()
+    const props = screen.getByRole('region', { name: 'Properties' })
+    expect(within(props).getByRole('button', { name: /Edit Status$/ })).toHaveTextContent('Open')
+    expect(within(props).getByRole('button', { name: /Edit PIC$/ })).toHaveTextContent('Cahya Cafe')
+    expect(within(props).getByRole('button', { name: /Edit Supervisor$/ })).toHaveTextContent('Cahya Cafe')
+    expect(within(props).getByRole('button', { name: /Edit Due$/ })).toBeInTheDocument()
+    expect(within(props).getByRole('button', { name: /Edit Project\/Process$/ })).toBeInTheDocument()
+    expect(within(props).getByRole('button', { name: /Edit Objective$/ })).toBeInTheDocument()
     expect(screen.queryByText(/RACI|Responsible \(R\)|Accountable \(A\)|Consulted|Informed/)).toBeNull()
 
-    const about = screen.getByRole('region', { name: 'About this task' })
-    expect(about).toBeInTheDocument()
-    expect(within(about).queryByText('PIC')).toBeNull()
-    expect(within(about).queryByText('Supervisor')).toBeNull()
-    const details = screen.getByRole('button', { name: 'Record details' })
-    expect(details).toHaveAttribute('aria-expanded', 'false')
-    const history = screen.getByRole('button', { name: /History/ })
-    expect(history).toHaveAttribute('aria-expanded', 'false')
-    const commentDraft = 'Keep this draft while I check task context.'
-    fireEvent.change(screen.getByRole('textbox', { name: /comment/i }), { target: { value: commentDraft } })
-    fireEvent.click(within(facts).getByRole('button', { name: 'About this task' }))
-    expect(screen.getByRole('heading', { name: 'About this task' })).toHaveFocus()
-    expect(screen.getByRole('textbox', { name: /comment/i })).toHaveValue(commentDraft)
-    fireEvent.click(history)
+    // Document order: properties, description, Checklist, Comments, Details, History.
+    const order = [
+      props,
+      screen.getByRole('region', { name: 'Description' }),
+      screen.getByRole('region', { name: 'Checklist' }),
+      screen.getByRole('region', { name: 'Comments' }),
+      screen.getByRole('button', { name: 'Record details' }),
+      screen.getByRole('button', { name: /History/ }),
+    ]
+    order.slice(1).forEach((node, index) => {
+      expect(order[index].compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+    expect(screen.getByTestId('task-description')).toBeInTheDocument()
+    expect(screen.getByText('Inspect coil')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Record details' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: /History/ })).toHaveAttribute('aria-expanded', 'false')
+    // Team and Business Unit are reference facts: not in the properties, present in Details.
+    expect(within(props).queryByText('Team')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Record details' }))
+    expect(document.querySelector('[data-field-key="team"]')).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /History/ }))
     expect(screen.getAllByTestId('event-entry')).toHaveLength(1)
+  })
+
+  it('folds the properties to a one-line summary and keeps them folded on the next visit', async () => {
+    window.localStorage.clear()
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    const first = renderSurface()
+    await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
+    fireEvent.click(screen.getByRole('button', { name: 'Hide properties' }))
+    const folded = screen.getByRole('region', { name: 'Properties' })
+    expect(within(folded).queryByRole('button', { name: /Edit PIC$/ })).toBeNull()
+    expect(folded).toHaveTextContent('Open')
+    expect(folded).toHaveTextContent('Cahya Cafe')
+    first.unmount()
+
+    renderSurface()
+    await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
+    expect(screen.queryByRole('button', { name: /Edit PIC$/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Show properties/ }))
+    expect(screen.getByRole('button', { name: /Edit PIC$/ })).toBeInTheDocument()
+    window.localStorage.clear()
   })
 
   it('navigates directly to the related Objective from a standalone Task record', async () => {
@@ -301,8 +331,7 @@ describe('TaskSurface — view mode', () => {
       </AuthContext.Provider>,
     )
 
-    await screen.findByRole('region', { name: 'About this task' })
-    openTaskAbout()
+    await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
     const objectiveLink = await screen.findByRole('link', { name: 'Grow direct orders' })
     expect(objectiveLink).toHaveAttribute('href', '/work/objectives/obj-direct')
     fireEvent.click(objectiveLink)
@@ -316,10 +345,11 @@ describe('TaskSurface — view mode', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /Ubah Judul$/ })).toBeInTheDocument()
-    expect(screen.getByRole('list', { name: 'Fakta utama' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Properti' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sembunyikan properti' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Komentar' })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Tentang tugas ini' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Detail catatan' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Riwayat' })).toBeNull() // no events, no History
     expect(screen.getByRole('button', { name: 'Tandai selesai' })).toBeInTheDocument()
     // The composer is one line until it is used; its action appears with it.
@@ -334,10 +364,10 @@ describe('TaskSurface — view mode', () => {
     renderSurface()
     await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
     expect(screen.queryByRole('tablist')).toBeNull()
-    expect(screen.getByText('The espresso machine on floor 2 is broken.')).toBeInTheDocument()
+    expect(screen.getByTestId('task-description')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Comments' })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'About this task' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Properties' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Record details' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('button', { name: /History/ })).toBeNull()
   })
@@ -529,7 +559,7 @@ describe('TaskSurface — view mode', () => {
 
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    openTaskAbout()
+    openTaskDetails()
     fireEvent.click(screen.getByRole('button', { name: /Edit Team$/ }))
     fireEvent.click(screen.getByRole('combobox', { name: 'Team' }))
     fireEvent.click(screen.getByRole('option', { name: 'Sales Team' }))
@@ -587,7 +617,6 @@ describe('TaskSurface — mutation handlers', () => {
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
     // V3 Issue 5: PIC is now a shared RecordViewer/RecordField picker.
-    openTaskAbout()
     activateFieldByKey('pic')
     chooseRecordOption('Other Person')
     await waitFor(() => expect(vi.mocked(updateTaskFields)).toHaveBeenCalledWith(
@@ -721,30 +750,30 @@ describe('TaskSurface — live region (AC-111)', () => {
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
   })
 
-  it('shows Saved after a Task description edit commits', async () => {
+  it('shows Saved after a Task title edit commits', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderSurface()
     await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
-    activateFieldByKey('description')
-    const description = screen.getByRole('textbox', { name: 'Description' })
-    fireEvent.change(description, { target: { value: 'Replace the broken espresso machine.' } })
-    fireEvent.blur(description)
+    activateFieldByKey('title')
+    const title = screen.getByRole('textbox', { name: 'Title' })
+    fireEvent.change(title, { target: { value: 'Replace the broken espresso machine.' } })
+    fireEvent.blur(title)
     await waitFor(() => expect(updateTaskFields).toHaveBeenCalledWith(
-      'task-abc', { description: 'Replace the broken espresso machine.' }, VIEWER_ID, null,
+      'task-abc', { title: 'Replace the broken espresso machine.' }, VIEWER_ID, null,
     ))
     expect(await screen.findByText('Saved')).toBeInTheDocument()
   })
 
-  it('D2: Escape restores a description draft without persisting it', async () => {
+  it('D2: Escape restores a title draft without persisting it', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderSurface()
     await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
-    activateFieldByKey('description')
-    const description = screen.getByRole('textbox', { name: 'Description' })
-    fireEvent.change(description, { target: { value: 'Unsaved replacement text.' } })
-    fireEvent.keyDown(description, { key: 'Escape' })
-    expect(screen.getByText('The espresso machine on floor 2 is broken.')).toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: 'Description' })).toBeNull()
+    activateFieldByKey('title')
+    const title = screen.getByRole('textbox', { name: 'Title' })
+    fireEvent.change(title, { target: { value: 'Unsaved replacement text.' } })
+    fireEvent.keyDown(title, { key: 'Escape' })
+    expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Title' })).toBeNull()
     expect(updateTaskFields).not.toHaveBeenCalled()
   })
 
@@ -754,7 +783,6 @@ describe('TaskSurface — live region (AC-111)', () => {
     vi.mocked(getDownlinePersonIds).mockResolvedValue(['other-id'])
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    openTaskAbout()
     activateFieldByKey('pic')
     chooseRecordOption('Other Person')
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
@@ -784,7 +812,7 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     await waitFor(() => screen.getByText('Fix the coffee machine'))
     expect(screen.queryByRole('tablist')).toBeNull()
     expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'About this task' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Properties' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /History/ })).toBeNull() // no events, no History
     expect(screen.getByText('Inspect coil')).toBeInTheDocument()
   })
@@ -794,7 +822,7 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
     expect(screen.getByText('Inspect coil')).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Description' })).toHaveTextContent('The espresso machine on floor 2 is broken.')
+    expect(within(screen.getByRole('region', { name: 'Description' })).getByTestId('task-description')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Comments' })).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).toBeNull()
   })
@@ -862,13 +890,15 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     })
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
-    const facts = screen.getByRole('list', { name: 'Key facts' })
-    expect(within(facts).getByText('Open')).toBeInTheDocument()
-    expect(within(facts).getByText('Due')).toBeInTheDocument()
-    expect(within(facts).getByText('PIC')).toBeInTheDocument()
-    expect(within(facts).getByText('Supervisor')).toBeInTheDocument()
+    const props = screen.getByRole('region', { name: 'Properties' })
+    expect(within(props).getByText('Open')).toBeInTheDocument()
+    expect(within(props).getAllByText('Due').length).toBeGreaterThan(0)
+    expect(within(props).getAllByText('PIC').length).toBeGreaterThan(0)
+    expect(within(props).getAllByText('Supervisor').length).toBeGreaterThan(0)
+    expect(within(props).getAllByRole('button')).toHaveLength(1) // plain values: only the Hide properties control
+    expect(screen.getByRole('note')).toHaveTextContent('View only')
+    expect(screen.queryByRole('button', { name: 'Mark complete' })).toBeNull()
     expect(document.querySelector('[data-field-key="status"] select')).toBeNull()
-    expect(within(facts).queryByRole('button', { name: /Edit PIC$/ })).toBeNull()
   })
 })
 
