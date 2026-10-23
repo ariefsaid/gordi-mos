@@ -177,3 +177,7 @@ exception when unique_violation then
   raise exception 'transfer route already exists' using errcode = '22023';
 end;
 $$;
+
+revoke execute on function ops._cafe_count_movements_settled(uuid,uuid,date) from public, anon, authenticated, service_role;
+revoke execute on function ops.update_cafe_transfer_route(jsonb,bigint,jsonb,uuid) from public, anon, service_role;
+grant execute on function ops.update_cafe_transfer_route(jsonb,bigint,jsonb,uuid) to authenticated;

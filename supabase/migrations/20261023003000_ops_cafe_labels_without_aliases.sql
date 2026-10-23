@@ -385,3 +385,7 @@ returns boolean language sql stable security definer set search_path = '' as $$
     )
 $$;
 revoke all on function ops._cafe_count_movements_settled(uuid,uuid,date) from public,anon,authenticated,service_role;
+
+revoke execute on function ops.approve_kitchen_logs(uuid[],text,timestamptz[]) from public, anon;
+grant execute on function ops.approve_kitchen_logs(uuid[],text,timestamptz[]) to authenticated;
+revoke execute on function ops._cafe_count_movements_settled(uuid,uuid,date) from public, anon, authenticated, service_role;

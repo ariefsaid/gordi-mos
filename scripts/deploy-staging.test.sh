@@ -74,7 +74,7 @@ case "$*" in
     done
     [ -n "$env_file" ] || exit 2
     [ -f "$env_file" ] || exit 2
-    printf 'supabase secrets-set-envfile-mode %s\n' "$(stat -f %Lp "$env_file" 2>/dev/null || stat -c %a "$env_file")" >> "$CALLS"
+    printf 'supabase secrets-set-envfile-mode %s\n' "$(stat -c %a "$env_file" 2>/dev/null || stat -f %Lp "$env_file")" >> "$CALLS"
     printf '%s\n' "$env_file" > "$tmp_main/envfile-path"
     while IFS= read -r line; do
       printf 'supabase secrets-set-name %s\n' "${line%%=*}" >> "$CALLS"

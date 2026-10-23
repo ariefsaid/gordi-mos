@@ -841,3 +841,7 @@ end;
 $$;
 revoke execute on function ops.update_cafe_location(uuid, bigint, jsonb, uuid) from public, anon, service_role;
 grant execute on function ops.update_cafe_location(uuid, bigint, jsonb, uuid) to authenticated;
+
+revoke execute on function ops.update_cafe_transfer_route(jsonb,bigint,jsonb,uuid) from public, anon, service_role;
+grant execute on function ops.update_cafe_transfer_route(jsonb,bigint,jsonb,uuid) to authenticated;
+revoke execute on function ops._cafe_location_snapshot(uuid) from public, anon, authenticated, service_role;
