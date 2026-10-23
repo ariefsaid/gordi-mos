@@ -5,6 +5,8 @@ import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Picker, type PickerOption } from '@/components/ui/picker'
+import { RecordField } from '@/components/records/record-field'
+import type { RecordFieldSpec } from '@/components/records/record-viewer.types'
 import { Toggle } from '@/components/ui/toggle'
 import { RecordProperties, type RecordPropertyRow } from '@/components/record/record-properties'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -161,11 +163,15 @@ export function MeetingProperties({
   const teamName = nameOf(ctx.teams, value.owningTeamId)
   const linkedName = nameOf(ctx.workLines, value.workLineId) ?? nameOf(ctx.objectives, value.objectiveId)
   const linkedHref = value.workLineId ? `/work/projects/${value.workLineId}` : value.objectiveId ? `/work/objectives/${value.objectiveId}` : null
-  const linkedOptions: PickerOption[] = [
+  const linkedOptions = [
     { value: '', label: t('meetings.linked.none') },
-    ...ctx.workLines.map((line) => ({ value: `wl:${line.id}`, label: line.name, group: t('nav.work.projects') })),
-    ...ctx.objectives.map((objective) => ({ value: `ob:${objective.id}`, label: objective.name, group: t('nav.work.objectives') })),
+    ...ctx.workLines.map((line) => ({ value: `wl:${line.id}`, label: `${t('nav.work.projects')} · ${line.name}` })),
+    ...ctx.objectives.map((objective) => ({ value: `ob:${objective.id}`, label: `${t('nav.work.objectives')} · ${objective.name}` })),
   ]
+  // The value edits in place the way the Task page's properties do: the value reads as text, a click swaps in the picker.
+  const inPlace = (spec: Pick<RecordFieldSpec, 'key' | 'label' | 'value' | 'displayValue' | 'options'>, onCommit: (value: string) => Promise<void>) => (
+    <RecordField spec={{ ...spec, control: 'select', editable: true }} onCommit={(next) => onCommit(String(next ?? ''))} />
+  )
   const neighbour = (link: MeetingSeriesLink) => (
     <Link
       className="meeting-series__link"
@@ -186,17 +192,9 @@ export function MeetingProperties({
       key: 'team',
       label: t('meetings.prop.team'),
       note: teamNeeded && !value.owningTeamId ? t('meetings.create.teamRequired') : undefined,
-      children: editable ? (
-        <Picker
-          label={t('meetings.team.edit')}
-          hideLabel
-          value={value.owningTeamId ?? ''}
-          options={teamChoices.map((team) => ({ value: team.id, label: team.name }))}
-          placeholder={t('meetings.team.choose')}
-          disabled={offline}
-          triggerClassName="meeting-pick"
-          onChange={(teamId) => { if (teamId) void onTeam(teamId) }}
-        />
+      children: editable ? inPlace(
+        { key: 'team', label: t('meetings.prop.team'), value: value.owningTeamId ?? '', displayValue: teamName ?? t('meetings.team.choose'), options: teamChoices.map((team) => ({ value: team.id, label: team.name })) },
+        async (teamId) => { if (teamId) await onTeam(teamId) },
       ) : <span className="meeting-plain">{teamName ?? t('catalog.notSet')}</span>,
     },
     {
@@ -218,20 +216,12 @@ export function MeetingProperties({
     {
       key: 'linked',
       label: t('meetings.prop.linked'),
-      children: editable ? (
-        <Picker
-          label={t('meetings.linked.choose')}
-          hideLabel
-          value={linkedValue(value.workLineId, value.objectiveId)}
-          options={linkedOptions}
-          placeholder={t('meetings.linked.none')}
-          disabled={offline}
-          triggerClassName="meeting-pick"
-          onChange={(next) => {
-            const [kind, id] = next.split(':')
-            void onLinked({ workLineId: kind === 'wl' ? id : null, objectiveId: kind === 'ob' ? id : null })
-          }}
-        />
+      children: editable ? inPlace(
+        { key: 'linked', label: t('meetings.prop.linked'), value: linkedValue(value.workLineId, value.objectiveId), displayValue: linkedName ?? t('meetings.linked.none'), options: linkedOptions },
+        async (next) => {
+          const [kind, id] = next.split(':')
+          await onLinked({ workLineId: kind === 'wl' ? id : null, objectiveId: kind === 'ob' ? id : null })
+        },
       ) : linkedHref
         ? <Link className="meeting-plain meeting-plain--link" to={linkedHref}>{linkedName ?? t('meetings.linked.unavailable')}</Link>
         : <span className="meeting-plain">{t('meetings.linked.none')}</span>,

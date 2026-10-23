@@ -105,7 +105,8 @@ describe('the owning Team picker', () => {
   const teamOptions = async (accessRoles: string[]) => {
     vi.mocked(getMeeting).mockResolvedValue(meeting())
     renderMeeting('m1', { accessRoles })
-    await userEvent.click(await screen.findByRole('combobox', { name: 'Change owning Team' }))
+    await userEvent.click(await screen.findByRole('button', { name: /Edit Owning Team/ }))
+    if (!screen.queryAllByRole('option').length) await userEvent.click(await screen.findByRole('combobox', { name: /Owning Team/ }))
     return screen.getAllByRole('option').map((option) => option.textContent)
   }
 
@@ -177,7 +178,7 @@ describe('Indonesian', () => {
   it('renders the properties in Indonesian', async () => {
     vi.mocked(getMeeting).mockResolvedValue(meeting())
     renderMeeting('m1', { locale: 'id' })
-    expect(await screen.findByText('Tim pemilik')).toBeInTheDocument()
+    expect((await screen.findAllByText('Tim pemilik')).length).toBeGreaterThan(0)
     expect(screen.getByText('Rapat ke-7')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mulai rapat berikutnya' })).toBeInTheDocument()
   })

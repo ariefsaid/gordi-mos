@@ -168,11 +168,13 @@ function ExistingMeeting({ id, mode, onOpenMeeting, onTitleResolved, onChanged }
   const menu: RecordMenuItem[] = [{
     id: 'copy',
     label: t('record.copyLink'),
-    onSelect: () => {
-      void copyCanonicalLink(canonicalHref).then(
-        () => showToast(t('record.copyLinkSucceeded')),
-        () => showToast(t('record.copyLinkFailed')),
-      )
+    onSelect: async () => {
+      try {
+        await copyCanonicalLink(canonicalHref)
+        showToast(t('record.copyLinkSucceeded'))
+      } catch {
+        showToast(t('record.copyLinkFailed'))
+      }
     },
   }]
   const values: MeetingPropertyValues = {

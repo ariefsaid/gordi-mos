@@ -33,16 +33,17 @@
 
 .meeting-plain { display: inline-flex; align-items: center; min-height: var(--mos-control-height); }
 .meeting-plain--link { color: var(--text-on-accent-tint); text-underline-offset: 3px; }
-.meeting-pick { max-width: 100%; }
 .meeting-private { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height); }
 
 /* Attendees: names on desktop; faces, a count and a plus on a phone. */
 .meeting-attendees { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap) var(--mos-row-gap); }
 .meeting-attendees--phone { flex-direction: column; align-items: stretch; }
+.meeting-attendees:not(.meeting-attendees--phone) .meeting-attendees__list { display: contents; }
 .meeting-attendees__list { display: flex; flex-wrap: wrap; gap: var(--mos-inline-gap) var(--mos-row-gap); margin: 0; padding: 0; list-style: none; }
 .meeting-attendees--phone .meeting-attendees__list { flex-direction: column; flex-wrap: nowrap; }
 .meeting-attendees__item { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height); }
-.meeting-attendees__remove { display: inline-flex; align-items: center; justify-content: center; min-width: var(--mos-control-height); min-height: var(--mos-control-height); border: 0; background: none; color: var(--muted-foreground); cursor: pointer; }
+.meeting-attendees__remove { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: var(--mos-control-height); border: 0; background: none; color: var(--muted-foreground); cursor: pointer; }
+.meeting-attendees--phone .meeting-attendees__remove { min-width: 44px; min-height: 44px; }
 .meeting-attendees__remove:hover { color: var(--foreground); }
 .meeting-attendees__remove:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-radius: var(--radius-xs); }
 .meeting-attendees__faces { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap); min-width: 0; }
