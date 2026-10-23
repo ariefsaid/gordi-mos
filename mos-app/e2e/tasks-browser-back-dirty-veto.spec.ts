@@ -83,17 +83,15 @@ test('AC-1010: browser Back on a dirty task draft is vetoed, Cancel keeps state,
     await route.continue()
   })
 
-  // Value-first (E7 record grammar): a field renders its VALUE first; activate the Description
-  // row to swap in the edit textarea before it can hold a draft at all.
-  await drawer.getByRole('button', { name: 'Edit Description' }).click()
+  // Value-first (E7 record grammar): a field renders its VALUE first; activate the Title
+  // row to swap in the edit input before it can hold a draft at all.
+  await drawer.getByRole('button', { name: /Edit Title$/ }).click()
 
-  // Make the field dirty: type into Description WITHOUT blurring first. RecordField reports dirty
+  // Make the field dirty: type into Title WITHOUT blurring first. RecordField reports dirty
   // on every keystroke (onChange, record-field.tsx `reportDirty`), before any onBlur commit fires
   // — a browser Back pressed while the field is still focused hits the guard mid-draft, exactly
   // like a real user typing then reaching for Back.
-  // The field's own section is also named "Description" (role region), so getByLabel alone is
-  // ambiguous — scope to the active description field's textbox.
-  const description = drawer.locator('[data-field-key="description"]').getByRole('textbox', { name: 'Description' })
+  const description = drawer.locator('[data-field-key="title"]').getByRole('textbox', { name: 'Title' })
   const draftText = 'Dirty draft — should be vetoed by browser Back.'
   await description.fill(draftText)
   await expect(description).toHaveValue(draftText)
@@ -110,7 +108,6 @@ test('AC-1010: browser Back on a dirty task draft is vetoed, Cancel keeps state,
   // TRANSACTION already restored the pre-pop URL/state before the guard was even consulted.
   await confirmDialog.getByRole('button', { name: 'Stay on this page', exact: true }).click()
   await expect(confirmDialog).toBeHidden()
-  await expect(drawer.getByRole('heading', { name: title })).toBeVisible()
   await expect(description).toHaveValue(draftText)
 
   // Back again → the SAME draft is still dirty (the in-flight commit never resolved either way) →
@@ -156,15 +153,9 @@ test('AC-1010b: Back → dialog → Discard with a REAL commit settlement — no
     if (req.method() === 'PATCH' && /\/rest\/v1\/tasks/.test(req.url())) patchUrls.push(req.url())
   })
 
-  // A freshly created task has no description — the clean baseline this test proves survives
-  // the whole journey untouched. OD-RECORD-1's Get-started contract: an empty Description renders
-  // the "+ Add a description" affordance, so emptiness is asserted through that visible control.
-  const descriptionField = drawer.locator('[data-field-key="description"]')
-  await expect(drawer.getByRole('button', { name: '+ Add a description, Edit Description', exact: true })).toBeVisible()
-
-  await drawer.getByRole('button', { name: 'Edit Description' }).click()
-  // Same disambiguation as AC-1010: the section AND the textarea share the "Description" name.
-  const description = descriptionField.getByRole('textbox', { name: 'Description' })
+  // The task's saved title is the clean baseline this test proves survives the whole journey untouched.
+  await drawer.getByRole('button', { name: /Edit Title$/ }).click()
+  const description = drawer.locator('[data-field-key="title"]').getByRole('textbox', { name: 'Title' })
   const draftText = 'Real-commit draft — Discard must actually discard this.'
   await description.fill(draftText)
   await expect(description).toHaveValue(draftText)
@@ -186,10 +177,9 @@ test('AC-1010b: Back → dialog → Discard with a REAL commit settlement — no
   expect(patchUrls).toEqual([])
 
   // Reload (forces a real refetch, not client cache) and re-open the SAME task: the persisted
-  // Description is still the untouched baseline, not the "discarded" draft.
+  // Title is still the untouched baseline, not the "discarded" draft.
   await page.reload()
   await page.getByText(title).first().click()
   const reopened = page.getByRole('complementary', { name: /task detail/i })
   await expect(reopened.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
-  await expect(reopened.getByRole('button', { name: '+ Add a description, Edit Description', exact: true })).toBeVisible()
 })

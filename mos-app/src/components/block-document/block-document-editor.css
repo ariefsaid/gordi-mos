@@ -1,4 +1,4 @@
-.objective-writeup {
+.block-doc {
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -7,7 +7,7 @@
 
 /* Descendant of the surface: the library copies the editor's class onto the wrapper it docks above a phone
    keyboard, which sits outside the surface and must not draw this box. */
-.objective-writeup .objective-writeup__editor {
+.block-doc .block-doc__editor {
   min-width: 0;
   min-height: 240px;
   padding: 12px;
@@ -17,7 +17,7 @@
   overflow-wrap: anywhere;
 }
 
-.objective-writeup .objective-writeup__editor:focus-within {
+.block-doc .block-doc__editor:focus-within {
   outline: var(--mos-focus-width) solid var(--mos-accent);
   outline-offset: var(--mos-focus-offset);
 }
@@ -25,7 +25,7 @@
 /* The editor's stylesheet sets its own font, gutter, panel and heading scale; these restate them
    in the app's tokens. BlockNote's block rows are flex, so every level needs min-width: 0 for a
    long word or URL to wrap instead of widening the page. */
-.objective-writeup .objective-writeup__editor.bn-container {
+.block-doc .block-doc__editor.bn-container {
   --bn-colors-editor-background: transparent;
   --bn-colors-editor-text: var(--foreground);
   font-family: var(--font-sans);
@@ -33,51 +33,51 @@
   color: var(--foreground);
 }
 
-.objective-writeup .objective-writeup__editor .bn-default-styles {
+.block-doc .block-doc__editor .bn-default-styles {
   font-family: var(--font-sans);
   font-size: var(--mos-size-3);
 }
 
-.objective-writeup .objective-writeup__editor .bn-editor {
+.block-doc .block-doc__editor .bn-editor {
   padding-inline: 0;
 }
 
-.objective-writeup .objective-writeup__editor :is(.bn-editor, .bn-block-group, .bn-block-outer, .bn-block, .bn-block-content, .bn-inline-content) {
+.block-doc .block-doc__editor :is(.bn-editor, .bn-block-group, .bn-block-outer, .bn-block, .bn-block-content, .bn-inline-content) {
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
 }
 
-.objective-writeup .objective-writeup__editor [data-content-type='heading'] {
+.block-doc .block-doc__editor [data-content-type='heading'] {
   --level: var(--mos-size-4);
   --prev-level: var(--mos-size-4);
 }
 
-.objective-writeup .objective-writeup__editor [data-content-type='heading'][data-level='2'] {
+.block-doc .block-doc__editor [data-content-type='heading'][data-level='2'] {
   --level: var(--mos-size-3);
   --prev-level: var(--mos-size-3);
 }
 
-.objective-writeup .objective-writeup__editor :is([data-level='3'], [data-level='4'], [data-level='5'], [data-level='6'])[data-content-type='heading'] {
+.block-doc .block-doc__editor :is([data-level='3'], [data-level='4'], [data-level='5'], [data-level='6'])[data-content-type='heading'] {
   --level: var(--mos-size-3);
   --prev-level: var(--mos-size-3);
 }
 
-.objective-writeup .objective-writeup__editor .bn-block-outer .bn-block .bn-block-content[data-content-type='heading'] {
+.block-doc .block-doc__editor .bn-block-outer .bn-block .bn-block-content[data-content-type='heading'] {
   font-weight: 600;
   padding-top: 12px;
 }
 
-.objective-writeup .objective-writeup__editor [data-content-type='heading'] .bn-inline-content {
+.block-doc .block-doc__editor [data-content-type='heading'] .bn-inline-content {
   font-weight: inherit;
 }
 
-.objective-writeup__empty {
+.block-doc__empty {
   margin: 0;
   color: var(--muted-foreground);
 }
 
-.objective-writeup__bar {
+.block-doc__bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -85,14 +85,14 @@
   gap: 8px;
 }
 
-.objective-writeup__status {
+.block-doc__status {
   flex: 1 1 12rem;
   margin: 0;
   color: var(--muted-foreground);
   font-size: var(--mos-size-1);
 }
 
-.objective-writeup__hint {
+.block-doc__hint {
   margin: 0;
   color: var(--muted-foreground);
   font-size: var(--mos-size-1);
@@ -100,11 +100,11 @@
 
 /* Keyboard shortcuts do not apply on touch or phone widths. */
 @media (hover: none), (max-width: 767.98px) {
-  .objective-writeup__hint { display: none; }
+  .block-doc__hint { display: none; }
 }
 
 /* The editor's own placeholder is too faint on the card surface; restate it in the secondary text token. */
-.objective-writeup .objective-writeup__editor .bn-block-content:has(.ProseMirror-trailingBreak:only-child):after {
+.block-doc .block-doc__editor .bn-block-content:has(.ProseMirror-trailingBreak:only-child):after {
   color: var(--muted-foreground);
 }
 
@@ -112,7 +112,7 @@
    with fixed colours and sizes. They render inside the editor container, or in a wrapper that carries
    its class when the library docks the toolbar above a phone keyboard, so these restate them in the
    app's tokens and the Select menu's grammar; the app's light and dark themes flip them with the tokens. */
-.objective-writeup__editor :is(.bn-ak-menu, .bn-ak-popover, .bn-ak-hovercard, .bn-ak-toolbar, .bn-ak-wrapper) {
+.block-doc__editor :is(.bn-ak-menu, .bn-ak-popover, .bn-ak-hovercard, .bn-ak-toolbar, .bn-ak-wrapper) {
   background: var(--popover);
   color: var(--foreground);
   border: 1px solid var(--border);
@@ -122,7 +122,7 @@
   font-size: var(--mos-size-3);
 }
 
-.objective-writeup__editor .bn-ak-toolbar {
+.block-doc__editor .bn-ak-toolbar {
   box-sizing: border-box;
   max-width: calc(100vw - 24px);
   padding: 4px;
@@ -133,11 +133,11 @@
   overflow: visible;
 }
 
-.objective-writeup__editor .bn-ak-separator {
+.block-doc__editor .bn-ak-separator {
   border-color: var(--border);
 }
 
-.objective-writeup__editor .bn-ak-button {
+.block-doc__editor .bn-ak-button {
   min-width: 32px;
   min-height: var(--mos-control-height);
   height: auto;
@@ -149,36 +149,36 @@
   font-size: var(--mos-size-3);
 }
 
-.objective-writeup__editor .bn-ak-button:not(:active):hover {
+.block-doc__editor .bn-ak-button:not(:active):hover {
   background: var(--surface-tertiary);
 }
 
-.objective-writeup__editor .bn-ak-button:is([data-selected], [aria-pressed='true']) {
+.block-doc__editor .bn-ak-button:is([data-selected], [aria-pressed='true']) {
   background: var(--surface-tertiary);
   box-shadow: inset 0 -2px 0 var(--primary);
   padding-top: 0;
 }
 
-.objective-writeup__editor .bn-ak-button:active,
-.objective-writeup__editor .bn-ak-button[data-active] {
+.block-doc__editor .bn-ak-button:active,
+.block-doc__editor .bn-ak-button[data-active] {
   background: var(--surface-quaternary);
   box-shadow: none;
   padding-top: 0;
 }
 
-.objective-writeup__editor .bn-ak-button:is(:focus-visible, [data-focus-visible]),
-.objective-writeup__editor :is(.bn-ak-input):is(:focus-visible, [data-focus-visible]) {
+.block-doc__editor .bn-ak-button:is(:focus-visible, [data-focus-visible]),
+.block-doc__editor :is(.bn-ak-input):is(:focus-visible, [data-focus-visible]) {
   outline: var(--mos-focus-width) solid var(--mos-accent);
   outline-offset: var(--mos-focus-offset);
 }
 
-.objective-writeup__editor .bn-ak-primary,
-.objective-writeup__editor .bn-ak-primary:hover {
+.block-doc__editor .bn-ak-primary,
+.block-doc__editor .bn-ak-primary:hover {
   background: var(--primary);
   color: var(--primary-foreground);
 }
 
-.objective-writeup__editor .bn-ak-input {
+.block-doc__editor .bn-ak-input {
   min-height: var(--mos-control-height);
   border: 1px solid var(--input);
   border-radius: var(--radius-sm);
@@ -189,11 +189,11 @@
   font-size: var(--mos-size-3);
 }
 
-.objective-writeup__editor .bn-ak-input::placeholder {
+.block-doc__editor .bn-ak-input::placeholder {
   color: var(--muted-foreground);
 }
 
-.objective-writeup__editor .bn-ak-tooltip {
+.block-doc__editor .bn-ak-tooltip {
   border-color: var(--border);
   border-radius: var(--radius-xs);
   background: var(--popover);
@@ -202,12 +202,12 @@
   font-size: var(--mos-size-1);
 }
 
-.objective-writeup__editor :is(.bn-ak-link, .bn-ak-anchor) {
+.block-doc__editor :is(.bn-ak-link, .bn-ak-anchor) {
   color: var(--text-on-accent-tint);
 }
 
 /* Slash menu rows and the block menu share the app's Select option sizing; the active row is a tint. */
-.objective-writeup__editor :is(.bn-ak-menu-item, .bn-ak-select-item) {
+.block-doc__editor :is(.bn-ak-menu-item, .bn-ak-select-item) {
   box-sizing: border-box;
   min-height: 44px;
   padding: 8px 12px;
@@ -215,18 +215,18 @@
   color: var(--foreground);
 }
 
-.objective-writeup__editor :is(.bn-ak-menu-item, .bn-ak-select-item):is([data-active-item], [aria-selected='true'], :hover),
-.objective-writeup__editor .bn-ak-menu:not(:focus) .bn-ak-menu-item:not(:focus)[aria-expanded='true'] {
+.block-doc__editor :is(.bn-ak-menu-item, .bn-ak-select-item):is([data-active-item], [aria-selected='true'], :hover),
+.block-doc__editor .bn-ak-menu:not(:focus) .bn-ak-menu-item:not(:focus)[aria-expanded='true'] {
   background: var(--accent-subtle);
   color: var(--foreground);
 }
 
-.objective-writeup__editor .bn-ak-menu-item:is(:active, [data-active]) {
+.block-doc__editor .bn-ak-menu-item:is(:active, [data-active]) {
   background: var(--surface-quaternary);
   padding: 8px 12px;
 }
 
-.objective-writeup__editor .bn-ak-group-label {
+.block-doc__editor .bn-ak-group-label {
   padding: 8px 12px 4px;
   color: var(--muted-foreground);
   font-size: var(--mos-size-1);
@@ -234,17 +234,17 @@
   opacity: 1;
 }
 
-.objective-writeup__editor .bn-ak-suggestion-menu-item-title {
+.block-doc__editor .bn-ak-suggestion-menu-item-title {
   font-size: var(--mos-size-3);
   font-weight: 500;
 }
 
-.objective-writeup__editor .bn-ak-suggestion-menu-item-subtitle {
+.block-doc__editor .bn-ak-suggestion-menu-item-subtitle {
   color: var(--muted-foreground);
   font-size: var(--mos-size-1);
 }
 
-.objective-writeup__editor .bn-ak-suggestion-menu-item-section[data-position='right'] {
+.block-doc__editor .bn-ak-suggestion-menu-item-section[data-position='right'] {
   border: 1px solid var(--control-border);
   border-radius: var(--radius-xs);
   box-shadow: none;
@@ -252,12 +252,12 @@
   font-size: var(--mos-size-1);
 }
 
-.objective-writeup__editor .bn-ariakit .bn-side-menu,
-.objective-writeup__editor .bn-side-menu {
+.block-doc__editor .bn-ariakit .bn-side-menu,
+.block-doc__editor .bn-side-menu {
   color: var(--muted-foreground);
 }
 
-.objective-writeup__editor .bn-side-menu .bn-ak-button {
+.block-doc__editor .bn-side-menu .bn-ak-button {
   min-width: 28px;
   min-height: 28px;
   padding: 0;
@@ -265,7 +265,7 @@
 
 /* The side menu hangs in the left margin: reserve it inside the card so it never leaves the page. */
 @media (hover: hover) and (min-width: 768px) {
-  .objective-writeup .objective-writeup__editor--menus {
+  .block-doc .block-doc__editor--menus {
     padding-inline-start: 56px;
   }
 }
@@ -273,19 +273,93 @@
 /* Keyboard shortcuts do not apply on touch or phone widths; every control is a 44px target there. The
    side menu keeps only its handle (the block menu); the slash menu adds blocks. */
 @media (hover: none), (max-width: 767.98px) {
-  .objective-writeup__editor .bn-ak-suggestion-menu-item-section[data-position='right'] { display: none; }
-  .objective-writeup__editor .bn-ak-button,
-  .objective-writeup__editor .bn-side-menu .bn-ak-button { min-width: 44px; min-height: var(--mos-control-height); }
-  .objective-writeup__editor .bn-side-menu .bn-ak-button:first-child:not(:last-child) { display: none; }
-  .objective-writeup .objective-writeup__editor--menus { padding-inline-start: 52px; }
-  .objective-writeup__editor .bn-ak-input { min-height: var(--mos-control-height); font-size: var(--mos-size-3); }
+  .block-doc__editor .bn-ak-suggestion-menu-item-section[data-position='right'] { display: none; }
+  .block-doc__editor .bn-ak-button,
+  .block-doc__editor .bn-side-menu .bn-ak-button { min-width: 44px; min-height: var(--mos-control-height); }
+  .block-doc__editor .bn-side-menu .bn-ak-button:first-child:not(:last-child) { display: none; }
+  .block-doc .block-doc__editor--menus { padding-inline-start: 52px; }
+  .block-doc__editor .bn-ak-input { min-height: var(--mos-control-height); font-size: var(--mos-size-3); }
 }
 
 /* On a phone the toolbar, floating or docked above the keyboard, keeps a gutter instead of running to the
    screen edge. */
 @media (max-width: 767.98px) {
-  .objective-writeup__editor .bn-ak-toolbar {
+  .block-doc__editor .bn-ak-toolbar {
     max-width: calc(100vw - 48px);
     margin-inline: 12px;
   }
+}
+
+/* A page body with no box: the document sits directly on the record page. */
+.block-doc--bare .block-doc__editor {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.block-doc--bare .block-doc__editor:focus-within {
+  outline: none;
+}
+
+/* A @mention names someone: blue bold text, never a control. */
+.block-doc__mention {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* A record link: the kind in muted text, then the record's current title. */
+.block-doc__chip {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: baseline;
+  gap: 4px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-tertiary);
+  color: var(--foreground);
+  font: inherit;
+  line-height: 1.5;
+  vertical-align: baseline;
+}
+
+.block-doc__chip--link {
+  cursor: pointer;
+}
+
+.block-doc__chip--link:hover {
+  background: var(--surface-quaternary);
+}
+
+.block-doc__chip--link:focus-visible {
+  outline: var(--mos-focus-width) solid var(--mos-accent);
+  outline-offset: var(--mos-focus-offset);
+}
+
+.block-doc__chip-kind {
+  color: var(--muted-foreground);
+}
+
+.block-doc__chip-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  text-align: start;
+}
+
+/* A record the viewer cannot read: neutral and dashed, no title, nothing to open. */
+.block-doc__chip--restricted {
+  border-style: dashed;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+.block-doc__menu-footer {
+  margin: 0;
+  padding: 8px 12px 4px;
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: var(--mos-size-1);
 }

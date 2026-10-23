@@ -243,12 +243,12 @@ describe('ObjectiveWriteupEditor', () => {
   })
 
   it('hides the keyboard hint on touch and phone widths', () => {
-    const css = readFileSync(resolve(__dirname, 'objective-writeup-editor.css'), 'utf8')
-    expect(css).toMatch(/@media \(hover: none\), \(max-width: 767\.98px\) \{\s*\.objective-writeup__hint \{ display: none; \}/)
+    const css = readFileSync(resolve(__dirname, '../block-document/block-document-editor.css'), 'utf8')
+    expect(css).toMatch(/@media \(hover: none\), \(max-width: 767\.98px\) \{\s*\.block-doc__hint \{ display: none; \}/)
   })
 
   it('keeps the side-menu handle and every menu control a 44px target on touch and phone widths', () => {
-    const css = readFileSync(resolve(__dirname, 'objective-writeup-editor.css'), 'utf8')
+    const css = readFileSync(resolve(__dirname, '../block-document/block-document-editor.css'), 'utf8')
     const phone = css.slice(css.lastIndexOf('@media (hover: none), (max-width: 767.98px) {'))
     expect(phone).toMatch(/\.bn-side-menu \.bn-ak-button \{ min-width: 44px; min-height: var\(--mos-control-height\); \}/)
     expect(phone).not.toMatch(/\.bn-side-menu \{ display: none/)
@@ -261,11 +261,11 @@ describe('ObjectiveWriteupEditor', () => {
     )
     const view = render(ui(false))
     await act(async () => { await Promise.resolve() })
-    expect(document.querySelector('.objective-writeup__hint')).toBeNull()
+    expect(document.querySelector('.block-doc__hint')).toBeNull()
     expect(fake.domElement!.hasAttribute('aria-describedby')).toBe(false)
 
     view.rerender(ui(true))
-    const hint = document.querySelector('.objective-writeup__hint')!
+    const hint = document.querySelector('.block-doc__hint')!
     expect(fake.domElement!.getAttribute('aria-describedby')).toBe(hint.id)
 
     view.rerender(ui(false))

@@ -21,6 +21,8 @@ import type { ChecklistItemRow, TaskEventRow, TaskRow, TaskStatus } from '@/lib/
 import { ActivityCard } from './activity-card'
 import { ChecklistCard } from './checklist-card'
 import { CommentThread, type TaskComment } from './CommentThread'
+import { TaskDescriptionDocument } from './task-description-document'
+import { usePageDirty } from './use-page-dirty'
 import './task-record-document.css'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { OfflineNotice } from '@/components/ui/offline-notice'
@@ -91,6 +93,7 @@ export function TaskRecordDocument({
   notice, onCommitField, onDirtyChange, fieldCommitsFrozen, privacy, meeting,
 }: TaskRecordDocumentProps) {
   const t = useT()
+  const { onFieldDirty, onDocumentDirty } = usePageDirty(onDirtyChange)
   const offline = useIsOffline()
   const { toast, showToast, clearToast } = useToast()
   const { runtime, openPanel } = useAgentRuntime()
@@ -158,7 +161,7 @@ export function TaskRecordDocument({
     <RecordField
       spec={fieldSpec}
       onCommit={(value) => onCommitField(fieldSpec.key, value)}
-      onDirtyChange={onDirtyChange}
+      onDirtyChange={onFieldDirty}
       commitsFrozen={fieldCommitsFrozen}
     />
   )
@@ -244,7 +247,7 @@ export function TaskRecordDocument({
           menuMinItems={menu.every((item) => item.id === 'copy') ? 2 : 1}
           factsLabel={t('record.page.facts')}
           onCommitField={onCommitField}
-          onDirtyChange={onDirtyChange}
+          onDirtyChange={onFieldDirty}
           fieldCommitsFrozen={fieldCommitsFrozen}
         />
       )}
@@ -256,7 +259,7 @@ export function TaskRecordDocument({
         // The document slot: one element, no panel heading, so the block editor can replace its contents.
         <section className="task-description-section" data-record-section="description" aria-label={t('tasks.description.title')}>
           <div className="task-description">
-            {field(hasDescription ? description : { ...description, displayValue: t('tasks.description.add') })}
+            <TaskDescriptionDocument taskId={task.id} canEdit={editable && !archived && !offline} onDirtyChange={onDocumentDirty} />
           </div>
         </section>
       ) : null}

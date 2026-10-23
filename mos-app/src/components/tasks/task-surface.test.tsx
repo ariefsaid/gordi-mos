@@ -38,6 +38,10 @@ vi.mock('../../lib/comments/postComment', () => ({
   listComments: vi.fn(),
   postComment: vi.fn(),
 }))
+// The description document is its own editor (block-document tests own it); here only its place on the page.
+vi.mock('./task-description-document', () => ({
+  TaskDescriptionDocument: ({ canEdit }: { canEdit: boolean }) => <div data-testid="task-description" data-can-edit={String(canEdit)} />,
+}))
 vi.mock('../../lib/db/objectives', () => ({
   listObjectives: vi.fn().mockResolvedValue([]),
   readObjective: vi.fn().mockResolvedValue(null),
@@ -281,7 +285,7 @@ describe('TaskSurface — view mode', () => {
     order.slice(1).forEach((node, index) => {
       expect(order[index].compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     })
-    expect(screen.getByText('The espresso machine on floor 2 is broken.')).toBeInTheDocument()
+    expect(screen.getByTestId('task-description')).toBeInTheDocument()
     expect(screen.getByText('Inspect coil')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Record details' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: /History/ })).toHaveAttribute('aria-expanded', 'false')
@@ -360,7 +364,7 @@ describe('TaskSurface — view mode', () => {
     renderSurface()
     await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
     expect(screen.queryByRole('tablist')).toBeNull()
-    expect(screen.getByText('The espresso machine on floor 2 is broken.')).toBeInTheDocument()
+    expect(screen.getByTestId('task-description')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Comments' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Properties' })).toBeInTheDocument()
@@ -746,30 +750,30 @@ describe('TaskSurface — live region (AC-111)', () => {
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
   })
 
-  it('shows Saved after a Task description edit commits', async () => {
+  it('shows Saved after a Task title edit commits', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderSurface()
     await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
-    activateFieldByKey('description')
-    const description = screen.getByRole('textbox', { name: 'Description' })
-    fireEvent.change(description, { target: { value: 'Replace the broken espresso machine.' } })
-    fireEvent.blur(description)
+    activateFieldByKey('title')
+    const title = screen.getByRole('textbox', { name: 'Title' })
+    fireEvent.change(title, { target: { value: 'Replace the broken espresso machine.' } })
+    fireEvent.blur(title)
     await waitFor(() => expect(updateTaskFields).toHaveBeenCalledWith(
-      'task-abc', { description: 'Replace the broken espresso machine.' }, VIEWER_ID, null,
+      'task-abc', { title: 'Replace the broken espresso machine.' }, VIEWER_ID, null,
     ))
     expect(await screen.findByText('Saved')).toBeInTheDocument()
   })
 
-  it('D2: Escape restores a description draft without persisting it', async () => {
+  it('D2: Escape restores a title draft without persisting it', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderSurface()
     await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
-    activateFieldByKey('description')
-    const description = screen.getByRole('textbox', { name: 'Description' })
-    fireEvent.change(description, { target: { value: 'Unsaved replacement text.' } })
-    fireEvent.keyDown(description, { key: 'Escape' })
-    expect(screen.getByText('The espresso machine on floor 2 is broken.')).toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: 'Description' })).toBeNull()
+    activateFieldByKey('title')
+    const title = screen.getByRole('textbox', { name: 'Title' })
+    fireEvent.change(title, { target: { value: 'Unsaved replacement text.' } })
+    fireEvent.keyDown(title, { key: 'Escape' })
+    expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Title' })).toBeNull()
     expect(updateTaskFields).not.toHaveBeenCalled()
   })
 
@@ -818,7 +822,7 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
     expect(screen.getByText('Inspect coil')).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Description' })).toHaveTextContent('The espresso machine on floor 2 is broken.')
+    expect(within(screen.getByRole('region', { name: 'Description' })).getByTestId('task-description')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Comments' })).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).toBeNull()
   })
