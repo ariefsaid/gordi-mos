@@ -26,6 +26,8 @@ mkdir -p "$tmp/repo/scripts" "$tmp/repo/mos-app/src" "$tmp/bin"
 # green over a step it never exercised.
 cp -R "$(pwd)/scripts/." "$tmp/repo/scripts/"
 printf 'node_modules/\n__pycache__/\n' > "$tmp/repo/.gitignore"
+# db-proof lint is faked; it records that it ran in $tmp/db-proof.log, and goes red when a flag file exists.
+printf '#!/bin/sh\necho "lint" >> "%s/db-proof.log"\n[ ! -e "%s/red-lint" ]\n' "$tmp" "$tmp" > "$tmp/repo/scripts/lint-security-definer.sh"
 echo x > "$tmp/repo/f"; git -C "$tmp/repo" add -A; git -C "$tmp/repo" commit -qm init
 HEAD=$(git -C "$tmp/repo" rev-parse HEAD)
 STAMP="$tmp/repo/.git/pre-pr-verify-ok"
@@ -437,6 +439,28 @@ if (unset MOS_GUARD_SELFTESTS_RUNNING; run_full_lb); then bad "full battery with
 [ ! -e "$tmp/repo/.git/pre-pr-verify-ok" ] && ok "no full stamp over a red guard self-test" || bad "full stamp written over a red guard self-test"
 printf '#!/bin/sh\nexit 0\n' > "$tmp/repo/scripts/demo-guard.test.sh"; G add scripts/demo-guard.test.sh; G commit -qm "light: guard self-test green"
 if (unset MOS_GUARD_SELFTESTS_RUNNING; run_full_lb); then ok "full battery passes once the guard self-test is green"; else bad "full battery refused a green guard self-test"; fi
+
+# ── db-proof parity: the lint runs only when supabase/migrations changed.
+G reset -q --hard; G clean -fdq; printf '#!/bin/sh\nexit 0\n' > "$tmp/bin/npm"; chmod +x "$tmp/bin/npm"
+G update-ref refs/remotes/origin/lightbase "$(G rev-parse HEAD)"
+dbp_out="$tmp/dbp.out"
+run_dbp() { (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" MOS_PR_BASE=lightbase env "$@" bash scripts/pre-pr-verify.sh) >"$dbp_out" 2>&1; }
+echo "// no migration here" > "$tmp/repo/mos-app/src/dbp-a.ts"; G add mos-app/src/dbp-a.ts; G commit -qm "dbp: app-only"
+: > "$tmp/db-proof.log"
+if run_dbp X=1; then ok "no migration change passes"; else bad "no migration change must pass"; fi
+[ ! -s "$tmp/db-proof.log" ] && ok "lint does not run without a migration change" || bad "db-proof ran with no migration change: $(cat "$tmp/db-proof.log")"
+
+mkdir -p "$tmp/repo/supabase/migrations"; echo "-- m2" > "$tmp/repo/supabase/migrations/20990101000002_mos_y.sql"
+G add supabase; G commit -qm "dbp: migration"
+: > "$tmp/db-proof.log"
+if run_dbp X=1; then ok "migration change passes when the lint passes"; else bad "migration change must pass: $(cat "$dbp_out")"; fi
+grep -q '^lint$' "$tmp/db-proof.log" && ok "lint runs when migrations changed" || bad "lint did not run"
+grep -q 'db-proof: security-definer lint ok (' "$dbp_out" && ok "lint prints one result line with duration" || bad "missing step lines: $(cat "$dbp_out")"
+
+touch "$tmp/red-lint"; rm -f "$STAMP"
+if run_dbp X=1; then bad "a red lint must fail verify"; else ok "a red lint fails verify"; fi
+[ ! -e "$STAMP" ] && ok "no stamp over a red lint" || bad "stamp written over a red lint"
+rm -f "$tmp/red-lint"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

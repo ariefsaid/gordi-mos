@@ -39,7 +39,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20 # Supabase boot + pgTAP + the applied-path check; no browser
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -47,7 +48,9 @@ jobs:
       # A migration added by this PR must sort after every migration already on the base branch
       # (#1110). Runs before the scope step so an inert-path skip cannot bypass it.
       - name: Migration order — new versions must be newer than the base's latest
-        if: github.event_name == 'pull_request'
+        # Every check in this job runs even when an earlier one failed (one run reports every
+        # failure; the job still ends red). A check whose setup failed is not run.
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && github.event_name == 'pull_request' }}
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
@@ -71,6 +74,7 @@ jobs:
       # widening where pgTAP/applied-path run, never narrowing where either used to run.
       - name: Scope — does this change feed pgTAP or the applied-path check?
         id: scope
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
@@ -111,13 +115,15 @@ jobs:
           fi
 
       - name: Install Supabase CLI
-        if: steps.scope.outputs.render == 'true'
+        id: cli
+        if: ${{ !cancelled() && steps.scope.outputs.render == 'true' }}
         uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
         with:
           version: 2.104.0
 
       - name: Start local Supabase stack (applies migrations + seed)
-        if: steps.scope.outputs.render == 'true'
+        id: stack
+        if: ${{ !cancelled() && steps.scope.outputs.render == 'true' && steps.cli.outcome == 'success' }}
         # Same exclusion list as integration.yml — proven to boot. auth/rest/kong are needed to
         # log the guards in; inbucket is needed by the AC-005 recovery round-trip.
         run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
@@ -125,26 +131,26 @@ jobs:
       # ─── absorbed from the old `pgtap` job (#565) — see scripts/lint-security-definer.sh for
       # what this checks; `db` in integration.yml runs the same script on the PR→main lane. ────
       - name: Lint — every SECURITY DEFINER migration must revoke PUBLIC execute
-        if: steps.scope.outputs.render == 'true'
+        if: ${{ !cancelled() && steps.scope.outputs.render == 'true' }}
         run: bash scripts/lint-security-definer.sh
 
       - name: API reference matches the database
-        if: steps.scope.outputs.render == 'true'
+        if: ${{ !cancelled() && steps.scope.outputs.render == 'true' && steps.stack.outcome == 'success' }}
         run: bash scripts/api-reference.sh --check
 
       - name: MCP tool catalog matches the database
-        if: steps.scope.outputs.render == 'true'
+        if: ${{ !cancelled() && steps.scope.outputs.render == 'true' && steps.stack.outcome == 'success' }}
         run: bash scripts/mcp-catalog.sh --check
 
       - name: pgTAP suite
-        if: steps.scope.outputs.render == 'true'
+        if: ${{ !cancelled() && steps.scope.outputs.render == 'true' && steps.stack.outcome == 'success' }}
         run: supabase test db
 
       # pgTAP cannot load a file outside supabase/tests, so the sample-org Money seed's second run
       # and its refusal are checked here: a rerun must add nothing (reporting_08's exact counts
       # still hold), and a database holding a non-fixture person must refuse it.
       - name: Sample-org Money seed — a second run adds nothing, a non-fixture person refuses it
-        if: steps.scope.outputs.render == 'true'
+        if: ${{ !cancelled() && steps.scope.outputs.render == 'true' && steps.stack.outcome == 'success' }}
         run: |
           seed=supabase/seed.sample-org-money.sql
           db="supabase_db_$(sed -n 's/^project_id *= *"\(.*\)"/\1/p' supabase/config.toml | head -1)"
@@ -164,7 +170,7 @@ jobs:
       # The sample-org ESB catalog load is tested by a file that includes the seed, which pgTAP
       # cannot do (see the Money step above), so it runs here in the DB container, rollback-only.
       - name: Sample-org ESB catalog seed — copy, rerun and refusals (rollback-only)
-        if: steps.scope.outputs.render == 'true'
+        if: ${{ !cancelled() && steps.scope.outputs.render == 'true' && steps.stack.outcome == 'success' }}
         run: |
           db="supabase_db_$(sed -n 's/^project_id *= *"\(.*\)"/\1/p' supabase/config.toml | head -1)"
           docker cp supabase/seed.sample-org-esb-catalog.sql "$db:/tmp/seed.sample-org-esb-catalog.sql"
@@ -178,7 +184,7 @@ jobs:
           if printf '%s\n' "$out" | grep -q '^not ok '; then exit 1; fi
 
       - name: Sample-org item settings seed — prefill, rerun and refusals (rollback-only)
-        if: steps.scope.outputs.render == 'true'
+        if: ${{ !cancelled() && steps.scope.outputs.render == 'true' && steps.stack.outcome == 'success' }}
         run: |
           db="supabase_db_$(sed -n 's/^project_id *= *"\(.*\)"/\1/p' supabase/config.toml | head -1)"
           docker cp supabase/seed.sample-org-item-settings.sql "$db:/tmp/seed.sample-org-item-settings.sql"
@@ -197,13 +203,13 @@ jobs:
       # a fresh reset. Exit 2 means the check could not run meaningfully — treat it as red.
       # No `--prove` here (that stays on the `db` job, PR→main): this is the fast lane.
       - name: Applied-path check — a migrated database matches a fresh one (#393)
-        if: steps.scope.outputs.render == 'true'
+        if: ${{ !cancelled() && steps.scope.outputs.render == 'true' && steps.stack.outcome == 'success' }}
         run: bash scripts/applied-path-check.sh --out artifacts/applied-path
 
       # Keep this as the last database-mutating check: rollback/reapply leaves the stack at the
       # migrated schema, while earlier DB assertions should see the pristine reset state.
       - name: Prove executable migration rollbacks
-        if: steps.scope.outputs.render == 'true'
+        if: ${{ !cancelled() && steps.scope.outputs.render == 'true' && steps.stack.outcome == 'success' }}
         env:
           BASE_REF: ${{ github.base_ref || 'dev' }}
         run: |

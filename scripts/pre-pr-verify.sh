@@ -15,6 +15,8 @@
 # and only the tests related to files changed vs the base. It writes pre-pr-verify-dev-ok, which
 # scripts/gh-post.sh accepts for `--base dev` only. The default full battery (pre-pr-verify-ok) is
 # what a PR into main needs.
+#
+# When supabase/migrations changed vs the base, both modes also run the security-definer lint.
 set -euo pipefail
 light=0
 for _a in "$@"; do
@@ -77,6 +79,15 @@ if [ -n "$base" ]; then
   [ "$changed" -le 400 ] || echo "⚠ diff budget: $changed changed lines (>400) — split the next ticket smaller"
   # Comment-essay refusal over the whole branch (the 3000-words-per-LOC class). Counts, never judges.
   bash scripts/prose-budget.sh "$base"
+fi
+
+# CI db-proof's cheap half: when supabase/migrations differs from the base, run the
+# security-definer revoke lint (file-only, seconds). The applied-path check needs a database and
+# stays CI's.
+if [ -n "$(git diff --name-only "$base"...HEAD -- supabase/migrations)" ]; then
+  _t0=$(date +%s)
+  bash scripts/lint-security-definer.sh >/dev/null || { echo "✗ db-proof: security-definer lint failed — run scripts/lint-security-definer.sh for details" >&2; exit 1; }
+  echo "── db-proof: security-definer lint ok ($(( $(date +%s) - _t0 ))s)"
 fi
 
 # A fresh worktree has no node_modules; a rebase across a dependency change leaves a stale one.

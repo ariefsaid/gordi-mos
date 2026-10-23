@@ -105,40 +105,48 @@ jobs:
           cache-dependency-path: mos-app/package-lock.json
 
       - name: Install dependencies
+        id: install
         if: steps.scope.outputs.app == 'true'
         run: npm ci
 
       - name: Typecheck
-        if: steps.scope.outputs.app == 'true'
+        # Every check runs even when an earlier one failed, so one run reports every failure.
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.app == 'true' }}
         run: npm run typecheck
 
       - name: Lint
-        if: steps.scope.outputs.app == 'true'
+        # Every check runs even when an earlier one failed, so one run reports every failure.
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.app == 'true' }}
         run: npm run lint:ci
 
       - name: Quality checks (duplication / dead code / colour tokens)
-        if: steps.scope.outputs.app == 'true'
+        # Every check runs even when an earlier one failed, so one run reports every failure.
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.app == 'true' }}
         working-directory: .
         run: bash scripts/quality-checks.sh
 
       - name: Unit tests + coverage gate (≥80% changed lines)
-        if: steps.scope.outputs.app == 'true'
+        # Every check runs even when an earlier one failed, so one run reports every failure.
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.app == 'true' }}
         run: npm run test:coverage
 
       - name: Build full profile
-        if: steps.scope.outputs.app == 'true'
+        # Every check runs even when an earlier one failed, so one run reports every failure.
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.app == 'true' }}
         env:
           VITE_RELEASE_PROFILE: full
         run: npm run build
 
       - name: Café profile route and navigation reachability
-        if: steps.scope.outputs.app == 'true'
+        # Every check runs even when an earlier one failed, so one run reports every failure.
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.app == 'true' }}
         env:
           VITE_RELEASE_PROFILE: cafe
         run: npx vitest run src/shell/cafe-profile-reachability.test.tsx
 
       - name: Build Café profile
-        if: steps.scope.outputs.app == 'true'
+        # Every check runs even when an earlier one failed, so one run reports every failure.
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.app == 'true' }}
         env:
           VITE_RELEASE_PROFILE: cafe
         run: npm run build

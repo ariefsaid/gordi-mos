@@ -54,7 +54,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The applied-path check (#393) builds a database from the supabase/ tree at the
           # commit named in supabase/applied-path-baseline. A shallow clone does not have it.
@@ -67,16 +68,21 @@ jobs:
           version: 2.104.0
 
       - name: Start local Supabase stack (applies migrations + seed)
+        id: stack
         # Same container set as the `e2e` job; its copy of this step explains the exclusions.
         run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
 
       # Logic lives in scripts/lint-security-definer.sh (#565) — this used to be inline here AND
       # in the `pgtap` job that has since moved to db-contracts.yml, an acknowledged sync burden.
       # One file, called from both dev-PR (db-contracts.yml) and main-PR (here) lanes.
+      # The three checks below each run even when an earlier one failed, so one run reports every
+      # failure; the job still ends red. A check whose setup failed is not run.
       - name: Lint — every SECURITY DEFINER migration must revoke PUBLIC execute
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         run: bash scripts/lint-security-definer.sh
 
       - name: pgTAP suite
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
         run: supabase test db
 
       # #393. THE GATE IMMEDIATELY BEFORE A STAGING DEPLOY, which is the entire point of the
@@ -85,6 +91,7 @@ jobs:
       # the applied path to go red while a fresh reset stays byte-identical — so the run itself
       # is the evidence that this check can fail, not a claim in a PR body.
       - name: Applied-path check + proof it can fail (#393)
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
         run: bash scripts/applied-path-check.sh --prove --out artifacts/applied-path
 
       - name: Publish the green/red contrast to the run summary

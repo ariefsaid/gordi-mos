@@ -27,54 +27,70 @@ jobs:
           GITLEAKS_ENABLE_COMMENTS: "false"
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
 
+  # Every check step runs even when an earlier one failed; a check whose checkout failed is skipped.
   guard-self-tests:
     if: ${{ !(github.event_name == 'pull_request' && github.base_ref == 'staging' && github.head_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - id: checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Impeccable changed production UI scan
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: bash scripts/impeccable-changed-ui.sh "${BASE_SHA:-HEAD^}"
       - name: migration order guard self-test (#1110)
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         run: bash scripts/check-migration-order.test.sh
       - name: migration rollback guard self-test
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         run: bash scripts/check-migration-rollback.test.sh
       - name: executable migration rollback proof self-test
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         run: bash scripts/prove-migration-rollbacks.test.sh
       - name: Migration rollback paths for new versions
-        if: github.event_name == 'pull_request'
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && github.event_name == 'pull_request' }}
         run: |
           git fetch --quiet --no-tags origin "+refs/heads/dev:refs/remotes/origin/dev"
           bash scripts/check-migration-rollback.sh origin/dev
       - name: Migration order — new versions must be newer than the base's latest (#1110)
-        if: github.event_name == 'pull_request'
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && github.event_name == 'pull_request' }}
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
           git fetch --quiet --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
           bash scripts/check-migration-order.sh "origin/${BASE_REF}"
       - name: review read-only and served-preview self-tests
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         run: node --test scripts/review-read-only.test.mjs scripts/preview-preflight.test.mjs scripts/check-chunk-cycles.test.mjs
       - name: seed dates are WIB, not UTC self-test (#459)
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         run: bash scripts/seed-wib-dates.test.sh
       - name: Gitleaks staged-scan self-test
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         run: bash scripts/gitleaks.test.sh
       - name: SECURITY DEFINER revoke lint self-test
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         run: bash scripts/lint-security-definer.test.sh
       - name: API docs freshness self-test
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         run: bash scripts/api-reference.test.sh
       - name: mos command-line client self-test (#1117)
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         run: node --test scripts/mos.test.mjs
       - name: MCP catalog generator self-test
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         run: bash scripts/mcp-catalog.test.sh
       - name: statement-timeout check self-test
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         run: bash scripts/check-statement-timeout.test.sh
       - name: Supabase CLI version pin self-test
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         run: bash scripts/check-supabase-cli-version.test.sh
       - name: Supabase CLI version pins
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         run: bash scripts/check-supabase-cli-version.sh
