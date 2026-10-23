@@ -55,7 +55,7 @@ export function TaskPrivateRow({
       : viewers.length === 0 ? t('tasks.private.on')
         : t(viewers.length === 1 ? 'tasks.private.onCount.one' : 'tasks.private.onCount.other', { count: viewers.length })
   const help = !isPrivate ? null
-    : meetingPrivate ? t(meetingLocked ? 'tasks.private.meetingLocked' : 'tasks.private.meetingHelp')
+    : meetingPrivate ? (meetingLocked ? `${t('tasks.private.meetingHelp')} ${t('tasks.private.meetingLocked')}` : t('tasks.private.meetingHelp'))
       : t(solo ? 'tasks.private.helpSelf' : 'tasks.private.help')
   const editable = canChange && !frozen
   const pickable = people.filter((person) => !alreadyIds.includes(person.id) && !viewers.some((viewer) => viewer.id === person.id))
@@ -75,7 +75,7 @@ export function TaskPrivateRow({
         {meetingLocked ? <PrivateLock /> : null}
       </div>
       {help ? <p className="tpr__help">{help}</p> : null}
-      {isPrivate ? (
+      {isPrivate && !meetingPrivate ? (
         <div className="tpr__people">
           {viewers.length === 0 ? <p className="tpr__nobody">{t('tasks.private.nobody')}</p> : null}
           {viewers.map((viewer) => (
