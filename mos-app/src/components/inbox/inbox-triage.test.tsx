@@ -130,6 +130,22 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
     expect(within(row).queryByText('Investigating the grinder.')).not.toBeInTheDocument()
   })
 
+  // A Task document @mention (mos._notify_task_mentions) reads like a Signal mention, aimed at the Task.
+  it('renders "<Actor> mentioned you" for a Task document mention', () => {
+    renderTriage({ rows: [trow('task-mention-1', {
+      title: 'You were mentioned in a Task',
+      body: 'Replace grinder burrs',
+      metadata: {
+        source: 'task_mention',
+        actor: { id: 'person-cahya', name: 'Cahya' },
+        entity: { type: 'task', id: 'task-1' },
+      },
+    })] })
+    const row = document.querySelector('[data-notification-id="task-mention-1"]') as HTMLElement
+    expect(within(row).getByText('Cahya mentioned you')).toBeInTheDocument()
+    expect(within(row).getByText('Replace grinder burrs')).toBeInTheDocument()
+  })
+
   // #774 does NOT implement AC-074's legacy-author resolution (deferred — it would need a batch
   // Signal-author lookup, not a per-row one). This only pins the honest degradation for a legacy
   // row (no `actor` in metadata — every mention notification written before #774's migration):

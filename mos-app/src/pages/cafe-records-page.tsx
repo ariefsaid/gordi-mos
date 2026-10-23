@@ -35,7 +35,7 @@ import {
 import { useRecordsLookups } from '@/lib/cafe-records/use-records-lookups'
 import { useRecordsSources, type SourceId } from '@/lib/cafe-records/use-records-sources'
 import { MOVEMENT_SOURCE, requiredSources } from '@/lib/cafe-records/sources'
-import { BRANCH_DISPLAY_ALIAS, activityLabel, counterpartActivity, streamLabel } from '@/lib/kitchen-action-label'
+import { activityLabel, streamLabel } from '@/lib/kitchen-action-label'
 import type { ProductionActivity } from '@/lib/db/kitchen-logs.types'
 import { formatDayMonthYear, formatWibShortDateTime, wibToday } from '@/lib/format/date'
 import { useCafeStream } from '@/lib/use-cafe-stream'
@@ -145,17 +145,18 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
       const name = lookups.branchName(branchId)
       return name ? `${name} · ${activityLabel(t, activity as ProductionActivity)}` : t('records.stream.unknown')
     }
-    const destination = (streamKey: string, branchId: string | null) => {
-      if (!branchId) return ''
-      const branch = branches.find(candidate => candidate.id === branchId)
-      const name = branch ? BRANCH_DISPLAY_ALIAS[branch.code] ?? branch.name : lookups.branchName(branchId) ?? t('kitchen.actionType.transferTo.fallback')
-      const [originBranch, activity] = streamKey.split(':')
-      // A transfer inside the same books names its counterpart Activity (existing derivation), not a guessed place.
-      return branchId === originBranch ? `${name} · ${activityLabel(t, counterpartActivity(activity as ProductionActivity))}` : name
+    // A transfer reads by the place it went to; history that names only a branch reads by the branch.
+    const destination = (_streamKey: string, key: string | null) => {
+      if (!key) return ''
+      const place = lookups.locationName(key)
+      if (place) return place
+      const branch = branches.find(candidate => candidate.id === key)
+      return branch?.name ?? lookups.branchName(key) ?? t('kitchen.actionType.transferTo.fallback')
     }
+    const place = (id: string | null) => (id ? lookups.locationName(id) : null)
     const personById = (id: string) => lookups.personName(id) ?? t('records.person.unavailable')
     return {
-      t, stream, destination, personById,
+      t, stream, destination, place, personById,
       person: entry => entry.personId ? personById(entry.personId) : t('records.who.notAvailable'),
     }
   }, [t, streamByKey, branches, lookups])
@@ -173,7 +174,7 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
   const incompleteMovements = useMemo(() => new Set((Object.keys(MOVEMENT_SOURCE) as Movement[]).filter(movement => required.includes(MOVEMENT_SOURCE[movement]) && sources[MOVEMENT_SOURCE[movement]].status === 'done' && !sources[MOVEMENT_SOURCE[movement]].complete)), [required, sources])
   const dayHealth = { logs: sources.logs.complete || !required.includes('logs'), counts: sources.counts.complete || !required.includes('counts') }
 
-  const showDestination = (state.question === 'transferred' || state.question === 'everything') && filtered.some(entry => entry.destinationBranchId !== null)
+  const showDestination = (state.question === 'transferred' || state.question === 'everything') && filtered.some(entry => entry.destinationKey !== null)
   const summaryGroups = useMemo(() => summarize(filtered, state.question), [filtered, state.question])
   const summaryPage = useMemo(() => pageSummary(summaryGroups, state.sort, state.dir, sortCtx, state.page), [summaryGroups, state.sort, state.dir, sortCtx, state.page])
   const entryRows = useMemo(() => sortEntries(filtered, state.sort, state.dir), [filtered, state.sort, state.dir])
@@ -201,8 +202,8 @@ function CafeRecordsForViewer({ viewerId }: { viewerId: string }) {
   }, [relevant, entries, state.item])
   const destinationChoices = useMemo(() => {
     const map = new Map<string, string>()
-    for (const entry of relevant) if (entry.destinationBranchId && !map.has(entry.destinationBranchId)) map.set(entry.destinationBranchId, text.destination(entry.streamKey, entry.destinationBranchId))
-    if (state.destination && !map.has(state.destination)) map.set(state.destination, lookups.branchName(state.destination) ?? state.destination)
+    for (const entry of relevant) if (entry.destinationKey && !map.has(entry.destinationKey)) map.set(entry.destinationKey, text.destination(entry.streamKey, entry.destinationKey))
+    if (state.destination && !map.has(state.destination)) map.set(state.destination, lookups.locationName(state.destination) ?? lookups.branchName(state.destination) ?? state.destination)
     return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]))
   }, [relevant, text, state.destination, lookups])
 

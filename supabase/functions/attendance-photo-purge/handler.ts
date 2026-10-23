@@ -1,8 +1,9 @@
 /**
  * attendance-photo-purge — deletes attendance selfies and doctor's-note photos that the retention
  * job queued, through the Storage API (never SQL), then confirms each deletion so it is not retried.
- * Called hourly by ops.dispatch_attendance_photo_purge() with a dedicated bearer secret. Safe to run
- * any number of times. Pure of Deno globals so it is testable with an injected fetch.
+ * Called daily by ops.dispatch_attendance_photo_purge() with a dedicated bearer secret. Safe to run
+ * any number of times. One run claims batches until a claim comes back short, and stops starting new
+ * claims once the wall-time cap has passed. Pure of Deno globals so it is testable with an injected fetch.
  */
 
 const BUCKETS = ['attendance-selfies', 'staff-notes']
@@ -12,6 +13,8 @@ interface PurgeDeps {
   key: string
   fetchImpl?: typeof fetch
   limit?: number
+  maxMs?: number
+  now?: () => number
 }
 
 const digest = async (value: string) =>
@@ -26,30 +29,36 @@ export async function bearerMatches(header: string, secret: string): Promise<boo
   return diff === 0
 }
 
-export async function purgePhotos({ url, key, fetchImpl = fetch, limit = 100 }: PurgeDeps): Promise<{ deleted: number }> {
+export async function purgePhotos({ url, key, fetchImpl = fetch, limit = 500, maxMs = 100_000, now = Date.now }: PurgeDeps): Promise<{ deleted: number }> {
   const rest = (name: string, body: unknown) =>
     fetchImpl(`${url}/rest/v1/rpc/${name}`, {
       method: 'POST',
       headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'Content-Profile': 'ops', 'Accept-Profile': 'ops' },
       body: JSON.stringify(body),
     })
-  const claimed = await rest('claim_attendance_selfie_purge', { p_limit: limit })
-  if (!claimed.ok) throw new Error(`claim failed: ${claimed.status}`)
-  const rows = ((await claimed.json()) as { bucket: string; path: string }[]).filter((row) => BUCKETS.includes(row.bucket))
-  if (rows.length === 0) return { deleted: 0 }
-  const byBucket = new Map<string, string[]>()
-  for (const row of rows) byBucket.set(row.bucket, [...(byBucket.get(row.bucket) ?? []), row.path])
-  for (const [bucket, paths] of byBucket) {
-    const removed = await fetchImpl(`${url}/storage/v1/object/${bucket}`, {
-      method: 'DELETE',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prefixes: paths }),
-    })
-    if (!removed.ok) throw new Error(`storage delete failed: ${removed.status}`)
-    const confirmed = await rest('confirm_attendance_selfie_purged', { p_bucket: bucket, p_paths: paths })
-    if (!confirmed.ok) throw new Error(`confirm failed: ${confirmed.status}`)
+  const started = now()
+  let deleted = 0
+  while (now() - started < maxMs) {
+    const claimed = await rest('claim_attendance_selfie_purge', { p_limit: limit })
+    if (!claimed.ok) throw new Error(`claim failed: ${claimed.status}`)
+    const claimedRows = (await claimed.json()) as { bucket: string; path: string }[]
+    const rows = claimedRows.filter((row) => BUCKETS.includes(row.bucket))
+    const byBucket = new Map<string, string[]>()
+    for (const row of rows) byBucket.set(row.bucket, [...(byBucket.get(row.bucket) ?? []), row.path])
+    for (const [bucket, paths] of byBucket) {
+      const removed = await fetchImpl(`${url}/storage/v1/object/${bucket}`, {
+        method: 'DELETE',
+        headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prefixes: paths }),
+      })
+      if (!removed.ok) throw new Error(`storage delete failed: ${removed.status}`)
+      const confirmed = await rest('confirm_attendance_selfie_purged', { p_bucket: bucket, p_paths: paths })
+      if (!confirmed.ok) throw new Error(`confirm failed: ${confirmed.status}`)
+    }
+    deleted += rows.length
+    if (claimedRows.length < limit) break
   }
-  return { deleted: rows.length }
+  return { deleted }
 }
 
 export async function handle(req: Request, env: { url: string; key: string; secret: string }, fetchImpl: typeof fetch = fetch): Promise<Response> {

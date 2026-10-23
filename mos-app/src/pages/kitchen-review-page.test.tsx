@@ -103,6 +103,7 @@ import { listStreamCompleteness, confirmStreamComplete } from '@/lib/db/stream-c
 vi.mock('@/lib/db/kitchen-waste-photos', () => ({ listKitchenWastePhotos: vi.fn() }))
 import { listKitchenWastePhotos } from '@/lib/db/kitchen-waste-photos'
 
+import { CafeWaitingContext } from '@/lib/cafe-waiting-context'
 import { KitchenReviewPage } from './kitchen-review-page'
 import { rememberStream } from '@/lib/cafe-stream'
 import { streamDateKey } from '@/lib/kitchen-action-label'
@@ -431,7 +432,9 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
     const olderRow = screen.getByRole('button', { name: /^Earlier plan row/ })
     const newerRow = screen.getByRole('button', { name: /^Later plan row/ })
     expect(olderRow).toHaveTextContent('on-plan')
-    expect(newerRow).toHaveTextContent('not in plan')
+    // plan 12, logged 8: a variance from a plan that exists, not an item missing from the plan
+    expect(newerRow).toHaveTextContent('differs from plan')
+    expect(newerRow).not.toHaveTextContent('not in plan')
     expect(mockPlan).toHaveBeenCalledWith('2026-09-25', expect.objectContaining({ branch: expect.objectContaining({ id: BRANCH_ID }) }))
     expect(mockPlan).toHaveBeenCalledWith('2026-09-28', expect.objectContaining({ branch: expect.objectContaining({ id: BRANCH_ID }) }))
   })
@@ -680,6 +683,26 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     fireEvent.change(note, { target: { value: 'short on stock' } })
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
     await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', '2026-06-20T09:12:00Z', 'short on stock'))
+  })
+})
+
+describe('KitchenReviewPage — shared counts', () => {
+  it('re-reads the shared Logs count after a log is approved, so the tab and nav figures do not go stale', async () => {
+    const load = vi.fn()
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-013' })
+    render(
+      <CafeWaitingContext.Provider value={{ admitted: true, viewerId: 'v', keys: [], queues: {} as never, load, reload: vi.fn() }}>
+        <KitchenReviewPage />
+      </CafeWaitingContext.Provider>,
+      { wrapper },
+    )
+    await screen.findByText('Nasi Goreng')
+    await pickLog('nasi goreng')
+    fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalled())
+    await waitFor(() => expect(load).toHaveBeenCalledWith('logs', true))
   })
 })
 
@@ -1487,12 +1510,12 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
     render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
     await pickLog('Nasi Goreng')
-    fireEvent.click(screen.getByRole('button', { name: 'Setujui Nasi Goreng' }))
+    // the note is asked for inline, beside Approve, as soon as the log is flagged
     expect(screen.getByText('Catatan persetujuan')).toBeInTheDocument()
     const note = screen.getByLabelText('Catatan persetujuan untuk Nasi Goreng')
     expect(note).toHaveAttribute('placeholder', 'Alasan jumlahnya berbeda dari rencana (wajib)')
     fireEvent.change(note, { target: { value: 'kurang bahan' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Konfirmasi setujui Nasi Goreng' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Setujui Nasi Goreng' }))
     await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', '2026-06-20T09:12:00Z', 'kurang bahan'))
     expect(await screen.findByText(/Disetujui · batch PR-20260620-010/)).toBeInTheDocument()
   })

@@ -15,6 +15,8 @@
 .cafe-today-next__end { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); justify-self: end; font: var(--mos-type-control); block-size: 1lh; }
 .cafe-today-next__unavailable { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-row-gap); padding: var(--mos-row-pad-y) var(--mos-row-pad-x); }
 @media (max-width: 767.98px) {
+  /* The page's sticky bar carries this action on a phone. */
+  .btn.cafe-today-next__setup { display: none; }
   .cafe-today-next__list a.cafe-today-next__job { grid-template-columns: minmax(0, 1fr) auto; row-gap: var(--mos-stack-gap); }
   .cafe-today-next__name { grid-column: 1; }
   .cafe-today-next__state { grid-column: 1; grid-row: 2; }

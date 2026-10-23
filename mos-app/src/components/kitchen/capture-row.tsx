@@ -36,17 +36,17 @@ type CaptureColumns = {
   actionRem?: number
 }
 
-type TableShape = { figures: number; controls: number; action: boolean; actionRem: number }
+type TableShape = { figures: number; controls: number; action: boolean; actionRem: number; compact?: boolean }
 type TableLayout = TableShape & { layout: 'wide' | 'narrow' }
 const DEFAULT_ACTION_REM = 11
 const ShapeContext = createContext<TableLayout>({ figures: 0, controls: 1, action: false, actionRem: DEFAULT_ACTION_REM, layout: 'wide' })
 
 // The right-hand group's width in rem (matches the track widths in capture-row.css) plus the item column's floor:
 // under this list width the row stacks.
-const REM = { item: 14, figure: 8.25, control: 16.5, gap: 0.5 }
-function wideMinRem({ figures, controls, action, actionRem }: TableShape): number {
+const REM = { item: 14, figure: 8.25, control: 16.5, compactControl: 6.5, gap: 0.5 }
+function wideMinRem({ figures, controls, action, actionRem, compact }: TableShape): number {
   const tracks = figures + controls + (action ? 1 : 0)
-  return REM.item + figures * REM.figure + controls * REM.control + (action ? actionRem : 0) + tracks * REM.gap + 1
+  return REM.item + figures * REM.figure + controls * (compact ? REM.compactControl : REM.control) + (action ? actionRem : 0) + tracks * REM.gap + 1
 }
 
 /** 'wide' while the list is at least as wide as its row needs, else 'narrow'. Set before paint, kept by a ResizeObserver. */
@@ -87,15 +87,17 @@ export type CaptureTableProps<Row extends { id: string }> = {
   onToggleGroup?: (key: string) => void
   /** Keep the header for assistive tech but do not show it (a read-only list with nothing to label). */
   hideHead?: boolean
+  /** Several quantity groups as quantity-only boxes under one header row (Plan): the unit is said once, on the item. */
+  compact?: boolean
   className?: string
 }
 
 export function CaptureTable<Row extends { id: string }>({
   caption, columns, rows = [], groups, renderRow, state = 'ready', emptyLabel, onRetry,
-  defaultCollapsedGroupKeys, collapsedGroupKeys, onToggleGroup, hideHead = false, className,
+  defaultCollapsedGroupKeys, collapsedGroupKeys, onToggleGroup, hideHead = false, compact = false, className,
 }: CaptureTableProps<Row>) {
   const t = useT()
-  const shape: TableShape = { figures: columns.figures?.length ?? 0, controls: columns.controls.length, action: columns.action !== undefined, actionRem: columns.actionRem ?? DEFAULT_ACTION_REM }
+  const shape: TableShape = { figures: columns.figures?.length ?? 0, controls: columns.controls.length, action: columns.action !== undefined, actionRem: columns.actionRem ?? DEFAULT_ACTION_REM, compact }
   const { ref, layout } = useCaptureLayout(shape)
   const [internalCollapsed, setInternalCollapsed] = useState<Set<string>>(() => new Set(defaultCollapsedGroupKeys ?? []))
   const collapsed = collapsedGroupKeys ?? internalCollapsed
@@ -123,6 +125,7 @@ export function CaptureTable<Row extends { id: string }>({
         data-layout={layout}
         data-figures={shape.figures}
         data-controls={shape.controls}
+        data-compact={compact ? '' : undefined}
         data-action={shape.action ? '' : undefined}
         style={shape.action && shape.actionRem !== DEFAULT_ACTION_REM ? ({ '--cap-act-w': `${shape.actionRem}rem` } as CSSProperties) : undefined}
       >

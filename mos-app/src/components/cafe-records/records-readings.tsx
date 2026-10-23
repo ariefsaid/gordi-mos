@@ -13,7 +13,9 @@ import { MOVEMENT_LABEL, dateText, quantityText, statusLabel, unitText } from '.
 export interface RecordsText {
   t: Translate
   stream: (streamKey: string) => string
-  destination: (streamKey: string, branchId: string | null) => string
+  destination: (streamKey: string, key: string | null) => string
+  /** A Location's name by id; null when unknown. */
+  place: (id: string | null) => string | null
   person: (entry: RecordEntry) => string
   personById: (id: string) => string
 }
@@ -60,7 +62,7 @@ export function SummaryReading({ text, question, groups, sort, dir, onSort, show
       render: row => <ItemButton name={row.itemName} itemKey={row.itemKey} onOpen={open.onOpenHistory} label={opener(row)} /> },
     { key: 'stream', header: t('records.col.stream'), sortable: true, render: row => text.stream(row.streamKey) },
     ...(showDestination ? [{ key: 'destination', header: t('records.col.destination'), sortable: true,
-      render: (row: SummaryRow) => row.destinationBranchId ? text.destination(row.streamKey, row.destinationBranchId) : '' }] : []),
+      render: (row: SummaryRow) => row.destinationKey ? text.destination(row.streamKey, row.destinationKey) : '' }] : []),
     { key: 'unit', header: t('records.col.unit'), render: row => <span className={row.unit.name ? undefined : 'rec-qty__unit--missing'}>{unitText(t, row.unit)}</span> },
     { key: 'quantity', header: counted ? t('records.col.latestCount') : t('records.col.quantity'), numeric: true, sortable: true,
       render: row => <>{incomplete.has(row.movement) ? <>—<span className="sr-only"> ({t('records.day.sourceUnavailable')})</span></> : quantityText(row.qty)}{row.latestDate ? <span className="rec-meta-line">{dateText(row.latestDate)}</span> : null}</> },
@@ -88,7 +90,7 @@ export function SummaryReading({ text, question, groups, sort, dir, onSort, show
           <span className="rec-card__main">
             <span className="rec-card__title">{row.itemName || '—'}</span>
             <span className="rec-card__meta">
-              {[text.stream(row.streamKey), row.destinationBranchId ? text.destination(row.streamKey, row.destinationBranchId) : null,
+              {[text.stream(row.streamKey), row.destinationKey ? text.destination(row.streamKey, row.destinationKey) : null,
                 t(row.entries === 1 ? 'records.entries.one' : 'records.entries.other', { count: row.entries }),
                 row.latestDate ? dateText(row.latestDate) : null].filter(Boolean).join(' · ')}
             </span>
@@ -127,7 +129,7 @@ export function EntriesReading({ text, entries, sort, dir, onSort, showDestinati
     { key: 'movement', header: t('records.col.movement'), render: ({ entry }) => t(MOVEMENT_LABEL[entry.movement]) },
     { key: 'stream', header: t('records.col.stream'), render: ({ entry }) => text.stream(entry.streamKey) },
     ...(showDestination ? [{ key: 'destination', header: t('records.col.destination'),
-      render: ({ entry }: EntryRow) => entry.destinationBranchId ? text.destination(entry.streamKey, entry.destinationBranchId) : '' }] : []),
+      render: ({ entry }: EntryRow) => entry.destinationKey ? text.destination(entry.streamKey, entry.destinationKey) : '' }] : []),
     { key: 'status', header: t('kitchen.log.col.status'), render: ({ entry }) => <EntryStatus t={t} entry={entry} /> },
     { key: 'by', header: t('records.col.by'), render: ({ entry }) => personCell(entry) },
     { key: 'date', header: t('records.col.date'), sortable: true,
@@ -156,7 +158,7 @@ export function EntriesReading({ text, entries, sort, dir, onSort, showDestinati
           </div>
           <button type="button" className="rec-entry-card__body" data-rec-focus={`entry:${entry.key}`} onClick={() => open.onOpenEntry(entry.key)}>
             <span className="rec-card__meta">
-              {[dateText(entry.date), text.stream(entry.streamKey), entry.destinationBranchId ? text.destination(entry.streamKey, entry.destinationBranchId) : null, text.person(entry)].filter(Boolean).join(' · ')}
+              {[dateText(entry.date), text.stream(entry.streamKey), entry.destinationKey ? text.destination(entry.streamKey, entry.destinationKey) : null, text.person(entry)].filter(Boolean).join(' · ')}
             </span>
             <Quantity t={t} qty={entry.entered?.quantity ?? entry.qty} unit={entry.unit} className="rec-card__qty" />
             <span className="sr-only">{t('records.entry.hint')}</span>

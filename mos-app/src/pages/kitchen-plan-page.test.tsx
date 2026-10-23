@@ -38,10 +38,13 @@ function idWrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, { initialLocale: 'id' }, children))
 }
 
-const locationMocks = vi.hoisted(() => ({ choices: vi.fn() }))
-vi.mock('@/lib/use-cafe-location-choices', async importActual => ({
-  ...await importActual<typeof import('@/lib/use-cafe-location-choices')>(),
-  useCafeLocationChoices: locationMocks.choices,
+// Where this stream works and where it may send: the visit's reads, mocked per test.
+const visit = vi.hoisted(() => ({ locations: vi.fn(), sites: vi.fn(), destinations: vi.fn() }))
+vi.mock('@/lib/cafe-visit-cache', () => ({
+  clearCafeVisitCache: () => undefined,
+  getCafeLocations: visit.locations,
+  getCafeSites: visit.sites,
+  getCafeDestinationLocations: visit.destinations,
 }))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -178,7 +181,9 @@ const PESANAN: PesananRow[] = [
 
 beforeEach(() => {
   vi.clearAllMocks()
-  locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], defaults: null, retry: vi.fn() })
+  visit.locations.mockResolvedValue([])
+  visit.sites.mockResolvedValue([])
+  visit.destinations.mockResolvedValue([])
   // #440: the Café stream is remembered module-wide in sessionStorage — clear it so one test's
   // switch never seeds the next test's default.
   rememberStream(null)
@@ -213,39 +218,54 @@ afterEach(() => {
   })
 })
 
-describe('outlet sends', () => {
-  it('offers a retry when outlet-place choices cannot load, without hiding ordinary planning', async () => {
-    const retry = vi.fn()
-    locationMocks.choices.mockReturnValue({ status: 'error', locations: [], defaults: null, retry })
-    render(<KitchenPlanPage />, { wrapper })
-    await screen.findByRole('spinbutton', { name: /Ayam Bakar/i })
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
-    expect(retry).toHaveBeenCalledOnce()
-    expect(screen.queryByText('Send to Rumah Rames outlet')).not.toBeInTheDocument()
+// Plan columns are Production plus one per destination Location; nothing is derived from branch codes.
+describe('destination Locations', () => {
+  const place = (id: string, name: string, use: 'both' | 'storage', branch: string, activities: string[], site: string | null = null) => ({
+    id, name, use, parent_id: null, branch_ids: [branch], archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: site, activities,
   })
-  it.each(['en', 'id'] as const)('plans an outlet send in %s without a branch transfer', async locale => {
-    locationMocks.choices.mockReturnValue({ status: 'ready', locations: [
-      { id: 'kitchen', use: 'both', archived_at: null, branch_ids: ['branch-1'] },
-      { id: 'outlet', use: 'storage', archived_at: null, branch_ids: ['branch-1'] },
-    ], defaults: { production_location_id: 'kitchen', storage_location_id: 'kitchen' }, retry: vi.fn() })
-    render(<KitchenPlanPage />, { wrapper: locale === 'id' ? idWrapper : wrapper })
-    const label = locale === 'id' ? 'Kirim ke outlet Rumah Rames' : 'Send to Rumah Rames outlet'
-    fireEvent.click(await screen.findByRole('combobox', { name: locale === 'id' ? /rencana untuk/i : /plan for/i }))
-    fireEvent.click(await screen.findByRole('option', { name: label }))
+  const CENTRAL = place('loc-central', 'RRS Central', 'both', 'branch-1', ['kitchen'], 'site-ghq')
+  const FROM_CENTRAL = [
+    { location_id: 'loc-outlet', name: 'RRS Outlet', branch_id: 'branch-1', same_branch: true },
+    { location_id: 'loc-radiant', name: 'Radiant', branch_id: 'branch-2', same_branch: false },
+    { location_id: 'loc-cikal', name: 'Cikal', branch_id: 'branch-3', same_branch: false },
+  ]
+  beforeEach(() => {
+    visit.locations.mockResolvedValue([CENTRAL])
+    visit.sites.mockResolvedValue([{ id: 'site-ghq', name: 'GHQ' }])
+    visit.destinations.mockResolvedValue(FROM_CENTRAL)
+  })
+
+  it('AC-001: a planner at RRS Central sees Production, To RRS Outlet, To Radiant and To Cikal', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true, configurable: true,
+      value: (query: string) => ({ matches: query === '(min-width: 768px)', media: query, onchange: null, addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false }),
+    })
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(await screen.findByText('RRS Central · at GHQ')).toBeInTheDocument()
+    expect(visit.destinations).toHaveBeenCalledWith(expect.anything(), 'loc-central')
+    for (const heading of ['Production', 'To RRS Outlet', 'To Radiant', 'To Cikal']) {
+      expect((await screen.findAllByText(heading)).length).toBeGreaterThan(0)
+    }
+  })
+
+  it('saves a transfer plan by Location id and lets the server fill branch and activity', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Plan for' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Transfer to Radiant' }))
     const input = await screen.findByRole('spinbutton', { name: /Ayam Bakar/i })
     fireEvent.change(input, { target: { value: '4' } })
     fireEvent.blur(input)
     await waitFor(() => expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'outlet_send', destination_branch_id: null, qty_porsi: 4,
+      action: 'transfer', from_location_id: 'loc-central', to_location_id: 'loc-radiant', destination_branch_id: 'branch-2', qty_porsi: 4,
     })))
   })
 
-  it.each(['en', 'id'] as const)('other kitchens without an outlet place do not offer a send in %s', async locale => {
-    mockDefaultStream.mockResolvedValue({ ...RADIANT_KITCHEN, produces: true })
-    mockStreamPairs.mockResolvedValue(STREAM_PAIRS.map(pair => ({ ...pair, produces: true })))
-    render(<KitchenPlanPage />, { wrapper: locale === 'id' ? idWrapper : wrapper })
+  it('offers a retry when destinations cannot load, without hiding ordinary planning', async () => {
+    visit.destinations.mockRejectedValue(new Error('offline'))
+    render(<KitchenPlanPage />, { wrapper })
     await screen.findByRole('spinbutton', { name: /Ayam Bakar/i })
-    expect(screen.queryByText(locale === 'id' ? 'Kirim ke outlet Radiant' : 'Send to Radiant outlet')).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /try again/i })).toBeInTheDocument()
   })
 })
 
@@ -415,13 +435,16 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByRole('button', { name: 'Previous day' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Today' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Today' })).not.toBeInTheDocument()
 
     for (let day = 0; day < 13; day += 1) await stepDay('Next day')
     expect(screen.getByRole('group', { name: 'Plan date' })).toHaveTextContent('Fri 23 Oct · In 13 days')
     expect(screen.getByRole('button', { name: 'Next day' })).toBeDisabled()
-    await stepDay('Today')
+    const calls = mockPlans.mock.calls.length
+    fireEvent.click(await screen.findByRole('button', { name: 'Today' }))
+    await waitFor(() => expect(mockPlans.mock.calls.length).toBe(calls + 1))
     expect(screen.getByRole('group', { name: 'Plan date' })).toHaveTextContent('Sat 10 Oct · Today')
+    expect(screen.queryByRole('button', { name: 'Today' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Previous day' })).toBeDisabled()
     expect(mockPlans).toHaveBeenLastCalledWith('2026-10-10', OWN_STREAM)
   })
@@ -1457,6 +1480,8 @@ describe('issue 222: the plan offers the stream\'s own item list', () => {
       id: 'w5', erpName: 'Retired · ERP reference', mosName: 'Unplanned inactive item', category: 'Prep',
       kind: 'WIP', isActive: false, defaultUnitId: null, units: [],
     }])
+    visit.locations.mockResolvedValue([{ id: 'loc-c', name: 'Central', use: 'both', parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: ['kitchen'] }])
+    visit.destinations.mockResolvedValue([{ location_id: 'loc-o', name: 'Outlet', branch_id: 'branch-1', same_branch: true }])
     mockPlans.mockResolvedValue([
       { id: 'legacy-plan', wip_item_id: 'w3', movement: PRODUCE, qty_porsi: 8 },
       { id: 'reclassified-plan', wip_item_id: 'w4', movement: PRODUCE, qty_porsi: 5 },

@@ -10,6 +10,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { ObjectiveHint } from './objective-hint'
 import type { TaskTeamOption } from './task-row'
 import { occurrenceRollupSummaryKey } from './occurrence-rollup-summary'
+import { PrivateLock } from './task-private-lock'
 
 // ── Shared group-model type (aligned with TasksWorkspace.RenderGroup) ─────────
 type MobileRenderGroup = {
@@ -116,7 +117,10 @@ function TaskCard({
             <span className="sr-only">{t('tasks.dueLabel')}: </span>{dueText}
           </span>
         </span>
-        <span className={isArchived ? 'task-name task-name-archived collection-grammar-title' : 'task-name collection-grammar-title'}>{task.title}</span>
+        <span className="task-title-line">
+          {task.is_private && <PrivateLock />}
+          <span className={isArchived ? 'task-name task-name-archived collection-grammar-title' : 'task-name collection-grammar-title'}>{task.title}</span>
+        </span>
         <span className="task-card-meta-line">
           <span>{t('tasks.pic')}: {rName || '—'}{provenanceRoleName ? ` (${t('tasks.pic.via', { role: provenanceRoleName })})` : ''}</span>
           <span aria-hidden="true"> · </span>

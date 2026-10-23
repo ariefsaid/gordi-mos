@@ -24,7 +24,9 @@ import { RouteRedirect } from './shell/route-redirect'
 import { pageHandle, redirectHandle, infrastructureHandle, type RouteHandle } from './shell/route-classification'
 import { LoadingShell } from './components/ui/state-kit'
 import { APP_RELEASE_PROFILE, APP_ROUTER_BASENAME } from './config/app-build-settings'
-import { profileLandingPath, type ReleaseProfile } from './config/build-settings'
+import { LEGACY_STAFF_REDIRECT_PATHS, profileLandingPath, type ReleaseProfile } from './config/build-settings'
+
+const LEGACY_WORK_SHIFTS_PATH = LEGACY_STAFF_REDIRECT_PATHS[0].slice(1)
 import { ROUTE_PATHS } from './shell/route-parity'
 import { reviewQueuePath } from './lib/cafe-review-queues'
 import { lazyPage } from './lib/lazy-page'
@@ -153,7 +155,7 @@ const DevViewsPage = lazyPage(() => import('./pages/dev-views-page').then((m) =>
 //   AppShell (layout route — rail + header + context row, persistent across navigation)
 //     /                          Home
 //     /work/tasks[/new|/:taskId] Tasks (split-view shell + drawer children)
-//     /work/shifts               My shifts, Team roster and standing hours
+//     /staff/shifts              My shifts, Team roster and standing hours
 //     /work/signals              Signals
 //     /work/objectives           Objectives (org-readable; write scope resolved in the page)
 //     /work/meetings[/new|/:meetingId]  Meetings (org-readable; Private ones hidden by RLS)
@@ -275,9 +277,16 @@ const routeTable: RouteObject[] = [
           // dropped this gate in #188; the route follows, or the rail links somewhere that
           // bounces.
           {
-            path: ROUTE_PATHS.workShifts,
+            path: ROUTE_PATHS.staffShifts,
             element: withSuspense(<StaffShiftsPage />),
             handle: pageHandle('management'),
+          },
+          // Shifts moved from Work to Staff; stored Inbox links and DB-emitted links still say /work/shifts.
+          // Forwarded outside the Work boundary and open in every profile (see LEGACY_STAFF_REDIRECT_PATHS).
+          {
+            path: LEGACY_WORK_SHIFTS_PATH,
+            element: <RouteRedirect to="/staff/shifts" />,
+            handle: redirectHandle('/staff/shifts'),
           },
           {
             path: ROUTE_PATHS.workObjectives,
@@ -686,13 +695,14 @@ function withModuleBoundaries(routes: RouteObject[]): RouteObject[] {
     { moduleId: 'work', roots: ['/work', '/objectives', '/tasks', '/updates', '/projects-processes'] },
     { moduleId: 'money', roots: ['/money', '/sales', '/dashboard', '/plan/budget', '/plan/pricing'] },
     { moduleId: 'cafe', roots: ['/cafe', '/kitchen'] },
+    { moduleId: 'staff', roots: ['/staff'] },
     { moduleId: 'roastery', roots: ['/roastery'] },
     { moduleId: 'ecommerce', roots: ['/ecommerce'] },
   ] as const
   let remaining = routes
   const layouts: RouteObject[] = []
   for (const { moduleId, roots } of moduleRoots) {
-    const matching = remaining.filter((route) => pathsInRoute(route).some((path) =>
+    const matching = remaining.filter((route) => route.path !== LEGACY_WORK_SHIFTS_PATH && pathsInRoute(route).some((path) =>
       roots.some((root) => path === root || path.startsWith(`${root}/`)),
     ))
     if (!matching.length) continue

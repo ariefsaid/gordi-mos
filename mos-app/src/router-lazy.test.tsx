@@ -15,7 +15,7 @@ vi.mock('./config/features', () => ({
   SHOW_PLAN_BUDGET: true,
 }))
 
-import { describeRedirectMap, flattenRoutes, isRedirect, lazyPayloadOf, resolvePageAt } from './test/route-table'
+import { describeRedirectMap, flattenRoutes, isRedirect, lazyPayloadOf, redirectProps, resolvePageAt } from './test/route-table'
 import type { RouteHandle } from './shell/route-classification'
 import { ungatedRouteTable } from './router'
 import { isShipGated } from './lib/ship-gate'
@@ -157,7 +157,7 @@ describe('AC-019: every route but login loads on demand, behind one loading shel
 const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenance: string]> = [
   ['/', HomePage, 'dev'],
   ['/work', WorkHomePage, 'work-lane-a'],
-  ['/work/shifts', StaffShiftsPage, 'dev'],
+  ['/staff/shifts', StaffShiftsPage, 'dev'],
   ['/work/tasks', TasksLayout, 'dev'],
   ['/work/tasks/:taskId', TaskDrawer, 'dev'],
   // Signals supersedes Weekly Updates (v4 redirects /updates here, and routes neither path at an
@@ -271,6 +271,18 @@ describe('AC-020: a route whose surface is not yet ported serves the surface cur
       return leaf === undefined
     })
     expect(fellThrough).toEqual([])
+  })
+})
+
+describe('Shifts moved from Work to Staff', () => {
+  it('forwards the old /work/shifts address to /staff/shifts, outside the Work module boundary', () => {
+    const legacy = flattenRoutes(ungatedRouteTable).find(({ path }) => path === '/work/shifts')
+    expect(isRedirect(legacy?.route.element)).toBe(true)
+    expect(redirectProps(legacy?.route.element).to).toBe('/staff/shifts')
+    const boundaries = ungatedRouteTable.flatMap((r) => r.children ?? []).flatMap((r) => r.children ?? [])
+      .filter((r) => isValidElement(r.element) && (r.element.props as { moduleId?: string }).moduleId === 'work')
+    expect(boundaries.length).toBeGreaterThan(0)
+    expect(boundaries.flatMap((r) => flattenRoutes(r.children ?? [])).some(({ route }) => route.path === 'work/shifts')).toBe(false)
   })
 })
 

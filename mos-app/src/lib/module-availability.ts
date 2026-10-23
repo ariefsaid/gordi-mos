@@ -13,7 +13,7 @@ type ModuleAvailabilitySnapshot = {
 type LoadOptions = { force?: boolean }
 export type ModuleAccessCheck = (moduleId: ModuleId, roleAdmitted?: boolean) => boolean
 
-const MODULE_IDS: readonly ModuleId[] = ['work', 'money', 'cafe', 'roastery', 'ecommerce', 'assistant']
+const MODULE_IDS: readonly ModuleId[] = ['work', 'money', 'cafe', 'staff', 'roastery', 'ecommerce', 'assistant']
 const REFRESH_AFTER_MS = 60_000
 const EMPTY_SNAPSHOT: ModuleAvailabilitySnapshot = { status: 'idle', enabled: {}, overrides: {}, revision: null }
 let snapshot = EMPTY_SNAPSHOT

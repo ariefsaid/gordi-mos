@@ -35,12 +35,12 @@ set local role authenticated;
 select shared._test_set_access_roles(jsonb_build_object(
   'org_id', current_setting('test.org_a'), 'person_id', current_setting('test.admin'),
   'access_roles', jsonb_build_array('admin'))::text);
-select is((select count(*)::int from mos.list_person_module_settings(current_setting('test.member')::uuid)), 6,
-  'an admin lists all six modules for an in-org person');
+select is((select count(*)::int from mos.list_person_module_settings(current_setting('test.member')::uuid)), 7,
+  'an admin lists all seven modules for an in-org person');
 select results_eq($$
   select module_id from mos.list_person_module_settings(current_setting('test.member')::uuid)
 $$, $$
-  values ('work'::text), ('money'), ('cafe'), ('roastery'), ('ecommerce'), ('assistant')
+  values ('work'::text), ('money'), ('cafe'), ('roastery'), ('ecommerce'), ('assistant'), ('staff')
 $$, 'the person list follows the catalog order');
 select ok((select bool_and(override = 'inherit' and row_version = 0)
   from mos.list_person_module_settings(current_setting('test.member')::uuid)),
@@ -51,7 +51,7 @@ select is((select org_enabled from mos.list_person_module_settings(current_setti
   where module_id = 'assistant'), false, 'missing Assistant org setting defaults off');
 select is((select user_id from shared.people where id = current_setting('test.admin')::uuid), null::uuid,
   'the seeded admin target exists without a login');
-select is((select count(*)::int from mos.list_person_module_settings(current_setting('test.admin')::uuid)), 6,
+select is((select count(*)::int from mos.list_person_module_settings(current_setting('test.admin')::uuid)), 7,
   'an admin can manage a person without a login');
 
 select throws_ok(format('select * from mos.list_person_module_settings(%L::uuid)', current_setting('test.person_b')),
@@ -203,7 +203,7 @@ select is((select count(*)::int from mos.person_module_settings_audit
 select shared._test_set_access_roles(jsonb_build_object(
   'org_id', current_setting('test.org_a'), 'person_id', current_setting('test.member'),
   'access_roles', jsonb_build_array('member'))::text);
-select is((select count(*)::int from mos.viewer_module_availability()), 6,
+select is((select count(*)::int from mos.viewer_module_availability()), 7,
   'the viewer receives all catalog facts for their own identity');
 select is((select person_override from mos.viewer_module_availability() where module_id = 'cafe'), 'inherit',
   'the viewer sees their own Inherit tombstone');

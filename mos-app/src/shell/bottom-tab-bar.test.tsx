@@ -311,7 +311,7 @@ describe('issue 1032: one create entry on phone', () => {
     },
   )
 
-  it.each(['/', '/work/tasks/abc-123'])(
+  it.each(['/', '/work/tasks/abc-123', '/staff/shifts'])(
     '%s omits the launcher when the core surface owns its action',
     (path) => {
       renderTabBar(path)

@@ -189,6 +189,11 @@ td .krow-stream {
   margin-left: 0;
 }
 
+/* A flagged log asks for its note beside Approve: the note takes its own line, the buttons sit under it. */
+.krow-actions:has(> .krow-decide) { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap); white-space: normal; }
+.krow-actions:has(> .krow-decide) > .krow-decide { flex: 1 1 100%; }
+.krow-actions:has(> .krow-decide) > .krow-btn { margin-left: 0; }
+
 /* inline decide (note gate) */
 .krow-decide {
   display: flex;

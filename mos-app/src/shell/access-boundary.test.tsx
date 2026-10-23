@@ -37,7 +37,7 @@ import { isValidElement, type ReactNode } from 'react'
 
 vi.mock('@/auth/use-auth')
 vi.mock('@/lib/db/module-settings', () => ({
-  getViewerModuleAvailability: vi.fn().mockResolvedValue(['work', 'money', 'cafe', 'roastery', 'ecommerce', 'assistant'].map((module_id) => ({
+  getViewerModuleAvailability: vi.fn().mockResolvedValue(['work', 'money', 'cafe', 'staff', 'roastery', 'ecommerce', 'assistant'].map((module_id) => ({
     module_id, enabled: true, person_override: 'inherit', revision: 'test-revision',
   }))),
 }))

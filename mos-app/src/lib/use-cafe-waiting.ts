@@ -3,8 +3,9 @@
 // to review, receipt issues that block a PO, ESB pushes that failed), and a row exists only for the roles that
 // can open that page. ONE shared read: the shell mounts `CafeWaitingProvider` once, and the nav badge, Café home's
 // "Waiting for you" and the Review page's tabs all read the same counts, never a request per consumer.
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
+import { CafeWaitingContext } from '@/lib/cafe-waiting-context'
 import { countSubmittedKitchenLogs } from '@/lib/db/kitchen-logs'
 import { countSubmittedCafeCountLines } from '@/lib/db/cafe-count'
 import { countCafeReceipts } from '@/lib/db/cafe-receipts'
@@ -68,7 +69,7 @@ export function useCafeWaitingSource(enabled: boolean): CafeWaiting {
   return { admitted, viewerId, keys, queues, load, reload }
 }
 
-export const CafeWaitingContext = createContext<CafeWaiting | null>(null)
+export { CafeWaitingContext }
 
 export function useCafeWaiting(): CafeWaiting {
   const shared = useContext(CafeWaitingContext)

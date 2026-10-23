@@ -26,6 +26,11 @@ const ALT_UNIT_NAME = 'ERP each'
 const STREAM_BRANCH_ID = '25000000-0000-0000-0000-000000000002'
 const STREAM_ACTIVITY = 'kitchen'
 const STREAM_LABEL = 'Rumah Rames · Kitchen'
+// The floor works from Locations: the stream's production Location (named as the stream reads) and the
+// Radiant storage Location its route leads to. Fixture-owned ids, removed with the rest.
+const PRODUCTION_LOCATION_ID = 'a11e2e00-0000-0000-0000-000000012430'
+const DESTINATION_LOCATION_ID = 'a11e2e00-0000-0000-0000-000000012431'
+const DESTINATION_BRANCH_ID = '25000000-0000-0000-0000-000000000003'
 const PLAN_QTY = 50
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -134,6 +139,7 @@ async function cleanupFixture(): Promise<void> {
     DELETE FROM ops.stream_items WHERE org_id=${uuidLiteral(ORG)} AND wip_item_id=${uuidLiteral(ITEM_ID)};
     DELETE FROM ops.item_units WHERE org_id=${uuidLiteral(ORG)} AND wip_item_id=${uuidLiteral(ITEM_ID)};
     DELETE FROM ops.wip_items WHERE org_id=${uuidLiteral(ORG)} AND id=${uuidLiteral(ITEM_ID)};
+    DELETE FROM ops.locations WHERE org_id=${uuidLiteral(ORG)} AND id IN (${uuidLiteral(PRODUCTION_LOCATION_ID)}, ${uuidLiteral(DESTINATION_LOCATION_ID)});
   `)
 }
 
@@ -143,6 +149,19 @@ let submittedLogId: string | null = null
 test.describe('Café default-unit multiples: selected ERP detail survives capture and approval', () => {
   test.beforeAll(async () => {
     await cleanupFixture()
+    await execSql(`
+      BEGIN;
+      INSERT INTO ops.locations (id, org_id, name, use) VALUES
+        (${uuidLiteral(PRODUCTION_LOCATION_ID)}, ${uuidLiteral(ORG)}, '${STREAM_LABEL}', 'production'),
+        (${uuidLiteral(DESTINATION_LOCATION_ID)}, ${uuidLiteral(ORG)}, 'E2E Radiant store', 'storage');
+      INSERT INTO ops.location_branches (org_id, location_id, branch_id) VALUES
+        (${uuidLiteral(ORG)}, ${uuidLiteral(PRODUCTION_LOCATION_ID)}, ${uuidLiteral(STREAM_BRANCH_ID)}),
+        (${uuidLiteral(ORG)}, ${uuidLiteral(DESTINATION_LOCATION_ID)}, ${uuidLiteral(DESTINATION_BRANCH_ID)});
+      INSERT INTO ops.location_activities (org_id, location_id, activity) VALUES
+        (${uuidLiteral(ORG)}, ${uuidLiteral(PRODUCTION_LOCATION_ID)}, '${STREAM_ACTIVITY}'),
+        (${uuidLiteral(ORG)}, ${uuidLiteral(DESTINATION_LOCATION_ID)}, '${STREAM_ACTIVITY}');
+      COMMIT;
+    `)
     await execSql(`
       INSERT INTO ops.wip_items
         (id, org_id, name, category, flag_active, esb_bom_id, esb_product_detail_id_porsi,
@@ -218,7 +237,7 @@ test.describe('Café default-unit multiples: selected ERP detail survives captur
     const submit = page.getByRole('button', { name: /submit 1 entry/i })
     await expect(submit).toBeEnabled()
     await submit.click()
-    await expect(page.getByRole('status').filter({ hasText: /1 line submitted.*pending review/i })).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: /1 entry submitted.*pending review/i })).toBeVisible()
 
     const landed = await execSqlRead<{
       id: string

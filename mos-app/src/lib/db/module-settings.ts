@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { ContractError, unavailable, type UUID, type WriteContext } from './contract'
 
-export type ModuleId = 'work' | 'money' | 'cafe' | 'roastery' | 'ecommerce' | 'assistant'
+export type ModuleId = 'work' | 'money' | 'cafe' | 'staff' | 'roastery' | 'ecommerce' | 'assistant'
 import type { PersonModuleOverride } from '@/lib/module-access'
 export type { PersonModuleOverride }
 export type OrgModuleSetting = { module_id: ModuleId; enabled: boolean; row_version: number; updated_at: string | null; updated_by: UUID | null }

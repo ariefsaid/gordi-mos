@@ -1,5 +1,6 @@
 // Compose a Task's shared record anatomy; the adapter owns fields, rights and actions.
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { Toast } from '@/components/admin/toast'
 import { useToast } from '@/components/admin/use-toast'
 import { copyCanonicalLink } from '@/lib/copy-canonical-link'
@@ -14,14 +15,34 @@ import type { RecordMenuItem } from '@/components/record/record-menu'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { dueStatus } from '@/lib/due-status'
 import { overdueDays } from './task-formatters'
+import { isSoloSupervisor } from './task-permissions'
 import type { PersonOption } from '@/lib/db/directory'
 import type { ChecklistItemRow, TaskEventRow, TaskRow, TaskStatus } from '@/lib/db/tasks.types'
 import { ActivityCard } from './activity-card'
 import { ChecklistCard } from './checklist-card'
 import { CommentThread, type TaskComment } from './CommentThread'
+import { TaskDescriptionDocument } from './task-description-document'
+import { usePageDirty } from './use-page-dirty'
 import './task-record-document.css'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { OfflineNotice } from '@/components/ui/offline-notice'
+import { TaskPrivateRow } from './task-private-row'
+import { PrivateLock } from './task-private-lock'
+
+/** The Private row's data and saves; the surface owns the who-can-see list. */
+export type TaskPrivacy = {
+  /** The extra people on the who-can-see list. */
+  viewers: PersonOption[]
+  /** The viewer may change privacy (canChangePrivacy) and the Task is not archived. */
+  canChange: boolean
+  onSetPrivate: (next: boolean) => Promise<void>
+  onAddViewer: (personId: string) => Promise<void>
+  onRemoveViewer: (personId: string) => Promise<void>
+}
+
+/** The Meeting a Task was created in: `isPrivate` makes everyone in it a reader; `viewerIn` says whether
+ * the viewer is in it. An outsider of a private Meeting sees "Private meeting" instead of its name. */
+export type TaskMeetingOrigin = { href: string; title: string; isPrivate: boolean; viewerIn: boolean }
 
 type TaskRecordDocumentProps = {
   // Adapter output: fields, edit rights and actions.
@@ -53,6 +74,8 @@ type TaskRecordDocumentProps = {
   onCommitField: (key: string, value: RecordValue) => Promise<void>
   onDirtyChange: (dirty: boolean) => void
   fieldCommitsFrozen?: boolean
+  privacy?: TaskPrivacy
+  meeting?: TaskMeetingOrigin | null
 }
 
 const STATUS_TONE: Record<TaskStatus, RecordFactTone> = {
@@ -67,9 +90,10 @@ export function TaskRecordDocument({
   checklist, checklistError, onAddChecklist, onToggleChecklist, onReorderChecklist, onDeleteChecklist,
   events, eventsHasMore = false, eventsLoadingMore = false, eventsMoreError = false, onLoadMoreEvents,
   comments, onPostComment, commentDraft, onCommentDraftChange, onCommentDirtyChange,
-  notice, onCommitField, onDirtyChange, fieldCommitsFrozen,
+  notice, onCommitField, onDirtyChange, fieldCommitsFrozen, privacy, meeting,
 }: TaskRecordDocumentProps) {
   const t = useT()
+  const { onFieldDirty, onDocumentDirty } = usePageDirty(onDirtyChange)
   const offline = useIsOffline()
   const { toast, showToast, clearToast } = useToast()
   const { runtime, openPanel } = useAgentRuntime()
@@ -122,8 +146,8 @@ export function TaskRecordDocument({
   // ── The one read-only line: who can change the task ─────────────────────────────────────────
   const note = editable ? undefined
     : archived ? t('tasks.archivedBanner')
-      : supervisor.displayValue === pic.displayValue
-        ? t('tasks.readOnly.noteOne', { name: supervisor.displayValue })
+      : task.accountable_person_id === task.responsible_person_id
+        ? t('tasks.readOnly.noteOne', { name: pic.displayValue })
         : t('tasks.readOnly.note', { supervisor: supervisor.displayValue, pic: pic.displayValue })
 
   // ── Properties: label: value rows, each value edited in place by the existing field ──────────
@@ -137,7 +161,7 @@ export function TaskRecordDocument({
     <RecordField
       spec={fieldSpec}
       onCommit={(value) => onCommitField(fieldSpec.key, value)}
-      onDirtyChange={onDirtyChange}
+      onDirtyChange={onFieldDirty}
       commitsFrozen={fieldCommitsFrozen}
     />
   )
@@ -150,9 +174,10 @@ export function TaskRecordDocument({
   const dueTone = dueKind === 'overdue' || dueKind === 'soon' ? dueKind : undefined
   const statusTone = archived ? 'neutral' : STATUS_TONE[task.status]
   const statusPill = <span className={`pill pill--${statusTone}`}><PillIcon tone={statusTone} />{statusSpec.displayValue}</span>
+  const soloShown = Boolean(task.is_private) && isSoloSupervisor(task)
   const person = (personSpec: RecordFieldSpec) => field({
     ...personSpec,
-    lead: personSpec.value !== null && personSpec.displayValue !== '' ? <PersonMark name={personSpec.displayValue} /> : undefined,
+    lead: personSpec.value !== null && personSpec.displayValue !== '' && !(personSpec.key === 'supervisor' && soloShown) ? <PersonMark name={personSpec.displayValue} /> : undefined,
   })
   const projectProcess = link('projectProcess')
   const objective = link('objective')
@@ -163,6 +188,25 @@ export function TaskRecordDocument({
     { key: 'dueDate', label: due.label, tone: dueTone, children: field(dueSpec) },
     ...(projectProcess ? [{ key: 'projectProcess', label: projectProcess.label, children: field(projectProcess) }] : []),
     ...(objective ? [{ key: 'objective', label: objective.label, children: field(objective) }] : []),
+    ...(privacy ? [{
+      key: 'private', label: t('tasks.private.label'),
+      children: (
+        <TaskPrivateRow
+          isPrivate={Boolean(task.is_private)}
+          viewers={privacy.viewers}
+          people={people}
+          alreadyIds={[task.created_by, task.responsible_person_id, task.accountable_person_id]}
+          canChange={privacy.canChange}
+          frozen={offline}
+          meetingPrivate={meeting?.isPrivate}
+          viewerInMeeting={meeting?.viewerIn}
+          solo={soloShown}
+          onSetPrivate={privacy.onSetPrivate}
+          onAddViewer={privacy.onAddViewer}
+          onRemoveViewer={privacy.onRemoveViewer}
+        />
+      ),
+    }] : []),
   ]
   const summary = (
     <>
@@ -176,6 +220,14 @@ export function TaskRecordDocument({
     .map((key) => spec(key))
     .filter((fieldSpec): fieldSpec is RecordFieldSpec => fieldSpec !== undefined)
     .map((fieldSpec) => ({ key: fieldSpec.key, label: fieldSpec.label, value: <span className="rp-about__field">{field(fieldSpec)}</span> }))
+  if (meeting) {
+    detailsItems.push({
+      key: 'meeting', label: t('tasks.private.createdInMeeting'),
+      value: meeting.isPrivate && !meeting.viewerIn
+        ? <span className="rp-about__field">{t('tasks.private.privateMeeting')} <PrivateLock /></span>
+        : <span className="rp-about__field"><Link to={meeting.href}>{meeting.title}</Link></span>,
+    })
+  }
 
   return (
     <>
@@ -195,7 +247,7 @@ export function TaskRecordDocument({
           menuMinItems={menu.every((item) => item.id === 'copy') ? 2 : 1}
           factsLabel={t('record.page.facts')}
           onCommitField={onCommitField}
-          onDirtyChange={onDirtyChange}
+          onDirtyChange={onFieldDirty}
           fieldCommitsFrozen={fieldCommitsFrozen}
         />
       )}
@@ -207,7 +259,7 @@ export function TaskRecordDocument({
         // The document slot: one element, no panel heading, so the block editor can replace its contents.
         <section className="task-description-section" data-record-section="description" aria-label={t('tasks.description.title')}>
           <div className="task-description">
-            {field(hasDescription ? description : { ...description, displayValue: t('tasks.description.add') })}
+            <TaskDescriptionDocument taskId={task.id} canEdit={editable && !archived && !offline} onDirtyChange={onDocumentDirty} />
           </div>
         </section>
       ) : null}

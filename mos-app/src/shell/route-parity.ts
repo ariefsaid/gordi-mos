@@ -8,7 +8,7 @@
 export const ROUTE_PATHS = {
   home: '/',
   workTasks: 'work/tasks',
-  workShifts: 'work/shifts',
+  staffShifts: 'staff/shifts',
   workSignals: 'work/signals',
   workProjects: 'work/projects',
   workObjectives: 'work/objectives',
@@ -55,7 +55,7 @@ type RouteParityOwner = 'breadcrumb' | 'admin-settings' | 'agent-consent'
 export type RouteParityId =
   | 'home'
   | 'workTasks'
-  | 'workShifts'
+  | 'staffShifts'
   | 'workSignals'
   | 'workProjects'
   | 'workObjectives'
@@ -107,8 +107,7 @@ function absolutePath(path: string): string {
 export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'home', path: absolutePath(ROUTE_PATHS.home), kind: 'visible-root' },
   { id: 'workTasks', path: absolutePath(ROUTE_PATHS.workTasks), kind: 'visible-root' },
-  { id: 'workShifts', path: absolutePath(ROUTE_PATHS.workShifts), kind: 'visible-root' },
-  { id: 'workSignals', path: absolutePath(ROUTE_PATHS.workSignals), kind: 'visible-root' },
+    { id: 'workSignals', path: absolutePath(ROUTE_PATHS.workSignals), kind: 'visible-root' },
   { id: 'workProjects', path: absolutePath(ROUTE_PATHS.workProjects), kind: 'visible-root' },
   { id: 'workObjectives', path: absolutePath(ROUTE_PATHS.workObjectives), kind: 'visible-root' },
   { id: 'workMeetings', path: absolutePath(ROUTE_PATHS.workMeetings), kind: 'visible-root' },
@@ -117,6 +116,7 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'money', path: absolutePath(ROUTE_PATHS.money), kind: 'visible-root' },
   { id: 'moneyPendingBills', path: absolutePath(ROUTE_PATHS.moneyPendingBills), kind: 'child' },
   { id: 'cafe', path: absolutePath(ROUTE_PATHS.cafe), kind: 'visible-root' },
+  { id: 'staffShifts', path: absolutePath(ROUTE_PATHS.staffShifts), kind: 'visible-root' },
   // cafeLog is a legacy redirect; production, transfer and Count are dedicated capture routes.
   { id: 'cafeProduction', path: absolutePath(ROUTE_PATHS.cafeProduction), kind: 'child' },
   { id: 'cafeTransfer', path: absolutePath(ROUTE_PATHS.cafeTransfer), kind: 'child' },

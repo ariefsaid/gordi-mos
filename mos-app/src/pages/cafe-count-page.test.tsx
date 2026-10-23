@@ -7,7 +7,10 @@ import type { AuthState } from '@/auth/context'
 vi.mock('@/auth/use-auth')
 vi.mock('@/lib/supabase', () => ({ supabase: { schema: vi.fn() } }))
 const locationMocks = vi.hoisted(() => ({ choices: vi.fn() }))
-vi.mock('@/lib/use-cafe-location-choices', () => ({ useCafeLocationChoices: locationMocks.choices }))
+vi.mock('@/lib/use-cafe-location-choices', async importActual => ({
+  ...await importActual<typeof import('@/lib/use-cafe-location-choices')>(),
+  useCafeLocationChoices: locationMocks.choices,
+}))
 vi.mock('@/lib/db/cafe-item-settings', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/db/cafe-item-settings')>()
   return { ...actual, listCafeItemSettings: vi.fn(), canManageCafeItemSettings: vi.fn() }

@@ -170,7 +170,7 @@ describe('Café Opening context', () => {
     renderPage()
 
     expect(await screen.findByTestId('cafe-opening-location')).toHaveTextContent('Radiant')
-    expect(screen.getByRole('button', { name: 'Change location' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Change branch' })).toBeInTheDocument()
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   })
 
@@ -182,8 +182,8 @@ describe('Café Opening context', () => {
     const first = renderPage()
 
     await screen.findByTestId('cafe-opening-location')
-    await user.click(screen.getByRole('button', { name: 'Change location' }))
-    await user.click(screen.getByRole('button', { name: /Open location Rumah Rames/ }))
+    await user.click(screen.getByRole('button', { name: 'Change branch' }))
+    await user.click(screen.getByRole('button', { name: /Open branch Rumah Rames/ }))
 
     expect(await screen.findByTestId('cafe-opening-location')).toHaveTextContent('Rumah Rames')
     expect(sessionStorage.getItem(`mos.cafe.opening.location.${VIEWER_ID}`)).toBe('opening-rr')
@@ -201,16 +201,16 @@ describe('Café Opening context', () => {
     renderPage()
 
     await screen.findByTestId('cafe-opening-location')
-    const trigger = screen.getByRole('button', { name: 'Change location' })
+    const trigger = screen.getByRole('button', { name: 'Change branch' })
     await user.click(trigger)
-    const otherLocation = await screen.findByRole('button', { name: /Open location Rumah Rames/ })
+    const otherLocation = await screen.findByRole('button', { name: /Open branch Rumah Rames/ })
     await user.tab()
     expect(document.activeElement).toBe(otherLocation)
 
     await user.keyboard('{Escape}')
 
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('heading', { name: 'Choose a location' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Choose a branch' })).not.toBeInTheDocument()
     expect(screen.getByTestId('cafe-opening-location')).toHaveTextContent('Radiant')
     expect(document.activeElement).toBe(trigger)
   })
@@ -244,7 +244,7 @@ describe('Café Opening context', () => {
     renderPage()
 
     expect(await screen.findByTestId('cafe-opening-location')).toHaveTextContent('Radiant')
-    expect(screen.getByRole('button', { name: 'Change location' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Change branch' })).toBeInTheDocument()
   })
 
   it('retains a primary branch whose Opening is already started even when it is absent from due runs', async () => {
@@ -265,7 +265,7 @@ describe('Café Opening context', () => {
 
     renderPage(['member'])
 
-    expect(await screen.findByRole('heading', { name: 'Choose a location' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Choose a branch' })).toBeInTheDocument()
     expect(mockResolveCafeOpeningTeams).toHaveBeenCalledTimes(1)
     expect(mockResolveCafeOpeningTeams).toHaveBeenCalledWith({ sourceTeamIds: [TEAM_RAD, TEAM_RR], branchIds: [] })
   })
@@ -278,9 +278,9 @@ describe('Café Opening context', () => {
 
     renderPage(['ops_lead'])
 
-    expect(await screen.findByRole('heading', { name: 'Choose a location' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Open location Radiant.*Opening in progress/ })).toHaveTextContent('Opening in progress')
-    expect(screen.getByRole('button', { name: /Open location Rumah Rames.*Opening available to start/ })).toHaveTextContent('Opening available to start')
+    expect(await screen.findByRole('heading', { name: 'Choose a branch' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open branch Radiant.*Opening in progress/ })).toHaveTextContent('Opening in progress')
+    expect(screen.getByRole('button', { name: /Open branch Rumah Rames.*Opening available to start/ })).toHaveTextContent('Opening available to start')
   })
 
   it('shows actionable status for an ambiguous viewer instead of unexplained selectors', async () => {
@@ -292,9 +292,9 @@ describe('Café Opening context', () => {
 
     renderPage(['member'])
 
-    expect(await screen.findByRole('heading', { name: 'Choose a location' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Open location Radiant.*Opening in progress/ })).toHaveTextContent('Opening in progress')
-    expect(screen.getByRole('button', { name: /Open location Rumah Rames.*Opening available to start/ })).toHaveTextContent('Opening available to start')
+    expect(await screen.findByRole('heading', { name: 'Choose a branch' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open branch Radiant.*Opening in progress/ })).toHaveTextContent('Opening in progress')
+    expect(screen.getByRole('button', { name: /Open branch Rumah Rames.*Opening available to start/ })).toHaveTextContent('Opening available to start')
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   })
 
@@ -305,7 +305,7 @@ describe('Café Opening context', () => {
 
     renderPage(['member'], VIEWER_ID, 'id')
 
-    expect(await screen.findByRole('button', { name: /Buka lokasi Radiant.*Pembukaan siap dimulai/ })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Buka cabang Radiant.*Pembukaan siap dimulai/ })).toBeInTheDocument()
   })
 
   it('distinguishes a process load failure from missing assignment', async () => {

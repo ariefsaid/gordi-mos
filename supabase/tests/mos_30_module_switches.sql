@@ -1,7 +1,7 @@
 -- Missing Assistant settings are off; other module defaults remain on, and only admins can manage them.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(45);
+select plan(50);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -29,12 +29,12 @@ select shared._test_set_access_roles(jsonb_build_object(
   'org_id', current_setting('test.org_a'),
   'person_id', current_setting('test.person_a_admin'),
   'access_roles', jsonb_build_array('admin'))::text);
-select is((select count(*)::int from mos.list_org_module_settings()), 6,
-  'an admin lists all six catalog modules');
+select is((select count(*)::int from mos.list_org_module_settings()), 7,
+  'an admin lists all seven catalog modules');
 select results_eq($$
   select module_id from mos.list_org_module_settings()
 $$, $$
-  values ('work'::text), ('money'), ('cafe'), ('roastery'), ('ecommerce'), ('assistant')
+  values ('work'::text), ('money'), ('cafe'), ('roastery'), ('ecommerce'), ('assistant'), ('staff')
 $$, 'the admin list follows the fixed catalog order');
 select ok((select bool_and(enabled) from mos.list_org_module_settings() where module_id <> 'assistant'),
   'other missing settings rows default to enabled');
@@ -94,8 +94,8 @@ select shared._test_set_access_roles(jsonb_build_object(
   'org_id', current_setting('test.org_a'),
   'person_id', current_setting('test.person_a_member'),
   'access_roles', jsonb_build_array('member'))::text);
-select is((select count(*)::int from mos.viewer_module_availability()), 6,
-  'a signed-in member sees availability for all six modules');
+select is((select count(*)::int from mos.viewer_module_availability()), 7,
+  'a signed-in member sees availability for all seven modules');
 select is((select enabled from mos.viewer_module_availability() where module_id = 'money'),
   false, 'availability includes the saved money value');
 select is((select enabled from mos.viewer_module_availability() where module_id = 'cafe'),
@@ -162,8 +162,8 @@ select shared._test_set_access_roles(jsonb_build_object(
   'org_id', current_setting('test.org_b'),
   'person_id', current_setting('test.person_b'),
   'access_roles', jsonb_build_array('member'))::text);
-select is((select count(*)::int from mos.viewer_module_availability()), 6,
-  'a member of another org sees six rows for that org');
+select is((select count(*)::int from mos.viewer_module_availability()), 7,
+  'a member of another org sees seven rows for that org');
 select is((select enabled from mos.viewer_module_availability() where module_id = 'cafe'),
   false, 'the other org sees its own disabled Café setting');
 select is((select enabled from mos.viewer_module_availability() where module_id = 'money'),
@@ -224,6 +224,28 @@ select throws_ok(format($$update mos.module_settings_audit set after = '{}'::jso
 select throws_ok(format($$delete from mos.module_settings_audit where org_id = %L$$,
   current_setting('test.org_a')),
   '42501', null, 'authenticated cannot delete module audit rows');
+
+-- Staff is its own switch: on by default, switchable, and independent of Work.
+select shared._test_set_access_roles(jsonb_build_object(
+  'org_id', current_setting('test.org_a'),
+  'person_id', current_setting('test.person_a_admin'),
+  'access_roles', jsonb_build_array('admin'))::text);
+select is((select enabled from mos.list_org_module_settings() where module_id = 'staff'),
+  true, 'Staff is in the catalog and defaults to enabled');
+select is((select enabled from mos.save_org_module_settings(
+  '[{"module_id":"staff","enabled":false,"expected_version":0}]'::jsonb,
+  gen_random_uuid()) where module_id = 'staff'),
+  false, 'an admin can switch Staff off');
+select is((select enabled from mos.list_org_module_settings() where module_id = 'work'),
+  true, 'switching Staff off leaves Work on');
+select shared._test_set_access_roles(jsonb_build_object(
+  'org_id', current_setting('test.org_a'),
+  'person_id', current_setting('test.person_a_member'),
+  'access_roles', jsonb_build_array('member'))::text);
+select is((select enabled from mos.viewer_module_availability() where module_id = 'staff'),
+  false, 'a member sees Staff off for the org');
+select is((select enabled from mos.viewer_module_availability() where module_id = 'work'),
+  true, 'a member still sees Work on');
 
 reset role;
 select * from finish();

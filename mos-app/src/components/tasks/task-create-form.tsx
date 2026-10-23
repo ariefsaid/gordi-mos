@@ -18,6 +18,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { useTaskCreateContext } from './task-create-context'
 import { picLockMessage } from './task-permissions'
+import { TaskPrivateRow } from './task-private-row'
 import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import type { TaskTeamOption } from './task-row'
 import './task-create-form.css'
@@ -84,6 +85,13 @@ export function TaskCreateForm({
   const setPending = (next: boolean) => { setLocalPending(next); onFormStateChange?.({ pending: next }) }
   // A link retry only links the already-created Task; draft edits, Title included, would never be saved.
   const fieldsLocked = pending || linkError
+  const [localPrivate, setLocalPrivate] = useState<{ isPrivate: boolean; viewerIds: string[] }>({ isPrivate: false, viewerIds: [] })
+  const isPrivate = formState?.isPrivate ?? localPrivate.isPrivate
+  const viewerIds = formState?.viewerIds ?? localPrivate.viewerIds
+  const setPrivate = (patch: { isPrivate?: boolean; viewerIds?: string[] }) => {
+    setLocalPrivate((current) => ({ ...current, ...patch }))
+    onFormStateChange?.(patch)
+  }
   const [localSaveError, setLocalSaveError] = useState(false)
   const saveError = formState?.saveError ?? localSaveError
   const setSaveError = (next: boolean) => { setLocalSaveError(next); onFormStateChange?.({ saveError: next }) }
@@ -118,12 +126,17 @@ export function TaskCreateForm({
         ...teamOptions.map((team) => ({ value: team.id, label: team.name })),
       ]
     : [{ value: '', label: t('tasks.field.teamUnassigned') }]
+  // A private Task you are the PIC of may have no other Supervisor: "None, just me" is stored as Supervisor = PIC.
+  const soloAllowed = isPrivate && task.responsible_person_id === viewerId
   const supervisorPickerOptions = [
     { value: '', label: t('tasks.create.supervisorPlaceholder') },
+    ...(soloAllowed ? [{ value: task.responsible_person_id, label: t('tasks.supervisor.noneJustMe') }] : []),
     ...(task.accountable_person_id && !supervisorOptions.some((person) => person.id === task.accountable_person_id)
       ? [{ value: task.accountable_person_id, label: supervisorName || task.accountable_person_id }]
       : []),
-    ...supervisorOptions.map((person) => ({ value: person.id, label: person.full_name })),
+    ...supervisorOptions
+      .filter((person) => !(soloAllowed && person.id === task.responsible_person_id))
+      .map((person) => ({ value: person.id, label: person.full_name })),
   ]
   const picPickerOptions = [
     ...(personOptions.some((person) => person.id === task.responsible_person_id)
@@ -192,7 +205,7 @@ export function TaskCreateForm({
           {neededNote(supervisorMissing, supervisorError, supervisorErrorId)}
           {supervisorHint === 'missing' && <p role="status" className="tcf-hint">{t('tasks.create.noManager')}</p>}
           {supervisorHint === 'error' && <p role="status" className="tcf-hint">{t('tasks.create.managerLookupFailed')}</p>}
-          <p className="tcf-hint">{t('tasks.create.picSupervisorHint')}</p>
+          <p className="tcf-hint">{t(soloAllowed ? 'tasks.create.supervisorOptional' : 'tasks.create.picSupervisorHint')}</p>
         </>
       ),
       children: (
@@ -275,6 +288,23 @@ export function TaskCreateForm({
     {
       key: 'objective', label: t('tasks.objective'),
       children: <span className="rp-props__plain"><span className="tcf-muted">{t('tasks.create.objectiveFromWork')}</span></span>,
+    },
+    {
+      key: 'private', label: t('tasks.private.label'),
+      children: (
+        <TaskPrivateRow
+          isPrivate={isPrivate}
+          viewers={viewerIds.flatMap((id) => supervisorOptions.filter((person) => person.id === id))}
+          people={supervisorOptions}
+          alreadyIds={[viewerId, task.responsible_person_id, task.accountable_person_id]}
+          canChange
+          frozen={fieldsLocked}
+          solo={soloAllowed && task.accountable_person_id === task.responsible_person_id}
+          onSetPrivate={async (next) => setPrivate({ isPrivate: next })}
+          onAddViewer={async (id) => setPrivate({ viewerIds: viewerIds.includes(id) ? viewerIds : [...viewerIds, id] })}
+          onRemoveViewer={async (id) => setPrivate({ viewerIds: viewerIds.filter((viewer) => viewer !== id) })}
+        />
+      ),
     },
   ]
   const needed = <span className="tcf-needed">{t('tasks.create.needed')}</span>

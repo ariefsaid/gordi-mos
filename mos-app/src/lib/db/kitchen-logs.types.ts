@@ -39,10 +39,25 @@ export interface BranchOption {
   name: string
 }
 
+/** The production Location a stream's work is done at, with where it physically is. */
+interface StreamLocation {
+  id: string
+  name: string
+  /** Name of the Site it is physically at; null when none is set. */
+  siteName: string | null
+  /** Whether stock can sit here too (use storage or both), so a transfer can leave from it. */
+  holdsStock: boolean
+}
+
 /** The origin half plus the activity: the stream a captured row belongs to. */
 export interface ProductionStream {
   branch: BranchOption
   activity: ProductionActivity
+  /**
+   * The production Location this entry stands for. A stream may have several; each is its own
+   * choice on the picker. Absent on a stream that has none (a receiving-only stream, or one not set up yet).
+   */
+  location?: StreamLocation
   /**
    * Whether this stream may record production. This is carried by its Team catalog row;
    * absent only on an unresolved default stream, which must be resolved back into the
@@ -71,22 +86,27 @@ export type KitchenAction = 'produce' | 'transfer' | 'outlet_send'
 export type KitchenLogAction = KitchenAction | 'waste'
 
 /**
- * A movement within a stream. `destinationBranchId` is null for produce/outlet_send and required for
+ * A movement within a stream. `destinationBranchId` is null for produce and required for
  * a transfer — the same shape as the `kitchen_logs_destination_matches_action` CHECK. A
- * transfer whose destination equals its origin is a within-books move: it still leaves the
- * kitchen's hands (so it consumes stock) but the ERP already books that branch as holding
- * it, so it has no ERP counterpart. An outlet_send instead moves places within the same
- * stream, keeping its stock and branch book unchanged.
+ * transfer names the Location it goes to (`toLocationId`); a transfer whose destination Branch
+ * is its origin Branch is a within-books move and has no ERP counterpart. `outlet_send` is only
+ * a value old history can still carry; nothing creates it any more.
  */
 export interface KitchenMovement {
   action: KitchenAction
   destinationBranchId: string | null
+  /** The Location a transfer goes to; null on a produce or on history written before Locations. */
+  toLocationId?: string | null
+  /** That Location's name, so a label never needs a lookup. Display only; not part of identity. */
+  toLocationName?: string | null
 }
 
 /** Waste keeps the same stream coordinates but has no destination or plan counterpart. */
 export interface KitchenLogMovement {
   action: KitchenLogAction
   destinationBranchId: string | null
+  toLocationId?: string | null
+  toLocationName?: string | null
 }
 
 export type KitchenLogStatus = 'Submitted' | 'Approved' | 'Rejected'
@@ -127,7 +147,8 @@ export interface CaptureFormItem extends WipItemOption {
 }
 
 /**
- * A movement's stable lookup key — `'produce'` or `'transfer:<destination branch id>'`.
+ * A movement's stable lookup key — `'produce'` or `'transfer:<destination Location id>'` (the
+ * destination branch id on history that names no Location).
  * Used to index the plan map, which the DB keys on (item, stream, action, destination).
  * It is a client-side index only; nothing stores it.
  */
@@ -244,6 +265,9 @@ export interface ReviewLogRow {
    */
   branch_id: string
   activity: ProductionActivity
+  /** Where it was made or sent from, and where a transfer went; null on history without Locations. */
+  from_location_id?: string | null
+  to_location_id?: string | null
   wip_item_id: string
   /** WIP item display name (embedded from ops.wip_items). */
   wip_item_name: string
@@ -298,6 +322,10 @@ export interface UpsertKitchenPlanInput {
   action: KitchenAction
   /** null for produce, required for transfer (kitchen_plans_destination_matches_action) */
   destination_branch_id: string | null
+  /** The production Location the plan is for; the server fills Branch and Activity from it. */
+  from_location_id?: string | null
+  /** For a transfer, the Location it goes to; the server fills the destination Branch from it. */
+  to_location_id?: string | null
   qty_porsi: number // ≥ 0
   notes?: string | null
 }

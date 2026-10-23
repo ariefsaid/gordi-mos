@@ -23,8 +23,16 @@ vi.mock('@/auth/use-auth')
 const locationMocks = vi.hoisted(() => ({ choices: vi.fn() }))
 vi.mock('@/lib/use-cafe-location-choices', async importActual => {
   const actual = await importActual<typeof import('@/lib/use-cafe-location-choices')>()
-  return { ...actual, useCafeLocationChoices: locationMocks.choices, readCafeLocationChoices: async () => locationMocks.choices() }
+  return { ...actual, useCafeLocationChoices: locationMocks.choices }
 })
+// Where each stream works and where it may send: the visit's reads (see the fixture below).
+const visit = vi.hoisted(() => ({ locations: vi.fn(), destinations: vi.fn() }))
+vi.mock('@/lib/cafe-visit-cache', () => ({
+  clearCafeVisitCache: () => undefined,
+  getCafeLocations: visit.locations,
+  getCafeSites: async () => [],
+  getCafeDestinationLocations: visit.destinations,
+}))
 import { useAuth } from '@/auth/use-auth'
 
 const mockFetchLatestItemLogDates = vi.hoisted(() => vi.fn())
@@ -146,11 +154,45 @@ const CAFE_DESTINATIONS: CafeDestination[] = [
   { origin_branch_id: BRANCH_RADIANT.id, origin_activity: 'bar', destination_branch_id: BRANCH_GORDI_HQ.id },
   { origin_branch_id: BRANCH_RADIANT.id, origin_activity: 'bar', destination_branch_id: BRANCH_RUMAH_RAMES.id },
 ]
+
+// ── Locations (the floor works from places, never from branch codes) ─────────────────────────────
+// Each stream's production Location is named exactly as the stream used to read ("Rumah Rames · Kitchen"),
+// so every label assertion below still holds. What a Location may send to is the database's answer; the
+// fixture builds it from the route rows above plus the origin's own other-activity Location, as rule 2 does.
+const activityName = (activity: string) => (activity === 'kitchen' ? 'Kitchen' : 'Bar')
+const productionId = (branchId: string, activity: string) => `loc-${branchId}-${activity}`
+const PRODUCTION_LOCATIONS = STREAM_PAIRS.map(pair => {
+  const branch = BRANCHES.find(b => b.id === pair.branch_id)!
+  return {
+    id: productionId(branch.id, pair.activity), name: `${branch.name} · ${activityName(pair.activity)}`, use: 'both' as const,
+    parent_id: null, branch_ids: [branch.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null,
+    site_id: null, activities: [pair.activity],
+  }
+})
+/** Destination Location of a branch: named by the branch, as a floor reads it. */
+const destinationId = (branchId: string) => `dest-${branchId}`
+const ownKitchenId = (branchId: string) => `dest-${branchId}-kitchen`
+function destinationsFrom(locationId: string) {
+  const pair = STREAM_PAIRS.find(p => productionId(p.branch_id, p.activity) === locationId)
+  if (!pair) return []
+  const own = BRANCHES.find(b => b.id === pair.branch_id)!
+  const same = pair.activity === 'bar'
+    ? [{ location_id: ownKitchenId(own.id), name: `${own.name} Kitchen`, branch_id: own.id, same_branch: true }]
+    : []
+  const routed = CAFE_DESTINATIONS
+    .filter(route => route.origin_branch_id === own.id && route.origin_activity === pair.activity)
+    .map(route => ({
+      location_id: destinationId(route.destination_branch_id),
+      name: BRANCHES.find(b => b.id === route.destination_branch_id)?.name ?? 'Cikal',
+      branch_id: route.destination_branch_id, same_branch: false,
+    }))
+  return [...same, ...routed]
+}
 // The person's own default stream (FR-001) — what the default-stream.ts resolver returns
 // (already resolved against the branch catalog).
 const DEFAULT_STREAM: ProductionStream = { branch: BRANCH_RUMAH_RAMES, activity: 'kitchen', produces: true }
 const PRODUCE_KEY = 'produce'
-const TRANSFER_RADIANT_KEY = `transfer:${BRANCH_RADIANT.id}`
+const TRANSFER_RADIANT_KEY = `transfer:${destinationId(BRANCH_RADIANT.id)}`
 const loggedUnit = (
   itemUnitId: string | null,
   quantity: number,
@@ -181,18 +223,22 @@ async function chooseStream(optionName: string) {
   fireEvent.click(await screen.findByRole('button', { name: startsWith(optionName) }))
 }
 
-/** The movement switch's button (a transfer's Submit button can carry the same words). */
-function movementTab(name: RegExp | string): HTMLElement {
-  return screen.getAllByRole('button', { name }).find(button => button.hasAttribute('aria-pressed'))!
+/** The transfer destination dropdown ("To"). */
+function destinationBox(): HTMLElement {
+  return screen.getByRole('combobox', { name: /^(To|Ke)$/ })
 }
-async function movementTabAsync(name: RegExp | string): Promise<HTMLElement> {
-  await screen.findAllByRole('button', { name })
-  return movementTab(name)
+/** Choose a destination by the name the floor reads ("Radiant"); a leading "transfer to" is ignored. */
+async function chooseDestination(name: RegExp | string): Promise<void> {
+  const wanted = typeof name === 'string' ? new RegExp(name, 'i') : new RegExp(name.source.replace(/^\^?transfer to\s*/i, ''), 'i')
+  fireEvent.click(await screen.findByRole('combobox', { name: /^(To|Ke)$/ }))
+  fireEvent.click(await screen.findByRole('option', { name: wanted }))
 }
-
-/** Every button of the transfer destination switch. */
-function movementTabs(): HTMLElement[] {
-  return within(screen.getByRole('group', { name: 'Action type' })).getAllByRole('button')
+/** Every destination on offer, in the order the dropdown lists them. */
+async function destinationNames(): Promise<string[]> {
+  fireEvent.click(await screen.findByRole('combobox', { name: /^(To|Ke)$/ }))
+  const names = (await screen.findAllByRole('option')).map(option => option.textContent ?? '')
+  fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' })
+  return names
 }
 
 async function chooseCategory(optionName: string) {
@@ -330,7 +376,9 @@ beforeEach(() => {
   rememberStream(null)
   rememberCafeLocation('40000000-0000-0000-0000-000000000001', null)
   rememberCafeOpeningTeam('40000000-0000-0000-0000-000000000001', null)
-  locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], defaults: null, retry: vi.fn() })
+  locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], retry: vi.fn() })
+  visit.locations.mockResolvedValue(PRODUCTION_LOCATIONS)
+  visit.destinations.mockImplementation(async (_viewer: unknown, id: string) => destinationsFrom(id))
   mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS)
   mockListActiveBranches.mockResolvedValue(BRANCHES)
   mockListStreamPairs.mockResolvedValue(STREAM_PAIRS)
@@ -478,7 +526,7 @@ describe('Empty state — no WIP items (FR-011)', () => {
     mockFetchActualsMap.mockRejectedValue(new Error('optional history read failed'))
     await renderPage()
     expect(await screen.findByRole('heading', { name: 'No ESB items on Rumah Rames · Kitchen' })).toBeInTheDocument()
-    expect(mockListCaptureFormItems).toHaveBeenCalledWith(DEFAULT_STREAM, 'produce')
+    expect(mockListCaptureFormItems).toHaveBeenCalledWith(expect.objectContaining({ branch: DEFAULT_STREAM.branch, activity: DEFAULT_STREAM.activity }), 'produce')
     expect(mockFetchPlanMap).toHaveBeenCalled()
     expect(mockFetchActualsMap).toHaveBeenCalled()
     expect(mockFetchStockMap).not.toHaveBeenCalled()
@@ -528,19 +576,17 @@ describe('Empty state — no WIP items (FR-011)', () => {
     mockListCaptureFormItems.mockResolvedValue([])
     mockFetchPlanMap.mockResolvedValue({
       'radiant-planned': { [TRANSFER_RADIANT_KEY]: 4 },
-      'hq-planned-a': { [`transfer:${BRANCH_GORDI_HQ.id}`]: 2 },
-      'hq-planned-b': { [`transfer:${BRANCH_GORDI_HQ.id}`]: 6 },
+      'hq-planned-a': { [`transfer:${destinationId(BRANCH_GORDI_HQ.id)}`]: 2 },
+      'hq-planned-b': { [`transfer:${destinationId(BRANCH_GORDI_HQ.id)}`]: 6 },
     })
     mockFetchActualsMap.mockResolvedValue({
       'radiant-planned': { [TRANSFER_RADIANT_KEY]: [loggedUnit('u-r', 5, 'batch')] },
       'radiant-off-plan': { [TRANSFER_RADIANT_KEY]: [loggedUnit('u-ro', 2, 'batch')] },
-      'hq-planned-a': { [`transfer:${BRANCH_GORDI_HQ.id}`]: [loggedUnit('u-h', 3, 'batch')] },
+      'hq-planned-a': { [`transfer:${destinationId(BRANCH_GORDI_HQ.id)}`]: [loggedUnit('u-h', 3, 'batch')] },
     })
 
     await renderTransferPage()
-    const radiantTab = await movementTabAsync(/transfer to radiant/i)
-    const hqTab = movementTab(/transfer to gordi hq/i)
-    await userEvent.click(radiantTab)
+    await chooseDestination(/radiant/i)
     let summary = screen.getByRole('group', {
       name: 'Planned, transferred, and not-in-plan item counts for Radiant',
     })
@@ -549,7 +595,7 @@ describe('Empty state — no WIP items (FR-011)', () => {
     expect(summary).toHaveTextContent(/Not in plan\s*1/)
     expect(summary).not.toHaveTextContent(/Made items|Produced items/i)
 
-    await userEvent.click(hqTab)
+    await chooseDestination(/gordi hq/i)
     summary = screen.getByRole('group', {
       name: 'Planned, transferred, and not-in-plan item counts for Gordi HQ',
     })
@@ -641,7 +687,7 @@ describe('Populated state — WIP items loaded', () => {
   it('production capture is scoped to production and has no movement selector', async () => {
     await renderPage()
     await screen.findAllByText('Ayam Bakar')
-    expect(screen.queryByRole('group', { name: 'Action type' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /^(To|Ke)$/ })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: 'Production' })).toBeInTheDocument()
   })
 
@@ -778,11 +824,11 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
   })
 
   // #937: before today's opening starts there is no plan — tell once, ask for no per-item note.
-  async function stageAyamBeforeOpening(started: boolean) {
+  async function stageAyamBeforeOpening(started: boolean, plan: Record<string, Record<string, number>> = {}) {
     vi.mocked(getCafeOpeningProcessId).mockResolvedValue('proc-1')
     vi.mocked(getCafeOpeningTeamId).mockResolvedValue('team-1')
     vi.mocked(getTodayOpeningForTeam).mockResolvedValue({ started, runId: started ? 'run-1' : null, rollup: null })
-    mockFetchPlanMap.mockResolvedValue({})
+    mockFetchPlanMap.mockResolvedValue(plan)
     await renderPage()
     await screen.findAllByText('Ayam Bakar')
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
@@ -798,6 +844,12 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
     expect(await screen.findByText(/opening hasn't started.*ops lead starts it/i)).toBeInTheDocument()
     expect(screen.queryByText(/differs from plan — add a note/i)).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /^submit/i })[0]).toBeEnabled()
+  })
+
+  it('opening not started with a plan already on the page: says the plan is a draft, never "no plan yet"', async () => {
+    await stageAyamBeforeOpening(false, { w1: { produce: 5 } })
+    expect(await screen.findByText(/opening not started — the plan is a draft/i)).toBeInTheDocument()
+    expect(screen.queryByText(/no plan yet/i)).not.toBeInTheDocument()
   })
 
   it('opening not started: once the opening has started, an off-plan item still needs its note', async () => {
@@ -878,7 +930,7 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
     expect(screen.queryByRole('form', { name: /capture/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^submit/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('group', { name: 'Action type' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /^(To|Ke)$/ })).not.toBeInTheDocument()
   })
 
   it.each([
@@ -1040,10 +1092,7 @@ describe('F3b: disabled Submit shows a note-missing pointer when a variance note
     mockFetchPlanMap.mockResolvedValue({})
     await renderTransferPage()
     await screen.findAllByText('Ayam Bakar')
-    await act(async () => {
-      fireEvent.click(movementTab(/transfer to radiant/i))
-      await Promise.resolve()
-    })
+    await chooseDestination(/transfer to radiant/i)
     const user = userEvent.setup()
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i })
     await user.click(qtyInput)
@@ -1076,36 +1125,34 @@ describe('Issue 1702: transfer availability explains the date cutoff without cha
   it.each([
     {
       locale: 'en' as const,
-      explanation: "Available uses approved logs dated before today. Today's approved production can be transferred tomorrow.",
-      capCue: /^Only 0 .* available\./,
+      explanation: "Available now is 0 for 1 item. Its stock from today can be transferred tomorrow.",
+      capCue: 'Only 0 porsi available.',
     },
     {
       locale: 'id' as const,
-      explanation: 'Tersedia dihitung dari catatan yang disetujui sebelum hari ini. Produksi yang disetujui hari ini bisa ditransfer besok.',
-      capCue: /^Hanya 0 .* tersedia\./,
+      explanation: 'Tersedia saat ini 0 untuk 1 item. Stoknya dari hari ini bisa ditransfer besok.',
+      capCue: 'Hanya 0 porsi tersedia.',
     },
-  ])('explains positive Stock with zero Available in the empty and blocked states ($locale)', async ({ locale, explanation, capCue }) => {
+  ])('says once, above the table, that positive Stock with zero Available moves tomorrow ($locale)', async ({ locale, explanation, capCue }) => {
     mockFetchStockMap.mockResolvedValue({
       w1: { stok: 1, tersedia: 0 },
       w2: { stok: 0, tersedia: 0 },
     })
     await renderTransferPage(VIEWER_MEMBER, undefined, locale)
     await waitFor(() => expect(screen.getByText('Ayam Bakar')).toBeInTheDocument())
-    expect(screen.getByText(explanation)).toBeInTheDocument()
+    await chooseDestination(/radiant/i)
+    expect(await screen.findByText(explanation)).toHaveClass('kls-availability-note')
 
-    await act(async () => {
-      fireEvent.click(movementTab(/radiant/i))
-      await Promise.resolve()
-    })
     const qtyInput = screen.getByRole('spinbutton', { name: /ayam bakar/i })
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '1' } })
       await Promise.resolve()
     })
 
-    const rowExplanation = await screen.findByText(explanation)
-    expect(rowExplanation).toHaveClass('kls-availability-note')
+    // The row says only how much is available; the cutoff is not repeated, and the claim about a lead is gone.
+    expect(screen.getAllByText(explanation)).toHaveLength(1)
     expect(screen.getByText(capCue)).toBeInTheDocument()
+    expect(screen.queryByText(/lead approves|disetujui atasan/i)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: locale === 'en' ? /^submit/i : /^kirim/i })).toBeDisabled()
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
@@ -1117,10 +1164,7 @@ describe('AC-022: transfer over-availability rejects submit — "Only N availabl
     await screen.findAllByText('Ayam Bakar')
 
     // Switch to a Transfer action_type (w1 tersedia=9)
-    await act(async () => {
-      fireEvent.click(movementTab(/transfer to radiant/i))
-      await Promise.resolve()
-    })
+    await chooseDestination(/transfer to radiant/i)
 
     // The transfer qty input for Ayam Bakar (w1)
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i })
@@ -1142,10 +1186,7 @@ describe('AC-022: transfer over-availability rejects submit — "Only N availabl
     await renderTransferPage()
     await screen.findAllByText('Ayam Bakar')
 
-    await act(async () => {
-      fireEvent.click(movementTab(/transfer to radiant/i))
-      await Promise.resolve()
-    })
+    await chooseDestination(/transfer to radiant/i)
 
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i })
     await act(async () => {
@@ -1164,10 +1205,7 @@ describe('AC-022: transfer over-availability rejects submit — "Only N availabl
     await renderTransferPage()
     await screen.findAllByText('Ayam Bakar')
 
-    await act(async () => {
-      fireEvent.click(movementTab(/transfer to radiant/i))
-      await Promise.resolve()
-    })
+    await chooseDestination(/transfer to radiant/i)
 
     // w1: transfer plan 10 (absolute — FR-014 scopes stock subtraction to production);
     // tersedia 9. Log 9 with a note (off-plan 9 != 10 needs a note, but 9 <= tersedia
@@ -1212,10 +1250,7 @@ describe('AC-022: transfer over-availability rejects submit — "Only N availabl
     await renderTransferPage()
     await screen.findAllByText('Ayam Bakar')
 
-    await act(async () => {
-      fireEvent.click(movementTab(/transfer to radiant/i))
-      await Promise.resolve()
-    })
+    await chooseDestination(/transfer to radiant/i)
 
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i })
     // log exactly the plan (10) — on-target, no note, and 10 <= tersedia 12 → no cap
@@ -1230,33 +1265,24 @@ describe('AC-022: transfer over-availability rejects submit — "Only N availabl
   })
 })
 
-describe('outlet sends', () => {
-  it.each(['en', 'id'] as const)('captures a same-stream outlet send in %s', async locale => {
-    locationMocks.choices.mockImplementation((selected?: ProductionStream | null) => selected === null
-      ? { status: 'idle', locations: [], defaults: null, retry: vi.fn() }
-      : { status: 'ready', locations: [
-      { id: 'kitchen', name: 'Kitchen', use: 'both', archived_at: null, branch_ids: [BRANCH_RUMAH_RAMES.id] },
-      { id: 'outlet', name: 'Outlet', use: 'storage', archived_at: null, branch_ids: [BRANCH_RUMAH_RAMES.id] },
-    ], defaults: { production_location_id: 'kitchen', storage_location_id: 'kitchen' }, retry: vi.fn() })
+describe('Send to outlet is a transfer', () => {
+  it.each(['en', 'id'] as const)('moves stock to a Location in the same branch as an ordinary transfer in %s', async locale => {
+    visit.destinations.mockImplementation(async (_viewer: unknown, id: string) => [
+      { location_id: 'loc-outlet', name: 'RRS Outlet', branch_id: BRANCH_RUMAH_RAMES.id, same_branch: true }, ...destinationsFrom(id),
+    ])
     mockInsertKitchenLogBatch.mockResolvedValue(['outlet-log'])
-    mockFetchPlanMap.mockResolvedValue({ w1: { outlet_send: 4 } })
+    mockFetchPlanMap.mockResolvedValue({ w1: { 'transfer:loc-outlet': 4 } })
     await renderTransferPage(VIEWER_MEMBER, undefined, locale)
-    const label = locale === 'id' ? 'Kirim ke outlet Rumah Rames' : 'Send to Rumah Rames outlet'
-    fireEvent.click(await movementTabAsync(new RegExp(`^${label}`)))
-    expect(screen.getByRole('combobox', { name: locale === 'id' ? 'Ke penyimpanan' : 'To storage' })).toHaveTextContent('Outlet')
+    await chooseDestination(/^RRS Outlet/)
     fireEvent.change(screen.getByRole('spinbutton', { name: /Ayam Bakar/i }), { target: { value: '4' } })
-    fireEvent.click(screen.getAllByRole('button', { name: locale === 'id' ? /^kirim/i : /^submit/i }).find(button => !button.hasAttribute('aria-pressed'))!)
+    fireEvent.click(screen.getAllByRole('button', { name: locale === 'id' ? /^kirim/i : /^submit/i })[0])
     await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledWith([
-      expect.objectContaining({ action: 'outlet_send', destination_branch_id: null, from_storage_location_id: 'kitchen', to_storage_location_id: 'outlet', qty_porsi: 4 }),
+      expect.objectContaining({
+        action: 'transfer', destination_branch_id: BRANCH_RUMAH_RAMES.id,
+        from_storage_location_id: productionId(BRANCH_RUMAH_RAMES.id, 'kitchen'), to_storage_location_id: 'loc-outlet', qty_porsi: 4,
+      }),
     ]))
-  })
-
-  it.each(['en', 'id'] as const)('other kitchens without an outlet place do not offer a send in %s', async locale => {
-    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_GORDI_HQ, activity: 'kitchen', produces: true })
-    mockListCafeDestinations.mockResolvedValue([...CAFE_DESTINATIONS, { origin_branch_id: BRANCH_GORDI_HQ.id, origin_activity: 'kitchen', destination_branch_id: BRANCH_RADIANT.id }])
-    await renderTransferPage(VIEWER_MEMBER, undefined, locale)
-    await screen.findAllByText('Ayam Bakar')
-    expect(screen.queryByText(locale === 'id' ? 'Kirim ke outlet Gordi HQ' : 'Send to Gordi HQ outlet')).not.toBeInTheDocument()
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0][0]).not.toHaveProperty('action', 'outlet_send')
   })
 })
 
@@ -1294,29 +1320,32 @@ describe('AC-030: successful submit (increment semantics)', () => {
     ])
   })
 
-  it('submits optional production and output locations with the capture batch', async () => {
+  it('books production to the Location in view and lets the person choose where the output sits', async () => {
     mockInsertKitchenLogBatch.mockResolvedValue(['located-log'])
+    const central = PRODUCTION_LOCATIONS.find(place => place.id === productionId(BRANCH_RUMAH_RAMES.id, 'kitchen'))!
     locationMocks.choices.mockReturnValue({
       status: 'ready',
       locations: [
-        { id: 'kitchen-1', name: 'Kitchen', use: 'production', parent_id: null, branch_ids: [BRANCH_RUMAH_RAMES.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
-        { id: 'shelf-1', name: 'Shelf', use: 'storage', parent_id: null, branch_ids: [BRANCH_RUMAH_RAMES.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
+        central,
+        { id: 'shelf-1', name: 'Shelf', use: 'storage', parent_id: null, branch_ids: [BRANCH_RUMAH_RAMES.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: [] },
       ],
-      defaults: { branch_id: BRANCH_RUMAH_RAMES.id, activity: 'kitchen', production_location_id: 'kitchen-1', storage_location_id: 'shelf-1' },
       retry: vi.fn(),
     })
     await renderPage()
-    const productionLocation = await screen.findByRole('combobox', { name: 'Production location' })
-    const outputLocation = screen.getByRole('combobox', { name: 'Store output in' })
-    expect(productionLocation).toHaveTextContent('Kitchen')
-    expect(outputLocation).toHaveTextContent('Shelf')
+    const outputLocation = await screen.findByRole('combobox', { name: 'Store output in' })
+    // No production-location choice: the Location in view is where it is made.
+    expect(screen.queryByRole('combobox', { name: 'Production location' })).toBeNull()
+    // Output starts at the Location being worked at, since stock can sit there.
+    expect(outputLocation).toHaveTextContent('Rumah Rames · Kitchen')
+    fireEvent.click(outputLocation)
+    fireEvent.click(await screen.findByRole('option', { name: 'Shelf' }))
     fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }), { target: { value: '12' } })
     fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
 
     await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
     expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
       expect.objectContaining({
-        action: 'produce', wip_item_id: 'w2', production_location_id: 'kitchen-1', to_storage_location_id: 'shelf-1',
+        action: 'produce', wip_item_id: 'w2', production_location_id: productionId(BRANCH_RUMAH_RAMES.id, 'kitchen'), to_storage_location_id: 'shelf-1',
       }),
     ])
   })
@@ -1325,7 +1354,7 @@ describe('AC-030: successful submit (increment semantics)', () => {
     mockInsertKitchenLogBatch.mockResolvedValue(['decimal-transfer-log'])
     await renderTransferPage()
     await screen.findAllByText('Ayam Bakar')
-    fireEvent.click(movementTab(/transfer to radiant/i))
+    await chooseDestination(/transfer to radiant/i)
 
     fireEvent.change(screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i }), { target: { value: raw } })
     fireEvent.change(await screen.findByRole('textbox', { name: /^note for ayam bakar$/i }), { target: { value: 'small transfer' } })
@@ -1396,7 +1425,7 @@ describe('AC-030: successful submit (increment semantics)', () => {
     })
 
     // Success message shown (live region)
-    expect(await screen.findByText(/line submitted — pending review/i)).toBeInTheDocument()
+    expect(await screen.findByText(/entry submitted — pending review/i)).toBeInTheDocument()
     expect(screen.getAllByText(/12 porsi/).length).toBeGreaterThan(0)
   })
 })
@@ -1449,7 +1478,7 @@ describe('issue 1345: manager-defined multiples keep the ERP default coordinate'
     }])
     if (mode === 'transfer') {
       await renderTransferPage()
-      await userEvent.click(await movementTabAsync(/transfer to radiant/i))
+      await chooseDestination(/transfer to radiant/i)
     } else {
       await renderPage()
     }
@@ -1914,7 +1943,7 @@ describe('capture retry identity and saved drafts', () => {
     expect(restored).toHaveValue(String(quantity))
     expect(screen.getByText(/Restored 1 unsent entry/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
-    expect(await screen.findByText(/lines? submitted/i)).toBeInTheDocument()
+    expect(await screen.findByText(/(entry|entries) submitted/i)).toBeInTheDocument()
     expect(localStorage.length).toBe(0)
   })
 
@@ -1981,7 +2010,7 @@ describe('capture retry identity and saved drafts', () => {
     const ayamRow = screen.getByRole('row', { name: /ayam bakar/i })
     expect(ayamRow).toHaveTextContent(/Recorded today\s*8 porsi/i)
     fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
-    await screen.findByText(/lines? submitted/i)
+    await screen.findByText(/(entry|entries) submitted/i)
 
     expect(screen.getByRole('row', { name: /ayam bakar/i })).toHaveTextContent(/Recorded today\s*8 porsi/i)
     expect(screen.getByRole('row', { name: /ayam bakar/i })).not.toHaveTextContent(/16/)
@@ -2210,8 +2239,7 @@ describe('R4 / FR-018: Log summary line', () => {
     await renderTransferPage()
     await screen.findAllByText('Ayam Bakar')
 
-    const tab = movementTab(/transfer to radiant/i)
-    fireEvent.click(tab)
+    await chooseDestination(/radiant/i)
     const quantity = screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i })
     expect(quantity).toBeInTheDocument()
 
@@ -2251,8 +2279,7 @@ describe('R4 / FR-018: Log summary line', () => {
     expect(row()).toHaveTextContent(/Stock\s*3/i)
     expect(row()).not.toHaveTextContent('Unit not recorded')
 
-    const user = userEvent.setup()
-    await user.click(movementTab(/transfer to radiant/i))
+    await chooseDestination(/transfer to radiant/i)
     expect(row()).toHaveTextContent(/Available\s*9/i)
     expect(row()).not.toHaveTextContent('Unit not recorded')
   })
@@ -2282,7 +2309,7 @@ describe('R4 / FR-018: Log summary line', () => {
     mockFetchStockMap.mockResolvedValue({ w1: { stok: null, tersedia: 9 }, w2: { stok: 0, tersedia: 0 } })
     await renderTransferPage(VIEWER_MEMBER, undefined, locale)
     await screen.findAllByText('Ayam Bakar')
-    await userEvent.setup().click(movementTab(/radiant/i))
+    await chooseDestination(/radiant/i)
     const row = screen.getByRole('row', { name: /ayam bakar/i })
     expect(row).toHaveTextContent(available)
     expect(row).toHaveTextContent(stock)
@@ -2932,7 +2959,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     // one — not merely disabled, absent. Dish names are absent too (no list).
     expect(screen.queryByRole('spinbutton')).toBeNull()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
-    expect(screen.queryByRole('group', { name: 'Action type' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: /^(To|Ke)$/ })).toBeNull()
 
     // One click selects and opens capture — never a control that only focuses another control.
     fireEvent.click(choice)
@@ -3093,7 +3120,7 @@ describe('DD-MVP-9: a receiving-only stream remains readable but cannot capture 
     if (leading) expect(screen.getByText('Opening door')).toBeInTheDocument()
     expect(screen.queryByRole('form', { name: /café log capture/i })).toBeNull()
     expect(screen.queryByRole('spinbutton')).toBeNull()
-    expect(screen.queryByRole('group', { name: 'Action type' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: /^(To|Ke)$/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /^submit/i })).toBeNull()
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
@@ -3347,100 +3374,76 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
 //
 // The gloss is the assertable half of "offerable": these tests read the option the way a
 // barista does, not by pulling a branch id out of the component's props.
-describe('AC-007: destinations cover both movement classes from both activity surfaces (FR-013)', () => {
-  it('AC-007: the BAR surface offers another branch AND its own branch qualified as the kitchen', async () => {
+describe('AC-007: the destinations on offer come from Locations, grouped by whose books they land in', () => {
+  it('the BAR surface offers its own branch\'s Location under "Same branch" and routed branches under "Other branches"', async () => {
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
     await renderTransferPage(OPS_LEAD)
     await screen.findAllByText('Ayam Bakar')
 
-    // Intra-branch: destination = own branch, read as "to our kitchen" (bar → own kitchen).
-    expect(
-      movementTab(/transfer to bungur · kitchen/i),
-    ).toBeInTheDocument()
-
-    // Cross-branch: another branch, offered exactly as it always was — a bar → bar movement
-    // and a kitchen → another branch movement are one and the same offer.
-    expect(movementTab(/^Transfer to Radiant/)).toBeInTheDocument()
-    expect(movementTab(/^Transfer to Gordi HQ/)).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('combobox', { name: /^(To|Ke)$/ }))
+    const list = await screen.findByRole('listbox')
+    expect(within(list).getByText('Same branch')).toBeInTheDocument()
+    expect(within(list).getByText('Other branches')).toBeInTheDocument()
+    const names = within(list).getAllByRole('option').map(option => option.textContent ?? '')
+    expect(names[0]).toMatch(/^Rumah Rames Kitchen/)
+    expect(names.some(name => /^Radiant/.test(name))).toBe(true)
+    expect(names.some(name => /^Gordi HQ/.test(name))).toBe(true)
   })
 
-  it('AC-007: the KITCHEN surface follows its route rows without a held own-branch option', async () => {
-    // The default fixture stream is (Rumah Rames, kitchen). Its route rows allow Radiant, not GHQ;
-    // the held intra-branch movement is offered from the bar surface only.
+  it('the KITCHEN surface follows its routes and offers no own-branch group', async () => {
     await renderTransferPage()
     await screen.findAllByText('Ayam Bakar')
 
-    expect(screen.queryByRole('button', { name: /transfer to bungur · bar/i })).toBeNull()
-    expect(movementTab(/^Transfer to Radiant/)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Transfer to Gordi HQ' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Production' })).not.toBeInTheDocument()
+    expect(await destinationNames()).toEqual([expect.stringMatching(/^Radiant/)])
+    fireEvent.click(await screen.findByRole('combobox', { name: /^(To|Ke)$/ }))
+    expect(screen.queryByText('Same branch')).toBeNull()
   })
 
-  it('AC-007: the qualified option follows the ORIGIN, not a hardcoded branch', async () => {
-    // On a Radiant stream it is RADIANT that is intra-branch and Bungur that is a cross-branch
-    // destination — the mirror image of the two tests above. Without this, a qualifier pinned
-    // to the incumbent's one branch would pass both of them.
+  it('the offers follow the ORIGIN Location, not a hardcoded branch', async () => {
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar' })
     await renderTransferPage()
     await screen.findAllByText('Ayam Bakar')
 
-    expect(
-      movementTab(/transfer to radiant · kitchen/i),
-    ).toBeInTheDocument()
-    expect(movementTab(/^Transfer to Bungur/)).toBeInTheDocument()
+    const names = await destinationNames()
+    expect(names[0]).toMatch(/^Radiant Kitchen/)
+    expect(names.some(name => /^Rumah Rames/.test(name))).toBe(true)
   })
 
-  it('AC-007: with no resolved stream (FR-002) nothing is intra-branch yet, so no option is qualified', async () => {
+  it('AC-005: a new storage Location in a routed branch is offered with no code change', async () => {
+    visit.destinations.mockImplementation(async (_viewer: unknown, id: string) => [
+      ...destinationsFrom(id), { location_id: 'dest-new-fridge', name: 'Radiant Fridge', branch_id: BRANCH_RADIANT.id, same_branch: false },
+    ])
+    await renderTransferPage()
+    await screen.findAllByText('Ayam Bakar')
+    expect(await destinationNames()).toContainEqual(expect.stringMatching(/^Radiant Fridge/))
+  })
+
+  it('with no resolved stream (FR-002) there is nothing to send from, so no destination is offered', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     await renderTransferPage()
     await screen.findByRole('heading', { name: 'Choose a production stream to see this screen.' })
-
-    expect(screen.queryByRole('group', { name: 'Action type' })).toBeNull()
-    expect(screen.queryByRole('group', { name: 'Action type' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: /^(To|Ke)$/ })).toBeNull()
   })
 
-  it('AC-007: an intra-branch movement is submitted as destination = the origin branch', async () => {
-    // The offer is only half of it — the row it produces is what the held arm (AC-008) reads.
-    // Destination equals origin, and the activity travels as the row's own stream, NOT as a
-    // property of the destination: there is no destination-activity field to send (OD-WAY-44).
+  it('AC-007: a transfer inside the branch is submitted to the destination Location and its own branch', async () => {
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
     await renderTransferPage()
     await screen.findAllByText('Ayam Bakar')
+    await chooseDestination(/rumah rames kitchen/i)
 
-    await act(async () => {
-      fireEvent.click(movementTab(/transfer to bungur · kitchen/i))
-      await Promise.resolve()
-    })
-
-    // w1: tersedia 9, no plan for this movement → 2 is under the cap and off-plan, so the
-    // variance note is required (unchanged gate — an intra-branch movement is a transfer like
-    // any other on the way in; what differs is only what dispatch does with it).
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity to transfer to bungur for ayam bakar/i })
-    await act(async () => {
-      fireEvent.change(qtyInput, { target: { value: '2' } })
-      fireEvent.blur(qtyInput)
-      await Promise.resolve()
-    })
-    const note = screen.getByRole('textbox', { name: /^note for ayam bakar$/i })
-    await act(async () => {
-      fireEvent.change(note, { target: { value: 'cut fruit to the kitchen' } })
-      await Promise.resolve()
-    })
-
-    await act(async () => {
-      fireEvent.click(screen.getAllByRole('button', { name: /^submit/i })[0])
-      await Promise.resolve()
-    })
+    // w1: tersedia 9, no plan for this movement → 2 is under the cap and off-plan, so the variance note is required.
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity to transfer to rumah rames kitchen for ayam bakar/i })
+    fireEvent.change(qtyInput, { target: { value: '2' } })
+    fireEvent.blur(qtyInput)
+    fireEvent.change(screen.getByRole('textbox', { name: /^note for ayam bakar$/i }), { target: { value: 'to the kitchen' } })
+    fireEvent.click(screen.getAllByRole('button', { name: /^submit/i })[0])
 
     await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
     expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
       expect.objectContaining({
-        wip_item_id: 'w1', qty_porsi: 2,
-        action: 'transfer',
-        branch_id: BRANCH_RUMAH_RAMES.id,
-        destination_branch_id: BRANCH_RUMAH_RAMES.id,
-        activity: 'bar',
+        action: 'transfer', destination_branch_id: BRANCH_RUMAH_RAMES.id,
+        from_storage_location_id: productionId(BRANCH_RUMAH_RAMES.id, 'bar'), to_storage_location_id: ownKitchenId(BRANCH_RUMAH_RAMES.id),
       }),
     ])
   })
@@ -3466,27 +3469,28 @@ describe('issue 455: document title', () => {
 })
 
 describe('/cafe/transfer destination selection', () => {
+  const pickOther = async () => {
+    const current = destinationBox().textContent ?? ''
+    const next = (await destinationNames()).find(name => name !== current)!
+    return { current, next }
+  }
+
   it('starts on an eligible transfer destination and confirms before clearing staged work on change', async () => {
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
     await renderTransferPage()
-    await waitFor(() => expect(screen.queryByRole('group', { name: 'Action type' })).toBeInTheDocument())
-    await waitFor(() => expect(movementTabs().length).toBeGreaterThan(1))
-
-    const tabs = movementTabs()
-    const currentTab = tabs.find(tab => tab.getAttribute('aria-pressed') === 'true')!
-    const nextTab = tabs.find(tab => tab !== currentTab)!
-    expect(currentTab).toHaveAccessibleName(/transfer to/i)
+    await waitFor(() => expect(destinationBox()).toBeInTheDocument())
+    const { current, next } = await pickOther()
+    expect(next).toBeTruthy()
 
     const quantity = screen.getByRole('spinbutton', { name: /quantity .* for ayam bakar/i })
     fireEvent.change(quantity, { target: { value: '15' } })
-    fireEvent.click(nextTab)
+    await chooseDestination(next.replace(/ · \d+ planned$/, ''))
 
     const dialog = await screen.findByRole('dialog')
-    expect(currentTab).toHaveAttribute('aria-pressed', 'true')
-    expect(nextTab).toHaveAttribute('aria-pressed', 'false')
+    expect(destinationBox()).toHaveTextContent(current)
     fireEvent.click(within(dialog).getByRole('button', { name: /switch and clear/i }))
 
-    await waitFor(() => expect(nextTab).toHaveAttribute('aria-pressed', 'true'))
+    await waitFor(() => expect(destinationBox()).toHaveTextContent(next.replace(/ · \d+ planned$/, '')))
     expect((screen.getByRole('spinbutton', { name: /quantity .* for ayam bakar/i }) as HTMLInputElement).value).toBe('')
   })
 
@@ -3495,11 +3499,10 @@ describe('/cafe/transfer destination selection', () => {
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
     mockFetchActualsMap.mockResolvedValue({ w1: { [TRANSFER_RADIANT_KEY]: [loggedUnit('u1-porsi', 7, 'porsi')] } })
     await renderTransferPage()
-    await waitFor(() => expect(screen.queryByRole('group', { name: 'Action type' })).toBeInTheDocument())
-    await waitFor(() => expect(movementTabs().length).toBeGreaterThan(1))
+    await waitFor(() => expect(destinationBox()).toBeInTheDocument())
 
     const user = userEvent.setup()
-    await user.click(movementTab(/^Transfer to Radiant/))
+    await chooseDestination(/radiant/i)
     const submittedSummary = screen.getByRole('group', { name: 'Planned, transferred, and not-in-plan item counts for Radiant' })
     expect(submittedSummary).toHaveTextContent(/Transferred\s*1/)
     const submittedSnapshot = submittedSummary.textContent
@@ -3530,36 +3533,30 @@ describe('/cafe/transfer destination selection', () => {
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
 
-  it('keeps the committed destination and draft on Cancel, then focuses the confirmed destination', async () => {
+  it('keeps the committed destination and draft on Cancel, then moves to the confirmed destination', async () => {
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
     await renderTransferPage()
-    await waitFor(() => expect(screen.queryByRole('group', { name: 'Action type' })).toBeInTheDocument())
-    await waitFor(() => expect(movementTabs().length).toBeGreaterThan(1))
+    await waitFor(() => expect(destinationBox()).toBeInTheDocument())
 
     const user = userEvent.setup()
-    const tabs = movementTabs()
-    const currentTab = tabs.find(tab => tab.getAttribute('aria-pressed') === 'true')!
-    const nextTab = tabs.find(tab => tab !== currentTab)!
+    const { current, next } = await pickOther()
+    const wanted = next.replace(/ · \d+ planned$/, '')
     const quantity = screen.getByRole('spinbutton', { name: /quantity .* for ayam bakar/i })
     await user.type(quantity, '15')
     await waitFor(() => expect(quantity).toHaveValue('15'))
 
-    await user.click(nextTab)
+    await chooseDestination(wanted)
     let dialog = await screen.findByRole('dialog')
-    expect(currentTab).toHaveAttribute('aria-pressed', 'true')
-    expect(nextTab).toHaveAttribute('aria-pressed', 'false')
+    expect(destinationBox()).toHaveTextContent(current)
     await user.click(within(dialog).getByRole('button', { name: /cancel/i }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-    expect(currentTab).toHaveAttribute('aria-pressed', 'true')
+    expect(destinationBox()).toHaveTextContent(current)
     expect((quantity as HTMLInputElement).value).toBe('15')
 
-    await user.click(nextTab)
+    await chooseDestination(wanted)
     dialog = await screen.findByRole('dialog')
     await user.click(within(dialog).getByRole('button', { name: /switch and clear/i }))
-    await waitFor(() => {
-      expect(nextTab).toHaveAttribute('aria-pressed', 'true')
-      expect(nextTab).toHaveFocus()
-    })
+    await waitFor(() => expect(destinationBox()).toHaveTextContent(wanted))
     expect((screen.getByRole('spinbutton', { name: /quantity .* for ayam bakar/i }) as HTMLInputElement).value).toBe('')
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
@@ -3576,7 +3573,7 @@ describe('transfer capture submit contract', () => {
     await renderTransferPage()
     await screen.findAllByText('Ayam Bakar')
     await waitFor(() => {
-      expect(movementTab(/transfer to radiant/i)).toHaveAttribute('aria-pressed', 'true')
+      expect(destinationBox()).toHaveTextContent(/Radiant/)
     })
 
     // Select an alternate shown ERP detail and stage Ayam Bakar (w1) under the selected
@@ -3723,7 +3720,7 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
 
     // Destinations are other branches by definition; filtering the catalog itself would have
     // deleted them along with the wrong-books risk.
-    expect(movementTab(/transfer to radiant/i)).toBeInTheDocument()
+    expect(await destinationNames()).toContainEqual(expect.stringMatching(/Radiant/))
   })
 })
 

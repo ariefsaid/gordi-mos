@@ -9,7 +9,6 @@ const WORK_COLLECTIONS = [
   { path: 'work/tasks', label: 'Tasks' },
   { path: 'work/projects', label: 'Projects & Processes' },
   { path: 'work/objectives', label: 'Objectives' },
-  { path: 'work/shifts', label: 'My shifts' },
 ] as const
 
 for (const actor of [
