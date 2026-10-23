@@ -77,11 +77,15 @@ select is((select count(*)::int from mos.meetings where id = current_setting('t.
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is((select count(*)::int from mos.meetings where id = current_setting('t.m1')::uuid), 0, 'AC3: another org reads nothing of a public Meeting');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
-select is((with u as (update mos.meetings set title = 'Weekly ops (team)' where id = current_setting('t.m1')::uuid returning 1) select count(*)::int from u), 1, 'AC3: an owning-Team member edits a public Meeting');
+update mos.meetings set title = 'Weekly ops (team)' where id = current_setting('t.m1')::uuid;
+select is((select title from mos.meetings where id = current_setting('t.m1')::uuid), 'Weekly ops (team)', 'AC3: an owning-Team member edits a public Meeting');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
-select is((with u as (update mos.meetings set title = 'hijack' where id = current_setting('t.m1')::uuid returning 1) select count(*)::int from u), 0, 'AC3: another org member cannot edit a Meeting');
+update mos.meetings set title = 'hijack' where id = current_setting('t.m1')::uuid;
+select is((select title from mos.meetings where id = current_setting('t.m1')::uuid), 'Weekly ops (team)', 'AC3: another org member cannot edit a Meeting');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
-select is((with u as (update mos.meetings set title = 'hijack' where id = current_setting('t.m2')::uuid returning 1) select count(*)::int from u), 0, 'AC3: an owning-Team member cannot edit a private Meeting they are not in');
+update mos.meetings set title = 'hijack' where id = current_setting('t.m2')::uuid;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
+select is((select title from mos.meetings where id = current_setting('t.m2')::uuid), 'Salary review', 'AC3: an owning-Team member cannot edit a private Meeting they are not in');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select lives_ok($$ update mos.meetings set minutes = '[{"type":"paragraph","content":"hello"}]'::jsonb where id = current_setting('t.m1')::uuid $$, 'AC2: an attendee saves the minutes');
 select throws_ok($$ update mos.meetings set minutes = '{"type":"paragraph"}'::jsonb where id = current_setting('t.m1')::uuid $$, '23514', null, 'AC2: minutes must be a block array');
@@ -95,7 +99,8 @@ select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000
 select throws_ok($$ insert into mos.meeting_attendees (meeting_id, person_id) values (current_setting('t.m2')::uuid, '00000000-0000-0000-0000-0000000000d4') $$, '42501', null, 'AC3: a Team member cannot add themself to a private Meeting');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$ insert into mos.meeting_attendees (meeting_id, person_id) values (current_setting('t.m1')::uuid, '00000000-0000-0000-0000-0000000000b4') $$, '23503', null, 'AC2: an attendee must be in the same org');
-select is((with u as (update mos.meeting_attendees set removed_at = now() where meeting_id = current_setting('t.m1')::uuid and person_id = '00000000-0000-0000-0000-0000000000d5' returning 1) select count(*)::int from u), 1, 'AC3: an attendee removes another softly');
+update mos.meeting_attendees set removed_at = now() where meeting_id = current_setting('t.m1')::uuid and person_id = '00000000-0000-0000-0000-0000000000d5';
+select is((select count(*)::int from mos.meeting_attendees where meeting_id = current_setting('t.m1')::uuid and person_id = '00000000-0000-0000-0000-0000000000d5' and removed_at is not null), 1, 'AC3: an attendee removes another softly');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 select is(mos.can_edit_meeting(current_setting('t.m1')::uuid), false, 'AC3: a removed attendee loses edit rights');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
