@@ -108,6 +108,17 @@ describe('Task page — Private row', () => {
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Private' })).toHaveAttribute('aria-checked', 'true'))
   })
 
+  it('tells a manager who loses read access that the change is saved, with no error', async () => {
+    vi.mocked(getDownlinePersonIds).mockResolvedValue([DEWI])
+    await renderPage(makeTask({ responsible_person_id: DEWI, accountable_person_id: BUDI, created_by: DEWI }))
+    await userEvent.click(screen.getByRole('switch', { name: 'Private' }))
+    expect(await screen.findByRole('heading', { name: 'Task is now private' })).toBeInTheDocument()
+    expect(screen.getByText(/Your change is saved/)).toBeInTheDocument()
+    expect(setTaskPrivate).toHaveBeenCalledWith('task-abc', true, ME)
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'All tasks →' })).toBeInTheDocument()
+  })
+
   it('lists the extra people and adds and removes one', async () => {
     vi.mocked(listTaskViewers).mockResolvedValue([{ id: 'v1', org_id: 'org', task_id: 'task-abc', person_id: BUDI, created_by: ME, created_at: '' }])
     await renderPage(makeTask({ is_private: true }))

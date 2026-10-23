@@ -332,13 +332,20 @@ export async function updateTaskFields(
 }
 
 /** Turn Private on or off, then log a `field_edited` event. The database lets only who may change
- * the Task's privacy do it; anyone else's update matches no row, so the call throws. */
+ * the Task's privacy do it; anyone else's update matches no row, so the call throws. The update asks
+ * for a row count, not the row back: an editor who cannot read the Task once it is private (a
+ * manager above the PIC) would otherwise be refused the read of their own saved change. */
 export async function setTaskPrivate(id: string, isPrivate: boolean, actor: string): Promise<void> {
-  const { data, error } = await mos().from('tasks').update({ is_private: isPrivate }).eq('id', id).select('id')
+  const { count, error } = await mos().from('tasks').update({ is_private: isPrivate }, { count: 'exact' }).eq('id', id)
   if (error) throw new Error(`setTaskPrivate failed — ${error.message}`)
-  if (!data || (data as unknown[]).length === 0) throw new Error('setTaskPrivate failed — not allowed to change privacy')
+  if (!count) throw new Error('setTaskPrivate failed — not allowed to change privacy')
   void refreshOpenTaskCount()
-  await logEvent(id, actor, 'field_edited', String(!isPrivate), String(isPrivate))
+  try {
+    await logEvent(id, actor, 'field_edited', String(!isPrivate), String(isPrivate))
+  } catch (err) {
+    // The change is saved. Turning Private on can leave this person unable to write the event.
+    if (!isPrivate) throw err
+  }
 }
 
 /** Soft-archive (set archived_at), then log an `archived` event (FR-051/054). */

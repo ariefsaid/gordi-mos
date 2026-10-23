@@ -30,7 +30,7 @@ import { TaskPrivateRow } from './task-private-row'
 import { PrivateLock } from './task-private-lock'
 
 /** The Private row's data and saves; the surface owns the who-can-see list. */
-export type TaskPrivacy = {
+type TaskPrivacy = {
   /** The extra people on the who-can-see list. */
   viewers: PersonOption[]
   /** The viewer may change privacy (canChangePrivacy) and the Task is not archived. */

@@ -22,15 +22,20 @@ create policy tasks_select_readable on mos.tasks
 comment on policy tasks_select_readable on mos.tasks is
   'Org-readable, except a private Task reads only for who mos.can_read_task allows (#1839); the creator arm is inline so INSERT ... RETURNING works.';
 
+-- Child rows read through the tasks policy (a semi-join on mos.tasks): a public Task passes on
+-- `not is_private` without a function call per row. Same answer as mos.can_read_task. No
+-- recursion: the tasks policy reads no child table.
 drop policy task_checklist_select_org on mos.task_checklist_items;
 create policy task_checklist_select_readable on mos.task_checklist_items
   for select to authenticated
-  using (org_id = (select shared.current_org_id()) and mos.can_read_task(task_id));
+  using (org_id = (select shared.current_org_id())
+         and exists (select 1 from mos.tasks t where t.id = mos.task_checklist_items.task_id));
 
 drop policy task_events_select_org on mos.task_events;
 create policy task_events_select_readable on mos.task_events
   for select to authenticated
-  using (org_id = (select shared.current_org_id()) and mos.can_read_task(task_id));
+  using (org_id = (select shared.current_org_id())
+         and exists (select 1 from mos.tasks t where t.id = mos.task_events.task_id));
 
 drop policy comments_select on mos.comments;
 create policy comments_select on mos.comments
@@ -38,7 +43,7 @@ create policy comments_select on mos.comments
   using (
     org_id = (select shared.current_org_id())
     and case entity_type
-      when 'task' then mos.can_read_task(entity_id)
+      when 'task' then exists (select 1 from mos.tasks t where t.id = mos.comments.entity_id)
       when 'signal' then mos.can_read_signal(entity_id)
       when 'weekly_update' then exists (
         select 1 from mos.weekly_updates parent

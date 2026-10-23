@@ -125,7 +125,9 @@ create policy task_viewers_select on mos.task_viewers
   using (org_id = (select shared.current_org_id()) and mos.can_read_task(task_id));
 create policy task_viewers_insert on mos.task_viewers
   for insert to authenticated
-  with check (org_id = (select shared.current_org_id()) and mos.can_change_task_privacy(task_id));
+  with check (org_id = (select shared.current_org_id())
+              and created_by = (select shared.current_person_id())
+              and mos.can_change_task_privacy(task_id));
 create policy task_viewers_delete on mos.task_viewers
   for delete to authenticated
   using (org_id = (select shared.current_org_id()) and mos.can_change_task_privacy(task_id));

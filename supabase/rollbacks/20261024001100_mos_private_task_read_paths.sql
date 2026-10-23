@@ -1,6 +1,13 @@
 -- DOWN for 20261024001100. Restores the org-readable Task policies and the previous comments and
--- signal_tasks policies.
+-- signal_tasks policies. Refuses while any Task is private, because the restored policies would
+-- make every private Task, checklist, event, comment and Signal link readable org-wide.
 begin;
+do $$
+begin
+  if exists (select 1 from mos.tasks where is_private) then
+    raise exception 'Rollback refused: make every private Task public (or archive the data) first';
+  end if;
+end $$;
 drop policy tasks_select_readable on mos.tasks;
 create policy tasks_select_org on mos.tasks
   for select to authenticated using (org_id = (select shared.current_org_id()));
