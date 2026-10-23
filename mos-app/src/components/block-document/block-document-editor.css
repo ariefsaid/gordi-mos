@@ -311,7 +311,7 @@
 
 /* A @mention names someone: blue bold text, never a control. */
 .block-doc__mention {
-  color: var(--primary);
+  color: var(--mos-accent);
   font-weight: 600;
 }
 

@@ -1,5 +1,11 @@
 -- DOWN for 20261024001200. Restores the original create_notification (20260805000007).
 begin;
+do $$
+begin
+  if exists (select 1 from mos.tasks where is_private) then
+    raise exception 'Rollback refused: make every private Task public (or archive the data) first';
+  end if;
+end $$;
 drop trigger task_viewers_purge_notices on mos.task_viewers;
 drop trigger tasks_purge_notices on mos.tasks;
 drop function mos._purge_task_notices();
