@@ -1280,8 +1280,8 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     expect(screen.queryByText('Review and update this task.')).toBeNull()
     expect(screen.queryByText('Focused record')).toBeNull()
 
-    // Typed Task context is preserved (Team = Kitchen); no collection/table shell.
-    // Value-first grammar: Team renders as text/chip value, not a permanent select.
+    // Typed Task context is preserved (Business Unit = Kitchen, under Record details); no collection/table shell.
+    fireEvent.click(screen.getByRole('button', { name: 'Record details' }))
     expect(screen.getAllByText('Kitchen').length).toBeGreaterThan(0)
     expect(document.querySelector('tbody tr.task-row')).toBeNull()
     expect(document.querySelector('.rp--page')).toBeTruthy()
