@@ -655,7 +655,7 @@ insert into ops.kitchen_plans
    '25000000-0000-0000-0000-000000000002', 'kitchen', 'produce', 30, '40000000-0000-0000-0000-000000000002'),
   ('10000000-0000-0000-0000-000000000001', (now() at time zone 'Asia/Jakarta')::date, 'a1100000-0000-0000-0000-000000000006',
    '25000000-0000-0000-0000-000000000002', 'kitchen', 'produce', 25, '40000000-0000-0000-0000-000000000002')
-on conflict (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id) do nothing;
+on conflict (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, to_location_id) do nothing;
 delete from ops.stream_items
 where org_id = '10000000-0000-0000-0000-000000000001' and branch_id = '25000000-0000-0000-0000-000000000002'
   and activity = 'kitchen' and wip_item_id = 'a1100000-0000-0000-0000-000000000002';

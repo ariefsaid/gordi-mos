@@ -298,7 +298,7 @@ select throws_ok($$
 
 insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi, plan_by)
 values ('2026-06-20','00000000-0000-0000-0000-00000000ab01','00000000-0000-0000-0000-00000000bf02','kitchen','produce',null,99,'00000000-0000-0000-0000-0000000000d2')
-on conflict (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id)
+on conflict (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, to_location_id)
 do update set qty_porsi = excluded.qty_porsi;
 
 reset role;

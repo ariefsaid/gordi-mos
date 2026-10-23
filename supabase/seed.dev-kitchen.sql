@@ -160,7 +160,7 @@ select
 from days cross join planned
 -- ~1-in-13 dish/day gap so the plan isn't a perfect grid
 where (abs(hashtext(d::text || sfx || 'plangap')) % 13) <> 0
-on conflict (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id)
+on conflict (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, to_location_id)
   do nothing;
 
 -- A few standing transfer plans out of the (Rumah Rames, kitchen) stream, to Cikal or Radiant.
@@ -188,7 +188,7 @@ select
   '40000000-0000-0000-0000-000000000002'
 from days cross join tf
 where (abs(hashtext(d::text || sfx || dest::text)) % 2) = 0
-on conflict (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id)
+on conflict (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, to_location_id)
   do nothing;
 
 -- ── 2. Approved log history — today-13 .. today-1. Production ≈ plan ± variance
