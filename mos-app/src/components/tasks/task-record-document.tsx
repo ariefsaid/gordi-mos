@@ -1,13 +1,15 @@
 // Compose a Task's shared record anatomy; the adapter owns fields, rights and actions.
-import { useRef, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Toast } from '@/components/admin/toast'
 import { useToast } from '@/components/admin/use-toast'
 import { copyCanonicalLink } from '@/lib/copy-canonical-link'
 import { useT } from '@/i18n/use-t'
 import { RecordField } from '@/components/records/record-field'
 import type { RecordFieldSpec, RecordValue, RecordViewerAdapter } from '@/components/records/record-viewer.types'
-import { RecordPageHeader, type RecordFact, type RecordFactTone } from '@/components/record/record-page-header'
+import { RecordPageHeader, type RecordFactTone } from '@/components/record/record-page-header'
 import { RecordAbout, RecordDisclosure, RecordPageLayout, RecordSection } from '@/components/record/record-page-layout'
+import { RecordProperties, type RecordPropertyRow } from '@/components/record/record-properties'
+import { PillIcon } from '@/components/ui/pill'
 import type { RecordMenuItem } from '@/components/record/record-menu'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { dueStatus } from '@/lib/due-status'
@@ -69,7 +71,6 @@ export function TaskRecordDocument({
 }: TaskRecordDocumentProps) {
   const t = useT()
   const offline = useIsOffline()
-  const aboutHeadingRef = useRef<HTMLHeadingElement>(null)
   const { toast, showToast, clearToast } = useToast()
   const { runtime, openPanel } = useAgentRuntime()
   const editable = !adapter.permission.readOnly
@@ -82,26 +83,6 @@ export function TaskRecordDocument({
   const supervisor = spec('supervisor')
   const due = spec('dueDate')
   if (!titleSpec || !statusSpec || !pic || !supervisor || !due) return null
-
-  // Decision state, due date and task ownership stay visible in the header at every width.
-  const facts: RecordFact[] = []
-  if (editable) facts.push({ type: 'field', key: 'status', field: statusSpec })
-  else facts.push({ type: 'state', key: 'status', label: statusSpec.displayValue, tone: archived ? 'neutral' : STATUS_TONE[task.status] })
-
-  const open = !archived && task.status !== 'Done'
-  const dueKind = open ? dueStatus(task.due_date, now) : 'none'
-  if (task.due_date !== null) {
-    facts.push({
-      type: 'field', key: 'dueDate', tone: dueKind === 'overdue' || dueKind === 'soon' ? dueKind : undefined,
-      field: dueKind === 'overdue' && task.due_date ? { ...due, displayValue: `${due.displayValue} · ${t(overdueDays(task.due_date, now) === 1 ? 'tasks.due.overdueDays.one' : 'tasks.due.overdueDays', { days: overdueDays(task.due_date, now) })}` } : due,
-    })
-  } else if (editable) {
-    facts.push({ type: 'field', key: 'dueDate', field: { ...due, displayValue: t('tasks.due.set') } })
-  } else {
-    facts.push({ type: 'field', key: 'dueDate', field: due })
-  }
-  facts.push({ type: 'field', key: 'pic', field: pic })
-  facts.push({ type: 'field', key: 'supervisor', field: supervisor })
 
   // A link whose name has not resolved yet (href unset) is held back, never shown as "Ad hoc".
   const link = (key: 'projectProcess' | 'objective'): RecordFieldSpec | null => {
@@ -145,7 +126,7 @@ export function TaskRecordDocument({
         ? t('tasks.readOnly.noteOne', { name: supervisor.displayValue })
         : t('tasks.readOnly.note', { supervisor: supervisor.displayValue, pic: pic.displayValue })
 
-  // ── Sections ────────────────────────────────────────────────────────────────────────────────
+  // ── Properties: label: value rows, each value edited in place by the existing field ──────────
   const description = spec('description')
   const hasDescription = (task.description ?? '').trim() !== ''
   const showDescription = description && (editable || hasDescription)
@@ -160,41 +141,41 @@ export function TaskRecordDocument({
       commitsFrozen={fieldCommitsFrozen}
     />
   )
-  const aboutFields = [link('projectProcess'), link('objective'), spec('team'), spec('businessUnit')]
-    .filter((fieldSpec): fieldSpec is RecordFieldSpec => fieldSpec !== undefined && fieldSpec !== null)
-  const detailsFields = ['createdBy', 'generatedFrom', 'completedAt']
-    .map((key) => spec(key))
-    .filter((fieldSpec): fieldSpec is RecordFieldSpec => fieldSpec !== undefined && fieldSpec !== null)
-  const aboutItems = aboutFields.map((fieldSpec) => ({
-    key: fieldSpec.key, label: fieldSpec.label,
-    value: <span className="rp-about__field">{field(fieldSpec)}</span>,
-  }))
-  const detailsItems = detailsFields.map((fieldSpec) => ({
-    key: fieldSpec.key, label: fieldSpec.label,
-    value: <span className="rp-about__field">{field(fieldSpec)}</span>,
-  }))
-  const aboutTitle = t('workbench.task.about')
-  const companion = (
+  const open = !archived && task.status !== 'Done'
+  const dueKind = open ? dueStatus(task.due_date, now) : 'none'
+  const dueText = task.due_date !== null && dueKind === 'overdue'
+    ? `${due.displayValue} · ${t(overdueDays(task.due_date, now) === 1 ? 'tasks.due.overdueDays.one' : 'tasks.due.overdueDays', { days: overdueDays(task.due_date, now) })}`
+    : due.displayValue
+  const dueSpec = task.due_date === null && editable ? { ...due, displayValue: t('tasks.due.set') } : { ...due, displayValue: dueText }
+  const dueTone = dueKind === 'overdue' || dueKind === 'soon' ? dueKind : undefined
+  const statusTone = archived ? 'neutral' : STATUS_TONE[task.status]
+  const statusPill = <span className={`pill pill--${statusTone}`}><PillIcon tone={statusTone} />{statusSpec.displayValue}</span>
+  const person = (personSpec: RecordFieldSpec) => field({
+    ...personSpec,
+    lead: personSpec.value !== null && personSpec.displayValue !== '' ? <PersonMark name={personSpec.displayValue} /> : undefined,
+  })
+  const projectProcess = link('projectProcess')
+  const objective = link('objective')
+  const propertyRows: RecordPropertyRow[] = [
+    { key: 'status', label: statusSpec.label, children: editable ? field(statusSpec) : <span className="rp-props__plain">{statusPill}</span> },
+    { key: 'pic', label: pic.label, children: person(pic) },
+    { key: 'supervisor', label: supervisor.label, children: person(supervisor) },
+    { key: 'dueDate', label: due.label, tone: dueTone, children: field(dueSpec) },
+    ...(projectProcess ? [{ key: 'projectProcess', label: projectProcess.label, children: field(projectProcess) }] : []),
+    ...(objective ? [{ key: 'objective', label: objective.label, children: field(objective) }] : []),
+  ]
+  const summary = (
     <>
-      <RecordSection id="task-about" title={aboutTitle} headingTabIndex={-1} headingRef={aboutHeadingRef}>
-        <RecordAbout items={aboutItems} />
-      </RecordSection>
-      {detailsItems.length > 0 ? (
-        <RecordDisclosure title={t('workbench.record.details')}>
-          <RecordAbout items={detailsItems} />
-        </RecordDisclosure>
-      ) : null}
-      {events.length > 0 ? (
-        <RecordDisclosure
-          title={t('tasks.history.title')}
-          count={eventsHasMore ? `${events.length}+` : events.length}
-        >
-          <ActivityCard events={events} people={people} now={now} hasMore={eventsHasMore}
-            loadingMore={eventsLoadingMore} moreError={eventsMoreError} onLoadMore={onLoadMoreEvents} />
-        </RecordDisclosure>
-      ) : null}
+      {statusPill}
+      <span>{pic.displayValue}</span>
+      {task.due_date !== null ? <span className={dueTone ? `rp-props__tone--${dueTone}` : undefined}>{dueText}</span> : null}
     </>
   )
+  // ── Details (reference) and History: quiet disclosures at the bottom ──────────────────────────
+  const detailsItems = ['team', 'businessUnit', 'createdBy', 'generatedFrom', 'completedAt']
+    .map((key) => spec(key))
+    .filter((fieldSpec): fieldSpec is RecordFieldSpec => fieldSpec !== undefined)
+    .map((fieldSpec) => ({ key: fieldSpec.key, label: fieldSpec.label, value: <span className="rp-about__field">{field(fieldSpec)}</span> }))
 
   return (
     <>
@@ -207,50 +188,28 @@ export function TaskRecordDocument({
         <RecordPageHeader
           title={titleSpec}
           headingLevel={headingLevel}
-          facts={facts}
-          factsAction={(
-            <button type="button" className="rp-link-btn" onClick={() => aboutHeadingRef.current?.focus()}>
-              {aboutTitle}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M12 5v14M19 12l-7 7-7-7" />
-              </svg>
-            </button>
-          )}
+          facts={[]}
           primary={primary}
           menu={menu}
           menuLabel={t('record.moreActions')}
           menuMinItems={menu.every((item) => item.id === 'copy') ? 2 : 1}
           factsLabel={t('record.page.facts')}
-          note={note}
           onCommitField={onCommitField}
           onDirtyChange={onDirtyChange}
           fieldCommitsFrozen={fieldCommitsFrozen}
         />
       )}
       notice={<>{editable ? <OfflineNotice /> : null}{notice}</>}
-      companion={companion}
-      discussion={showComments ? (
-        <RecordSection id="comments" title={t('tasks.commentsTitle')} count={comments.length > 0 ? comments.length : undefined}>
-          <CommentThread
-            variant="record"
-            comments={comments}
-            people={people}
-            canPost={editable && !offline}
-            onPost={onPostComment}
-            draftValue={commentDraft}
-            onDraftChange={onCommentDraftChange}
-            emptyLabel={null}
-            onDirtyChange={onCommentDirtyChange}
-          />
-        </RecordSection>
-      ) : undefined}
     >
+      <RecordProperties rows={propertyRows} summary={summary} />
+      {note ? <p className="rp-readonly task-readonly" role="note">{note}</p> : null}
       {showDescription ? (
-        <RecordSection id="description" title={t('tasks.description.title')}>
+        // The document slot: one element, no panel heading, so the block editor can replace its contents.
+        <section className="task-description-section" data-record-section="description" aria-label={t('tasks.description.title')}>
           <div className="task-description">
             {field(hasDescription ? description : { ...description, displayValue: t('tasks.description.add') })}
           </div>
-        </RecordSection>
+        </section>
       ) : null}
       {showChecklist ? (
         <RecordSection
@@ -269,8 +228,46 @@ export function TaskRecordDocument({
           />
         </RecordSection>
       ) : null}
+      {showComments ? (
+        <RecordSection id="comments" title={t('tasks.commentsTitle')} count={comments.length > 0 ? comments.length : undefined}>
+          <CommentThread
+            variant="record"
+            comments={comments}
+            people={people}
+            canPost={editable && !offline}
+            onPost={onPostComment}
+            draftValue={commentDraft}
+            onDraftChange={onCommentDraftChange}
+            emptyLabel={null}
+            onDirtyChange={onCommentDirtyChange}
+          />
+        </RecordSection>
+      ) : null}
+      <div className="task-reference">
+        {detailsItems.length > 0 ? (
+          <RecordDisclosure title={t('workbench.record.details')}>
+            <RecordAbout items={detailsItems} />
+          </RecordDisclosure>
+        ) : null}
+        {events.length > 0 ? (
+          <RecordDisclosure
+            title={t('tasks.history.title')}
+            count={eventsHasMore ? `${events.length}+` : events.length}
+          >
+            <ActivityCard events={events} people={people} now={now} hasMore={eventsHasMore}
+              loadingMore={eventsLoadingMore} moreError={eventsMoreError} onLoadMore={onLoadMoreEvents} />
+          </RecordDisclosure>
+        ) : null}
+      </div>
     </RecordPageLayout>
     <Toast toast={toast} onDismiss={clearToast} />
     </>
   )
+}
+
+/** The initials mark drawn before a person's name in a property value. */
+function PersonMark({ name }: { name: string }) {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  const initials = (words.length === 1 ? words[0].slice(0, 2) : words[0][0] + words[words.length - 1][0]).toUpperCase()
+  return <span className="rp-avatar" data-initials={initials} aria-hidden="true" />
 }
