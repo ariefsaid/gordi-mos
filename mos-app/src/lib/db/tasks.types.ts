@@ -37,6 +37,8 @@ export interface TaskRow {
   generated_from_task_def_id?: string | null
   /** Private Task (#1839): only creator, PIC, Supervisor, the who-can-see list and admins read it. */
   is_private?: boolean
+  /** The Meeting the Task was created in, when it was (#1840); read on the Task page only. */
+  meeting_id?: string | null
 }
 /** One person on a private Task's who-can-see list (mos.task_viewers). */
 export interface TaskViewerRow {

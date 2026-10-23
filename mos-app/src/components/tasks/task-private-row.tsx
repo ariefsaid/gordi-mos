@@ -19,7 +19,7 @@ export type TaskPrivateRowProps = {
   people: readonly PersonOption[]
   /** Ids that can already read it (creator, PIC, Supervisor): not offered again. */
   alreadyIds?: readonly string[]
-  /** The viewer may turn Private on or off and edit the list (canChangePrivacy). */
+  /** The viewer may turn Private on or off and edit the list (the Task edit gate). */
   canChange: boolean
   /** Offline: controls are frozen. */
   frozen?: boolean

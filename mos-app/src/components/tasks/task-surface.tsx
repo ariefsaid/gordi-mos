@@ -25,11 +25,12 @@ import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { ConfirmArchive } from './confirm-archive'
 import { resolvePicSupervisor } from './default-supervisor'
-import { picOptions, canChangePrivacy } from './task-permissions'
+import { picOptions, canEdit as canEditTask } from './task-permissions'
 import { liveTasksSearch, type LiveTasksQueryRef } from './tasks-navigation'
 import { createTaskRecordAdapter, createTaskFieldCommit, type TaskTeamView, type TaskRelatedRecord, type TaskViewerFieldKey } from './task-record-adapter'
 import type { RecordViewerAdapter } from '@/components/records/record-viewer.types'
 import { TaskRecordDocument, type TaskMeetingOrigin } from './task-record-document'
+import { useTaskMeetingOrigin } from './use-task-meeting-origin'
 import { RecordPageSkeleton } from '@/components/record/record-page-layout'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -305,6 +306,8 @@ function ViewSurface({
     void resolveLinkedObjective()
     return () => { current = false }
   }, [linkedObjectiveId])
+
+  const meeting = useTaskMeetingOrigin(localTask?.meeting_id, viewerId, meetingOrigin)
 
   // Notify a host of the resolved title (e.g. for the breadcrumb)
   useEffect(() => {
@@ -809,12 +812,13 @@ function ViewSurface({
       fieldCommitsFrozen={fieldCommitsFrozen}
       privacy={{
         viewers: viewerIds.flatMap((id) => peopleDirectory.filter((person) => person.id === id)),
-        canChange: canChangePrivacy(task as TaskListRow, viewerId, downlineIds) && task.archived_at === null,
+        // Private and the who-can-see list need the Task's edit gate (mos.can_change_task_privacy).
+        canChange: canEditTask(task as TaskListRow, viewerId, downlineIds) && task.archived_at === null,
         onSetPrivate: handleSetPrivate,
         onAddViewer: handleAddViewer,
         onRemoveViewer: handleRemoveViewer,
       }}
-      meeting={meetingOrigin}
+      meeting={meeting}
     />
   )
 

@@ -19,6 +19,7 @@ vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(), getPeople: vi.fn(), getPersonTeams: vi.fn(), getTeamsByIds: vi.fn(),
   getDownlinePersonIds: vi.fn(), getDirectManagerPersonIds: () => Promise.resolve([]),
 }))
+vi.mock('@/lib/db/meetings', () => ({ getMeeting: vi.fn() }))
 vi.mock('../../lib/comments/postComment', () => ({ listComments: vi.fn(), postComment: vi.fn() }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn(), readObjective: vi.fn() }))
 vi.mock('@/lib/db/work-lines', async (importActual) => ({
@@ -29,6 +30,8 @@ import { getTask, setTaskPrivate } from '@/lib/db/tasks'
 import { listTaskViewers, addTaskViewer, removeTaskViewer } from '@/lib/db/task-viewers'
 import { getBusinessUnits, getPeople, getPersonTeams, getTeamsByIds, getDownlinePersonIds } from '@/lib/db/directory'
 import { listComments } from '@/lib/comments/postComment'
+import { getMeeting } from '@/lib/db/meetings'
+import type { MeetingDetail } from '@/lib/db/meetings.types'
 import { listObjectives, readObjective } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 
@@ -179,5 +182,39 @@ describe('Task page — created in a Meeting', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Record details' }))
     expect(screen.getByText(/Private meeting/)).toBeInTheDocument()
     expect(screen.queryByText('Weekly sync')).toBeNull()
+  })
+})
+
+describe('Task page — "Created in meeting" from the Task\'s own meeting_id', () => {
+  const detail = (over: Partial<MeetingDetail> = {}) => ({
+    id: 'm1', title: 'Weekly sync', isPrivate: false, attendeeIds: [ME], previous: null, next: null, ...over,
+  }) as MeetingDetail
+
+  it('links the Meeting it was created in, read from the Meeting', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(detail())
+    await renderPage(makeTask({ meeting_id: 'm1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Record details' }))
+    expect(await screen.findByRole('link', { name: 'Weekly sync' })).toHaveAttribute('href', '/work/meetings/m1')
+    expect(getMeeting).toHaveBeenCalledWith('m1')
+  })
+
+  it('shows "Private meeting", no name, when the Meeting is private and the viewer is not an attendee', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(detail({ isPrivate: true, attendeeIds: [DEWI] }))
+    await renderPage(makeTask({ meeting_id: 'm1', is_private: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Record details' }))
+    expect(await screen.findByText(/Private meeting/)).toBeInTheDocument()
+    expect(screen.queryByText('Weekly sync')).toBeNull()
+  })
+
+  it('treats a Meeting the viewer cannot read as a private one they are not in', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(null)
+    await renderPage(makeTask({ meeting_id: 'm1', is_private: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Record details' }))
+    expect(await screen.findByText(/Private meeting/)).toBeInTheDocument()
+  })
+
+  it('reads a Task made outside any Meeting without asking for one', async () => {
+    await renderPage(makeTask())
+    expect(getMeeting).not.toHaveBeenCalled()
   })
 })
