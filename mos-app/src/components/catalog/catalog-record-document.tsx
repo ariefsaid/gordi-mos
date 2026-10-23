@@ -819,7 +819,7 @@ export function CatalogRecordDocument({
           onOpenRelated={onOpenRelated}
           today={today}
         />
-        <MeetingsSection {...(isObjective ? { objectiveId: id } : { workLineId: id })} />
+        <MeetingsSection {...(isObjective ? { objectiveId: id } : { workLineId: id })} onOpenRelated={onOpenRelated} />
         {getStartedLast ? getStarted : null}
         {stepsFirst ? null : stepsSection}
         {isObjective ? <WriteUpSection objectiveId={id} canEdit={writeUpEditable} archived={archived} onDirtyChange={setFieldDirty} onSaved={() => setHistoryVersion((v) => v + 1)} /> : null}

@@ -1,7 +1,7 @@
 // Behaviour of the Meetings list: My meetings | All, search, private lock, opening in the panel, New meeting,
 // the Meetings section on a linked record, and Indonesian.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { AuthContext, type AuthState } from '@/auth/context'
@@ -137,6 +137,22 @@ describe('Meetings section on a linked record', () => {
     expect(link).toHaveAttribute('href', '/work/meetings/m1')
     expect(listMeetingsForRecord).toHaveBeenCalledWith({ objectiveId: 'ob1' })
     expect(screen.getByRole('heading', { name: 'Meetings' })).toBeInTheDocument()
+  })
+
+  it('opens a meeting in the panel stack on a plain click, and on its own page for a modified click', async () => {
+    vi.mocked(listMeetingsForRecord).mockResolvedValue([{ id: 'm1', title: 'Weekly bar ops sync', startsAt: null, isPrivate: false }])
+    const onOpenRelated = vi.fn()
+    render(
+      <I18nProvider>
+        <RouterProvider router={createMemoryRouter([{ path: '*', element: <MeetingsSection objectiveId="ob1" onOpenRelated={onOpenRelated} /> }])} />
+      </I18nProvider>,
+    )
+    const link = await screen.findByRole('link', { name: 'Weekly bar ops sync' })
+    link.addEventListener('click', (event) => event.preventDefault()) // jsdom cannot follow a link
+    fireEvent.click(link, { ctrlKey: true })
+    expect(onOpenRelated).not.toHaveBeenCalled()
+    await userEvent.click(link)
+    expect(onOpenRelated).toHaveBeenCalledWith('meeting', 'm1')
   })
 
   it('renders nothing when no meeting is linked', async () => {
