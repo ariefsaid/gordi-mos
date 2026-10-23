@@ -5,9 +5,9 @@
 //   rows         { key, label, children, tone?, note? }[]   `children` is the value (usually a <RecordField/>);
 //                `tone` 'overdue' paints it red, 'soon' amber; `note` is a quiet line under the value.
 //   summary      ReactNode   what the folded block shows on one line
-//   foldable     boolean = true   false keeps the block open with no Hide control (a draft whose rows must stay reachable)
+//   unfold       number      change it to open a folded block (a failed Create attempt shows what is missing)
 // "Hide properties" folds the block to `summary`; the choice is remembered per user in localStorage.
-import { useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import './record-properties.css'
@@ -23,7 +23,7 @@ export type RecordPropertyRow = {
 export type RecordPropertiesProps = {
   rows: readonly RecordPropertyRow[]
   summary?: ReactNode
-  foldable?: boolean
+  unfold?: number
 }
 
 const STORAGE_KEY = 'mos-record-properties-collapsed'
@@ -32,12 +32,13 @@ function readFolded(key: string): boolean {
   try { return localStorage.getItem(key) === '1' } catch { return false }
 }
 
-export function RecordProperties({ rows, summary, foldable = true }: RecordPropertiesProps) {
+export function RecordProperties({ rows, summary, unfold = 0 }: RecordPropertiesProps) {
   const t = useT()
   const auth = useAuth()
   const storageKey = `${STORAGE_KEY}:${auth.status === 'authenticated' ? auth.viewer.person.id : 'anon'}`
   const [foldedState, setFolded] = useState(() => readFolded(storageKey))
-  const folded = foldable && foldedState
+  const folded = foldedState
+  useEffect(() => { if (unfold > 0) setFolded(false) }, [unfold])
   const listId = useId()
   const toggle = () => {
     const next = !folded
@@ -61,14 +62,14 @@ export function RecordProperties({ rows, summary, foldable = true }: RecordPrope
           ))}
         </ul>
       )}
-      {foldable ? (
+      {(
         <button type="button" className="rp-props__toggle" aria-expanded={!folded} aria-controls={folded ? undefined : listId} onClick={toggle}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={folded ? undefined : 'rp-props__caret--open'}>
             <path d="m9 6 6 6-6 6" />
           </svg>
           {folded ? `${t('record.properties.show')} · ${rows.length}` : t('record.properties.hide')}
         </button>
-      ) : null}
+      )}
     </section>
   )
 }

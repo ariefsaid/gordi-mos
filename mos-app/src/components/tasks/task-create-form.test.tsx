@@ -11,6 +11,7 @@ import userEvent from '@testing-library/user-event'
 import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { AuthContext } from '@/auth/context'
 import { TaskCreateForm } from './task-create-form'
 import { TaskCreateContext } from './task-create-context'
 import type { TaskRow } from '@/lib/db/tasks.types'
@@ -100,6 +101,28 @@ describe('TaskCreateForm — the blank Task page', () => {
     }
   })
 
+  it('Hide properties folds to a summary that shows missing values as Needed, and a Create attempt unfolds it', async () => {
+    window.localStorage.clear()
+    renderForm({ task: makeDraft({ title: 'Ship it', team_id: undefined, business_unit_id: '', accountable_person_id: '' }) })
+    fireEvent.click(screen.getByRole('button', { name: 'Hide properties' }))
+    expect(screen.queryByRole('combobox', { name: 'Team' })).toBeNull()
+    const summary = screen.getByRole('region', { name: 'Properties' })
+    expect(summary).toHaveTextContent('Dewi Director')
+    expect(summary.querySelectorAll('.tcf-needed')).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
+    expect(await screen.findByRole('combobox', { name: 'Team' })).toBeInTheDocument()
+    expect(screen.getByText('Team is required')).toBeInTheDocument()
+    window.localStorage.clear()
+  })
+
+  it('marks the PIC as (you) when the viewer is the PIC', () => {
+    const viewer = { person: { id: 'viewer-1', full_name: 'Dewi Director' }, roles: [], isManager: false, accessRoles: [], affiliated: [] }
+    renderForm({}, (form) => (
+      <AuthContext.Provider value={{ status: 'authenticated', viewer: viewer as never, signOut: async () => {} }}>{form}</AuthContext.Provider>
+    ))
+    expect(screen.getByRole('combobox', { name: 'PIC' })).toHaveTextContent('Dewi Director (you)')
+  })
+
   it('shows the derived Business Unit once, as read-only text', () => {
     renderForm()
     expect(screen.getByTestId('task-create-derived-bu')).toHaveTextContent('Retail Ops')
@@ -140,7 +163,7 @@ describe('TaskCreateForm — validation', () => {
     expect(onCancel).not.toHaveBeenCalled()
   })
 
-  it('a missing Supervisor shows its error directly under the Supervisor control, marks it invalid, and moves focus there', () => {
+  it('a missing Supervisor shows its error directly under the Supervisor control, marks it invalid, and moves focus there', async () => {
     renderForm({ task: makeDraft({ title: 'Ship the launch', accountable_person_id: '' }) })
     fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
     const supervisor = screen.getByRole('combobox', { name: 'Supervisor' })
@@ -148,7 +171,7 @@ describe('TaskCreateForm — validation', () => {
     expect(error).toHaveTextContent('Supervisor is required')
     expect(supervisor).toHaveAttribute('aria-invalid', 'true')
     expect(supervisor).toHaveAttribute('aria-describedby', error.id)
-    expect(supervisor).toHaveFocus()
+    await waitFor(() => expect(supervisor).toHaveFocus())
   })
 
   it('a missing Team is checked (and focused) before Supervisor, title first of all', () => {
