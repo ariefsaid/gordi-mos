@@ -4,10 +4,9 @@
 -- separate so it does not collide with the guard other lanes rewrite):
 --   INSERT  a Task naming a meeting_id needs a Meeting the caller can read (42501), and a Task made
 --           in a Private Meeting is Private whatever the client sent.
---   UPDATE  meeting_id never changes; only a live attendee of a Private Meeting may turn Private off
---           on a Task created in it.
--- This relies on mos.tasks.is_private from #1839 (the stand-in migration 20261024002800 supplies it
--- until that lane merges).
+--   UPDATE  meeting_id never changes.
+-- Turning Private off on such a Task is gated by mos.can_change_task_privacy (#1839), which
+-- 20261024002900 extends with the attendee rule. Relies on mos.tasks.is_private from #1839.
 --
 -- DOWN:
 --   drop trigger tasks_meeting_guard on mos.tasks;
@@ -53,18 +52,11 @@ begin
   if new.meeting_id is distinct from old.meeting_id then
     raise exception 'meeting_id is immutable on a task' using errcode = '42501';
   end if;
-  if old.meeting_id is not null and old.is_private and not new.is_private
-     and mos._meeting_is_private(old.meeting_id)
-     and not exists (
-       select 1 from mos.meeting_attendees a
-        where a.meeting_id = old.meeting_id and a.person_id = shared.current_person_id() and a.removed_at is null) then
-    raise exception 'only an attendee of a private meeting can make its task visible to everyone' using errcode = '42501';
-  end if;
   return new;
 end;
 $$;
 comment on function mos._guard_task_meeting() is
-  'Meeting rules on mos.tasks (#1840): a Task created in a Private Meeting is Private; meeting_id is immutable; only an attendee of that Private Meeting can set is_private=false.';
+  'Meeting rules on mos.tasks (#1840): a Task created in a Private Meeting is Private; meeting_id is immutable.';
 create trigger tasks_meeting_guard
   before insert or update on mos.tasks
   for each row execute function mos._guard_task_meeting();
