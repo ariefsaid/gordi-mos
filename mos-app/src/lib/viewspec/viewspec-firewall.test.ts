@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
-import { machineEntryViolations } from '@/lib/agent/machineEntryScan'
+import { machineEntryNames, machineEntryViolations } from '@/lib/agent/machineEntryScan'
 
 function collectSourceFiles(dir: string): string[] {
   const files: string[] = []
@@ -106,7 +106,7 @@ const SERVICE_ROLE_EXEMPT = [
 // objects and call ops RPCs, which only the service role can do. Entry file only: its handler.ts
 // stays under the strict rule above and receives the key as an injected string. It is NOT exempt
 // from the verifier rule below, since it has no user JWT to verify; it checks its own bearer secret.
-const SERVICE_ROLE_MACHINE_ENTRIES = [resolve(FUNCTIONS_DIR, 'attendance-photo-purge/index.ts')]
+const SERVICE_ROLE_MACHINE_ENTRIES = machineEntryNames(FUNCTIONS_DIR).map((n) => resolve(FUNCTIONS_DIR, `${n}/index.ts`))
 
 describe('de-reference firewall — P2 agent stack (AC-P2-CF-002, D4, FR-P2-DI-002)', () => {
   it('walks a non-empty agent stack including BOTH edge-function index.ts entry points', () => {

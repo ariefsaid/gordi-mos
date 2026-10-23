@@ -143,6 +143,16 @@ reached_battery() { grep -q '^run typecheck' "$npm_log"; }
 git -C "$tmp/repo" add -A && git -C "$tmp/repo" commit -qm "add a lockfile" >/dev/null
 HEAD=$(git -C "$tmp/repo" rev-parse HEAD)
 
+# The install records the lockfile's content hash; "current" means that hash matches, whatever the dates say.
+lock_current() { git hash-object "$tmp/repo/mos-app/package-lock.json" | tr -d '\n' > "$tmp/repo/mos-app/node_modules/.mos-lockhash"; }
+
+# A lockfile edit must be committed (a dirty tree refuses) and moves HEAD.
+lock_edit() {
+  printf '%s\n' "$1" >> "$tmp/repo/mos-app/package-lock.json"
+  git -C "$tmp/repo" add -A && git -C "$tmp/repo" commit -qm "lock $1" >/dev/null
+  HEAD=$(git -C "$tmp/repo" rev-parse HEAD)
+}
+
 # (a) no node_modules at all — the fresh-worktree case, and the ordering case: the stub's
 #     typecheck dies 127 unless the install genuinely preceded it.
 rm -rf "$tmp/repo/mos-app/node_modules"; : > "$npm_log"; rm -f "$STAMP"; run
@@ -157,28 +167,37 @@ for b in tsc eslint stylelint vitest vite; do
   printf '#!/bin/sh\nexit 0\n' > "$tmp/repo/mos-app/node_modules/.bin/$b"
   chmod +x "$tmp/repo/mos-app/node_modules/.bin/$b"
 done
-# Explicit timestamps, not two bare touches: both would land in the same second and `-nt` would be
-# false either way, so the ordering these two cases turn on would not actually be established.
-touch -t 202001010000 "$tmp/repo/mos-app/package-lock.json"
-touch "$tmp/repo/mos-app/node_modules/.package-lock.json"   # written by npm ci; newer = current
+lock_current
 : > "$npm_log"; rm -f "$STAMP"; run
 if installed; then bad "re-installs when dependencies are already current"
 elif ! reached_battery; then bad "the skip case never reached the battery — it refused instead"
 else ok "skips the install when dependencies are current"; fi
 
-# (c) present but STALE — the rebase-across-a-dependency-change case.
-touch -t 202001010000 "$tmp/repo/mos-app/node_modules/.package-lock.json"
-touch "$tmp/repo/mos-app/package-lock.json"
+# (c) present but STALE — the lockfile changed since the install (rebase across a dependency change).
+lock_edit changed
 : > "$npm_log"; rm -f "$STAMP"; run
-if installed; then ok "installs when node_modules is older than the lockfile"
+if installed; then ok "installs when the lockfile content differs from the installed tree's"
 else bad "a stale node_modules is stamped green over a tree CI would not build"; fi
+
+# (c2) #505: node_modules is NEWER than the lockfile by date but was installed from other content.
+lock_current
+lock_edit again
+touch "$tmp/repo/mos-app/node_modules/.package-lock.json" "$tmp/repo/mos-app/node_modules/.mos-lockhash"
+: > "$npm_log"; rm -f "$STAMP"; run
+if installed; then ok "installs when dates say current but the content hash disagrees"
+else bad "mtime fooled the guard: newer node_modules over a different lockfile was stamped green"; fi
+
+# (c3) no recorded hash at all (tree from before the hash existed) reinstalls once.
+rm -f "$tmp/repo/mos-app/node_modules/.mos-lockhash"
+: > "$npm_log"; rm -f "$STAMP"; run
+if installed; then ok "installs when no lockfile hash was recorded"
+else bad "a tree with no recorded lockfile hash was trusted"; fi
 
 # (d) HALF-INSTALLED — node_modules exists and is current by date, but the binary is gone. This is
 #     the state the body claims the guard handles and the pre-commit hook does not; without this
 #     case, weakening the guard to `[ ! -d node_modules ]` scored 12/12.
 rm -f "$tmp/repo/mos-app/node_modules/.bin/tsc"
-touch -t 202001010000 "$tmp/repo/mos-app/package-lock.json"
-touch "$tmp/repo/mos-app/node_modules/.package-lock.json"
+lock_current
 : > "$npm_log"; rm -f "$STAMP"; run
 if installed; then ok "installs when node_modules exists but its binaries do not"
 else bad "a half-installed node_modules is not healed — the guard is only testing the directory"; fi
@@ -188,8 +207,7 @@ else bad "a half-installed node_modules is not healed — the guard is only test
 #      died 127 mid-battery on a tree the guard called healthy.
 for _miss in eslint stylelint vitest vite; do
   rm -f "$tmp/repo/mos-app/node_modules/.bin/$_miss"
-touch -t 202001010000 "$tmp/repo/mos-app/package-lock.json"
-touch "$tmp/repo/mos-app/node_modules/.package-lock.json"
+lock_current
 : > "$npm_log"; rm -f "$STAMP"; run
   if installed && [ -f "$STAMP" ]; then ok "installs when $_miss is missing"
   else bad "a tsc-present/$_miss-missing tree is unhealed — the probe list has members no case covers (stamp=$([ -f "$STAMP" ] && echo yes || echo no))"; fi

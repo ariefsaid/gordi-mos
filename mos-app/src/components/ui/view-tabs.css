@@ -34,4 +34,6 @@
   .view-tabs[data-tabs='2'] .view-tabs__tab, .view-tabs[data-tabs='3'] .view-tabs__tab {
     flex-wrap: wrap; row-gap: 0; min-width: 0; padding-block: var(--mos-space-1); white-space: normal; text-align: center; overflow-wrap: anywhere;
   }
+  /* A strip that scrolls fades its right edge, so a half-visible tab reads as "more this way", and the end padding keeps the last tab clear once scrolled. */
+  .view-tabs:not([data-tabs='2'], [data-tabs='3']) { padding-inline-end: 1.5rem; mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent); }
 }

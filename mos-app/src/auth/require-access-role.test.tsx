@@ -18,7 +18,7 @@ import { RequireAccessRole } from './require-access-role'
 const mockUseAuth = vi.mocked(useAuth)
 
 const availabilityRows = (moneyEnabled = true, moneyOverride = 'inherit') =>
-  (['work', 'money', 'cafe', 'roastery', 'ecommerce', 'assistant'] as const).map((module_id) => ({
+  (['work', 'money', 'cafe', 'staff', 'roastery', 'ecommerce', 'assistant'] as const).map((module_id) => ({
     module_id,
     enabled: module_id === 'money' ? moneyEnabled : module_id !== 'assistant',
     person_override: module_id === 'money' ? moneyOverride : 'inherit',

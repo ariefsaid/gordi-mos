@@ -1,6 +1,6 @@
 import type React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { destinationForPath, FIXED_AREAS, MODULE_REGISTRY, phoneModuleForViewer } from './module-registry'
+import { admittedModules, destinationForPath, FIXED_AREAS, MODULE_REGISTRY, phoneModuleForViewer, type Destination } from './module-registry'
 import { isShipGated } from '@/lib/ship-gate'
 import { HomeIcon, WorkIcon, MoreIcon } from './icons'
 import { useIsNarrow } from './use-is-narrow'
@@ -60,6 +60,7 @@ function shouldShowActionDock(pathname: string): boolean {
   return !isCaptureSurface(path)
     && !coreActionPath
     && !isTaskRoute(path)
+    && !/^\/staff(?:\/|$)/.test(path)
     && !/^\/profile(?:\/|$)/.test(path)
 }
 
@@ -101,18 +102,26 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
   // This is EMPHASIS only (OD-WAY-51) — every module the viewer's routes admit is listed in the More drawer
   // regardless, so nothing is hidden by not being promoted.
   const moduleDest = viewer ? phoneModuleForViewer(viewer.affiliated, viewer.accessRoles, pathname, isOn) : null
-  const moduleTab: PrimaryTab | null = moduleDest
-    ? {
-        id: moduleDest.id,
-        labelKey: moduleDest.labelKey,
-        href: moduleDest.primaryPath ?? moduleDest.links[0].path,
-        sectionPrefix: `/${(moduleDest.primaryPath ?? moduleDest.links[0].path).split('/')[1]}`,
-        Icon: moduleDest.Icon,
-      }
-    : null
-
-  const primaryTabs: PrimaryTab[] = [HOME, WORK, ...(moduleTab ? [moduleTab] : [])]
-    .filter((tab) => !isShipGated(tab.href) && (tab.id !== 'work' || isOn('work')))
+  const asTab = (destination: Destination): PrimaryTab => ({
+    id: destination.id,
+    labelKey: destination.labelKey,
+    href: destination.primaryPath ?? destination.links[0].path,
+    sectionPrefix: `/${(destination.primaryPath ?? destination.links[0].path).split('/')[1]}`,
+    Icon: destination.Icon,
+  })
+  const FIXED_TAB_COUNT = 2
+  const fixedTabs = [HOME, WORK].filter((tab) => !isShipGated(tab.href) && (tab.id !== 'work' || isOn('work')))
+  // A profile that omits Home or Work leaves room in the bar: fill it with the next admitted modules (registry
+  // order), so a Café site sees Café and Staff side by side instead of one module and More.
+  const admitted = viewer ? admittedModules(viewer.accessRoles, isOn) : []
+  const moduleIds = new Set(moduleDest ? [moduleDest.id] : [])
+  for (const destination of admitted) {
+    if (fixedTabs.length === FIXED_TAB_COUNT || fixedTabs.length + moduleIds.size >= 3) break
+    moduleIds.add(destination.id)
+  }
+  const moduleTabs = admitted.filter((destination) => moduleIds.has(destination.id)).map(asTab)
+  const primaryTabs: PrimaryTab[] = [...fixedTabs, ...moduleTabs]
+    .filter((tab) => !isShipGated(tab.href))
 
   if (!isNarrow || FOCUSED_DECISION_PATHS.includes(pathname)) return null
 

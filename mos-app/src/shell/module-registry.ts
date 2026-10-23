@@ -39,7 +39,7 @@ import {
  */
 export type DestinationId =
   | 'home' | 'work' | 'money' | 'inbox'
-  | 'cafe' | 'ecommerce' | 'roastery'
+  | 'cafe' | 'staff' | 'ecommerce' | 'roastery'
   | 'admin' | 'profile'
 
 type DestinationZone = 'workspace' | 'modules' | 'utility'
@@ -87,7 +87,6 @@ const WORKSPACE: Destination[] = [
     children: [
       { path: '/work/signals', label: 'Signals', labelKey: 'nav.work.signals', Icon: SignalsIcon },
       { path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon },
-      { path: '/work/shifts', label: 'My shifts', labelKey: 'nav.work.shifts', Icon: TodayIcon },
       { path: '/work/projects', label: 'Projects & Processes', labelKey: 'nav.work.projects', Icon: WorkLineIcon },
       { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.work.objectives', Icon: ObjectiveIcon },
     ],
@@ -118,6 +117,10 @@ export const MODULE_REGISTRY: readonly Destination[] = [
     id: 'cafe', zone: 'modules', order: 20, labelKey: 'dest.cafe', Icon: CafeIcon, primaryPath: '/cafe',
     links: CAFE_ROUTE_SECTIONS,
     children: CAFE_CHILD_SECTIONS,
+  },
+  {
+    id: 'staff', zone: 'modules', order: 30, labelKey: 'dest.staff', Icon: TodayIcon, primaryPath: '/staff/shifts',
+    links: [{ path: '/staff/shifts', label: 'Shifts', labelKey: 'nav.staff.shifts', Icon: TodayIcon }],
   },
   {
     id: 'roastery', zone: 'modules', order: 50, labelKey: 'dest.roastery', Icon: RoasteryIcon, primaryPath: '/roastery',

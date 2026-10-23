@@ -57,3 +57,6 @@
   color: var(--mos-muted); cursor: not-allowed;
 }
 
+
+/* A heading over each `<optgroup>` ("Same branch"), so a long list says where each choice belongs. */
+.mk-select__group { padding: var(--mos-label-gap) var(--mos-row-pad-x); color: var(--mos-muted); font: var(--mos-type-label); }

@@ -117,10 +117,13 @@ if [ "$app_touched" = 1 ]; then
   for _b in tsc eslint stylelint vitest vite; do
     [ -x "mos-app/node_modules/.bin/$_b" ] || deps_missing="${deps_missing}${deps_missing:+ }$_b"
   done
+  # Content, not mtime: the hash of the lockfile the tree was installed from sits beside it.
+  lock_hash="$(git hash-object mos-app/package-lock.json 2>/dev/null || true)"
   if [ -n "$deps_missing" ] \
-     || [ mos-app/package-lock.json -nt mos-app/node_modules/.package-lock.json ]; then
-    echo "── deps: ${deps_missing:+missing }${deps_missing:-node_modules is older than package-lock.json} — running npm ci first"
+     || [ "$(cat mos-app/node_modules/.mos-lockhash 2>/dev/null)" != "$lock_hash" ]; then
+    echo "── deps: ${deps_missing:+missing }${deps_missing:-node_modules was not installed from this package-lock.json} — running npm ci first"
     (cd mos-app && npm ci --no-audit --no-fund)
+    printf '%s' "$lock_hash" > mos-app/node_modules/.mos-lockhash 2>/dev/null || true
   fi
   # The heavy section runs under the machine-global test lock: two concurrent batteries starve
   # each other into moving false REDs — and two full vitest pools OOM'd this host once already.

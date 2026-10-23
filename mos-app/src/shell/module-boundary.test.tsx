@@ -13,7 +13,7 @@ import { ModuleBoundary } from './module-boundary'
 const dataLayer = vi.hoisted(() => ({ getViewerModuleAvailability: vi.fn() }))
 vi.mock('@/lib/db/module-settings', () => dataLayer)
 
-const MODULE_IDS: ModuleId[] = ['work', 'money', 'cafe', 'roastery', 'ecommerce', 'assistant']
+const MODULE_IDS: ModuleId[] = ['work', 'money', 'cafe', 'staff', 'roastery', 'ecommerce', 'assistant']
 const availabilityRows = (moneyEnabled = true): ViewerModuleAvailability[] => MODULE_IDS.map((module_id) => ({
   module_id,
   enabled: module_id === 'money' ? moneyEnabled : module_id !== 'assistant',

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -59,7 +59,7 @@ const standing = {
 }
 
 function renderPage(locale: 'en' | 'id' = 'en') {
-  return render(<I18nProvider initialLocale={locale}><MemoryRouter initialEntries={['/work/shifts']}><StaffShiftsPage /></MemoryRouter></I18nProvider>)
+  return render(<I18nProvider initialLocale={locale}><MemoryRouter initialEntries={['/staff/shifts']}><StaffShiftsPage /></MemoryRouter></I18nProvider>)
 }
 
 beforeEach(() => {
@@ -102,9 +102,10 @@ describe('StaffShiftsPage', () => {
     }))
     renderPage()
     await screen.findByText('Radiant Crew · Radiant')
-    await user.click(screen.getByRole('button', { name: 'Team roster' }))
+    await user.click(screen.getByRole('tab', { name: 'Team roster' }))
     await screen.findByRole('button', { name: 'Add shift' })
     await user.click(screen.getByRole('button', { name: 'Add shift' }))
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Add shift' }))
     await waitFor(() => expect(saveStaffShift).toHaveBeenCalledWith('team-1', 'person-1', expect.any(String), 'template-1', null))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Publish week' })).toBeEnabled())
     await user.click(screen.getByRole('button', { name: 'Publish week' }))
@@ -117,8 +118,8 @@ describe('StaffShiftsPage', () => {
     vi.mocked(getStaffRoster).mockResolvedValue({ ...roster, shifts: [scheduledShift] })
     renderPage()
     await screen.findByText('Radiant Crew · Radiant')
-    await user.click(screen.getByRole('button', { name: 'Team roster' }))
-    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    await user.click(screen.getByRole('tab', { name: 'Team roster' }))
+    await user.click(await screen.findByRole('button', { name: /^Edit Ayu Crew, / }))
     await user.click(screen.getByRole('button', { name: 'Save shift' }))
     await waitFor(() => expect(saveStaffShift).toHaveBeenCalledWith('team-1', 'person-1', weekStart, 'template-1', 'shift-1'))
   })
@@ -128,8 +129,9 @@ describe('StaffShiftsPage', () => {
     vi.mocked(getStaffRoster).mockResolvedValue({ ...roster, status: 'published', shifts: [scheduledShift] })
     renderPage()
     await screen.findByText('Radiant Crew · Radiant')
-    await user.click(screen.getByRole('button', { name: 'Team roster' }))
-    await user.click(await screen.findByRole('button', { name: 'Remove' }))
+    await user.click(screen.getByRole('tab', { name: 'Team roster' }))
+    await user.click(await screen.findByRole('button', { name: /^Edit Ayu Crew, / }))
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove' }))
     await waitFor(() => expect(removeStaffShift).toHaveBeenCalledWith('shift-1'))
     expect(await screen.findByRole('status')).toHaveTextContent('Shift removed.')
   })
@@ -138,7 +140,7 @@ describe('StaffShiftsPage', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Radiant Crew · Radiant')
-    await user.click(screen.getByRole('button', { name: 'Team roster' }))
+    await user.click(screen.getByRole('tab', { name: 'Team roster' }))
     await user.click(await screen.findByRole('button', { name: 'Copy last week' }))
     await waitFor(() => expect(copyStaffRoster).toHaveBeenCalledWith('team-1', expect.any(String)))
     expect(await screen.findByRole('status')).toHaveTextContent('1 shifts copied into a draft.')
@@ -149,8 +151,9 @@ describe('StaffShiftsPage', () => {
     vi.mocked(saveStaffShift).mockRejectedValueOnce(new Error('STAFF_SHIFT_OVERLAP'))
     renderPage()
     await screen.findByText('Radiant Crew · Radiant')
-    await user.click(screen.getByRole('button', { name: 'Team roster' }))
+    await user.click(screen.getByRole('tab', { name: 'Team roster' }))
     await user.click(await screen.findByRole('button', { name: 'Add shift' }))
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Add shift' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('already has a shift at that time')
   })
 
@@ -162,7 +165,7 @@ describe('StaffShiftsPage', () => {
     })
     renderPage()
     await screen.findByText('Radiant Crew · Radiant')
-    await user.click(screen.getByRole('button', { name: 'Standing hours' }))
+    await user.click(screen.getByRole('tab', { name: 'Standing hours' }))
     await screen.findByRole('heading', { name: 'Team default' })
     await user.click(screen.getByRole('button', { name: 'Save Team default' }))
     await waitFor(() => expect(saveStandingHours).toHaveBeenCalledWith('team-1', null, [0, 1, 2, 3, 4], '09:00', '17:00', true))
@@ -174,7 +177,7 @@ describe('StaffShiftsPage', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Radiant Crew · Radiant')
-    await user.click(screen.getByRole('button', { name: 'Standing hours' }))
+    await user.click(screen.getByRole('tab', { name: 'Standing hours' }))
     await screen.findByRole('heading', { name: 'Team default' })
     await user.click(screen.getByRole('combobox', { name: 'Person' }))
     await user.click(await screen.findByRole('option', { name: 'Ayu Crew' }))

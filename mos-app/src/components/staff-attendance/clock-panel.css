@@ -14,7 +14,7 @@
 .clock-panel__file { position: relative; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-height: var(--mos-control-height); padding: 0 var(--mos-space-4); border: 1px solid var(--mos-line); border-radius: var(--radius-sm); background: var(--mos-surface); color: var(--mos-ink); font: var(--mos-type-control); cursor: pointer; justify-self: start; }
 .clock-panel__file input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .clock-panel__file:focus-within { outline: 2px solid var(--mos-accent); outline-offset: 2px; }
-.clock-panel__bar { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--mos-space-3); min-height: var(--mos-control-height); padding: var(--mos-space-3) 0; border-top: 1px solid var(--mos-line); background: var(--mos-surface); font: var(--mos-type-meta); }
+.clock-panel__bar { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-space-3); min-height: var(--mos-control-height); padding: var(--mos-space-3) 0; border-top: 1px solid var(--mos-line); background: var(--mos-surface); font: var(--mos-type-meta); }
 .clock-panel__bar button { min-height: var(--mos-control-height); padding: 0 var(--mos-space-4); border: 1px solid var(--mos-line); border-radius: var(--radius-sm); background: var(--mos-surface); color: var(--mos-ink); font: var(--mos-type-control); cursor: pointer; }
 .clock-panel__bar .staff-attendance__primary { border-color: var(--mos-accent); background: var(--mos-accent); color: var(--mos-primary-ink); }
 .clock-panel__bar button:disabled { opacity: 0.6; cursor: not-allowed; }

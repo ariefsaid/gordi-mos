@@ -7,7 +7,6 @@ import { useOptionalSignalComposer } from '@/shell/signal-composer-host'
 import { Button } from '@/components/ui/button'
 import { LoadingShell } from '@/components/ui/state-kit'
 import { Notice } from '@/components/ui/notice'
-import { activityLabel, branchDisplayName, counterpartActivity } from '@/lib/kitchen-action-label'
 import { formatWeekdayDayMonth, formatWibDateTime, wibToday } from '@/lib/format/date'
 import type { TodayJobs } from '@/lib/use-cafe-today-jobs'
 import type { CafeCaptureForm } from '@/lib/cafe-capture-storage'
@@ -52,10 +51,7 @@ export function CafeTodayNext({ jobs, stream, setupHref }: { jobs: TodayJobs; st
     })
     if (jobs.transfers.length > 0) {
       const withPlan = jobs.transfers.filter(move => move.planned > 0)
-      const destination = (move: (typeof jobs.transfers)[number]) => {
-        const name = move.branch ? branchDisplayName(move.branch) : t('kitchen.actionType.transferTo.fallback')
-        return move.branch && move.branch.id === stream.branch.id ? `${name} · ${activityLabel(t, counterpartActivity(stream.activity))}` : name
-      }
+      const destination = (move: (typeof jobs.transfers)[number]) => move.name || t('kitchen.actionType.transferTo.fallback')
       rows.push({
         key: 'transfer', records: 'transferred', to: '/cafe/transfer', name: t('nav.cafe.transfer'), unsent: draftLabel('transfer'), continuing: Boolean(jobs.drafts.transfer),
         state: noItems ? itemsNote : withPlan.length > 0
@@ -80,7 +76,7 @@ export function CafeTodayNext({ jobs, stream, setupHref }: { jobs: TodayJobs; st
 
   return <>
     {noItems && <Notice tone="attention" action={jobs.canSetUpItems
-      ? <Link className="btn btn-primary btn-touch" to={setupHref}>{t('cafe.itemsEmpty.action')}</Link>
+      ? <Link className="btn btn-primary btn-touch cafe-today-next__setup" to={setupHref}>{t('cafe.itemsEmpty.action')}</Link>
       : composer && composer.canPost !== false ? <button type="button" className="btn btn-outline btn-touch" onClick={() => composer.open()}>{t('signals.action.share')}</button> : undefined}>
       {jobs.canSetUpItems
         ? t('cafe.today.next.noItems.manage')

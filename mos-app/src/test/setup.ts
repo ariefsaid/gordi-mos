@@ -9,6 +9,15 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 // The reader's own test opts out with vi.unmock.
 vi.mock('@/lib/db/deployment-stamp', () => ({ readDeploymentStamp: async () => null }))
 
+// The Café visit cache reads Locations, Sites and destinations over the network; page tests get empty
+// answers unless a file mocks it itself. Its own tests opt out with vi.unmock.
+vi.mock('@/lib/cafe-visit-cache', () => ({
+  clearCafeVisitCache: () => undefined,
+  getCafeLocations: async () => [],
+  getCafeSites: async () => [],
+  getCafeDestinationLocations: async () => [],
+}))
+
 let shellTestActive = false
 let shellNetworkAttempts: string[] = []
 const nativeFetch = globalThis.fetch.bind(globalThis)
@@ -86,7 +95,7 @@ if (typeof nativeRequest === 'function' && typeof window !== 'undefined') {
 }
 
 // Node 26+ no longer provides a global localStorage by default; jsdom does not
-// inject one either. Several hooks (useExpandPref, useTasksViewPref, useTheme)
+// inject one either. Several hooks (useExpandPref, useTheme)
 // persist to localStorage, and tests call localStorage.clear() in beforeEach.
 // Provide a minimal spec-compliant stub so the test environment is usable.
 if (typeof globalThis.localStorage === 'undefined' || globalThis.localStorage === null) {

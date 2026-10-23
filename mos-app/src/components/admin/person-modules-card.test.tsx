@@ -12,7 +12,7 @@ const stubs = vi.hoisted(() => ({ fns: Object.fromEntries(
     .map((name) => [name, vi.fn()])) }))
 vi.mock('@/lib/db/module-settings', () => stubs.fns)
 
-const ids: ModuleId[] = ['work', 'money', 'cafe', 'assistant', 'roastery', 'ecommerce']
+const ids: ModuleId[] = ['work', 'money', 'cafe', 'staff', 'assistant', 'roastery', 'ecommerce']
 const person = (id: string, roles: string[] = ['member']): AdminPersonRow => ({
   id, full_name: 'Bayu Barista', email: 'bayu@x.test', archived_at: null, login: 'none',
   access_roles: roles, jabatan: [], revenue_scope: [], teams: [],

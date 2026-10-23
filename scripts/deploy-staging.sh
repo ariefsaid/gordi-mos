@@ -47,8 +47,10 @@ say() { printf '%s\n' "$*"; }
 URL=""
 
 errf="$(mktemp)"
+SECRET_ENV_TMP=""
 cleanup() {
   rm -f "$errf" "$errf.body" "$errf.headers"
+  [ -z "$SECRET_ENV_TMP" ] || rm -f "$SECRET_ENV_TMP"
 }
 trap cleanup EXIT
 
@@ -329,16 +331,21 @@ find_function_secret_location() {
 }
 
 set_function_secrets() {
-  local i trace_was_on=0 rc
+  local i trace_was_on=0 rc envtmp
   case "$-" in *x*) trace_was_on=1; set +x ;; esac
+  # The CLI cannot read a process substitution, so the lines go through an owner-only temp file removed on every exit.
+  envtmp="$(umask 077; mktemp)" || return 1
+  SECRET_ENV_TMP="$envtmp"
+  for ((i=0; i<${#missing_function_secret_names[@]}; i++)); do
+    printf '%s=%s\n' "${missing_function_secret_names[$i]}" "${missing_function_secret_values[$i]}"
+  done > "$envtmp"
   if SUPABASE_ACCESS_TOKEN="$EDGE_ACCESS_TOKEN" supabase --workdir "$ROOT" secrets set \
-    --env-file <(for ((i=0; i<${#missing_function_secret_names[@]}; i++)); do
-      printf '%s=%s\n' "${missing_function_secret_names[$i]}" "${missing_function_secret_values[$i]}"
-    done) --project-ref "$PROJECT_REF" >/dev/null 2>/dev/null </dev/null; then
+    --env-file "$envtmp" --project-ref "$PROJECT_REF" >/dev/null 2>/dev/null </dev/null; then
     rc=0
   else
     rc=$?
   fi
+  rm -f "$envtmp"; SECRET_ENV_TMP=""
   [ "$trace_was_on" = 0 ] || set -x
   return "$rc"
 }
@@ -367,10 +374,10 @@ if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
     [ "$already_set" = 1 ] && continue
 
     mapping_key="STAGING_FN_SECRET_${name}"
-    location="$(find_function_secret_location "$name")" || die "missing mapping for $name; add $mapping_key to supabase/op.staging.env"
+    location="$(find_function_secret_location "$name")" || die "function secret $name is not set on staging and has no 1Password location; set it once with: supabase secrets set $name=<value> --project-ref <staging project ref> (or add $mapping_key to supabase/op.staging.env)"
     IFS='|' read -r item vault field extra <<< "$location"
     [ -n "$item" ] && [ -n "$vault" ] && [ -n "$field" ] && [ -z "${extra:-}" ] || \
-      die "missing mapping for $name; add $mapping_key to supabase/op.staging.env"
+      die "malformed $mapping_key in supabase/op.staging.env (expected item|vault|field)"
     missing_function_secret_names+=("$name")
     missing_function_secret_items+=("$item")
     missing_function_secret_vaults+=("$vault")
@@ -411,6 +418,10 @@ if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
     fi
     say "Unauthenticated POST smoke check passed for $fn (handler 401)."
 
+    if grep -qxF "$fn" "$ROOT/supabase/functions/machine-entries.txt" 2>/dev/null; then
+      say "CORS preflight skipped for $fn (machine entry, no browser caller)."
+      continue
+    fi
     origin_index=0
     for origin in "${function_origins[@]}"; do
       origin_index=$((origin_index+1))

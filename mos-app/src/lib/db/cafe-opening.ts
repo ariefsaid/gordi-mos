@@ -22,9 +22,9 @@ export async function getCafeOpeningProcessId(): Promise<string | null> {
   return (data as { id: string } | null)?.id ?? null
 }
 
-/** Resolve the branch's canonical Café Opening Team through the same shared seam that the
- * spawn/due RPCs use. Café Opening runs are stored against this Team (live kitchen first, then
- * live bar), so a viewer's primary stream Team is only the branch context, never the run owner. */
+// Resolve the branch's canonical Café Opening Team through the same shared seam that the
+// spawn/due RPCs use. Café Opening runs are stored against this Team (live kitchen first, then
+// live bar), so a viewer's primary stream Team is only the branch context, never the run owner.
 export async function getCafeOpeningTeamId(branchId: string): Promise<string | null> {
   const { data, error } = await shared().rpc('cafe_opening_team', { p_branch_id: branchId })
   if (error) throw new Error(`getCafeOpeningTeamId failed — ${error.message}`)
@@ -47,21 +47,17 @@ export interface CafeViewerTeam {
   /** Null when this Team is not a production stream Team (e.g. an office Team). */
   branch_id: string | null
   activity: ProductionActivity | null
-  /**
-   * Null = open-ended. `ops.is_stream_reviewer` (the DB predicate a supervisor's decide/plan
-   * write authority is checked against) admits only an open-ended membership; a finite date
-   * still counts as CURRENT for this list's own effective-dated window (comment above), so a
-   * caller that means reviewer/write authority must filter this field itself rather than
-   * trust every row this function returns.
-   */
+  // Null = open-ended. `ops.is_stream_reviewer` (the DB predicate a supervisor's decide/plan
+  // write authority is checked against) admits only an open-ended membership; a finite date
+  // still counts as CURRENT for this list's own effective-dated window (comment above), so a
+  // caller that means reviewer/write authority must filter this field itself rather than
+  // trust every row this function returns.
   effective_to: string | null
 }
 
-/**
- * Current Café-relevant profile memberships. This deliberately stays beside the Café DAL rather
- * than changing Signals' owning-Team picker: Opening needs the effective-dated rule, including a
- * membership that has a finite end date, while Signals keeps its existing write-time contract.
- */
+// Current Café-relevant profile memberships. This deliberately stays beside the Café DAL rather
+// than changing Signals' owning-Team picker: Opening needs the effective-dated rule, including a
+// membership that has a finite end date, while Signals keeps its existing write-time contract.
 export async function listCafeViewerTeams(personId: string): Promise<CafeViewerTeam[]> {
   const today = wibToday()
   const { data: memberships, error: membershipError } = await shared()
@@ -150,8 +146,8 @@ export interface TodayOpening {
   rollup: ProcessRunRollup | null
 }
 
-/** Today's (WIB) opening for a branch Team: whether it is started, its run id, and its derived
- * roll-up (FR-702/FR-710, AC-710). */
+// Today's (WIB) opening for a branch Team: whether it is started, its run id, and its derived
+// roll-up (FR-702/FR-710, AC-710).
 export async function getTodayOpeningForTeam(processId: string, teamId: string): Promise<TodayOpening> {
   const { data, error } = await mos()
     .from('process_runs').select('id')
@@ -169,8 +165,8 @@ export function startTodayOpening(processId: string, teamId: string): Promise<Sp
   return startRun(processId, teamId, wibToday())
 }
 
-/** Branch Teams for which today's opening is due (not yet started) — the Café-scoped slice of
- * Step-6's due_process_runs() (AC-711 backing). */
+// Branch Teams for which today's opening is due (not yet started) — the Café-scoped slice of
+// Step-6's due_process_runs() (AC-711 backing).
 export async function listStartableCafeTeams(processId: string): Promise<DueProcessRun[]> {
   const due = await listDueRuns()
   return due.filter(d => d.work_line_id === processId)

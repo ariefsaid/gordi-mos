@@ -13,7 +13,6 @@ const descriptionKeyByPath: Partial<Record<string, MessageKey>> = {
   '/work/tasks': 'work.home.tasks',
   '/work/projects': 'work.home.projects',
   '/work/objectives': 'work.home.objectives',
-  '/work/shifts': 'work.home.shifts',
 }
 
 export function WorkHomePage() {

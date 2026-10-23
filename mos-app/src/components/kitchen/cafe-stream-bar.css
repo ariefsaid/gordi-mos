@@ -82,13 +82,19 @@
   width: max-content;
   min-width: min(14rem, var(--radix-popover-content-available-width, 14rem));
   max-width: min(24rem, var(--radix-popover-content-available-width, calc(100vw - 24px)));
-  max-height: min(20rem, var(--radix-popover-content-available-height, 20rem));
+  max-height: min(20rem, 60vh, var(--radix-popover-content-available-height, 20rem));
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* Scroll cue: a soft edge shows on the side that still has rows. */
+  background:
+    linear-gradient(var(--popover) 30%, transparent) top / 100% 2rem no-repeat local,
+    linear-gradient(transparent, var(--popover) 70%) bottom / 100% 2rem no-repeat local,
+    radial-gradient(farthest-side at 50% 0, color-mix(in srgb, currentColor 22%, transparent), transparent) top / 100% 0.6rem no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, currentColor 22%, transparent), transparent) bottom / 100% 0.6rem no-repeat scroll,
+    var(--popover);
   padding: var(--mos-menu-pad);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--popover);
   color: var(--foreground);
   box-shadow: var(--shadow-overlay);
   font-family: var(--font-sans);
