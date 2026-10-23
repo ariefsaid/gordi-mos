@@ -47,6 +47,8 @@ export type MeetingPropertiesProps = {
   /** Resolves true once saved; false keeps the editor open (the host has said why). */
   onStartsAt: (iso: string | null) => Promise<boolean>
   onTeam: (teamId: string) => Promise<void>
+  /** The Teams the viewer may pick: their own, or all for an admin (the database allows no other). */
+  teamChoices: ReadonlyArray<{ id: string; name: string }>
   onAddAttendee: (personId: string) => Promise<void>
   onRemoveAttendee: (personId: string) => Promise<void>
   onPrivate: (next: boolean) => Promise<void>
@@ -150,7 +152,7 @@ function linkedValue(workLineId: string | null, objectiveId: string | null): str
 }
 
 export function MeetingProperties({
-  ctx, value, editable, pinnedAttendeeId, teamNeeded, unfold, series,
+  ctx, value, editable, pinnedAttendeeId, teamNeeded, unfold, series, teamChoices,
   onStartsAt, onTeam, onAddAttendee, onRemoveAttendee, onPrivate, onLinked, openMeeting,
 }: MeetingPropertiesProps) {
   const t = useT()
@@ -189,7 +191,7 @@ export function MeetingProperties({
           label={t('meetings.team.edit')}
           hideLabel
           value={value.owningTeamId ?? ''}
-          options={ctx.teams.map((team) => ({ value: team.id, label: team.name }))}
+          options={teamChoices.map((team) => ({ value: team.id, label: team.name }))}
           placeholder={t('meetings.team.choose')}
           disabled={offline}
           triggerClassName="meeting-pick"

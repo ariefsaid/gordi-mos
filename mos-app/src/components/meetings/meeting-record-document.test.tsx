@@ -101,6 +101,27 @@ describe('a new meeting', () => {
   })
 })
 
+describe('the owning Team picker', () => {
+  const teamOptions = async (accessRoles: string[]) => {
+    vi.mocked(getMeeting).mockResolvedValue(meeting())
+    renderMeeting('m1', { accessRoles })
+    await userEvent.click(await screen.findByRole('combobox', { name: 'Change owning Team' }))
+    return screen.getAllByRole('option').map((option) => option.textContent)
+  }
+
+  it('offers only my own Teams', async () => {
+    const names = await teamOptions([])
+    expect(names).toEqual(expect.arrayContaining([expect.stringContaining('Gordi HQ Bar')]))
+    expect(names.join()).not.toContain('Roastery Production')
+  })
+
+  it('offers every Team to an admin', async () => {
+    const names = (await teamOptions(['admin'])).join()
+    expect(names).toContain('Gordi HQ Bar')
+    expect(names).toContain('Roastery Production')
+  })
+})
+
 describe('an editor', () => {
   it('changes the Private switch in place and sees the minutes slot as editable', async () => {
     vi.mocked(getMeeting).mockResolvedValue(meeting())

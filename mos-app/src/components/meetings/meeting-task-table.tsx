@@ -15,6 +15,8 @@ type MeetingTaskTableProps = {
   rows: readonly MeetingTaskRow[]
   /** Shows the "+ Add task" row (only for a viewer who can edit the Meeting). */
   addable?: boolean
+  /** What an empty table says; defaults to "No tasks from this meeting yet". */
+  empty?: string
 }
 
 function AddTaskRow() {
@@ -61,14 +63,14 @@ function AddTaskRow() {
   )
 }
 
-export function MeetingTaskTable({ title, sub, rows, addable = false }: MeetingTaskTableProps) {
+export function MeetingTaskTable({ title, sub, rows, addable = false, empty }: MeetingTaskTableProps) {
   const t = useT()
   const minutes = useMeetingMinutes()
   const headingId = useId()
   return (
     <section className="meeting-tasks" aria-labelledby={headingId}>
       <p className="meeting-tasks__head"><strong id={headingId}>{title}</strong> <span>{sub}</span></p>
-      {rows.length === 0 ? <p className="meeting-tasks__empty">{t('meetings.tasks.empty')}</p> : (
+      {rows.length === 0 ? <p className="meeting-tasks__empty">{empty ?? t('meetings.tasks.empty')}</p> : (
         <table className="meeting-tasks__table">
           <thead>
             <tr>

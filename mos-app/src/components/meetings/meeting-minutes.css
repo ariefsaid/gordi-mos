@@ -25,7 +25,7 @@
 [data-overdue] { color: var(--status-lost-text); font-weight: 600; }
 
 /* One Task written inline in the minutes. */
-.meeting-task-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap) var(--mos-row-gap); padding: var(--mos-inline-gap) 0; border-bottom: 1px solid var(--row-divider); }
+.meeting-task-row { flex: 1 1 100%; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap) var(--mos-row-gap); padding: var(--mos-inline-gap) 0; border-bottom: 1px solid var(--row-divider); }
 .meeting-task-row__title { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); flex: 1 1 16rem; min-width: 0; }
 .meeting-task-row__cells { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap) var(--mos-row-gap); min-width: 0; }
 .meeting-task-row--restricted { color: var(--muted-foreground); font-style: italic; }
@@ -35,9 +35,14 @@
 @media (max-width: 767.98px) {
   .meeting-tasks__table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .meeting-tasks__table, .meeting-tasks__table tbody, .meeting-tasks__table tr, .meeting-tasks__table td { display: block; }
-  .meeting-tasks__table tr { padding: var(--mos-inline-gap) 0; border-bottom: 1px solid var(--row-divider); }
+  .meeting-tasks__table tr { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: var(--mos-inline-gap) 0; border-bottom: 1px solid var(--row-divider); }
+  .meeting-tasks__table td:nth-child(1), .meeting-tasks__table td:nth-child(4) { grid-row: 1; }
+  .meeting-tasks__table td:nth-child(4) { grid-column: 2; }
+  .meeting-tasks__table td:nth-child(2), .meeting-tasks__table td:nth-child(3) { grid-column: 1 / -1; }
   .meeting-tasks__table td { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-row-gap); border-bottom: 0; }
+  .meeting-tasks__table td:nth-child(n+2):nth-child(-n+3) { justify-content: flex-start; }
   .meeting-tasks__table td[data-label]::before { content: attr(data-label); font: var(--mos-type-meta); color: var(--muted-foreground); }
+  .meeting-tasks__table td:nth-child(4)::before { content: none; }
   .meeting-tasks__open, .meeting-cell, .meeting-cell-trigger, .meeting-task-row__discard { min-height: 44px; }
   .meeting-task-row__cells { width: 100%; }
 }

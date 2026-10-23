@@ -110,5 +110,5 @@ export function TasksFromMeeting({ editor }: { editor: Parameters<typeof useInli
   const t = useT()
   const minutes = useMeetingMinutes()
   const inline = useInlineTaskIds(editor)
-  return <MeetingTaskTable title={t('meetings.tasks.title')} sub={t('meetings.tasks.sub')} rows={minutes.tasks.filter((task) => !inline.has(task.id))} addable />
+  return <MeetingTaskTable title={t('meetings.tasks.title')} sub={t('meetings.tasks.sub')} rows={minutes.tasks.filter((task) => !inline.has(task.id))} addable empty={minutes.tasks.length > 0 ? t('meetings.tasks.allWritten') : undefined} />
 }

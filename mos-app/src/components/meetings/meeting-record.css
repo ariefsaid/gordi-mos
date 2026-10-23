@@ -45,10 +45,9 @@
 .meeting-attendees__remove { display: inline-flex; align-items: center; justify-content: center; min-width: var(--mos-control-height); min-height: var(--mos-control-height); border: 0; background: none; color: var(--muted-foreground); cursor: pointer; }
 .meeting-attendees__remove:hover { color: var(--foreground); }
 .meeting-attendees__remove:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-radius: var(--radius-xs); }
-.meeting-attendees__faces { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap); }
-.meeting-attendees__summary { display: inline-flex; align-items: center; gap: var(--mos-row-gap); min-height: 44px; padding: 0; border: 0; background: none; font: inherit; color: var(--muted-foreground); cursor: pointer; }
-.meeting-attendees__stack { display: inline-flex; }
-.meeting-attendees__stack .rp-avatar + .rp-avatar { margin-inline-start: -6px; }
+.meeting-attendees__faces { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-inline-gap); min-width: 0; }
+.meeting-attendees__summary { white-space: nowrap; display: inline-flex; align-items: center; gap: var(--mos-inline-gap); min-height: 44px; padding: 0; border: 0; background: none; font: inherit; color: var(--muted-foreground); cursor: pointer; }
+.meeting-attendees__stack { display: inline-flex; gap: 2px; }
 .meeting-add { min-height: var(--mos-control-height); }
 .meeting-add--icon { min-width: 44px; min-height: 44px; }
 
@@ -56,7 +55,7 @@
 .meeting-series { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--mos-row-gap); min-height: var(--mos-control-height); }
 .meeting-series__number { font-weight: 600; }
 .meeting-series__step--muted { color: var(--muted-foreground); }
-.meeting-series__link { color: var(--text-on-accent-tint); text-underline-offset: 3px; }
+.meeting-series__link { color: var(--text-on-accent-tint); text-decoration: underline; text-underline-offset: 3px; }
 .meeting-series__start { color: var(--text-on-accent-tint); font-weight: 600; }
 @media (max-width: 767.98px) {
   .meeting-series { flex-direction: column; align-items: flex-start; }

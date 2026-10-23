@@ -24,7 +24,7 @@ import {
 import type { MeetingDetail } from '@/lib/db/meetings.types'
 import { countRecordHistory } from '@/lib/db/record-history'
 import { useIsOffline } from '@/shell/use-is-offline'
-import { loadMeetingContext, nameOf, type MeetingContext } from './meeting-context'
+import { loadMeetingContext, nameOf, pickableTeams, type MeetingContext } from './meeting-context'
 import { canEditMeeting } from './meeting-format'
 import { MeetingMinutesSlot } from './meeting-minutes-slot'
 import { MeetingProperties, type MeetingPropertyValues } from './meeting-properties'
@@ -226,6 +226,7 @@ function ExistingMeeting({ id, mode, onOpenMeeting, onTitleResolved, onChanged }
       >
         <MeetingProperties
           ctx={ctx}
+          teamChoices={pickableTeams(ctx, isAdmin, values.owningTeamId)}
           value={values}
           editable={editable}
           openMeeting={openMeeting}
@@ -270,7 +271,7 @@ function ExistingMeeting({ id, mode, onOpenMeeting, onTitleResolved, onChanged }
 function DraftMeeting({ mode, onCreated, onCancelCreate, onDirtyChange }: MeetingRecordDocumentProps) {
   const t = useT()
   const offline = useIsOffline()
-  const { viewerId, directory, retry } = useMeetingDirectory()
+  const { viewerId, isAdmin, directory, retry } = useMeetingDirectory()
   const [title, setTitle] = useState('')
   const [startsAt, setStartsAt] = useState<string | null>(null)
   const [teamId, setTeamId] = useState<string | null>(null)
@@ -357,6 +358,7 @@ function DraftMeeting({ mode, onCreated, onCancelCreate, onDirtyChange }: Meetin
     >
       <MeetingProperties
         ctx={ctx}
+        teamChoices={pickableTeams(ctx, isAdmin, owningTeamId)}
         value={{ startsAt, owningTeamId, attendeeIds, isPrivate, workLineId: link.workLineId, objectiveId: link.objectiveId }}
         editable
         pinnedAttendeeId={viewerId}

@@ -30,3 +30,7 @@ export async function loadMeetingContext(viewerId: string): Promise<MeetingConte
 
 export const nameOf = (rows: ReadonlyArray<{ id: string; name: string }>, id: string | null): string | null =>
   (id ? rows.find((row) => row.id === id)?.name : undefined) ?? null
+
+/** Teams the viewer may pick as owner: their own, or all for an admin (the database allows no other); the current one stays so it still shows. */
+export const pickableTeams = (ctx: MeetingContext, isAdmin: boolean, currentId: string | null) =>
+  ctx.teams.filter((team) => isAdmin || team.id === currentId || ctx.viewerTeamIds.includes(team.id))
