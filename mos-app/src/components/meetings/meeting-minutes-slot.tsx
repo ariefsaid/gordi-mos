@@ -82,7 +82,7 @@ export function MeetingMinutesSlot({ meetingId, canEdit, isPrivate = false }: Me
       tasks: ready.tasks,
       people: ready.people,
       picChoices: picOptions(viewerId ?? '', ready.people, ready.downlineIds, orgWide),
-      frozen: offline || !canEdit,
+      frozen: offline,
       canEditTask: (task) => Boolean(viewerId) && canEditTask(
         { responsible_person_id: task.responsibleId, accountable_person_id: task.supervisorId } as TaskListRow, viewerId ?? '', ready.downlineIds),
       openTask: (taskId) => openRecord({ kind: 'task', id: taskId }),

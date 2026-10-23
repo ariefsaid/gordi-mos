@@ -190,12 +190,27 @@ describe('Meeting minutes — links, the reader and Indonesian', () => {
     expect(screen.getByText('@Cahya Cafe')).toBeInTheDocument()
   })
 
-  it('gives a reader the minutes with no Save, no Add task and no inline edit', async () => {
+  it('gives a reader of the Meeting no Save and no Add task', async () => {
     await mount({ canEdit: false })
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
     expect(screen.queryByRole('button', { name: /Add task/ })).toBeNull()
+  })
+
+  it('lets a Meeting reader who may edit the Task change its status inline, and nobody else', async () => {
+    vi.mocked(updateTaskStatus).mockResolvedValue()
+    await mount({ canEdit: false })
+    // "me" supervises the table Task, so the Task's own rule allows it; the inline Task (PIC p2, Supervisor p3) stays plain.
+    const rows = screen.getAllByRole('group', { name: 'Task in this meeting' })
+    expect(within(rows[0]).queryByRole('button', { name: /Edit task/ })).toBeNull()
+    await userEvent.click(within(screen.getByRole('table')).getByRole('button', { name: /In Progress, Edit task status/ }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Done' }))
+    await waitFor(() => expect(updateTaskStatus).toHaveBeenCalledWith(T2, 'In Progress', 'Done', 'me'))
+  })
+
+  it('gives an unrelated reader no inline edit at all', async () => {
+    vi.mocked(listMeetingTasks).mockResolvedValue([inlineTask, { ...tableTask, responsibleId: 'p4', supervisorId: 'p3' }])
+    await mount({ canEdit: false })
     expect(screen.queryByRole('button', { name: /Edit task/ })).toBeNull()
-    expect(within(screen.getByRole('table')).getByText('Bulan Barista')).toBeInTheDocument()
   })
 
   it('freezes editing while offline', async () => {

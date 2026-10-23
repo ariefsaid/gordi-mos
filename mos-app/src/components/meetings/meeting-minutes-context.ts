@@ -16,7 +16,7 @@ export interface MeetingMinutes {
   people: readonly PersonOption[]
   /** The people the viewer may name as PIC. */
   picChoices: readonly PersonOption[]
-  /** Offline, or the viewer cannot edit the Meeting: nothing in the minutes is edited in place. */
+  /** Offline: nothing in the minutes is edited in place. Who may edit a Task is the Task's own rule (canEditTask), not the Meeting's. */
   frozen: boolean
   canEditTask: (task: MeetingTaskRow) => boolean
   openTask: (taskId: string) => void
