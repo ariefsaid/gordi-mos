@@ -73,6 +73,7 @@ import {
   streamLabel,
   PRODUCE,
 } from '@/lib/kitchen-action-label'
+import { mergeSameLoggedEntries } from '@/lib/merge-logged-entries'
 import {
   canPushCafe,
   needsVarianceNote,
@@ -1492,7 +1493,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
     return offeredLabel ? { ...entry, unit_name: offeredLabel } : entry
   })
   const renderActualUnits = (entries: ActualUnitTotal[], item: CaptureFormItem) => {
-    const displayedEntries = displayActualUnitsForItem(entries, item)
+    const displayedEntries = mergeSameLoggedEntries(displayActualUnitsForItem(entries, item))
     return displayedEntries.length > 0
       ? (
         <span className="kl-actual-units">

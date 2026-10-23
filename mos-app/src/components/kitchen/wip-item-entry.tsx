@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ActualUnitTotal, ItemUnitOption, KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
 import { formatQuantityWithUnit, formatUnitMultiple } from '@/lib/cafe-unit-multiples'
+import { mergeSameLoggedEntries } from '@/lib/merge-logged-entries'
 import { isStockConsuming, VARIANCE_NOTE_CUE, TRANSFER_SHORT_CUE } from '@/lib/kitchen-gates'
 import { useT } from '@/i18n/use-t'
 import { Select } from '@/components/ui/select'
@@ -258,7 +259,7 @@ export function WipItemDetail({
               SELECTED stream — real submitted rows, never the typed-but-unsaved quantity. */}
           <span>
             {t('kitchen.log.stepper.already')} <strong className="kls-logged-units">
-              {alreadyLogged.map(entry => (
+              {mergeSameLoggedEntries(alreadyLogged).map(entry => (
                 <span className="kls-logged-unit" key={entry.key}>
                   {formatLoggedEntry(entry, formatActualQty, t('kitchen.log.unit.unknownHistory'))}
                 </span>
