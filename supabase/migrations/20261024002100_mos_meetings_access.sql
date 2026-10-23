@@ -82,7 +82,9 @@ $$;
 comment on function mos.can_pick_meeting_team(uuid) is
   'Owning-Team choice (#1840): an admin, or a live member of that Team. SECURITY DEFINER to read the caller''s membership.';
 
-revoke execute on function mos.can_read_meeting(uuid), mos.can_edit_meeting(uuid), mos.can_pick_meeting_team(uuid) from public, anon;
+revoke execute on function mos.can_read_meeting(uuid) from public, anon;
+revoke execute on function mos.can_edit_meeting(uuid) from public, anon;
+revoke execute on function mos.can_pick_meeting_team(uuid) from public, anon;
 grant  execute on function mos.can_read_meeting(uuid), mos.can_edit_meeting(uuid), mos.can_pick_meeting_team(uuid) to authenticated;
 
 revoke all on mos.meetings, mos.meeting_attendees from public, anon, authenticated;
