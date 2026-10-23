@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useNavigate, useSearchParams, type To } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
@@ -6,10 +6,14 @@ import { useIsRecordSplit } from '@/shell/use-is-split-width'
 import { OverlayHostSlot, useOptionalOverlayHost, type OverlayEntry } from '@/shell/overlay-host'
 import type { OverlayOwner } from '@/shell/overlay-navigation'
 import { TaskOverlayContent } from '@/components/tasks/task-drawer'
+import { LoadingShell } from '@/components/ui/state-kit'
 import type { CatalogRow, CatalogType } from './catalog-collection-adapter'
 import { CatalogRecordDocument, type CatalogRecordKind, type CatalogRelatedKind } from './catalog-record-document'
 import { CatalogTaskCreateFrame } from './catalog-task-create-frame'
 import { createCatalogTaskCreateSession } from './catalog-task-create-session'
+
+// A Meeting opened from a record's Meetings section or a document link; loaded only when one is opened.
+const MeetingRecordDocument = lazy(() => import('@/components/meetings/meeting-record-document').then((m) => ({ default: m.MeetingRecordDocument })))
 
 /** The collection's query minus `layout`: a record page has no list layout to restore. */
 function withoutLayout(search: string): string {
@@ -24,7 +28,7 @@ export type CatalogRecordOverlayOwner = Extract<OverlayOwner, 'tasks' | 'work' |
 export type CatalogRecordEntryFactory = {
   /** Build a record frame that can be pushed into the caller's existing overlay stack. */
   buildEntry: (
-    kind: CatalogRecordKind | 'task',
+    kind: CatalogRecordKind | 'task' | 'meeting',
     id: string,
     search?: string,
   ) => OverlayEntry
@@ -57,21 +61,25 @@ export function useCatalogRecordEntryFactory({
   const host = useOptionalOverlayHost()
 
   const buildEntry = useCallback(function makeEntry(
-    kind: CatalogRecordKind | 'task',
+    kind: CatalogRecordKind | 'task' | 'meeting',
     id: string,
     search = '',
   ): OverlayEntry {
     const pageSearch = withoutLayout(search)
     const pageTo = kind === 'task'
       ? { pathname: `/work/tasks/${id}`, search: pageSearch }
-      : {
-          pathname: kind === 'objective' ? `/work/objectives/${id}` : `/work/projects/${id}`,
-          search: pageSearch,
-        }
+      : kind === 'meeting'
+        ? { pathname: `/work/meetings/${id}` }
+        : {
+            pathname: kind === 'objective' ? `/work/objectives/${id}` : `/work/projects/${id}`,
+            search: pageSearch,
+          }
     const workLineType = kind === 'work-line' ? resolveType?.(id) : undefined
     const chromeLabel = kind === 'task'
       ? t('tasks.detail.title')
-      : kind === 'objective'
+      : kind === 'meeting'
+        ? t('meetings.record.kind')
+        : kind === 'objective'
         ? t('catalog.record.objective')
         : workLineType === 'process'
           ? t('catalog.tag.process')
@@ -100,6 +108,15 @@ export function useCatalogRecordEntryFactory({
             void host.push(makeEntry(related.kind, related.id, search))
           }}
         />
+      )
+      return entry
+    }
+
+    if (kind === 'meeting') {
+      entry.content = (
+        <Suspense fallback={<LoadingShell label={t('meetings.record.loading')} />}>
+          <MeetingRecordDocument id={id} mode="panel" onChanged={onCollectionChanged} onOpenMeeting={(next) => { if (host) void host.push(makeEntry('meeting', next)) }} />
+        </Suspense>
       )
       return entry
     }

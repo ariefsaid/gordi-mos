@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  canEdit, canArchive, picOptions, picLockMessage, canSeePrivateTask, canChangePrivacy, isSoloSupervisor,
+  canEdit, canArchive, picOptions, picLockMessage, canSeePrivateTask, isSoloSupervisor,
 } from './task-permissions'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
@@ -68,9 +68,9 @@ describe('private Task helpers (mirror mos.can_person_read_task / mos.can_change
     expect(canSeePrivateTask(priv, 'x', [], true)).toBe(true)
     expect(canSeePrivateTask(priv, 'x', ['l'])).toBe(false)
   })
-  it('only an editor changes privacy', () => {
-    expect(canChangePrivacy(priv, 'r', [])).toBe(true)
-    expect(canChangePrivacy(priv, 'x', [])).toBe(false)
+  it('only an editor changes privacy (the Task edit gate)', () => {
+    expect(canEdit(priv, 'r', [])).toBe(true)
+    expect(canEdit(priv, 'x', [])).toBe(false)
   })
   it('"None, just me" is Supervisor = PIC = creator', () => {
     expect(isSoloSupervisor(t({ created_by: 'r', responsible_person_id: 'r', accountable_person_id: 'r' }))).toBe(true)

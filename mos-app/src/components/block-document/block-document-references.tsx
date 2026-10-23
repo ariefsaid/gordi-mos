@@ -105,6 +105,7 @@ export const KIND_LABEL: Record<RecordLinkKind, Parameters<ReturnType<typeof use
   objective: 'blockDoc.kind.objective',
   project: 'blockDoc.kind.project',
   signal: 'blockDoc.kind.signal',
+  meeting: 'blockDoc.kind.meeting',
 }
 
 export function MentionNode({ kind, id }: { kind: MentionNodeKind; id: string }) {
@@ -155,7 +156,7 @@ export function createInlineSpecs(options: { mentions?: boolean; recordLinks?: b
   }
   if (options.recordLinks) {
     specs.recordLink = createReactInlineContentSpec(
-      { type: 'recordLink', propSchema: { kind: { default: 'task', values: ['task', 'objective', 'project', 'signal'] }, id: { default: '' } }, content: 'none' } as const,
+      { type: 'recordLink', propSchema: { kind: { default: 'task', values: ['task', 'objective', 'project', 'signal', 'meeting'] }, id: { default: '' } }, content: 'none' } as const,
       { render: ({ inlineContent }) => <RecordLinkNode kind={inlineContent.props.kind as RecordLinkKind} id={inlineContent.props.id} /> },
     )
   }

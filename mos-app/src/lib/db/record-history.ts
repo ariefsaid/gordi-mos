@@ -34,6 +34,8 @@ export const HISTORY_REFERENCE_FIELDS = {
   responsible_person_id: 'people',
   business_unit_id: 'business_units',
   objective_id: 'objectives',
+  owning_team_id: 'teams',
+  work_line_id: 'work_lines',
 } as const
 
 type HistoryRow = {
@@ -48,13 +50,13 @@ type HistoryRow = {
 }
 
 async function lookupNames(
-  kind: 'people' | 'business_units' | 'objectives',
+  kind: 'people' | 'business_units' | 'objectives' | 'teams' | 'work_lines',
   ids: string[],
 ): Promise<Array<[string, string]>> {
   if (ids.length === 0) return []
   // Unfiltered on purpose: archived people and Objectives still name a past value.
-  const query = kind === 'objectives'
-    ? supabase.schema('mos').from('objectives').select('id,name').in('id', ids)
+  const query = kind === 'objectives' || kind === 'work_lines'
+    ? supabase.schema('mos').from(kind).select('id,name').in('id', ids)
     : shared().from(kind).select(kind === 'people' ? 'id,full_name' : 'id,name').in('id', ids)
   const { data, error } = await query
   if (error) throw new Error(`record history names failed — ${error.message}`)
@@ -63,7 +65,7 @@ async function lookupNames(
 }
 
 export async function loadRecordHistory(
-  table: 'objectives' | 'work_lines',
+  table: 'objectives' | 'work_lines' | 'meetings',
   recordId: string,
   before?: HistoryCursor,
 ): Promise<RecordHistory> {
@@ -84,7 +86,7 @@ export async function loadRecordHistory(
   if (error) throw new Error(`record history failed — ${error.message}`)
 
   const rows = (data ?? []) as unknown as HistoryRow[]
-  const wanted = { people: new Set<string>(), business_units: new Set<string>(), objectives: new Set<string>() }
+  const wanted = { people: new Set<string>(), business_units: new Set<string>(), objectives: new Set<string>(), teams: new Set<string>(), work_lines: new Set<string>() }
   for (const row of rows) {
     const kind = HISTORY_REFERENCE_FIELDS[row.field_name as keyof typeof HISTORY_REFERENCE_FIELDS]
     if (!kind) continue
@@ -111,7 +113,7 @@ export async function loadRecordHistory(
 
 /** Counts a record's complete history without loading an entry page. */
 export async function countRecordHistory(
-  table: 'objectives' | 'work_lines',
+  table: 'objectives' | 'work_lines' | 'meetings',
   recordId: string,
 ): Promise<number> {
   const { count, error } = await shared()

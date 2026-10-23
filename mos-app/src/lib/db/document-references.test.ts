@@ -58,6 +58,7 @@ describe('record links', () => {
       objectives: [{ id: 'o1', name: 'Consistent espresso', period_year: 2026, period_quarter: 4 }],
       work_lines: [{ id: 'w1', name: 'Roastery move', type: 'project' }],
       signals: [{ id: 's1', body: '\nCafe 2 espresso running fast\nsecond line' }],
+      meetings: [{ id: 'm1', title: 'Espresso calibration sync', starts_at: '2026-10-22T02:00:00Z' }],
     })
     const found = await searchLinkableRecords('espresso')
     expect(found.map((r) => [r.kind, r.title, r.detail])).toEqual([
@@ -65,13 +66,14 @@ describe('record links', () => {
       ['objective', 'Consistent espresso', 'Q4 2026'],
       ['task', 'Approve Q4 budget', 'Open'],
       ['project', 'Roastery move', 'project'],
+      ['meeting', 'Espresso calibration sync', '2026-10-22'],
     ])
   })
 
   it('filters by the typed text, and lists the most recent for an empty query', async () => {
     const withTerm = tables({})
     await searchLinkableRecords('50%')
-    expect(withTerm.filter((c) => c.ilike).map((c) => c.ilike![1])).toEqual(['%50\\%%', '%50\\%%', '%50\\%%', '%50\\%%'])
+    expect(withTerm.filter((c) => c.ilike).map((c) => c.ilike![1])).toEqual(Array(5).fill('%50\\%%'))
     const empty = tables({})
     await searchLinkableRecords('  ')
     expect(empty.some((c) => c.ilike)).toBe(false)
@@ -79,11 +81,12 @@ describe('record links', () => {
   })
 
   it('titles every linked record it can read; an unreadable one is absent, so it shows as restricted', async () => {
-    const calls = tables({ tasks: [{ id: 'k1', title: 'Approve Q4 budget' }], signals: [] })
+    const calls = tables({ tasks: [{ id: 'k1', title: 'Approve Q4 budget' }], signals: [], meetings: [{ id: 'm1', title: 'Weekly sync' }] })
     const titles = await resolveRecordTitles([
-      { kind: 'task', id: 'k1' }, { kind: 'task', id: 'k1' }, { kind: 'signal', id: 'hidden' },
+      { kind: 'task', id: 'k1' }, { kind: 'task', id: 'k1' }, { kind: 'signal', id: 'hidden' }, { kind: 'meeting', id: 'm1' },
     ])
     expect(titles.get('task:k1')).toBe('Approve Q4 budget')
+    expect(titles.get('meeting:m1')).toBe('Weekly sync')
     expect(titles.has('signal:hidden')).toBe(false)
     expect(calls.find((c) => c.table === 'tasks')?.inIds).toEqual(['k1'])
     expect(calls.some((c) => c.table === 'objectives')).toBe(false)

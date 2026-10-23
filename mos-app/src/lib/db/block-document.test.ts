@@ -41,6 +41,16 @@ describe('block document sanitizer: mentions and record links', () => {
     expect(sanitizeBlockDocument(blocks, { mentions: true })).toEqual(doc(mention('person', ID)))
     expect(sanitizeBlockDocument(blocks, { recordLinks: true })).toEqual(doc(recordLink('task', ID2)))
   })
+
+  it('keeps a link to a Meeting', () => {
+    expect(sanitizeBlockDocument(doc(recordLink('meeting', ID2)), { recordLinks: true })).toEqual(doc(recordLink('meeting', ID2)))
+  })
+
+  it('keeps an extra block type only through its own sanitizer, with the block id when it is safe', () => {
+    const blocks = [{ type: 'widget', id: 'b-1', props: { n: 1, junk: 'x' } }, { type: 'widget', id: '<script>', props: { n: 'no' } }, { type: 'other' }]
+    const widget = (block: Record<string, unknown>) => (typeof (block.props as { n?: unknown }).n === 'number' ? { type: 'widget', props: { n: 1 } } : null)
+    expect(sanitizeBlockDocument(blocks, { blocks: { widget } })).toEqual([{ type: 'widget', props: { n: 1 }, id: 'b-1' }])
+  })
 })
 
 describe('block document references', () => {

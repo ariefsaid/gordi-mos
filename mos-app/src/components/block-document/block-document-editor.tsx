@@ -16,6 +16,7 @@ import {
   getFormattingToolbarItems,
   useCreateBlockNote,
   useDictionary,
+  type DefaultReactSuggestionItem,
 } from '@blocknote/react'
 import '@blocknote/core/style.css'
 import '@blocknote/ariakit/style.css'
@@ -71,9 +72,25 @@ const blockSpecs = { paragraph, heading, bulletListItem, numberedListItem, check
 const textOnlySchema = BlockNoteSchema.create({ blockSpecs })
 
 // Mentions and record links are the only inline nodes beyond text and links, and only when the document allows them.
-function createSchema(options: BlockDocumentInlineOptions) {
-  if (!options.mentions && !options.recordLinks) return textOnlySchema
-  return BlockNoteSchema.create({ blockSpecs, inlineContentSpecs: { ...defaultInlineContentSpecs, ...createInlineSpecs(options) } } as never)
+function createSchema(options: BlockDocumentInlineOptions, extension?: BlockDocumentExtension) {
+  if (!options.mentions && !options.recordLinks && !extension) return textOnlySchema
+  const extra = Object.fromEntries(Object.entries(extension?.blocks ?? {}).map(([type, block]) => [type, block.spec()]))
+  return BlockNoteSchema.create({
+    blockSpecs: { ...blockSpecs, ...extra },
+    inlineContentSpecs: { ...defaultInlineContentSpecs, ...createInlineSpecs(options) },
+  } as never)
+}
+
+/**
+ * What a page adds to the shared editor: extra block types and their slash items (a Meeting's task rows and
+ * table). Build it once at module level: the editor reads it when it mounts. The page's own React context
+ * reaches the blocks, which render inside the editor.
+ */
+export interface BlockDocumentExtension {
+  /** Each block type's editor spec and the sanitizer that keeps only what is stored for it (null drops the block). */
+  blocks: Record<string, { spec: () => unknown; sanitize: (block: Record<string, unknown>) => Record<string, unknown> | null }>
+  /** Slash items that insert those blocks; `group` is the menu group the built-in blocks sit in. */
+  slashItems: (context: { editor: never; t: ReturnType<typeof useT>; group: string }) => DefaultReactSuggestionItem[]
 }
 
 // The slash menu offers the stored block types only: no toggle headings, headings past level 3 or emoji.
@@ -155,6 +172,8 @@ export interface BlockDocumentEditorProps {
   checklistNote?: boolean
   /** No box around the document: the body of a record page. */
   bare?: boolean
+  /** Extra block types for this page's document (see BlockDocumentExtension). */
+  extension?: BlockDocumentExtension
   /** The viewer's own person id: left out of the `@` menu. */
   viewerId?: string | null
   /** Opens a record chip. Without it a chip shows its title but is not a control. */
@@ -210,6 +229,7 @@ function DocumentSurface({
   recordLinks = false,
   checklistNote = false,
   bare = false,
+  extension,
   viewerId = null,
   onOpenRecord,
   copy,
@@ -226,10 +246,14 @@ function DocumentSurface({
   const t = useT()
   const { locale } = useI18n()
   const keysHintId = useId()
-  const inline = useMemo<BlockDocumentInlineOptions>(() => ({ mentions, recordLinks }), [mentions, recordLinks])
+  const inline = useMemo<BlockDocumentInlineOptions>(() => ({
+    mentions,
+    recordLinks,
+    blocks: extension && Object.fromEntries(Object.entries(extension.blocks).map(([type, block]) => [type, block.sanitize])),
+  }), [extension, mentions, recordLinks])
   const sanitize = useCallback((blocks: unknown) => sanitizeBlockDocument(blocks, inline), [inline])
   const stored = useMemo(() => sanitize(initial.blocks), [initial.blocks, sanitize])
-  const schema = useMemo(() => createSchema(inline), [inline])
+  const schema = useMemo(() => createSchema(inline, extension), [extension, inline])
   const references = useDocumentReferences(onOpenRecord)
   const refreshReferences = references.refresh
   const editor = useCreateBlockNote({
@@ -352,14 +376,13 @@ function DocumentSurface({
   const remember = references.remember
   const getSlashItems = useCallback(async (query: string) => {
     const items = allowedSlashItems(editor as never, query)
-    if (!recordLinks) return items
-    const link = linkRecordSlashItem(editor as never, {
-      title: t('blockDoc.slash.link'),
-      subtext: t('blockDoc.slash.linkSubtext'),
-      group: editor.dictionary.slash_menu.paragraph.group ?? '',
-    })
-    return filterSuggestionItems([...items, link], query)
-  }, [editor, recordLinks, t])
+    const group = editor.dictionary.slash_menu.paragraph.group ?? ''
+    const link = recordLinks
+      ? [linkRecordSlashItem(editor as never, { title: t('blockDoc.slash.link'), subtext: t('blockDoc.slash.linkSubtext'), group })]
+      : []
+    const more = extension?.slashItems({ editor: editor as never, t, group }) ?? []
+    return link.length + more.length === 0 ? items : filterSuggestionItems([...items, ...more, ...link], query)
+  }, [editor, extension, recordLinks, t])
   const getMentionItems = useCallback(async (query: string) => {
     rosterRef.current ??= loadMentionRoster(viewerId).catch((error) => { rosterRef.current = null; throw error })
     return mentionItems(editor as never, await rosterRef.current, query,

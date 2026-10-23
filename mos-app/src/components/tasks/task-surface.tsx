@@ -30,6 +30,7 @@ import { liveTasksSearch, type LiveTasksQueryRef } from './tasks-navigation'
 import { createTaskRecordAdapter, createTaskFieldCommit, type TaskTeamView, type TaskRelatedRecord, type TaskViewerFieldKey } from './task-record-adapter'
 import type { RecordViewerAdapter } from '@/components/records/record-viewer.types'
 import { TaskRecordDocument, type TaskMeetingOrigin } from './task-record-document'
+import { useTaskMeetingOrigin } from './use-task-meeting-origin'
 import { RecordPageSkeleton } from '@/components/record/record-page-layout'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -306,6 +307,8 @@ function ViewSurface({
     void resolveLinkedObjective()
     return () => { current = false }
   }, [linkedObjectiveId])
+
+  const meeting = useTaskMeetingOrigin(localTask?.meeting_id, viewerId, localTask?.is_private === true, meetingOrigin)
 
   // Notify a host of the resolved title (e.g. for the breadcrumb)
   useEffect(() => {
@@ -819,12 +822,13 @@ function ViewSurface({
       fieldCommitsFrozen={fieldCommitsFrozen}
       privacy={{
         viewers: viewerIds.flatMap((id) => peopleDirectory.filter((person) => person.id === id)),
+        // Private and the who-can-see list need the Task's edit gate (mos.can_change_task_privacy).
         canChange: canChangePrivacy(task as TaskListRow, viewerId, downlineIds) && task.archived_at === null,
         onSetPrivate: handleSetPrivate,
         onAddViewer: handleAddViewer,
         onRemoveViewer: handleRemoveViewer,
       }}
-      meeting={meetingOrigin}
+      meeting={meeting}
     />
   )
 
