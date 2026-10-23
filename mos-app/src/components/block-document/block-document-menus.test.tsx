@@ -19,7 +19,7 @@ vi.mock('@blocknote/react', () => ({
 import { useFooterMenu, type DocumentMenuItem } from './block-document-menus'
 
 function Menu({ items, footer }: { items: DocumentMenuItem[]; footer: string }) {
-  const FooterMenu = useFooterMenu(footer)
+  const FooterMenu = useFooterMenu(footer, 'Link a record')
   return <FooterMenu items={items} loadingState="loaded" selectedIndex={0} onItemClick={(item) => item.onItemClick()} />
 }
 
@@ -35,6 +35,11 @@ describe('the @ and [[ menu', () => {
     fireEvent.click(screen.getByRole('option', { name: /Update recipe cards \(In Progress\)/ }))
     expect(pick).toHaveBeenCalled()
     expect(screen.getByText('Only records you can open are listed.')).toBeInTheDocument()
+  })
+
+  it('gives the open list a name', () => {
+    render(<div id="bn-suggestion-menu" role="listbox"><Menu footer="f" items={[]} /></div>)
+    expect(screen.getByRole('listbox', { name: 'Link a record' })).toBeInTheDocument()
   })
 
   it('says so when nothing matches, still with the footer', () => {

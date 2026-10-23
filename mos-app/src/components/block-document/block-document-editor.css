@@ -206,6 +206,12 @@
   color: var(--text-on-accent-tint);
 }
 
+/* The slash menu scrolls inside the visible screen instead of running under the phone's action bar. */
+.block-doc__editor .bn-suggestion-menu {
+  max-height: min(24rem, 45dvh);
+  overflow-y: auto;
+}
+
 /* Slash menu rows and the block menu share the app's Select option sizing; the active row is a tint. */
 .block-doc__editor :is(.bn-ak-menu-item, .bn-ak-select-item) {
   box-sizing: border-box;
@@ -339,12 +345,16 @@
 }
 
 .block-doc__chip-kind {
+  flex: none;
   color: var(--muted-foreground);
+  white-space: nowrap;
 }
 
 .block-doc__chip-title {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 600;
   text-align: start;
 }
@@ -362,4 +372,9 @@
   border-top: 1px solid var(--border);
   color: var(--muted-foreground);
   font-size: var(--mos-size-1);
+}
+
+/* Quote text stays readable: the library's grey fails contrast on the page background. */
+.block-doc .block-doc__editor blockquote {
+  color: var(--foreground);
 }

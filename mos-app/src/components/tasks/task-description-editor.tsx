@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import { BlockDocumentEditor, type BlockDocumentCopy } from '@/components/block-document/block-document-editor'
-import { sharedBlockDocumentCopy } from '@/components/block-document/block-document-copy'
+import { BlockDocumentEditor } from '@/components/block-document/block-document-editor'
 import { useOpenDocumentRecord } from '@/components/block-document/use-open-document-record'
+import { taskDocumentCopy } from './task-document-copy'
 import { readTaskBody, saveTaskBody } from '@/lib/db/task-body'
 
 // The Task description as a block document (mos.tasks.body): the shared editor with `@` mentions of
@@ -26,18 +26,7 @@ export function TaskDescriptionEditor({ taskId, canEdit, onDirtyChange }: TaskDe
     save: (blocks: unknown[], expectedUpdatedAt: string) => saveTaskBody(taskId, blocks, expectedUpdatedAt, viewerId),
   }), [taskId, viewerId])
 
-  const copy: BlockDocumentCopy = {
-    label: t('tasks.document.label'),
-    loading: t('tasks.document.loading'),
-    loadError: t('tasks.document.loadError'),
-    unreadable: t('tasks.document.unreadable'),
-    empty: t('tasks.document.empty'),
-    placeholder: t('tasks.document.placeholder'),
-    placeholderEmpty: t('tasks.document.placeholderEmpty'),
-    // The Task page already says it is view-only.
-    readOnly: '',
-    ...sharedBlockDocumentCopy(t),
-  }
+  const copy = taskDocumentCopy(t)
 
   return (
     <BlockDocumentEditor

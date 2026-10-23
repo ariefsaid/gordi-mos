@@ -31,12 +31,6 @@
 
 /* The description: the document slot, unboxed. */
 .tcf .task-description-section { padding-top: var(--mos-group-above); }
-.tcf-description {
-  display: block; width: 100%; max-width: 65ch; min-height: 7rem; box-sizing: border-box; padding: 4px 0; resize: vertical;
-  border: 0; background: none; color: var(--foreground); font: inherit; font-size: var(--mos-size-3); line-height: 1.55;
-}
-.tcf-description:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-radius: var(--radius-xs); }
-.tcf-description::placeholder { color: var(--muted-foreground); }
 
 @media (max-width: 767.98px) {
   .tcf .rp-head { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title"; }

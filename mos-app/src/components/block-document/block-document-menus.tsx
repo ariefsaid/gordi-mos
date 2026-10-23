@@ -1,4 +1,4 @@
-import { useMemo, type FC, type ReactElement } from 'react'
+import { useEffect, useMemo, type FC, type ReactElement } from 'react'
 import { SuggestionMenu } from '@blocknote/core/extensions'
 import { useComponentsContext, useDictionary, type DefaultReactSuggestionItem, type SuggestionMenuProps } from '@blocknote/react'
 import { filterMentionCandidates } from '@/lib/comments/mentions'
@@ -74,10 +74,12 @@ export function linkRecordSlashItem(
 }
 
 /** A suggestion menu with a footer line under the rows ("Only records you can open are listed."). */
-export function useFooterMenu(footer: string): FC<SuggestionMenuProps<DocumentMenuItem>> {
+export function useFooterMenu(footer: string, label: string): FC<SuggestionMenuProps<DocumentMenuItem>> {
   return useMemo(() => function FooterMenu({ items, loadingState, selectedIndex, onItemClick }: SuggestionMenuProps<DocumentMenuItem>) {
     const Components = useComponentsContext()!
     const dict = useDictionary()
+    // The library's listbox root takes no label prop, so the open list is named here.
+    useEffect(() => { document.getElementById('bn-suggestion-menu')?.setAttribute('aria-label', label) })
     const rows: ReactElement[] = []
     let group: string | undefined
     items.forEach((item, index) => {
@@ -105,5 +107,5 @@ export function useFooterMenu(footer: string): FC<SuggestionMenuProps<DocumentMe
         <p className="block-doc__menu-footer">{footer}</p>
       </Components.SuggestionMenu.Root>
     )
-  }, [footer])
+  }, [footer, label])
 }

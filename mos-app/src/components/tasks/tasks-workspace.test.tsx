@@ -1633,6 +1633,18 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
   // (?record=<id>) exactly like a Signal, so a bookmark/refresh of "the task I'm working on"
   // restores it instead of dropping to a bare list. RULED by OD-REDESIGN-19/63 + I1/I7.
   describe('D-A1 — Task open is URL-addressable (?record=)', () => {
+    it('Create task opens the created Task at its own address', async () => {
+      mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
+      const { getLocation } = renderAt(['/work/tasks'])
+      await waitFor(() => screen.getByText('Existing task'))
+      fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
+      fireEvent.change(await screen.findByRole('textbox', { name: /title/i }), { target: { value: 'Fresh task' } })
+      await chooseDraftSupervisor()
+      mockCreateTask.mockResolvedValue('created-task')
+      submitDraft()
+      await waitFor(() => expect(getLocation()?.search).toContain('record=created-task'))
+    })
+
     it('clicking a task row writes ?record=<id> into the URL (bookmarkable/shareable)', async () => {
       mockListTasks.mockResolvedValue([makeTask({ id: 'task-addr', title: 'Addressable task' })])
       const { getLocation } = renderAt(['/work/tasks'])
