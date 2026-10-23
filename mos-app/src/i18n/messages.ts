@@ -12,7 +12,6 @@ export const messages = {
   en: {
     "workbench.home.otherOpen": "Other open tasks",
     "workbench.tasks.noGrouping": "No grouping",
-    "workbench.task.about": "About this task",
     "workbench.record.details": "Record details",
     "workbench.records.options": "Filters & sort",
     "workbench.production.localOnly": "Local entries, not submitted",
@@ -2890,7 +2889,6 @@ export const messages = {
     'tasks.create.description': "Description",
     'tasks.create.descriptionPlaceholder': "For example, Supplier moved the delivery to Thursday",
     'tasks.create.dueDate': "Due date",
-    'tasks.create.optionalDetails': "Optional details",
     'tasks.create.error': "The task couldn’t be created. Check your connection and try again.",
     'tasks.create.linkFailed': 'Task created, link failed',
     'tasks.create.linkFailedDiscard': 'Task exists but is unlinked from the Signal.',
@@ -4283,7 +4281,6 @@ export const messages = {
   id: {
     "workbench.home.otherOpen": "Tugas terbuka lainnya",
     "workbench.tasks.noGrouping": "Tanpa pengelompokan",
-    "workbench.task.about": "Tentang tugas ini",
     "workbench.record.details": "Detail catatan",
     "workbench.records.options": "Filter & urutan",
     "workbench.production.localOnly": "Entri lokal, belum dikirim",
@@ -7072,7 +7069,6 @@ export const messages = {
     'tasks.create.description': "Deskripsi",
     'tasks.create.descriptionPlaceholder': "Misalnya, Pemasok memindahkan pengiriman ke hari Kamis",
     'tasks.create.dueDate': "Jatuh tempo",
-    'tasks.create.optionalDetails': "Detail opsional",
     'tasks.create.error': "Tugas gagal dibuat. Periksa koneksi Anda lalu coba lagi.",
     'tasks.create.linkFailed': 'Tugas dibuat, tautan gagal',
     'tasks.create.linkFailedDiscard': 'Tugas ada tetapi belum tertaut ke Sinyal.',
