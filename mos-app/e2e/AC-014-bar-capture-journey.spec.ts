@@ -201,14 +201,14 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     // (FR-003): the default is a default, not a wall (OD-WAY-49/31). OD-CAFE-1 bound the choice to
     // the active location — Rumah Rames carries exactly two, {kitchen, bar}
     // (supabase/seed.sql shared.seed_stream_teams()), and the one already in view is not offered.
-    await expect(streamStatement(page)).toContainText(/Rumah Rames · Bar/i, { timeout: 15_000 })
+    await expect(streamStatement(page)).toContainText(/Rumah Rames Bar/i, { timeout: 15_000 })
     await streamSwitch(page).click()
     const streamListbox = page.getByRole('listbox', { name: STREAM_CONTROL_NAME })
-    await expect(streamListbox.getByRole('option')).toHaveText([/Rumah Rames · Bar/i, /Rumah Rames · Kitchen/i])
-    await expect(streamListbox.getByRole('option', { name: /Rumah Rames · Kitchen/i })).toBeVisible()
+    await expect(streamListbox.getByRole('option')).toHaveText([/^Rumah Rames Bar/i, /^Rumah Rames Kitchen$/i])
+    await expect(streamListbox.getByRole('option', { name: /^Rumah Rames Kitchen$/i })).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(streamListbox).toHaveCount(0)
-    await expect(streamStatement(page)).toContainText(/Rumah Rames · Bar/i)
+    await expect(streamStatement(page)).toContainText(/Rumah Rames Bar/i)
 
     // FR-011 / DD-WAY-29 — the item is on the form because its unit is CONFIRMED, and it carries
     // that unit as fixed master data beside the qty input (FR-020).
@@ -305,7 +305,7 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     // ...and it is VISIBLE on the stream's stock surface — the number a person actually reads.
     await page.goto('cafe/stock')
     await page.waitForURL(/\/cafe\/stock$/, { timeout: 15_000 })
-    await expect(streamStatement(page)).toContainText(/Rumah Rames · Bar/i, { timeout: 20_000 })
+    await expect(streamStatement(page)).toContainText(/Rumah Rames Bar/i, { timeout: 20_000 })
     // Balances read as item cards: the item name followed by its system quantity.
     await expect(page.getByRole('region', { name: /^Stock for/i })).toContainText(
       new RegExp(`${ITEM_NAME}\\s*${PLAN_QTY}`, 'i'),

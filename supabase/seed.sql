@@ -697,3 +697,6 @@ on conflict (org_id, menu_item_esb_code, ingredient_esb_code) do update
       loaded_at = excluded.loaded_at;
 
 commit;
+
+-- Locations first: a freshly seeded database ends where a migrated one does.
+select ops._backfill_cafe_locations_first();

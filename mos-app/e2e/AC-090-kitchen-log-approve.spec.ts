@@ -57,10 +57,10 @@ const PLAN_BY = '40000000-0000-0000-0000-000000000002'
 const PLAN_QTY = 50
 
 // OD-WAY-28: `action_type` is retired as a stored column. A plan belongs to an explicit
-// (branch, activity) production stream + movement; this journey exercises Rumah Rames · Kitchen.
+// (branch, activity) production stream + movement; this journey exercises Rumah Rames Kitchen.
 const STREAM_BRANCH_ID = '25000000-0000-0000-0000-000000000002'
 const STREAM_ACTIVITY = 'kitchen'
-const STREAM_LABEL = 'Rumah Rames · Kitchen'
+const STREAM_LABEL = 'Rumah Rames Kitchen'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function wibToday(): string {
@@ -112,7 +112,7 @@ async function execSql(query: string): Promise<void> {
  * AC-090-only stream settle. ensureStream answers "a stream is STATED" — but the OD-CAFE-6
  * ladder can legitimately resolve a default other than this journey's seeded one (e.g. Gordi
  * HQ Bar), so when the stated stream is not the fixture's, switch through the statement's own
- * Change menu until Rumah Rames · Kitchen is the stated stream. The h2 — not the whole
+ * Change menu until Rumah Rames Kitchen is the stated stream. The h2 — not the whole
  * statement — is compared, so a "Back to <home>" affordance can never pass for the stated
  * stream. The no-default direct-choice step stays inside ensureStream, untouched.
  */
@@ -174,6 +174,10 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
       )
     }
     statements.push(
+      // The ledger is append-only; lift its guard just for this fixture's own rows (same pattern as fixtures/cleanup.ts).
+      `ALTER TABLE ops.location_movements DISABLE TRIGGER location_movements_immutable`,
+      `DELETE FROM ops.location_movements WHERE org_id=${uuidLiteral(ORG)} AND item_id=${uuidLiteral(ITEM_ID)}`,
+      `ALTER TABLE ops.location_movements ENABLE TRIGGER location_movements_immutable`,
       `DELETE FROM ops.kitchen_plans WHERE org_id=${uuidLiteral(ORG)} AND id=${uuidLiteral(PLAN_ID)}`,
       `DELETE FROM ops.stream_items WHERE org_id=${uuidLiteral(ORG)} AND wip_item_id=${uuidLiteral(ITEM_ID)}`,
       `DELETE FROM ops.item_units WHERE org_id=${uuidLiteral(ORG)} AND id=${uuidLiteral(UNIT_ID)}`,
