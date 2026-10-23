@@ -40,13 +40,19 @@ const FROM_RRS_CENTRAL: DestinationLocation[] = [
   place('loc-radiant', 'Radiant', RADIANT, false),
   place('loc-cikal', 'Cikal', CIKAL, false),
 ]
+const SHUFFLED: DestinationLocation[] = [FROM_RRS_CENTRAL[1], FROM_RRS_CENTRAL[2], place('loc-bar', 'RRS Bar Store', RRS, true), FROM_RRS_CENTRAL[0]]
 
 describe('movementsFromDestinations', () => {
-  it('AC-001: a planner at RRS Central gets Production, then RRS Outlet, Radiant and Cikal', () => {
+  it('AC-001: a planner at RRS Central gets Production, then RRS Outlet, then the other branches A-Z', () => {
     const moves = movementsFromDestinations(FROM_RRS_CENTRAL)
     expect(moves[0]).toEqual(PRODUCE)
-    expect(moves.slice(1).map(move => move.toLocationName)).toEqual(['RRS Outlet', 'Radiant', 'Cikal'])
-    expect(moves.slice(1).map(move => move.toLocationId)).toEqual(['loc-outlet', 'loc-radiant', 'loc-cikal'])
+    expect(moves.slice(1).map(move => move.toLocationName)).toEqual(['RRS Outlet', 'Cikal', 'Radiant'])
+    expect(moves.slice(1).map(move => move.toLocationId)).toEqual(['loc-outlet', 'loc-cikal', 'loc-radiant'])
+  })
+
+  it('orders any number of destinations the same way: own branch first, A-Z within each group', () => {
+    expect(movementsFromDestinations(SHUFFLED).slice(1).map(move => move.toLocationName))
+      .toEqual(['RRS Bar Store', 'RRS Outlet', 'Cikal', 'Radiant'])
   })
 
   it('AC-005: a new storage Location in a routed branch is a destination with no code change', () => {

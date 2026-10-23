@@ -242,7 +242,7 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
     await expect(submit).toBeEnabled({ timeout: 10_000 })
     await submit.click()
     await expect(
-      page.getByRole('status').filter({ hasText: /1 line submitted/i }),
+      page.getByRole('status').filter({ hasText: /1 entry submitted/i }),
     ).toBeVisible({ timeout: 15_000 })
 
     // The line appears in the log, attributed to THEM: submitted_by is pinned server-side

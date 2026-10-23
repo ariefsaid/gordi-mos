@@ -1,5 +1,5 @@
 import { ListPaging } from '@/components/ui/list-paging'
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useContext, useMemo, useRef } from 'react'
 import { useSearchParamState } from '@/lib/use-search-param-state'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
@@ -64,6 +64,7 @@ import { DecisionBar } from '@/components/cafe/redesign/worksheet'
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
 import { activeCafeLocation } from '@/lib/cafe-opening-location'
 import { useCafeLocationNames } from '@/lib/use-cafe-location-choices'
+import { CafeWaitingContext } from '@/lib/cafe-waiting-context'
 import { useReviewSummary } from '@/lib/kitchen-review-kpis'
 import { formatWeekdayDayMonth, WIB_OFFSET_MS } from '@/lib/format/date'
 import { formatUnitMultiple } from '@/lib/cafe-unit-multiples'
@@ -113,6 +114,11 @@ function planQtyFor(streamPlans: Map<string, PlanMap>, log: ReviewLogRow): numbe
  */
 function isOffPlan(log: ReviewLogRow, planQty: number): boolean {
   return log.qty_porsi !== planQty
+}
+
+/** A logged quantity that differs from a plan that exists is a variance; "not in plan" is only for an item with no plan. */
+function planTagKey(offPlan: boolean, planQty: number) {
+  return !offPlan ? 'kitchen.review.tag.onPlan' as const : planQty > 0 ? 'kitchen.review.tag.variance' as const : 'kitchen.review.tag.offPlan' as const
 }
 
 const reviewQuantityFormatters = new Map<string, Intl.NumberFormat>()
@@ -240,7 +246,7 @@ function GroupActions({
 // (unit, via the page suite): FR-040/041, AC-040/041/042. Token-only (DESIGN.md).
 // reviewed_by/at are NEVER sent client-side.
 // ─────────────────────────────────────────────────────────────────────────────
-type Pending = 'none' | 'approve' | 'reject'
+type Pending = 'none' | 'reject'
 
 interface KitchenReviewDecisionProps {
   log: ReviewLogRow
@@ -274,20 +280,19 @@ function KitchenReviewDecision({
   // FR-040 variance — shared with the bulk scope (see isOffPlan).
   const offPlan = isOffPlan(log, planQty)
 
+  // Off-plan with no submitter note: the reviewer's note is asked for inline, beside Approve.
+  const needsNote = offPlan && !log.notes?.trim()
+
   function startApprove() {
     // #783 AC-052 (DB half #778): a reviewer note is required only when the row is off-plan
     // AND the submitter left none — the submitter's own note already accounts for the
-    // variance, so asking a reviewer to restate it in a second box was a redundant blocking
-    // prompt on every off-plan approval, not a real safeguard. Trimmed, matching the DB's own
-    // `nullif(btrim(notes),'')` — a whitespace-only note is not an explanation.
-    if (!offPlan || log.notes?.trim()) {
+    // variance. Trimmed, matching the DB's own `nullif(btrim(notes),'')`.
+    if (!needsNote) {
       onApprove(log.id, null, log.updated_at)
       return
     }
-    // off-plan, no submitter note (AC-040) → reveal the required approve-note gate
-    setPending('approve')
-    setNote('')
-    setNoteError(false)
+    if (!note.trim()) { setNoteError(true); return } // AC-040: variance approve needs a note
+    onApprove(log.id, note.trim(), log.updated_at)
   }
 
   function startReject() {
@@ -304,10 +309,7 @@ function KitchenReviewDecision({
   }
 
   function confirm() {
-    if (pending === 'approve') {
-      if (!note.trim()) { setNoteError(true); return } // AC-040: variance approve needs a note
-      onApprove(log.id, note.trim(), log.updated_at)
-    } else if (pending === 'reject') {
+    if (pending === 'reject') {
       if (!note.trim()) { setNoteError(true); return } // AC-041: reject needs a note
       onReject(log.id, note.trim())
     }
@@ -335,6 +337,22 @@ function KitchenReviewDecision({
     <div className="krow-actions">
       {pending === 'none' ? (
         <>
+          {needsNote && (
+            <div className="krow-decide">
+              <label className="krow-note-label" htmlFor={`krow-note-${log.id}`}>{t('kitchen.review.note.approve')}</label>
+              <textarea
+                id={`krow-note-${log.id}`}
+                aria-label={t('kitchen.review.noteAriaApprove', { item: log.wip_item_name })}
+                className={`krow-note-input${noteError ? ' krow-note-input-error' : ''}`}
+                rows={2}
+                value={note}
+                placeholder={t('kitchen.review.notePlaceholder.approve')}
+                disabled={submitting}
+                onChange={(e) => { setNote(e.target.value); if (e.target.value.trim()) setNoteError(false) }}
+              />
+              {noteError && <span role="alert" className="krow-note-cue">{t('kitchen.review.note.required')}</span>}
+            </div>
+          )}
           <button
             type="button"
             className="btn btn-outline krow-btn"
@@ -426,6 +444,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
   const t = useT()
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
+  const waitingLoad = useContext(CafeWaitingContext)?.load
 
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const canReadCafePushes = auth.status === 'authenticated' && auth.viewer.canReadCafePushes === true
@@ -729,6 +748,8 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
 
   const removeRow = useCallback((id: string) => {
     setLogs(previous => previous.filter(row => row.id !== id))
+    // The tab and nav counts are shared reads; a decided row leaves them stale until re-read.
+    waitingLoad?.('logs', true)
     const removed = logs.find(row => row.id === id)
     if (removed?.action !== 'produce') return
     const key = streamDateKey(removed.log_date, removed.branch_id, removed.activity)
@@ -744,7 +765,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
         return next
       })
     }).catch(() => { /* Keep the last known gate until the queue is refreshed. */ })
-  }, [logs])
+  }, [logs, waitingLoad])
 
   async function handleApprove(logId: string, reviewNote: string | null, expectedUpdatedAt: string) {
     if (!isOnline) return
@@ -971,7 +992,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
       return <div className="kr-master-entry">
         <button type="button" className="kr-master-row" aria-pressed={log.id === selectedLogId} onClick={() => setSelectedLogId(log.id)}>
           <span className="kr-master-row__identity">{log.wip_item_name}</span>
-          <Tag color={offPlan ? 'amber' : 'green'}><span className="krow-dot" aria-hidden="true" />{offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}</Tag>
+          <Tag color={offPlan ? 'amber' : 'green'}><span className="krow-dot" aria-hidden="true" />{t(planTagKey(offPlan, plan))}</Tag>
           <span className="kr-master-row__meta">{formatWeekdayDayMonth(log.log_date)} · {deriveActionLabel(t, movementOf(log, placeNames), branchCatalog, branchCatalog.find(branch => branch.id === log.branch_id))}{streamFilter === ALL_STREAMS ? ` · ${rowStreamLabel(t, streamCatalog, log)}` : ''}{routeText(log, placeNames) ? ` · ${routeText(log, placeNames)}` : ''}</span>
           {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
           <span className="kr-master-row__meta">{t('kitchen.review.qty.plan')} {plan} · {t('kitchen.review.qty.logged')} {formatLogEntryQuantity(log)} · {peopleMap.get(log.submitted_by ?? '') ?? '—'}</span>
@@ -996,7 +1017,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
         {routeText(log, placeNames) && <span>{routeText(log, placeNames)}</span>}
         <span className="kr-workbench__submitter"><Avatar size="sm" placeholder={name} /><span>{name}</span><span>{formatTime(log.created_at)}</span></span>
         {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
-        <Tag color={offPlan ? 'amber' : 'green'}><span className="krow-dot" aria-hidden="true" />{offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}</Tag>
+        <Tag color={offPlan ? 'amber' : 'green'}><span className="krow-dot" aria-hidden="true" />{t(planTagKey(offPlan, planQty))}</Tag>
       </div>
       <dl className="kr-workbench__comparison">
         <div><dt>{t('kitchen.review.qty.plan')}</dt><dd>{planQty}</dd></div>
@@ -1163,6 +1184,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
           id="kitchen-review-date-filter"
           className="kr-date-filter"
           label={t('kitchen.review.filter.date')}
+          placeholder={t('kitchen.review.filter.allDates')}
           value={logDateFilter}
           onChange={setLogDateFilter}
           compact

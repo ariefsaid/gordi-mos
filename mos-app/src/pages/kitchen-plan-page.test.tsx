@@ -435,13 +435,16 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByRole('button', { name: 'Previous day' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Today' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Today' })).not.toBeInTheDocument()
 
     for (let day = 0; day < 13; day += 1) await stepDay('Next day')
     expect(screen.getByRole('group', { name: 'Plan date' })).toHaveTextContent('Fri 23 Oct · In 13 days')
     expect(screen.getByRole('button', { name: 'Next day' })).toBeDisabled()
-    await stepDay('Today')
+    const calls = mockPlans.mock.calls.length
+    fireEvent.click(await screen.findByRole('button', { name: 'Today' }))
+    await waitFor(() => expect(mockPlans.mock.calls.length).toBe(calls + 1))
     expect(screen.getByRole('group', { name: 'Plan date' })).toHaveTextContent('Sat 10 Oct · Today')
+    expect(screen.queryByRole('button', { name: 'Today' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Previous day' })).toBeDisabled()
     expect(mockPlans).toHaveBeenLastCalledWith('2026-10-10', OWN_STREAM)
   })

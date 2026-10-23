@@ -78,6 +78,8 @@ describe('Café Locations', () => {
     await user.click(screen.getByRole('button', { name: 'Save location' }))
     expect(locations.create).toHaveBeenCalledWith({ name: 'Prep room', use: 'storage', parent_id: null, branch_ids: ['cikal'], site_id: null, activities: [] }, { client_request_id: expect.any(String) })
     await screen.findByRole('heading', { level: 2, name: 'Prep room' })
+    expect(await screen.findByText('Location saved.')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('uses optimistic row versions for updates and blocks duplicate names before writing', async () => {
@@ -88,7 +90,8 @@ describe('Café Locations', () => {
     await user.clear(name)
     await user.type(name, 'Store room')
     expect(await screen.findByRole('alert')).toHaveTextContent('Another active place under the same parent already has this name.')
-    expect(screen.getByRole('button', { name: 'Save location' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Save location' }))
+    expect(locations.update).not.toHaveBeenCalled()
     await user.clear(name)
     await user.type(name, 'Cooler')
     await user.click(screen.getByRole('button', { name: 'Save location' }))
@@ -102,20 +105,36 @@ describe('Café Locations', () => {
     renderPage('?location=kitchen')
     await screen.findByRole('heading', { level: 2, name: 'Kitchen' })
     expect(screen.getByRole('combobox', { name: 'Physically at' })).toHaveTextContent('Gordi HQ')
-    expect(screen.getByRole('checkbox', { name: 'Kitchen' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Kitchen' })).toBeChecked()
     await user.click(screen.getByRole('combobox', { name: 'Physically at' }))
     await user.click(screen.getByRole('option', { name: 'Rumah Rames' }))
     await user.click(screen.getByRole('button', { name: 'Save location' }))
     expect(locations.update).toHaveBeenCalledWith('kitchen', 2, expect.objectContaining({ site_id: 'site-rr', activities: ['kitchen'], branch_ids: ['cikal'] }), { client_request_id: expect.any(String) })
   })
 
-  it('will not save a place that produces without exactly one activity', async () => {
+  it('a place that produces picks exactly one activity (radio) and says what is missing under that field', async () => {
     const user = userEvent.setup()
-    renderPage('?location=kitchen')
-    await screen.findByRole('heading', { level: 2, name: 'Kitchen' })
-    await user.click(screen.getByRole('checkbox', { name: 'Bar' }))
-    expect(await screen.findByText('A place that produces needs exactly one branch and one activity.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save location' })).toBeDisabled()
+    renderPage('?location=new')
+    await screen.findByRole('heading', { level: 2, name: 'Add location' })
+    expect(screen.queryByRole('checkbox', { name: 'Bar' })).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('Name'), 'Prep room')
+    await user.click(screen.getByRole('checkbox', { name: 'Cikal' }))
+    await user.click(screen.getByRole('button', { name: 'Save location' }))
+    expect(await screen.findByText('A place that produces needs exactly one activity.')).toBeInTheDocument()
+    expect(locations.create).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('radio', { name: 'Bar' }))
+    expect(screen.queryByText('A place that produces needs exactly one activity.')).not.toBeInTheDocument()
+  })
+
+  it('a new place can be saved to find out what is missing: Save is enabled and names the blank name', async () => {
+    const user = userEvent.setup()
+    renderPage('?location=new')
+    await screen.findByRole('heading', { level: 2, name: 'Add location' })
+    const save = screen.getByRole('button', { name: 'Save location' })
+    expect(save).toBeEnabled()
+    await user.click(save)
+    expect(await screen.findByText('Enter a name.')).toBeInTheDocument()
+    expect(locations.create).not.toHaveBeenCalled()
   })
 
   it('shows archived identities read-only and does not offer configuration to a non-admin', async () => {

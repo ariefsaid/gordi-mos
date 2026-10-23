@@ -29,4 +29,16 @@ describe('Café switch menu', () => {
     fireEvent.click(within(screen.getByRole('listbox')).getByText('Cikal · Bar'))
     expect(onChange).toHaveBeenCalledWith(cikalBar)
   })
+
+  it('lists production Locations only: streams with no Location (bar-only, receiving-only) are not offered', () => {
+    const at = (stream: ProductionStream, id: string, name: string): ProductionStream =>
+      ({ ...stream, location: { id, name, siteName: 'Gordi HQ', holdsStock: true } })
+    const central = at(hqKitchen, 'l1', 'Central')
+    const bar = at(hqBar, 'l2', 'Bar Place')
+    const receiving: ProductionStream = { branch: cikal, activity: 'kitchen', produces: false }
+    render(<CafeStreamBar options={[central, bar, cikalBar, receiving]} stream={central} locationBranchId="b1" onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Switch kitchen' }))
+    const options = within(screen.getByRole('listbox')).getAllByRole('option')
+    expect(options.map(option => option.textContent)).toEqual(['Bar Place · at Gordi HQ', 'Central · at Gordi HQ'])
+  })
 })

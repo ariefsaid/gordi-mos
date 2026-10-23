@@ -504,6 +504,7 @@ function PlanEditor() {
       {item.unavailableReason === 'inactive' && <span>{t('kitchen.plan.item.inactive')}</span>}
       {item.unavailableReason === 'not-wip' && <span>{t('kitchen.plan.item.notWip')}</span>}
       {item.otherLogUnitNames.length > 0 && <span>{t('kitchen.plan.item.otherLogUnits', { units: item.otherLogUnitNames.join(', ') })}</span>}
+      {wideColumns && item.defaultUnitName !== null && <span>{item.defaultUnitName ?? t('kitchen.unit.porsi')}</span>}
     </>
   )
   // The editable "Plan" control for one action. The phone shows the action chosen in "Plan for"; the desktop
@@ -551,6 +552,7 @@ function PlanEditor() {
   ) => (
     <CaptureTable
       caption={caption}
+      compact={wideColumns}
       columns={{
         item: t('kitchen.plan.col.item'),
         itemSort: 'asc',
@@ -651,10 +653,10 @@ function PlanEditor() {
         <PlanWorkspace className="kp-editor-workspace">
           <aside className="kp-date-rail">
             <div className="kp-day-stepper" role="group" aria-label={t('kitchen.plan.day.group')}>
-              <button type="button" className="btn btn-outline kp-day-stepper__button" aria-label={t('kitchen.plan.day.previous')} disabled={logDate <= today} onClick={() => setLogDate(current => shiftPlanDate(current, -1))}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg></button>
+              <button type="button" className="btn btn-ghost kp-day-stepper__button" aria-label={t('kitchen.plan.day.previous')} disabled={logDate <= today} onClick={() => setLogDate(current => shiftPlanDate(current, -1))}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg></button>
               <time className="kp-date-current tabular" dateTime={logDate} aria-live="polite">{t('kitchen.plan.day.label', { date: formatWeekdayDayMonth(logDate), relative: relativeDay })}</time>
-              <button type="button" className="btn btn-outline kp-day-stepper__button" aria-label={t('kitchen.plan.day.next')} disabled={logDate >= lastPlanDate} onClick={() => setLogDate(current => shiftPlanDate(current, 1))}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg></button>
-              <button type="button" className="btn btn-outline kp-day-stepper__today" disabled={logDate === today} onClick={() => setLogDate(today)}>{t('kitchen.plan.day.today')}</button>
+              <button type="button" className="btn btn-ghost kp-day-stepper__button" aria-label={t('kitchen.plan.day.next')} disabled={logDate >= lastPlanDate} onClick={() => setLogDate(current => shiftPlanDate(current, 1))}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg></button>
+              {logDate !== today && <button type="button" className="btn btn-ghost kp-day-stepper__today" onClick={() => setLogDate(today)}>{t('kitchen.plan.day.today')}</button>}
             </div>
           </aside>
           {movementOptions.length > 0 && !wideColumns && <PlanScope className="kp-action-rail">
@@ -857,7 +859,7 @@ function PesananView() {
             <KitchenToolbar search={search} onSearchChange={setSearch} kinds={WIP_KIND_FILTER_OPTIONS} kind={kindFilter as KitchenItemKindFilter} kindId="cafe-plan-kind" onKindChange={setKindFilter} categories={categories} categoryId="cafe-plan-category" categoryLabel={value => kitchenCategoryLabel(t, value)} category={category} onCategoryChange={setCategory} searchPlaceholder={t('kitchen.plan.pesanan.searchPlaceholder')} ariaLabel={t('kitchen.plan.pesanan.toolbarAria')} resultCount={{ shown: visible.length, total: rows.length }} />
             <Link to="/cafe/production" className="btn btn-outline btn-touch">{t('kitchen.plan.pesanan.readOnlyCta')}</Link>
           </div>
-          {visible.length > 0 ? <PlanHorizon dates={horizonDates} getAction={row => deriveActionLabel(t, { ...row.movement, toLocationName: row.movement.toLocationId ? placeNames.get(row.movement.toLocationId) : null }, branches, stream?.branch)} renderRow={row => <div className="kp-horizon-row"><span className="kp-horizon-item"><span>{row.kind} - {row.wip_item_name}</span>{row.category && <small>{kitchenCategoryLabel(t, row.category)}</small>}{row.defaultUnitName && <small>{row.defaultUnitName}</small>}{row.otherLogUnitNames.length > 0 && <small>{t('kitchen.plan.item.otherLogUnits', { units: row.otherLogUnitNames.join(', ') })}</small>}</span><span className="kp-horizon-planned"><strong>{row.qty_porsi}</strong> {row.defaultUnitName ?? t('kitchen.unit.porsi')}</span></div>} dateLabel={date => formatWeekdayDayMonth(date)} indexLabel={t('kitchen.plan.dateIndex')} actionLabel={t('kitchen.plan.pesanan.col.action')} itemLabel={t('kitchen.plan.pesanan.col.item')} /> : <p role="status" className="kp-no-match">{t('kitchen.filter.noMatch')}</p>}
+          {visible.length > 0 ? <PlanHorizon dates={horizonDates} getAction={row => deriveActionLabel(t, { ...row.movement, toLocationName: row.movement.toLocationId ? placeNames.get(row.movement.toLocationId) : null }, branches, stream?.branch)} renderRow={row => <div className="kp-horizon-row"><span className="kp-horizon-item"><span>{row.kind} - {row.wip_item_name}</span>{row.category && <small>{kitchenCategoryLabel(t, row.category)}</small>}{row.defaultUnitName && <small>{row.defaultUnitName}</small>}{row.otherLogUnitNames.length > 0 && <small>{t('kitchen.plan.item.otherLogUnits', { units: row.otherLogUnitNames.join(', ') })}</small>}</span><span className="kp-horizon-planned"><strong>{row.qty_porsi}</strong> {row.defaultUnitName ?? t('kitchen.unit.porsi')}</span></div>} dateLabel={date => formatWeekdayDayMonth(date)} indexLabel={t('kitchen.plan.dateIndex')} actionLabel={t('kitchen.plan.pesanan.col.planned')} itemLabel={t('kitchen.plan.pesanan.col.item')} /> : <p role="status" className="kp-no-match">{t('kitchen.filter.noMatch')}</p>}
         </div>
       )}
     </CafePageFrame>

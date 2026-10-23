@@ -76,7 +76,7 @@ export function CafeTodayNext({ jobs, stream, setupHref }: { jobs: TodayJobs; st
 
   return <>
     {noItems && <Notice tone="attention" action={jobs.canSetUpItems
-      ? <Link className="btn btn-primary btn-touch" to={setupHref}>{t('cafe.itemsEmpty.action')}</Link>
+      ? <Link className="btn btn-primary btn-touch cafe-today-next__setup" to={setupHref}>{t('cafe.itemsEmpty.action')}</Link>
       : composer && composer.canPost !== false ? <button type="button" className="btn btn-outline btn-touch" onClick={() => composer.open()}>{t('signals.action.share')}</button> : undefined}>
       {jobs.canSetUpItems
         ? t('cafe.today.next.noItems.manage')

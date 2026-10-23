@@ -237,7 +237,7 @@ test.describe('Café default-unit multiples: selected ERP detail survives captur
     const submit = page.getByRole('button', { name: /submit 1 entry/i })
     await expect(submit).toBeEnabled()
     await submit.click()
-    await expect(page.getByRole('status').filter({ hasText: /1 line submitted.*pending review/i })).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: /1 entry submitted.*pending review/i })).toBeVisible()
 
     const landed = await execSqlRead<{
       id: string

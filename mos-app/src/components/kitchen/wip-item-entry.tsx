@@ -59,7 +59,6 @@ interface WipItemEntryProps {
 interface WipItemDetailProps {
   itemName: string
   line: KitchenLogLine
-  movement: KitchenMovement
   onNotesChange: (note: string) => void
   disabled?: boolean
   alreadyLogged?: readonly ActualUnitTotal[]
@@ -224,7 +223,6 @@ export function WipItemEntry({
 export function WipItemDetail({
   itemName,
   line,
-  movement,
   onNotesChange,
   disabled = false,
   alreadyLogged = [],
@@ -237,7 +235,6 @@ export function WipItemDetail({
   // staged, so waiting for blur would leave a focused worker with a disabled action and no control that can
   // satisfy it. It stays mounted after the first note character and while the gate is unsatisfied.
   const showNote = dirty && (notes !== '' || error !== '')
-  const transfer = isStockConsuming(movement)
   // The gate logic (kitchen-gates.ts) stamps the canonical ID cue strings onto `error`/`capError`; the display
   // layer maps them through the i18n seam so an English session never mixes locales (cafe-1).
   const noteCueText = error === VARIANCE_NOTE_CUE
@@ -273,9 +270,6 @@ export function WipItemDetail({
 
       {/* Transfer-availability cap cue (FR-023 / AC-022) */}
       {capError && <span role="alert" className="kls-cap">{capCueText}</span>}
-      {capError && transfer && line.stok > 0 && line.tersedia === 0 && (
-        <p className="kls-availability-note" role="status">{t('kitchen.transfer.availabilityCut')}</p>
-      )}
 
       {/* Variance-note gate (FR-022 / AC-020/021) — revealed inline when qty != target. The field has a visible
           label of its own; the cue is helper text below it and only reads as an error while still required. */}

@@ -1448,8 +1448,8 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   const stagedCount = stagedLines.length
   // The kind ('WIP - ') is said only when the list holds more than one kind; otherwise it is the same on every row.
   const mixedKinds = new Set(wipItems.map(item => item.kind ?? 'WIP')).size > 1
-  const showEmptyTransferAvailability = mode === 'transfer' && transferDestinationChosen && stagedCount === 0
-    && visibleItems.some(item => lines[item.id].stok > 0 && lines[item.id].tersedia === 0)
+  const cutAvailabilityCount = mode === 'transfer' && transferDestinationChosen
+    ? visibleItems.filter(item => lines[item.id].stok > 0 && lines[item.id].tersedia === 0).length : 0
   const stagedSummary = wipItems.flatMap(item => {
     const line = lines[item.id]
     if (!line) return []
@@ -1594,7 +1594,6 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
     <WipItemDetail
       itemName={item.name}
       line={line}
-      movement={movement}
       onNotesChange={note => handleNotesChange(item.id, note)}
       noteAttempted={noteAttempted}
       unitOptions={item.units}
@@ -1827,7 +1826,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
           <Notice tone="info">{t('cafe.capture.readOnly')}</Notice>
         )}
         {status.kind === 'ready' && stream !== null && canCapture && noPlanYet && (
-          <Notice tone="info">{t('cafe.capture.openingNotStarted')}</Notice>
+          <Notice tone="info">{t(Object.keys(planMap).length > 0 ? 'cafe.capture.openingNotStartedDraft' : 'cafe.capture.openingNotStarted')}</Notice>
         )}
         {restoreAnnouncement && (
           <p className="cafe-vh" role="status" aria-live="polite">{restoreAnnouncement}</p>
@@ -2013,8 +2012,8 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
           ) : (
             <>
               {logToolbar}
-              {showEmptyTransferAvailability && (
-                <p className="kls-availability-note" role="status">{t('kitchen.transfer.availabilityCut')}</p>
+              {cutAvailabilityCount > 0 && (
+                <p className="kls-availability-note" role="status">{t(cutAvailabilityCount === 1 ? 'kitchen.transfer.availabilityCut.one' : 'kitchen.transfer.availabilityCut.other', { count: cutAvailabilityCount })}</p>
               )}
               {mode === 'transfer' && !transferDestinationChosen && !readOnlyNoStream ? null : logTable}
               {transferWorksheet && visibleItems.length > 0 && (
@@ -2092,7 +2091,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
                 </button>
               )}
             </>}
-            secondary={(productionWorksheet || mode === 'transfer') ? <button type="button" className="btn btn-outline" aria-expanded={mode === 'transfer' || !isDesktop ? inspectEntriesOpen : undefined} onClick={handleInspectEntriesAction}>{t(mode === 'transfer' ? 'cafe.transfer.inspectEntries' : 'cafe.production.inspectEntries')}</button> : undefined}
+            secondary={((productionWorksheet && !isDesktop) || mode === 'transfer') ? <button type="button" className="btn btn-outline" aria-expanded={mode === 'transfer' || !isDesktop ? inspectEntriesOpen : undefined} onClick={handleInspectEntriesAction}>{t(mode === 'transfer' ? 'cafe.transfer.inspectEntries' : 'cafe.production.inspectEntries')}</button> : undefined}
             primary={<SubmitButton
               form="kitchen-log-form"
               mode={mode}

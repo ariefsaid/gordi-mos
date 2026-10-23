@@ -227,7 +227,7 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     await expect(submit).toBeEnabled({ timeout: 10_000 })
     await submit.click()
     await expect(
-      page.getByRole('status').filter({ hasText: /1 line submitted.*pending review/i }),
+      page.getByRole('status').filter({ hasText: /1 entry submitted.*pending review/i }),
     ).toBeVisible({ timeout: 15_000 })
 
     // The row landed on the member's OWN stream, with themselves as submitter (AC-012's contract,

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
@@ -32,6 +33,7 @@ import {
   type LocationDraft, type LocationProblem, type LocationRow, type LocationUse,
 } from '@/lib/cafe-locations-view'
 import { formatWibShortDateTime } from '@/lib/format/date'
+import { BackIcon } from '@/shell/icons'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { useCafeSetupWorkspace, useOpenerFocusReturn } from './use-cafe-setup-workspace'
 import '@/components/record-collection/record-collection.css'
@@ -90,6 +92,7 @@ function Locations() {
     setParams(next, { replace: true })
   }, [params, setParams])
 
+  const [savedId, setSavedId] = useState<string | null>(null)
   const filters = parseLocationFilters(params)
   const selected = params.get('location')
   const update = useCallback((change: Record<string, string | null>, replace = true) => {
@@ -120,7 +123,7 @@ function Locations() {
     ...(filters.q ? [{ key: 'q', label: `${t('cafe.locations.search')}: ${filters.q}`, clear: { q: null } }] : []),
   ]
   const clearAll = () => update({ branch: null, use: null, status: null, q: null })
-  const open = (id: string) => { lastOpened.current = id; update({ location: id }, false) }
+  const open = (id: string) => { lastOpened.current = id; setSavedId(null); update({ location: id }, false) }
   const hrefFor = (id: string) => { const next = new URLSearchParams(params); next.set('location', id); next.delete('layout'); return { pathname: LOCATIONS_PATH, search: next.toString() } }
   const sortState = (key: 'name' | 'use' | 'status') => filters.sort === key ? filters.dir : undefined
   const selectedRow = selected && selected !== NEW_LOCATION ? rows.find((row) => row.id === selected) ?? null : null
@@ -193,7 +196,7 @@ function Locations() {
               rowClassName={(row) => row.id === selected ? 'is-selected' : undefined}
               renderCard={(row) => <Link className="cafe-locs__card" aria-current={row.id === selected ? 'true' : undefined} data-location-open={row.id} to={hrefFor(row.id)} onClick={() => { lastOpened.current = row.id }}>
                 <span className="cafe-locs__card-main"><span className="cafe-locs__card-title">{nameOf(row)}</span>
-                  <span className="cafe-locs__card-meta">{[t(USE_KEY[row.use]), siteName(row.siteId) ? t('cafe.locations.at', { site: siteName(row.siteId)! }) : null, parentOf(row), row.branchIds.length ? branchesText(row) : null].filter(Boolean).join(' · ')}</span></span>
+                  <span className="cafe-locs__card-meta">{[t(USE_KEY[row.use]), siteName(row.siteId) ? t('cafe.locations.at', { site: siteName(row.siteId)! }) : null, parentOf(row), row.branchIds.length && branchesText(row) !== siteName(row.siteId) ? branchesText(row) : null].filter(Boolean).join(' · ')}</span></span>
                 <LocationStatus row={row} /><span className="cafe-locs__card-view">{t('cafe.locations.view')}</span>
               </Link>}
             />
@@ -205,7 +208,16 @@ function Locations() {
         invalid={selected !== NEW_LOCATION && !selectedRow} offline={offline} branches={data.branches} sites={data.sites}
         parentOf={parentOf} branchName={branchName}
         onClose={() => update({ location: null }, false)} onDirty={setDirty}
-        onSaved={(location) => { clearCafeVisitCache(); refresh(); update({ location: location?.id ?? null, status: location?.archived_at ? 'archived' : filters.status }, false) }}
+        justSaved={savedId !== null && savedId === selected}
+        onSaved={(location) => {
+          // The saved form is no longer unsaved: clear that before the address changes, or leaving it asks to discard.
+          flushSync(() => setDirty(false))
+          clearCafeVisitCache()
+          if (location) setData((current) => current ? { ...current, locations: [...current.locations.filter((candidate) => candidate.id !== location.id), location] } : current)
+          setRetry((count) => count + 1)
+          setSavedId(location && !location.archived_at ? location.id : null)
+          update({ location: location?.id ?? null, status: location?.archived_at ? 'archived' : filters.status }, false)
+        }}
       />}
     </div>
   )
@@ -225,14 +237,16 @@ function LocationStatus({ row }: { row: LocationRow }) {
 interface PanelProps {
   rows: LocationRow[]; row: LocationRow | null; isNew: boolean; isAdmin: boolean; invalid: boolean; offline: boolean
   branches: BranchOption[]; sites: CafeSite[]; parentOf: (row: LocationRow) => string | null; branchName: (id: string) => string
+  justSaved: boolean
   onClose: () => void; onDirty: (dirty: boolean) => void; onSaved: (location: CafeLocation | null) => void
 }
 
-function LocationPanel({ rows, row, isNew, isAdmin, invalid, offline, branches, sites, parentOf, branchName, onClose, onDirty, onSaved }: PanelProps) {
+function LocationPanel({ rows, row, isNew, isAdmin, invalid, offline, branches, sites, parentOf, branchName, justSaved, onClose, onDirty, onSaved }: PanelProps) {
   const t = useT()
   const heading = useRef<HTMLHeadingElement>(null)
   const [confirmArchive, setConfirmArchive] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [attempted, setAttempted] = useState(false)
   const [serverError, setServerError] = useState<MessageKey | null>(null)
   useEffect(() => { heading.current?.focus() }, [])
   const initial = useMemo(() => draftOf(row), [row])
@@ -240,6 +254,7 @@ function LocationPanel({ rows, row, isNew, isAdmin, invalid, offline, branches, 
   const dirty = draftIsDirty(draft, initial)
   useEffect(() => { onDirty(dirty); return () => onDirty(false) }, [dirty, onDirty])
   const problems = validateDraft(draft, rows, row?.id ?? null)
+  const produces = draft.use !== 'storage'
   const parents = useMemo(() => parentChoices(row?.id ?? null, rows), [row, rows])
   const disabled = !isAdmin || offline || busy
   const backLabel = t('record.backToCollection', { collection: t('cafe.pageTitle.locations') })
@@ -256,6 +271,7 @@ function LocationPanel({ rows, row, isNew, isAdmin, invalid, offline, branches, 
     return 'cafe.locations.error.save'
   }
   const save = async () => {
+    if (problems.length > 0) { setAttempted(true); return }
     setBusy(true); setServerError(null)
     const input: LocationInput = { name: draft.name, use: draft.use, parent_id: draft.parentId, branch_ids: draft.branchIds, site_id: draft.siteId, activities: draft.activities }
     try {
@@ -277,20 +293,25 @@ function LocationPanel({ rows, row, isNew, isAdmin, invalid, offline, branches, 
   }
 
   return <section className="cafe-locs__panel" aria-label={t('cafe.locations.panel')} onKeyDown={(event) => { if (event.key === 'Escape' && !event.defaultPrevented) onClose() }}>
-    <Button variant="ghost" className="cafe-locs__back" onClick={onClose}>{backLabel}</Button>
+    <button type="button" className="page-back-link cafe-locs__back" onClick={onClose}><BackIcon /><span>{backLabel}</span></button>
     <h2 ref={heading} tabIndex={-1} className="cafe-locs__panel-title">{title}</h2>
     {hidden ? <p className="cafe-locs__note">{t('cafe.locations.notFoundBody')}</p> : <>
       <p className="cafe-locs__panel-badges">{row && <LocationStatus row={row} />}</p>
+      {justSaved && !dirty && <Notice tone="success">{t('cafe.locations.saved')}</Notice>}
       {isAdmin ? <div className="cafe-locs__form" role="group" aria-label={t('cafe.locations.panel')}>
         <p className="cafe-locs__note">{t('cafe.locations.explain')}</p>
         <div className="cafe-locs__field">
           <TextInput label={t('cafe.locations.name')} value={draft.name} fullWidth autoComplete="off" disabled={disabled}
-            error={(problems.includes('nameBlank') && dirty) || problems.includes('duplicate')}
+            error={(problems.includes('nameBlank') && (dirty || attempted)) || problems.includes('duplicate')}
             onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
-          {problems.includes('nameBlank') && dirty && <p className="cafe-locs__field-error" role="alert">{t(PROBLEM_KEY.nameBlank)}</p>}
+          {problems.includes('nameBlank') && (dirty || attempted) && <p className="cafe-locs__field-error" role="alert">{t(PROBLEM_KEY.nameBlank)}</p>}
           {problems.includes('duplicate') && <p className="cafe-locs__field-error" role="alert">{t(PROBLEM_KEY.duplicate)}</p>}
         </div>
-        <Select label={t('cafe.locations.use')} value={draft.use} fullWidth disabled={disabled} onChange={(event) => setDraft({ ...draft, use: event.target.value as LocationUse })}>
+        <Select label={t('cafe.locations.use')} value={draft.use} fullWidth disabled={disabled} onChange={(event) => {
+          const use = event.target.value as LocationUse
+          // A place that produces works in exactly one activity.
+          setDraft({ ...draft, use, activities: use !== 'storage' ? draft.activities.slice(0, 1) : draft.activities })
+        }}>
           {USES.map((use) => <option key={use} value={use}>{t(USE_KEY[use])}</option>)}
         </Select>
         <div className="cafe-locs__field">
@@ -306,16 +327,20 @@ function LocationPanel({ rows, row, isNew, isAdmin, invalid, offline, branches, 
           {sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}
         </Select>
         <BranchChecklist branches={branches} value={draft.branchIds} disabled={disabled} onChange={(branchIds) => setDraft({ ...draft, branchIds })} />
+        {produces && (dirty || attempted) && draft.branchIds.length !== 1 && <p className="cafe-locs__field-error" role="alert">{t('cafe.locations.error.productionBranch')}</p>}
         <fieldset className="cafe-locs__branches" disabled={disabled}>
           <legend>{t('cafe.locations.activities')}</legend>
           <ul className="cafe-locs__branch-list">
             {PRODUCTION_ACTIVITIES.map((code) => <li key={code}><label className="cafe-locs__branch-row">
-              <Checkbox checked={draft.activities.includes(code)} onChange={(on) => setDraft({ ...draft, activities: on ? [...draft.activities, code] : draft.activities.filter((candidate) => candidate !== code) })} />
+              {produces
+                ? <input type="radio" name="cafe-location-activity" className="cafe-locs__radio" checked={draft.activities[0] === code} onChange={() => setDraft({ ...draft, activities: [code] })} />
+                : <Checkbox checked={draft.activities.includes(code)} onChange={(on) => setDraft({ ...draft, activities: on ? [...draft.activities, code] : draft.activities.filter((candidate) => candidate !== code) })} />}
               <span>{activityLabel(t, code)}</span></label></li>)}
           </ul>
-          {problems.includes('productionShape') && dirty && <p className="cafe-locs__field-error" role="alert">{t(PROBLEM_KEY.productionShape)}</p>}
+          {produces && (dirty || attempted) && draft.activities.length !== 1 && <p className="cafe-locs__field-error" role="alert">{t('cafe.locations.error.productionActivity')}</p>}
         </fieldset>
         <p className="cafe-locs__note">{t('cafe.locations.archiveNote')}</p>
+        {row && !row.archived && <Button variant="ghost" className="btn-danger-text cafe-locs__archive" disabled={disabled} onClick={() => setConfirmArchive(true)}>{t('cafe.locations.archive')}</Button>}
         {serverError && <p className="cafe-locs__field-error" role="alert">{t(serverError)}</p>}
       </div> : row && <dl className="cafe-locs__facts">
         <div><dt>{t('cafe.locations.use')}</dt><dd>{t(USE_KEY[row.use])}</dd></div>
@@ -325,8 +350,7 @@ function LocationPanel({ rows, row, isNew, isAdmin, invalid, offline, branches, 
         <div><dt>{t('cafe.locations.activities')}</dt><dd>{row.activities.length ? row.activities.map((code) => activityLabel(t, code as 'kitchen' | 'bar')).join(', ') : t('cafe.locations.none')}</dd></div>
       </dl>}
       {isAdmin && <ActionBar className="cafe-locs__actions" reason={offline ? t('cafe.locations.offlineStale', { time: '' }) : undefined}
-        secondary={row && !row.archived ? <Button variant="destructive" disabled={disabled} onClick={() => setConfirmArchive(true)}>{t('cafe.locations.archive')}</Button> : undefined}
-        primary={<Button variant="primary" disabled={disabled || problems.length > 0 || !dirty} onClick={() => void save()}>{t('cafe.locations.save')}</Button>}
+        primary={<Button variant="primary" disabled={disabled || (!isNew && !dirty)} onClick={() => void save()}>{t('cafe.locations.save')}</Button>}
         aria-label={t('cafe.locations.save')} />}
     </>}
     <ConfirmDialog open={confirmArchive} title={t('cafe.locations.archive.confirmTitle')} body={t('cafe.locations.archive.confirmBody')}

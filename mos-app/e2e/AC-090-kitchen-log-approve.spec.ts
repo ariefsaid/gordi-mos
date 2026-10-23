@@ -246,7 +246,7 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
     await submitBtn.click()
 
     await expect(
-      page.getByRole('status').filter({ hasText: /1 line submitted.*pending review/i }),
+      page.getByRole('status').filter({ hasText: /1 entry submitted.*pending review/i }),
     ).toBeVisible({ timeout: 10_000 })
 
     // Capture the exact UUID created by the real UI insert. Cleanup never deletes by date/item.

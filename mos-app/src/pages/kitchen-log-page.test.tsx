@@ -824,11 +824,11 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
   })
 
   // #937: before today's opening starts there is no plan — tell once, ask for no per-item note.
-  async function stageAyamBeforeOpening(started: boolean) {
+  async function stageAyamBeforeOpening(started: boolean, plan: Record<string, Record<string, number>> = {}) {
     vi.mocked(getCafeOpeningProcessId).mockResolvedValue('proc-1')
     vi.mocked(getCafeOpeningTeamId).mockResolvedValue('team-1')
     vi.mocked(getTodayOpeningForTeam).mockResolvedValue({ started, runId: started ? 'run-1' : null, rollup: null })
-    mockFetchPlanMap.mockResolvedValue({})
+    mockFetchPlanMap.mockResolvedValue(plan)
     await renderPage()
     await screen.findAllByText('Ayam Bakar')
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
@@ -844,6 +844,12 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
     expect(await screen.findByText(/opening hasn't started.*ops lead starts it/i)).toBeInTheDocument()
     expect(screen.queryByText(/differs from plan — add a note/i)).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /^submit/i })[0]).toBeEnabled()
+  })
+
+  it('opening not started with a plan already on the page: says the plan is a draft, never "no plan yet"', async () => {
+    await stageAyamBeforeOpening(false, { w1: { produce: 5 } })
+    expect(await screen.findByText(/opening not started — the plan is a draft/i)).toBeInTheDocument()
+    expect(screen.queryByText(/no plan yet/i)).not.toBeInTheDocument()
   })
 
   it('opening not started: once the opening has started, an off-plan item still needs its note', async () => {
@@ -1119,33 +1125,34 @@ describe('Issue 1702: transfer availability explains the date cutoff without cha
   it.each([
     {
       locale: 'en' as const,
-      explanation: "Available uses approved logs dated before today. Today's approved production can be transferred tomorrow.",
-      capCue: /^Only 0 .* available\./,
+      explanation: "Available now is 0 for 1 item. Its stock from today can be transferred tomorrow.",
+      capCue: 'Only 0 porsi available.',
     },
     {
       locale: 'id' as const,
-      explanation: 'Tersedia dihitung dari catatan yang disetujui sebelum hari ini. Produksi yang disetujui hari ini bisa ditransfer besok.',
-      capCue: /^Hanya 0 .* tersedia\./,
+      explanation: 'Tersedia saat ini 0 untuk 1 item. Stoknya dari hari ini bisa ditransfer besok.',
+      capCue: 'Hanya 0 porsi tersedia.',
     },
-  ])('explains positive Stock with zero Available in the empty and blocked states ($locale)', async ({ locale, explanation, capCue }) => {
+  ])('says once, above the table, that positive Stock with zero Available moves tomorrow ($locale)', async ({ locale, explanation, capCue }) => {
     mockFetchStockMap.mockResolvedValue({
       w1: { stok: 1, tersedia: 0 },
       w2: { stok: 0, tersedia: 0 },
     })
     await renderTransferPage(VIEWER_MEMBER, undefined, locale)
     await waitFor(() => expect(screen.getByText('Ayam Bakar')).toBeInTheDocument())
-    expect(screen.getByText(explanation)).toBeInTheDocument()
-
     await chooseDestination(/radiant/i)
+    expect(await screen.findByText(explanation)).toHaveClass('kls-availability-note')
+
     const qtyInput = screen.getByRole('spinbutton', { name: /ayam bakar/i })
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '1' } })
       await Promise.resolve()
     })
 
-    const rowExplanation = await screen.findByText(explanation)
-    expect(rowExplanation).toHaveClass('kls-availability-note')
+    // The row says only how much is available; the cutoff is not repeated, and the claim about a lead is gone.
+    expect(screen.getAllByText(explanation)).toHaveLength(1)
     expect(screen.getByText(capCue)).toBeInTheDocument()
+    expect(screen.queryByText(/lead approves|disetujui atasan/i)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: locale === 'en' ? /^submit/i : /^kirim/i })).toBeDisabled()
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
@@ -1418,7 +1425,7 @@ describe('AC-030: successful submit (increment semantics)', () => {
     })
 
     // Success message shown (live region)
-    expect(await screen.findByText(/line submitted — pending review/i)).toBeInTheDocument()
+    expect(await screen.findByText(/entry submitted — pending review/i)).toBeInTheDocument()
     expect(screen.getAllByText(/12 porsi/).length).toBeGreaterThan(0)
   })
 })
@@ -1936,7 +1943,7 @@ describe('capture retry identity and saved drafts', () => {
     expect(restored).toHaveValue(String(quantity))
     expect(screen.getByText(/Restored 1 unsent entry/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
-    expect(await screen.findByText(/lines? submitted/i)).toBeInTheDocument()
+    expect(await screen.findByText(/(entry|entries) submitted/i)).toBeInTheDocument()
     expect(localStorage.length).toBe(0)
   })
 
@@ -2003,7 +2010,7 @@ describe('capture retry identity and saved drafts', () => {
     const ayamRow = screen.getByRole('row', { name: /ayam bakar/i })
     expect(ayamRow).toHaveTextContent(/Recorded today\s*8 porsi/i)
     fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
-    await screen.findByText(/lines? submitted/i)
+    await screen.findByText(/(entry|entries) submitted/i)
 
     expect(screen.getByRole('row', { name: /ayam bakar/i })).toHaveTextContent(/Recorded today\s*8 porsi/i)
     expect(screen.getByRole('row', { name: /ayam bakar/i })).not.toHaveTextContent(/16/)

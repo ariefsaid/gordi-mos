@@ -79,8 +79,9 @@ export function streamProduces(
 
 /**
  * Production, then one transfer per destination Location the database offers for this origin
- * (`ops.list_cafe_destination_locations`: own-branch storage Locations first, then the Locations of
- * routed branches). A new storage Location is therefore a destination with no code change here.
+ * (`ops.list_cafe_destination_locations`). One order everywhere: the origin's own branch first, then
+ * the other branches, alphabetical by name within each. A new storage Location is therefore a
+ * destination with no code change here.
  */
 export function movementsFromDestinations(
   destinations: readonly DestinationLocation[],
@@ -89,7 +90,9 @@ export function movementsFromDestinations(
   if (!canProduce) return []
   const seen = new Set<string>()
   const transfers: KitchenMovement[] = []
-  for (const destination of destinations) {
+  const rank = (d: DestinationLocation) => (d.same_branch ? 0 : 1)
+  const ordered = [...destinations].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name) || a.location_id.localeCompare(b.location_id))
+  for (const destination of ordered) {
     if (seen.has(destination.location_id)) continue
     seen.add(destination.location_id)
     transfers.push({

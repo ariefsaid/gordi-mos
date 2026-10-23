@@ -20,7 +20,8 @@ import {
   updateCafeTransferRoute, type RouteEsbSwitch, type TransferRoute, type TransferRouteInput,
 } from '@/lib/db/cafe-transfer-routes'
 import { clearCafeVisitCache } from '@/lib/cafe-visit-cache'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Toggle } from '@/components/ui/toggle'
+import { BackIcon } from '@/shell/icons'
 import { ContractError, type WriteContext } from '@/lib/db/contract'
 import { listStreamPairs } from '@/lib/db/kitchen-logs'
 import type { BranchOption, ProductionActivity, StreamPair } from '@/lib/db/kitchen-logs.types'
@@ -179,8 +180,8 @@ function TransferRoutes() {
       } : current)
     })
   }, [offline, mutate, setData])
-  const setEsb = useCallback(async (row: RouteRow, enabled: boolean) => {
-    if (offline) { setMutationError('cafe.routes.error.unavailable'); return }
+  const setEsb = useCallback(async (row: RouteRow, enabled: boolean): Promise<boolean> => {
+    if (offline) { setMutationError('cafe.routes.error.unavailable'); return false }
     setSaving(true)
     setMutationError(null)
     try {
@@ -191,8 +192,10 @@ function TransferRoutes() {
         ...current,
         esb: current.esb.map((entry) => routeKey(entry) === row.key ? { ...entry, record_in_esb: recorded } : entry),
       } : current)
+      return true
     } catch (error) {
       setMutationError(routeMutationErrorKey(error))
+      return false
     } finally {
       setSaving(false)
     }
@@ -249,11 +252,10 @@ function TransferRoutes() {
         {rows.length > 0 && <>
           <div className="cafe-routes__toolbar">
             <SearchField label={t('cafe.routes.search')} placeholder={t('cafe.routes.searchHint')} value={filters.q} onChange={(value) => update({ q: value })} />
-            <Select label={t('cafe.routes.destination')} value={filters.destination} onChange={(e) => update({ destination: e.target.value === 'all' ? null : e.target.value })}>
+            <Select label={t('cafe.routes.destination')} fullWidth={!isDesktop} value={filters.destination} onChange={(e) => update({ destination: e.target.value === 'all' ? null : e.target.value })}>
               <option value="all">{t('cafe.routes.allDestinations')}</option>
               {destinationOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
             </Select>
-            {isAdmin && <Button variant="outline" className="cafe-routes__add" onClick={() => open('new')}>{t('cafe.routes.add')}</Button>}
             <span className="cafe-routes__count tabular" role="status">{t(visible.length === 1 ? 'cafe.routes.count.one' : 'cafe.routes.count.other', { count: visible.length })}</span>
           </div>
           {chips.length > 0 && <div className="cafe-routes__chips">
@@ -373,7 +375,7 @@ interface PanelProps {
   onSave: (row: RouteRow | null, input: TransferRouteInput) => Promise<void>
   onRemove: (row: RouteRow) => Promise<void>
   /** The Record in ESB switch; null for anyone who cannot read it, so the control never renders. */
-  esb: { on: boolean; set: (row: RouteRow, enabled: boolean) => Promise<void> } | null
+  esb: { on: boolean; set: (row: RouteRow, enabled: boolean) => Promise<boolean> } | null
   onClose: () => void
   onDirty: (dirty: boolean) => void
 }
@@ -389,6 +391,7 @@ function RoutePanel({
   const initial = row ? ONE_STREAM(row.originBranchId, row.originActivity) : ''
   const [origin, setOrigin] = useState(initial)
   const [destination, setDestination] = useState(row?.destinationBranchId ?? '')
+  const [esbSaved, setEsbSaved] = useState(false)
   const dirty = origin !== initial || destination !== (row?.destinationBranchId ?? '')
   useEffect(() => { onDirty(dirty); return () => onDirty(false) }, [dirty, onDirty])
 
@@ -411,13 +414,13 @@ function RoutePanel({
   const destinationEligible = candidate !== null && eligible.some((branch) => branch.id === candidate.destination_branch_id)
   const formDisabled = data.partial || offline || saving
   const saveDisabled = formDisabled || !candidate || !destinationEligible || duplicate || !dirty || originProblem !== null || (row !== null && row.rowVersion === null)
-  const reason = offline ? t('cafe.routes.error.offline')
+  const reason = !dirty && !offline && !data.partial ? undefined : offline ? t('cafe.routes.error.offline')
     : data.partial ? t('cafe.routes.partial')
       : !candidate ? t('cafe.routes.chooseDestination')
         : originProblem ? t(PROBLEM_KEY[originProblem])
           : duplicate ? t('cafe.routes.duplicate')
             : !destinationEligible ? t('cafe.routes.chooseDestination')
-              : !dirty ? t('cafe.routes.noChanges') : undefined
+              : undefined
   const backLabel = t('record.backToCollection', { collection: t('cafe.pageTitle.transferRoutes') })
   const title = invalid ? t('cafe.routes.notFound') : isNew ? t('cafe.routes.add') : `${originText(row!)} → ${destinationText(row!)}`
   const rowReason = row?.reason ? REASON_KEY[row.reason] : row?.problem ? PROBLEM_KEY[row.problem] : null
@@ -425,7 +428,7 @@ function RoutePanel({
   return (
     <section className="cafe-routes__panel" aria-label={t('cafe.routes.panel')}
       onKeyDown={(event) => { if (event.key === 'Escape' && !event.defaultPrevented) onClose() }}>
-      <Button variant="ghost" className="cafe-routes__back" onClick={onClose}>{backLabel}</Button>
+      <button type="button" className="page-back-link cafe-routes__back" onClick={onClose}><BackIcon /><span>{backLabel}</span></button>
       <h2 ref={heading} tabIndex={-1} className="cafe-routes__panel-title">{title}</h2>
       {invalid ? <p className="cafe-routes__note">{t('cafe.routes.notFoundBody')}</p> : <>
         <p className="cafe-routes__panel-badges">{row && <RouteStatus row={row} />}</p>
@@ -447,13 +450,18 @@ function RoutePanel({
             {originBranch && eligible.length === 0 && <p className="cafe-routes__field-note">{t('cafe.routes.noEligible')}</p>}
             {duplicate && <p className="cafe-routes__field-error" role="alert">{t('cafe.routes.duplicate')}</p>}
             {esb && row && <div className="cafe-routes__esb">
-              <label className="cafe-routes__esb-row">
-                <Checkbox checked={esb.on} disabled={formDisabled} onChange={(enabled) => void esb.set(row, enabled)} />
-                <span>{t('cafe.routes.esb')}</span>
-              </label>
-              <p className="cafe-routes__field-note">{t('cafe.routes.esb.note')}</p>
+              <div className="cafe-routes__esb-row">
+                <Toggle id="cafe-routes-esb" value={esb.on} disabled={formDisabled}
+                  aria-label={t('cafe.routes.esb')}
+                  onChange={(enabled) => { setEsbSaved(false); void esb.set(row, enabled).then(setEsbSaved) }} />
+                <label htmlFor="cafe-routes-esb">{t('cafe.routes.esb')}</label>
+                <span className="cafe-routes__esb-state">{t(esb.on ? 'cafe.routes.esb.on' : 'cafe.routes.esb.off')}</span>
+                <span className="cafe-routes__esb-saved" role="status" aria-live="polite">{esbSaved ? t('record.field.saved') : ''}</span>
+              </div>
+              <p className="cafe-routes__field-note">{t(esb.on ? 'cafe.routes.esb.noteOn' : 'cafe.routes.esb.note')}</p>
             </div>}
             <p className="cafe-routes__field-note">{t('cafe.routes.removeNote')}</p>
+            {row && <Button variant="ghost" className="btn-danger-text cafe-routes__disable" disabled={saving || offline || dirty} onClick={() => void onRemove(row)}>{t('cafe.routes.remove')}</Button>}
           </div>
         ) : row && (
           <dl className="cafe-routes__facts">
@@ -467,7 +475,6 @@ function RoutePanel({
             alert={mutationError ? t(mutationError) : undefined}
             reason={saveDisabled ? reason : undefined}
             reasonId="cafe-routes-save-reason"
-            secondary={row ? <Button variant="destructive" disabled={saving || offline || dirty} onClick={() => void onRemove(row)}>{t('cafe.routes.remove')}</Button> : undefined}
             primary={<Button variant="primary" disabled={saveDisabled} aria-describedby={saveDisabled ? 'cafe-routes-save-reason' : undefined}
               onClick={() => { if (candidate) void onSave(row, candidate) }}>{t('cafe.routes.save')}</Button>}
             aria-label={t('cafe.routes.save')}

@@ -50,6 +50,11 @@ export const ALL_STREAMS = 'all'
 
 const EMPTY_STREAM_KEYS: ReadonlySet<string> = new Set()
 
+/** The picker offers production Locations only — a stream with none (bar-only, receiving-only, storage-only) is not a place to work. Without any Location data it keeps the whole catalog. */
+function pickable(options: readonly ProductionStream[]): readonly ProductionStream[] {
+  return options.some(option => option.location) ? options.filter(option => option.location) : options
+}
+
 function sameStream(a: ProductionStream | null, b: ProductionStream | null): boolean {
   if (a == null || b == null || a.branch.id !== b.branch.id || a.activity !== b.activity) return false
   // Two entries of one stream differ by Location; a stream named without one matches any of them.
@@ -160,7 +165,7 @@ export function CafeStreamBar({
   if (!allStreams && stream === null) return null
 
   const valueLabel = allStreams ? t('kitchen.review.allStreams') : streamLabel(t, stream)
-  const alternatives = options.filter((option) => !sameStream(option, stream))
+  const alternatives = pickable(options).filter((option) => !sameStream(option, stream))
   const canSwitch = allStreams ? options.length > 0 : alternatives.length > 0 || Boolean(onAllStreams)
   const backTarget = !allStreams && stream && homeStream && !sameStream(stream, homeStream)
     ? options.find((option) => sameStream(option, homeStream)) ?? null
@@ -226,8 +231,9 @@ function StreamSwitchMenu({ id, options, current, homeStream, myStreamKeys, loca
 
   const entries = useMemo<Array<{ value: string; label: string; isAllStreams: boolean; branch: 'this' | 'other' | null }>>(() => {
     // The All streams sentinel stays pinned first; real streams rank current memberships first.
-    const ranked = [...options].sort(
-      (a, b) => myRank(a, homeStream, myStreamKeys, locationBranchId) - myRank(b, homeStream, myStreamKeys, locationBranchId),
+    const ranked = [...pickable(options)].sort(
+      (a, b) => myRank(a, homeStream, myStreamKeys, locationBranchId) - myRank(b, homeStream, myStreamKeys, locationBranchId)
+        || (a.location?.name ?? '').localeCompare(b.location?.name ?? ''),
     )
     return [
       ...(onAllStreams ? [{ value: ALL_STREAMS, label: t('kitchen.review.allStreams'), isAllStreams: true, branch: null }] : []),
@@ -365,7 +371,7 @@ export function CafeStreamChoices({
   if (options.length === 0) {
     return <EmptyState variant="blank" title={t('cafe.stream.none')} />
   }
-  const ranked = [...options].sort(
+  const ranked = [...pickable(options)].sort(
     (a, b) => myRank(a, homeStream, myStreamKeys) - myRank(b, homeStream, myStreamKeys),
   )
   const showAdminHint = auth.status === 'authenticated' && canAdminCafe(auth.viewer.accessRoles)
