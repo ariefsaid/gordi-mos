@@ -401,6 +401,7 @@ export function TasksWorkspace({
   // reopen a draft. The flag is set by the close event and cleared in an effect, never during render
   // (a render can be abandoned and replayed with the previous location).
   const urlCreateClosedRef = useRef(false)
+  const openAfterCreateRef = useRef<string | null>(null)
   const urlCreate = params.get('create') === '1'
   if (urlCreate && !urlCreateClosedRef.current && !draftTask) createIntentRef.current = true
   if (urlCreate && !createParamSnapshotRef.current) {
@@ -634,6 +635,8 @@ export function TasksWorkspace({
       urlCreateClosedRef.current = true
       setDraftTask(null)
       setCompletedTaskId(createdTaskId)
+      // The draft page becomes the created Task at its own address (opened once ?create=1 is dropped).
+      openAfterCreateRef.current = createdTaskId
       return
     }
     if (!viewerId) throw new Error('inline title edit requires an authenticated viewer')
@@ -783,6 +786,11 @@ export function TasksWorkspace({
         next.delete('create')
         setParams(writeCollectionQuery(taskCollectionDescriptor.query, query, next), { replace: true })
       }
+      const createdId = openAfterCreateRef.current
+      if (createdId && !wantsUrlCreate) {
+        openAfterCreateRef.current = null
+        onOpenTask(createdId)
+      }
       return
     }
     if (createIntentRef.current) {
@@ -802,7 +810,7 @@ export function TasksWorkspace({
     // Written in the engine's canonical form: the engine's own URL sync races this write, and each
     // lands from its own render's snapshot, so the two must agree or the last one wins.
     setParams(writeCollectionQuery(taskCollectionDescriptor.query, query, next), { replace: true })
-  }, [dataContext, draftTask, onNewTask, params, query, setParams, viewerTeams])
+  }, [dataContext, draftTask, onNewTask, onOpenTask, params, query, setParams, viewerTeams])
   // Cancel, Escape, the back link and leaving the page with text typed into the draft ask first.
   const draftHasText = Boolean(draftTask && (draftTask.title.trim() !== '' || blockDocumentHasContent(draftFormState.body ?? [])))
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
