@@ -68,3 +68,18 @@
   .staff-attendance__weekbar .staff-attendance__week { flex-basis: 100%; }
 }
 .staff-attendance__actions > button { white-space: nowrap; }
+
+.staff-attendance__days-list--mine { --staff-day-col: 9.5rem; }
+@media (min-width: 768px) { .staff-attendance__days-list--mine { --staff-day-col: 11rem; } }
+.staff-attendance__day--mine { grid-template-columns: var(--staff-day-col) minmax(0, 1fr); align-items: baseline; column-gap: var(--mos-space-3); }
+.staff-attendance__day--mine > h2 { font: var(--mos-type-control); }
+.staff-attendance__day-shifts { display: grid; min-width: 0; }
+.staff-attendance__day--mine .staff-attendance__shift { min-height: 0; padding-block: var(--mos-space-1); }
+.staff-attendance__day--mine .staff-attendance__shift-main { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--mos-space-3); row-gap: 0; }
+.staff-attendance__day--rest > span:first-child { flex: 0 0 var(--staff-day-col); }
+.staff-attendance__shift--open { padding-block: 0; }
+.staff-attendance__row { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-space-3); box-sizing: border-box; width: 100%; min-height: var(--mos-control-height); padding: var(--mos-space-2) var(--mos-space-2); margin-inline: calc(-1 * var(--mos-space-2)); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--mos-ink); text-align: start; cursor: pointer; }
+.staff-attendance__row:hover { background: var(--mos-band); }
+.staff-attendance__shift--open .staff-attendance__shift-main { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--mos-space-3); row-gap: 0; }
+.staff-attendance__row > svg { flex: none; color: var(--mos-muted); }
+.staff-attendance__row .staff-attendance__shift-main { flex: 1; min-width: 0; }
