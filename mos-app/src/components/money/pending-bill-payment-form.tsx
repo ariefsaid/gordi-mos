@@ -95,7 +95,8 @@ export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, 
   const errors = { ...validation.errors }
   if (cashInDateInvalid && !errors.cashInDate) errors.cashInDate = 'invalid'
   const fieldsWithErrors = (multiMode ? ['cashInDate', 'proof'] as const : ['amount', 'cashInDate', 'proof'] as const)
-    .filter((field) => errors[field])
+    // Typed-but-unparseable date text is a wrong date, not a missing one: its own message says so.
+    .filter((field) => errors[field] === 'required' && !(field === 'cashInDate' && cashInDateText))
   const canSubmitPayment = validation.canSubmit && (!multiMode || multiSelection.count > 0)
     && (multiMode || !amountInvalid) && !cashInDateInvalid && !submitting && !proofError
   const canSubmitReversal = Boolean(reversalReason.trim()) && reversalReason.trim().length <= 500 && !submitting
@@ -408,7 +409,7 @@ export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, 
               <span className="pending-bill-payment-form__selected-proof">{proof ? proof.name : t('pendingBills.form.noFile')}</span>
             </div>
             {proofFieldError && !proofError && <p id={`${proofHelpId}-error`} className="pending-bill-payment-form__field-error" role="alert">{proofFieldError}</p>}
-            {proofError && <p id={`${proofHelpId}-error`} className="pending-bill-payment-form__field-error" role="alert">{t('pendingBills.form.proof')}: {proofError}</p>}
+            {proofError && <p id={`${proofHelpId}-error`} className="pending-bill-payment-form__field-error" role="alert">{proofError}</p>}
           </div>
 
           {!multiMode && (
