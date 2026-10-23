@@ -15,7 +15,7 @@
 // action_type to read or write.
 //
 // UPSERT MECHANISM (see #45 report): the unique index is
-// (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id), but
+// (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, to_location_id), but
 // org_id is server-defaulted and never sent by the client. A bare PostgREST
 // .upsert({ onConflict }) would force the client to send org_id into the conflict target.
 // Rather than weaken the "client never sends org_id" guarantee, upsertKitchenPlan does a

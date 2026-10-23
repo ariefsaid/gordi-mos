@@ -142,7 +142,7 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
         (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi, plan_by)
       VALUES ('${ORG}', '${today}', '${ITEM_ID}', ${BRANCH_SQL}, '${BAR_STREAM.activity}', 'produce', NULL,
               ${PLAN_QTY}, '${BAR_SUPERVISOR.personId}')
-      ON CONFLICT (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id)
+      ON CONFLICT (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, to_location_id)
       DO UPDATE SET qty_porsi = ${PLAN_QTY};
     `)
     console.log(`[AC-014] fixture ready for ${today} — ${ITEM_NAME} (${UNIT_NAME}), plan ${PLAN_QTY}`)

@@ -114,7 +114,7 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
         (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi, plan_by)
       VALUES ('${ORG}', '${today}', '${ITEM_ID}', ${BRANCH_SQL}, '${BAR_STREAM.activity}', 'produce', NULL,
               ${PLAN_QTY}, '${BAR_MEMBER.personId}')
-      ON CONFLICT (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id)
+      ON CONFLICT (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, to_location_id)
       DO UPDATE SET qty_porsi = ${PLAN_QTY};
     `)
   })
