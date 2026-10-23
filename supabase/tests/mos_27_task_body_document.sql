@@ -4,7 +4,7 @@
 -- OwnTeam), DirectMgr d2 (the PIC's manager, may edit), Peer d4 (may not edit), Report d5, GrandMgr d3.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(29);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_signal_tree();
@@ -114,7 +114,9 @@ insert into doc_parts values
   ('peer', '{"type":"mention","props":{"kind":"person","id":"00000000-0000-0000-0000-0000000000d4"}}'),
   ('self', '{"type":"mention","props":{"kind":"person","id":"00000000-0000-0000-0000-0000000000d1"}}'),
   ('team', '{"type":"mention","props":{"kind":"team","id":"00000000-0000-0000-0000-000000005b01"}}'),
-  ('grand', '{"type":"mention","props":{"kind":"person","id":"00000000-0000-0000-0000-0000000000d3"}}');
+  ('grand', '{"type":"mention","props":{"kind":"person","id":"00000000-0000-0000-0000-0000000000d3"}}'),
+  ('foreign', '{"type":"mention","props":{"kind":"person","id":"00000000-0000-0000-0000-0000000000b4"}}'),
+  ('sibling', '{"type":"mention","props":{"kind":"team","id":"00000000-0000-0000-0000-000000005b02"}}');
 create function pg_temp.doc(variadic p_labels text[]) returns jsonb language sql as $$
   select jsonb_build_array(jsonb_build_object('type','paragraph','content',
     coalesce((select jsonb_agg(inline) from doc_parts where label = any(p_labels)), '[]'::jsonb)
@@ -154,11 +156,11 @@ select is((select count(*)::int from mos.notifications
             where metadata ->> 'source' = 'task_mention' and metadata #>> '{entity,id}' = '00000000-0000-0000-0000-000000007002'),
   2, 'AC-006: removing and re-adding a mention does not notify again (once per person per Task)');
 
--- The agent API path has no person session: the notice still lands.
+-- A write with no person session (a superuser or service write): the notice still lands.
 update mos.tasks set body = pg_temp.doc('peer', 'team', 'grand') where id = '00000000-0000-0000-0000-000000007002';
 select is((select count(*)::int from mos.notifications
             where owner_id = '00000000-0000-0000-0000-0000000000d3' and metadata #>> '{entity,id}' = '00000000-0000-0000-0000-000000007002'), 1,
-  'AC-006: a write without a person session (agent API) still notifies the mentioned person');
+  'AC-006: a write without a person session still notifies the mentioned person');
 
 -- A Task created with a mention in its document notifies on insert.
 insert into mos.tasks (id, org_id, title, business_unit_id, responsible_person_id, accountable_person_id, created_by, body)
@@ -175,6 +177,32 @@ update mos.tasks set body = pg_temp.doc('grand', 'peer', 'team') || '[]'::jsonb 
 select is((select count(*)::int from mos.notifications
             where owner_id = '00000000-0000-0000-0000-0000000000d3' and metadata #>> '{entity,id}' = '00000000-0000-0000-0000-000000007003'), 0,
   'AC-006: an archived person is not notified');
+
+select is((select count(*)::int from mos.notifications where owner_id = '00000000-0000-0000-0000-0000000000b4'), 0,
+  'AC-006: a person from another org is never notified');
+update mos.tasks set body = pg_temp.doc('foreign') where id = '00000000-0000-0000-0000-000000007003';
+select is((select count(*)::int from mos.notifications where owner_id = '00000000-0000-0000-0000-0000000000b4'), 0,
+  'AC-006: mentioning a person from another org notifies nobody');
+
+-- An archived Team notifies none of its members (a fresh Task, so nobody was notified for it yet).
+insert into mos.tasks (id, org_id, title, business_unit_id, responsible_person_id, accountable_person_id, created_by)
+values ('00000000-0000-0000-0000-000000007004','00000000-0000-0000-0000-0000000000a1','Team mention',
+        '00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000d1',
+        '00000000-0000-0000-0000-0000000000d6','00000000-0000-0000-0000-0000000000d1');
+update shared.teams set archived_at = now() where id = '00000000-0000-0000-0000-000000005b02';
+update mos.tasks set body = pg_temp.doc('sibling') where id = '00000000-0000-0000-0000-000000007004';
+select is((select count(*)::int from mos.notifications where metadata #>> '{entity,id}' = '00000000-0000-0000-0000-000000007004'), 0,
+  'AC-006: an archived Team notifies none of its members');
+
+-- One save may notify at most 50 people, as Signal mentions.
+update shared.teams set archived_at = null where id = '00000000-0000-0000-0000-000000005b02';
+insert into shared.people (org_id, full_name)
+  select '00000000-0000-0000-0000-0000000000a1', 'Crowd ' || g from generate_series(1, 50) g;
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
+  select org_id, id, '00000000-0000-0000-0000-000000005b02', false from shared.people where full_name like 'Crowd %';
+update mos.tasks set body = pg_temp.doc('self') where id = '00000000-0000-0000-0000-000000007004';
+select throws_ok($$update mos.tasks set body = pg_temp.doc('sibling', 'self') where id = '00000000-0000-0000-0000-000000007004'$$,
+  '22023', null, 'AC-006: a save that would notify more than 50 people is refused');
 
 -- Plain-text helper reads a Team mention as @TeamName.
 select is(mos._block_document_plain_text(pg_temp.doc('team'), '00000000-0000-0000-0000-0000000000a1'), '@OwnTeam hi',
