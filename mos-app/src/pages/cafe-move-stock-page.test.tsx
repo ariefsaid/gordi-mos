@@ -9,8 +9,9 @@ import { ContractError } from '@/lib/db/contract'
 import { CafeMoveStockPage } from './cafe-move-stock-page'
 
 const state = vi.hoisted(() => ({ offline: false, coverage: 'complete' as 'complete' | 'unallocated' | 'unavailable', roles: ['member'], available: '5' }))
-const reads = vi.hoisted(() => ({ items: vi.fn(), locations: vi.fn(), balances: vi.fn(), defaults: vi.fn(), move: vi.fn(), place: vi.fn(), setStream: vi.fn(), resolve: vi.fn(), adopt: vi.fn() }))
-const stream = { branch: { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' }, activity: 'kitchen' as const }
+const reads = vi.hoisted(() => ({ items: vi.fn(), locations: vi.fn(), balances: vi.fn(), move: vi.fn(), place: vi.fn(), setStream: vi.fn(), resolve: vi.fn(), adopt: vi.fn() }))
+// The person works at the kitchen Location, so a move starts from it; the destination is theirs to pick.
+const stream = { branch: { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' }, activity: 'kitchen' as const, location: { id: 'store-1', name: 'Rumah Rames kitchen', siteName: 'Gordi HQ', holdsStock: true } }
 
 vi.mock('@/auth/use-auth', () => ({
   useAuth: () => ({ status: 'authenticated', viewer: { person: { id: 'person-1' }, accessRoles: state.roles, affiliated: ['cafe'], roles: [], isManager: false }, signOut: vi.fn() }),
@@ -25,20 +26,19 @@ vi.mock('@/lib/use-cafe-stream', () => ({
 vi.mock('@/lib/db/cafe-count', () => ({ listCafeCountableItems: reads.items }))
 vi.mock('@/lib/db/cafe-locations', () => ({
   listCafeLocations: reads.locations, fetchCafeLocationBalances: reads.balances, moveCafeStock: reads.move,
-  getCafeStreamLocationDefaults: reads.defaults, placeCafeUnassignedStock: reads.place,
+  placeCafeUnassignedStock: reads.place,
 }))
 
 const renderPage = (locale: 'en' | 'id' = 'en') => render(<MemoryRouter><I18nProvider initialLocale={locale}><CafeMoveStockPage /></I18nProvider></MemoryRouter>)
 
 beforeEach(() => {
   state.offline = false; state.coverage = 'complete'; state.roles = ['member']; state.available = '5'
-  reads.resolve.mockResolvedValue({ branches: [stream.branch], options: [stream], destinations: [], locationOptions: [stream], stream, homeStream: stream, myStreamKeys: new Set(['branch-1:kitchen']) })
+  reads.resolve.mockResolvedValue({ branches: [stream.branch], options: [stream], locationOptions: [stream], stream, homeStream: stream, myStreamKeys: new Set(['branch-1:kitchen']) })
   reads.items.mockResolvedValue([{ id: 'item-1', name: 'Coffee beans', category: 'Raw', kind: 'RAW', unitId: 'unit-1', unitName: 'kg' }])
   reads.locations.mockResolvedValue([
     { id: 'store-1', name: 'Rumah Rames kitchen (Gordi HQ)', use: 'both', archived_at: null },
     { id: 'store-2', name: 'Rumah Rames outlet', use: 'storage', archived_at: null },
   ])
-  reads.defaults.mockResolvedValue({ storage_location_id: 'store-1', production_location_id: 'store-1', row_version: 1 })
   reads.balances.mockImplementation(async () => ({
     rows: [
       { location_id: 'store-1', item_id: 'item-1', item_unit_id: 'unit-1', usable_qty: state.available, available_qty: '1' },
@@ -57,16 +57,18 @@ for (const locale of ['en', 'id'] as const) {
     await user.click(screen.getByRole('option', { name: option }))
   }
   const enterItem = async (user: ReturnType<typeof userEvent.setup>, quantity = '3') => {
+    const to = screen.getByRole('combobox', { name: text['cafe.locations.field.to'] })
+    if (to.textContent?.includes('Choose') || to.textContent?.includes('Pilih')) await choose(user, text['cafe.locations.field.to'], 'Rumah Rames outlet')
     await choose(user, text['cafe.moveStock.item'], 'Coffee beans')
     await user.type(screen.getByLabelText(text['cafe.moveStock.quantity']), quantity)
   }
 
   describe(`Change location (${locale})`, () => {
-    it('preselects the default kitchen and outlet, uses through-date stock, and keeps places/date after saving', async () => {
+    it('starts from the Location being worked at, uses through-date stock, and keeps places/date after saving', async () => {
       const user = userEvent.setup()
       renderPage(locale)
       expect(await screen.findByRole('combobox', { name: text['cafe.locations.field.from'] })).toHaveTextContent('Rumah Rames kitchen (Gordi HQ)')
-      expect(screen.getByRole('combobox', { name: text['cafe.locations.field.to'] })).toHaveTextContent('Rumah Rames outlet')
+      expect(screen.getByRole('combobox', { name: text['cafe.locations.field.to'] })).not.toHaveTextContent('Rumah Rames outlet')
       await enterItem(user)
       expect(screen.getByText(locale === 'en' ? '5 kg available at the source.' : '5 kg tersedia di lokasi sumber.')).toBeInTheDocument()
       const date = (screen.getByLabelText(text['cafe.moveStock.date']) as HTMLInputElement).value
@@ -118,6 +120,8 @@ for (const locale of ['en', 'id'] as const) {
       const user = userEvent.setup()
       renderPage(locale)
       const label = locale === 'en' ? 'Place all unassigned here' : 'Tempatkan semua yang belum ditempatkan di sini'
+      await screen.findByRole('combobox', { name: text['cafe.locations.field.to'] })
+      await choose(user, text['cafe.locations.field.to'], 'Rumah Rames outlet')
       await user.click(await screen.findByRole('button', { name: label }))
       expect(screen.getByRole('dialog')).toHaveTextContent('Rumah Rames outlet')
       expect(reads.place).not.toHaveBeenCalled()
@@ -160,6 +164,8 @@ it('retries an unchanged failed move with the same key, freezes inputs while pen
   await user.click(screen.getByRole('combobox', { name: 'Item' }))
   await user.click(screen.getByRole('option', { name: 'Coffee beans' }))
   await user.type(screen.getByLabelText('Quantity'), '2')
+  await user.click(screen.getByRole('combobox', { name: 'To storage' }))
+  await user.click(screen.getByRole('option', { name: 'Rumah Rames outlet' }))
   await user.click(screen.getByRole('button', { name: 'Change location' }))
   await screen.findByRole('alert')
   let finish!: () => void
@@ -188,6 +194,8 @@ it('allows leaving untouched defaults, guards an unsaved item, and allows leavin
   await user.click(screen.getByRole('combobox', { name: 'Item' }))
   await user.click(screen.getByRole('option', { name: 'Coffee beans' }))
   await user.type(screen.getByLabelText('Quantity'), '2')
+  await user.click(screen.getByRole('combobox', { name: 'To storage' }))
+  await user.click(screen.getByRole('option', { name: 'Rumah Rames outlet' }))
   await user.type(screen.getByLabelText('Note'), 'Morning send')
   fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-10-10' } })
   await screen.findByRole('combobox', { name: 'Item' })
@@ -203,16 +211,11 @@ it('allows leaving untouched defaults, guards an unsaved item, and allows leavin
   expect(await screen.findByText('Locations list')).toBeInTheDocument()
 })
 
-it('recovers a failed load and does not guess a destination when more than two places exist', async () => {
-  reads.defaults.mockRejectedValueOnce(new Error('offline'))
+it('recovers a failed load and never guesses a destination', async () => {
+  reads.locations.mockRejectedValueOnce(new Error('offline'))
   const user = userEvent.setup()
   renderPage()
   await user.click(await screen.findByRole('button', { name: /try again/i }))
-  expect(await screen.findByRole('combobox', { name: 'To storage' })).toHaveTextContent('Rumah Rames outlet')
-  cleanup()
-  reads.locations.mockResolvedValue([
-    { id: 'store-1', name: 'Kitchen', use: 'both' }, { id: 'store-2', name: 'Outlet', use: 'storage' }, { id: 'store-3', name: 'Other', use: 'storage' },
-  ])
-  renderPage()
-  expect(await screen.findByRole('combobox', { name: 'To storage' })).toHaveTextContent('Choose…')
+  expect(await screen.findByRole('combobox', { name: 'From storage' })).toHaveTextContent('Rumah Rames kitchen')
+  expect(screen.getByRole('combobox', { name: 'To storage' })).toHaveTextContent('Choose…')
 })

@@ -43,6 +43,8 @@ insert into shared.branches (id, org_id, code, name) values
   ('00000000-0000-0000-0000-00000000bf04','00000000-0000-0000-0000-0000000000a1','cikal','Cikal')
 on conflict (id) do nothing;
 select shared.seed_stream_teams();
+-- Routes record in ESB only when their switch is on (default off); these checks are about the documents it posts.
+update ops.cafe_destinations set record_in_esb = true;
 
 -- The owner's view of the outbox before anything is approved. Read as the owner deliberately: every
 -- "no row was created" assertion below has to be made by somebody who could have seen one.

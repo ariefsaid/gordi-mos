@@ -67,3 +67,41 @@ Deno.test('only a POST with the exact bearer secret runs the purge', async () =>
   assert.deepEqual(await ok.json(), { deleted: 0 })
   assert.equal(await bearerMatches('Bearer s3', 's3'), true)
 })
+
+const sequenced = (batches: number[]) => {
+  const calls: Call[] = []
+  let next = 0
+  const fetchImpl = (async (url: string, init: RequestInit) => {
+    calls.push({ url, method: init.method!, body: JSON.parse(init.body as string) })
+    if (url.endsWith('claim_attendance_selfie_purge')) {
+      const size = batches[Math.min(next++, batches.length - 1)]
+      return json(Array.from({ length: size }, (_, i) => ({ bucket: 'attendance-selfies', path: `p/${next}-${i}.jpg` })))
+    }
+    return json({})
+  }) as unknown as typeof fetch
+  return { calls, fetchImpl }
+}
+const claims = (calls: Call[]) => calls.filter((c) => c.url.endsWith('claim_attendance_selfie_purge'))
+
+Deno.test('AC-042 one run keeps claiming until a claim comes back short of the batch size', async () => {
+  const { calls, fetchImpl } = sequenced([3, 3, 3, 1])
+  assert.deepEqual(await purgePhotos({ url: 'http://x', key: 'k', fetchImpl, limit: 3 }), { deleted: 10 })
+  assert.equal(claims(calls).length, 4)
+  assert.equal(calls.filter((c) => c.url.endsWith('confirm_attendance_selfie_purged')).length, 4)
+  assert.equal(claims(calls)[0].body.p_limit, 3)
+})
+
+Deno.test('AC-042 the default batch is the claim maximum of 500', async () => {
+  const { calls, fetchImpl } = sequenced([0])
+  await purgePhotos({ url: 'http://x', key: 'k', fetchImpl })
+  assert.equal(claims(calls)[0].body.p_limit, 500)
+})
+
+Deno.test('AC-042 the wall-time cap stops new claims', async () => {
+  const { calls, fetchImpl } = sequenced([3])
+  let clock = 0
+  const now = () => (clock += 40_000)
+  const result = await purgePhotos({ url: 'http://x', key: 'k', fetchImpl, limit: 3, maxMs: 100_000, now })
+  assert.equal(claims(calls).length, 2)
+  assert.equal(result.deleted, 6)
+})

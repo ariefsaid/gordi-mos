@@ -20,6 +20,8 @@ select ops._test_seed_cafe();
 insert into shared.teams (org_id, business_unit_id, name, code, branch_id, activity, produces)
 values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01',
         'Cikal Bar','cikal_bar','00000000-0000-0000-0000-00000000bf04','bar',true);
+-- Routes record in ESB only when their switch is on (default off); these checks are about the documents it posts.
+update ops.cafe_destinations set record_in_esb = true;
 select ok((select relrowsecurity from pg_class where oid='integrations.esb_push_groups'::regclass),
   'approval groups have RLS enabled');
 select ok((select relforcerowsecurity from pg_class where oid='integrations.esb_push_groups'::regclass),

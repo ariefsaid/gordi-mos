@@ -55,7 +55,7 @@
 .cafe-locs__panel { display: grid; gap: var(--mos-field-gap); align-content: start; min-width: 0; max-width: 640px; padding: var(--mos-panel-pad); background: var(--mos-surface); border: 1px solid var(--mos-line); border-radius: var(--radius-lg); }
 .cafe-locs__back { justify-self: start; min-height: var(--mos-control-height); }
 .cafe-locs__panel-title { margin: 0; color: var(--mos-ink); font: var(--mos-type-section); overflow-wrap: anywhere; }
-.cafe-locs__panel-title:focus-visible { outline-offset: var(--mos-focus-offset); }
+.cafe-locs__panel-title:focus-visible { outline: none; }
 .cafe-locs__panel-badges { display: flex; flex-wrap: wrap; gap: var(--mos-inline-gap); margin: 0; }
 .cafe-locs__form { display: grid; gap: var(--mos-field-gap); }
 .cafe-locs__facts { display: grid; gap: var(--mos-field-gap); margin: 0; }
@@ -87,3 +87,5 @@
 }
 .cafe-locs__table th { white-space: normal; text-overflow: clip; }
 .cafe-locs__card[aria-current="true"] { background: var(--mos-accent-tint); }
+.cafe-locs__radio { flex: none; width: var(--mos-icon-md); height: var(--mos-icon-md); margin: 0; accent-color: var(--mos-accent); }
+.cafe-locs__archive { justify-self: start; }

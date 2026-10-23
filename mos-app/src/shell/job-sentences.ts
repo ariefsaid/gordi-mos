@@ -16,6 +16,7 @@ const SEG_TO_JOB: Record<string, MessageKey> = {
   cafe: 'job.cafe',
   ecommerce: 'job.ecommerce',
   roastery: 'job.roastery',
+  staff: 'job.staff',
   profile: 'job.profile',
   // /admin is a settings surface with its own job key, not Home's.
   admin: 'job.admin',

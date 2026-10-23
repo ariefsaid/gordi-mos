@@ -58,7 +58,7 @@ case "$*" in
     [ "${SUPABASE_ACCESS_TOKEN:-}" = "${FAKE_ACCESS_TOKEN:-}" ] && printf 'supabase secrets-list-token-env-ok\n' >> "$CALLS"
     printf '['
     sep=""
-    for name in APP_ALLOWED_ORIGINS AGENT_MODEL_API_KEY AGENT_MODEL_BASE_URL AGENT_MODEL_DEFAULT AGENT_PERSISTENCE VAPID_PRIVATE_KEY VAPID_PUBLIC_KEY; do
+    for name in APP_ALLOWED_ORIGINS AGENT_MODEL_API_KEY ATTENDANCE_PURGE_SECRET AGENT_MODEL_BASE_URL AGENT_MODEL_DEFAULT AGENT_PERSISTENCE VAPID_PRIVATE_KEY VAPID_PUBLIC_KEY; do
       [ "$name" != "${FAKE_STAGING_MISSING_SECRET:-}" ] || continue
       printf '%s{"name":"%s"}' "$sep" "$name"
       sep=,
@@ -73,6 +73,9 @@ case "$*" in
       prev="$arg"
     done
     [ -n "$env_file" ] || exit 2
+    [ -f "$env_file" ] || exit 2
+    printf 'supabase secrets-set-envfile-mode %s\n' "$(stat -c %a "$env_file" 2>/dev/null || stat -f %Lp "$env_file")" >> "$CALLS"
+    printf '%s\n' "$env_file" > "$tmp_main/envfile-path"
     while IFS= read -r line; do
       printf 'supabase secrets-set-name %s\n' "${line%%=*}" >> "$CALLS"
       [ "${line#*=}" != "${FAKE_FUNCTION_SECRET_VALUE:-}" ] || printf 'supabase secrets-set-value-ok\n' >> "$CALLS"
@@ -91,7 +94,7 @@ case "$*" in
     smoke_host="${FAKE_URL#*@}"; smoke_host="${smoke_host%%[:/?]*}"
     smoke_ref="${smoke_host#db.}"; smoke_ref="${smoke_ref%.supabase.co}"
     for arg in "$@"; do
-      case "$arg" in agent-chat|test-function|compose-view|mcp) fn="$arg" ;; esac
+      case "$arg" in agent-chat|test-function|compose-view|mcp|attendance-photo-purge) fn="$arg" ;; esac
       [ "$prev" != --project-ref ] || project_ref="$arg"
       prev="$arg"
     done
@@ -418,6 +421,8 @@ run "a missing function secret is set once before deploy" 0 "" FAKE_STAGING_MISS
 expect "staging function secrets listed with the deploy token" "supabase secrets-list-token-env-ok"
 expect "missing function secret is set" "supabase secrets-set-name APP_ALLOWED_ORIGINS"
 expect "secret value reaches the set env-file" "supabase secrets-set-value-ok"
+expect "set env-file is owner-only" "supabase secrets-set-envfile-mode 600"
+if [ -e "$(cat "$tmp/envfile-path")" ]; then bad "set env-file removed after success"; else ok "set env-file removed after success"; fi
 if [ "$(grep -c '^supabase secrets-set$' "$calls")" = 1 ]; then ok "all missing function secrets use one set call"; else bad "expected one function secrets set call"; fi
 if before "supabase secrets-set-name APP_ALLOWED_ORIGINS" "supabase functions-deploy test-function"; then ok "function secret is set before deploy"; else bad "function secret is not set before deploy"; fi
 has "secret summary names the set key" "function secrets set: APP_ALLOWED_ORIGINS"
@@ -429,6 +434,8 @@ has "already-present secret summary is clear" "function secrets: none missing"
 run "missing secret mapping stops before deploy" 1 "" FAKE_STAGING_MISSING_SECRET=AGENT_MODEL_API_KEY FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
 has "missing mapping names the secret and key to add" "STAGING_FN_SECRET_AGENT_MODEL_API_KEY"
 expect_not "no function deploy after missing mapping" "supabase functions-deploy test-function"
+has "missing location gives the one-time command" "supabase secrets set AGENT_MODEL_API_KEY=<value>"
+hasnt "missing location generates nothing" "function secrets set:"
 run "multiline function secret is rejected before setting" 1 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_FUNCTION_SECRET_MULTILINE=1 FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
 has "multiline rejection names only the secret" "function secret APP_ALLOWED_ORIGINS contains a newline"
 hasnt "multiline rejection hides the value" "$FAKE_FUNCTION_SECRET_VALUE"
@@ -438,6 +445,7 @@ expect_not "multiline function secret is not deployed" "supabase functions-deplo
 run "failed secrets set stops before function deploy" 1 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_SECRETS_SET_RC=1 FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
 hasnt "failed secret set does not print the value" "$FAKE_FUNCTION_SECRET_VALUE"
 expect "failed secret set was attempted" "supabase secrets-set"
+if [ -e "$(cat "$tmp/envfile-path")" ]; then bad "set env-file removed after failure"; else ok "set env-file removed after failure"; fi
 expect_not "no function deploy after failed secrets set" "supabase functions-deploy test-function"
 run "platform SUPABASE names are ignored" 0 "" FAKE_STAGING_MISSING_SECRET=SUPABASE_URL FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
 expect_not "platform-provided secrets are never set" "supabase secrets-set"
@@ -447,6 +455,15 @@ has "dry-run lists required function secret names" "APP_ALLOWED_ORIGINS"
 expect_not "dry-run does not read function secret values" "op-get fake-function-item"
 expect_not "dry-run does not list or set function secrets" "supabase secrets-list"
 expect_not "dry-run never deploys a function" "supabase functions-deploy"
+
+echo "machine-entry function"
+run "machine entry skips CORS preflight but keeps the 401 POST check" 0 "" FAKE_FN_DIFF=$'supabase/functions/attendance-photo-purge/index.ts\n' -- --yes --no-pr
+expect "machine entry deployed" "supabase functions-deploy attendance-photo-purge"
+expect "machine entry still gets the unauthenticated POST check" "curl POST"
+expect_not "machine entry gets no CORS preflight" "curl OPTIONS"
+has "preflight skip is stated" "CORS preflight skipped for attendance-photo-purge"
+run "browser function still gets preflights" 0 "" FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\n' -- --yes --no-pr
+expect "browser function preflighted" "curl OPTIONS"
 
 echo "edge functions"
 run "changed non-held function deploys and passes smoke checks" 0 "sentinel-for-function-cli\n" FAKE_FN_DIFF=$'supabase/functions/test-function/index.ts\nsupabase/functions/agent-chat/index.ts\nsupabase/functions/compose-view/index.ts\nsupabase/functions/mcp/index.ts\nsupabase/functions/_shared/cors.ts\n' -- --yes --no-pr

@@ -48,7 +48,7 @@ import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { useCafeStreamBootstrap } from '@/lib/use-cafe-stream-bootstrap'
 import { useStockComparisonLink } from '@/lib/cafe-stock-comparison-access'
-import { useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
+import { defaultStorageLocationId, useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
 import { recordsHref } from '@/lib/cafe-records/url-state'
 import { useIsOffline } from '@/shell/use-is-offline'
 
@@ -115,9 +115,8 @@ export function CafeCountPage() {
   const comparisonHref = useStockComparisonLink(stream, myStreamKeys)
   const locationChoices = useCafeLocationChoices(stream)
   const storageLocations = locationChoices.locations.filter(location => location.use === 'storage' || location.use === 'both')
-  const defaultStorageLocationId = locationChoices.status === 'ready'
-    && storageLocations.some(location => location.id === locationChoices.defaults?.storage_location_id)
-    ? locationChoices.defaults?.storage_location_id ?? null
+  const defaultStorageId = locationChoices.status === 'ready'
+    ? defaultStorageLocationId(stream, locationChoices.locations)
     : null
   const today = useMemo(() => wibToday(), [])
   const canBackdate = auth.status === 'authenticated' && canPushCafe(auth.viewer.accessRoles)
@@ -323,8 +322,8 @@ export function CafeCountPage() {
         item_id: item.id,
         quantity,
         ...(entry.unitFactor ? { unit_factor: entry.unitFactor } : {}),
-        ...((entry.storage_location_id === undefined ? defaultStorageLocationId : entry.storage_location_id)
-          ? { storage_location_id: entry.storage_location_id === undefined ? defaultStorageLocationId : entry.storage_location_id }
+        ...((entry.storage_location_id === undefined ? defaultStorageId : entry.storage_location_id)
+          ? { storage_location_id: entry.storage_location_id === undefined ? defaultStorageId : entry.storage_location_id }
           : {}),
       })), logDate)
       const outcomeByKey = new Map(outcomes.map(outcome => [outcome.client_key, outcome]))
@@ -485,7 +484,7 @@ export function CafeCountPage() {
                           {Boolean(entry?.quantity?.trim()) && !line && <LocationLineField
                             kind="count"
                             locations={storageLocations}
-                            value={entry?.storage_location_id === undefined ? defaultStorageLocationId : entry.storage_location_id}
+                            value={entry?.storage_location_id === undefined ? defaultStorageId : entry.storage_location_id}
                             onChange={value => setEntries(current => {
                               const currentEntry = current[item.id]
                               return currentEntry ? { ...current, [item.id]: { ...currentEntry, storage_location_id: value } } : current

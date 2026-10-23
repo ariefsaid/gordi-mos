@@ -2,7 +2,7 @@
 // No IO, no writes. A route is one stored triple (origin branch,
 // origin activity, destination branch); it is "Configured" when both ends still resolve and the pair
 // is one MOS would offer, and "Needs attention" otherwise — never silently dropped.
-import { branchDisplayName, streamKey } from '@/lib/kitchen-action-label'
+import { streamKey } from '@/lib/kitchen-action-label'
 import type { TransferRoute } from '@/lib/db/cafe-transfer-routes'
 import type { BranchOption, CafeDestination, ProductionActivity, ProductionStream, StreamPair } from '@/lib/db/kitchen-logs.types'
 
@@ -18,8 +18,6 @@ export interface RouteRow {
   /** Canonical branch name, or null when the branch could not be resolved (shown as a reason, never a guess). */
   originBranchName: string | null
   destinationName: string | null
-  /** The destination as the floor reads it (alias, e.g. Bungur). */
-  destinationAlias: string | null
   problem: RouteProblem | null
   rowVersion: number | null
   eligibility: 'eligible' | 'needs_attention'
@@ -79,8 +77,7 @@ export function buildRouteRows(destinations: readonly RouteForView[], ctx: Route
       originBranchId: route.origin_branch_id, originActivity: route.origin_activity, destinationBranchId: route.destination_branch_id,
       originBranchName: names.get(route.origin_branch_id) ?? null,
       destinationName: names.get(route.destination_branch_id) ?? null,
-      destinationAlias: destination ? branchDisplayName(destination) : null,
-      problem,
+            problem,
       rowVersion: typeof route.row_version === 'number' ? route.row_version : null,
       eligibility: route.eligibility ?? (problem ? 'needs_attention' : 'eligible'),
       reason: route.reason ?? null,

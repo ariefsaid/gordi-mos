@@ -16,6 +16,8 @@ const redirectCases = [
   { oldPath: 'tasks', finalPath: /\/work\/tasks$/, needsAdmin: false },
   { oldPath: `tasks/${TASKS.VIEWER_ACCOUNTABLE.id}`, finalPath: new RegExp(`/work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}$`), needsAdmin: false },
   { oldPath: 'work/cascade', finalPath: /\/work\/tasks$/, needsAdmin: false },
+  // Shifts moved to the Staff module; stored Inbox links still say /work/shifts.
+  { oldPath: 'work/shifts', finalPath: /\/staff\/shifts$/, needsAdmin: false },
   // OD-V4-1 / use-record-collection.ts: any urlMode:'synced' collection (Objectives,
   // Projects/Processes, Signals) always mirrors its live presentation into the URL as
   // `?layout=<presentation>` — "collection query state belongs in the URL where it must survive

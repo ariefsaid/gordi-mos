@@ -352,7 +352,7 @@ function CafeToday({ contextLine, context, state, children }: { contextLine?: st
   // Café home states which stream its numbers belong to, and reads each job's state for that stream.
   const today = useCafeTodayStream()
   const { stream } = today
-  const jobs = useCafeTodayJobs({ stream, allOptions: today.allOptions, destinations: today.destinations, branches: today.branches, canCapture })
+  const jobs = useCafeTodayJobs({ stream, allOptions: today.allOptions, branches: today.branches, canCapture })
   const setupHref = `/cafe/items?unit=${encodeURIComponent('Needs unit')}`
   // The filled button is the first unfinished job: items to set up when none are, else production until
   // everything planned is made, then the first transfer with a plan.

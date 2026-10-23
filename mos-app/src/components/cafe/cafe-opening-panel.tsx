@@ -196,6 +196,20 @@ export function CafeOpeningPanel({ processId, teamId, teamName, presentation = '
     { done: rollup.done, total: rollup.total, overdue: rollup.overdue, pending: rollup.pending_unresolved },
   )
 
+  const pendingResolutions = canStart && rollup.pending_unresolved > 0 && (
+    <div className="cafe-opening-pending">
+      {pendingLoading && <LoadingShell count={1} />}
+      {!pendingLoading && pending.map((p) => (
+        <PendingResolution
+          key={p.id}
+          pending={p}
+          people={people}
+          onResolved={() => handlePendingResolved(p.id)}
+        />
+      ))}
+    </div>
+  )
+
   if (door) {
     return (
       <div className="cafe-opening-panel cafe-opening-panel--door cafe-opening-panel--started">
@@ -207,19 +221,7 @@ export function CafeOpeningPanel({ processId, teamId, teamName, presentation = '
             {t('cafe.opening.viewTasks')}
           </Link>
         </div>
-        {canStart && rollup.pending_unresolved > 0 && (
-          <div className="cafe-opening-pending">
-            {pendingLoading && <LoadingShell count={1} />}
-            {!pendingLoading && pending.map((p) => (
-              <PendingResolution
-                key={p.id}
-                pending={p}
-                people={people}
-                onResolved={() => handlePendingResolved(p.id)}
-              />
-            ))}
-          </div>
-        )}
+        {pendingResolutions}
       </div>
     )
   }
@@ -253,19 +255,7 @@ export function CafeOpeningPanel({ processId, teamId, teamName, presentation = '
         {t('cafe.opening.viewTasks')}
       </Link>
 
-      {canStart && rollup.pending_unresolved > 0 && (
-        <div className="cafe-opening-pending">
-          {pendingLoading && <LoadingShell count={1} />}
-          {!pendingLoading && pending.map((p) => (
-            <PendingResolution
-              key={p.id}
-              pending={p}
-              people={people}
-              onResolved={() => handlePendingResolved(p.id)}
-            />
-          ))}
-        </div>
-      )}
+      {pendingResolutions}
     </div>
   )
 }

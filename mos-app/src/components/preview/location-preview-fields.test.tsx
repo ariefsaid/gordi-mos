@@ -8,8 +8,8 @@ vi.mock('@/auth/use-auth', () => ({
 }))
 
 const LOCATIONS = [
-  { id: 'kitchen', name: 'Kitchen', use: 'production' as const, parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
-  { id: 'chiller', name: 'Chiller', use: 'storage' as const, parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
+  { id: 'kitchen', name: 'Kitchen', use: 'production' as const, parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: [] },
+  { id: 'chiller', name: 'Chiller', use: 'storage' as const, parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: [] },
 ]
 const EMPTY_VALUES = { production_location_id: null, from_storage_location_id: null, to_storage_location_id: null }
 
@@ -20,18 +20,13 @@ describe('connected capture location fields', () => {
     const onChange = vi.fn()
     render(<MemoryRouter><LocationPanelFields
       kind="production"
-      locations={{ production: LOCATIONS, from: [], to: [], storage: LOCATIONS }}
-      values={{ ...EMPTY_VALUES, production_location_id: 'kitchen', to_storage_location_id: null }}
+      locations={{ storage: LOCATIONS }}
+      values={{ ...EMPTY_VALUES, to_storage_location_id: null }}
       onChange={onChange}
     /></MemoryRouter>)
 
-    const production = screen.getByRole('combobox', { name: 'Production location' })
-    expect(production).toHaveTextContent('Kitchen')
-    expect(production).not.toBeDisabled()
-    fireEvent.click(production)
-    fireEvent.click(screen.getByRole('option', { name: 'Unassigned' }))
-    expect(onChange).toHaveBeenCalledWith('production_location_id', null)
-
+    // Production is stored in the Location the person is working at, so only the output place is asked.
+    expect(screen.queryByRole('combobox', { name: 'Production location' })).toBeNull()
     const output = screen.getByRole('combobox', { name: 'Store output in' })
     fireEvent.click(output)
     fireEvent.click(screen.getByRole('option', { name: 'Chiller' }))
@@ -42,7 +37,7 @@ describe('connected capture location fields', () => {
     const retry = vi.fn()
     render(<MemoryRouter><LocationPanelFields
       kind="receive"
-      locations={{ production: [], from: [], to: [], storage: [] }}
+      locations={{ storage: [] }}
       values={EMPTY_VALUES}
       loadState="error"
       onRetry={retry}

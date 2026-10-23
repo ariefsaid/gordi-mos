@@ -203,13 +203,34 @@ describe.runIf(APP_RELEASE_PROFILE === 'cafe')('Cafe profile reachability', () =
   })
 
   it('keeps Cafe, Inbox, account, and Admin routes reachable', () => {
-    for (const path of ['/cafe', '/cafe/plan', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/receive/review', '/cafe/receive/issues', '/cafe/request', '/cafe/request/review', '/inbox', '/profile', '/admin/people', '/admin/teams', '/admin/access']) {
+    for (const path of ['/cafe', '/cafe/plan', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/receive/review', '/cafe/receive/issues', '/cafe/request', '/cafe/request/review', '/inbox', '/profile', '/admin/people', '/admin/teams', '/admin/shift-builder', '/admin/attendance-settings', '/admin/access']) {
       const leaf = leafInThisTable(path)
       expect(leaf, `${path} is missing from the production route table`).toBeDefined()
       // A redirect is fine only when it lands on another Café-available path (the Review queues).
       if (isRedirect(leaf?.route.element)) expect(isProfilePathAvailable(redirectProps(leaf?.route.element).to, 'cafe'), `${path} is redirected out of the Cafe profile`).toBe(true)
       expect(isShipGatedInProfile(path, 'cafe')).toBe(false)
     }
+  })
+
+  it('reaches Staff shifts without Work, and keeps the old Work shifts address working', () => {
+    const shifts = leafInThisTable('/staff/shifts')
+    expect(shifts, '/staff/shifts is missing from the route table').toBeDefined()
+    expect(isRedirect(shifts?.route.element)).toBe(false)
+    expect(isShipGatedInProfile('/staff/shifts', 'cafe')).toBe(false)
+    const legacy = leafInThisTable('/work/shifts')
+    expect(isRedirect(legacy?.route.element)).toBe(true)
+    expect(redirectProps(legacy?.route.element).to).toBe('/staff/shifts')
+    for (const [name, roles] of Object.entries(VIEWERS)) {
+      expect(goToEntries([...roles], allModulesOn).map((entry) => entry.path), name).toContain('/staff/shifts')
+      setViewer(roles)
+      const desktop = render(wrapNavigation(<SideNav />))
+      expect(hrefsIn(desktop.container), `${name} desktop nav`).toContain('/staff/shifts')
+      desktop.unmount()
+    }
+    mockUseIsNarrow.mockReturnValue(true)
+    const phone = render(wrapNavigation(<MobileDrawer open onClose={() => {}} />))
+    expect(hrefsIn(document.body)).toContain('/staff/shifts')
+    phone.unmount()
   })
 
   it('offers no Work or Home entry to any role, and every offered path resolves in the route table', () => {
@@ -278,6 +299,21 @@ describe.runIf(APP_RELEASE_PROFILE === 'cafe')('Cafe profile reachability', () =
     const admin = render(wrapNavigation(<MobileDrawer open onClose={() => {}} />))
     expect(hrefsIn(document.body)).toContain('/admin/people')
     admin.unmount()
+  })
+
+  it('keeps Café and Staff both in the phone tab bar, and Staff owns its actions instead of the + launcher', () => {
+    mockUseIsNarrow.mockReturnValue(true)
+    setViewer(VIEWERS.member)
+    const phone = render(wrapNavigation(<BottomTabBar onOpenMore={() => {}} onOpenActionLauncher={() => {}} />))
+    const tabs = within(screen.getByRole('navigation', { name: 'Primary' })).getAllByRole('link').map((link) => link.getAttribute('href'))
+    expect(tabs).toEqual(expect.arrayContaining(['/cafe', '/staff/shifts']))
+    phone.unmount()
+    render(
+      <ThemeProvider><I18nProvider><MemoryRouter initialEntries={['/staff/shifts']}>
+        <BottomTabBar onOpenMore={() => {}} onOpenActionLauncher={() => {}} />
+      </MemoryRouter></I18nProvider></ThemeProvider>,
+    )
+    expect(screen.queryByRole('button', { name: /^actions$/i })).toBeNull()
   })
 
   it('removes Work and Deputy from the command menu and does not search Work records', async () => {

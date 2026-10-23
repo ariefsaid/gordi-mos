@@ -1,9 +1,9 @@
 // FollowUpRecordHost — the fetch layer behind the canonical Follow-up record door. It
 // resolves ONE follow-up (row + lifecycle events + people) and renders it through the
 // shared RecordViewer via createFollowUpRecordAdapter — the same grammar a Task or a
-// Signal uses. `mode` mirrors the Task/Signal record hosts: "panel" (the in-list drawer
-// content) or "page" (the standalone canonical record page). Chrome (Close / Open full
-// page / modal regime) is owned by the host slot, never here.
+// Signal uses. `mode` is forwarded to RecordViewer; callers render it as the "panel" (in-list
+// drawer / deep-link content). There is no standalone Follow-up record page. Chrome (Close /
+// modal regime) is owned by the host slot, never here.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
@@ -19,7 +19,7 @@ import { createFollowUpRecordAdapter } from './follow-up-record-adapter'
 
 export interface FollowUpRecordHostProps {
   followUpId: string
-  /** panel = in-list drawer content; page = standalone canonical record page. */
+  /** panel = in-list drawer content (the only mode a caller uses). */
   mode?: 'panel' | 'page'
 }
 
@@ -101,5 +101,5 @@ export function FollowUpRecordHost({ followUpId, mode = 'panel' }: FollowUpRecor
   const adapter = createFollowUpRecordAdapter({
     row, events, people, eventsHasMore, eventsLoadingMore, eventsMoreError, onLoadMoreEvents: loadMoreEvents,
   })
-  return <RecordViewer adapter={adapter} mode={mode} headingLevel={mode === 'page' ? 2 : 2} />
+  return <RecordViewer adapter={adapter} mode={mode} headingLevel={2} />
 }

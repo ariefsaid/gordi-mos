@@ -4,16 +4,13 @@ import { Select } from '@/components/ui/select'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import type { CafeLocation, CaptureLocations } from '@/lib/db/cafe-locations'
-import { LOCATIONS_PATH, type RecordLocationKey } from '@/lib/cafe-locations-preview'
+import { LOCATIONS_PATH } from '@/lib/cafe-locations-preview'
 import { canAdminCafe } from '@/lib/kitchen-gates'
 import './location-preview-fields.css'
 
-type LocationFieldsKind = 'production' | 'transfer' | 'waste' | 'count' | 'receive'
+type LocationFieldsKind = 'production' | 'waste' | 'count' | 'receive'
 export type LocationFieldKey = keyof CaptureLocations
 export type LocationChoices = {
-  production: readonly CafeLocation[]
-  from: readonly CafeLocation[]
-  to: readonly CafeLocation[]
   storage: readonly CafeLocation[]
 }
 export type LocationFieldValues = Pick<CaptureLocations,
@@ -21,8 +18,7 @@ export type LocationFieldValues = Pick<CaptureLocations,
 type LocationLoadState = 'loading' | 'ready' | 'error'
 
 const FIELD_LABELS: Record<LocationFieldsKind, MessageKey[]> = {
-  production: ['cafe.locations.field.production', 'cafe.locations.field.storeOutput'],
-  transfer: ['cafe.locations.field.from', 'cafe.locations.field.to'],
+  production: ['cafe.locations.field.storeOutput'],
   waste: ['cafe.locations.field.storage'],
   count: ['cafe.locations.field.storage'],
   receive: ['cafe.locations.field.storeIn'],
@@ -85,7 +81,7 @@ export function LocationPanelFields({
   onRetry,
   disabled = false,
 }: {
-  kind: 'production' | 'transfer' | 'receive'
+  kind: 'production' | 'receive'
   locations: LocationChoices
   values: LocationFieldValues
   onChange: (field: LocationFieldKey, value: string | null | undefined) => void
@@ -97,13 +93,9 @@ export function LocationPanelFields({
   const auth = useAuth()
   const canManage = auth.status === 'authenticated' && canAdminCafe(auth.viewer.accessRoles)
   const unavailable = disabled || loadState !== 'ready'
-  const fields = kind === 'production' ? [
-    { key: 'production_location_id' as const, options: locations.production },
-    { key: 'to_storage_location_id' as const, options: locations.storage },
-  ] : kind === 'transfer' ? [
-    { key: 'from_storage_location_id' as const, options: locations.from },
-    { key: 'to_storage_location_id' as const, options: locations.to },
-  ] : [{ key: 'to_storage_location_id' as const, options: locations.storage }]
+  // Production is stored in the Location the person is working at, and a transfer names its two ends on
+  // the page itself; the only place left to choose is where stock is put.
+  const fields = [{ key: 'to_storage_location_id' as const, options: locations.storage }]
   return (
     <div className="loc-fields loc-fields--panel" role="group" aria-label={t('cafe.locations.fields')}>
       {fields.map(({ key, options }, index) => (
@@ -167,8 +159,4 @@ export function LocationLineOverride(props: LocationLineProps) {
 
 // Records and stock projections are added only when their real read models are loaded.
 export function LocationRecordsFilter() { return null }
-export function LocationRecordFields({ keys }: { keys: readonly RecordLocationKey[] }) {
-  void keys
-  return null
-}
 export function LocationBalanceSection() { return null }

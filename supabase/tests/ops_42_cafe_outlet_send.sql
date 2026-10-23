@@ -18,7 +18,7 @@ insert into ops.kitchen_logs(org_id,business_unit_id,log_date,branch_id,activity
 values('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-05-03','00000000-0000-0000-0000-00000000bf02','kitchen','produce','00000000-0000-0000-0000-00000000ab02',1,'Approved','teable_import');
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
-select set_config('app.kitchen',ops.create_cafe_location('{"name":"Kitchen","use":"both","branch_ids":["00000000-0000-0000-0000-00000000bf02"]}','f1420000-0000-0000-0000-000000000001')->>'id',true);
+select set_config('app.kitchen',ops.create_cafe_location('{"name":"Kitchen","use":"both","activities":["kitchen"],"branch_ids":["00000000-0000-0000-0000-00000000bf02"]}','f1420000-0000-0000-0000-000000000001')->>'id',true);
 select set_config('app.outlet',ops.create_cafe_location('{"name":"Outlet","use":"storage","branch_ids":["00000000-0000-0000-0000-00000000bf02"]}','f1420000-0000-0000-0000-000000000002')->>'id',true);
 select ops.save_cafe_stream_location_defaults('00000000-0000-0000-0000-00000000bf02','kitchen',jsonb_build_object('production_location_id',current_setting('app.kitchen'),'storage_location_id',current_setting('app.kitchen')),0,'f1420000-0000-0000-0000-000000000003');
 select lives_ok($$insert into ops.kitchen_plans(log_date,branch_id,activity,action,wip_item_id,qty_porsi) values('2026-05-04','00000000-0000-0000-0000-00000000bf02','kitchen','outlet_send','00000000-0000-0000-0000-00000000ab01',4)$$,'outlet send can be planned');

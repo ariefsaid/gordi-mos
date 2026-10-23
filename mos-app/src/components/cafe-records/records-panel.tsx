@@ -7,8 +7,6 @@ import { Link } from 'react-router-dom'
 import { RecordPanelHost } from '@/shell/record-panel-host'
 import { formatWibDateTime } from '@/lib/format/date'
 import { buildDayRows, sortDayRows, type DayColumn, type DayRow, type RecordEntry } from '@/lib/cafe-records/model'
-import { LocationRecordFields } from '@/components/preview/location-preview-fields'
-import { RECORD_LOCATION_KEYS } from '@/lib/cafe-locations-preview'
 import { EntryStatus, Quantity } from './records-format'
 import { MOVEMENT_LABEL, SOURCE_LABEL, dateText, postingBadge, quantityText, unitText } from './records-labels'
 import { type RecordsText } from './records-readings'
@@ -167,10 +165,13 @@ export function EntryPanel({ text, entry, reviewer, canCapture, onClose, onOpenH
           <Field label={t('records.col.movement')}>{t(MOVEMENT_LABEL[entry.movement])}</Field>
           <Field label={t('records.col.date')}>{dateText(entry.date)}</Field>
           <Field label={t('records.col.stream')}>{text.stream(entry.streamKey)}</Field>
-          {entry.destinationBranchId && <Field label={t('records.col.destination')}>{text.destination(entry.streamKey, entry.destinationBranchId)}</Field>}
+          {entry.destinationKey && <Field label={t('records.col.destination')}>{text.destination(entry.streamKey, entry.destinationKey)}</Field>}
           <Field label={t('records.col.amount')}><Quantity t={t} qty={entry.qty} unit={entry.unit} /></Field>
           {enteredText && <Field label={t('records.field.enteredAs')}>{enteredText}</Field>}
-          <LocationRecordFields keys={RECORD_LOCATION_KEYS[entry.movement]} />
+          {entry.movement === 'transferred' && (text.place(entry.fromLocationId) || text.place(entry.toLocationId)) && (
+            <Field label={t('records.field.fromTo')}>{[text.place(entry.fromLocationId), text.place(entry.toLocationId)].filter(Boolean).join(' → ')}</Field>
+          )}
+          {entry.movement === 'made' && text.place(entry.fromLocationId) && <Field label={t('records.field.madeAt')}>{text.place(entry.fromLocationId)}</Field>}
           <Field label={t('records.col.by')}>{text.person(entry)}</Field>
           {raw.source === 'log' && <>
             <Field label={t('records.field.recorded')}>{when(raw.log.created_at)}</Field>

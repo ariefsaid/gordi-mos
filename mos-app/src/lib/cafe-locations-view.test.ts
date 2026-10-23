@@ -5,11 +5,11 @@ import {
 } from './cafe-locations-view'
 
 const rows: LocationRow[] = [
-  { id: 'kitchen', name: 'Kitchen', use: 'production', parentId: null, branchIds: ['a', 'b', 'c'], archived: false, rowVersion: 1 },
-  { id: 'chiller', name: 'Chiller', use: 'storage', parentId: 'kitchen', branchIds: ['a', 'b'], archived: false, rowVersion: 1 },
-  { id: 'store-room', name: 'Store room', use: 'storage', parentId: 'kitchen', branchIds: ['a'], archived: false, rowVersion: 1 },
-  { id: 'bar-fridge', name: 'Bar fridge', use: 'both', parentId: null, branchIds: ['b'], archived: false, rowVersion: 1 },
-  { id: 'dry-store', name: 'Dry store', use: 'storage', parentId: null, branchIds: [], archived: true, rowVersion: 2 },
+  { id: 'kitchen', name: 'Kitchen', use: 'production', parentId: null, branchIds: ['a', 'b', 'c'], archived: false, rowVersion: 1, siteId: null, activities: [] },
+  { id: 'chiller', name: 'Chiller', use: 'storage', parentId: 'kitchen', branchIds: ['a', 'b'], archived: false, rowVersion: 1, siteId: null, activities: [] },
+  { id: 'store-room', name: 'Store room', use: 'storage', parentId: 'kitchen', branchIds: ['a'], archived: false, rowVersion: 1, siteId: null, activities: [] },
+  { id: 'bar-fridge', name: 'Bar fridge', use: 'both', parentId: null, branchIds: ['b'], archived: false, rowVersion: 1, siteId: null, activities: [] },
+  { id: 'dry-store', name: 'Dry store', use: 'storage', parentId: null, branchIds: [], archived: true, rowVersion: 2, siteId: null, activities: [] },
 ]
 const text = (row: LocationRow) => row.name
 
@@ -43,7 +43,16 @@ describe('Locations catalog view model', () => {
     expect(validateDraft(draft({ name: 'Chiller', parentId: 'bar-fridge' }), rows, null)).not.toContain('duplicate')
     expect(validateDraft(draft({ name: 'x', parentId: 'chiller' }), rows, 'kitchen')).toContain('cycle')
     expect(validateDraft(draft({ name: 'x', parentId: 'chiller', branchIds: ['c'] }), rows, null)).toContain('branchesOutsideParent')
-    expect(validateDraft(draft({ name: 'x', parentId: 'chiller', branchIds: ['a'] }), rows, null)).toEqual([])
+    expect(validateDraft(draft({ name: 'x', parentId: 'chiller', branchIds: ['a'], activities: ['kitchen'] }), rows, null)).toEqual([])
+  })
+
+  it('rule 1: a place that produces needs exactly one branch and one activity; storage is free', () => {
+    const draft = (over: object) => ({ ...draftOf(null), name: 'Central', ...over })
+    expect(validateDraft(draft({ use: 'both', branchIds: ['a', 'b'], activities: ['kitchen'] }), rows, null)).toContain('productionShape')
+    expect(validateDraft(draft({ use: 'production', branchIds: ['a'], activities: ['kitchen', 'bar'] }), rows, null)).toContain('productionShape')
+    expect(validateDraft(draft({ use: 'both', branchIds: ['a'], activities: [] }), rows, null)).toContain('productionShape')
+    expect(validateDraft(draft({ use: 'both', branchIds: ['a'], activities: ['kitchen'] }), rows, null)).toEqual([])
+    expect(validateDraft(draft({ use: 'storage', branchIds: ['a', 'b'], activities: ['kitchen', 'bar'] }), rows, null)).toEqual([])
   })
 
   it('knows when a draft differs from where it started', () => {
