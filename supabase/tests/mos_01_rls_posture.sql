@@ -42,6 +42,8 @@ select ok(
 --   feature, and the line submit-lock closes it the moment the update is submitted.
 -- mos.push_subscriptions: a browser unsubscribing. Keeping a dead endpoint forever would be a bug,
 --   not an audit trail.
+-- mos.task_viewers (#1839): removing a person from a private Task's who-can-see list is the verb;
+--   the change is kept in record history, whose delete arm is readable only to readers of the Task.
 -- mos.objective_key_results (#992): an admin removing a wrongly-added key result — the row is
 --   optional measurement scaffolding, not an audited business record; its history keeps the
 --   whole-row DELETE snapshot, so removal stays attributable. Content writers cannot delete at
@@ -51,9 +53,9 @@ select is(
      from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'mos' and c.relkind = 'r'
       and has_table_privilege('authenticated', c.oid, 'DELETE')
-      and c.relname not in ('weekly_update_items','push_subscriptions','objective_key_results')),
+      and c.relname not in ('weekly_update_items','push_subscriptions','objective_key_results','task_viewers')),
   '{}'::name[],
-  'NFR-002: authenticated holds DELETE on NO mos table except the three where deletion is the correct verb');
+  'NFR-002: authenticated holds DELETE on NO mos table except the four where deletion is the correct verb');
 
 select ok(has_table_privilege('authenticated','mos.weekly_update_items','DELETE'),
   'NFR-002: ...and weekly_update_items DOES grant DELETE — removing a line from your own draft is the feature');
