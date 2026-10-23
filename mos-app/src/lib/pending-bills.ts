@@ -221,7 +221,7 @@ export function validatePendingBillPaymentForm(draft: PendingBillPaymentDraft): 
   // The copy keeps ESB totals to the cent: whole rupiah (at least 1), or exactly the remaining balance.
   const settlesBill = toCents(amount) === toCents(draft.balance)
   if (!draft.amount.trim()) errors.amount = 'required'
-  else if (!Number.isFinite(amount) || amount <= 0 || (!settlesBill && (amount < 1 || !Number.isInteger(amount)))) errors.amount = 'invalid'
+  else if (/\.\d{3,}/.test(draft.amount) || !Number.isFinite(amount) || amount <= 0 || (!settlesBill && (amount < 1 || !Number.isInteger(amount)))) errors.amount = 'invalid'
   else if (toCents(amount) > toCents(draft.balance)) errors.amount = 'overBalance'
 
   if (!draft.cashInDate) errors.cashInDate = 'required'

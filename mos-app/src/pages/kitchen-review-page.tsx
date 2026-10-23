@@ -41,8 +41,7 @@ import type { StreamCompleteness } from '@/lib/db/stream-completeness'
 import { listActiveBranches } from '@/lib/db/branches'
 // #783 (DB half #778): a supervisor reviews every stream she holds a LIVE MEMBERSHIP on, not
 // only her primary — the same read useCafeStream already runs for "Your Team" tagging.
-import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
-import type { CafeViewerTeam } from '@/lib/db/cafe-opening'
+import { listCafeViewerTeams, type CafeViewerTeam } from '@/lib/db/cafe-opening'
 import { canAdminCafe, canPushCafe, canReviewCafe, isCafeSupervisor, isReviewerEligibleTeam } from '@/lib/kitchen-gates'
 import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 import { deriveActionLabel, movementKey, streamDateKey, streamKey, streamLabel } from '@/lib/kitchen-action-label'
