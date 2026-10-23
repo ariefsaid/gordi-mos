@@ -24,7 +24,7 @@ export type MeetingPropertyValues = {
   objectiveId: string | null
 }
 
-export type MeetingSeriesInfo = {
+type MeetingSeriesInfo = {
   number: number
   previous: MeetingSeriesLink | null
   next: MeetingSeriesLink | null
