@@ -8,8 +8,10 @@
 -- mention can never leak the Meeting's existence. Capped at 50 recipients per save. Archived Teams and
 -- archived people are skipped.
 --
--- A Meeting turning Private removes the mention notices already delivered to people who can no longer
--- read it (not a live attendee, not an admin): their title would otherwise keep the Meeting's name.
+-- Mention notices leave with read access: when a Meeting turns Private, when an attendee of a Private
+-- Meeting is removed, and when an admin role is revoked, the notices already delivered to people who can
+-- no longer read the Meeting (not a live attendee, not an admin) are deleted; their title would otherwise
+-- keep the Meeting's name.
 --
 -- The node may carry its fields directly ({kind, id}) or under props ({props:{kind, id}}), which is
 -- how BlockNote stores custom inline content; both are read.
@@ -120,3 +122,61 @@ create trigger meetings_purge_notices
   after update of is_private on mos.meetings
   for each row when (new.is_private and not old.is_private)
   execute function mos._purge_meeting_notices();
+
+create or replace function mos._purge_removed_attendee_notices()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from mos.notifications n
+   where n.owner_id = new.person_id
+     and n.org_id = new.org_id
+     and n.metadata ->> 'source' = 'meeting_mention'
+     and n.metadata #>> '{entity,id}' = new.meeting_id::text
+     and exists (select 1 from mos.meetings m where m.id = new.meeting_id and m.is_private)
+     and not exists (
+       select 1 from shared.person_access_roles r
+        where r.person_id = new.person_id and r.org_id = new.org_id
+          and r.access_role = 'admin' and r.revoked_at is null);
+  return null;
+end;
+$$;
+comment on function mos._purge_removed_attendee_notices() is
+  'AFTER trigger: when an attendee of a Private Meeting is removed, deletes their mention notices about it unless they still read it as an admin.';
+revoke execute on function mos._purge_removed_attendee_notices() from public, anon, authenticated;
+create trigger meeting_attendees_purge_notices
+  after update of removed_at on mos.meeting_attendees
+  for each row when (old.removed_at is null and new.removed_at is not null)
+  execute function mos._purge_removed_attendee_notices();
+
+create or replace function mos._purge_meeting_notices_for_ex_admin()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from mos.notifications n
+   where n.owner_id = new.person_id
+     and n.org_id = new.org_id
+     and n.metadata ->> 'source' = 'meeting_mention'
+     and exists (
+       select 1 from mos.meetings m
+        where m.id::text = n.metadata #>> '{entity,id}'
+          and m.org_id = new.org_id
+          and m.is_private
+          and not exists (
+            select 1 from mos.meeting_attendees a
+             where a.meeting_id = m.id and a.person_id = new.person_id and a.removed_at is null));
+  return null;
+end;
+$$;
+comment on function mos._purge_meeting_notices_for_ex_admin() is
+  'AFTER trigger on shared.person_access_roles: when admin is revoked, deletes that person''s mention notices about Private Meetings they do not attend.';
+revoke execute on function mos._purge_meeting_notices_for_ex_admin() from public, anon, authenticated;
+create trigger person_access_roles_purge_meeting_notices
+  after update of revoked_at on shared.person_access_roles
+  for each row when (old.access_role = 'admin' and old.revoked_at is null and new.revoked_at is not null)
+  execute function mos._purge_meeting_notices_for_ex_admin();

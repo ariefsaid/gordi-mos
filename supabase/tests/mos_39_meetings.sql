@@ -9,7 +9,7 @@
 --   F ForeignMgr ...b4 (org B)
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(108);
+select plan(114);
 
 select shared._test_seed_directory();
 insert into shared.teams (id, org_id, business_unit_id, name, code) values
@@ -237,5 +237,30 @@ select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000
 select throws_ok($$ insert into mos.meeting_attendees (meeting_id, person_id) values (current_setting('t.m1')::uuid, '00000000-0000-0000-0000-0000000000d6') $$, '42501', null, 'an archived person cannot be added as an attendee');
 update mos.meeting_attendees set removed_at = now() where meeting_id = current_setting('t.m2')::uuid and person_id = '00000000-0000-0000-0000-0000000000d6';
 select throws_ok($$ update mos.meeting_attendees set removed_at = null where meeting_id = current_setting('t.m2')::uuid and person_id = '00000000-0000-0000-0000-0000000000d6' $$, '42501', null, 'an archived person cannot be re-added as an attendee');
+-- Mention notices leave with read access: attendee removed, admin revoked.
+reset role;
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
+select set_config('t.m5', mos.create_meeting('Board pay', '00000000-0000-0000-0000-00000000e001', now(), true, null, null, array['00000000-0000-0000-0000-0000000000d2','00000000-0000-0000-0000-0000000000d3']::uuid[])::text, true);
+update mos.meetings set minutes = '[{"type":"paragraph","content":[{"type":"mention","props":{"kind":"person","id":"00000000-0000-0000-0000-0000000000d2"}},{"type":"mention","props":{"kind":"person","id":"00000000-0000-0000-0000-0000000000d3"}}]}]'::jsonb where id = current_setting('t.m5')::uuid;
+update mos.meetings set minutes = '[{"type":"paragraph","content":[{"type":"mention","props":{"kind":"person","id":"00000000-0000-0000-0000-0000000000d3"}}]}]'::jsonb where id = current_setting('t.m1')::uuid;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
+select is((select count(*)::int from mos.notifications where metadata->'entity'->>'id' = current_setting('t.m5')), 1, 'setup: an attendee holds a notice about the private Meeting');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
+select is((select count(*)::int from mos.notifications where metadata->'entity'->>'id' in (current_setting('t.m5'), current_setting('t.m1'))), 2, 'setup: the admin holds a notice about the private Meeting and one about a public Meeting');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
+update mos.meeting_attendees set removed_at = now() where meeting_id = current_setting('t.m5')::uuid and person_id in ('00000000-0000-0000-0000-0000000000d2','00000000-0000-0000-0000-0000000000d3');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
+select is((select count(*)::int from mos.notifications where metadata->'entity'->>'id' = current_setting('t.m5')), 0, 'a removed attendee loses their notices about the private Meeting');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
+select is((select count(*)::int from mos.notifications where metadata->'entity'->>'id' = current_setting('t.m5')), 1, 'a removed attendee who is an admin keeps the notice (still reads the Meeting)');
+reset role;
+alter table shared.person_access_roles disable trigger person_access_roles_guard;
+update shared.person_access_roles set revoked_at = now() where person_id = '00000000-0000-0000-0000-0000000000d3' and access_role = 'admin';
+alter table shared.person_access_roles enable trigger person_access_roles_guard;
+select is((select count(*)::int from mos.notifications where owner_id = '00000000-0000-0000-0000-0000000000d3' and metadata->'entity'->>'id' = current_setting('t.m5')), 0, 'an ex-admin loses notices about private Meetings they do not attend');
+select is((select count(*)::int from mos.notifications where owner_id = '00000000-0000-0000-0000-0000000000d3' and metadata->'entity'->>'id' = current_setting('t.m1')), 1, 'an ex-admin keeps notices about public Meetings');
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select * from finish();
 rollback;
