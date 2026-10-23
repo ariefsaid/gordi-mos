@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { listBranchesByIds } from '@/lib/db/branches'
 import { listCafeItemSettings } from '@/lib/db/cafe-item-settings'
+import { listCafeLocationsByIds } from '@/lib/db/cafe-locations'
 import { listCafeRecordPeople, listCafeRecordUnits } from '@/lib/db/cafe-records'
 import type { BranchOption, ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { mapLimit } from './load'
@@ -17,8 +18,10 @@ export interface RecordsLookups {
   receiptItem: (unitId: string, streamKey: string) => { id: string; name: string } | null
   personName: (personId: string | null) => string | null
   branchName: (branchId: string) => string | null
+  /** A Location's name by id, archived ones included. */
+  locationName: (locationId: string) => string | null
   /** Which lookups failed, for an honest "name unavailable" reason. */
-  failed: { people: boolean; units: boolean; settings: boolean; branches: boolean }
+  failed: { people: boolean; units: boolean; settings: boolean; branches: boolean; locations: boolean }
 }
 
 interface Loaded {
@@ -28,10 +31,11 @@ interface Loaded {
   units: Map<string, string>
   people: Map<string, string>
   branches: Map<string, string>
+  locations: Map<string, string>
   failed: RecordsLookups['failed']
 }
 
-const EMPTY_FAILED = { people: false, units: false, settings: false, branches: false }
+const EMPTY_FAILED = { people: false, units: false, settings: false, branches: false, locations: false }
 const settingsCache = new Map<string, { itemNames: Map<string, string>; receiptItems: Map<string, { id: string; name: string }> }>()
 
 export function clearRecordsLookupCache(): void { settingsCache.clear() }
@@ -49,6 +53,7 @@ export function useRecordsLookups(
     const people = new Set<string>()
     const units = new Set<string>()
     const branchIds = new Set<string>()
+    const locationIds = new Set<string>()
     const addStream = (branchId: string, activity: string) => { streamKeys.add(`${branchId}:${activity}`); branchIds.add(branchId) }
     for (const log of sources.logs.rows) {
       addStream(log.branch_id, log.activity)
@@ -56,6 +61,7 @@ export function useRecordsLookups(
       if (log.reviewed_by) people.add(log.reviewed_by)
       if (log.item_unit_id) units.add(log.item_unit_id)
       if (log.destination_branch_id) branchIds.add(log.destination_branch_id)
+      for (const id of [log.production_location_id, log.from_storage_location_id, log.to_storage_location_id]) if (id) locationIds.add(id)
     }
     for (const count of sources.counts.rows) {
       addStream(count.branch_id, count.activity)
@@ -75,17 +81,17 @@ export function useRecordsLookups(
       for (const line of request.lines) if (line.item_unit_id) units.add(line.item_unit_id)
     }
     const sorted = (set: Set<string>) => [...set].sort()
-    const result = { streamKeys: sorted(streamKeys), people: sorted(people), units: sorted(units), branchIds: sorted(branchIds) }
-    return { ...result, signature: [result.streamKeys, result.people, result.units, result.branchIds].map(list => list.join(',')).join('|') }
+    const result = { streamKeys: sorted(streamKeys), people: sorted(people), units: sorted(units), branchIds: sorted(branchIds), locationIds: sorted(locationIds) }
+    return { ...result, signature: [result.streamKeys, result.people, result.units, result.branchIds, result.locationIds].map(list => list.join(',')).join('|') }
   }, [sources])
 
   useEffect(() => {
-    if (needs.signature === '|||') return
+    if (needs.signature === '||||') return
     let active = true
     const load = async () => {
       const failed = { ...EMPTY_FAILED }
       const activeBranchIds = new Set(branches.map(branch => branch.id))
-      const [settingsList, units, people, extraBranches] = await Promise.all([
+      const [settingsList, units, people, extraBranches, places] = await Promise.all([
         mapLimit(needs.streamKeys, 3, async key => {
           const hit = settingsCache.get(`${viewerId}|${key}`)
           if (hit) return [key, hit] as const
@@ -105,6 +111,7 @@ export function useRecordsLookups(
         listCafeRecordUnits(needs.units).catch(() => { failed.units = true; return [] }),
         listCafeRecordPeople(needs.people).catch(() => { failed.people = true; return [] }),
         listBranchesByIds(needs.branchIds.filter(id => !activeBranchIds.has(id))).catch(() => { failed.branches = true; return [] }),
+        listCafeLocationsByIds(needs.locationIds).catch(() => { failed.locations = true; return [] }),
       ])
       if (!active) return
       const itemNames = new Map<string, string>()
@@ -118,6 +125,7 @@ export function useRecordsLookups(
         signature: needs.signature, itemNames, receiptItems, failed,
         units: new Map(units.flatMap(unit => unit.unit_name?.trim() ? [[unit.id, unit.unit_name] as const] : [])),
         people: new Map(people.filter(p => p.full_name?.trim()).map(person => [person.id, person.full_name] as const)),
+        locations: new Map(places.map(place => [place.id, place.name] as const)),
         branches: new Map([...branches.map(b => [b.id, b.name] as const), ...extraBranches.map(b => [b.id, b.name] as const)]),
       })
     }
@@ -130,11 +138,12 @@ export function useRecordsLookups(
     const data = ready ? loaded : null
     const baseBranches = new Map(branches.map(b => [b.id, b.name] as const))
     return {
-      status: ready || needs.signature === '|||' ? 'ready' : 'loading',
+      status: ready || needs.signature === '||||' ? 'ready' : 'loading',
       itemName: (itemId, streamKey) => data?.itemNames.get(`${streamKey}|${itemId}`) ?? null,
       unitName: unitId => data?.units.get(unitId) ?? null,
       receiptItem: (unitId, streamKey) => data?.receiptItems.get(`${streamKey}|${unitId}`) ?? null,
       personName: personId => personId ? data?.people.get(personId) ?? null : null,
+      locationName: locationId => data?.locations.get(locationId) ?? null,
       branchName: branchId => data?.branches.get(branchId) ?? baseBranches.get(branchId) ?? null,
       failed: data?.failed ?? EMPTY_FAILED,
     }

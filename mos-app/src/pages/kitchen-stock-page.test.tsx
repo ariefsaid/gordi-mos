@@ -66,7 +66,6 @@ import { listCafeItemSettings, type CafeItemSetting } from '@/lib/db/cafe-item-s
 import { KitchenStockPage } from './kitchen-stock-page'
 import { rememberStream } from '@/lib/cafe-stream'
 import { rememberCafeLocation, rememberCafeOpeningTeam } from '@/lib/cafe-opening-location'
-import { branchDisplayName } from '@/lib/kitchen-action-label'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -431,16 +430,6 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     expect(listName).not.toMatch(/Bungur/)
     expect(listName).not.toMatch(/HQ/)
   })
-
-  it('AC-011 (#238 ruling, the other half): the Bungur alias is ALIVE for a transfer DESTINATION', async () => {
-    // The alias was not dropped, only confined. branchDisplayName is what the derived action
-    // label ("Transfer to Bungur") and every destination offer resolve through — the incumbent's
-    // own string, and OD-K-1 parity is behavioural. Pinned at the helper, because that is the one
-    // seam both halves of the rule pass through: a future "cleanup" deleting BRANCH_DISPLAY_ALIAS
-    // would go red here while every stream-naming assertion above stayed green.
-    expect(branchDisplayName(BRANCH_RR)).toBe('Bungur')
-    expect(BRANCH_RR.name).toBe('Rumah Rames')
-  })
 })
 
 describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
@@ -614,7 +603,7 @@ describe('Stock places', () => {
     await user.click(select)
     await user.click(screen.getByRole('option', { name: locale === 'en' ? 'All places' : 'Semua tempat' }))
     expect(rowOf('Ayam Bakar').textContent).toMatch(/12 porsi.*8 porsi/)
-    await user.click(screen.getByRole('link', { name: locale === 'en' ? 'Change location' : 'Pindah lokasi' }))
+    await user.click(screen.getByRole('link', { name: locale === 'en' ? 'Change branch' : 'Ganti cabang' }))
     expect(await screen.findByText('Move form')).toBeInTheDocument()
     await user.click(screen.getByRole('link', { name: locale === 'en' ? 'Back to Available to transfer' : 'Kembali ke Tersedia untuk dipindah' }))
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()

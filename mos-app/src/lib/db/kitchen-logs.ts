@@ -204,7 +204,7 @@ export async function fetchPlanMaps(
   ).join(',')
   const { data, error } = await ops()
     .from('kitchen_plans')
-    .select('log_date,branch_id,activity,wip_item_id,action,destination_branch_id,qty_porsi')
+    .select('log_date,branch_id,activity,wip_item_id,action,destination_branch_id,to_location_id,qty_porsi')
     .or(filter)
   if (error) throw new Error(`fetchPlanMaps failed — ${error.message}`)
 
@@ -215,6 +215,7 @@ export async function fetchPlanMaps(
     wip_item_id: string
     action: KitchenAction
     destination_branch_id: string | null
+    to_location_id: string | null
     qty_porsi: number
   }
   const maps = new Map([...unique.keys()].map(key => [key, {} as PlanMap]))
@@ -223,7 +224,7 @@ export async function fetchPlanMaps(
     if (!planMap) continue
     if (!planMap[row.wip_item_id]) planMap[row.wip_item_id] = {}
     planMap[row.wip_item_id][
-      movementKey({ action: row.action, destinationBranchId: row.destination_branch_id })
+      movementKey({ action: row.action, destinationBranchId: row.destination_branch_id, toLocationId: row.to_location_id })
     ] = row.qty_porsi
   }
   return [...maps.entries()]
@@ -246,6 +247,7 @@ export async function fetchActualsMap(
     wip_item_id: string
     action: KitchenLogAction
     destination_branch_id: string | null
+    to_storage_location_id: string | null
     item_unit_id: string | null
     qty_porsi: number
     entry_quantity?: number | null
@@ -256,7 +258,7 @@ export async function fetchActualsMap(
   let before: string | undefined
   for (;;) {
     let query = ops().from('kitchen_logs')
-      .select('id,wip_item_id,action,destination_branch_id,item_unit_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name')
+      .select('id,wip_item_id,action,destination_branch_id,to_storage_location_id,item_unit_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name')
       .eq('log_date', logDate).eq('branch_id', stream.branch.id).eq('activity', stream.activity)
       .neq('status', 'Rejected').is('superseded_by', null)
     if (before) query = query.lt('id', before)
@@ -285,7 +287,7 @@ export async function fetchActualsMap(
   }
   const map: ActualsMap = {}
   for (const row of rows) {
-    const key = movementKey({ action: row.action, destinationBranchId: row.destination_branch_id })
+    const key = movementKey({ action: row.action, destinationBranchId: row.destination_branch_id, toLocationId: row.to_storage_location_id })
     if (!map[row.wip_item_id]) map[row.wip_item_id] = {}
     const entries = map[row.wip_item_id][key] ?? (map[row.wip_item_id][key] = [])
     if (row.entry_quantity != null && row.entry_unit_factor != null) {
@@ -499,8 +501,8 @@ function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> 
   if (input.action === 'produce' && input.destination_branch_id !== null) {
     throw new Error('a produce carries no destination branch')
   }
-  if (input.action === 'transfer' && !input.destination_branch_id) {
-    throw new Error('a transfer must name a destination branch')
+  if (input.action === 'transfer' && !input.destination_branch_id && !input.to_storage_location_id) {
+    throw new Error('a transfer must name a destination')
   }
   if (input.action === 'waste' && input.destination_branch_id !== null) {
     throw new Error('a waste log carries no destination branch')
@@ -606,7 +608,7 @@ export class KitchenRpcError extends Error {
 // added so the review queue can look up each row's plan baseline against ITS stream
 // rather than one hardcoded stream (the #247/#196 defect this port fixes).
 const REVIEW_SELECT =
-  'id,batch_id,log_date,action,destination_branch_id,branch_id,activity,action_label,wip_item_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name,notes,status,submitted_by,business_unit_id,created_at,updated_at,wip_items(name)'
+  'id,batch_id,log_date,action,destination_branch_id,production_location_id,from_storage_location_id,to_storage_location_id,branch_id,activity,action_label,wip_item_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name,notes,status,submitted_by,business_unit_id,created_at,updated_at,wip_items(name)'
 
 export const KITCHEN_LOGS_PAGE_SIZE = 50
 
@@ -655,6 +657,9 @@ export async function listSubmittedKitchenLogs(logDate?: string, window: Kitchen
     log_date: string
     action: KitchenLogAction
     destination_branch_id: string | null
+    production_location_id: string | null
+    from_storage_location_id: string | null
+    to_storage_location_id: string | null
     branch_id: string
     activity: ProductionActivity
     action_label: string | null
@@ -682,6 +687,8 @@ export async function listSubmittedKitchenLogs(logDate?: string, window: Kitchen
       action_type: r.action_label ?? '',
       action: r.action,
       destination_branch_id: r.destination_branch_id,
+      from_location_id: r.production_location_id ?? r.from_storage_location_id,
+      to_location_id: r.to_storage_location_id,
       branch_id: r.branch_id,
       activity: r.activity,
       wip_item_id: r.wip_item_id,

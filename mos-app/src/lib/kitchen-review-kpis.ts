@@ -21,7 +21,7 @@ import { movementKey, streamDateKey } from '@/lib/kitchen-action-label'
 function planQtyFor(streamPlans: Map<string, PlanMap>, log: ReviewLogRow): number {
   const planMap = streamPlans.get(streamDateKey(log.log_date, log.branch_id, log.activity))
   return planMap?.[log.wip_item_id]?.[
-    movementKey({ action: log.action, destinationBranchId: log.destination_branch_id })
+    movementKey({ action: log.action, destinationBranchId: log.destination_branch_id, toLocationId: log.to_location_id })
   ] ?? 0
 }
 

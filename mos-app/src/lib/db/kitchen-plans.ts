@@ -20,7 +20,7 @@
 // .upsert({ onConflict }) would force the client to send org_id into the conflict target.
 // Rather than weaken the "client never sends org_id" guarantee, upsertKitchenPlan does a
 // clean select-then-insert/update: probe for the existing row by the full key (branch,
-// activity, action, destination, item, date) — RLS scopes the probe to the caller's org —
+// activity, action, destination branch + Location, item, date) — RLS scopes the probe to the caller's org —
 // then UPDATE by id (replace, FR-031) or INSERT (org_id + plan_by server-stamped). This is
 // the same idempotent replace semantics the spec requires, with no org_id ever leaving the
 // client.
@@ -52,7 +52,7 @@ export async function listKitchenPlans(
 ): Promise<PlanCell[]> {
   const { data, error } = await ops()
     .from('kitchen_plans')
-    .select('id,wip_item_id,action,destination_branch_id,qty_porsi')
+    .select('id,wip_item_id,action,destination_branch_id,to_location_id,qty_porsi')
     .eq('log_date', logDate)
     .eq('branch_id', stream.branch.id)
     .eq('activity', stream.activity)
@@ -62,12 +62,13 @@ export async function listKitchenPlans(
     wip_item_id: string
     action: KitchenAction
     destination_branch_id: string | null
+    to_location_id: string | null
     qty_porsi: number
   }
   return ((data ?? []) as Raw[]).map(r => ({
     id: r.id,
     wip_item_id: r.wip_item_id,
-    movement: { action: r.action, destinationBranchId: r.destination_branch_id },
+    movement: { action: r.action, destinationBranchId: r.destination_branch_id, toLocationId: r.to_location_id },
     qty_porsi: r.qty_porsi,
   }))
 }
@@ -99,7 +100,7 @@ export async function listPesanan(
   const to = addDays(from, days - 1) // inclusive window: [from, from+days-1]
   const { data, error } = await ops()
     .from('kitchen_plans')
-    .select('log_date,wip_item_id,action,destination_branch_id,qty_porsi,wip_items(name,category)')
+    .select('log_date,wip_item_id,action,destination_branch_id,to_location_id,qty_porsi,wip_items(name,category)')
     .eq('branch_id', stream.branch.id)
     .eq('activity', stream.activity)
     .gte('log_date', from)
@@ -112,6 +113,7 @@ export async function listPesanan(
     wip_item_id: string
     action: KitchenAction
     destination_branch_id: string | null
+    to_location_id: string | null
     qty_porsi: number
     // PostgREST to-one embed: tolerate object | array | null.
     wip_items: { name: string; category: string | null } | { name: string; category: string | null }[] | null
@@ -123,7 +125,7 @@ export async function listPesanan(
       wip_item_id: r.wip_item_id,
       wip_item_name: embed?.name ?? '—',
       category: embed?.category ?? null,
-      movement: { action: r.action, destinationBranchId: r.destination_branch_id },
+      movement: { action: r.action, destinationBranchId: r.destination_branch_id, toLocationId: r.to_location_id },
       qty_porsi: r.qty_porsi,
     }
   })
@@ -145,8 +147,8 @@ export async function upsertKitchenPlan(input: UpsertKitchenPlanInput): Promise<
   if (input.action === 'produce' && input.destination_branch_id !== null) {
     throw new Error('a produce carries no destination branch')
   }
-  if (input.action === 'transfer' && !input.destination_branch_id) {
-    throw new Error('a transfer must name a destination branch')
+  if (input.action === 'transfer' && !input.destination_branch_id && !input.to_location_id) {
+    throw new Error('a transfer must name a destination')
   }
 
   // Probe for an existing row for this (date, item, stream, movement) key — RLS scopes
@@ -163,6 +165,8 @@ export async function upsertKitchenPlan(input: UpsertKitchenPlanInput): Promise<
   probe = input.destination_branch_id === null
     ? probe.is('destination_branch_id', null)
     : probe.eq('destination_branch_id', input.destination_branch_id)
+  // Two Locations in one branch are two plan rows: the destination Location is part of the key.
+  probe = input.to_location_id ? probe.eq('to_location_id', input.to_location_id) : probe.is('to_location_id', null)
   const { data: existing, error: probeErr } = await probe.maybeSingle()
   if (probeErr) throw new Error(`upsertKitchenPlan failed — ${probeErr.message}`)
 
@@ -188,6 +192,9 @@ export async function upsertKitchenPlan(input: UpsertKitchenPlanInput): Promise<
     activity: input.activity,
     action: input.action,
     destination_branch_id: input.destination_branch_id,
+    // The server fills Branch, Activity and the destination Branch from these.
+    from_location_id: input.from_location_id ?? null,
+    to_location_id: input.to_location_id ?? null,
     qty_porsi: input.qty_porsi,
     notes: input.notes ?? null,
     // org_id NOT sent — server default. plan_by NOT sent — session-stamped.

@@ -16,9 +16,11 @@ import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import { listActiveBranches, listBranchesByIds } from '@/lib/db/branches'
 import {
-  createCafeTransferRoute, listCafeTransferRoutes, removeCafeTransferRoute, updateCafeTransferRoute,
-  type TransferRoute, type TransferRouteInput,
+  createCafeTransferRoute, listCafeRouteEsbSwitches, listCafeTransferRoutes, removeCafeTransferRoute, setCafeRouteRecordInEsb,
+  updateCafeTransferRoute, type RouteEsbSwitch, type TransferRoute, type TransferRouteInput,
 } from '@/lib/db/cafe-transfer-routes'
+import { clearCafeVisitCache } from '@/lib/cafe-visit-cache'
+import { Checkbox } from '@/components/ui/checkbox'
 import { ContractError, type WriteContext } from '@/lib/db/contract'
 import { listStreamPairs } from '@/lib/db/kitchen-logs'
 import type { BranchOption, ProductionActivity, StreamPair } from '@/lib/db/kitchen-logs.types'
@@ -39,6 +41,8 @@ interface Loaded {
   pairs: StreamPair[]
   branches: BranchOption[]
   extra: Pick<BranchOption, 'id' | 'name'>[]
+  /** Admins only. Null = not readable (not an admin, or the read was refused): the control is then hidden. */
+  esb: RouteEsbSwitch[] | null
   /** A catalog read failed: raw routes stay, labels may be unresolved, the form is disabled. */
   partial: boolean
   at: string
@@ -91,10 +95,12 @@ function TransferRoutes() {
       const known = new Set(branches.map((branch) => branch.id))
       const missing = [...new Set(destinations.flatMap((r) => [r.origin_branch_id, r.destination_branch_id]))].filter((id) => !known.has(id))
       const extra = await listBranchesByIds(missing).catch(() => { partial = true; return [] })
-      if (active) { setData({ destinations, pairs, branches, extra, partial, at: new Date().toISOString() }); setError(false) }
+      // Whether a route is recorded in ESB is for admins only; a refusal hides the control, never the route.
+      const esb = isAdmin ? await listCafeRouteEsbSwitches().catch(() => null) : null
+      if (active) { setData({ destinations, pairs, branches, extra, esb, partial, at: new Date().toISOString() }); setError(false) }
     })()
     return () => { active = false }
-  }, [retry, setData, setError])
+  }, [retry, setData, setError, isAdmin])
 
   const filters = parseRouteFilters(params)
   const selected = params.get('route')
@@ -107,7 +113,7 @@ function TransferRoutes() {
   const rows = useMemo(() => data ? buildRouteRows(data.destinations, { activeBranches: data.branches, extraBranches: data.extra, pairs: data.pairs }) : [], [data])
   const unresolved = t('cafe.routes.unresolved')
   const originText = useCallback((row: RouteRow) => `${row.originBranchName ?? unresolved} · ${activityLabel(t, row.originActivity)}`, [t, unresolved])
-  const destinationText = useCallback((row: RouteRow) => row.destinationAlias ?? row.destinationName ?? unresolved, [unresolved])
+  const destinationText = useCallback((row: RouteRow) => row.destinationName ?? unresolved, [unresolved])
   const searchable = useCallback((row: RouteRow) => `${originText(row)} ${destinationText(row)} ${row.destinationName ?? ''}`, [originText, destinationText])
   const visible = useMemo(() => applyRouteFilters(rows, filters, searchable), [rows, filters, searchable])
   const derived = useMemo(() => data ? derivedMovements(data.pairs, data.branches) : [], [data])
@@ -147,6 +153,7 @@ function TransferRoutes() {
     setMutationError(null)
     try {
       await work()
+      clearCafeVisitCache()
       setDirty(false)
       update({ route: null }, false)
     } catch (error) {
@@ -172,6 +179,24 @@ function TransferRoutes() {
       } : current)
     })
   }, [offline, mutate, setData])
+  const setEsb = useCallback(async (row: RouteRow, enabled: boolean) => {
+    if (offline) { setMutationError('cafe.routes.error.unavailable'); return }
+    setSaving(true)
+    setMutationError(null)
+    try {
+      const recorded = await setCafeRouteRecordInEsb({
+        origin_branch_id: row.originBranchId, origin_activity: row.originActivity, destination_branch_id: row.destinationBranchId,
+      }, enabled)
+      setData((current) => current?.esb ? {
+        ...current,
+        esb: current.esb.map((entry) => routeKey(entry) === row.key ? { ...entry, record_in_esb: recorded } : entry),
+      } : current)
+    } catch (error) {
+      setMutationError(routeMutationErrorKey(error))
+    } finally {
+      setSaving(false)
+    }
+  }, [offline, setData])
   const disableRoute = useCallback(async (row: RouteRow) => {
     if (offline || row.rowVersion === null) {
       setMutationError(offline ? 'cafe.routes.error.unavailable' : 'cafe.routes.error.failed')
@@ -195,9 +220,11 @@ function TransferRoutes() {
     { key: 'origin', header: t('cafe.routes.col.origin'), sortable: true, render: (row) => originText(row) },
     { key: 'status', header: t('cafe.routes.col.status'), render: (row) => <RouteStatus row={row} withReason /> },
     { key: 'destination', header: t('cafe.routes.col.destination'), sortable: true, render: (row) => destinationText(row) },
+    ...(data?.esb ? [{ key: 'esb', header: t('cafe.routes.col.esb'), render: (row: RouteRow & { id: string }) => <EsbPill on={esbOn(row)} /> }] : []),
     { key: 'actions', header: <span className="sr-only">{t('cafe.routes.col.actions')}</span>, render: (row) =>
       <Link className="cafe-routes__open" data-route-open={row.key} to={hrefFor(row.key)} aria-label={`${t('cafe.routes.view')}: ${originText(row)} → ${destinationText(row)}`}>{t('cafe.routes.view')}</Link> },
   ]
+  const esbOn = (row: RouteRow) => data?.esb?.find((entry) => routeKey(entry) === row.key)?.record_in_esb ?? false
   const tableRows = visible.map((row) => ({ ...row, id: row.key }))
 
   const addAction = isAdmin && !selected ? <Button variant="primary" onClick={() => open('new')}>{t('cafe.routes.add')}</Button> : undefined
@@ -258,7 +285,7 @@ function TransferRoutes() {
                 <Link className="cafe-routes__card" data-route-open={row.key} to={hrefFor(row.key)} aria-label={`${t('cafe.routes.view')}: ${originText(row)} → ${destinationText(row)}`} onClick={() => { lastOpened.current = row.key }}>
                   <span className="cafe-routes__card-main">
                     <span className="cafe-routes__card-title">{originText(row)}</span>
-                    <span className="cafe-routes__card-meta">{t('cafe.routes.col.destination')}: {destinationText(row)}</span>
+                    <span className="cafe-routes__card-meta">{t('cafe.routes.col.destination')}: {destinationText(row)}{data.esb ? ` · ${t('cafe.routes.esb')}: ${t(esbOn(row) ? 'cafe.routes.esb.on' : 'cafe.routes.esb.off')}` : ''}</span>
                   </span>
                   <RouteStatus row={row} />
                   <span className="cafe-routes__card-view">{t('cafe.routes.view')}</span>
@@ -298,6 +325,7 @@ function TransferRoutes() {
           destinationText={destinationText}
           onSave={saveRoute}
           onRemove={disableRoute}
+          esb={data.esb ? { on: selectedRow ? esbOn(selectedRow) : false, set: setEsb } : null}
           onClose={() => update({ route: null }, false)}
           onDirty={setDirty}
         />
@@ -312,6 +340,11 @@ function TransferRoutes() {
       {body}
     </CafePageFrame>
   )
+}
+
+function EsbPill({ on }: { on: boolean }) {
+  const t = useT()
+  return <Pill tone={on ? 'success' : 'neutral'}>{t(on ? 'cafe.routes.esb.on' : 'cafe.routes.esb.off')}</Pill>
 }
 
 function RouteStatus({ row, withReason = false }: { row: RouteRow; withReason?: boolean }) {
@@ -339,6 +372,8 @@ interface PanelProps {
   destinationText: (row: RouteRow) => string
   onSave: (row: RouteRow | null, input: TransferRouteInput) => Promise<void>
   onRemove: (row: RouteRow) => Promise<void>
+  /** The Record in ESB switch; null for anyone who cannot read it, so the control never renders. */
+  esb: { on: boolean; set: (row: RouteRow, enabled: boolean) => Promise<void> } | null
   onClose: () => void
   onDirty: (dirty: boolean) => void
 }
@@ -346,7 +381,7 @@ interface PanelProps {
 /** The route record is read-only for members; admins configure it through versioned writes. */
 function RoutePanel({
   data, row, isNew, isAdmin, offline, saving, mutationError, invalid,
-  originText, destinationText, onSave, onRemove, onClose, onDirty,
+  originText, destinationText, onSave, onRemove, esb, onClose, onDirty,
 }: PanelProps) {
   const t = useT()
   const heading = useRef<HTMLHeadingElement>(null)
@@ -411,13 +446,19 @@ function RoutePanel({
             </Select>
             {originBranch && eligible.length === 0 && <p className="cafe-routes__field-note">{t('cafe.routes.noEligible')}</p>}
             {duplicate && <p className="cafe-routes__field-error" role="alert">{t('cafe.routes.duplicate')}</p>}
+            {esb && row && <div className="cafe-routes__esb">
+              <label className="cafe-routes__esb-row">
+                <Checkbox checked={esb.on} disabled={formDisabled} onChange={(enabled) => void esb.set(row, enabled)} />
+                <span>{t('cafe.routes.esb')}</span>
+              </label>
+              <p className="cafe-routes__field-note">{t('cafe.routes.esb.note')}</p>
+            </div>}
             <p className="cafe-routes__field-note">{t('cafe.routes.removeNote')}</p>
           </div>
         ) : row && (
           <dl className="cafe-routes__facts">
             <div><dt>{t('cafe.routes.origin')}</dt><dd>{originText(row)}</dd></div>
             <div><dt>{t('cafe.routes.destination')}</dt><dd>{row.destinationName ?? t('cafe.routes.unresolved')}</dd></div>
-            {row.destinationAlias && row.destinationAlias !== row.destinationName && <div><dt>{t('cafe.routes.alias')}</dt><dd>{row.destinationAlias}</dd></div>}
           </dl>
         )}
         {isAdmin && (

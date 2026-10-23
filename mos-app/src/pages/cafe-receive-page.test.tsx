@@ -221,7 +221,7 @@ beforeEach(() => {
   localStorage.clear()
   mockUseAuth.mockReturnValue(viewer(['member']))
   mockItems.mockResolvedValue(ITEMS)
-  locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], defaults: null, retry: vi.fn() })
+  locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], retry: vi.fn() })
   poMocks.list.mockReset().mockResolvedValue(EMPTY_PO_CACHE as never)
   vi.mocked(listCafeReceipts).mockResolvedValue([])
   vi.mocked(listCafeReceiptStatuses).mockResolvedValue([])
@@ -626,7 +626,7 @@ describe('CafeReceivePage', () => {
     ])
   })
 
-  it('applies the delivery storage default and persists a per-line location override into the receipt payload', async () => {
+  it('starts delivery storage Unassigned (nothing guessed) and persists a per-line location override into the receipt payload', async () => {
     mockSubmit.mockResolvedValue(submitResult('receipt-1', []))
     locationMocks.choices.mockReturnValue({
       status: 'ready',
@@ -634,7 +634,6 @@ describe('CafeReceivePage', () => {
         { id: 'cold-1', name: 'Cold room', use: 'storage', parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
         { id: 'pantry-1', name: 'Pantry', use: 'storage', parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
       ],
-      defaults: { branch_id: 'branch-1', activity: 'kitchen', production_location_id: null, storage_location_id: 'cold-1' },
       retry: vi.fn(),
     })
     renderPage()
@@ -643,7 +642,7 @@ describe('CafeReceivePage', () => {
     fireEvent.click(screen.getByText(/Accepted lines/))
 
     const deliveryLocation = screen.getAllByRole('combobox', { name: 'Store in' })[2]!
-    expect(deliveryLocation).toHaveTextContent('Cold room')
+    expect(deliveryLocation).toHaveTextContent('Unassigned')
     await userEvent.click(deliveryLocation)
     await userEvent.click(await screen.findByRole('option', { name: 'Pantry' }))
     fireEvent.click(screen.getAllByText('Store this line somewhere else')[0]!)

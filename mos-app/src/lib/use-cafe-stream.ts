@@ -26,15 +26,16 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
-import { resolveCafeStream, rememberStream } from '@/lib/cafe-stream'
-import { listCafeDestinations, listStreamPairs, streamCatalogFrom } from '@/lib/db/kitchen-logs'
+import { resolveCafeStream, rememberStream, withProductionLocations } from '@/lib/cafe-stream'
+import { getCafeLocations, getCafeSites } from '@/lib/cafe-visit-cache'
+import { listStreamPairs, streamCatalogFrom } from '@/lib/db/kitchen-logs'
 import { listActiveBranches } from '@/lib/db/branches'
 import { activeCafeLocation, rememberCafeLocation } from '@/lib/cafe-opening-location'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import { reportError } from '@/lib/telemetry'
 import { streamKey } from '@/lib/kitchen-action-label'
-import type { BranchOption, CafeDestination, ProductionStream } from '@/lib/db/kitchen-logs.types'
+import type { BranchOption, ProductionStream } from '@/lib/db/kitchen-logs.types'
 
 const EMPTY_STREAM_KEYS: ReadonlySet<string> = new Set()
 
@@ -44,8 +45,6 @@ export interface CafeStreamCatalog {
   branches: BranchOption[]
   /** The enumerated stream catalog (FR-005) — never a branch × activity cross-product. */
   options: ProductionStream[]
-  /** Org-scoped cross-branch movement routes, read from ops.cafe_destinations. */
-  destinations: CafeDestination[]
   /**
    * OD-CAFE-1: `options` narrowed to the branch the viewer is working at — what a stream PICKER
    * should offer. `options` stays whole because transfer movements are derived from it and a
@@ -98,7 +97,6 @@ export function useCafeStream(): CafeStreamState {
   const [catalog, setCatalog] = useState<CafeStreamCatalog>({
     branches: [],
     options: [],
-    destinations: [],
     locationOptions: [],
     stream: null,
     homeStream: null,
@@ -111,16 +109,18 @@ export function useCafeStream(): CafeStreamState {
   // loading state or be mistaken for the new person's context.
   useEffect(() => {
     setCatalog({
-      branches: [], options: [], destinations: [], locationOptions: [], stream: null,
+      branches: [], options: [], locationOptions: [], stream: null,
       homeStream: null, myStreamKeys: EMPTY_STREAM_KEYS, branchId: null,
     })
   }, [viewerId])
 
   const resolve = useCallback(async (): Promise<CafeStreamCatalog> => {
-    const [branches, pairs, destinations, myTeams] = await Promise.all([
+    const [branches, pairs, locations, sites, myTeams] = await Promise.all([
       listActiveBranches(),
       listStreamPairs(),
-      viewerId ? listCafeDestinations() : Promise.resolve([]),
+      // Read once per Café visit and reused by every Café page (lib/cafe-visit-cache).
+      getCafeLocations(viewerId),
+      getCafeSites(viewerId).catch(() => []),
       // Current profile memberships (effective-dated, home included) — the read the "Your Team"
       // tag needs beyond the single default (issue #781 follow-up). Skipped when unauthenticated.
       // Display only: a failure drops the tags, never the surface.
@@ -131,7 +131,7 @@ export function useCafeStream(): CafeStreamState {
         })
         : Promise.resolve([]),
     ])
-    const options = streamCatalogFrom(pairs, branches)
+    const options = withProductionLocations(streamCatalogFrom(pairs, branches), locations, sites)
     const myStreamKeys = new Set(
       myTeams
         .filter((team) => team.branch_id !== null && team.activity !== null)
@@ -161,7 +161,7 @@ export function useCafeStream(): CafeStreamState {
     // falls through to the next rung — no special case for "wrong branch".
     const stream = resolveCafeStream(locationOptions, ownDefault, viewerId, effectiveBranchId, soleStream)
     return {
-      branches, options, destinations, locationOptions, stream,
+      branches, options, locationOptions, stream,
       homeStream: ownDefault, myStreamKeys, branchId: effectiveBranchId,
     }
   }, [viewerId])

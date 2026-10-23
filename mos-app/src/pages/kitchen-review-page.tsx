@@ -64,11 +64,30 @@ import { CafeCloseReviewWorkspace } from '@/components/cafe/redesign/cafe-close-
 import { DecisionBar } from '@/components/cafe/redesign/worksheet'
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
 import { activeCafeLocation } from '@/lib/cafe-opening-location'
+import { useCafeLocationNames } from '@/lib/use-cafe-location-choices'
 import { useReviewSummary } from '@/lib/kitchen-review-kpis'
 import { formatWeekdayDayMonth, WIB_OFFSET_MS } from '@/lib/format/date'
 import { formatUnitMultiple } from '@/lib/cafe-unit-multiples'
 import './kitchen-review-page.css'
 import { Notice } from '@/components/ui/notice'
+
+/** A row's movement, with the destination Location named so its label reads "Transfer to <place>". */
+function movementOf(log: ReviewLogRow, placeNames: ReadonlyMap<string, string>) {
+  return {
+    action: log.action,
+    destinationBranchId: log.destination_branch_id,
+    toLocationId: log.to_location_id,
+    toLocationName: log.to_location_id ? placeNames.get(log.to_location_id) ?? null : null,
+  }
+}
+
+/** "RRS Central → RRS Outlet": where a made or sent row started and where a transfer went. */
+function routeText(log: ReviewLogRow, placeNames: ReadonlyMap<string, string>): string {
+  const from = log.from_location_id ? placeNames.get(log.from_location_id) : undefined
+  const to = log.to_location_id ? placeNames.get(log.to_location_id) : undefined
+  if (log.action === 'transfer' && from && to) return `${from} → ${to}`
+  return log.action === 'produce' && from ? from : ''
+}
 
 function isTransfer(a: string): boolean {
   return a.startsWith('Transfer to ')
@@ -82,7 +101,7 @@ function isTransfer(a: string): boolean {
 function planQtyFor(streamPlans: Map<string, PlanMap>, log: ReviewLogRow): number {
   const planMap = streamPlans.get(streamDateKey(log.log_date, log.branch_id, log.activity))
   return planMap?.[log.wip_item_id]?.[
-    movementKey({ action: log.action, destinationBranchId: log.destination_branch_id })
+    movementKey({ action: log.action, destinationBranchId: log.destination_branch_id, toLocationId: log.to_location_id })
   ] ?? 0
 }
 
@@ -431,6 +450,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
   const [externalProductionStreams, setExternalProductionStreams] = useState<ReadonlySet<string>>(new Set())
   const gateTokens = useRef(new Map<string, number>())
   const [logs, setLogs] = useState<ReviewLogRow[]>([])
+  const placeNames = useCafeLocationNames()
   const [wastePhotosByLogId, setWastePhotosByLogId] = useState<Record<string, KitchenWastePhoto[]>>({})
   // Every stream's item list (#222): a queued row whose item left its stream's list is labelled.
   const [offeredKeys, setOfferedKeys] = useState<Set<string>>(new Set())
@@ -908,7 +928,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
     .map(({ logDate, action }) => {
       const rows = visibleLogs.filter(l => l.log_date === logDate && l.action_type === action)
       const actionLabel = rows[0]
-        ? deriveActionLabel(t, { action: rows[0].action, destinationBranchId: rows[0].destination_branch_id }, branchCatalog, branchCatalog.find(branch => branch.id === rows[0].branch_id))
+        ? deriveActionLabel(t, movementOf(rows[0], placeNames), branchCatalog, branchCatalog.find(branch => branch.id === rows[0].branch_id))
         : action
       const dateLabel = formatWeekdayDayMonth(logDate)
       // The gate is scoped to this date's rows as well as to each stream.
@@ -953,7 +973,7 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
         <button type="button" className="kr-master-row" aria-pressed={log.id === selectedLogId} onClick={() => setSelectedLogId(log.id)}>
           <span className="kr-master-row__identity">{log.wip_item_name}</span>
           <Tag color={offPlan ? 'amber' : 'green'}><span className="krow-dot" aria-hidden="true" />{offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}</Tag>
-          <span className="kr-master-row__meta">{formatWeekdayDayMonth(log.log_date)} · {deriveActionLabel(t, { action: log.action, destinationBranchId: log.destination_branch_id }, branchCatalog, branchCatalog.find(branch => branch.id === log.branch_id))}{streamFilter === ALL_STREAMS ? ` · ${rowStreamLabel(t, streamCatalog, log)}` : ''}</span>
+          <span className="kr-master-row__meta">{formatWeekdayDayMonth(log.log_date)} · {deriveActionLabel(t, movementOf(log, placeNames), branchCatalog, branchCatalog.find(branch => branch.id === log.branch_id))}{streamFilter === ALL_STREAMS ? ` · ${rowStreamLabel(t, streamCatalog, log)}` : ''}{routeText(log, placeNames) ? ` · ${routeText(log, placeNames)}` : ''}</span>
           {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
           <span className="kr-master-row__meta">{t('kitchen.review.qty.plan')} {plan} · {t('kitchen.review.qty.logged')} {formatLogEntryQuantity(log)} · {peopleMap.get(log.submitted_by ?? '') ?? '—'}</span>
         </button>
@@ -972,8 +992,9 @@ function KitchenReviewPageForViewer({ reviewView }: { reviewView: 'logs' | 'coun
     return <article className="kr-workbench">
       <h2>{log.wip_item_name}</h2>
       <div className="kr-workbench__meta">
-        <span>{formatWeekdayDayMonth(log.log_date)} · {deriveActionLabel(t, { action: log.action, destinationBranchId: log.destination_branch_id }, branchCatalog, branchCatalog.find(branch => branch.id === log.branch_id))}</span>
+        <span>{formatWeekdayDayMonth(log.log_date)} · {deriveActionLabel(t, movementOf(log, placeNames), branchCatalog, branchCatalog.find(branch => branch.id === log.branch_id))}</span>
         {streamFilter === ALL_STREAMS && <span>{rowStreamLabel(t, streamCatalog, log)}</span>}
+        {routeText(log, placeNames) && <span>{routeText(log, placeNames)}</span>}
         <span className="kr-workbench__submitter"><Avatar size="sm" placeholder={name} /><span>{name}</span><span>{formatTime(log.created_at)}</span></span>
         {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
         <Tag color={offPlan ? 'amber' : 'green'}><span className="krow-dot" aria-hidden="true" />{offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}</Tag>

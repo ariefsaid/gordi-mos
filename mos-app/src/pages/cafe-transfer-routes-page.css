@@ -63,3 +63,10 @@
   .cafe-routes__add { width: 100%; }
   .cafe-routes__count { margin-inline-start: 0; }
 }
+
+/* Record in ESB: one 44px check row and its note. Admins only. */
+.cafe-routes__esb { display: grid; gap: var(--mos-inline-gap); }
+.cafe-routes__esb-row {
+  display: flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height);
+  color: var(--mos-ink); font: var(--mos-type-label);
+}

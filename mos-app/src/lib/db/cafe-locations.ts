@@ -213,6 +213,18 @@ export async function listCafeRecordLocations(source: RecordLocations['source'],
   return records
 }
 
+export type CafeSite = { id: UUID; name: string }
+
+/** Sites a Location can be physically at (read-only; Sites are org structure). */
+export async function listCafeSites(): Promise<CafeSite[]> {
+  const { data, error } = await supabase.schema('shared').from('sites').select('id,name').is('archived_at', null).order('name')
+  if (error) throw contractError('listCafeSites', error)
+  return ((data ?? []) as unknown[]).map((raw) => {
+    const row = asObject(raw, 'listCafeSites')
+    return { id: asString(row.id, 'site id'), name: asString(row.name, 'site name') }
+  })
+}
+
 export type DestinationLocation = { location_id: UUID; name: string; branch_id: UUID; same_branch: boolean }
 
 /** Where a production location may send: its own branch's other storage locations, then routed branches. */
@@ -228,35 +240,4 @@ export async function listCafeDestinationLocations(fromLocationId: UUID): Promis
       same_branch: row.same_branch === true,
     }
   })
-}
-
-export type StreamLocationDefaults = { production_location_id: UUID | null; storage_location_id: UUID | null; row_version: number }
-
-export async function getCafeStreamLocationDefaults(stream: StreamRef): Promise<StreamLocationDefaults | null> {
-  const { data, error } = await supabase.schema('ops').rpc('get_cafe_stream_location_defaults', {
-    p_branch_id: stream.branch_id, p_activity: stream.activity,
-  })
-  if (error) throw contractError('getCafeStreamLocationDefaults', error)
-  if (data === null) return null
-  const result = asObject(data, 'getCafeStreamLocationDefaults')
-  return {
-    production_location_id: asNullableString(result.production_location_id, 'production location'),
-    storage_location_id: asNullableString(result.storage_location_id, 'storage location'),
-    row_version: asRowVersion(result.row_version),
-  }
-}
-
-export async function saveCafeStreamLocationDefaults(
-  stream: StreamRef,
-  defaults: { production_location_id: UUID | null; storage_location_id: UUID | null },
-  version: number,
-  ctx: WriteContext,
-): Promise<{ row_version: number }> {
-  const { data, error } = await supabase.schema('ops').rpc('save_cafe_stream_location_defaults', {
-    p_branch_id: stream.branch_id, p_activity: stream.activity, p_defaults: defaults,
-    p_expected_version: version, p_client_request_id: ctx.client_request_id,
-  })
-  if (error) throw contractError('saveCafeStreamLocationDefaults', error)
-  const result = asObject(data, 'saveCafeStreamLocationDefaults')
-  return { row_version: asRowVersion(result.row_version) }
 }

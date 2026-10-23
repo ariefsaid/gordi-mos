@@ -8,8 +8,8 @@ const HQ = { id: 'hq', code: 'gordi_hq', name: 'Gordi HQ' }
 const RRS = { id: 'rrs', code: 'rumah_rames', name: 'Rumah Rames' }
 const CIKAL = { id: 'cikal', code: 'cikal', name: 'Cikal' }
 const auth = vi.hoisted(() => ({ roles: ['admin'] as string[] }))
-const reads = vi.hoisted(() => ({ routes: vi.fn(), pairs: vi.fn(), branches: vi.fn(), byIds: vi.fn() }))
-const writes = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), remove: vi.fn() }))
+const reads = vi.hoisted(() => ({ routes: vi.fn(), pairs: vi.fn(), branches: vi.fn(), byIds: vi.fn(), esb: vi.fn() }))
+const writes = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), remove: vi.fn(), setEsb: vi.fn() }))
 
 vi.mock('@/auth/use-auth', () => ({
   useAuth: () => ({ status: 'authenticated', viewer: { person: { id: 'p1' }, accessRoles: auth.roles, roles: [], isManager: false, affiliated: [] }, signOut: vi.fn() }),
@@ -22,6 +22,8 @@ vi.mock('@/lib/db/cafe-transfer-routes', () => ({
   createCafeTransferRoute: writes.create,
   updateCafeTransferRoute: writes.update,
   removeCafeTransferRoute: writes.remove,
+  listCafeRouteEsbSwitches: reads.esb,
+  setCafeRouteRecordInEsb: writes.setEsb,
 }))
 
 const route = (
@@ -57,6 +59,8 @@ beforeEach(() => {
   reads.pairs.mockResolvedValue(PAIRS)
   reads.branches.mockResolvedValue([CIKAL, HQ, RRS])
   reads.byIds.mockResolvedValue([])
+  reads.esb.mockResolvedValue([{ origin_branch_id: 'hq', origin_activity: 'kitchen', destination_branch_id: 'cikal', record_in_esb: false }])
+  writes.setEsb.mockResolvedValue(true)
   writes.create.mockResolvedValue(route('rrs', 'kitchen', 'hq', 1))
   writes.update.mockImplementation(async (_key, _version, input) => ({ ...input, row_version: 2, updated_at: '2026-10-10T00:01:00Z', updated_by: 'admin-person', eligibility: 'eligible', reason: null }))
   writes.remove.mockResolvedValue(undefined)
@@ -64,12 +68,13 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
 describe('Transfer routes', () => {
-  it('lists the org allowlist with the floor alias and built-in movements separately', async () => {
+  it('lists the org allowlist by branch name and built-in movements separately', async () => {
     reads.routes.mockResolvedValue([route('hq', 'kitchen', 'rrs')])
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: 'Transfer routes' })).toBeInTheDocument()
     expect(screen.getAllByText('Gordi HQ · Kitchen').length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/Bungur/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Rumah Rames').length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Bungur/)).toBeNull()
     expect(screen.getByRole('heading', { name: 'Built-in movements' })).toBeInTheDocument()
     expect(screen.getByText(/Gordi HQ · Bar → Kitchen/)).toBeInTheDocument()
     expect(reads.routes).toHaveBeenCalledTimes(1)
@@ -122,7 +127,7 @@ describe('Transfer routes', () => {
       origin_branch_id: 'hq', origin_activity: 'kitchen', destination_branch_id: 'cikal',
     }, 7, { origin_branch_id: 'hq', origin_activity: 'kitchen', destination_branch_id: 'rrs' },
     expect.objectContaining({ client_request_id: expect.any(String) }))
-    expect(await screen.findByRole('link', { name: 'View: Gordi HQ · Kitchen → Bungur' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'View: Gordi HQ · Kitchen → Rumah Rames' })).toBeInTheDocument()
   })
 
   it('disables a route while preserving existing records in the view', async () => {
@@ -170,5 +175,34 @@ describe('Transfer routes', () => {
     expect(await screen.findByText('No cross-branch routes configured')).toBeInTheDocument()
     await user.click(screen.getAllByRole('button', { name: 'Add route' })[0])
     expect(await screen.findByRole('heading', { level: 2, name: 'Add route' })).toBeInTheDocument()
+  })
+})
+
+describe('Record in ESB switch (admins only, off by default)', () => {
+  it('lets an admin see a route is off and turn it on', async () => {
+    const user = userEvent.setup()
+    renderPage('?route=hq:kitchen:cikal')
+    const box = await screen.findByRole('checkbox', { name: 'Record in ESB' })
+    expect(box).not.toBeChecked()
+    await user.click(box)
+    expect(writes.setEsb).toHaveBeenCalledWith({ origin_branch_id: 'hq', origin_activity: 'kitchen', destination_branch_id: 'cikal' }, true)
+    expect(await screen.findByRole('checkbox', { name: 'Record in ESB' })).toBeChecked()
+  })
+
+  it('UI half of AC-011: a non-admin never sees the switch and the page never asks for it', async () => {
+    auth.roles = ['ops_lead']
+    renderPage('?route=hq:kitchen:cikal')
+    await screen.findByRole('heading', { level: 1, name: 'Transfer routes' })
+    expect(screen.queryByRole('checkbox', { name: 'Record in ESB' })).toBeNull()
+    expect(screen.queryByText('Record in ESB')).toBeNull()
+    expect(reads.esb).not.toHaveBeenCalled()
+  })
+
+  it('hides the control when the server refuses the read, and keeps the routes', async () => {
+    reads.esb.mockRejectedValue(new Error('forbidden'))
+    renderPage('?route=hq:kitchen:cikal')
+    await screen.findByRole('heading', { level: 1, name: 'Transfer routes' })
+    expect(screen.queryByRole('checkbox', { name: 'Record in ESB' })).toBeNull()
+    expect(screen.getAllByText('Gordi HQ · Kitchen').length).toBeGreaterThan(0)
   })
 })

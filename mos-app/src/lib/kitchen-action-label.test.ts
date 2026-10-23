@@ -1,20 +1,19 @@
-// streamKey — the (branch, activity) compound index (#197/#198, OD-WAY-28). Added
-// alongside movementKey so maps that must distinguish rows across streams (the review
-// queue's per-row plan lookup) have a stable, collision-safe key.
+// Stream keys, and the movements a production Location offers: Production, then one transfer per
+// destination Location the database lists. No branch, activity or place rule lives here.
 
 import { describe, it, expect } from 'vitest'
 import {
-  counterpartActivity,
+  deriveActionLabel,
   isIntraBranch,
-  movementsForStream,
-  outletSendPlaces,
   movementKey,
-  OUTLET_SEND,
-  streamProduces,
+  movementsFromDestinations,
+  streamLabel,
   streamKey,
+  streamOptionKey,
   PRODUCE,
 } from './kitchen-action-label'
-import type { BranchOption, CafeDestination, ProductionStream } from './db/kitchen-logs.types'
+import type { DestinationLocation } from './db/cafe-locations'
+import type { BranchOption, ProductionStream } from './db/kitchen-logs.types'
 
 describe('streamKey', () => {
   it('joins branchId and activity with a separator', () => {
@@ -24,156 +23,84 @@ describe('streamKey', () => {
   it('produces distinct keys for the same branch across activities', () => {
     expect(streamKey('branch-1', 'kitchen')).not.toBe(streamKey('branch-1', 'bar'))
   })
-
-  it('produces distinct keys for different branches with the same activity', () => {
-    expect(streamKey('branch-1', 'kitchen')).not.toBe(streamKey('branch-2', 'kitchen'))
-  })
 })
 
-// ── FR-013 (#235): the two movement classes come out of one derivation ─────────
 const RRS: BranchOption = { id: 'b-rrs', code: 'rumah_rames', name: 'Rumah Rames' }
 const RADIANT: BranchOption = { id: 'b-rad', code: 'radiant', name: 'Radiant' }
-const GHQ: BranchOption = { id: 'b-ghq', code: 'gordi_hq', name: 'Gordi HQ' }
 const CIKAL: BranchOption = { id: 'b-cikal', code: 'cikal', name: 'Cikal' }
-const RRS_BAR: ProductionStream = { branch: RRS, activity: 'bar' }
-const RRS_KITCHEN: ProductionStream = { branch: RRS, activity: 'kitchen' }
-const GHQ_BAR: ProductionStream = { branch: GHQ, activity: 'bar' }
-const GHQ_KITCHEN: ProductionStream = { branch: GHQ, activity: 'kitchen' }
-const RADIANT_BAR: ProductionStream = { branch: RADIANT, activity: 'bar' }
-const RADIANT_KITCHEN: ProductionStream = { branch: RADIANT, activity: 'kitchen' }
-const CIKAL_BAR: ProductionStream = { branch: CIKAL, activity: 'bar' }
-const STREAMS = [
-  { ...GHQ_KITCHEN, produces: true },
-  { ...GHQ_BAR, produces: true },
-  { ...RRS_KITCHEN, produces: true },
-  { ...RRS_BAR, produces: true },
-  { ...RADIANT_KITCHEN, produces: false },
-  { ...RADIANT_BAR, produces: true },
-  { ...CIKAL_BAR, produces: true },
-]
-const DESTINATIONS: CafeDestination[] = [
-  { origin_branch_id: GHQ.id, origin_activity: 'kitchen', destination_branch_id: CIKAL.id },
-  { origin_branch_id: GHQ.id, origin_activity: 'bar', destination_branch_id: CIKAL.id },
-  { origin_branch_id: RRS.id, origin_activity: 'kitchen', destination_branch_id: RADIANT.id },
-  { origin_branch_id: RRS.id, origin_activity: 'kitchen', destination_branch_id: CIKAL.id },
-  { origin_branch_id: RRS.id, origin_activity: 'bar', destination_branch_id: GHQ.id },
-  { origin_branch_id: RRS.id, origin_activity: 'bar', destination_branch_id: RADIANT.id },
-  { origin_branch_id: RRS.id, origin_activity: 'bar', destination_branch_id: CIKAL.id },
-  { origin_branch_id: RADIANT.id, origin_activity: 'bar', destination_branch_id: GHQ.id },
-  { origin_branch_id: RADIANT.id, origin_activity: 'bar', destination_branch_id: RRS.id },
-  { origin_branch_id: RADIANT.id, origin_activity: 'bar', destination_branch_id: CIKAL.id },
-  { origin_branch_id: CIKAL.id, origin_activity: 'bar', destination_branch_id: GHQ.id },
-  { origin_branch_id: CIKAL.id, origin_activity: 'bar', destination_branch_id: RRS.id },
-  { origin_branch_id: CIKAL.id, origin_activity: 'bar', destination_branch_id: RADIANT.id },
+const RRS_CENTRAL: ProductionStream = {
+  branch: RRS, activity: 'kitchen', produces: true,
+  location: { id: 'loc-central', name: 'RRS Central', siteName: 'GHQ', holdsStock: true },
+}
+const place = (id: string, name: string, branch: BranchOption, same: boolean): DestinationLocation =>
+  ({ location_id: id, name, branch_id: branch.id, same_branch: same })
+// What ops.list_cafe_destination_locations returns for RRS Central: own branch first, then routed branches.
+const FROM_RRS_CENTRAL: DestinationLocation[] = [
+  place('loc-outlet', 'RRS Outlet', RRS, true),
+  place('loc-radiant', 'Radiant', RADIANT, false),
+  place('loc-cikal', 'Cikal', CIKAL, false),
 ]
 
-describe('movementsForStream', () => {
-  it('AC-001/002: the catalog makes Radiant kitchen receive-only', () => {
-    expect(streamProduces(RADIANT_KITCHEN, STREAMS)).toBe(false)
-    expect(movementsForStream(RADIANT_KITCHEN, STREAMS, DESTINATIONS)).toEqual([])
+describe('movementsFromDestinations', () => {
+  it('AC-001: a planner at RRS Central gets Production, then RRS Outlet, Radiant and Cikal', () => {
+    const moves = movementsFromDestinations(FROM_RRS_CENTRAL)
+    expect(moves[0]).toEqual(PRODUCE)
+    expect(moves.slice(1).map(move => move.toLocationName)).toEqual(['RRS Outlet', 'Radiant', 'Cikal'])
+    expect(moves.slice(1).map(move => move.toLocationId)).toEqual(['loc-outlet', 'loc-radiant', 'loc-cikal'])
   })
 
-  it('AC-006: derives each producing stream\'s matrix from live catalog and route rows', () => {
-    expect(movementsForStream(GHQ_KITCHEN, STREAMS, DESTINATIONS)).toEqual([
-      PRODUCE,
-      { action: 'transfer', destinationBranchId: CIKAL.id },
-    ])
-    expect(movementsForStream(RRS_KITCHEN, STREAMS, DESTINATIONS)).toEqual([
-      PRODUCE,
-      { action: 'transfer', destinationBranchId: RADIANT.id },
-      { action: 'transfer', destinationBranchId: CIKAL.id },
-    ])
-    expect(movementsForStream(GHQ_BAR, STREAMS, DESTINATIONS)).toEqual([
-      PRODUCE,
-      { action: 'transfer', destinationBranchId: GHQ.id }, // held intra-branch movement
-      { action: 'transfer', destinationBranchId: CIKAL.id },
-    ])
-    expect(movementsForStream(RRS_BAR, STREAMS, DESTINATIONS)).toEqual([
-      PRODUCE,
-      { action: 'transfer', destinationBranchId: GHQ.id },
-      { action: 'transfer', destinationBranchId: RRS.id }, // held intra-branch movement
-      { action: 'transfer', destinationBranchId: RADIANT.id },
-      { action: 'transfer', destinationBranchId: CIKAL.id },
-    ])
-    expect(movementsForStream(RADIANT_BAR, STREAMS, DESTINATIONS)).toEqual([
-      PRODUCE,
-      { action: 'transfer', destinationBranchId: GHQ.id },
-      { action: 'transfer', destinationBranchId: RRS.id },
-      { action: 'transfer', destinationBranchId: RADIANT.id }, // held intra-branch movement
-      { action: 'transfer', destinationBranchId: CIKAL.id },
-    ])
-    expect(movementsForStream(CIKAL_BAR, STREAMS, DESTINATIONS)).toEqual([
-      PRODUCE,
-      { action: 'transfer', destinationBranchId: GHQ.id },
-      { action: 'transfer', destinationBranchId: RRS.id },
-      { action: 'transfer', destinationBranchId: RADIANT.id },
-    ])
+  it('AC-005: a new storage Location in a routed branch is a destination with no code change', () => {
+    const grown = [...FROM_RRS_CENTRAL, place('loc-fridge', 'Radiant Fridge', RADIANT, false)]
+    const names = movementsFromDestinations(grown).map(move => move.toLocationName)
+    expect(names).toContain('Radiant Fridge')
+    // Two Locations of one branch are two destinations, each with its own key.
+    const keys = movementsFromDestinations(grown).map(movementKey)
+    expect(new Set(keys).size).toBe(keys.length)
   })
 
-  it('AC-063: never offers a non-catalog branch as a destination', () => {
-    expect(movementsForStream(GHQ_BAR, STREAMS, DESTINATIONS)).not.toContainEqual({
-      action: 'transfer', destinationBranchId: 'roastery',
-    })
+  it('offers nothing for a stream that cannot produce, and Production alone with no destinations', () => {
+    expect(movementsFromDestinations(FROM_RRS_CENTRAL, false)).toEqual([])
+    expect(movementsFromDestinations([])).toEqual([PRODUCE])
   })
 
-  it('OD-CAFE-MVP-7: a new HQ destination is enabled by adding a route row, not changing derivation code', () => {
-    const expanded = [
-      ...DESTINATIONS,
-      { origin_branch_id: GHQ.id, origin_activity: 'kitchen' as const, destination_branch_id: RADIANT.id },
-    ]
-
-    expect(movementsForStream(GHQ_KITCHEN, STREAMS, expanded)).toEqual([
-      PRODUCE,
-      { action: 'transfer', destinationBranchId: RADIANT.id },
-      { action: 'transfer', destinationBranchId: CIKAL.id },
-    ])
+  it('lists a Location once even when it appears under several branches', () => {
+    const twice = [place('loc-shared', 'Shared Fridge', RRS, true), place('loc-shared', 'Shared Fridge', RADIANT, false)]
+    expect(movementsFromDestinations(twice)).toHaveLength(2)
   })
 })
 
-describe('outlet send places', () => {
-  const kitchen = { id: 'kitchen', use: 'both' as const, archived_at: null, branch_ids: [RRS.id], name: 'Kitchen', parent_id: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: [] }
-  const outlet = { ...kitchen, id: 'outlet', use: 'storage' as const }
-  const defaults = { branch_id: RRS.id, activity: 'kitchen' as const, production_location_id: kitchen.id, storage_location_id: kitchen.id, row_version: 1 }
-  const origin = { ...RRS_KITCHEN, produces: true }
-
-  it('offers the send alongside branch transfers only with an unambiguous separate outlet', () => {
-    const places = outletSendPlaces(origin, [kitchen, outlet], defaults)
-    expect(places).toEqual({ from: 'kitchen', to: 'outlet' })
-    expect(movementsForStream(origin, STREAMS, DESTINATIONS, places !== null)).toContainEqual(OUTLET_SEND)
-    expect(movementKey(OUTLET_SEND)).toBe('outlet_send')
+describe('movementKey and labels', () => {
+  it('keys a transfer by its destination Location, falling back to the branch for older history', () => {
+    expect(movementKey({ action: 'transfer', destinationBranchId: 'b-rrs', toLocationId: 'loc-outlet' })).toBe('transfer:loc-outlet')
+    expect(movementKey({ action: 'transfer', destinationBranchId: 'b-rrs' })).toBe('transfer:b-rrs')
   })
 
-  it('fails closed for missing, archived, ambiguous or other-branch places, absent defaults, bar and receiving-only streams', () => {
-    for (const locations of [[kitchen], [kitchen, { ...outlet, archived_at: '2026-01-01' }], [kitchen, outlet, { ...outlet, id: 'other' }], [kitchen, { ...outlet, branch_ids: [GHQ.id] }]]) {
-      expect(outletSendPlaces(origin, locations, defaults)).toBeNull()
-    }
-    expect(outletSendPlaces(origin, [kitchen, outlet], null)).toBeNull()
-    expect(outletSendPlaces({ ...origin, activity: 'bar' }, [kitchen, outlet], defaults)).toBeNull()
-    expect(outletSendPlaces({ ...origin, produces: false }, [kitchen, outlet], defaults)).toBeNull()
-    expect(outletSendPlaces(null, [kitchen, outlet], defaults)).toBeNull()
+  it('reads "Transfer to <location name>" with no alias for any branch', () => {
+    const t = ((key: string, params?: Record<string, string>) =>
+      key === 'kitchen.actionType.transferTo' ? `Transfer to ${params?.branch}` : key) as never
+    const [, toOutlet] = movementsFromDestinations(FROM_RRS_CENTRAL)
+    expect(deriveActionLabel(t, toOutlet, [RRS])).toBe('Transfer to RRS Outlet')
+    expect(deriveActionLabel(t, { action: 'transfer', destinationBranchId: RRS.id }, [RRS])).toBe('Transfer to Rumah Rames')
+  })
+
+  it('names the picker entry by the Location and where it physically is', () => {
+    const t = ((key: string, params?: Record<string, string>) =>
+      key === 'cafe.stream.locationAt' ? `${params?.location} · at ${params?.site}` : key) as never
+    expect(streamLabel(t, RRS_CENTRAL)).toBe('RRS Central · at GHQ')
+    expect(streamOptionKey(RRS_CENTRAL)).toBe('b-rrs|kitchen|loc-central')
   })
 })
 
 describe('isIntraBranch', () => {
-  it('is true for a transfer to the origin branch, from EITHER activity surface', () => {
+  it('is true for a transfer to the origin branch, from either activity', () => {
     const own = { action: 'transfer' as const, destinationBranchId: RRS.id }
-    expect(isIntraBranch(own, RRS_BAR)).toBe(true)
-    expect(isIntraBranch(own, RRS_KITCHEN)).toBe(true)
+    expect(isIntraBranch(own, { branch: RRS, activity: 'bar' })).toBe(true)
+    expect(isIntraBranch(own, RRS_CENTRAL)).toBe(true)
   })
 
-  it('is false for a transfer to another branch, and for a produce', () => {
-    expect(isIntraBranch({ action: 'transfer', destinationBranchId: RADIANT.id }, RRS_BAR)).toBe(false)
-    expect(isIntraBranch(PRODUCE, RRS_BAR)).toBe(false)
-  })
-
-  it('is false with no resolved origin stream — nothing is intra-branch yet (FR-002)', () => {
+  it('is false for another branch, a produce, and an unresolved origin', () => {
+    expect(isIntraBranch({ action: 'transfer', destinationBranchId: RADIANT.id }, RRS_CENTRAL)).toBe(false)
+    expect(isIntraBranch(PRODUCE, RRS_CENTRAL)).toBe(false)
     expect(isIntraBranch({ action: 'transfer', destinationBranchId: RRS.id }, null)).toBe(false)
-  })
-})
-
-describe('counterpartActivity', () => {
-  it('names the other activity of the same branch', () => {
-    expect(counterpartActivity('bar')).toBe('kitchen')
-    expect(counterpartActivity('kitchen')).toBe('bar')
   })
 })

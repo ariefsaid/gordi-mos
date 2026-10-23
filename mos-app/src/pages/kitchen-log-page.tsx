@@ -16,6 +16,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } fr
 import { Link } from 'react-router-dom'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { LocationPanelFields, type LocationFieldValues, type LocationChoices } from '@/components/preview/location-preview-fields'
+import { TransferToSelect } from '@/components/kitchen/transfer-to-select'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsWide } from '@/shell/use-is-wide'
@@ -37,7 +38,8 @@ import {
 // Plan/Stock/Review open on the same books, and every switch carries across (issue 456).
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { useCafeOpeningStatus } from '@/lib/use-cafe-opening-started'
-import { availableCafeLocationDefault, readCafeLocationChoices, useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
+import { defaultStorageLocationId, useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
+import { readCafeMovements, useCafeDestinations } from '@/lib/use-cafe-destinations'
 import { recordsHref } from '@/lib/cafe-records/url-state'
 import { formatUnitMultiple, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
 import { parseQuantityInput } from '@/lib/quantity-parser'
@@ -63,12 +65,9 @@ import type {
   StockMap,
 } from '@/lib/db/kitchen-logs.types'
 import {
-  branchDisplayName,
   defaultTransferMovement,
   deriveActionLabel,
   movementKey,
-  movementsForStream,
-  outletSendPlaces,
   streamProduces,
   streamKey,
   streamLabel,
@@ -83,7 +82,6 @@ import {
 } from '@/lib/kitchen-gates'
 import { useKitchenKpis } from '@/lib/kitchen-kpis'
 import { useCafeCaptureDraftPageState } from '@/lib/use-cafe-capture-draft-page-state'
-import { MovementSeg } from '@/components/kitchen/movement-seg'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { WipItemDetail, WipItemEntry } from '@/components/kitchen/wip-item-entry'
 import { CaptureControl, CaptureRow, CaptureTable, type CaptureFigure } from '@/components/kitchen/capture-row'
@@ -113,7 +111,6 @@ import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { reportError } from '@/lib/telemetry'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { Select } from '@/components/ui/select'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
 import { Notice } from '@/components/ui/notice'
@@ -204,7 +201,6 @@ function restoreKitchenCaptureDraft(
     || !saved.lines || typeof saved.lines !== 'object' || Array.isArray(saved.lines)
     || !saved.movement || typeof saved.movement !== 'object'
     || (saved.movement.action !== 'produce'
-      && saved.movement.action !== 'outlet_send'
       && !(saved.movement.action === 'transfer' && typeof saved.movement.destinationBranchId === 'string'))) {
     return { lines: blankLines, movement: fallbackMovement }
   }
@@ -363,61 +359,48 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   // submit production against them (DD-MVP-9).
   const streamCanProduce = streamProduces(stream, streamOptions)
   const streamNonProducing = stream !== null && !streamCanProduce
-  const sourceLocationChoices = useCafeLocationChoices(canCapture ? stream : null)
-  const outletPlaces = outletSendPlaces(stream, sourceLocationChoices.locations, sourceLocationChoices.defaults)
-  const allMovementOptions = stream
-    ? movementsForStream(stream, streamOptions, cafeStream.destinations, outletPlaces !== null)
-    : []
+  // Where this stream's work happens is the production Location in view; where a transfer can go is
+  // the database's answer for that Location (one read per Location per Café visit).
+  const placeChoices = useCafeLocationChoices(canCapture ? stream : null)
+  const destinations = useCafeDestinations(stream, streamOptions)
+  const allMovementOptions = destinations.movements
   const movementOptions = allMovementOptions.filter(movement =>
     mode === 'production' ? movement.action === 'produce' : movement.action !== 'produce',
   )
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   useEffect(() => {
-    if (mode !== 'transfer' || movementOptions.length === 0 || sourceLocationChoices.status !== 'ready') return
+    if (mode !== 'transfer' || movementOptions.length === 0 || destinations.status !== 'ready') return
     if (!movementOptions.some(option => movementKey(option) === movementKey(movement))) {
       setMovement(defaultTransferMovement(movementOptions, stream, {}) ?? movementOptions[0])
     }
-  }, [mode, movementOptions, movement, stream, sourceLocationChoices.status])
+  }, [mode, movementOptions, movement, stream, destinations.status])
   const transferDestinationChosen = mode !== 'transfer' || (
     movement.action !== 'produce' && movementOptions.some(option => movementKey(option) === movementKey(movement))
   )
-  const destinationBranch = movement.action === 'transfer'
-    ? branches.find(branch => branch.id === movement.destinationBranchId) ?? null
-    : null
-  const destinationStream = stream && destinationBranch ? { branch: destinationBranch, activity: stream.activity } : null
-  const destinationLocationChoices = useCafeLocationChoices(canCapture ? destinationStream : null)
-  const locationScope = `${mode}:${stream?.branch.id ?? ''}:${stream?.activity ?? ''}:${movementKey(movement)}`
+  const locationScope = `${mode}:${stream?.branch.id ?? ''}:${stream?.activity ?? ''}:${stream?.location?.id ?? ''}`
+  // Production is stored in the Location in view, so the only place left to choose is where the output sits.
   const [selectedLocationState, setSelectedLocationState] = useState<{ scope: string; values: LocationFieldValues } | null>(null)
   const defaultLocationValues: LocationFieldValues = {
-    production_location_id: sourceLocationChoices.status === 'ready'
-      ? availableCafeLocationDefault(sourceLocationChoices.locations, sourceLocationChoices.defaults?.production_location_id, 'production') : null,
-    from_storage_location_id: sourceLocationChoices.status === 'ready'
-      ? availableCafeLocationDefault(sourceLocationChoices.locations, sourceLocationChoices.defaults?.storage_location_id, 'storage') : null,
+    production_location_id: stream?.location?.id ?? null,
+    from_storage_location_id: stream?.location?.holdsStock ? stream.location.id : null,
     to_storage_location_id: mode === 'transfer'
-      ? destinationLocationChoices.status === 'ready'
-        ? availableCafeLocationDefault(destinationLocationChoices.locations, destinationLocationChoices.defaults?.storage_location_id, 'storage') : null
-      : sourceLocationChoices.status === 'ready'
-        ? availableCafeLocationDefault(sourceLocationChoices.locations, sourceLocationChoices.defaults?.storage_location_id, 'storage') : null,
+      ? movement.toLocationId ?? null
+      : defaultStorageLocationId(stream, placeChoices.locations),
   }
-  const locationValues = movement.action === 'outlet_send'
-    ? { production_location_id: null, from_storage_location_id: outletPlaces?.from ?? null, to_storage_location_id: outletPlaces?.to ?? null }
-    : selectedLocationState?.scope === locationScope ? selectedLocationState.values : defaultLocationValues
-  const needsDestinationLocations = mode === 'transfer' && movement.action === 'transfer' && transferDestinationChosen
-  const locationLoadState = sourceLocationChoices.status === 'error' || (needsDestinationLocations && destinationLocationChoices.status === 'error')
+  const locationValues: LocationFieldValues = selectedLocationState?.scope === locationScope
+    ? { ...defaultLocationValues, to_storage_location_id: selectedLocationState.values.to_storage_location_id }
+    : defaultLocationValues
+  const needsDestinations = mode === 'transfer'
+  const locationLoadState = placeChoices.status === 'error' || (needsDestinations && destinations.status === 'error')
     ? 'error'
-    : sourceLocationChoices.status === 'ready' && (!needsDestinationLocations || destinationLocationChoices.status === 'ready')
-      ? 'ready' : 'loading'
+    : placeChoices.status === 'ready' && (!needsDestinations || destinations.status === 'ready') ? 'ready' : 'loading'
   const locationChoices: LocationChoices = {
-    production: sourceLocationChoices.locations.filter(location => location.use === 'production' || location.use === 'both'),
-    from: sourceLocationChoices.locations.filter(location => location.use === 'storage' || location.use === 'both'),
-    to: (movement.action === 'transfer' ? destinationLocationChoices.locations : sourceLocationChoices.locations)
-      .filter(location => location.use === 'storage' || location.use === 'both'),
-    storage: sourceLocationChoices.locations.filter(location => location.use === 'storage' || location.use === 'both'),
+    storage: placeChoices.locations.filter(location => location.use === 'storage' || location.use === 'both'),
   }
   const retryLocationChoices = () => {
-    sourceLocationChoices.retry()
-    if (needsDestinationLocations) destinationLocationChoices.retry()
+    placeChoices.retry()
+    destinations.retry()
   }
   const writeClosed = !canCapture || streamMissing || streamNonProducing
   const captureClosed = writeClosed || !transferDestinationChosen
@@ -571,13 +554,9 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   // The day summary uses only submitted map membership, independent of draft lines and the
   // currently offered list. Plan and actual quantities have no proven shared unit basis.
   const kpis = useKitchenKpis(planMap, actualsMap, movementKey(movement))
-  const transferDestination = movement.action === 'transfer'
-    ? branches.find(branch => branch.id === movement.destinationBranchId)
-    : undefined
-  const transferDestinationName = transferDestination
-    ? branchDisplayName(transferDestination)
-    : movement.action === 'outlet_send' ? t('kitchen.outlet.destination', { branch: stream?.branch.name ?? '' })
-      : movement.action === 'transfer' ? t('kitchen.actionType.transferTo.fallback') : null
+  const transferDestinationName = movement.action === 'transfer'
+    ? movement.toLocationName ?? branches.find(branch => branch.id === movement.destinationBranchId)?.name ?? t('kitchen.actionType.transferTo.fallback')
+    : null
   const summaryAriaLabel = mode === 'transfer'
     ? t('kitchen.transfer.summary.aria', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
     : t('kitchen.log.summary.aria')
@@ -687,11 +666,8 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
         resolveKitchenBuId(),
       ])
       const resolvedStream = catalog.stream
-      const places = mode === 'transfer' && resolvedStream
-        ? await readCafeLocationChoices({ branch_id: resolvedStream.branch.id, activity: resolvedStream.activity }).catch(() => ({ locations: [], defaults: null }))
-        : { locations: [], defaults: null }
       const availableMovements = mode === 'transfer' && resolvedStream
-        ? movementsForStream(resolvedStream, catalog.options, catalog.destinations, outletSendPlaces(resolvedStream, places.locations, places.defaults) !== null).filter(option => option.action !== 'produce')
+        ? (await readCafeMovements(draftPersonId || null, resolvedStream, catalog.options).catch(() => [])).filter(option => option.action !== 'produce')
         : [PRODUCE]
       const fallbackMovement = availableMovements[0] ?? PRODUCE
       const currentDraftScope = resolvedStream && draftOrgId && draftPersonId
@@ -960,13 +936,10 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
         readLatestItemLogDates(nextStream, items.map(item => item.id), mode === 'production'),
       ])
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
-      const places = mode === 'transfer'
-        ? await readCafeLocationChoices({ branch_id: nextStream.branch.id, activity: nextStream.activity }).catch(() => ({ locations: [], defaults: null }))
-        : { locations: [], defaults: null }
-      if (gen !== requestGen.current) return
       const availableMovements = mode === 'transfer'
-        ? movementsForStream(nextStream, streamOptions, cafeStream.destinations, outletSendPlaces(nextStream, places.locations, places.defaults) !== null).filter(option => option.action !== 'produce')
+        ? (await readCafeMovements(draftPersonId || null, nextStream, streamOptions).catch(() => [])).filter(option => option.action !== 'produce')
         : [PRODUCE]
+      if (gen !== requestGen.current) return
       const fallbackMovement = (mode === 'transfer' ? defaultTransferMovement(availableMovements, nextStream, plan) : undefined) ?? availableMovements[0] ?? PRODUCE
       const currentDraftScope = draftOrgId && draftPersonId
         ? kitchenDraftScope(mode, draftOrgId, draftPersonId, nextStream, logDate)
@@ -992,7 +965,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
       if (gen !== requestGen.current) return
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
     }
-  }, [cafeStream.destinations, chooseStream, commitRestoredStreamDraft, draftOrgId, draftPersonId, logDate, mode, setRestoreAnnouncement, setRestoredDraftInfo, streamOptions, t])
+  }, [chooseStream, commitRestoredStreamDraft, draftOrgId, draftPersonId, logDate, mode, setRestoreAnnouncement, setRestoredDraftInfo, streamOptions, t])
 
   // Staged quantities belong to the stream they were typed against: ask before a switch
   // discards them, and switch straight through when nothing is staged. Shared by the head's
@@ -1368,18 +1341,8 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
       planCounts[movementKey(option)] = wipItems.filter(item => (planMap[item.id]?.[movementKey(option)] ?? 0) > 0).length
     }
   }
-  const destinationLabel = (option: KitchenMovement) => {
-    const base = deriveActionLabel(t, option, branches, stream?.branch)
-    const planned = planCounts[movementKey(option)] ?? 0
-    return planned > 0 ? t('cafe.transfer.destinationPlanned', { label: base, count: planned }) : base
-  }
   const transferDestinationControl = mode === 'transfer' && canCapture && movementOptions.length > 0
-    ? movementOptions.length > 3
-      ? <div className="cafe-transfer-select"><Select className="cafe-transfer-select__control" fullWidth id="cafe-transfer-destination" aria-label={t('cafe.transfer.destination')} value={movementKey(movement)} disabled={writeClosed || status.kind !== 'ready'} onChange={event => {
-        const next = movementOptions.find(option => movementKey(option) === event.target.value)
-        if (next) handleMovementChange(next)
-      }}>{movementOptions.map(option => <option key={movementKey(option)} value={movementKey(option)}>{destinationLabel(option)}</option>)}</Select></div>
-      : <div className="kl-scope"><MovementSeg value={movement} options={movementOptions} branches={branches} origin={stream} onChange={handleMovementChange} disabled={writeClosed || status.kind !== 'ready'} planCounts={planCounts} /></div>
+    ? <div className="kl-scope"><TransferToSelect value={movement} options={movementOptions} origin={stream} onChange={handleMovementChange} disabled={writeClosed || status.kind !== 'ready'} planCounts={planCounts} /></div>
     : null
 
   // ── Auth guard ─────────────────────────────────────────────────────────────
@@ -2068,18 +2031,6 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
               )}
               {mode === 'transfer' && stream && buId && !captureClosed && <div className="cafe-production-sheet__missing"><ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} /></div>}
               {mode === 'transfer' && <Panel title={t('kitchen.transfer.draft.title')} open={inspectEntriesOpen} className="cafe-transfer-inspect">{captureDraftContent}</Panel>}
-              {/* Where it is made / stored is decided here, above Submit and the entries panel, not in the page header (preview only; nothing when the preview is off). */}
-              {canCapture && mode === 'transfer' && transferDestinationChosen && <LocationPanelFields
-                kind="transfer"
-                locations={locationChoices}
-                values={locationValues}
-                onChange={(field, value) => setSelectedLocationState({
-                  scope: locationScope, values: { ...locationValues, [field]: value },
-                })}
-                loadState={locationLoadState}
-                onRetry={retryLocationChoices}
-                disabled={status.kind === 'submitting' || movement.action === 'outlet_send'}
-              />}
             </>
           )}
 

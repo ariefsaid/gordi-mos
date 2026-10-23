@@ -1,7 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CafeStreamBar } from './cafe-stream-bar'
-import { MovementSeg } from './movement-seg'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 
 afterEach(cleanup)
@@ -29,16 +28,5 @@ describe('Café switch menu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Switch bar' }))
     fireEvent.click(within(screen.getByRole('listbox')).getByText('Cikal · Bar'))
     expect(onChange).toHaveBeenCalledWith(cikalBar)
-  })
-})
-
-describe('Transfer destinations say where work is planned', () => {
-  it('appends the planned count to a destination that has a plan', () => {
-    const toCikal = { action: 'transfer' as const, destinationBranchId: 'b2' }
-    const toKitchen = { action: 'transfer' as const, destinationBranchId: 'b1' }
-    render(<MovementSeg value={toCikal} options={[toCikal, toKitchen]} branches={[hq, cikal]} origin={hqBar}
-      onChange={vi.fn()} planCounts={{ 'transfer:b1': 3 }} />)
-    expect(screen.getByRole('button', { name: 'Transfer to Cikal' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Transfer to Gordi HQ · Kitchen · 3 planned' })).toBeInTheDocument()
   })
 })

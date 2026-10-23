@@ -33,7 +33,8 @@ import { useSearchParamState } from '@/lib/use-search-param-state'
 import { isItemNotOnStreamError, listStreamItemIds } from '@/lib/db/kitchen-logs'
 import { cafeUnitDisplayLabel, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
-import { useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
+import { useCafeLocationNames } from '@/lib/use-cafe-location-choices'
+import { useCafeDestinations } from '@/lib/use-cafe-destinations'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { recordsHref } from '@/lib/cafe-records/url-state'
 import { canEditCafePlan, canPushCafe, isReviewerEligibleTeam } from '@/lib/kitchen-gates'
@@ -50,14 +51,8 @@ import type {
 } from '@/lib/db/kitchen-logs.types'
 import { PESANAN_HORIZON_DAYS } from '@/lib/db/kitchen-logs.types'
 import {
-  activityLabel,
-  branchDisplayName,
-  counterpartActivity,
   deriveActionLabel,
-  isIntraBranch,
   movementsEqual,
-  movementsForStream,
-  outletSendPlaces,
   movementKey,
   PRODUCE,
   streamLabel,
@@ -232,11 +227,9 @@ function PlanEditor() {
   const streamCanProduce = streamProduces(stream, streamOptions)
   const streamNonProducing = stream !== null && !streamCanProduce
   const planWriteClosed = streamMissing || streamNonProducing
-  const placeChoices = useCafeLocationChoices(stream)
-  const outletPlaces = outletSendPlaces(stream, placeChoices.locations, placeChoices.defaults)
-  const movementOptions = stream
-    ? movementsForStream(stream, streamOptions, cafeStream.destinations, outletPlaces !== null)
-    : []
+  // Production, then one column per destination Location (the database's answer for this Location).
+  const destinations = useCafeDestinations(stream, streamOptions)
+  const movementOptions = destinations.movements
   // Her own/current default stream is always writable (same trust the Review queue places in
   // it — issue 783); any OTHER stream needs an open-ended membership matching the DB's own
   // ops.is_stream_reviewer check (reviewerStreamKeys, isReviewerEligibleTeam).
@@ -264,8 +257,8 @@ function PlanEditor() {
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const movementAllowed = movementOptions.some(option => movementsEqual(option, movement))
   useEffect(() => {
-    if (placeChoices.status === 'ready' && !movementAllowed) setMovement(PRODUCE)
-  }, [movementAllowed, placeChoices.status])
+    if (destinations.status === 'ready' && !movementAllowed) setMovement(PRODUCE)
+  }, [movementAllowed, destinations.status])
   const [items, setItems] = useState<PlanItem[]>([])
   // How many ESB items the stream lists, from the settings this page reads; the empty state uses it.
   const [esbItemCount, setEsbItemCount] = useState<number>()
@@ -436,6 +429,9 @@ function PlanEditor() {
         activity: stream.activity,
         action: forMovement.action,
         destination_branch_id: forMovement.destinationBranchId,
+        // The Location ids are what the server reads; it fills Branch and Activity from them.
+        from_location_id: stream.location?.id ?? null,
+        to_location_id: forMovement.toLocationId ?? null,
         qty_porsi: nextQty,
       })
       if (gen !== requestGen.current) return
@@ -540,14 +536,9 @@ function PlanEditor() {
     )
   }
   const movementColumnHeader = (option: KitchenMovement): string => {
-    if (option.action === 'outlet_send') return deriveActionLabel(t, option, branches, stream?.branch)
     if (option.action === 'produce') return t('kitchen.actionType.production')
-    const destination = branches.find(branch => branch.id === option.destinationBranchId)
-    const name = destination ? branchDisplayName(destination) : t('kitchen.actionType.transferTo.fallback')
     return t('kitchen.plan.col.transferTo', {
-      destination: isIntraBranch(option, stream) && stream
-        ? `${name} · ${activityLabel(t, counterpartActivity(stream.activity))}`
-        : name,
+      destination: option.toLocationName ?? branches.find(branch => branch.id === option.destinationBranchId)?.name ?? t('kitchen.actionType.transferTo.fallback'),
     })
   }
   const wideColumns = isDesktop && movementOptions.length > 0
@@ -623,8 +614,8 @@ function PlanEditor() {
       <Toast toast={toast} onDismiss={clearToast} />
       {!isOnline && <Notice tone="attention" role="alert">{t('kitchen.plan.offline')}</Notice>}
       {saveError && <Notice tone="urgent">{saveError}</Notice>}
-      {placeChoices.status === 'error' && stream?.activity === 'kitchen' && <Notice tone="attention">
-        {t('cafe.locations.loadError')} <button type="button" className="btn btn-outline" onClick={placeChoices.retry}>{t('common.retry')}</button>
+      {destinations.status === 'error' && <Notice tone="attention">
+        {t('cafe.locations.loadError')} <button type="button" className="btn btn-outline" onClick={destinations.retry}>{t('common.retry')}</button>
       </Notice>}
       {/* #548 FR-006 / #781 item 2: the precondition is a muted hint at rest (Log's
           .kl-submit-reason grammar, role="status" — programmatically associated as a live
@@ -705,6 +696,7 @@ function PesananView() {
   // `streamOptions` is the full readable catalog, and is also used for producer-aware labels.
   const { branches, options: streamOptions, locationOptions, stream, homeStream, myStreamKeys } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
+  const placeNames = useCafeLocationNames()
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const requestGen = useRef(0)
@@ -866,7 +858,7 @@ function PesananView() {
             <KitchenToolbar search={search} onSearchChange={setSearch} kinds={WIP_KIND_FILTER_OPTIONS} kind={kindFilter as KitchenItemKindFilter} kindId="cafe-plan-kind" onKindChange={setKindFilter} categories={categories} categoryId="cafe-plan-category" categoryLabel={value => kitchenCategoryLabel(t, value)} category={category} onCategoryChange={setCategory} searchPlaceholder={t('kitchen.plan.pesanan.searchPlaceholder')} ariaLabel={t('kitchen.plan.pesanan.toolbarAria')} resultCount={{ shown: visible.length, total: rows.length }} />
             <Link to="/cafe/production" className="btn btn-outline btn-touch">{t('kitchen.plan.pesanan.readOnlyCta')}</Link>
           </div>
-          {visible.length > 0 ? <PlanHorizon dates={horizonDates} getAction={row => deriveActionLabel(t, row.movement, branches, stream?.branch)} renderRow={row => <div className="kp-horizon-row"><span className="kp-horizon-item"><span>{row.kind} - {row.wip_item_name}</span>{row.category && <small>{kitchenCategoryLabel(t, row.category)}</small>}{row.defaultUnitName && <small>{row.defaultUnitName}</small>}{row.otherLogUnitNames.length > 0 && <small>{t('kitchen.plan.item.otherLogUnits', { units: row.otherLogUnitNames.join(', ') })}</small>}</span><span className="kp-horizon-planned"><strong>{row.qty_porsi}</strong> {row.defaultUnitName ?? t('kitchen.unit.porsi')}</span></div>} dateLabel={date => formatWeekdayDayMonth(date)} indexLabel={t('kitchen.plan.dateIndex')} actionLabel={t('kitchen.plan.pesanan.col.action')} itemLabel={t('kitchen.plan.pesanan.col.item')} /> : <p role="status" className="kp-no-match">{t('kitchen.filter.noMatch')}</p>}
+          {visible.length > 0 ? <PlanHorizon dates={horizonDates} getAction={row => deriveActionLabel(t, { ...row.movement, toLocationName: row.movement.toLocationId ? placeNames.get(row.movement.toLocationId) : null }, branches, stream?.branch)} renderRow={row => <div className="kp-horizon-row"><span className="kp-horizon-item"><span>{row.kind} - {row.wip_item_name}</span>{row.category && <small>{kitchenCategoryLabel(t, row.category)}</small>}{row.defaultUnitName && <small>{row.defaultUnitName}</small>}{row.otherLogUnitNames.length > 0 && <small>{t('kitchen.plan.item.otherLogUnits', { units: row.otherLogUnitNames.join(', ') })}</small>}</span><span className="kp-horizon-planned"><strong>{row.qty_porsi}</strong> {row.defaultUnitName ?? t('kitchen.unit.porsi')}</span></div>} dateLabel={date => formatWeekdayDayMonth(date)} indexLabel={t('kitchen.plan.dateIndex')} actionLabel={t('kitchen.plan.pesanan.col.action')} itemLabel={t('kitchen.plan.pesanan.col.item')} /> : <p role="status" className="kp-no-match">{t('kitchen.filter.noMatch')}</p>}
         </div>
       )}
     </CafePageFrame>

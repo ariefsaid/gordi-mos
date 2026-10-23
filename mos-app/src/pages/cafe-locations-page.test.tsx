@@ -11,13 +11,13 @@ const BRANCHES = [
   { id: 'rrs', code: 'rumah_rames', name: 'Rumah Rames' },
 ]
 const LOCATIONS = [
-  { id: 'kitchen', name: 'Kitchen', use: 'production', parent_id: null, branch_ids: ['cikal', 'hq'], archived_at: null, row_version: 2, updated_at: '2026-10-10T10:00:00Z', updated_by: 'person-1' },
-  { id: 'chiller', name: 'Chiller', use: 'storage', parent_id: 'kitchen', branch_ids: ['cikal'], archived_at: null, row_version: 1, updated_at: '2026-10-10T10:00:00Z', updated_by: 'person-1' },
-  { id: 'store-room', name: 'Store room', use: 'storage', parent_id: 'kitchen', branch_ids: ['cikal'], archived_at: null, row_version: 1, updated_at: '2026-10-10T10:00:00Z', updated_by: 'person-1' },
-  { id: 'old-store', name: 'Old store', use: 'storage', parent_id: null, branch_ids: ['rrs'], archived_at: '2026-10-09T10:00:00Z', row_version: 2, updated_at: '2026-10-10T10:00:00Z', updated_by: 'person-1' },
+  { id: 'kitchen', name: 'Kitchen', use: 'both', parent_id: null, branch_ids: ['cikal'], archived_at: null, row_version: 2, updated_at: '2026-10-10T10:00:00Z', updated_by: 'person-1', site_id: 'site-hq', activities: ['kitchen'] },
+  { id: 'chiller', name: 'Chiller', use: 'storage', parent_id: 'kitchen', branch_ids: ['cikal'], archived_at: null, row_version: 1, updated_at: '2026-10-10T10:00:00Z', updated_by: 'person-1', site_id: null, activities: [] },
+  { id: 'store-room', name: 'Store room', use: 'storage', parent_id: 'kitchen', branch_ids: ['cikal'], archived_at: null, row_version: 1, updated_at: '2026-10-10T10:00:00Z', updated_by: 'person-1', site_id: null, activities: [] },
+  { id: 'old-store', name: 'Old store', use: 'storage', parent_id: null, branch_ids: ['rrs'], archived_at: '2026-10-09T10:00:00Z', row_version: 2, updated_at: '2026-10-10T10:00:00Z', updated_by: 'person-1', site_id: null, activities: [] },
 ]
 const auth = vi.hoisted(() => ({ roles: ['admin'] as string[] }))
-const reads = vi.hoisted(() => ({ branches: vi.fn() }))
+const reads = vi.hoisted(() => ({ branches: vi.fn(), sites: vi.fn() }))
 const locations = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), update: vi.fn(), archive: vi.fn() }))
 
 vi.mock('@/auth/use-auth', () => ({
@@ -27,7 +27,7 @@ vi.mock('@/shell/use-is-offline', () => ({ useIsOffline: () => false }))
 vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => true }))
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: reads.branches }))
 vi.mock('@/lib/db/cafe-locations', () => ({
-  listCafeLocations: locations.list, createCafeLocation: locations.create,
+  listCafeSites: reads.sites, listCafeLocations: locations.list, createCafeLocation: locations.create,
   updateCafeLocation: locations.update, archiveCafeLocation: locations.archive,
 }))
 
@@ -37,6 +37,7 @@ const setCatalog = (rows = LOCATIONS) => locations.list.mockImplementation(({ ar
 beforeEach(() => {
   auth.roles = ['admin']
   reads.branches.mockResolvedValue(BRANCHES)
+  reads.sites.mockResolvedValue([{ id: 'site-hq', name: 'Gordi HQ' }, { id: 'site-rr', name: 'Rumah Rames' }])
   setCatalog()
   locations.create.mockImplementation(async (input) => {
     const saved = { ...LOCATIONS[0], ...input, id: 'new-location', row_version: 1 }
@@ -75,7 +76,7 @@ describe('Café Locations', () => {
     await user.click(screen.getByRole('option', { name: 'Storage' }))
     await user.click(screen.getByRole('checkbox', { name: 'Cikal' }))
     await user.click(screen.getByRole('button', { name: 'Save location' }))
-    expect(locations.create).toHaveBeenCalledWith({ name: 'Prep room', use: 'storage', parent_id: null, branch_ids: ['cikal'] }, { client_request_id: expect.any(String) })
+    expect(locations.create).toHaveBeenCalledWith({ name: 'Prep room', use: 'storage', parent_id: null, branch_ids: ['cikal'], site_id: null, activities: [] }, { client_request_id: expect.any(String) })
     await screen.findByRole('heading', { level: 2, name: 'Prep room' })
   })
 
@@ -92,8 +93,29 @@ describe('Café Locations', () => {
     await user.type(name, 'Cooler')
     await user.click(screen.getByRole('button', { name: 'Save location' }))
     expect(locations.update).toHaveBeenCalledWith('chiller', 1, {
-      name: 'Cooler', use: 'storage', parent_id: 'kitchen', branch_ids: ['cikal'],
+      name: 'Cooler', use: 'storage', parent_id: 'kitchen', branch_ids: ['cikal'], site_id: null, activities: [],
     }, { client_request_id: expect.any(String) })
+  })
+
+  it('says where a place physically is and which activities it works in, and sends both', async () => {
+    const user = userEvent.setup()
+    renderPage('?location=kitchen')
+    await screen.findByRole('heading', { level: 2, name: 'Kitchen' })
+    expect(screen.getByRole('combobox', { name: 'Physically at' })).toHaveTextContent('Gordi HQ')
+    expect(screen.getByRole('checkbox', { name: 'Kitchen' })).toBeChecked()
+    await user.click(screen.getByRole('combobox', { name: 'Physically at' }))
+    await user.click(screen.getByRole('option', { name: 'Rumah Rames' }))
+    await user.click(screen.getByRole('button', { name: 'Save location' }))
+    expect(locations.update).toHaveBeenCalledWith('kitchen', 2, expect.objectContaining({ site_id: 'site-rr', activities: ['kitchen'], branch_ids: ['cikal'] }), { client_request_id: expect.any(String) })
+  })
+
+  it('will not save a place that produces without exactly one activity', async () => {
+    const user = userEvent.setup()
+    renderPage('?location=kitchen')
+    await screen.findByRole('heading', { level: 2, name: 'Kitchen' })
+    await user.click(screen.getByRole('checkbox', { name: 'Bar' }))
+    expect(await screen.findByText('A place that produces needs exactly one branch and one activity.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save location' })).toBeDisabled()
   })
 
   it('shows archived identities read-only and does not offer configuration to a non-admin', async () => {

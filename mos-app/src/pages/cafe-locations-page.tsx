@@ -20,9 +20,12 @@ import { CHANGE_LOCATION_PATH, LOCATIONS_PATH } from '@/lib/cafe-locations-previ
 import { ContractError } from '@/lib/db/contract'
 import { listActiveBranches } from '@/lib/db/branches'
 import {
-  archiveCafeLocation, createCafeLocation, listCafeLocations, updateCafeLocation,
-  type CafeLocation, type LocationInput,
+  archiveCafeLocation, createCafeLocation, listCafeLocations, listCafeSites, updateCafeLocation,
+  type CafeLocation, type CafeSite, type LocationInput,
 } from '@/lib/db/cafe-locations'
+import { clearCafeVisitCache } from '@/lib/cafe-visit-cache'
+import { PRODUCTION_ACTIVITIES } from '@/lib/db/kitchen-logs.types'
+import { activityLabel } from '@/lib/kitchen-action-label'
 import type { BranchOption } from '@/lib/db/kitchen-logs.types'
 import {
   NEW_LOCATION, applyLocationFilters, draftIsDirty, draftOf, parentChoices, parseLocationFilters, validateDraft,
@@ -35,7 +38,7 @@ import '@/components/record-collection/record-collection.css'
 import '@/components/kitchen/cafe-setup-workspace.css'
 import './cafe-locations-page.css'
 
-type Loaded = { branches: BranchOption[]; locations: CafeLocation[]; at: string }
+type Loaded = { branches: BranchOption[]; sites: CafeSite[]; locations: CafeLocation[]; at: string }
 
 const USE_KEY: Record<LocationUse, MessageKey> = {
   production: 'cafe.locations.use.production',
@@ -47,6 +50,7 @@ const PROBLEM_KEY: Record<LocationProblem, MessageKey> = {
   duplicate: 'cafe.locations.error.duplicate',
   cycle: 'cafe.locations.error.cycle',
   branchesOutsideParent: 'cafe.locations.error.branchesOutsideParent',
+  productionShape: 'cafe.locations.error.productionShape',
 }
 const USES: LocationUse[] = ['production', 'storage', 'both']
 
@@ -54,6 +58,7 @@ function toLocationRow(location: CafeLocation): LocationRow {
   return {
     id: location.id, name: location.name, use: location.use, parentId: location.parent_id,
     branchIds: location.branch_ids, archived: location.archived_at !== null, rowVersion: location.row_version,
+    siteId: location.site_id, activities: location.activities,
   }
 }
 
@@ -70,9 +75,9 @@ function Locations() {
 
   useEffect(() => {
     let active = true
-    Promise.all([listActiveBranches(), listCafeLocations({ archived: false }), listCafeLocations({ archived: true })])
-      .then(([branches, current, archived]) => {
-        if (active) { setData({ branches, locations: [...current, ...archived], at: new Date().toISOString() }); setError(false) }
+    Promise.all([listActiveBranches(), listCafeSites(), listCafeLocations({ archived: false }), listCafeLocations({ archived: true })])
+      .then(([branches, sites, current, archived]) => {
+        if (active) { setData({ branches, sites, locations: [...current, ...archived], at: new Date().toISOString() }); setError(false) }
       })
       .catch(() => { if (active) setError(true) })
     return () => { active = false }
@@ -101,8 +106,9 @@ function Locations() {
     const parent = row.parentId ? rows.find((candidate) => candidate.id === row.parentId) : undefined
     return parent ? nameOf(parent) : null
   }, [rows, nameOf])
+  const siteName = useCallback((id: string | null) => (id ? data?.sites.find((site) => site.id === id)?.name ?? null : null), [data])
   const branchesText = useCallback((row: LocationRow) => row.branchIds.map(branchName).join(', '), [branchName])
-  const searchable = useCallback((row: LocationRow) => `${nameOf(row)} ${t(USE_KEY[row.use])} ${parentOf(row) ?? ''} ${branchesText(row)}`, [nameOf, t, parentOf, branchesText])
+  const searchable = useCallback((row: LocationRow) => `${nameOf(row)} ${t(USE_KEY[row.use])} ${parentOf(row) ?? ''} ${branchesText(row)} ${siteName(row.siteId) ?? ''}`, [nameOf, t, parentOf, branchesText, siteName])
   const visible = useMemo(() => applyLocationFilters(rows, filters, searchable), [rows, filters, searchable])
 
   useOpenerFocusReturn('location-open', Boolean(data) && !selected, lastOpened, listRef)
@@ -124,6 +130,7 @@ function Locations() {
     { key: 'name', header: t('cafe.locations.col.location'), sortable: true, render: (row) => <strong className="cafe-locs__name">{nameOf(row)}</strong> },
     { key: 'status', header: t('cafe.locations.col.status'), sortable: true, render: (row) => <LocationStatus row={row} /> },
     { key: 'use', header: t('cafe.locations.col.use'), sortable: true, render: (row) => t(USE_KEY[row.use]) },
+    { key: 'site', header: t('cafe.locations.col.site'), render: (row) => siteName(row.siteId) ?? <span className="cafe-locs__muted">{t('cafe.locations.none')}</span> },
     { key: 'branches', header: t('cafe.locations.col.branches'), render: (row) => row.branchIds.length ? branchesText(row) : <span className="cafe-locs__muted">{t('cafe.locations.none')}</span> },
     { key: 'parent', header: t('cafe.locations.col.parent'), render: (row) => parentOf(row) ?? <span className="cafe-locs__muted">{t('cafe.locations.none')}</span> },
     { key: 'actions', header: <span className="sr-only">{t('cafe.locations.col.actions')}</span>, render: (row) =>
@@ -186,7 +193,7 @@ function Locations() {
               rowClassName={(row) => row.id === selected ? 'is-selected' : undefined}
               renderCard={(row) => <Link className="cafe-locs__card" aria-current={row.id === selected ? 'true' : undefined} data-location-open={row.id} to={hrefFor(row.id)} onClick={() => { lastOpened.current = row.id }}>
                 <span className="cafe-locs__card-main"><span className="cafe-locs__card-title">{nameOf(row)}</span>
-                  <span className="cafe-locs__card-meta">{[t(USE_KEY[row.use]), parentOf(row), row.branchIds.length ? branchesText(row) : null].filter(Boolean).join(' · ')}</span></span>
+                  <span className="cafe-locs__card-meta">{[t(USE_KEY[row.use]), siteName(row.siteId) ? t('cafe.locations.at', { site: siteName(row.siteId)! }) : null, parentOf(row), row.branchIds.length ? branchesText(row) : null].filter(Boolean).join(' · ')}</span></span>
                 <LocationStatus row={row} /><span className="cafe-locs__card-view">{t('cafe.locations.view')}</span>
               </Link>}
             />
@@ -195,10 +202,10 @@ function Locations() {
       </section>
       {panelOpen && <LocationPanel
         key={selected ?? 'none'} rows={rows} row={selectedRow} isNew={selected === NEW_LOCATION} isAdmin={isAdmin}
-        invalid={selected !== NEW_LOCATION && !selectedRow} offline={offline} branches={data.branches}
+        invalid={selected !== NEW_LOCATION && !selectedRow} offline={offline} branches={data.branches} sites={data.sites}
         parentOf={parentOf} branchName={branchName}
         onClose={() => update({ location: null }, false)} onDirty={setDirty}
-        onSaved={(location) => { refresh(); update({ location: location?.id ?? null, status: location?.archived_at ? 'archived' : filters.status }, false) }}
+        onSaved={(location) => { clearCafeVisitCache(); refresh(); update({ location: location?.id ?? null, status: location?.archived_at ? 'archived' : filters.status }, false) }}
       />}
     </div>
   )
@@ -217,11 +224,11 @@ function LocationStatus({ row }: { row: LocationRow }) {
 
 interface PanelProps {
   rows: LocationRow[]; row: LocationRow | null; isNew: boolean; isAdmin: boolean; invalid: boolean; offline: boolean
-  branches: BranchOption[]; parentOf: (row: LocationRow) => string | null; branchName: (id: string) => string
+  branches: BranchOption[]; sites: CafeSite[]; parentOf: (row: LocationRow) => string | null; branchName: (id: string) => string
   onClose: () => void; onDirty: (dirty: boolean) => void; onSaved: (location: CafeLocation | null) => void
 }
 
-function LocationPanel({ rows, row, isNew, isAdmin, invalid, offline, branches, parentOf, branchName, onClose, onDirty, onSaved }: PanelProps) {
+function LocationPanel({ rows, row, isNew, isAdmin, invalid, offline, branches, sites, parentOf, branchName, onClose, onDirty, onSaved }: PanelProps) {
   const t = useT()
   const heading = useRef<HTMLHeadingElement>(null)
   const [confirmArchive, setConfirmArchive] = useState(false)
@@ -250,7 +257,7 @@ function LocationPanel({ rows, row, isNew, isAdmin, invalid, offline, branches, 
   }
   const save = async () => {
     setBusy(true); setServerError(null)
-    const input: LocationInput = { name: draft.name, use: draft.use, parent_id: draft.parentId, branch_ids: draft.branchIds }
+    const input: LocationInput = { name: draft.name, use: draft.use, parent_id: draft.parentId, branch_ids: draft.branchIds, site_id: draft.siteId, activities: draft.activities }
     try {
       const saved = isNew
         ? await createCafeLocation(input, { client_request_id: crypto.randomUUID() })
@@ -294,13 +301,28 @@ function LocationPanel({ rows, row, isNew, isAdmin, invalid, offline, branches, 
           {problems.includes('cycle') && <p className="cafe-locs__field-error" role="alert">{t(PROBLEM_KEY.cycle)}</p>}
           {problems.includes('branchesOutsideParent') && <p className="cafe-locs__field-error" role="alert">{t(PROBLEM_KEY.branchesOutsideParent)}</p>}
         </div>
+        <Select label={t('cafe.locations.site')} value={draft.siteId ?? ''} fullWidth disabled={disabled} onChange={(event) => setDraft({ ...draft, siteId: event.target.value || null })}>
+          <option value="">{t('cafe.locations.siteNone')}</option>
+          {sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}
+        </Select>
         <BranchChecklist branches={branches} value={draft.branchIds} disabled={disabled} onChange={(branchIds) => setDraft({ ...draft, branchIds })} />
+        <fieldset className="cafe-locs__branches" disabled={disabled}>
+          <legend>{t('cafe.locations.activities')}</legend>
+          <ul className="cafe-locs__branch-list">
+            {PRODUCTION_ACTIVITIES.map((code) => <li key={code}><label className="cafe-locs__branch-row">
+              <Checkbox checked={draft.activities.includes(code)} onChange={(on) => setDraft({ ...draft, activities: on ? [...draft.activities, code] : draft.activities.filter((candidate) => candidate !== code) })} />
+              <span>{activityLabel(t, code)}</span></label></li>)}
+          </ul>
+          {problems.includes('productionShape') && dirty && <p className="cafe-locs__field-error" role="alert">{t(PROBLEM_KEY.productionShape)}</p>}
+        </fieldset>
         <p className="cafe-locs__note">{t('cafe.locations.archiveNote')}</p>
         {serverError && <p className="cafe-locs__field-error" role="alert">{t(serverError)}</p>}
       </div> : row && <dl className="cafe-locs__facts">
         <div><dt>{t('cafe.locations.use')}</dt><dd>{t(USE_KEY[row.use])}</dd></div>
         <div><dt>{t('cafe.locations.parent')}</dt><dd>{parentOf(row) ?? t('cafe.locations.none')}</dd></div>
         <div><dt>{t('cafe.locations.branchesField')}</dt><dd>{row.branchIds.length ? row.branchIds.map(branchName).join(', ') : t('cafe.locations.none')}</dd></div>
+        <div><dt>{t('cafe.locations.site')}</dt><dd>{(row.siteId && sites.find((site) => site.id === row.siteId)?.name) || t('cafe.locations.none')}</dd></div>
+        <div><dt>{t('cafe.locations.activities')}</dt><dd>{row.activities.length ? row.activities.map((code) => activityLabel(t, code as 'kitchen' | 'bar')).join(', ') : t('cafe.locations.none')}</dd></div>
       </dl>}
       {isAdmin && <ActionBar className="cafe-locs__actions" reason={offline ? t('cafe.locations.offlineStale', { time: '' }) : undefined}
         secondary={row && !row.archived ? <Button variant="destructive" disabled={disabled} onClick={() => setConfirmArchive(true)}>{t('cafe.locations.archive')}</Button> : undefined}

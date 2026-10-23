@@ -15,7 +15,8 @@
 // preference; a fresh tab starts from the person's own stream again.
 
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
-import { streamKey } from '@/lib/kitchen-action-label'
+import type { CafeLocation, CafeSite } from '@/lib/db/cafe-locations'
+import { streamOptionKey } from '@/lib/kitchen-action-label'
 
 const STORAGE_KEY = 'mos.cafe.stream'
 
@@ -73,7 +74,7 @@ export function rememberStream(stream: ProductionStream | null, viewerId?: strin
     }
     return
   }
-  const remembered = stream ? streamKey(stream.branch.id, stream.activity) : null
+  const remembered = stream ? streamOptionKey(stream) : null
   rememberedByViewer.set(`${viewerId ?? ''}|${branchId ?? ''}`, remembered)
   try {
     if (remembered) window.sessionStorage.setItem(storageKey(viewerId, branchId), remembered)
@@ -105,16 +106,49 @@ export function resolveCafeStream(
   branchId?: string | null,
   soleTeam: ProductionStream | null = null,
 ): ProductionStream | null {
-  const inCatalog = (candidate: ProductionStream | null) =>
-    candidate
-      ? options.find(
-          s => s.branch.id === candidate.branch.id && s.activity === candidate.activity,
-        ) ?? null
-      : null
+  // A candidate that names a stream only (the person's team) resolves when that stream has exactly one
+  // production Location; with several, nothing is guessed and the surface asks.
+  const inCatalog = (candidate: ProductionStream | null) => {
+    if (!candidate) return null
+    const sameStream = options.filter(
+      s => s.branch.id === candidate.branch.id && s.activity === candidate.activity,
+    )
+    if (candidate.location) return sameStream.find(s => s.location?.id === candidate.location?.id) ?? null
+    return sameStream.length === 1 ? sameStream[0] : null
+  }
 
   const key = rememberedStreamKey(viewerId, branchId)
   const fromSession = key
-    ? options.find(s => streamKey(s.branch.id, s.activity) === key) ?? null
+    ? options.find(s => streamOptionKey(s) === key) ?? null
     : null
   return inCatalog(ownDefault) ?? inCatalog(soleTeam) ?? fromSession
+}
+
+/**
+ * Turns the stream catalog into the picker's entries: one per active production Location of each
+ * stream ("RRS Central · at GHQ"), or the stream alone when it has none. A production Location has
+ * exactly one branch and one activity, so it belongs to exactly one stream.
+ */
+export function withProductionLocations(
+  streams: readonly ProductionStream[],
+  locations: readonly CafeLocation[],
+  sites: readonly CafeSite[],
+): ProductionStream[] {
+  const siteName = new Map(sites.map(site => [site.id, site.name]))
+  return streams.flatMap((stream): ProductionStream[] => {
+    const here = locations
+      .filter(place => !place.archived_at && (place.use === 'production' || place.use === 'both')
+        && place.branch_ids.length === 1 && place.branch_ids[0] === stream.branch.id
+        && place.activities.length === 1 && place.activities[0] === stream.activity)
+      .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+    if (here.length === 0) return [stream]
+    return here.map(place => ({
+      ...stream,
+      location: {
+        id: place.id, name: place.name,
+        siteName: place.site_id ? siteName.get(place.site_id) ?? null : null,
+        holdsStock: place.use === 'both',
+      },
+    }))
+  })
 }

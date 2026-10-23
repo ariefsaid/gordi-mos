@@ -289,3 +289,24 @@ describe('admin access actions use the nav terms for Work collections', () => {
     }
   })
 })
+
+// Acceptance 9 (Café locations first): every label the Location screens added exists in both
+// languages and is not left as the other language's text.
+describe('Café locations-first labels exist in both languages', () => {
+  const KEYS = [
+    'cafe.stream.locationAt', 'cafe.transfer.choose', 'cafe.transfer.group.same', 'cafe.transfer.group.other',
+    'records.field.fromTo', 'records.field.madeAt', 'cafe.locations.site', 'cafe.locations.siteNone',
+    'cafe.locations.col.site', 'cafe.locations.at', 'cafe.locations.activities', 'cafe.locations.error.productionShape',
+    'cafe.routes.col.esb', 'cafe.routes.esb', 'cafe.routes.esb.on', 'cafe.routes.esb.off', 'cafe.routes.esb.note',
+  ] as const
+  it.each(KEYS)('%s has English and Indonesian text', (key) => {
+    expect(messages.en[key]).toBeTruthy()
+    expect(messages.id[key]).toBeTruthy()
+    expect(messages.id[key]).not.toBe(messages.en[key])
+  })
+
+  it('the opening screen says branch, in both languages', () => {
+    expect(messages.en['cafe.opening.chooseLocation']).toMatch(/branch/i)
+    expect(messages.id['cafe.opening.chooseLocation']).toMatch(/cabang/i)
+  })
+})

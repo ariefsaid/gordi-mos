@@ -13,6 +13,10 @@ export type LocationRow = {
   branchIds: string[]
   archived: boolean
   rowVersion: number
+  /** Physically at (a Site). */
+  siteId: string | null
+  /** Activities it works in; a production place has exactly one. */
+  activities: string[]
 }
 
 export const NEW_LOCATION = 'new'
@@ -66,9 +70,11 @@ export interface LocationDraft {
   use: LocationUse
   parentId: string | null
   branchIds: string[]
+  siteId: string | null
+  activities: string[]
 }
 
-export type LocationProblem = 'nameBlank' | 'duplicate' | 'cycle' | 'branchesOutsideParent'
+export type LocationProblem = 'nameBlank' | 'duplicate' | 'cycle' | 'branchesOutsideParent' | 'productionShape'
 
 const normalise = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase()
 
@@ -96,12 +102,18 @@ export function validateDraft(draft: LocationDraft, rows: readonly LocationRow[]
   if (draft.parentId && selfId && descendantsOf(selfId, rows).has(draft.parentId)) problems.push('cycle')
   const parent = draft.parentId ? rows.find((row) => row.id === draft.parentId) : undefined
   if (parent && draft.branchIds.some((id) => !parent.branchIds.includes(id))) problems.push('branchesOutsideParent')
+  // Rule 1, mirrored for immediate feedback (the database refuses anything else): a place that produces is one branch and one activity.
+  if (draft.use !== 'storage' && (draft.branchIds.length !== 1 || draft.activities.length !== 1)) problems.push('productionShape')
   return problems
 }
 
 export const draftOf = (row: LocationRow | null): LocationDraft =>
-  row ? { name: row.name, use: row.use, parentId: row.parentId, branchIds: [...row.branchIds] } : { name: '', use: 'both', parentId: null, branchIds: [] }
+  row
+    ? { name: row.name, use: row.use, parentId: row.parentId, branchIds: [...row.branchIds], siteId: row.siteId, activities: [...row.activities] }
+    : { name: '', use: 'both', parentId: null, branchIds: [], siteId: null, activities: [] }
 
 export const draftIsDirty = (draft: LocationDraft, initial: LocationDraft) =>
   draft.name !== initial.name || draft.use !== initial.use || draft.parentId !== initial.parentId ||
-  draft.branchIds.length !== initial.branchIds.length || draft.branchIds.some((id) => !initial.branchIds.includes(id))
+  draft.branchIds.length !== initial.branchIds.length || draft.branchIds.some((id) => !initial.branchIds.includes(id)) ||
+  draft.siteId !== initial.siteId ||
+  draft.activities.length !== initial.activities.length || draft.activities.some((code) => !initial.activities.includes(code))

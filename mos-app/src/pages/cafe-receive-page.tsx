@@ -7,7 +7,7 @@ import { useAuth } from '@/auth/use-auth'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { LocationLineOverride, LocationPanelFields } from '@/components/preview/location-preview-fields'
-import { availableCafeLocationDefault, useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
+import { defaultStorageLocationId, useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { DateField } from '@/components/ui/date-field'
 import { CaptureQuantityControl, CaptureRow, CaptureTable } from '@/components/kitchen/capture-row'
@@ -213,13 +213,13 @@ export function CafeReceivePage() {
   })
   const locationChoices = useCafeLocationChoices(canCapture ? stream : null)
   const storageLocations = locationChoices.locations.filter(location => location.use === 'storage' || location.use === 'both')
-  const defaultStorageLocationId = locationChoices.status === 'ready'
-    ? availableCafeLocationDefault(locationChoices.locations, locationChoices.defaults?.storage_location_id, 'storage')
+  const defaultStorageId = locationChoices.status === 'ready'
+    ? defaultStorageLocationId(stream, locationChoices.locations)
     : null
   const locationScope = `${stream?.branch.id ?? ''}:${stream?.activity ?? ''}`
   const [receiveLocationChoice, setReceiveLocationChoice] = useState<{ scope: string; id: string | null } | null>(null)
   const receiveStorageLocationId = receiveLocationChoice?.scope === locationScope
-    ? receiveLocationChoice.id : defaultStorageLocationId
+    ? receiveLocationChoice.id : defaultStorageId
   const canBackdate = canPushCafe(accessRoles)
   const canReview = canReviewCafe(accessRoles)
   const isDesktop = useIsDesktop()
@@ -1075,7 +1075,7 @@ export function CafeReceivePage() {
                   {/* Delivery storage is optional and captured with the receipt. */}
                   <LocationPanelFields
                     kind="receive"
-                    locations={{ production: [], from: [], to: storageLocations, storage: storageLocations }}
+                    locations={{ storage: storageLocations }}
                     values={{
                       production_location_id: null,
                       from_storage_location_id: null,

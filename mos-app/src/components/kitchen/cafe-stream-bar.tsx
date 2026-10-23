@@ -40,7 +40,7 @@ import { canAdminCafe } from '@/lib/kitchen-gates'
 import { EmptyState } from '@/components/ui/state-kit'
 import { useListboxPopover } from '@/components/ui/use-listbox-popover'
 import { CheckIcon } from '@/shell/icons'
-import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
+import { streamKey, streamLabel, streamOptionKey } from '@/lib/kitchen-action-label'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { useT, type Translate } from '@/i18n/use-t'
 import './cafe-stream-bar.css'
@@ -51,7 +51,9 @@ export const ALL_STREAMS = 'all'
 const EMPTY_STREAM_KEYS: ReadonlySet<string> = new Set()
 
 function sameStream(a: ProductionStream | null, b: ProductionStream | null): boolean {
-  return a != null && b != null && a.branch.id === b.branch.id && a.activity === b.activity
+  if (a == null || b == null || a.branch.id !== b.branch.id || a.activity !== b.activity) return false
+  // Two entries of one stream differ by Location; a stream named without one matches any of them.
+  return !a.location || !b.location || a.location.id === b.location.id
 }
 
 /**
@@ -184,7 +186,7 @@ export function CafeStreamBar({
         <StreamSwitchMenu
           id="cafe-stream"
           options={options}
-          current={allStreams ? ALL_STREAMS : stream ? streamKey(stream.branch.id, stream.activity) : null}
+          current={allStreams ? ALL_STREAMS : stream ? streamOptionKey(stream) : null}
           homeStream={homeStream}
           myStreamKeys={myStreamKeys}
           locationBranchId={locationBranchId}
@@ -230,7 +232,7 @@ function StreamSwitchMenu({ id, options, current, homeStream, myStreamKeys, loca
     return [
       ...(onAllStreams ? [{ value: ALL_STREAMS, label: t('kitchen.review.allStreams'), isAllStreams: true, branch: null }] : []),
       ...ranked.map(option => ({
-        value: streamKey(option.branch.id, option.activity),
+        value: streamOptionKey(option),
         label: taggedLabel(t, option, homeStream, myStreamKeys, locationBranchId),
         isAllStreams: false,
         branch: !locationBranchId ? null : option.branch.id === locationBranchId ? 'this' as const : 'other' as const,
@@ -244,7 +246,7 @@ function StreamSwitchMenu({ id, options, current, homeStream, myStreamKeys, loca
     if (entry.value === current) { setOpen(false); return }
     if (entry.isAllStreams) onAllStreams?.()
     else {
-      const target = options.find((option) => streamKey(option.branch.id, option.activity) === entry.value)
+      const target = options.find((option) => streamOptionKey(option) === entry.value)
       if (target) onChange(target)
     }
     setOpen(false)
@@ -372,7 +374,7 @@ export function CafeStreamChoices({
       <div className="cafe-stream-choices">
         <div className="cafe-stream-choices__list" role="group" aria-label={t('kitchen.log.stream.pickerAria')}>
         {ranked.map((option) => {
-          const key = streamKey(option.branch.id, option.activity)
+          const key = streamOptionKey(option)
           const isMine = isMineStream(option, homeStream, myStreamKeys)
           return (
             <button

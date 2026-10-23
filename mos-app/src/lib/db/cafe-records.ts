@@ -61,7 +61,7 @@ const wrap = (name: string, error: { message: string; code?: string }) =>
 
 // ── Logs ──────────────────────────────────────────────────────────────────────────────────────────
 
-const LOG_COLUMNS = 'id,batch_id,log_date,branch_id,activity,action,action_label,destination_branch_id,wip_item_id,item_unit_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name,notes,status,submitted_by,created_at,updated_at,reviewed_by,reviewed_at,review_note,posted_to_esb,posted_at,esb_doc_num,superseded_by,wip_items(name)'
+const LOG_COLUMNS = 'id,batch_id,log_date,branch_id,activity,action,action_label,destination_branch_id,production_location_id,from_storage_location_id,to_storage_location_id,wip_item_id,item_unit_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name,notes,status,submitted_by,created_at,updated_at,reviewed_by,reviewed_at,review_note,posted_to_esb,posted_at,esb_doc_num,superseded_by,wip_items(name)'
 const LOG_KEY = ['log_date', 'created_at', 'id'] as const
 const LOG_STATUSES: readonly KitchenLogStatus[] = ['Submitted', 'Approved', 'Rejected']
 
@@ -74,6 +74,10 @@ export interface CafeRecordLog {
   action: KitchenLogAction
   action_label: string | null
   destination_branch_id: string | null
+  /** Where it was made, sent from and sent to; null on history written before Locations. */
+  production_location_id: string | null
+  from_storage_location_id: string | null
+  to_storage_location_id: string | null
   wip_item_id: string
   item_unit_id: string | null
   qty_porsi: number | string

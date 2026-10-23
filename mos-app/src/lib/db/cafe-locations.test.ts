@@ -5,7 +5,7 @@ vi.mock('@/lib/supabase', () => ({ supabase: { schema: mocks.schema } }))
 
 import {
   archiveCafeLocation, createCafeLocation, fetchCafeLocationBalances, listCafeDestinationLocations, listCafeLocations,
-  listCafeLocationsByIds, listCafeRecordLocations, moveCafeStock, saveCafeStreamLocationDefaults, updateCafeLocation,
+  listCafeLocationsByIds, listCafeRecordLocations, moveCafeStock, updateCafeLocation,
 } from './cafe-locations'
 
 const schema = vi.mocked(mocks.schema)
@@ -93,17 +93,6 @@ describe('Café Locations client', () => {
     expect(rpc).toHaveBeenLastCalledWith('update_cafe_location', { p_id: 'loc-1', p_expected_version: 4, p_input: input, p_client_request_id: 'request-1' })
     await archiveCafeLocation('loc-1', 5, context)
     expect(rpc).toHaveBeenLastCalledWith('archive_cafe_location', { p_id: 'loc-1', p_expected_version: 5, p_client_request_id: 'request-1' })
-  })
-
-  it('saves admin-managed stream defaults with optimistic version and idempotency arguments', async () => {
-    rpc.mockResolvedValue({ data: { row_version: 3 }, error: null } as never)
-    const stream = { branch_id: 'branch-1', activity: 'kitchen' as const }
-    const defaults = { production_location_id: 'prep-1', storage_location_id: null }
-    await expect(saveCafeStreamLocationDefaults(stream, defaults, 2, context)).resolves.toEqual({ row_version: 3 })
-    expect(rpc).toHaveBeenCalledWith('save_cafe_stream_location_defaults', {
-      p_branch_id: 'branch-1', p_activity: 'kitchen', p_defaults: defaults,
-      p_expected_version: 2, p_client_request_id: 'request-1',
-    })
   })
 
   it('returns decimal quantities as strings and preserves honest unallocated coverage', async () => {
