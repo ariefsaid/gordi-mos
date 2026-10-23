@@ -36,6 +36,7 @@ import {
 import type { TaskRow, TaskStatus } from '@/lib/db/tasks.types'
 import { useCreateDraftRef, useCreateDraftState } from '@/shell/create-drafts'
 import { createTask, updateTaskFields, updateTaskStatus } from '@/lib/db/tasks'
+import { addTaskViewer } from '@/lib/db/task-viewers'
 import { getPersonTeams, type TeamOption } from '@/lib/db/directory'
 import { canStartProcessForTeam } from '@/lib/db/processes'
 import { linkSignalTask } from '@/lib/db/signals'
@@ -610,9 +611,12 @@ export function TasksWorkspace({
         dueDate: draftTask.due_date,
         objectiveId: draftTask.objective_id,
         workLineId: draftTask.work_line_id,
+        isPrivate: draftFormState.isPrivate,
       })
       createdDraftTaskRef.current = createdTaskId
       if (existingTaskId) await updateTaskFields(createdTaskId, { title }, viewerId)
+      // The who-can-see list is added once the Task exists; adding someone twice is a no-op, so a retry re-sends it all.
+      if (draftFormState.isPrivate) for (const personId of draftFormState.viewerIds ?? []) await addTaskViewer(createdTaskId, personId)
       if (draftSourceSignalRef.current) {
         try {
           await linkSignalTask(draftSourceSignalRef.current, createdTaskId)
@@ -637,7 +641,7 @@ export function TasksWorkspace({
     }
     if (!viewerId) throw new Error('inline title edit requires an authenticated viewer')
     await updateTaskFields(taskId, { title }, viewerId)
-  }, [createdDraftTaskRef, draftSourceSignalRef, draftTask, draftTitleRef, setCompletedTaskId, setDraftLinkError, setDraftTask, t, viewerId])
+  }, [createdDraftTaskRef, draftFormState.isPrivate, draftFormState.viewerIds, draftSourceSignalRef, draftTask, draftTitleRef, setCompletedTaskId, setDraftLinkError, setDraftTask, t, viewerId])
   const onRetryDraftLink = useCallback((title: string) => {
     if (!draftTask) return
     void onEditTitle(draftTask.id, title || draftTitleRef.current || draftTask.title)

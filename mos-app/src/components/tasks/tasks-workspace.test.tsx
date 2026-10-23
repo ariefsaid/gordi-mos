@@ -40,6 +40,7 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/signals', () => ({
   linkSignalTask: vi.fn(),
 }))
+vi.mock('../../lib/db/task-viewers', () => ({ addTaskViewer: vi.fn() }))
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
@@ -57,6 +58,7 @@ vi.mock('@/lib/db/user-views-collection', () => ({
   createCollectionView: vi.fn(),
 }))
 
+import { addTaskViewer } from '@/lib/db/task-viewers'
 import { listTasks, listTasksPage, hasOlderDoneTasks, listOlderDoneTasks, getTask, createTask, updateTaskFields } from '@/lib/db/tasks'
 import { linkSignalTask } from '@/lib/db/signals'
 import { getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams, getTeamsByIds } from '@/lib/db/directory'
@@ -78,6 +80,7 @@ const mockUpdateTaskFields = vi.mocked(updateTaskFields)
 const mockCreateTask = vi.mocked(createTask)
 const mockListCollectionViews = vi.mocked(listCollectionViews)
 const mockLinkSignalTask = vi.mocked(linkSignalTask)
+const mockAddTaskViewer = vi.mocked(addTaskViewer)
 const mockCanStartProcessForTeam = vi.mocked(canStartProcessForTeam)
 
 const VIEWER_ID = 'viewer-id'
@@ -290,6 +293,38 @@ describe('D3e — Tasks create is an inline title row', () => {
       responsiblePersonId: VIEWER_ID,
       accountablePersonId: 'other-id',
     })
+  })
+
+  async function startPrivateDraft() {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
+    mockCreateTask.mockResolvedValue('created-private')
+    renderTable()
+    await waitFor(() => expect(screen.getByText('Existing task')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
+    fireEvent.change(await screen.findByRole('textbox', { name: /title/i }), { target: { value: 'Private plan' } })
+    fireEvent.click(screen.getByRole('switch', { name: 'Private' }))
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Supervisor' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'None, just me' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add person' }))
+    fireEvent.click(await screen.findByText('Budi Setiawan', { selector: '.person-picker-label' }))
+  }
+
+  it('creates a private task with "None, just me" and adds the listed people after it exists', async () => {
+    await startPrivateDraft()
+    submitDraft()
+    await waitFor(() => expect(mockAddTaskViewer).toHaveBeenCalledWith('created-private', 'other-id'))
+    expect(mockCreateTask.mock.calls[0][0]).toMatchObject({
+      title: 'Private plan', isPrivate: true, responsiblePersonId: VIEWER_ID, accountablePersonId: VIEWER_ID,
+    })
+  })
+
+  it('keeps the draft and offers Retry when adding a listed person fails, without creating twice', async () => {
+    mockAddTaskViewer.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(undefined)
+    await startPrivateDraft()
+    submitDraft()
+    fireEvent.click(await screen.findByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(mockAddTaskViewer).toHaveBeenCalledTimes(2))
+    expect(mockCreateTask).toHaveBeenCalledTimes(1)
   })
 
   it('Escape discards the inline row without writing, and returns focus to the opener', async () => {
