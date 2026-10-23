@@ -5,7 +5,11 @@ import type { BlockDocument } from '@/lib/db/block-document'
 
 type TaskWorkLineOption = { id: string; name: string; type: 'project' | 'process' }
 
-export type TaskCreateFormState = { dueText?: string; body?: BlockDocument; pending: boolean; saveError: boolean }
+export type TaskCreateFormState = {
+  dueText?: string; body?: BlockDocument; pending: boolean; saveError: boolean
+  /** Private switch and the extra people who can see the Task, kept with the draft until Create. */
+  isPrivate?: boolean; viewerIds?: string[]
+}
 
 export type TaskCreateContextValue = {
   onTitleChange?: (title: string) => void

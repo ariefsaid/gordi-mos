@@ -31,7 +31,7 @@ const LIST_SELECT = [
   'responsible_person_id', 'accountable_person_id', 'consulted_person_ids',
   'informed_person_ids', 'due_date', 'objective_id', 'work_line_id',
   'last_activity_at', 'archived_at', 'created_by', 'completed_at',
-  'process_run_id', 'generated_from_task_def_id',
+  'process_run_id', 'generated_from_task_def_id', 'is_private',
 ].join(',')
 const DETAIL_SELECT = `${LIST_SELECT},description,created_at,updated_at`
 const CHECKLIST_COLUMNS = 'id,org_id,task_id,label,is_done,position,created_at,updated_at'
@@ -268,6 +268,8 @@ export interface CreateTaskInput {
   informedPersonIds?: string[]
   objectiveId?: string | null
   workLineId?: string | null
+  /** Private Task: readable only by creator, PIC, Supervisor, the who-can-see list and admins. */
+  isPrivate?: boolean
 }
 
 /** Insert a task (org_id stamped by DB), then its `created` event (FR-010/013/014). Returns the id. */
@@ -289,6 +291,8 @@ export async function createTask(input: CreateTaskInput): Promise<string> {
   // explicit null would be semantically equivalent in SQL, but omitting it keeps old callers
   // and generated inserts stable while the owner-ratification migration is in flight.
   if (input.teamId !== undefined) taskInsert.team_id = input.teamId
+  // Sent only when on, so a public Task's payload is exactly what it was before Private existed.
+  if (input.isPrivate) taskInsert.is_private = true
   if (input.body) {
     assertBlockDocumentSize(input.body)
     taskInsert.body = input.body
@@ -332,6 +336,23 @@ export async function updateTaskFields(
   const [field] = Object.keys(patch)
   const toValue = field ? patch[field as keyof TaskFieldsPatch] : null
   await logEvent(id, actor, 'field_edited', fromValue, toValue == null ? null : String(toValue))
+}
+
+/** Turn Private on or off, then log a `field_edited` event. The database lets only who may change
+ * the Task's privacy do it; anyone else's update matches no row, so the call throws. The update asks
+ * for a row count, not the row back: an editor who cannot read the Task once it is private (a
+ * manager above the PIC) would otherwise be refused the read of their own saved change. */
+export async function setTaskPrivate(id: string, isPrivate: boolean, actor: string): Promise<void> {
+  const { count, error } = await mos().from('tasks').update({ is_private: isPrivate }, { count: 'exact' }).eq('id', id)
+  if (error) throw new Error(`setTaskPrivate failed — ${error.message}`)
+  if (!count) throw new Error('setTaskPrivate failed — not allowed to change privacy')
+  void refreshOpenTaskCount()
+  try {
+    await logEvent(id, actor, 'field_edited', String(!isPrivate), String(isPrivate))
+  } catch (err) {
+    // The change is saved. Turning Private on can leave this person unable to write the event.
+    if (!isPrivate) throw err
+  }
 }
 
 /** Soft-archive (set archived_at), then log an `archived` event (FR-051/054). */

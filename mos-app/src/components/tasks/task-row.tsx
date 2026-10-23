@@ -32,6 +32,7 @@ import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { visibleTaskColumnDefs, taskColumnTdClass } from './task-columns'
 import { TASK_DECISION_FIELDS, type TaskColumnId } from './task-collection-query'
+import { PrivateLock } from './task-private-lock'
 
 // An inline editor unmounts its own focus target when it closes; hand focus back to the cell
 // trigger that opened it, unless focus already moved somewhere real (Tab, outside click).
@@ -484,6 +485,7 @@ export function TaskRow({
             >
               <span className="task-title-line">
                 {isArchived && <span className="archived-tag">{t('tasks.archived')}</span>}
+                {task.is_private && <PrivateLock />}
                 <span className={isArchived ? 'task-name task-name-archived collection-grammar-title' : 'task-name collection-grammar-title'}>{displayTitle}</span>
               </span>
               {businessUnitName && (

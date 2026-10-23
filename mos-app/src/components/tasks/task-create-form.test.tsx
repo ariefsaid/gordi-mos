@@ -509,3 +509,46 @@ describe('TaskCreateForm — Due date + Project/Process (#1029)', () => {
     expect(screen.getByLabelText('Due date')).toBeInTheDocument()
   })
 })
+
+describe('TaskCreateForm — Private', () => {
+  const asViewer = (id: string) => (form: ReactElement) => (
+    <AuthContext.Provider value={{ status: 'authenticated', viewer: { person: { id, full_name: 'Dewi Director' }, roles: [], isManager: false, accessRoles: [], affiliated: [] } as never, signOut: async () => {} }}>{form}</AuthContext.Provider>
+  )
+  const supervisorOptions = async () => {
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supervisor' }))
+    return screen.getAllByRole('option').map((option) => option.textContent)
+  }
+
+  it('is off by default, and "None, just me" is not offered for a public Task', async () => {
+    renderForm({}, asViewer('viewer-1'))
+    expect(screen.getByRole('switch', { name: 'Private' })).toHaveAttribute('aria-checked', 'false')
+    expect(await supervisorOptions()).not.toContain('None, just me')
+  })
+
+  it('offers "None, just me" once Private is on and I am the PIC, and the list is editable before Create', async () => {
+    renderForm({ personOptions: [{ id: 'viewer-1', full_name: 'Dewi Director' }], supervisorOptions: [{ id: 'viewer-1', full_name: 'Dewi Director' }, { id: 'person-2', full_name: 'Budi Setiawan' }, { id: 'person-4', full_name: 'Rina Staff' }] }, asViewer('viewer-1'))
+    await userEvent.click(screen.getByRole('switch', { name: 'Private' }))
+    expect(screen.getByText('Nobody added.')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Add person' }))
+    await userEvent.click(await screen.findByText('Rina Staff', { selector: '.person-picker-label' }))
+    expect(screen.getByRole('button', { name: 'Remove Rina Staff' })).toBeInTheDocument()
+    expect(screen.getByText('On · 1 more person can see')).toBeInTheDocument()
+    const options = await supervisorOptions()
+    expect(options).toContain('None, just me')
+    expect(options.filter((name) => name === 'Dewi Director')).toHaveLength(0)
+  })
+
+  it('does not offer "None, just me" when someone else is the PIC', async () => {
+    renderForm({ task: makeDraft({ responsible_person_id: 'person-3' }), personOptions: [{ id: 'person-3', full_name: 'Rina Staff' }] }, asViewer('viewer-1'))
+    await userEvent.click(screen.getByRole('switch', { name: 'Private' }))
+    expect(await supervisorOptions()).not.toContain('None, just me')
+  })
+
+  it('speaks Indonesian', async () => {
+    renderForm({}, (form) => <I18nProvider initialLocale="id">{asViewer('viewer-1')(form)}</I18nProvider>)
+    await userEvent.click(screen.getByRole('switch', { name: 'Privat' }))
+    expect(await supervisorOptions()).toContain('Tidak ada, hanya saya')
+    expect(screen.getByText('Selama tugas privat dan Anda PIC-nya, Anda bisa memilih “Tidak ada, hanya saya”.')).toBeInTheDocument()
+  })
+})
+

@@ -1,0 +1,18 @@
+/* TaskPrivateRow — the Private property value. Tokens only. */
+.tpr { display: flex; flex-direction: column; gap: var(--mos-inline-gap); min-width: 0; padding-block: 4px; }
+.tpr__line { display: flex; align-items: center; gap: var(--mos-row-gap); min-height: var(--mos-control-height); }
+.tpr__state { font-size: var(--mos-size-3); }
+.tpr__help, .tpr__nobody { margin: 0; font: var(--mos-type-subnav); color: var(--mos-muted); }
+.tpr__people { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap) var(--mos-row-gap); }
+.tpr__person { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); }
+.tpr__remove, .tpr__addbtn {
+  min-height: var(--mos-control-height); min-width: var(--mos-control-height); padding: 0 var(--mos-inline-gap); border: 0; background: none;
+  font: var(--mos-type-label); color: var(--muted-foreground); cursor: pointer; border-radius: var(--radius-sm);
+}
+.tpr__remove:hover, .tpr__addbtn:hover { color: var(--foreground); }
+.tpr__remove:disabled, .tpr__addbtn:disabled { cursor: default; opacity: 0.6; }
+.tpr__remove:focus-visible, .tpr__addbtn:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.tpr__error { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--mos-size-1); color: var(--field-error-text); }
+@media (max-width: 767.98px) {
+  .tpr__error .task-row-retry { min-width: 44px; min-height: 44px; }
+}

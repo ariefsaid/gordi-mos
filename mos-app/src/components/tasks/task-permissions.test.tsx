@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { canEdit, canArchive, picOptions, picLockMessage } from './task-permissions'
+import {
+  canEdit, canArchive, picOptions, picLockMessage, canSeePrivateTask, canChangePrivacy, isSoloSupervisor,
+} from './task-permissions'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
 const t = (o: Partial<TaskListRow>): TaskListRow => ({
@@ -52,5 +54,26 @@ describe('task permission oracle (mirrors mos.can_edit_task / the archive clause
     expect(picOptions('r', [{ id: 'r', full_name: 'R' }, { id: 'd', full_name: 'Downline' }, { id: 'p', full_name: 'Peer' }], ['d']).map(p => p.id)).toEqual(['r', 'd'])
     expect(picLockMessage(true)).toBeNull()
     expect(picLockMessage(false)).toBe('Only you can be PIC — a Supervisor names others')
+  })
+})
+
+describe('private Task helpers (mirror mos.can_person_read_task / mos.can_change_task_privacy)', () => {
+  const priv = t({ is_private: true, created_by: 'c', responsible_person_id: 'r', accountable_person_id: 'a' })
+  it('a public Task is seen by anyone', () => {
+    expect(canSeePrivateTask(t({}), 'x', [])).toBe(true)
+  })
+  it('a private Task is seen by creator, PIC, Supervisor, a listed person and an admin only', () => {
+    for (const id of ['c', 'r', 'a']) expect(canSeePrivateTask(priv, id, [])).toBe(true)
+    expect(canSeePrivateTask(priv, 'l', ['l'])).toBe(true)
+    expect(canSeePrivateTask(priv, 'x', [], true)).toBe(true)
+    expect(canSeePrivateTask(priv, 'x', ['l'])).toBe(false)
+  })
+  it('only an editor changes privacy', () => {
+    expect(canChangePrivacy(priv, 'r', [])).toBe(true)
+    expect(canChangePrivacy(priv, 'x', [])).toBe(false)
+  })
+  it('"None, just me" is Supervisor = PIC = creator', () => {
+    expect(isSoloSupervisor(t({ created_by: 'r', responsible_person_id: 'r', accountable_person_id: 'r' }))).toBe(true)
+    expect(isSoloSupervisor(t({ created_by: 'c', responsible_person_id: 'r', accountable_person_id: 'r' }))).toBe(false)
   })
 })
