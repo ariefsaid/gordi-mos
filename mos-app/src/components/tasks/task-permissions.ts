@@ -27,6 +27,11 @@ export function canSeePrivateTask(
   return !task.is_private || isAdmin || [task.created_by, task.responsible_person_id, task.accountable_person_id, ...listedPersonIds].includes(viewerId)
 }
 
+// Toggling Private or editing the who-can-see list needs the Task's edit gate (mos.can_change_task_privacy).
+export function canChangePrivacy(task: TaskListRow, viewerId: string, downlineIds: readonly string[]): boolean {
+  return canEdit(task, viewerId, downlineIds)
+}
+
 // "None, just me": the Supervisor is stored equal to the PIC, allowed only on a Task the PIC created.
 export function isSoloSupervisor(task: Pick<TaskListRow, 'created_by' | 'responsible_person_id' | 'accountable_person_id'>): boolean {
   return task.accountable_person_id === task.responsible_person_id && task.responsible_person_id === task.created_by

@@ -37,7 +37,7 @@ interface Recorder {
   lts: Array<[string, unknown]>
 }
 
-function makeSchema(responses: Record<string, { data: unknown; error: unknown }[]>, rec: Recorder) {
+function makeSchema(responses: Record<string, { data: unknown; error: unknown; count?: number }[]>, rec: Recorder) {
   // responses: table -> queue of results consumed in call order.
   const counters: Record<string, number> = {}
   const fromImpl = (table: string) => {
@@ -402,7 +402,7 @@ describe('setTaskPrivate', () => {
   it('updates is_private then logs a field_edited event', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({
-      tasks: [{ data: [{ id: TASK_ID }], error: null }],
+      tasks: [{ data: null, error: null, count: 1 }],
       task_events: [{ data: null, error: null }],
     }, rec) as never)
     await setTaskPrivate(TASK_ID, true, ACTOR)
@@ -413,7 +413,7 @@ describe('setTaskPrivate', () => {
 
   it('throws when the database matches no row (the caller may not change privacy)', async () => {
     const rec = freshRec()
-    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [], error: null }] }, rec) as never)
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: null, error: null, count: 0 }] }, rec) as never)
     await expect(setTaskPrivate(TASK_ID, false, ACTOR)).rejects.toThrow(/not allowed/)
     expect(rec.inserts).toHaveLength(0)
   })
@@ -422,6 +422,17 @@ describe('setTaskPrivate', () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: null, error: { message: 'boom' } }] }, rec) as never)
     await expect(setTaskPrivate(TASK_ID, true, ACTOR)).rejects.toThrow(/boom/)
+  })
+
+  it('does not ask for the row back, and keeps a saved change when the event cannot be written', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      tasks: [{ data: null, error: null, count: 1 }],
+      task_events: [{ data: null, error: { message: 'row-level security' } }],
+    }, rec) as never)
+    await expect(setTaskPrivate(TASK_ID, true, ACTOR)).resolves.toBeUndefined()
+    expect(rec.selects).toEqual([])
+    await expect(setTaskPrivate(TASK_ID, false, ACTOR)).rejects.toThrow(/row-level security/)
   })
 })
 

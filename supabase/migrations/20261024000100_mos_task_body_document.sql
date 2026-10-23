@@ -17,7 +17,8 @@
 -- is excluded from the history trigger; recording both would log every edit twice.
 --
 -- Inbox: each person newly mentioned in a Task document (or the active members of a mentioned Team)
--- gets one notice, once per Task, delivered from the database so the agent API path is covered too.
+-- gets one notice, once per Task, at most 50 people per save (as Signal mentions), delivered from the
+-- database so every write path is covered.
 --
 -- DOWN (ordered):
 --   drop trigger tasks_mention_notify_update on mos.tasks;
@@ -238,16 +239,12 @@ declare
   v_actor      uuid := shared.current_person_id();
   v_actor_name text;
   v_old        jsonb := case when tg_op = 'UPDATE' then old.body end;
+  v_recipients uuid[];
 begin
   select p.full_name into v_actor_name
     from shared.people p where p.id = v_actor and p.org_id = new.org_id;
 
-  insert into mos.notifications (org_id, owner_id, severity, title, body, metadata)
-  select new.org_id, r.pid, 'info', 'You were mentioned in a Task', left(new.title, 200),
-         jsonb_build_object('source', 'task_mention',
-           'actor', jsonb_build_object('id', v_actor, 'name', v_actor_name),
-           'entity', jsonb_build_object('type', 'task', 'id', new.id,
-                                        'route', '/work/tasks?record=' || new.id))
+  select coalesce(array_agg(distinct r.pid), '{}') into v_recipients
     from (
       select m.id as pid
         from mos._task_body_mentions(new.body) m
@@ -256,7 +253,7 @@ begin
       union
       select tmb.person_id
         from mos._task_body_mentions(new.body) m
-        join shared.teams tm on tm.id = m.id and tm.org_id = new.org_id
+        join shared.teams tm on tm.id = m.id and tm.org_id = new.org_id and tm.archived_at is null
         join shared.team_memberships tmb on tmb.team_id = tm.id
        where m.kind = 'team'
          and tmb.effective_from <= current_date and (tmb.effective_to is null or tmb.effective_to >= current_date)
@@ -269,12 +266,26 @@ begin
         where n.owner_id = r.pid
           and n.metadata ->> 'source' = 'task_mention'
           and n.metadata #>> '{entity,id}' = new.id::text);
+
+  -- Same cap as Signal mention fan-out: one save may notify at most 50 people.
+  if cardinality(v_recipients) > 50 then
+    raise exception 'mention fan-out exceeds cap of 50 recipients (%)', cardinality(v_recipients)
+      using errcode = '22023';
+  end if;
+
+  insert into mos.notifications (org_id, owner_id, severity, title, body, metadata)
+  select new.org_id, r, 'info', 'You were mentioned in a Task', left(new.title, 200),
+         jsonb_build_object('source', 'task_mention',
+           'actor', jsonb_build_object('id', v_actor, 'name', v_actor_name),
+           'entity', jsonb_build_object('type', 'task', 'id', new.id,
+                                        'route', '/work/tasks?record=' || new.id))
+    from unnest(v_recipients) r;
   return null;
 end;
 $$;
 comment on function mos._notify_task_mentions() is
   'Once per Task, notifies each person newly mentioned in its document (or the active members of a newly '
-  'mentioned Team), never the author. SECURITY DEFINER: the notice lands in another person''s Inbox.';
+  'mentioned active Team), never the author, at most 50 per save. SECURITY DEFINER: the notice lands in another person''s Inbox.';
 revoke execute on function mos._notify_task_mentions() from public, anon, authenticated;
 
 create trigger tasks_mention_notify_insert

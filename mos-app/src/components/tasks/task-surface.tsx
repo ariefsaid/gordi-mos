@@ -25,7 +25,7 @@ import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { ConfirmArchive } from './confirm-archive'
 import { resolvePicSupervisor } from './default-supervisor'
-import { picOptions, canEdit as canEditTask } from './task-permissions'
+import { picOptions, canChangePrivacy, canSeePrivateTask } from './task-permissions'
 import { liveTasksSearch, type LiveTasksQueryRef } from './tasks-navigation'
 import { createTaskRecordAdapter, createTaskFieldCommit, type TaskTeamView, type TaskRelatedRecord, type TaskViewerFieldKey } from './task-record-adapter'
 import type { RecordViewerAdapter } from '@/components/records/record-viewer.types'
@@ -158,6 +158,7 @@ function ViewSurface({
 
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [lostAccess, setLostAccess] = useState(false)
   // A retryable read failure (network/500), distinct from a genuinely missing task — see
   // isMissingTaskError above.
   const [loadError, setLoadError] = useState(false)
@@ -447,10 +448,19 @@ function ViewSurface({
   async function handleSetPrivate(next: boolean) {
     if (!localTask) return
     await setTaskPrivate(localTask.id, next, viewerId)
-    if (next) setViewerIds(await listTaskViewers(localTask.id).then((rows) => rows.map((row) => row.person_id)).catch(() => []))
+    const listed = next
+      ? await listTaskViewers(localTask.id).then((rows) => rows.map((row) => row.person_id)).catch(() => [])
+      : []
+    if (next) setViewerIds(listed)
     const updated = { ...localTask, is_private: next }
-    setLocalTask(updated)
     onTaskChanged?.(updated)
+    // The change is saved. An editor who is not the creator, PIC, Supervisor, an admin or on the list
+    // can no longer read the Task, so the page says so instead of loading what it can't read.
+    if (next && !canSeePrivateTask(updated, viewerId, listed, auth.status === 'authenticated' && auth.viewer.accessRoles.includes('admin'))) {
+      setLostAccess(true)
+      return
+    }
+    setLocalTask(updated)
     await refetchEvents(localTask.id)
   }
   async function handleAddViewer(personId: string) {
@@ -703,7 +713,7 @@ function ViewSurface({
     return width === 'drawer' ? errorState : <div className="record-details">{errorState}</div>
   }
 
-  if (notFound || !localTask) {
+  if (notFound || lostAccess || !localTask) {
     // The shared EmptyState primitive, not a bespoke `.not-found-panel`: it already carries
     // the SAME horizontal inset as the panel header (CardHead.css `.error-state`/`.empty-state`:
     // 16px 20px, the family `.card-head` uses), so a fix to that inset applies here too — and
@@ -721,8 +731,8 @@ function ViewSurface({
         // identityHeadingLevel=2), the not-found title nests as an h2 so there is no double-h1;
         // the default full-width host keeps it an h1.
         headingLevel={identityHeadingLevel === 2 ? 2 : 1}
-        title={t('tasks.notFound.title')}
-        copy={t('tasks.notFound.copy')}
+        title={t(lostAccess ? 'tasks.private.lostAccess.title' : 'tasks.notFound.title')}
+        copy={t(lostAccess ? 'tasks.private.lostAccess.copy' : 'tasks.notFound.copy')}
       >
         <Link
           to={{ pathname: '/work/tasks', search: location.search }}
@@ -813,7 +823,7 @@ function ViewSurface({
       privacy={{
         viewers: viewerIds.flatMap((id) => peopleDirectory.filter((person) => person.id === id)),
         // Private and the who-can-see list need the Task's edit gate (mos.can_change_task_privacy).
-        canChange: canEditTask(task as TaskListRow, viewerId, downlineIds) && task.archived_at === null,
+        canChange: canChangePrivacy(task as TaskListRow, viewerId, downlineIds) && task.archived_at === null,
         onSetPrivate: handleSetPrivate,
         onAddViewer: handleAddViewer,
         onRemoveViewer: handleRemoveViewer,
