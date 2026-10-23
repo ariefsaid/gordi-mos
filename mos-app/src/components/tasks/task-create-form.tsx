@@ -1,14 +1,17 @@
-// TaskCreateForm — the ONE task-creation form: a real form, read top-to-bottom (Title →
-// Team/PIC/Supervisor → Due/Project-Process → derived Business unit → footer actions), rendered IDENTICALLY by the
-// desktop table (inside a full-width colSpan row, task-row.tsx) and the phone card
-// (mobile-grouped-cards.tsx). One component, one validation contract, one a11y contract.
+// TaskCreateForm — Create task as a blank Task page: an "Untitled" title to type into, the Task's
+// properties with defaults filled (PIC = me, Supervisor = the PIC's one manager, Team from my
+// membership, Business Unit derived), then the description. Missing Team/Supervisor read "Needed";
+// after a Create attempt they turn into the existing messages. Rendered by the Tasks workspace's
+// capture page; one validation contract, one a11y contract.
 import { ActionBar } from '@/components/ui/action-bar'
 import { useIsOffline } from '@/shell/use-is-offline'
-import { useEffect, useId, useRef, useState } from 'react'
+import { usePhoneActionBar } from '@/shell/page-action-bar'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Picker } from '@/components/ui/picker'
+import { PillIcon } from '@/components/ui/pill'
 import { DateField } from '@/components/ui/date-field'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
-import { Chevron } from '@/shell/icons'
+import { RecordProperties, type RecordPropertyRow } from '@/components/record/record-properties'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -51,6 +54,7 @@ export function TaskCreateForm({
   const t = useT()
   const { locale } = useI18n()
   const offline = useIsOffline()
+  const phoneBar = usePhoneActionBar()
   const formId = useId()
   const titleId = `${formId}-title`
   const titleErrorId = `${formId}-title-error`
@@ -61,6 +65,7 @@ export function TaskCreateForm({
   const supervisorErrorId = `${formId}-supervisor-error`
   const dueFieldId = `${formId}-due`
   const workLineFieldId = `${formId}-workline`
+  const offlineReasonId = `${formId}-offline`
   const { workLineOptions, onEditDue, onEditWorkLine, onTitleChange, onDescriptionChange, formState, onFormStateChange, supervisorHint } = useTaskCreateContext()
 
   const [localTitle, setLocalTitle] = useState(task.title)
@@ -94,9 +99,13 @@ export function TaskCreateForm({
   useEffect(() => { titleRef.current?.focus() }, [])
 
   const titleError = (attempted || titleTouched) && !title.trim() ? t('tasks.create.titleRequired') : undefined
-  const teamError = attempted && (!task.team_id || !task.business_unit_id) ? t('tasks.create.teamRequired') : undefined
-  const supervisorError = attempted && !task.accountable_person_id ? t('tasks.create.supervisorRequired') : undefined
+  const teamMissing = !task.team_id || !task.business_unit_id
+  const supervisorMissing = !task.accountable_person_id
+  const teamError = attempted && teamMissing ? t('tasks.create.teamRequired') : undefined
+  const supervisorError = attempted && supervisorMissing ? t('tasks.create.supervisorRequired') : undefined
   const lockMessage = picLockMessage(!viewerHasNoDownline, locale)
+  // Create stays outlined until the three required values are in place, then becomes the page's one filled action.
+  const ready = title.trim() !== '' && !teamMissing && !supervisorMissing
 
   const teamPickerOptions = teamOptions.length > 0
     ? [
@@ -132,8 +141,8 @@ export function TaskCreateForm({
     setAttempted(true)
     const trimmed = title.trim()
     if (!trimmed) { titleRef.current?.focus(); return }
-    if (!task.team_id || !task.business_unit_id) { document.getElementById(teamFieldId)?.focus(); return }
-    if (!task.accountable_person_id) { document.getElementById(supervisorFieldId)?.focus(); return }
+    if (teamMissing) { document.getElementById(teamFieldId)?.focus(); return }
+    if (supervisorMissing) { document.getElementById(supervisorFieldId)?.focus(); return }
     if (dueInvalid) { document.getElementById(dueFieldId)?.focus(); return }
     if (pending) return
     setSaveError(false)
@@ -144,153 +153,185 @@ export function TaskCreateForm({
     )
   }
 
+  // A required value that is not set yet: "Needed" first, the existing message once Create was tried.
+  const neededNote = (missing: boolean, error: string | undefined, errorId: string): ReactNode => {
+    if (error) return <p id={errorId} role="alert" className="tcf-error">{error}</p>
+    return missing ? <p className="tcf-needed">{t('tasks.create.needed')}</p> : null
+  }
+
+  const rows: RecordPropertyRow[] = [
+    {
+      key: 'status', label: t('tasks.status.label'),
+      children: <span className="rp-props__plain"><span className="pill pill--neutral"><PillIcon tone="neutral" />{t('tasks.status.open')}</span></span>,
+    },
+    {
+      key: 'pic', label: t('tasks.pic'), note: lockMessage,
+      children: (
+        <Picker
+          id={picFieldId}
+          label={t('tasks.pic')}
+          hideLabel
+          triggerClassName="tcf-value"
+          value={task.responsible_person_id}
+          options={picPickerOptions}
+          disabled={fieldsLocked}
+          onChange={(value) => { void onEditPic(task.id, value) }}
+        />
+      ),
+    },
+    {
+      key: 'supervisor', label: t('tasks.supervisor'),
+      note: (
+        <>
+          {neededNote(supervisorMissing, supervisorError, supervisorErrorId)}
+          {supervisorHint === 'missing' && <p role="status" className="tcf-hint">{t('tasks.create.noManager')}</p>}
+          {supervisorHint === 'error' && <p role="status" className="tcf-hint">{t('tasks.create.managerLookupFailed')}</p>}
+          <p className="tcf-hint">{t('tasks.create.picSupervisorHint')}</p>
+        </>
+      ),
+      children: (
+        <Picker
+          id={supervisorFieldId}
+          label={t('tasks.supervisor')}
+          hideLabel
+          triggerClassName="tcf-value"
+          value={task.accountable_person_id}
+          options={supervisorPickerOptions}
+          placeholder={t('tasks.create.supervisorPlaceholder')}
+          disabled={fieldsLocked}
+          required
+          error={Boolean(supervisorError)}
+          describedBy={supervisorError ? supervisorErrorId : undefined}
+          onChange={(value) => { void onEditSupervisor(task.id, value) }}
+        />
+      ),
+    },
+    {
+      key: 'team', label: t('tasks.team'), note: neededNote(teamMissing, teamError, teamErrorId),
+      children: (
+        <Picker
+          id={teamFieldId}
+          label={t('tasks.team')}
+          hideLabel
+          triggerClassName="tcf-value"
+          value={task.team_id ?? ''}
+          options={teamPickerOptions}
+          placeholder={t('tasks.create.teamPlaceholder')}
+          disabled={fieldsLocked || teamOptions.length === 0}
+          required
+          error={Boolean(teamError)}
+          describedBy={teamError ? teamErrorId : undefined}
+          onChange={(value) => { void onEditTeam(task.id, value) }}
+        />
+      ),
+    },
+    {
+      key: 'businessUnit', label: t('tasks.filter.businessUnit'),
+      children: (
+        <span className="rp-props__plain" data-testid="task-create-derived-bu">
+          {businessUnitName || <span className="tcf-muted">{t('tasks.create.buFromTeam')}</span>}
+        </span>
+      ),
+    },
+    {
+      key: 'dueDate', label: t('tasks.create.dueDate'),
+      children: (
+        <DateField
+          draftText={formState?.dueText}
+          onDraftTextChange={(dueText) => onFormStateChange?.({ dueText })}
+          id={dueFieldId}
+          aria-label={t('tasks.create.dueDate')}
+          className="tcf-value"
+          value={task.due_date ?? ''}
+          placeholder={t('tasks.due.set')}
+          disabled={fieldsLocked}
+          reveal={attempted}
+          onChange={(value) => { void onEditDue(task.id, value || null) }}
+          onValidityChange={setDueInvalid}
+        />
+      ),
+    },
+    ...(workLineOptions.length > 0 ? [{
+      key: 'workLine', label: t('tasks.filter.projectProcess'),
+      children: (
+        <Picker
+          id={workLineFieldId}
+          label={t('tasks.filter.projectProcess')}
+          hideLabel
+          triggerClassName="tcf-value"
+          value={task.work_line_id ?? ''}
+          options={workLinePickerOptions}
+          disabled={fieldsLocked}
+          onChange={(value) => { void onEditWorkLine(task.id, value || null) }}
+        />
+      ),
+    }] : []),
+    {
+      key: 'objective', label: t('tasks.objective'),
+      children: <span className="rp-props__plain"><span className="tcf-muted">{t('tasks.create.objectiveFromWork')}</span></span>,
+    },
+  ]
+  const cancelButton = <button type="button" className="btn btn-outline" disabled={pending} onClick={onCancel}>{t('common.cancel')}</button>
+  const createButton = (
+    <button
+      type="submit"
+      form={formId}
+      className={`btn ${ready ? 'btn-primary' : 'btn-outline'}`}
+      disabled={pending || offline}
+      aria-busy={pending || undefined}
+      aria-describedby={offline ? offlineReasonId : undefined}
+    >
+      {pending ? t('tasks.create.submitting') : t('tasks.create.submit')}
+    </button>
+  )
+
   return (
     <>
     <form
       id={formId}
       ref={formRef}
-      className="tcf"
+      className="tcf rp rp--page"
+      data-record-kind="task"
       aria-label={t('tasks.create.form')}
       onSubmit={(event) => { event.preventDefault(); trySubmit() }}
     >
-      <div className="tcf-field tcf-field--title">
-        <label htmlFor={titleId} className="tcf-label">{t('tasks.create.title')}</label>
-        <textarea
-          id={titleId}
-          ref={titleRef}
-          className="tcf-title tap-floor"
-          data-escape-layer="nested"
-          rows={1}
-          maxLength={TASK_TITLE_MAX_LENGTH}
-          value={title}
-          placeholder={t('tasks.create.titlePlaceholder')}
-          disabled={fieldsLocked}
-          aria-invalid={titleError ? true : undefined}
-          aria-describedby={titleError ? titleErrorId : undefined}
-          onChange={(event) => setTitle(event.target.value)}
-          onBlur={() => setTitleTouched(true)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              // Enter moves to the next entry (EN7); it never submits. Create is the button.
-              event.preventDefault()
-              event.stopPropagation()
-              document.getElementById(teamFieldId)?.focus()
-            } else if (event.key === 'Escape') {
-              event.preventDefault()
-              event.stopPropagation()
-              if (!pending) onCancel()
-            }
-            // Tab is left to native focus movement.
-          }}
-        />
-        <div className="tcf-title-error-slot">
+      <div className="rp-head tcf-head">
+        <div className="rp-title tcf-title-field">
+          <label htmlFor={titleId} className="sr-only">{t('tasks.create.title')}</label>
+          <textarea
+            id={titleId}
+            ref={titleRef}
+            className="tcf-title"
+            data-escape-layer="nested"
+            rows={1}
+            maxLength={TASK_TITLE_MAX_LENGTH}
+            value={title}
+            placeholder={t('tasks.create.untitled')}
+            disabled={fieldsLocked}
+            aria-invalid={titleError ? true : undefined}
+            aria-describedby={titleError ? titleErrorId : undefined}
+            onChange={(event) => setTitle(event.target.value)}
+            onBlur={() => setTitleTouched(true)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                // Enter moves to the next entry (EN7); it never submits. Create is the button.
+                event.preventDefault()
+                event.stopPropagation()
+                document.getElementById(teamFieldId)?.focus()
+              } else if (event.key === 'Escape') {
+                event.preventDefault()
+                event.stopPropagation()
+                if (!pending) onCancel()
+              }
+              // Tab is left to native focus movement.
+            }}
+          />
           {titleError && <p id={titleErrorId} role="alert" className="tcf-error">{titleError}</p>}
         </div>
+        {phoneBar ? null : <div className="rp-head__primary tcf-actions">{cancelButton}{createButton}</div>}
       </div>
-
-      <p className="tcf-hint tcf-hint--lead">{t('tasks.create.picSupervisorHint')}</p>
-      <div className="tcf-row">
-        <div className="tcf-field">
-          <label htmlFor={teamFieldId} className="tcf-label">
-            <span>{t('tasks.team')}</span> <span className="tcf-required" aria-hidden="true">*</span>
-          </label>
-          <Picker
-            id={teamFieldId}
-            label={t('tasks.team')}
-            hideLabel
-            value={task.team_id ?? ''}
-            options={teamPickerOptions}
-            placeholder={t('tasks.create.teamPlaceholder')}
-            disabled={fieldsLocked || teamOptions.length === 0}
-            required
-            error={Boolean(teamError)}
-            describedBy={teamError ? teamErrorId : undefined}
-            onChange={(value) => { void onEditTeam(task.id, value) }}
-          />
-          {teamError && <p id={teamErrorId} role="alert" className="tcf-error">{teamError}</p>}
-          <p className="tcf-hint" data-testid="task-create-derived-bu">
-            {t('tasks.filter.businessUnit')}: {businessUnitName || '—'}
-          </p>
-        </div>
-        <div className="tcf-field">
-          <label htmlFor={picFieldId} className="tcf-label">{t('tasks.pic')}</label>
-          <Picker
-            id={picFieldId}
-            label={t('tasks.pic')}
-            hideLabel
-            value={task.responsible_person_id}
-            options={picPickerOptions}
-            disabled={fieldsLocked}
-            onChange={(value) => { void onEditPic(task.id, value) }}
-          />
-          {lockMessage && <p className="tcf-hint">{lockMessage}</p>}
-        </div>
-        <div className="tcf-field">
-          <label htmlFor={supervisorFieldId} className="tcf-label">
-            <span>{t('tasks.supervisor')}</span> <span className="tcf-required" aria-hidden="true">*</span>
-          </label>
-          <Picker
-            id={supervisorFieldId}
-            label={t('tasks.supervisor')}
-            hideLabel
-            value={task.accountable_person_id}
-            options={supervisorPickerOptions}
-            placeholder={t('tasks.create.supervisorPlaceholder')}
-            disabled={fieldsLocked}
-            required
-            error={Boolean(supervisorError)}
-            describedBy={supervisorError ? supervisorErrorId : undefined}
-            onChange={(value) => { void onEditSupervisor(task.id, value) }}
-          />
-          {supervisorError && <p id={supervisorErrorId} role="alert" className="tcf-error">{supervisorError}</p>}
-          {supervisorHint === 'missing' && <p role="status" className="tcf-hint">{t('tasks.create.noManager')}</p>}
-          {supervisorHint === 'error' && <p role="status" className="tcf-hint">{t('tasks.create.managerLookupFailed')}</p>}
-        </div>
-      </div>
-
-      <details className="tcf-optional-context">
-        <summary><Chevron className="tcf-disclosure-chevron" /><span>{t('tasks.create.optionalDetails')}</span></summary>
-        <div className="tcf-row tcf-row--pair">
-          <div className="tcf-field">
-            <label htmlFor={dueFieldId} className="tcf-label">{t('tasks.create.dueDate')}</label>
-            <DateField
-              draftText={formState?.dueText}
-              onDraftTextChange={(dueText) => onFormStateChange?.({ dueText })}
-              id={dueFieldId}
-              value={task.due_date ?? ''}
-              disabled={fieldsLocked}
-              reveal={attempted}
-              onChange={(value) => { void onEditDue(task.id, value || null) }}
-              onValidityChange={setDueInvalid}
-            />
-          </div>
-          {workLineOptions.length > 0 && (
-            <div className="tcf-field">
-              <label htmlFor={workLineFieldId} className="tcf-label">{t('tasks.filter.projectProcess')}</label>
-              <Picker
-                id={workLineFieldId}
-                label={t('tasks.filter.projectProcess')}
-                hideLabel
-                value={task.work_line_id ?? ''}
-                options={workLinePickerOptions}
-                disabled={fieldsLocked}
-                onChange={(value) => { void onEditWorkLine(task.id, value || null) }}
-              />
-            </div>
-          )}
-        </div>
-        <div className="tcf-field tcf-field--description">
-          <label htmlFor={`${formId}-description`} className="tcf-label">{t('tasks.create.description')}</label>
-          <textarea
-            id={`${formId}-description`}
-            className="tcf-description"
-            value={description}
-            placeholder={t('tasks.create.descriptionPlaceholder')}
-            disabled={fieldsLocked}
-            onChange={(event) => setDescription(event.target.value)}
-          />
-        </div>
-      </details>
+      <p className="tcf-draftnote">{t('tasks.create.draftNote')}</p>
+      {offline && !phoneBar ? <p id={offlineReasonId} role="status" className="tcf-error">{t('tasks.create.offline')}</p> : null}
 
       {linkError && (
         <p role="alert" className="tcf-error tcf-save-error">
@@ -304,14 +345,30 @@ export function TaskCreateForm({
           <button type="button" className="task-row-retry" onClick={trySubmit}>{t('record.field.retry')}</button>
         </p>
       )}
+
+      <RecordProperties rows={rows} foldable={false} />
+
+      {/* The document slot: unboxed, no heading, one element another editor can replace. */}
+      <section className="task-description-section" aria-label={t('tasks.description.title')}>
+        <label htmlFor={`${formId}-description`} className="sr-only">{t('tasks.create.description')}</label>
+        <textarea
+          id={`${formId}-description`}
+          className="tcf-description"
+          value={description}
+          placeholder={t('tasks.create.descriptionPlaceholder')}
+          disabled={fieldsLocked}
+          onChange={(event) => setDescription(event.target.value)}
+        />
+      </section>
     </form>
-    <ActionBar
-      reason={offline ? t('tasks.create.offline') : undefined}
-      secondary={<button type="button" className="btn btn-outline" disabled={pending} onClick={onCancel}>{t('common.cancel')}</button>}
-      primary={<button type="submit" form={formId} className="btn btn-primary" disabled={pending || offline} aria-busy={pending || undefined}>
-        {pending ? t('tasks.create.submitting') : t('tasks.create.submit')}
-      </button>}
-    />
+    {phoneBar ? (
+      <ActionBar
+        reason={offline ? t('tasks.create.offline') : undefined}
+        reasonId={offlineReasonId}
+        secondary={cancelButton}
+        primary={createButton}
+      />
+    ) : null}
     </>
   )
 }

@@ -30,13 +30,10 @@ function makeDraft(overrides: Partial<TaskRow> = {}): TaskRow {
   }
 }
 
-function renderForm(
-  overrides: Partial<ComponentProps<typeof TaskCreateForm>> = {},
-  wrap: (form: ReactElement) => ReactElement = (form) => form,
-) {
+function baseProps(overrides: Partial<ComponentProps<typeof TaskCreateForm>> = {}): ComponentProps<typeof TaskCreateForm> {
   const onCreate = vi.fn().mockResolvedValue(undefined)
   const onCancel = vi.fn()
-  const props: ComponentProps<typeof TaskCreateForm> = {
+  return {
     task: makeDraft(),
     businessUnitName: 'Retail Ops',
     teamOptions: [{ id: 'team-1', name: 'HQ Operations', businessUnitId: 'bu-1' }],
@@ -51,38 +48,62 @@ function renderForm(
     onCancel,
     ...overrides,
   }
-  const utils = render(wrap(<TaskCreateForm {...props} />))
-  return { ...utils, onCreate, onCancel }
 }
 
-describe('TaskCreateForm — labels and required markers', () => {
+function renderForm(
+  overrides: Partial<ComponentProps<typeof TaskCreateForm>> = {},
+  wrap: (form: ReactElement) => ReactElement = (form) => form,
+) {
+  const props = baseProps(overrides)
+  const utils = render(wrap(<TaskCreateForm {...props} />))
+  return { ...utils, onCreate: props.onCreate as ReturnType<typeof vi.fn>, onCancel: props.onCancel as ReturnType<typeof vi.fn> }
+}
+
+describe('TaskCreateForm — the blank Task page', () => {
   it('localizes the PIC/Supervisor hint in Indonesian', () => {
     renderForm({}, (form) => <I18nProvider initialLocale="id">{form}</I18nProvider>)
     expect(screen.getByText('PIC mengerjakan · Supervisor menindaklanjuti')).toBeInTheDocument()
   })
 
-  it('gives every field a visible label, and marks Team + Supervisor required (PIC is not)', () => {
-    renderForm()
-    expect(screen.getByText('Title')).toBeInTheDocument()
+  it('names every property, shows Needed for a missing Team and Supervisor, and keeps the PIC hint', () => {
+    renderForm({ task: makeDraft({ team_id: undefined, business_unit_id: '', accountable_person_id: '' }) })
     expect(screen.getByRole('textbox', { name: 'Title' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Team' })).toHaveAttribute('aria-required', 'true')
     expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveAttribute('aria-required', 'true')
     expect(screen.getByRole('combobox', { name: 'PIC' })).not.toHaveAttribute('aria-required')
-    // A visible asterisk beside each required label — never programmatic-only.
-    const teamLabel = screen.getByText('Team').closest('label')
-    const supervisorLabel = screen.getByText('Supervisor').closest('label')
-    expect(teamLabel?.textContent).toContain('*')
-    expect(supervisorLabel?.textContent).toContain('*')
-    expect(screen.getByText('PIC').closest('label')?.textContent).not.toContain('*')
+    expect(screen.getAllByText('Needed')).toHaveLength(2)
     expect(screen.getByText('PIC does the work · Supervisor follows up')).toBeInTheDocument()
   })
 
-  it('shows the derived Business unit once, as quiet read-only text tied to Team', () => {
+  it('shows no Needed once Team and Supervisor are set, and untitled placeholder invites a title', () => {
     renderForm()
-    const hint = screen.getByTestId('task-create-derived-bu')
-    expect(hint).toHaveTextContent('Business Unit: Retail Ops')
-    // Exactly one occurrence — no duplicate BU line anywhere else in the form.
-    expect(screen.getAllByText(/Business Unit: Retail Ops/)).toHaveLength(1)
+    expect(screen.queryByText('Needed')).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'Title' })).toHaveAttribute('placeholder', 'Untitled')
+  })
+
+  it('starts with the cursor in the title', () => {
+    renderForm()
+    expect(screen.getByRole('textbox', { name: 'Title' })).toHaveFocus()
+  })
+
+  it('Create task stays outlined until title, Team and Supervisor are set, then fills', () => {
+    const states = [
+      { overrides: { task: makeDraft({ title: '' }) }, cls: 'btn-outline' },
+      { overrides: { task: makeDraft({ title: 'Ship it', accountable_person_id: '' }) }, cls: 'btn-outline' },
+      { overrides: { task: makeDraft({ title: 'Ship it', team_id: undefined, business_unit_id: '' }) }, cls: 'btn-outline' },
+      { overrides: { task: makeDraft({ title: 'Ship it' }) }, cls: 'btn-primary' },
+    ]
+    for (const { overrides, cls } of states) {
+      const { unmount } = renderForm(overrides)
+      expect(screen.getByRole('button', { name: 'Create task' })).toHaveClass(cls)
+      unmount()
+    }
+  })
+
+  it('shows the derived Business Unit once, as read-only text', () => {
+    renderForm()
+    expect(screen.getByTestId('task-create-derived-bu')).toHaveTextContent('Retail Ops')
+    expect(screen.getAllByText('Retail Ops')).toHaveLength(1)
   })
 })
 
@@ -155,6 +176,25 @@ describe('TaskCreateForm — discard, busy and retry', () => {
     const { onCancel } = renderForm()
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Title' }), { key: 'Escape' })
     expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('Cancel discards the draft without creating', () => {
+    const { onCancel, onCreate } = renderForm({ task: makeDraft({ title: 'Half typed' }) })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('offline: names the reason and blocks Create', () => {
+    const spy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    try {
+      const { onCreate } = renderForm({ task: makeDraft({ title: 'Ship it' }) })
+      expect(screen.getByText('Reconnect to create this task.')).toBeInTheDocument()
+      const create = screen.getByRole('button', { name: 'Create task' })
+      expect(create).toBeDisabled()
+      fireEvent.click(create)
+      expect(onCreate).not.toHaveBeenCalled()
+    } finally { spy.mockRestore() }
   })
 
   it('while saving, the primary shows a busy label and every control is disabled', async () => {
@@ -297,8 +337,8 @@ describe('TaskCreateForm — discard, busy and retry', () => {
       expect(onCreate).toHaveBeenCalledTimes(2)
       expect(onCreate).toHaveBeenNthCalledWith(1, 'Ship the launch', '')
       expect(onCreate).toHaveBeenNthCalledWith(2, 'Ship the launch', '')
-      // Create now lives in the page action bar outside the form, so focus returns to the form's first usable control.
-      await waitFor(() => expect(title).toHaveFocus())
+      // Create sits in the page header inside the form, so focus returns to that usable submit action.
+      await waitFor(() => expect(create).toHaveFocus())
     } finally { restore() }
   })
 })
@@ -394,16 +434,16 @@ describe('TaskCreateForm — Due date + Project/Process (#1029)', () => {
     expect(screen.queryByRole('combobox', { name: /objective/i })).not.toBeInTheDocument()
   })
 
-  it('reads Title, Team, PIC, Supervisor, Due, Project/Process, then Create task', () => {
+  it('reads Title, Create task, PIC, Supervisor, Team, Due, then Project/Process', () => {
     renderWithContext()
     const order = [
       screen.getByRole('textbox', { name: 'Title' }),
-      screen.getByRole('combobox', { name: 'Team' }),
+      screen.getByRole('button', { name: 'Create task' }),
       screen.getByRole('combobox', { name: 'PIC' }),
       screen.getByRole('combobox', { name: 'Supervisor' }),
+      screen.getByRole('combobox', { name: 'Team' }),
       screen.getByLabelText('Due date'),
       screen.getByRole('combobox', { name: 'Project/Process' }),
-      screen.getByRole('button', { name: 'Create task' }),
     ]
     order.slice(1).forEach((el, i) => {
       expect(order[i].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
