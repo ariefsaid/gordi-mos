@@ -12,6 +12,7 @@ import { PillIcon } from '@/components/ui/pill'
 import { DateField } from '@/components/ui/date-field'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { RecordProperties, type RecordPropertyRow } from '@/components/record/record-properties'
+import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -53,6 +54,8 @@ export function TaskCreateForm({
 }: TaskCreateFormProps) {
   const t = useT()
   const { locale } = useI18n()
+  const auth = useAuth()
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
   const offline = useIsOffline()
   const phoneBar = usePhoneActionBar()
   const formId = useId()
@@ -86,6 +89,8 @@ export function TaskCreateForm({
   const setSaveError = (next: boolean) => { setLocalSaveError(next); onFormStateChange?.({ saveError: next }) }
   // Typed Due text that is not a usable date: Create refuses it rather than saving the old value.
   const [dueInvalid, setDueInvalid] = useState(false)
+  // A Create attempt with something missing unfolds the properties so nothing stays hidden.
+  const [unfold, setUnfold] = useState(0)
   const titleRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Multi-line-safe title (never clips a long EN/ID title): a plain autosizing textarea — no new
@@ -125,7 +130,7 @@ export function TaskCreateForm({
       ? []
       : [{ value: task.responsible_person_id, label: ownerName || task.responsible_person_id }]),
     ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
-  ]
+  ].map((option) => (option.value === viewerId ? { ...option, label: `${option.label} ${t('tasks.create.you')}` } : option))
 
   const workLinePickerOptions = [
     { value: '', label: t('tasks.create.none') },
@@ -139,10 +144,11 @@ export function TaskCreateForm({
 
   const trySubmit = () => {
     setAttempted(true)
+    if (teamMissing || supervisorMissing) setUnfold((n) => n + 1)
     const trimmed = title.trim()
     if (!trimmed) { titleRef.current?.focus(); return }
-    if (teamMissing) { document.getElementById(teamFieldId)?.focus(); return }
-    if (supervisorMissing) { document.getElementById(supervisorFieldId)?.focus(); return }
+    if (teamMissing) { window.setTimeout(() => document.getElementById(teamFieldId)?.focus(), 0); return }
+    if (supervisorMissing) { window.setTimeout(() => document.getElementById(supervisorFieldId)?.focus(), 0); return }
     if (dueInvalid) { document.getElementById(dueFieldId)?.focus(); return }
     if (pending) return
     setSaveError(false)
@@ -271,6 +277,15 @@ export function TaskCreateForm({
       children: <span className="rp-props__plain"><span className="tcf-muted">{t('tasks.create.objectiveFromWork')}</span></span>,
     },
   ]
+  const needed = <span className="tcf-needed">{t('tasks.create.needed')}</span>
+  const summary = (
+    <>
+      <span>{picPickerOptions.find((option) => option.value === task.responsible_person_id)?.label}</span>
+      <span>{teamMissing ? needed : teamPickerOptions.find((option) => option.value === task.team_id)?.label}</span>
+      <span>{supervisorMissing ? needed : supervisorPickerOptions.find((option) => option.value === task.accountable_person_id)?.label}</span>
+    </>
+  )
+
   const cancelButton = <button type="button" className="btn btn-outline" disabled={pending} onClick={onCancel}>{t('common.cancel')}</button>
   const createButton = (
     <button
@@ -346,7 +361,7 @@ export function TaskCreateForm({
         </p>
       )}
 
-      <RecordProperties rows={rows} foldable={false} />
+      <RecordProperties rows={rows} summary={summary} unfold={unfold} />
 
       {/* The document slot: unboxed, no heading, one element another editor can replace. */}
       <section className="task-description-section" aria-label={t('tasks.description.title')}>
