@@ -548,7 +548,7 @@ describe('TaskCreateForm — Private', () => {
     renderForm({}, (form) => <I18nProvider initialLocale="id">{asViewer('viewer-1')(form)}</I18nProvider>)
     await userEvent.click(screen.getByRole('switch', { name: 'Privat' }))
     expect(await supervisorOptions()).toContain('Tidak ada, hanya saya')
-    expect(screen.getByText('Opsional selama tugas privat dan Anda PIC-nya.')).toBeInTheDocument()
+    expect(screen.getByText('Selama tugas privat dan Anda PIC-nya, Anda bisa memilih “Tidak ada, hanya saya”.')).toBeInTheDocument()
   })
 })
 

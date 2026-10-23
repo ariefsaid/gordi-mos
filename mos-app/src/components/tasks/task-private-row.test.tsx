@@ -82,6 +82,12 @@ describe('TaskPrivateRow', () => {
     expect(screen.getByRole('switch', { name: 'Private' })).toBeDisabled()
   })
 
+  it('offers no who-can-see list for a Task from a private Meeting, whoever the viewer is', () => {
+    setup({ isPrivate: true, meetingPrivate: true, viewerInMeeting: true })
+    expect(screen.queryByRole('button', { name: 'Add person' })).toBeNull()
+    expect(screen.queryByText('Nobody added.')).toBeNull()
+  })
+
   it('lets someone in the private Meeting turn Private off', async () => {
     const { onSetPrivate } = setup({ isPrivate: true, meetingPrivate: true, viewerInMeeting: true })
     expect(screen.getByRole('status')).toHaveTextContent('On · everyone in the meeting')
