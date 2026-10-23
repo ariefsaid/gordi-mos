@@ -16,11 +16,10 @@ const route = (o: string, a: 'kitchen' | 'bar', d: string): CafeDestination => (
 const ctx = { activeBranches: branches, extraBranches: [{ id: 'old', name: 'Old Branch' }], pairs }
 
 describe('route rows', () => {
-  it('marks a resolvable kitchen route Configured and uses the floor alias for the destination', () => {
+  it('marks a resolvable kitchen route Configured and names the destination branch', () => {
     const [row] = buildRouteRows([route('hq', 'kitchen', 'rrs')], ctx)
     expect(row.problem).toBeNull()
     expect(row.destinationName).toBe('Rumah Rames')
-    expect(row.destinationAlias).toBe('Bungur')
   })
 
   it('keeps unresolved and archived references as Needs attention instead of dropping them', () => {

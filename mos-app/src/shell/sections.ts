@@ -59,7 +59,7 @@ const SECTIONS: Section[] = [
   { path: '/', label: 'Home', labelKey: 'nav.home', Icon: HomeIcon },
   { path: '/work/signals', label: 'Signals', labelKey: 'nav.work.signals', Icon: SignalsIcon },
   { path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon },
-  { path: '/work/shifts', label: 'My shifts', labelKey: 'nav.work.shifts', Icon: TodayIcon },
+  { path: '/staff/shifts', label: 'Shifts', labelKey: 'nav.staff.shifts', Icon: TodayIcon },
   { path: '/work/projects', label: 'Projects & Processes', labelKey: 'nav.work.projects', Icon: WorkLineIcon },
   // No `capability` here: OD-V4-1 removed the objective.manage READ gate everywhere — the rail
   // entry (destinations.tsx), the route (router.tsx) and now this registry. It was inert while
@@ -141,6 +141,7 @@ function moduleForPath(path: string): ModuleId | null {
   if (path === '/work' || path.startsWith('/work/')) return 'work'
   if (path === '/money' || path.startsWith('/money/')) return 'money'
   if (path === '/cafe' || path.startsWith('/cafe/')) return 'cafe'
+  if (path === '/staff' || path.startsWith('/staff/')) return 'staff'
   return null
 }
 

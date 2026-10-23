@@ -63,8 +63,8 @@ select is(ops.kitchen_action_label('produce', null), 'Production',
   'OD-K-1 parity: produce still reads "Production"');
 select is(ops.kitchen_action_label('transfer','00000000-0000-0000-0000-00000000bf03'), 'Transfer to Radiant',
   'OD-K-1 parity: a transfer to Radiant still reads "Transfer to Radiant"');
-select is(ops.kitchen_action_label('transfer','00000000-0000-0000-0000-00000000bf02'), 'Transfer to Bungur',
-  'OD-K-1 parity: a transfer to Rumah Rames still reads "Transfer to Bungur" — the incumbent''s UI label for that branch, applied at display and stored nowhere');
+select is(ops.kitchen_action_label('transfer','00000000-0000-0000-0000-00000000bf02'), 'Transfer to Rumah Rames',
+  'a transfer to Rumah Rames reads its branch name; the incumbent''s "Bungur" alias is gone (labels come from location names, owner 2026-10-23)');
 
 -- Read through the fact rows themselves, not just the function, so the wiring is proven too.
 select is(
@@ -77,7 +77,7 @@ select is(
   'the label reads off a real cross-branch transfer row');
 select is(
   (select ops.action_label(l) from ops.kitchen_logs l where l.id = '00000000-0000-0000-0000-00000000ac05'),
-  'Transfer to Bungur',
+  'Transfer to Rumah Rames',
   'the label reads off a real within-branch transfer row');
 select is(
   (select ops.action_label(p) from ops.kitchen_plans p where p.id = '00000000-0000-0000-0000-00000000ae02'),

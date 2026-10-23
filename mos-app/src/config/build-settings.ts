@@ -8,6 +8,9 @@ export type ProfileFeature = 'workCollections' | 'deputy'
 
 const CAFE_PROFILE_BLOCKED_PATHS = ['/work', '/tasks', '/updates', '/objectives', '/projects-processes'] as const
 
+/** Retired Work paths that only forward to Staff; open in every profile, so stored links keep working. */
+export const LEGACY_STAFF_REDIRECT_PATHS = ['/work/shifts'] as const
+
 const LEGACY_CAFE_DESTINATIONS: Readonly<Record<string, string>> = {
   '/kitchen': '/cafe/production',
   '/kitchen/log': '/cafe/production',
@@ -46,6 +49,7 @@ export function resolveBuildSettings(env: BuildEnvironment): { basePath: string;
 /** Work collections are outside the Café payload, while shared support and Café routes remain. */
 export function isProfilePathAvailable(path: string, profile: ReleaseProfile): boolean {
   const pathname = path.split('#')[0].split('?')[0]
+  if ((LEGACY_STAFF_REDIRECT_PATHS as readonly string[]).includes(pathname)) return true
   return profile === 'full' || (pathname !== '/' && !CAFE_PROFILE_BLOCKED_PATHS.some(
     (blocked) => pathname === blocked || pathname.startsWith(`${blocked}/`),
   ))

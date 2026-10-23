@@ -4,8 +4,8 @@ const mocks = vi.hoisted(() => ({ schema: vi.fn(), rpc: vi.fn() }))
 vi.mock('@/lib/supabase', () => ({ supabase: { schema: mocks.schema } }))
 
 import {
-  archiveCafeLocation, createCafeLocation, fetchCafeLocationBalances, listCafeLocations,
-  listCafeLocationsByIds, listCafeRecordLocations, moveCafeStock, saveCafeStreamLocationDefaults, updateCafeLocation,
+  archiveCafeLocation, createCafeLocation, fetchCafeLocationBalances, listCafeDestinationLocations, listCafeLocations,
+  listCafeLocationsByIds, listCafeRecordLocations, moveCafeStock, updateCafeLocation,
 } from './cafe-locations'
 
 const schema = vi.mocked(mocks.schema)
@@ -34,6 +34,31 @@ function listResponse(rows: unknown[]) {
   })
   return calls
 }
+
+describe('Café Locations client: site, activities and destinations', () => {
+  it('reads Site and Activities from the location list and defaults them when absent', async () => {
+    listResponse([{ ...location('a'), site_id: 'site-1', activities: ['kitchen'] }, location('b')])
+    const [withSite, without] = await listCafeLocations()
+    expect(withSite).toMatchObject({ site_id: 'site-1', activities: ['kitchen'] })
+    expect(without).toMatchObject({ site_id: null, activities: [] })
+  })
+
+  it('sends Site and Activities with a save', async () => {
+    rpc.mockResolvedValue({ data: { ...location('a'), site_id: 'site-1', activities: ['bar'] }, error: null })
+    await createCafeLocation({ name: 'GHQ Bar', use: 'both', parent_id: null, branch_ids: ['branch-1'], site_id: 'site-1', activities: ['bar'] }, context)
+    expect(rpc).toHaveBeenCalledWith('create_cafe_location', expect.objectContaining({
+      p_input: expect.objectContaining({ site_id: 'site-1', activities: ['bar'] }),
+    }))
+  })
+
+  it('lists where a location may send, own branch first', async () => {
+    rpc.mockResolvedValue({ data: [{ location_id: 'out', name: 'RRS Outlet', branch_id: 'rrs', same_branch: true }], error: null })
+    await expect(listCafeDestinationLocations('central')).resolves.toEqual([
+      { location_id: 'out', name: 'RRS Outlet', branch_id: 'rrs', same_branch: true },
+    ])
+    expect(rpc).toHaveBeenCalledWith('list_cafe_destination_locations', { p_from_location_id: 'central' })
+  })
+})
 
 describe('Café Locations client', () => {
   it('exhausts list pages and preserves the caller filter', async () => {
@@ -68,17 +93,6 @@ describe('Café Locations client', () => {
     expect(rpc).toHaveBeenLastCalledWith('update_cafe_location', { p_id: 'loc-1', p_expected_version: 4, p_input: input, p_client_request_id: 'request-1' })
     await archiveCafeLocation('loc-1', 5, context)
     expect(rpc).toHaveBeenLastCalledWith('archive_cafe_location', { p_id: 'loc-1', p_expected_version: 5, p_client_request_id: 'request-1' })
-  })
-
-  it('saves admin-managed stream defaults with optimistic version and idempotency arguments', async () => {
-    rpc.mockResolvedValue({ data: { row_version: 3 }, error: null } as never)
-    const stream = { branch_id: 'branch-1', activity: 'kitchen' as const }
-    const defaults = { production_location_id: 'prep-1', storage_location_id: null }
-    await expect(saveCafeStreamLocationDefaults(stream, defaults, 2, context)).resolves.toEqual({ row_version: 3 })
-    expect(rpc).toHaveBeenCalledWith('save_cafe_stream_location_defaults', {
-      p_branch_id: 'branch-1', p_activity: 'kitchen', p_defaults: defaults,
-      p_expected_version: 2, p_client_request_id: 'request-1',
-    })
   })
 
   it('returns decimal quantities as strings and preserves honest unallocated coverage', async () => {

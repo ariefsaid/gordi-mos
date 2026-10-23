@@ -193,3 +193,11 @@
 .cap-table[data-layout='wide'] .cap-row__detail { grid-column: 1 / -1; }
 
 @media (hover: none) { .cap-row:hover { background: transparent; } }
+
+/* ── Compact: several quantity groups as quantity-only boxes under one header row (Plan). Narrow lists stack as before. ── */
+.cap-table[data-compact] { --cap-qty-w: 5.5rem; --cap-control-w: var(--cap-qty-w); }
+.cap-table[data-compact][data-layout='wide'] :is(.cap-head__control:not(.cap-head__control--label), .cap-control) { grid-template-columns: var(--cap-qty-w); }
+.cap-table[data-compact][data-layout='wide'] .cap-head__control { align-self: end; overflow-wrap: anywhere; hyphens: auto; line-height: 1.25; }
+.cap-table[data-compact][data-layout='wide'] .cap-head { align-items: end; }
+.cap-table[data-compact][data-layout='wide'] .cap-control .quantity-field-suffix { grid-column: 1; }
+.cap-table[data-compact] .pqf-unit { display: none; }

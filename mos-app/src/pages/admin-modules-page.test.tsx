@@ -17,6 +17,7 @@ function rows(moneyEnabled = true, assistantEnabled = false, assistantVersion = 
     { module_id: 'work', enabled: true, row_version: 1, updated_at: null, updated_by: null },
     { module_id: 'money', enabled: moneyEnabled, row_version: 7, updated_at: null, updated_by: null },
     { module_id: 'cafe', enabled: true, row_version: 2, updated_at: null, updated_by: null },
+    { module_id: 'staff', enabled: true, row_version: 0, updated_at: null, updated_by: null },
     { module_id: 'assistant', enabled: assistantEnabled, row_version: assistantVersion, updated_at: null, updated_by: null },
     { module_id: 'roastery', enabled: true, row_version: 0, updated_at: null, updated_by: null },
     { module_id: 'ecommerce', enabled: true, row_version: 0, updated_at: null, updated_by: null },
@@ -59,21 +60,21 @@ describe('Admin › Modules', () => {
     expect(stubs.fns.saveOrgModuleSettings).not.toHaveBeenCalled()
   })
 
-  it('loads the six settings in Admin order, including Work and Assistant', async () => {
+  it('loads the seven settings in Admin order, including Work and Assistant', async () => {
     renderPage()
     const table = await screen.findByRole('table', { name: 'Module availability for the Org' })
     const tableRows = within(table).getAllByRole('row').slice(1)
     expect(tableRows.map((row) => within(row).getAllByRole('cell')[0].textContent)).toEqual([
-      'Work', 'Money', 'Café', 'Assistant', 'Roastery', 'Ecommerce',
+      'Work', 'Money', 'Café', 'Staff', 'Assistant', 'Roastery', 'Ecommerce',
     ])
     expect(within(tableRows[1]).getByText('On', { selector: 'td > span' })).toBeInTheDocument()
     expect(within(tableRows[1]).getByRole('combobox', { name: 'Money: Org availability' })).toHaveTextContent('On')
-    expect(within(tableRows[3]).getByRole('combobox', { name: 'Assistant: Org availability' })).toHaveTextContent('Off')
-    expect(within(tableRows[4]).getAllByText('Not released').length).toBeGreaterThan(0)
-    expect(within(tableRows[4]).getByRole('combobox', { name: 'Roastery: Org availability' })).toBeDisabled()
-    expect(within(tableRows[4]).getByRole('combobox', { name: 'Roastery: Org availability' })).toHaveTextContent('Off')
-    expect(within(tableRows[5]).getByRole('combobox', { name: 'Ecommerce: Org availability' })).toBeDisabled()
-    expect(within(tableRows[5]).getByRole('combobox', { name: 'Ecommerce: Org availability' })).toHaveTextContent('Off')
+    expect(within(tableRows[4]).getByRole('combobox', { name: 'Assistant: Org availability' })).toHaveTextContent('Off')
+    expect(within(tableRows[5]).getAllByText('Not released').length).toBeGreaterThan(0)
+    expect(within(tableRows[5]).getByRole('combobox', { name: 'Roastery: Org availability' })).toBeDisabled()
+    expect(within(tableRows[5]).getByRole('combobox', { name: 'Roastery: Org availability' })).toHaveTextContent('Off')
+    expect(within(tableRows[6]).getByRole('combobox', { name: 'Ecommerce: Org availability' })).toBeDisabled()
+    expect(within(tableRows[6]).getByRole('combobox', { name: 'Ecommerce: Org availability' })).toHaveTextContent('Off')
     expect(screen.getByRole('button', { name: 'Save module settings' })).toBeDisabled()
     expect(stubs.fns.listOrgModuleSettings).toHaveBeenCalledOnce()
   })

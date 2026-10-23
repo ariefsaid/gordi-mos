@@ -16,7 +16,7 @@ import { compareDec, formatDec, parseDecimal } from '@/lib/cafe-records/decimal'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { useCafeStreamBootstrap } from '@/lib/use-cafe-stream-bootstrap'
 import { listCafeCountableItems, type CafeCountableItem } from '@/lib/db/cafe-count'
-import { fetchCafeLocationBalances, getCafeStreamLocationDefaults, listCafeLocations, moveCafeStock, placeCafeUnassignedStock, type CafeLocation, type LocationBalances } from '@/lib/db/cafe-locations'
+import { fetchCafeLocationBalances, listCafeLocations, moveCafeStock, placeCafeUnassignedStock, type CafeLocation, type LocationBalances } from '@/lib/db/cafe-locations'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { parseQuantityInput } from '@/lib/quantity-parser'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
@@ -63,14 +63,14 @@ export function CafeMoveStockPage() {
       listCafeCountableItems(stream),
       listCafeLocations({ branch_id: stream.branch.id, archived: false }),
       fetchCafeLocationBalances(date, { branch_id: stream.branch.id, activity: stream.activity }),
-      getCafeStreamLocationDefaults({ branch_id: stream.branch.id, activity: stream.activity }),
-    ]).then(([items, locations, balances, defaults]) => {
+    ]).then(([items, locations, balances]) => {
       if (!active || generation.current !== current) return
       const streamKey = `${stream.branch.id}:${stream.activity}`
       if (selectionRef.current.stream !== streamKey) {
         const storage = locations.filter(location => location.use === 'storage' || location.use === 'both')
-        const source = storage.find(location => location.id === defaults?.storage_location_id)?.id ?? ''
-        const destination = source && storage.length === 2 ? storage.find(location => location.id !== source)?.id ?? '' : ''
+        // Moves start from the Location the person is working at, when stock can sit there; the destination is theirs to pick.
+        const source = storage.find(location => location.id === stream.location?.id)?.id ?? ''
+        const destination = ''
         selectionRef.current = { stream: streamKey, from: source, to: destination, date, note: '' }
         setFrom(source); setTo(destination)
       }

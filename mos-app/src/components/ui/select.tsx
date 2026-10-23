@@ -53,6 +53,8 @@ type ParsedOption = {
   label: string
   disabled: boolean
   selected: boolean
+  /** The `<optgroup label>` this option sits under, shown as a heading in the open list. */
+  group?: string
 }
 
 type OptionElementProps = {
@@ -75,7 +77,7 @@ function optionText(children: ReactNode): string {
   return text
 }
 
-function parseOptions(children: ReactNode, groupDisabled = false): ParsedOption[] {
+function parseOptions(children: ReactNode, groupDisabled = false, group?: string): ParsedOption[] {
   const parsed: ParsedOption[] = []
   Children.forEach(children, (child) => {
     if (!isValidElement(child)) return
@@ -87,16 +89,29 @@ function parseOptions(children: ReactNode, groupDisabled = false): ParsedOption[
         label,
         disabled: groupDisabled || Boolean(props.disabled),
         selected: Boolean(props.selected),
+        group,
       })
       return
     }
     if (child.type === 'optgroup') {
-      parseOptions(props.children, groupDisabled || Boolean(props.disabled)).forEach((option) => parsed.push(option))
+      const heading = typeof props.label === 'string' ? props.label : undefined
+      parseOptions(props.children, groupDisabled || Boolean(props.disabled), heading).forEach((option) => parsed.push(option))
       return
     }
-    if (child.type === Fragment) parseOptions(props.children, groupDisabled).forEach((option) => parsed.push(option))
+    if (child.type === Fragment) parseOptions(props.children, groupDisabled, group).forEach((option) => parsed.push(option))
   })
   return parsed
+}
+
+/** Consecutive options under one `<optgroup>` form a segment; ungrouped options are one segment each run. */
+function optionSegments(options: readonly ParsedOption[]): Array<{ group: string | undefined; items: Array<{ option: ParsedOption; index: number }> }> {
+  const segments: Array<{ group: string | undefined; items: Array<{ option: ParsedOption; index: number }> }> = []
+  options.forEach((option, index) => {
+    const last = segments.at(-1)
+    if (last && last.group === option.group) last.items.push({ option, index })
+    else segments.push({ group: option.group, items: [{ option, index }] })
+  })
+  return segments
 }
 
 function normalizeValue(value: SelectProps['value'] | SelectProps['defaultValue']): string {
@@ -291,7 +306,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
               onEscapeKeyDown={(event) => event.stopPropagation()}
             >
               <RadixSelect.Viewport className="mk-select__viewport">
-                {options.map((option, index) => {
+                {optionSegments(options).map((segment) => {
+                  const items = segment.items.map(({ option, index }) => {
                   // A disabled empty-value option is the placeholder prompt (the pattern every
                   // caller uses to hold "no choice yet" — e.g. cafe-stream-bar's "Choose stream…").
                   // It is not a choosable value, so the open list omits it entirely; the closed
@@ -311,6 +327,15 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                       </RadixSelect.ItemIndicator>
                     </RadixSelect.Item>
                   )
+                  })
+                  return segment.group === undefined
+                    ? items
+                    : (
+                      <RadixSelect.Group key={segment.group}>
+                        <RadixSelect.Label className="mk-select__group">{segment.group}</RadixSelect.Label>
+                        {items}
+                      </RadixSelect.Group>
+                    )
                 })}
               </RadixSelect.Viewport>
             </RadixSelect.Content>

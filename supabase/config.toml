@@ -432,6 +432,8 @@ deno_version = 2
 verify_jwt = false   # handler verifies through _shared/claims.ts requireVerifiedClaims to return a typed 401 + stream a typed terminal status
 [functions.compose-view]
 verify_jwt = false   # handler verifies through _shared/claims.ts requireVerifiedClaims to return a typed 401/400/422
+[functions.attendance-photo-purge]
+verify_jwt = false   # handler checks its own ATTENDANCE_PURGE_SECRET bearer (called by pg_cron via pg_net)
 [functions.mcp]
 verify_jwt = false   # handler validates the agent token itself (aud, client_id, JWKS) and answers 401 + resource metadata
 

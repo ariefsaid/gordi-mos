@@ -43,7 +43,7 @@ vi.mock('@/lib/db/cafe-records', async importOriginal => ({
 vi.mock('@/shell/use-is-offline', () => ({ useIsOffline: () => false }))
 
 const log = (over: Partial<CafeRecordLog> = {}): CafeRecordLog => ({
-  id: 'l1', batch_id: null, log_date: '2026-10-14', branch_id: B1, activity: 'bar', action: 'produce', action_label: 'Production', destination_branch_id: null,
+  id: 'l1', batch_id: null, log_date: '2026-10-14', branch_id: B1, activity: 'bar', action: 'produce', action_label: 'Production', destination_branch_id: null, production_location_id: null, from_storage_location_id: null, to_storage_location_id: null,
   wip_item_id: 'i1', item_unit_id: 'u1', qty_porsi: 12, entry_quantity: null, entry_unit_factor: null, entry_unit_name: null, notes: null, status: 'Approved',
   submitted_by: 'p9', created_at: '2026-10-14T03:00:00+00:00', updated_at: 'x', reviewed_by: null, reviewed_at: null, review_note: null, posted_to_esb: false,
   posted_at: null, esb_doc_num: null, superseded_by: null, item_name: 'Pickled onion', ...over,

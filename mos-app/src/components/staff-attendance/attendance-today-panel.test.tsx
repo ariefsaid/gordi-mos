@@ -77,4 +77,17 @@ describe('AttendanceTodayPanel', () => {
     await user.click(within(form).getByRole('button', { name: 'Save correction' }))
     await waitFor(() => expect(correctAttendanceRecord).toHaveBeenCalledWith('p1', '2026-10-22T00:00:00Z', '2026-10-22T00:05:00.000Z', '2026-10-22T08:00:00.000Z', 'Phone died at the door'))
   })
+
+  it('AC-033 an overnight correction puts the clock-out on the next day', async () => {
+    const user = userEvent.setup()
+    vi.mocked(listTeamAttendance).mockResolvedValue([row({ person_name: 'Dimas', status: 'no_clock_out', record_id: 'rec-1', start_at: '2026-10-22T15:00:00Z', end_at: '2026-10-22T23:00:00Z', clock_in_at: '2026-10-22T15:00:00Z' })])
+    vi.mocked(correctAttendanceRecord).mockResolvedValue('rec-1')
+    renderPanel()
+    await user.click(await screen.findByRole('button', { name: 'Open Dimas' }))
+    const form = await screen.findByRole('form', { name: 'Correct record for Dimas' })
+    await user.type(within(form).getByLabelText('Clock-out · WIB'), '06:00')
+    await user.type(within(form).getByLabelText('Reason (required)'), 'Forgot to clock out')
+    await user.click(within(form).getByRole('button', { name: 'Save correction' }))
+    await waitFor(() => expect(correctAttendanceRecord).toHaveBeenCalledWith('p1', '2026-10-22T15:00:00Z', '2026-10-22T15:00:00.000Z', '2026-10-22T23:00:00.000Z', 'Forgot to clock out'))
+  })
 })

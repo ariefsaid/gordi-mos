@@ -3,7 +3,7 @@
 // Every number here is a read a Café page already makes for the same stream and day (plan, today's
 // submitted actuals, the item list, the person's own locked receipt and last request). Nothing new is
 // stored and nothing is shown to someone who could not already open the page it belongs to.
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { computeKitchenKpis } from '@/lib/kitchen-kpis'
 import { fetchActualsMap, fetchPlanMap, listCaptureFormItems } from '@/lib/db/kitchen-logs'
@@ -11,14 +11,15 @@ import { listCafeReceipts } from '@/lib/db/cafe-receipts'
 import { listCafePurchaseRequests, type CafePurchaseRequest } from '@/lib/db/cafe-purchase-requests'
 import { canManageCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { listCafeCaptureDrafts, type CafeCaptureForm } from '@/lib/cafe-capture-storage'
-import { movementKey, movementsForStream, streamProduces, PRODUCE } from '@/lib/kitchen-action-label'
+import { movementKey, streamOptionKey, streamProduces, PRODUCE } from '@/lib/kitchen-action-label'
+import { readCafeMovements } from '@/lib/use-cafe-destinations'
 import { wibToday } from '@/lib/format/date'
-import type { BranchOption, CafeDestination, ProductionStream } from '@/lib/db/kitchen-logs.types'
+import type { BranchOption, ProductionStream } from '@/lib/db/kitchen-logs.types'
 
 interface TodayTransfer {
-  destinationBranchId: string
-  /** The destination's branch, so the row can name it the way the Transfer page does. */
-  branch: BranchOption | null
+  key: string
+  /** The destination's name, as the Transfer page reads it. */
+  name: string
   planned: number
 }
 
@@ -47,10 +48,9 @@ const EMPTY: Omit<TodayJobs, 'retry' | 'state'> = {
   lastRequest: null, itemsReady: null, canSetUpItems: false,
 }
 
-export function useCafeTodayJobs({ stream, allOptions, destinations, branches, canCapture }: {
+export function useCafeTodayJobs({ stream, allOptions, branches, canCapture }: {
   stream: ProductionStream | null
   allOptions: readonly ProductionStream[]
-  destinations: readonly CafeDestination[]
   branches: readonly BranchOption[]
   canCapture: boolean
 }): TodayJobs {
@@ -62,12 +62,7 @@ export function useCafeTodayJobs({ stream, allOptions, destinations, branches, c
   const [state, setState] = useState<TodayJobs['state']>('loading')
   const [retryKey, setRetryKey] = useState(0)
   const retry = useCallback(() => setRetryKey(key => key + 1), [])
-  const streamId = stream ? `${stream.branch.id}|${stream.activity}` : null
-
-  const transferMoves = useMemo(
-    () => (stream ? movementsForStream(stream, allOptions, destinations).filter(move => move.action === 'transfer') : []),
-    [allOptions, destinations, stream],
-  )
+  const streamId = stream ? streamOptionKey(stream) : null
 
   useEffect(() => {
     let live = true
@@ -88,7 +83,10 @@ export function useCafeTodayJobs({ stream, allOptions, destinations, branches, c
     void (async () => {
       try {
         // The day's numbers are the page's reason to exist: a failed read here is an error, not a zero.
-        const [plan, actuals] = await Promise.all([fetchPlanMap(today, stream), fetchActualsMap(today, stream)])
+        const [plan, actuals, moves] = await Promise.all([
+          fetchPlanMap(today, stream), fetchActualsMap(today, stream), readCafeMovements(personId, stream, allOptions),
+        ])
+        const transferMoves = moves.filter(move => move.action === 'transfer')
         // The rest degrade quietly: a row without its detail is still a working link.
         const [items, receipts, requests] = await Promise.allSettled([
           listCaptureFormItems(stream, 'produce'),
@@ -106,8 +104,8 @@ export function useCafeTodayJobs({ stream, allOptions, destinations, branches, c
           planned: produce.plannedItemCount,
           made: produce.loggedItemCount,
           transfers: transferMoves.map(move => ({
-            destinationBranchId: move.destinationBranchId ?? '',
-            branch: branches.find(branch => branch.id === move.destinationBranchId) ?? null,
+            key: movementKey(move),
+            name: move.toLocationName ?? branches.find(branch => branch.id === move.destinationBranchId)?.name ?? '',
             planned: computeKitchenKpis(plan, actuals, movementKey(move)).plannedItemCount,
           })),
           wasteLogged: computeKitchenKpis(plan, actuals, 'waste').loggedItemCount,
@@ -125,7 +123,7 @@ export function useCafeTodayJobs({ stream, allOptions, destinations, branches, c
     return () => { live = false }
   // streamId stands for `stream`: a new object for the same stream must not re-read.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [streamId, personId, orgId, canCapture, retryKey, transferMoves.length])
+  }, [streamId, personId, orgId, canCapture, retryKey])
 
   return { state, ...data, retry }
 }

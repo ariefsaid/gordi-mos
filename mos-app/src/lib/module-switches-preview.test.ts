@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { moduleFacts, roleAdmittedTo } from './module-switches-preview'
 
 describe('module facts used by Admin settings', () => {
-  it('keeps the six switches in the existing Admin order and preserves release status', () => {
-    expect(moduleFacts().map(({ id }) => id)).toEqual(['work', 'money', 'cafe', 'assistant', 'roastery', 'ecommerce'])
+  it('keeps the seven switches in the existing Admin order and preserves release status', () => {
+    expect(moduleFacts().map(({ id }) => id)).toEqual(['work', 'money', 'cafe', 'staff', 'assistant', 'roastery', 'ecommerce'])
     expect(moduleFacts().find((fact) => fact.id === 'roastery')?.released).toBe(false)
     expect(moduleFacts().find((fact) => fact.id === 'cafe')?.released).toBe(true)
   })

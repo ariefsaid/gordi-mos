@@ -42,7 +42,7 @@ import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { LocationLineField } from '@/components/preview/location-preview-fields'
-import { availableCafeLocationDefault, useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
+import { defaultStorageLocationId, useCafeLocationChoices } from '@/lib/use-cafe-location-choices'
 import { WastePhotoCapture } from '@/components/kitchen/waste-photo-capture'
 import { CafeTransactionWorkspace } from '@/components/cafe/redesign/cafe-transaction-workspace'
 import { Worksheet } from '@/components/cafe/redesign/worksheet'
@@ -223,8 +223,8 @@ export function CafeWastePage() {
   })
   const locationChoices = useCafeLocationChoices(canCapture ? stream : null)
   const storageLocations = locationChoices.locations.filter(location => location.use === 'storage' || location.use === 'both')
-  const defaultStorageLocationId = locationChoices.status === 'ready'
-    ? availableCafeLocationDefault(locationChoices.locations, locationChoices.defaults?.storage_location_id, 'storage')
+  const defaultStorageId = locationChoices.status === 'ready'
+    ? defaultStorageLocationId(stream, locationChoices.locations)
     : null
   const personId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
   const orgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : ''
@@ -613,7 +613,7 @@ export function CafeWastePage() {
         entry_quantity: quantity,
         entry_unit_factor: entry.unitFactor ?? 1,
         ...(locationChoices.status === 'ready' ? {
-          from_storage_location_id: entry.storage_location_id === undefined ? defaultStorageLocationId : entry.storage_location_id,
+          from_storage_location_id: entry.storage_location_id === undefined ? defaultStorageId : entry.storage_location_id,
         } : {}),
       })
       patchEntry(item.id, { logId, capturedLogDate: logDate, preparing: false })
@@ -845,7 +845,7 @@ export function CafeWastePage() {
       {canCapture && Boolean(entries[item.id]?.quantity?.trim()) && <LocationLineField
         kind="waste"
         locations={storageLocations}
-        value={entries[item.id]?.storage_location_id === undefined ? defaultStorageLocationId : entries[item.id]?.storage_location_id}
+        value={entries[item.id]?.storage_location_id === undefined ? defaultStorageId : entries[item.id]?.storage_location_id}
         onChange={value => {
           const entry = entries[item.id]
           patchEntry(item.id, {

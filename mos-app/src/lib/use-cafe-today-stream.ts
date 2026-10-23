@@ -48,7 +48,6 @@ export function useCafeTodayStream() {
     stream,
     streamOptions,
     allOptions: options,
-    destinations: cafeStream.destinations,
     branches: cafeStream.branches,
     homeStream,
     myStreamKeys,

@@ -1,7 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CafeStreamBar } from './cafe-stream-bar'
-import { MovementSeg } from './movement-seg'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 
 afterEach(cleanup)
@@ -30,15 +29,16 @@ describe('Café switch menu', () => {
     fireEvent.click(within(screen.getByRole('listbox')).getByText('Cikal · Bar'))
     expect(onChange).toHaveBeenCalledWith(cikalBar)
   })
-})
 
-describe('Transfer destinations say where work is planned', () => {
-  it('appends the planned count to a destination that has a plan', () => {
-    const toCikal = { action: 'transfer' as const, destinationBranchId: 'b2' }
-    const toKitchen = { action: 'transfer' as const, destinationBranchId: 'b1' }
-    render(<MovementSeg value={toCikal} options={[toCikal, toKitchen]} branches={[hq, cikal]} origin={hqBar}
-      onChange={vi.fn()} planCounts={{ 'transfer:b1': 3 }} />)
-    expect(screen.getByRole('button', { name: 'Transfer to Cikal' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Transfer to Gordi HQ · Kitchen · 3 planned' })).toBeInTheDocument()
+  it('lists production Locations only: streams with no Location (bar-only, receiving-only) are not offered', () => {
+    const at = (stream: ProductionStream, id: string, name: string): ProductionStream =>
+      ({ ...stream, location: { id, name, siteName: 'Gordi HQ', holdsStock: true } })
+    const central = at(hqKitchen, 'l1', 'Central')
+    const bar = at(hqBar, 'l2', 'Bar Place')
+    const receiving: ProductionStream = { branch: cikal, activity: 'kitchen', produces: false }
+    render(<CafeStreamBar options={[central, bar, cikalBar, receiving]} stream={central} locationBranchId="b1" onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Switch kitchen' }))
+    const options = within(screen.getByRole('listbox')).getAllByRole('option')
+    expect(options.map(option => option.textContent)).toEqual(['Bar Place · at Gordi HQ', 'Central · at Gordi HQ'])
   })
 })

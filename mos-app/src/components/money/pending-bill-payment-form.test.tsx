@@ -106,6 +106,18 @@ describe('AC-1134: the payment form names invalid fields and keeps submit off', 
     expect(screen.queryByRole('status')).toBeNull()
   })
 
+  it('does not list a filled-but-invalid date as missing, and states a proof problem once', () => {
+    renderForm()
+    const date = screen.getByLabelText(/^Cash-in date/)
+    fireEvent.change(date, { target: { value: '31/02/2026' } })
+    expect(screen.getByRole('status')).not.toHaveTextContent('Cash-in date')
+    fireEvent.change(screen.getByLabelText(/^Proof/), {
+      target: { files: [new File(['x'], 'big.txt', { type: 'text/plain' })] },
+    })
+    expect(screen.getByText('Choose a JPG, PNG, WebP, or PDF proof file.')).toBeInTheDocument()
+    expect(screen.queryByText(/Proof: /)).toBeNull()
+  })
+
   it('keeps the proof picker open to gallery images and PDFs', () => {
     renderForm()
     const proof = screen.getByLabelText(/^Proof/) as HTMLInputElement

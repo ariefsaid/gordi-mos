@@ -57,7 +57,11 @@ export interface RecordEntry {
   streamKey: string
   branchId: string
   activity: ProductionActivity
-  destinationBranchId: string | null
+  /** Where a transfer went: the Location when it names one, else the destination branch (older history). */
+  destinationKey: string | null
+  /** The places a log was made or sent from, and sent to; null where none was recorded. */
+  fromLocationId: string | null
+  toLocationId: string | null
   status: StatusBasis
   rawStatus: string
   /** The business date: log_date, count_date, arrival_date, or the WIB date of requested_at. */
@@ -114,7 +118,9 @@ function fromLog(log: CafeRecordLog, ctx: BuildContext): RecordEntry {
     movement: log.action === 'outlet_send' ? 'sent' : log.action === 'produce' ? 'made' : log.action === 'transfer' ? 'transferred' : 'wasted',
     itemKey: log.wip_item_id, itemName: ctx.itemName(log.wip_item_id, streamKey) ?? log.item_name ?? '',
     streamKey, branchId: log.branch_id, activity: log.activity,
-    destinationBranchId: log.action === 'transfer' ? log.destination_branch_id : null,
+    destinationKey: log.action === 'transfer' ? log.to_storage_location_id ?? log.destination_branch_id : null,
+    fromLocationId: log.production_location_id ?? log.from_storage_location_id ?? null,
+    toLocationId: log.to_storage_location_id ?? null,
     status: logStatus(log.status), rawStatus: log.status, date: log.log_date, at: log.created_at,
     personId: log.submitted_by, qty, unit, entered, raw: { source: 'log', log },
   }
@@ -126,7 +132,7 @@ function fromCount(count: CafeRecordCount, ctx: BuildContext): RecordEntry {
   return {
     key: `count:${count.id}`, source: 'count', parentId: null, movement: 'counted',
     itemKey: count.wip_item_id, itemName: ctx.itemName(count.wip_item_id, streamKey) ?? count.item_name ?? '',
-    streamKey, branchId: count.branch_id, activity: count.activity, destinationBranchId: null,
+    streamKey, branchId: count.branch_id, activity: count.activity, destinationKey: null, fromLocationId: null, toLocationId: null,
     status: count.status === 'Confirmed' ? 'confirmed' : count.status === 'Rejected' ? 'rejected' : 'pending',
     rawStatus: count.status, date: count.count_date, at: count.submitted_at,
     personId: count.submitted_by, qty: parseDecimal(count.counted_quantity),
@@ -150,7 +156,7 @@ function fromReceiptLine(receipt: CafeReceipt, line: CafeReceiptLine, ctx: Build
     key: `receipt:${line.id}`, source: 'receipt', parentId: receipt.id, movement: 'received',
     // Receipt units resolve to an item only where the existing item settings expose that exact unit id.
     itemKey: item ? item.id : `receipt-unit:${line.item_unit_id || line.id}`, itemName: name,
-    streamKey, branchId: receipt.branch_id, activity: receipt.activity, destinationBranchId: null,
+    streamKey, branchId: receipt.branch_id, activity: receipt.activity, destinationKey: null, fromLocationId: null, toLocationId: null,
     status: receiptStatus(receipt.status), rawStatus: receipt.status, date: receipt.arrival_date, at: receipt.received_at,
     personId: receipt.received_by, qty: parseDecimal(line.received_quantity),
     unit: line.item_unit_id
@@ -170,7 +176,7 @@ function fromRequestLine(request: CafePurchaseRequest, line: CafePurchaseRequest
     key: `request:${line.id}`, source: 'request', parentId: request.id, movement: 'requested',
     // Link only with the identity stored on the request line; a matching name is not an item id.
     itemKey: itemId ?? `request-name:${name}`, itemName: itemId ? ctx.itemName(itemId, streamKey) ?? name : name,
-    streamKey, branchId: request.branch_id, activity: request.activity, destinationBranchId: null,
+    streamKey, branchId: request.branch_id, activity: request.activity, destinationKey: null, fromLocationId: null, toLocationId: null,
     status: request.status === 'Approved' ? 'approved' : request.status === 'Rejected' ? 'rejected' : 'pending',
     rawStatus: request.status, date: ctx.wibDateOf(request.requested_at), at: request.requested_at,
     personId: request.requested_by, qty: parseDecimal(line.quantity),
@@ -215,7 +221,7 @@ export function filterEntries(entries: readonly RecordEntry[], filter: EntryFilt
   const needle = fold(filter.q.trim())
   return entries.filter(entry => matchesQuestion(entry, filter.question)
     && (!filter.item || entry.itemKey === filter.item)
-    && (!filter.destination || entry.destinationBranchId === filter.destination)
+    && (!filter.destination || entry.destinationKey === filter.destination)
     && (!needle || fold(entry.itemName).includes(needle)))
 }
 
@@ -228,7 +234,7 @@ export interface SummaryRow {
   itemKey: string
   itemName: string
   streamKey: string
-  destinationBranchId: string | null
+  destinationKey: string | null
   unit: UnitBasis
   qty: Dec | null
   /** Entries behind this row (for Counted: observations in the period). */
@@ -253,12 +259,12 @@ export function summarize(entries: readonly RecordEntry[], question: Question): 
       for (const entry of pool) {
         const key = entry.unit.unsummable
           ? `${movement}|${status}|${entry.key}`
-          : `${movement}|${status}|${entry.itemKey}|${entry.streamKey}|${entry.destinationBranchId ?? ''}|${entry.unit.key}`
+          : `${movement}|${status}|${entry.itemKey}|${entry.streamKey}|${entry.destinationKey ?? ''}|${entry.unit.key}`
         const existing = rows.get(key)
         if (!existing) {
           rows.set(key, {
             id: key, movement, status, itemKey: entry.itemKey, itemName: entry.itemName, streamKey: entry.streamKey,
-            destinationBranchId: entry.destinationBranchId, unit: entry.unit, qty: null, entries: 0, latestDate: null,
+            destinationKey: entry.destinationKey, unit: entry.unit, qty: null, entries: 0, latestDate: null,
           })
         }
         const row = rows.get(key)!
@@ -287,7 +293,7 @@ function byUnitThenQty(a: Pick<RecordEntry, 'unit' | 'qty'>, b: Pick<RecordEntry
   return unit !== 0 ? unit : sign * compareDec(a.qty ?? ZERO, b.qty ?? ZERO)
 }
 
-export interface SortContext { streamLabel: (key: string) => string; destinationLabel: (streamKey: string, branchId: string | null) => string }
+export interface SortContext { streamLabel: (key: string) => string; destinationLabel: (streamKey: string, key: string | null) => string }
 
 export function sortSummaryRows(rows: readonly SummaryRow[], sort: SortKey, dir: SortDir, ctx: SortContext): SummaryRow[] {
   const sign = dir === 'asc' ? 1 : -1
@@ -295,7 +301,7 @@ export function sortSummaryRows(rows: readonly SummaryRow[], sort: SortKey, dir:
   return [...rows].sort((a, b) => {
     switch (sort) {
       case 'stream': return sign * byText(ctx.streamLabel(a.streamKey), ctx.streamLabel(b.streamKey)) || tie(a, b)
-      case 'destination': return sign * byText(ctx.destinationLabel(a.streamKey, a.destinationBranchId), ctx.destinationLabel(b.streamKey, b.destinationBranchId)) || tie(a, b)
+      case 'destination': return sign * byText(ctx.destinationLabel(a.streamKey, a.destinationKey), ctx.destinationLabel(b.streamKey, b.destinationKey)) || tie(a, b)
       case 'quantity': return byUnitThenQty(a, b, sign) || tie(a, b)
       case 'entries': return sign * (a.entries - b.entries) || tie(a, b)
       default: return sign * byText(a.itemName, b.itemName) || a.id.localeCompare(b.id)

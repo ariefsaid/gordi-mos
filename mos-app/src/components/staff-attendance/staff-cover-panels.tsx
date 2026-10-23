@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } fr
 import { useI18n } from '@/i18n/I18nProvider'
 import { useStaffCoverText, type StaffCoverKey, type StaffCoverText } from '@/i18n/staff-cover'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { Select } from '@/components/ui/select'
 import { listMyStaffShifts, type StaffShift } from '@/lib/db/staff-attendance'
 import {
   assignStaffCover, attachStaffAbsenceNote, cancelStaffAbsence, cancelStaffOffer, claimStaffShift, decideStaffAbsence,
@@ -148,19 +149,15 @@ export function AbsencePanel({ orgId }: { orgId: string }) {
     <Gate state={shifts.state} reload={shifts.reload} tt={tt}>
       <form className="staff-cover__form" onSubmit={submit}>
         <h2>{tt('absence.title')}</h2>
-        <label>{tt('absence.kind')}
-          <select value={kind} onChange={(e) => { setKind(e.target.value as AbsenceKind); setKey('') }}>
-            {(['sick', 'permission', 'leave'] as const).map((k) => <option key={k} value={k}>{tt(`kind.${k}` as StaffCoverKey)}</option>)}
-          </select>
-        </label>
+        <Select label={tt('absence.kind')} value={kind} onChange={(e) => { setKind(e.target.value as AbsenceKind); setKey('') }} fullWidth>
+          {(['sick', 'permission', 'leave'] as const).map((k) => <option key={k} value={k}>{tt(`kind.${k}` as StaffCoverKey)}</option>)}
+        </Select>
         <p className="staff-attendance__muted">{kind === 'sick' ? tt('absence.kind.hint.sick') : tt('absence.kind.hint.other')}</p>
         {options.length === 0
           ? <p className="staff-attendance__empty">{tt('absence.noShifts')}</p>
-          : <label>{tt('absence.shift')}
-            <select value={chosen ? shiftKey(chosen) : ''} onChange={(e) => setKey(e.target.value)}>
-              {options.map((shift) => <option key={shiftKey(shift)} value={shiftKey(shift)}>{span(shift.local_date, shift.start_at, shift.end_at, locale)} · {shift.site_name}</option>)}
-            </select>
-          </label>}
+          : <Select label={tt('absence.shift')} value={chosen ? shiftKey(chosen) : ''} onChange={(e) => setKey(e.target.value)} fullWidth>
+            {options.map((shift) => <option key={shiftKey(shift)} value={shiftKey(shift)}>{span(shift.local_date, shift.start_at, shift.end_at, locale)} · {shift.site_name}</option>)}
+          </Select>}
         <label>{tt('absence.reason')}
           <textarea rows={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
         </label>
@@ -280,11 +277,9 @@ export function CoverPanel() {
         <h2>{tt('cover.offer.title')}</h2>
         <p className="staff-attendance__muted">{tt('cover.offer.help')}</p>
         {offerable.length === 0 ? <p className="staff-attendance__empty">{tt('cover.offer.none')}</p>
-          : <label>{tt('cover.offer.shift')}
-            <select value={chosen?.id ?? ''} onChange={(e) => setOfferKey(e.target.value)}>
-              {offerable.map((shift) => <option key={shift.id} value={shift.id as string}>{span(shift.local_date, shift.start_at, shift.end_at, locale)} · {shift.site_name}</option>)}
-            </select>
-          </label>}
+          : <Select label={tt('cover.offer.shift')} value={chosen?.id ?? ''} onChange={(e) => setOfferKey(e.target.value)} fullWidth>
+            {offerable.map((shift) => <option key={shift.id} value={shift.id as string}>{span(shift.local_date, shift.start_at, shift.end_at, locale)} · {shift.site_name}</option>)}
+          </Select>}
         <div className="staff-cover__bar">
           <button type="submit" className="staff-attendance__primary" disabled={!chosen || busy === 'offer'}>{tt('cover.offer.submit')}</button>
         </div>
@@ -328,10 +323,10 @@ export function RequestsPanel() {
               <span>{span(row.local_date, row.start_at, row.end_at, locale)} · {row.team_name}</span>
             </div>
             {row.can_decide && <div className="staff-attendance__actions">
-              <select aria-label={tt('queue.assignPick')} value={pick} onChange={(e) => setAssignees({ ...assignees, [row.offer_id]: e.target.value })}>
+              <Select aria-label={tt('queue.assignPick')} value={pick} onChange={(e) => setAssignees({ ...assignees, [row.offer_id]: e.target.value })}>
                 <option value="">{tt('queue.assignNone')}</option>
                 {options.filter((c) => c.full_name !== row.person_name).map((c) => <option key={c.person_id} value={c.person_id}>{c.full_name}</option>)}
-              </select>
+              </Select>
               <button type="button" className="staff-attendance__primary" disabled={!pick || busy === row.offer_id} onClick={() => act(row.offer_id, () => assignStaffCover(row.offer_id, pick))}>{tt('queue.assign')}</button>
             </div>}
           </article>
@@ -415,10 +410,10 @@ export function HrPanel() {
     <p className="staff-attendance__muted">{tt('hr.job')}</p>
     <div className="staff-cover__filters">
       <label>{tt('hr.month')}<input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} /></label>
-      <label>{tt('hr.team')}<select value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+      <Select label={tt('hr.team')} value={teamId} onChange={(e) => setTeamId(e.target.value)} fullWidth>
         <option value="">{tt('hr.allTeams')}</option>
         {teams.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-      </select></label>
+      </Select>
     </div>
     {error && <p className="staff-attendance__error" role="alert">{error}</p>}
     <Gate state={view.state} reload={view.reload} tt={tt}>

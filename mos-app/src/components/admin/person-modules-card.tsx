@@ -24,7 +24,7 @@ import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import './person-modules-card.css'
 
 type SettingsState = 'loading' | 'error' | 'ready'
-const MODULE_IDS: readonly ModuleId[] = ['work', 'money', 'cafe', 'assistant', 'roastery', 'ecommerce']
+const MODULE_IDS: readonly ModuleId[] = ['work', 'money', 'cafe', 'staff', 'assistant', 'roastery', 'ecommerce']
 const REASON_KEY: Record<'available' | 'notReleased' | 'orgOff' | 'blocked' | 'accessRequired', MessageKey> = {
   available: 'admin.modules.reason.available',
   notReleased: 'admin.modules.notReleased',

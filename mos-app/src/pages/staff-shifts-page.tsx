@@ -6,6 +6,7 @@ import { useAuth } from '@/auth/use-auth'
 import { AbsencePanel, CoverPanel, HrPanel, RequestsPanel } from '@/components/staff-attendance/staff-cover-panels'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { ViewTabs } from '@/components/ui/view-tabs'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { listLedStaffTeams, type LedStaffTeam } from '@/lib/db/staff-attendance'
 import { ClockPanel } from '@/components/staff-attendance/clock-panel'
@@ -23,7 +24,7 @@ export function StaffShiftsPage() {
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const roles = viewer?.accessRoles ?? []
   const reads = roles.includes('hr') || roles.includes('admin')
-  useDocumentTitle(t('common.docTitle', { page: t('nav.work.shifts') }))
+  useDocumentTitle(t('common.docTitle', { page: t('nav.staff.shifts') }))
   const [state, setState] = useState<PageState>('loading')
   const [teams, setTeams] = useState<LedStaffTeam[]>([])
   const [params] = useSearchParams()
@@ -39,24 +40,29 @@ export function StaffShiftsPage() {
   }, [])
   useEffect(() => { void load() }, [load])
 
+  const tabs: Array<{ id: View; label: string }> = [
+    { id: 'mine', label: t('attendance.nav.mine') },
+    { id: 'clock', label: t('attendance.nav.clock') },
+    ...(teams.length > 0 ? [
+      { id: 'today' as const, label: t('attendance.nav.today') },
+      { id: 'roster' as const, label: t('attendance.nav.roster') },
+      { id: 'standing' as const, label: t('attendance.nav.standing') },
+    ] : []),
+    { id: 'absence', label: tt('tab.absence') },
+    { id: 'cover', label: tt('tab.cover') },
+    ...(teams.length > 0 || reads ? [{ id: 'requests' as const, label: tt('tab.requests') }, { id: 'hr' as const, label: tt('tab.hr') }] : []),
+  ]
+  const title = tabs.find((tab) => tab.id === view)?.label ?? t('attendance.mine.title')
+
   return (
-    <PageFamilyFrame family="management" title={t('attendance.mine.title')} jobSentence={t('attendance.mine.job')} state={state === 'loading' ? 'loading' : state === 'error' ? 'error' : 'default'}>
+    <PageFamilyFrame family="management" title={title} jobSentence={view === 'mine' ? t('attendance.mine.job') : undefined} state={state === 'loading' ? 'loading' : state === 'error' ? 'error' : 'default'}>
       {state === 'loading' && <LoadingShell count={3} label={t('attendance.mine.loading')} />}
       {state === 'error' && <ErrorState message={t('attendance.mine.loadError')} onRetry={load} />}
       {state === 'ready' && <>
-        <nav className="staff-shifts__tabs" aria-label={t('attendance.nav.aria')}>
-          <button type="button" aria-pressed={view === 'mine'} onClick={() => setView('mine')}>{t('attendance.nav.mine')}</button>
-          <button type="button" aria-pressed={view === 'clock'} onClick={() => setView('clock')}>{t('attendance.nav.clock')}</button>
-          {teams.length > 0 && <>
-            <button type="button" aria-pressed={view === 'today'} onClick={() => setView('today')}>{t('attendance.nav.today')}</button>
-            <button type="button" aria-pressed={view === 'roster'} onClick={() => setView('roster')}>{t('attendance.nav.roster')}</button>
-            <button type="button" aria-pressed={view === 'standing'} onClick={() => setView('standing')}>{t('attendance.nav.standing')}</button>
-          </>}
-          <button type="button" aria-pressed={view === 'absence'} onClick={() => setView('absence')}>{tt('tab.absence')}</button>
-          <button type="button" aria-pressed={view === 'cover'} onClick={() => setView('cover')}>{tt('tab.cover')}</button>
-          {(teams.length > 0 || reads) && <button type="button" aria-pressed={view === 'requests'} onClick={() => setView('requests')}>{tt('tab.requests')}</button>}
-          {(teams.length > 0 || reads) && <button type="button" aria-pressed={view === 'hr'} onClick={() => setView('hr')}>{tt('tab.hr')}</button>}
-        </nav>
+        <div className="staff-shifts__tabs">
+          <ViewTabs ariaLabel={t('attendance.nav.aria')} tabs={tabs} active={view} onChange={(id) => setView(id as View)} panelId="staff-shifts-panel" idPrefix="staff-shifts-tab" />
+        </div>
+        <div id="staff-shifts-panel" role="tabpanel" aria-labelledby={`staff-shifts-tab-${view}`}>
         {view === 'absence' && viewer && <AbsencePanel orgId={viewer.person.org_id} />}
         {view === 'cover' && <CoverPanel />}
         {view === 'requests' && <RequestsPanel />}
@@ -66,6 +72,7 @@ export function StaffShiftsPage() {
         {view === 'today' && teams.length > 0 && <AttendanceTodayPanel teams={teams} />}
         {view === 'roster' && teams.length > 0 && <StaffRosterPanel teams={teams} />}
         {view === 'standing' && teams.length > 0 && <StandingHoursPanel teams={teams} />}
+        </div>
       </>}
     </PageFamilyFrame>
   )

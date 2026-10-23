@@ -1,43 +1,41 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const reads = vi.hoisted(() => ({ locations: vi.fn(), defaults: vi.fn() }))
+vi.unmock('@/lib/cafe-visit-cache')
+
+const reads = vi.hoisted(() => ({ locations: vi.fn() }))
 vi.mock('@/lib/db/cafe-locations', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/db/cafe-locations')>()
-  return { ...actual, listCafeLocations: reads.locations, getCafeStreamLocationDefaults: reads.defaults }
+  return { ...actual, listCafeLocations: reads.locations }
 })
 
-import { availableCafeLocationDefault, useCafeLocationChoices } from './use-cafe-location-choices'
+import { clearCafeVisitCache } from './cafe-visit-cache'
+import { defaultStorageLocationId, readCafeLocationChoices, useCafeLocationChoices } from './use-cafe-location-choices'
 
-const STREAM = { branch: { id: 'branch-1', code: 'branch', name: 'Branch' }, activity: 'kitchen' as const }
+const BRANCH = { id: 'branch-1', code: 'branch', name: 'Branch' }
+const STREAM = { branch: BRANCH, activity: 'kitchen' as const }
 const LOCATION = {
   id: 'location-1', name: 'Chiller', use: 'storage' as const, parent_id: null, branch_ids: ['branch-1'],
-  archived_at: null, row_version: 1, updated_at: '', updated_by: null,
+  archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: [],
 }
+const ELSEWHERE = { ...LOCATION, id: 'location-2', name: 'Elsewhere', branch_ids: ['branch-2'] }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  reads.locations.mockResolvedValue([LOCATION])
-  reads.defaults.mockResolvedValue({ production_location_id: null, storage_location_id: 'location-1', row_version: 1 })
+  clearCafeVisitCache()
+  reads.locations.mockResolvedValue([LOCATION, ELSEWHERE])
 })
 
 describe('useCafeLocationChoices', () => {
-  it('uses a default only when it is active for the requested physical purpose', () => {
-    expect(availableCafeLocationDefault([LOCATION], 'location-1', 'storage')).toBe('location-1')
-    expect(availableCafeLocationDefault([LOCATION], 'location-1', 'production')).toBeNull()
-    expect(availableCafeLocationDefault([], 'location-1', 'storage')).toBeNull()
-  })
-
-  it('loads only the selected branch catalog and its stream convenience defaults', async () => {
+  it('offers only the selected branch\'s places, from the visit\'s single read', async () => {
     const { result } = renderHook(() => useCafeLocationChoices(STREAM))
     await waitFor(() => expect(result.current.status).toBe('ready'))
-    expect(reads.locations).toHaveBeenCalledWith({ branch_id: 'branch-1', archived: false })
-    expect(reads.defaults).toHaveBeenCalledWith({ branch_id: 'branch-1', activity: 'kitchen' })
     expect(result.current.locations).toEqual([LOCATION])
-    expect(result.current.defaults?.storage_location_id).toBe('location-1')
+    await readCafeLocationChoices(null, 'branch-2')
+    expect(reads.locations).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps a failed read unavailable and retries the same stream', async () => {
+  it('keeps a failed read unavailable and retries it', async () => {
     reads.locations.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([LOCATION])
     const { result } = renderHook(() => useCafeLocationChoices(STREAM))
     await waitFor(() => expect(result.current.status).toBe('error'))
@@ -45,5 +43,26 @@ describe('useCafeLocationChoices', () => {
     result.current.retry()
     await waitFor(() => expect(result.current.status).toBe('ready'))
     expect(reads.locations).toHaveBeenCalledTimes(2)
+  })
+
+  it('drops the previous branch choices when the stream is cleared', async () => {
+    const { result, rerender } = renderHook(({ selected }) => useCafeLocationChoices(selected), { initialProps: { selected: STREAM as typeof STREAM | null } })
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    rerender({ selected: null })
+    expect(result.current).toMatchObject({ status: 'idle', locations: [] })
+  })
+})
+
+describe('defaultStorageLocationId', () => {
+  const place = { id: 'central', name: 'Central', siteName: null, holdsStock: true }
+  const central = { ...LOCATION, id: 'central', use: 'both' as const }
+
+  it('starts at the Location being worked at when stock can sit there', () => {
+    expect(defaultStorageLocationId({ ...STREAM, location: place }, [central, LOCATION])).toBe('central')
+  })
+
+  it('guesses nothing otherwise: a production-only place, or no place, is Unassigned', () => {
+    expect(defaultStorageLocationId({ ...STREAM, location: { ...place, holdsStock: false } }, [central])).toBeNull()
+    expect(defaultStorageLocationId(STREAM, [LOCATION])).toBeNull()
   })
 })
