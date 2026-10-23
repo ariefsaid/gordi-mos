@@ -1,6 +1,12 @@
 -- DOWN for 20261024001400. Restores the mention-notice function of 20261024000100 and the narrower
 -- purge trigger of 20261024001200.
 begin;
+do $$
+begin
+  if exists (select 1 from mos.tasks where is_private) then
+    raise exception 'Rollback refused: make every private Task public (or archive the data) first';
+  end if;
+end $$;
 drop trigger person_access_roles_purge_task_notices on shared.person_access_roles;
 drop function mos._purge_task_notices_for_ex_admin();
 drop trigger tasks_purge_notices on mos.tasks;
