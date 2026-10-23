@@ -6,7 +6,7 @@ import { readCafeLocationChoices, useCafeLocationChoices } from './use-cafe-loca
 vi.mock('@/lib/db/cafe-locations', () => ({ listCafeLocations: vi.fn(), getCafeStreamLocationDefaults: vi.fn() }))
 
 const stream = { branch: { id: 'branch', code: 'branch', name: 'Branch' }, activity: 'kitchen' as const, produces: true }
-const locations: CafeLocation[] = [{ id: 'kitchen', name: 'Kitchen', use: 'both', branch_ids: ['branch'], archived_at: null, parent_id: null, row_version: 1, updated_at: '', updated_by: null }]
+const locations: CafeLocation[] = [{ id: 'kitchen', name: 'Kitchen', use: 'both', branch_ids: ['branch'], archived_at: null, parent_id: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: [] }]
 const defaults = { production_location_id: 'kitchen', storage_location_id: 'kitchen', row_version: 1 }
 
 beforeEach(() => {

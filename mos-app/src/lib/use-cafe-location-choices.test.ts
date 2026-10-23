@@ -12,7 +12,7 @@ import { availableCafeLocationDefault, useCafeLocationChoices } from './use-cafe
 const STREAM = { branch: { id: 'branch-1', code: 'branch', name: 'Branch' }, activity: 'kitchen' as const }
 const LOCATION = {
   id: 'location-1', name: 'Chiller', use: 'storage' as const, parent_id: null, branch_ids: ['branch-1'],
-  archived_at: null, row_version: 1, updated_at: '', updated_by: null,
+  archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: [],
 }
 
 beforeEach(() => {

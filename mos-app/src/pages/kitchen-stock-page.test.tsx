@@ -159,9 +159,9 @@ beforeEach(() => {
   mockDefaultStream.mockResolvedValue(CENTRAL_KITCHEN)
   mockFetchStock.mockResolvedValue([])
   vi.mocked(listCafeLocations).mockResolvedValue([
-    { id: 'kitchen', name: 'Rumah Rames kitchen (Gordi HQ)', use: 'both', parent_id: null, branch_ids: [BRANCH_RR.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
-    { id: 'outlet', name: 'Rumah Rames outlet', use: 'storage', parent_id: null, branch_ids: [BRANCH_RR.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
-    { id: 'production', name: 'Production only', use: 'production', parent_id: null, branch_ids: [BRANCH_RR.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
+    { id: 'kitchen', name: 'Rumah Rames kitchen (Gordi HQ)', use: 'both', parent_id: null, branch_ids: [BRANCH_RR.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: [] },
+    { id: 'outlet', name: 'Rumah Rames outlet', use: 'storage', parent_id: null, branch_ids: [BRANCH_RR.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: [] },
+    { id: 'production', name: 'Production only', use: 'production', parent_id: null, branch_ids: [BRANCH_RR.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: [] },
   ])
   vi.mocked(fetchCafeLocationBalances).mockResolvedValue({ rows: [
     { location_id: 'kitchen', item_id: 'w1', item_unit_id: 'u-porsi', usable_qty: '6', available_qty: '4' },

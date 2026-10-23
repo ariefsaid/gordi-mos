@@ -8,8 +8,8 @@ vi.mock('@/auth/use-auth', () => ({
 }))
 
 const LOCATIONS = [
-  { id: 'kitchen', name: 'Kitchen', use: 'production' as const, parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
-  { id: 'chiller', name: 'Chiller', use: 'storage' as const, parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null },
+  { id: 'kitchen', name: 'Kitchen', use: 'production' as const, parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: [] },
+  { id: 'chiller', name: 'Chiller', use: 'storage' as const, parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: [] },
 ]
 const EMPTY_VALUES = { production_location_id: null, from_storage_location_id: null, to_storage_location_id: null }
 

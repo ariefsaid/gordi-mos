@@ -131,7 +131,7 @@ describe('movementsForStream', () => {
 })
 
 describe('outlet send places', () => {
-  const kitchen = { id: 'kitchen', use: 'both' as const, archived_at: null, branch_ids: [RRS.id], name: 'Kitchen', parent_id: null, row_version: 1, updated_at: '', updated_by: null }
+  const kitchen = { id: 'kitchen', use: 'both' as const, archived_at: null, branch_ids: [RRS.id], name: 'Kitchen', parent_id: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: [] }
   const outlet = { ...kitchen, id: 'outlet', use: 'storage' as const }
   const defaults = { branch_id: RRS.id, activity: 'kitchen' as const, production_location_id: kitchen.id, storage_location_id: kitchen.id, row_version: 1 }
   const origin = { ...RRS_KITCHEN, produces: true }
