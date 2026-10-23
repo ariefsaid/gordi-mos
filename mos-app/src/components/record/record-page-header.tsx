@@ -117,7 +117,7 @@ export function RecordPageHeader({
       ) : null}
       {primary && barSlot ? createPortal(primaryButton, barSlot) : null}
       <div className="rp-head__more"><RecordMenu items={menu} label={menuLabel} minItems={menuMinItems} /></div>
-      <ul className="rp-facts" aria-label={factsLabel}>
+      {facts.length > 0 || factsAction ? <ul className="rp-facts" aria-label={factsLabel}>
         {facts.map((fact) => {
           if (fact.type === 'state') {
             return (
@@ -150,7 +150,7 @@ export function RecordPageHeader({
           )
         })}
         {factsAction ? <li className="rp-fact rp-fact--action">{factsAction}</li> : null}
-      </ul>
+      </ul> : null}
       {note ? <p className="rp-readonly" role="note">{note}</p> : null}
     </header>
   )
