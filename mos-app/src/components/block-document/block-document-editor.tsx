@@ -335,10 +335,19 @@ function DocumentSurface({
     else editor.domElement?.removeAttribute('aria-describedby')
   }, [editor, editable, keysHintId])
 
+  // The library leaves aria-expanded="false" on the textbox after a menu closes; a textbox may not carry it.
+  useEffect(() => {
+    const dom = editor.domElement
+    if (!dom) return
+    const observer = new MutationObserver(() => { if (dom.getAttribute('aria-expanded') === 'false') dom.removeAttribute('aria-expanded') })
+    observer.observe(dom, { attributes: true, attributeFilter: ['aria-expanded'] })
+    return () => observer.disconnect()
+  }, [editor])
+
   // `@` and `[[` data: the roster loads on the first `@`, records are searched as the query changes.
   const rosterRef = useRef<Promise<MentionRoster> | null>(null)
-  const mentionMenu = useFooterMenu(t('blockDoc.mention.footer'))
-  const linkMenu = useFooterMenu(t('blockDoc.link.footer'))
+  const mentionMenu = useFooterMenu(t('blockDoc.mention.footer'), t('blockDoc.mention.label'))
+  const linkMenu = useFooterMenu(t('blockDoc.link.footer'), t('blockDoc.link.label'))
   const kindLabel = useCallback((kind: RecordLinkKind) => t(KIND_LABEL[kind]), [t])
   const remember = references.remember
   const getSlashItems = useCallback(async (query: string) => {
