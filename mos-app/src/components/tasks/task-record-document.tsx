@@ -17,6 +17,7 @@ import type { ChecklistItemRow, TaskEventRow, TaskRow, TaskStatus } from '@/lib/
 import { ActivityCard } from './activity-card'
 import { ChecklistCard } from './checklist-card'
 import { CommentThread, type TaskComment } from './CommentThread'
+import { TaskDescriptionDocument } from './task-description-document'
 import './task-record-document.css'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { OfflineNotice } from '@/components/ui/offline-notice'
@@ -248,7 +249,7 @@ export function TaskRecordDocument({
       {showDescription ? (
         <RecordSection id="description" title={t('tasks.description.title')}>
           <div className="task-description">
-            {field(hasDescription ? description : { ...description, displayValue: t('tasks.description.add') })}
+            <TaskDescriptionDocument taskId={task.id} canEdit={editable && !archived && !offline} onDirtyChange={onDirtyChange} />
           </div>
         </RecordSection>
       ) : null}

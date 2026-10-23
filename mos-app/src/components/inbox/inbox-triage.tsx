@@ -226,7 +226,7 @@ export function InboxTriage({
                   name: presentation.actorName ?? t('inbox.signalRetraction.someone'),
                 })
                 : presentation.actorName && presentation.entityType !== 'unknown'
-                ? presentation.source === 'signal_mention'
+                ? presentation.source === 'signal_mention' || presentation.source === 'task_mention'
                   ? t('inbox.actorMentioned', { name: presentation.actorName })
                   : t('inbox.actorActivity', {
                     name: presentation.actorName,

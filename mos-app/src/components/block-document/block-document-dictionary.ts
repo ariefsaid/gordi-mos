@@ -73,6 +73,15 @@ const id: Dictionary = {
   },
 }
 
-export function writeUpDictionary(locale: Locale): Dictionary {
-  return locale === 'id' ? id : en
+/** A document whose checkboxes are free notes (a Task's description) says so in the slash menu. */
+const freeNote = (dict: Dictionary, title: string, subtext: string): Dictionary => ({
+  ...dict,
+  slash_menu: { ...dict.slash_menu, check_list: { ...dict.slash_menu.check_list, title, subtext } },
+})
+
+export function blockDocumentDictionary(locale: Locale, options: { checklistNote?: boolean } = {}): Dictionary {
+  if (!options.checklistNote) return locale === 'id' ? id : en
+  return locale === 'id'
+    ? freeNote(id, 'Catatan centang', 'Catatan bebas; tidak dihitung di Checklist')
+    : freeNote(en, 'Checklist note', 'A free note; not counted in the Checklist')
 }
