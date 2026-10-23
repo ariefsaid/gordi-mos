@@ -12,6 +12,7 @@ export const ROUTE_PATHS = {
   workSignals: 'work/signals',
   workProjects: 'work/projects',
   workObjectives: 'work/objectives',
+  workMeetings: 'work/meetings',
   inbox: 'inbox',
   money: 'money',
   moneyPendingBills: 'money/pending-bills',
@@ -58,6 +59,7 @@ export type RouteParityId =
   | 'workSignals'
   | 'workProjects'
   | 'workObjectives'
+  | 'workMeetings'
   | 'inbox'
   | 'money'
   | 'moneyPendingBills'
@@ -109,6 +111,7 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'workSignals', path: absolutePath(ROUTE_PATHS.workSignals), kind: 'visible-root' },
   { id: 'workProjects', path: absolutePath(ROUTE_PATHS.workProjects), kind: 'visible-root' },
   { id: 'workObjectives', path: absolutePath(ROUTE_PATHS.workObjectives), kind: 'visible-root' },
+  { id: 'workMeetings', path: absolutePath(ROUTE_PATHS.workMeetings), kind: 'visible-root' },
   { id: 'inbox', path: absolutePath(ROUTE_PATHS.inbox), kind: 'visible-root' },
   // Money is a root visible to finance, manager and supervisor; pending bills is its Finance-only child.
   { id: 'money', path: absolutePath(ROUTE_PATHS.money), kind: 'visible-root' },

@@ -35,6 +35,8 @@ import { EventsWorkspacePage } from './pages/events-workspace-page'
 import { FollowUpsPage } from './pages/follow-ups-page'
 import { ObjectivesPage } from './pages/objectives-page'
 import { ObjectiveRecordPage } from './pages/objective-record-page'
+import { MeetingsPage } from './pages/meetings-page'
+import { MeetingRecordPage } from './pages/meeting-record-page'
 import { WorkLineRecordPage } from './pages/work-line-record-page'
 import { ProjectsProcessesPage } from './pages/projects-processes-page'
 import { InboxPage } from './pages/inbox-page'
@@ -166,6 +168,9 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/work/signals/:signalId', SignalRecordPage, 'v4'],
   ['/work/objectives', ObjectivesPage, 'dev'],
   ['/work/objectives/:objectiveId', ObjectiveRecordPage, 'redesign'],
+  ['/work/meetings', MeetingsPage, 'dev'],
+  ['/work/meetings/new', MeetingRecordPage, 'dev'],
+  ['/work/meetings/:meetingId', MeetingRecordPage, 'dev'],
   ['/work/projects', ProjectsProcessesPage, 'dev'],
   ['/work/projects/:workLineId', WorkLineRecordPage, 'redesign'],
   ['/work/events', EventsWorkspacePage, 'dev'], 

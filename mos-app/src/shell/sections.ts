@@ -6,7 +6,7 @@ import { isShipGated } from '@/lib/ship-gate'
 import type { ModuleAccessCheck } from '@/lib/module-availability'
 import type { ModuleId } from '@/lib/db/module-settings'
 import {
-  HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
+  HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon, MeetingIcon,
   MoneyIcon, PendingBillIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, PeopleIcon, ShieldIcon,
   TodayIcon, RecordsIcon, LogIcon, TransferIcon, WasteIcon, PlanIcon, StockIcon, ItemsIcon, RecipesIcon, ReviewIcon, DispatchIcon, CountIcon, ReceiveIcon, RequestIcon, LocationIcon, StockComparisonIcon,
@@ -66,6 +66,7 @@ const SECTIONS: Section[] = [
   // only `Destination.children` was filtered on capability, but it read as live and would have
   // become live the moment anyone filtered SECTIONS.
   { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.work.objectives', Icon: ObjectiveIcon },
+  { path: '/work/meetings', label: 'Meetings', labelKey: 'nav.work.meetings', Icon: MeetingIcon },
   { path: '/money', label: 'Money', labelKey: 'nav.money', Icon: MoneyIcon },
   PENDING_BILLS_SECTION,
   { path: '/inbox', label: 'Inbox', labelKey: 'nav.inbox', Icon: InboxIcon },
