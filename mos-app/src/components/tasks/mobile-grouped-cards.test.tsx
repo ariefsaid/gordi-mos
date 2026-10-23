@@ -5,7 +5,7 @@
  * overdue-gating, and the "+ Create task" wiring.
  */
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { MobileGroupedCards } from './mobile-grouped-cards'
 import type { MobileGroupedCardsProps } from './mobile-grouped-cards'
@@ -313,5 +313,26 @@ describe('MobileGroupedCards', () => {
     })
     const cardLink = screen.getByRole('link', { name: /overdue card task/i })
     expect(cardLink.getAttribute('href')).toBe('/work/tasks/task-9?view=overdue')
+  })
+})
+
+describe('MobileGroupedCards — a private Task carries a lock', () => {
+  it('marks a private card as "Private task" and a public one not', () => {
+    renderCards({
+      groups: [{
+        key: '__flat__', label: 'Tasks', overdue: 0, prefillParam: '',
+        rows: [makeTask({ id: 'p1', title: 'Secret plan', is_private: true }), makeTask({ id: 'p2', title: 'Open plan' })],
+      }],
+    })
+    const secret = screen.getByRole('link', { name: /Secret plan/ })
+    expect(within(secret).getByRole('img', { name: 'Private task' })).toBeInTheDocument()
+    expect(within(screen.getByRole('link', { name: /Open plan/ })).queryByRole('img', { name: 'Private task' })).toBeNull()
+  })
+
+  it('speaks the lock in Indonesian', () => {
+    renderCards({
+      groups: [{ key: '__flat__', label: 'Tugas', overdue: 0, prefillParam: '', rows: [makeTask({ is_private: true })] }],
+    }, 'id')
+    expect(screen.getByRole('img', { name: 'Tugas privat' })).toBeInTheDocument()
   })
 })
