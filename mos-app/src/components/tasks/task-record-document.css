@@ -1,10 +1,18 @@
 /* Task record page: what is specific to a Task on top of the shared record layer
    (components/record/record-page.css). Tokens only; layout and rhythm. */
 
-/* Status reads as a pill in the facts line; its field label is spoken, not drawn. */
-.rp .rp-facts [data-field-key='status'] .record-field__label {
-  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
-}
+/* Page order: title, properties, document, Checklist, Comments, then Details and History. The title
+   carries no rule under it; the properties block closes with one. */
+.rp[data-record-kind='task'] .rp-head { border-bottom: 0; padding-bottom: 0; }
+.rp[data-record-kind='task'] .rp-main { max-width: 56rem; }
+.task-readonly { margin: var(--mos-inline-gap) 0 0; }
+
+/* The description is the document: unboxed, no heading, its own element. */
+.task-description-section { padding-top: var(--mos-section-above); }
+
+/* Details and History close the page as quiet disclosures. */
+.task-reference { margin-top: var(--mos-section-above); }
+.task-reference .rp-disclosure { font: var(--mos-type-label); color: var(--muted-foreground); }
 
 /* Checklist: a step is a checkbox, its words and one row menu. */
 .checklist-list { list-style: none; padding: 0; margin: 0; }

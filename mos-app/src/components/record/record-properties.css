@@ -1,0 +1,42 @@
+/* Record properties block: label column + value column; values are the existing record fields. Tokens only. */
+.rp-props { margin-top: var(--mos-field-gap); padding-bottom: var(--mos-group-above); border-bottom: 1px solid var(--border); }
+.rp-props__list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.rp-props__row { display: grid; grid-template-columns: minmax(6.5rem, 10rem) minmax(0, 1fr); align-items: start; column-gap: var(--mos-row-gap); min-height: var(--mos-control-height); }
+.rp-props__label { align-self: start; display: flex; align-items: center; min-height: var(--mos-control-height); font: var(--mos-type-label); color: var(--mos-ink); }
+.rp-props__value { min-width: 0; font-size: var(--mos-size-3); }
+.rp-props__note { margin: 0 0 var(--mos-inline-gap); font: var(--mos-type-subnav); color: var(--mos-muted); }
+.rp-props__summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mos-inline-gap) var(--mos-row-gap); margin: 0; min-height: var(--mos-control-height); font-size: var(--mos-size-3); }
+.rp-props__plain { display: flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height); color: var(--muted-foreground); }
+.rp-props__toggle {
+  display: inline-flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height); padding: 0; border: 0; background: none;
+  font: var(--mos-type-label); color: var(--muted-foreground); cursor: pointer;
+}
+.rp-props__toggle:hover { color: var(--foreground); }
+.rp-props__toggle:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-radius: var(--radius-xs); }
+.rp-props__toggle svg { transition: transform var(--mos-duration-fast) ease; }
+.rp-props__caret--open { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .rp-props__toggle svg { transition: none; } }
+
+/* The row label is the visible one; the field's own label is spoken only. */
+.rp-props .record-field { display: block; }
+.rp-props .record-field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.rp-props .record-field__value-cell { flex-direction: column; align-items: stretch; min-width: 0; }
+.rp-props .record-field__edit { height: auto; min-height: var(--mos-control-height); margin: 0; padding: 0 6px 0 0; border-radius: var(--radius-sm); gap: 4px; justify-content: flex-start; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.rp-props .record-field--readonly .record-field__value { display: flex; align-items: center; min-height: var(--mos-control-height); padding: 0; font-size: var(--mos-size-3); }
+.rp-props .record-field__value { font-size: var(--mos-size-3); }
+.rp-props .record-field__linked-value { display: flex; align-items: center; gap: var(--mos-inline-gap); min-height: var(--mos-control-height); }
+.rp-props .record-field__chip, .rp-props .record-field__inline-pill { white-space: normal; margin: 0; padding: 0; border: 0; background: none; min-height: 0; font-size: var(--mos-size-3); }
+.rp-props .record-field__feedback { min-height: 0; }
+.rp-props [data-empty='true'] .record-field__value { color: var(--muted-foreground); font-weight: 500; }
+.rp-props .record-field__edit-affordance { width: 0; margin-inline-start: -4px; overflow: hidden; }
+.rp-props .record-field__edit:hover .record-field__edit-affordance,
+.rp-props .record-field__edit:focus-visible .record-field__edit-affordance { width: 13px; margin-inline-start: 0; }
+.rp-props .record-field__link { color: inherit; text-decoration: none; border-bottom: 1px solid var(--border); }
+.rp-props .record-field__link:hover { border-bottom-color: currentColor; }
+.rp-props__row--overdue .record-field__value, .rp-props__row--overdue .record-field__inline-pill, .rp-props__tone--overdue { color: var(--status-lost-text); font-weight: 600; }
+.rp-props__row--soon .record-field__value, .rp-props__row--soon .record-field__inline-pill, .rp-props__tone--soon { color: var(--warning-foreground); font-weight: 600; }
+
+/* Phone: a fixed label column keeps every value on one left edge. */
+@media (max-width: 767.98px) {
+  .rp-props__row { grid-template-columns: 7rem minmax(0, 1fr); }
+}
