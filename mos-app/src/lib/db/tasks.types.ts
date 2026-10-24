@@ -35,6 +35,21 @@ export interface TaskRow {
   // list projection do not need fabricated provenance values.
   process_run_id?: string | null
   generated_from_task_def_id?: string | null
+  /** Private Task (#1839): only creator, PIC, Supervisor, the who-can-see list and admins read it. */
+  is_private?: boolean
+  /** The Meeting the Task was created in, when it was (#1840); read on the Task page only. */
+  meeting_id?: string | null
+  /** True when the Task was created in a Meeting that was private then; its attendees read it while it is private. */
+  created_in_private_meeting?: boolean
+}
+/** One person on a private Task's who-can-see list (mos.task_viewers). */
+export interface TaskViewerRow {
+  id: string
+  org_id: string
+  task_id: string
+  person_id: string
+  created_by: string
+  created_at: string
 }
 export interface ChecklistItemRow {
   id: string

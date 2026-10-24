@@ -8,7 +8,7 @@ import type { ModuleAccessCheck } from '@/lib/module-availability'
 import { reviewQueuePath, reviewQueuesFor } from '@/lib/cafe-review-queues'
 import { ADMIN_SECTIONS, CAFE_ROUTE_SECTIONS, CAFE_SECTIONS, MONEY_SECTIONS, sectionForPath, visibleSections, type Section, type ViewerNavFacts } from './sections'
 import {
-  HomeIcon, TasksIcon, InboxIcon, WorkLineIcon, ObjectiveIcon,
+  HomeIcon, TasksIcon, InboxIcon, WorkLineIcon, ObjectiveIcon, MeetingIcon,
   WorkIcon, SignalsIcon, MoneyIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, ShieldIcon, TodayIcon,
 } from './icons'
@@ -31,7 +31,7 @@ import {
  *  - `UTILITY`         — Admin settings, pinned at the foot, and Personal profile, in the account menu.
  *
  * Work declares its children in the owner-ruled order (OD-REDESIGN-57(ii), P-13): Signals · Tasks · Shifts ·
- * Projects & Processes · Objectives · Events. Events is ship-gated (#348), so five of the six render.
+ * Projects & Processes · Objectives · Meetings · Events. Events is ship-gated (#348), so six of the seven render.
  * Admin is anyOf-gated (admin): absent, not disabled, when unauthorized.
  *
  * Adaptive shell: one available page-bearing area gets the single labelled sidebar; two or more get the
@@ -89,6 +89,7 @@ const WORKSPACE: Destination[] = [
       { path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon },
       { path: '/work/projects', label: 'Projects & Processes', labelKey: 'nav.work.projects', Icon: WorkLineIcon },
       { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.work.objectives', Icon: ObjectiveIcon },
+      { path: '/work/meetings', label: 'Meetings', labelKey: 'nav.work.meetings', Icon: MeetingIcon },
     ],
   },
   {

@@ -125,7 +125,10 @@ if [ "$(sql 'select 1')" = 1 ]; then
     fi  # table absent: skipped, not an alert
   fi
 
-  reporting_stale="$(sql "select coalesce(max(revenue_date)::timestamptz < now() - interval '26 hours', true)
+  # Yesterday's sales (Jakarta date, UTC+7, no DST) are due by 06:00 WIB: stale when the newest day is
+  # before (Jakarta date of now - 6 h) - 1 day, which is the UTC date of now - 23 h.
+  sales_due="$(perl -MPOSIX -e 'print strftime("%Y-%m-%d", gmtime($ARGV[0] - 23 * 3600))' "${OPS_NOW_EPOCH:-$(date +%s)}")"
+  reporting_stale="$(sql "select coalesce(max(revenue_date) < date '${sales_due}', true)
     from reporting.sales_daily_revenue")"
   if [ "$reporting_stale" = t ]; then report reporting_freshness fail \
     "Sales figures in MOS have not been updated for more than 26 hours. Please check the reporting refresh. / Angka penjualan di MOS belum diperbarui selama lebih dari 26 jam. Silakan periksa pembaruan laporan." \

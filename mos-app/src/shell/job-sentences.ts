@@ -11,6 +11,7 @@ const SEG_TO_JOB: Record<string, MessageKey> = {
   events: 'job.events',
   projects: 'job.projects',
   objectives: 'job.objectives',
+  meetings: 'job.meetings',
   money: 'job.money',
   inbox: 'job.inbox',
   cafe: 'job.cafe',

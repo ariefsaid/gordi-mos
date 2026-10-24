@@ -30,6 +30,12 @@ const FIELD_LABELS: Record<string, MessageKey> = {
   responsible_person_id: 'catalog.record.responsible',
   objective_id: 'catalog.record.objective',
   period_year: 'catalog.record.period',
+  title: 'meetings.history.field.title',
+  starts_at: 'meetings.history.field.starts_at',
+  owning_team_id: 'meetings.history.field.owning_team_id',
+  is_private: 'meetings.history.field.is_private',
+  work_line_id: 'meetings.history.field.work_line_id',
+  minutes: 'meetings.history.field.minutes',
 }
 
 function fieldLabel(field: string, t: Translate): string {
@@ -46,7 +52,8 @@ const TYPE_LABELS: Record<string, MessageKey> = { project: 'catalog.tag.project'
 function rawValueText(field: string, value: string | null, names: RecordHistoryData['names'], t: Translate): string {
   if (value === null) return t('catalog.notSet')
   if (field in HISTORY_REFERENCE_FIELDS) return names.get(value) ?? t('catalog.history.unavailable')
-  if (field === 'is_company_wide') return t(value === 'true' ? 'catalog.history.yes' : 'catalog.history.no')
+  if (field === 'starts_at') return formatWibDateTime(value)
+  if (field === 'is_company_wide' || field === 'is_private') return t(value === 'true' ? 'catalog.history.yes' : 'catalog.history.no')
   const key = field === 'period_quarter' ? QUARTER_LABELS[value] : field === 'type' ? TYPE_LABELS[value] : undefined
   return key ? t(key) : value
 }
@@ -123,7 +130,7 @@ function HistoryItem({ entry, names, t, locale, clock }: ItemProps) {
 }
 
 export type RecordHistoryProps = {
-  table: 'objectives' | 'work_lines'
+  table: 'objectives' | 'work_lines' | 'meetings'
   recordId: string
   headingLevel?: 1 | 2
   /** The caller already titles this section (a disclosure or an aside heading); the region keeps its name. */

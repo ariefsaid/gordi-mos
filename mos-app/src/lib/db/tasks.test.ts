@@ -10,7 +10,7 @@ vi.mock('../supabase', () => {
 
 import {
   listTasks, getTask, createTask,
-  updateTaskStatus, updateTaskFields,
+  updateTaskStatus, updateTaskFields, setTaskPrivate,
   archiveTask, unarchiveTask,
   addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,
   searchTasksByTitle, getTaskTitlesByIds,
@@ -37,7 +37,7 @@ interface Recorder {
   lts: Array<[string, unknown]>
 }
 
-function makeSchema(responses: Record<string, { data: unknown; error: unknown }[]>, rec: Recorder) {
+function makeSchema(responses: Record<string, { data: unknown; error: unknown; count?: number }[]>, rec: Recorder) {
   // responses: table -> queue of results consumed in call order.
   const counters: Record<string, number> = {}
   const fromImpl = (table: string) => {
@@ -86,9 +86,9 @@ const TASK_LIST_SELECT = [
   'responsible_person_id', 'accountable_person_id', 'consulted_person_ids',
   'informed_person_ids', 'due_date', 'objective_id', 'work_line_id',
   'last_activity_at', 'archived_at', 'created_by', 'completed_at',
-  'process_run_id', 'generated_from_task_def_id',
+  'process_run_id', 'generated_from_task_def_id', 'is_private',
 ].join(',')
-const DETAIL_SELECT = `${TASK_LIST_SELECT},description,created_at,updated_at`
+const DETAIL_SELECT = `${TASK_LIST_SELECT},description,created_at,updated_at,meeting_id,created_in_private_meeting`
 const CHECKLIST_COLUMNS = 'id,org_id,task_id,label,is_done,position,created_at,updated_at'
 const EVENT_COLUMNS = 'id,org_id,task_id,actor_person_id,event_type,from_value,to_value,created_at'
 
@@ -362,6 +362,22 @@ describe('createTask', () => {
     expect((rec.inserts[0] as Record<string, unknown>).team_id).toBe('team-1')
   })
 
+  it('sends is_private only when the Task is created private', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      tasks: [{ data: { id: TASK_ID }, error: null }],
+      task_events: [{ data: null, error: null }],
+    }, rec) as never)
+    const base = {
+      title: 'P', businessUnitId: 'bu',
+      responsiblePersonId: ACTOR, accountablePersonId: ACTOR, createdBy: ACTOR,
+    }
+    await createTask({ ...base, isPrivate: true })
+    await createTask(base)
+    expect((rec.inserts[0] as Record<string, unknown>).is_private).toBe(true)
+    expect(Object.keys(rec.inserts[2] as object)).not.toContain('is_private')
+  })
+
   it('defaults objective_id and work_line_id to null when not provided', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({
@@ -378,6 +394,45 @@ describe('createTask', () => {
     expect(taskInsert.objective_id).toBeNull()
     expect(taskInsert.work_line_id).toBeNull()
     noOrgId(rec)
+  })
+})
+
+// ── private toggle ──────────────────────────────────────────────────────────────
+describe('setTaskPrivate', () => {
+  it('updates is_private then logs a field_edited event', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      tasks: [{ data: null, error: null, count: 1 }],
+      task_events: [{ data: null, error: null }],
+    }, rec) as never)
+    await setTaskPrivate(TASK_ID, true, ACTOR)
+    expect(rec.updates[0]).toEqual({ is_private: true })
+    expect(rec.eqs).toContainEqual(['id', TASK_ID])
+    expect((rec.inserts[0] as Record<string, unknown>).event_type).toBe('field_edited')
+  })
+
+  it('throws when the database matches no row (the caller may not change privacy)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: null, error: null, count: 0 }] }, rec) as never)
+    await expect(setTaskPrivate(TASK_ID, false, ACTOR)).rejects.toThrow(/not allowed/)
+    expect(rec.inserts).toHaveLength(0)
+  })
+
+  it('throws on a database error', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: null, error: { message: 'boom' } }] }, rec) as never)
+    await expect(setTaskPrivate(TASK_ID, true, ACTOR)).rejects.toThrow(/boom/)
+  })
+
+  it('does not ask for the row back, and keeps a saved change when the event cannot be written', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      tasks: [{ data: null, error: null, count: 1 }],
+      task_events: [{ data: null, error: { message: 'row-level security' } }],
+    }, rec) as never)
+    await expect(setTaskPrivate(TASK_ID, true, ACTOR)).resolves.toBeUndefined()
+    expect(rec.selects).toEqual([])
+    await expect(setTaskPrivate(TASK_ID, false, ACTOR)).rejects.toThrow(/row-level security/)
   })
 })
 

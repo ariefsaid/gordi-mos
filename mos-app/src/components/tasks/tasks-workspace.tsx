@@ -36,6 +36,8 @@ import {
 import type { TaskRow, TaskStatus } from '@/lib/db/tasks.types'
 import { useCreateDraftRef, useCreateDraftState } from '@/shell/create-drafts'
 import { createTask, updateTaskFields, updateTaskStatus } from '@/lib/db/tasks'
+import { addTaskViewer } from '@/lib/db/task-viewers'
+import { blockDocumentHasContent, type BlockDocument } from '@/lib/db/block-document'
 import { getPersonTeams, type TeamOption } from '@/lib/db/directory'
 import { canStartProcessForTeam } from '@/lib/db/processes'
 import { linkSignalTask } from '@/lib/db/signals'
@@ -218,6 +220,8 @@ export function TasksWorkspace({
   const [announcement, setAnnouncement] = useState('')
   const draftSourceSignalRef = useCreateDraftRef<string | null>('task.sourceSignal', new URLSearchParams(location.search).get('sourceSignal'))
   const createdDraftTaskRef = useCreateDraftRef<string | null>('task.createdId', null)
+  // Who-can-see people not yet added to the created Task; a retry sends only these.
+  const pendingViewerIdsRef = useCreateDraftRef<string[] | null>('task.pendingViewerIds', null)
   const draftTitleRef = useCreateDraftRef('task.submittedTitle', '')
   const createControlRef = useRef<HTMLElement | null>(null)
   const returnFocusAfterDiscard = useRef(false)
@@ -400,6 +404,7 @@ export function TasksWorkspace({
   // reopen a draft. The flag is set by the close event and cleared in an effect, never during render
   // (a render can be abandoned and replayed with the previous location).
   const urlCreateClosedRef = useRef(false)
+  const openAfterCreateRef = useRef<string | null>(null)
   const urlCreate = params.get('create') === '1'
   if (urlCreate && !urlCreateClosedRef.current && !draftTask) createIntentRef.current = true
   if (urlCreate && !createParamSnapshotRef.current) {
@@ -591,7 +596,7 @@ export function TasksWorkspace({
       ? { ...current, accountable_person_id: personId }
       : current)
   }, [chooseSupervisor, draftTask?.id, setDraftTask])
-  const onEditTitle = useCallback(async (taskId: string, title: string, description?: string) => {
+  const onEditTitle = useCallback(async (taskId: string, title: string, body?: BlockDocument | null) => {
     if (draftTask?.id === taskId) {
       if (!viewerId) throw new Error('inline task creation requires an authenticated viewer')
       draftTitleRef.current = title
@@ -601,7 +606,7 @@ export function TasksWorkspace({
       const existingTaskId = createdDraftTaskRef.current
       const createdTaskId = existingTaskId ?? await createTask({
         title,
-        description: description ?? draftTask.description ?? '',
+        body,
         businessUnitId: draftTask.business_unit_id,
         teamId: draftTask.team_id,
         responsiblePersonId: draftTask.responsible_person_id,
@@ -610,9 +615,17 @@ export function TasksWorkspace({
         dueDate: draftTask.due_date,
         objectiveId: draftTask.objective_id,
         workLineId: draftTask.work_line_id,
+        isPrivate: draftFormState.isPrivate,
       })
       createdDraftTaskRef.current = createdTaskId
       if (existingTaskId) await updateTaskFields(createdTaskId, { title }, viewerId)
+      // The who-can-see list is added once the Task exists. The people still to add are kept (not re-read
+      // from the form), so a retry sends only the ones that did not go through.
+      if (pendingViewerIdsRef.current === null) pendingViewerIdsRef.current = draftFormState.isPrivate ? [...(draftFormState.viewerIds ?? [])] : []
+      while (pendingViewerIdsRef.current.length > 0) {
+        await addTaskViewer(createdTaskId, pendingViewerIdsRef.current[0])
+        pendingViewerIdsRef.current = pendingViewerIdsRef.current.slice(1)
+      }
       if (draftSourceSignalRef.current) {
         try {
           await linkSignalTask(draftSourceSignalRef.current, createdTaskId)
@@ -630,14 +643,17 @@ export function TasksWorkspace({
         }
       }
       createdDraftTaskRef.current = null
+      pendingViewerIdsRef.current = null
       urlCreateClosedRef.current = true
       setDraftTask(null)
       setCompletedTaskId(createdTaskId)
+      // The draft page becomes the created Task at its own address (opened once ?create=1 is dropped).
+      openAfterCreateRef.current = createdTaskId
       return
     }
     if (!viewerId) throw new Error('inline title edit requires an authenticated viewer')
     await updateTaskFields(taskId, { title }, viewerId)
-  }, [createdDraftTaskRef, draftSourceSignalRef, draftTask, draftTitleRef, setCompletedTaskId, setDraftLinkError, setDraftTask, t, viewerId])
+  }, [createdDraftTaskRef, pendingViewerIdsRef, draftFormState.isPrivate, draftFormState.viewerIds, draftSourceSignalRef, draftTask, draftTitleRef, setCompletedTaskId, setDraftLinkError, setDraftTask, t, viewerId])
   const onRetryDraftLink = useCallback((title: string) => {
     if (!draftTask) return
     void onEditTitle(draftTask.id, title || draftTitleRef.current || draftTask.title)
@@ -650,12 +666,13 @@ export function TasksWorkspace({
     }
     draftSourceSignalRef.current = null
     createdDraftTaskRef.current = null
+    pendingViewerIdsRef.current = null
     draftTitleRef.current = ''
     urlCreateClosedRef.current = true
     setDraftLinkError(false)
     setDraftTask(null)
     setDraftFormState({ pending: false, saveError: false })
-  }, [createdDraftTaskRef, draftSourceSignalRef, draftTitleRef, draftFormState.pending, setDraftTask, setDraftLinkError, setDraftFormState, t])
+  }, [createdDraftTaskRef, pendingViewerIdsRef, draftSourceSignalRef, draftTitleRef, draftFormState.pending, setDraftTask, setDraftLinkError, setDraftFormState, t])
   useEffect(() => {
     if (draftTask || !returnFocusAfterDiscard.current) return
     returnFocusAfterDiscard.current = false
@@ -693,6 +710,7 @@ export function TasksWorkspace({
     setDraftFormState({ pending: false, saveError: false })
     setAnnouncement('')
     createdDraftTaskRef.current = null
+    pendingViewerIdsRef.current = null
     draftTitleRef.current = ''
     const firstPerson = dataContext.people[0]?.id ?? viewerId ?? ''
     const prefill = new URLSearchParams(prefillParam)
@@ -746,7 +764,7 @@ export function TasksWorkspace({
       created_at: now, updated_at: now, process_run_id: null, generated_from_task_def_id: null,
     })
     draftSourceSignalRef.current = sourceSignal ?? draftSourceSignalRef.current
-  }, [createdDraftTaskRef, dataContext, draftSourceSignalRef, draftTask, draftTitleRef, params, resetSupervisorDefault, setDraftFormState, setDraftLinkError, setDraftTask, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
+  }, [createdDraftTaskRef, pendingViewerIdsRef, dataContext, draftSourceSignalRef, draftTask, draftTitleRef, params, resetSupervisorDefault, setDraftFormState, setDraftLinkError, setDraftTask, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
   // Every create entry — page button, global actions menu, command menu, keyboard shortcut, group
   // "Add" — comes through here, so a draft and an open record are never on screen together. A
   // dirty record may refuse to close; the draft opens only on a committed close, and only once
@@ -782,6 +800,11 @@ export function TasksWorkspace({
         next.delete('create')
         setParams(writeCollectionQuery(taskCollectionDescriptor.query, query, next), { replace: true })
       }
+      const createdId = openAfterCreateRef.current
+      if (createdId && !wantsUrlCreate) {
+        openAfterCreateRef.current = null
+        onOpenTask(createdId)
+      }
       return
     }
     if (createIntentRef.current) {
@@ -801,9 +824,9 @@ export function TasksWorkspace({
     // Written in the engine's canonical form: the engine's own URL sync races this write, and each
     // lands from its own render's snapshot, so the two must agree or the last one wins.
     setParams(writeCollectionQuery(taskCollectionDescriptor.query, query, next), { replace: true })
-  }, [dataContext, draftTask, onNewTask, params, query, setParams, viewerTeams])
+  }, [dataContext, draftTask, onNewTask, onOpenTask, params, query, setParams, viewerTeams])
   // Cancel, Escape, the back link and leaving the page with text typed into the draft ask first.
-  const draftHasText = Boolean(draftTask && (draftTask.title.trim() !== '' || (draftTask.description ?? '').trim() !== ''))
+  const draftHasText = Boolean(draftTask && (draftTask.title.trim() !== '' || blockDocumentHasContent(draftFormState.body ?? [])))
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
   const requestDiscardNewTask = useCallback(() => {
     if (draftFormState.pending) return
@@ -1037,7 +1060,6 @@ export function TasksWorkspace({
     onEditDue,
     onEditWorkLine,
     onTitleChange: (title) => setDraftTask((current) => current ? { ...current, title } : current),
-    onDescriptionChange: (description) => setDraftTask((current) => current ? { ...current, description } : current),
     formState: draftFormState,
     onFormStateChange: (patch) => setDraftFormState((current) => ({ ...current, ...patch })),
   }), [dataContext, draftFormState, draftTask, onEditDue, onEditWorkLine, setDraftTask, setDraftFormState, supervisorHint])
@@ -1099,7 +1121,7 @@ export function TasksWorkspace({
                   onEditTeam={onEditTeam}
                   onEditPic={onEditPic}
                   onEditSupervisor={onEditSupervisor}
-                  onCreate={(title, description) => onEditTitle(draftTask.id, title, description)}
+                  onCreate={(title, body) => onEditTitle(draftTask.id, title, body)}
                   onCancel={requestDiscardNewTask}
                   linkError={draftLinkError}
                   onRetryLink={onRetryDraftLink}

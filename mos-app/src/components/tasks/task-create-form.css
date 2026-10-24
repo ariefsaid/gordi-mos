@@ -1,112 +1,39 @@
-/* TaskCreateForm — ONE create form, desktop (full-width colSpan row) and phone (single column,
-   inside a card) alike. Tokens only — see DESIGN.md / index.css. */
-.tcf {
-  display: flex;
-  flex-direction: column;
-  gap: var(--mos-field-gap);
-  width: 100%;
-  padding: var(--mos-row-pad-y);
-}
-.tcf-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--mos-label-gap);
-  min-width: 0;
-}
-.tcf-label { font: var(--mos-type-label); color: var(--mos-ink);  }
-.tcf-required {
-  color: var(--status-lost-text);
-}
+/* TaskCreateForm — Create task as a blank Task page. Composes the shared record page (.rp) and
+   properties block (.rp-props); only what is specific to a draft lives here. Tokens only. */
+.tcf { width: 100%; }
+.tcf .rp-head { border-bottom: 0; padding-bottom: 0; }
+.tcf-title-field { min-width: 0; }
 .tcf-title {
-  width: 100%;
-  box-sizing: border-box;
-  resize: none;
-  overflow: hidden;
-  min-height: var(--mos-control-height);
-  padding: 5px 12px;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--mos-surface);
-  color: var(--foreground);
-  font: inherit;
-  font-size: var(--mos-size-3);
-  line-height: 1.5;
+  display: block; width: 100%; box-sizing: border-box; resize: none; overflow: hidden;
+  min-height: var(--mos-control-height); margin: 0; padding: 2px 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none;
+  color: var(--foreground); font: inherit; letter-spacing: inherit; line-height: 1.3; text-wrap: balance;
 }
-.tcf-title:focus-visible {
-  outline: var(--mos-focus-width) solid var(--mos-accent);
-  outline-offset: var(--mos-focus-offset);
-}
-.tcf-description {
-  width: 100%;
-  min-height: 72px;
-  box-sizing: border-box;
-  padding: 8px 12px;
-  resize: vertical;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--mos-surface);
-  color: var(--foreground);
-  font: inherit;
-  font-size: var(--mos-size-3);
-  line-height: 1.4;
-}
-.tcf-description:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
-.tcf-description::placeholder { color: var(--muted-foreground); }
-.tcf-title[aria-invalid='true'] {
-  border-color: var(--status-lost-text);
-}
-.tcf-error {
-  margin: 0;
-  font-size: var(--mos-size-1);
-  color: var(--field-error-text);
-}
-.tcf-title-error-slot {
-  min-height: 1.25em;
-  font-size: var(--mos-size-1);
-  line-height: 1.25;
-}
-.tcf-save-error {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.tcf-hint {
-  margin: 0;
-  font: var(--mos-type-subnav);
-  color: var(--mos-muted);
-}
-.tcf-hint--lead { margin-bottom: calc(-1 * var(--mos-space-1)); }
-/* Field row: Team · PIC · Supervisor. Three columns on a wide track (desktop table),
-   one column on a narrow one (phone card) — no separate phone-only markup to drift. */
-.tcf-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--mos-row-gap);
-}
-.tcf-row--pair { grid-template-columns: minmax(0, 220px) minmax(0, 1fr); }
-/* A date is short: the field fits it, not the row. */
-.tcf-row--pair .tcf-field:first-child { max-width: 220px; }
-@media (max-width: 767.98px) {
-  .tcf-row, .tcf-row--pair { grid-template-columns: 1fr; }
-}
+.tcf-title::placeholder { color: var(--muted-foreground); }
+.tcf-title:focus-visible { outline: none; border-bottom-color: var(--mos-accent); }
+.tcf-title[aria-invalid='true'] { border-bottom-color: var(--status-lost-text); }
+.tcf-actions { display: flex; gap: var(--mos-inline-gap); }
+.tcf-draftnote { margin: var(--mos-inline-gap) 0 0; font: var(--mos-type-subnav); color: var(--mos-muted); }
 
-/* Phone touch floor (DO-15(a) convention, TaskSurface.css): every control in the create form
-   is ≥44px tall, and inputs run ≥16px so mobile browsers never auto-zoom on focus. */
-.tcf-optional-context { margin-top: var(--mos-inline-gap); }
-.tcf-optional-context > summary { min-height: var(--mos-control-height); display: flex; align-items: center; gap: var(--mos-inline-gap); list-style: none; cursor: pointer; color: var(--text-on-accent-tint); font-size: var(--mos-size-3); font-weight: 600; }
-.tcf-optional-context > summary::-webkit-details-marker { display: none; }
-.tcf-optional-context > summary:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); border-radius: var(--radius-xs); }
-.tcf-disclosure-chevron { flex: none; width: var(--mos-icon-sm); height: var(--mos-icon-sm); transform: rotate(-90deg); transition: transform var(--mos-duration-fast) ease; }
-.tcf-optional-context[open] > summary .tcf-disclosure-chevron { transform: none; }
-@media (prefers-reduced-motion: reduce) { .tcf-disclosure-chevron { transition: none; } }
-.tcf-optional-context[open] .tcf-field { margin-top: var(--mos-inline-gap); }
+.tcf-error { margin: 0; font-size: var(--mos-size-1); color: var(--field-error-text); }
+.tcf-needed { margin: 0; font: var(--mos-type-subnav); color: var(--field-error-text); }
+.tcf-hint { margin: 0; font: var(--mos-type-subnav); color: var(--mos-muted); }
+.tcf-muted { color: var(--muted-foreground); }
+.tcf-save-error { display: flex; align-items: center; gap: 8px; margin-top: var(--mos-inline-gap); }
+
+/* The pickers and the date are the property values: quiet at rest, ringed on hover and focus. */
+.tcf .rp-props .picker { align-items: flex-start; }
+.tcf .rp-props .tcf-value.picker__trigger { width: auto; max-width: 100%; box-shadow: none; background: none; padding-inline: 0 var(--mos-inline-gap); font-size: var(--mos-size-3); }
+.tcf .rp-props .tcf-value.picker__trigger:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--mos-control); }
+.tcf .rp-props .tcf-value.picker__trigger:focus-visible, .tcf .rp-props .tcf-value.picker__trigger[aria-expanded='true'] { box-shadow: inset 0 0 0 2px var(--mos-accent); padding-inline: var(--mos-inline-gap); }
+.tcf .rp-props .picker__placeholder { color: var(--muted-foreground); }
+.tcf .rp-props .mk-date { max-width: 18rem; }
+.tcf .rp-props .mk-date__box:not(:hover, :focus-within) { box-shadow: none; background: none; }
+
+/* The description: the document slot, unboxed. */
+.tcf .task-description-section { padding-top: var(--mos-group-above); }
 
 @media (max-width: 767.98px) {
-  /* The inline draft shares the task-list viewport with the bottom nav; compact vertical rhythm keeps its actions above it. */
-  .tcf { gap: var(--mos-label-gap); padding: var(--mos-inline-gap); }
-  .tcf-row, .tcf-row--pair { grid-template-columns: 1fr; gap: var(--mos-inline-gap); }
-    .tcf-title { min-height: var(--mos-control-height); font-size: var(--mos-size-3); }
-  .tcf-description { min-height: 72px; font-size: var(--mos-size-3); }
-  .tcf .picker__trigger { min-height: var(--mos-control-height); font-size: var(--mos-size-3); }
+  .tcf .rp-head { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title"; }
+  .tcf .rp-props .picker__trigger { min-height: var(--mos-control-height); font-size: var(--mos-size-3); }
   .tcf-save-error .task-row-retry { min-width: 44px; min-height: 44px; }
 }

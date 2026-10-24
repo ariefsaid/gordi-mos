@@ -62,6 +62,8 @@ const SignalRecordPage = lazyPage(() =>
 const FollowUpsPage = lazyPage(() => import('./pages/follow-ups-page').then((m) => ({ default: m.FollowUpsPage })))
 const ObjectivesPage = lazyPage(() => import('./pages/objectives-page').then((m) => ({ default: m.ObjectivesPage })))
 const ObjectiveRecordPage = lazyPage(() => import('./pages/objective-record-page').then((m) => ({ default: m.ObjectiveRecordPage })))
+const MeetingsPage = lazyPage(() => import('./pages/meetings-page').then((m) => ({ default: m.MeetingsPage })))
+const MeetingRecordPage = lazyPage(() => import('./pages/meeting-record-page').then((m) => ({ default: m.MeetingRecordPage })))
 const WorkLineRecordPage = lazyPage(() => import('./pages/work-line-record-page').then((m) => ({ default: m.WorkLineRecordPage })))
 const ProjectsProcessesPage = lazyPage(() =>
   import('./pages/projects-processes-page').then((m) => ({ default: m.ProjectsProcessesPage })),
@@ -156,6 +158,7 @@ const DevViewsPage = lazyPage(() => import('./pages/dev-views-page').then((m) =>
 //     /staff/shifts              My shifts, Team roster and standing hours
 //     /work/signals              Signals
 //     /work/objectives           Objectives (org-readable; write scope resolved in the page)
+//     /work/meetings[/new|/:meetingId]  Meetings (org-readable; Private ones hidden by RLS)
 //     /work/projects             Projects & Processes (org-readable; write scope resolved in the page)
 //     /events /ecommerce /roastery /profile
 //     /money[/pending-bills|/budget|/pricing|/follow-ups]   (/money/detail redirects to /money)
@@ -293,6 +296,23 @@ const routeTable: RouteObject[] = [
           {
             path: 'work/objectives/:objectiveId',
             element: withSuspense(<ObjectiveRecordPage />),
+            handle: pageHandle('focused-record'),
+          },
+          // Meetings are org-readable like Objectives; a Private Meeting the viewer is not in is hidden by RLS,
+          // so the record page shows the generic "can't open" message rather than a route gate.
+          {
+            path: ROUTE_PATHS.workMeetings,
+            element: withSuspense(<MeetingsPage />),
+            handle: pageHandle('management'),
+          },
+          {
+            path: 'work/meetings/new',
+            element: withSuspense(<MeetingRecordPage />),
+            handle: pageHandle('focused-record'),
+          },
+          {
+            path: 'work/meetings/:meetingId',
+            element: withSuspense(<MeetingRecordPage />),
             handle: pageHandle('focused-record'),
           },
           // Projects & Processes is org-readable like Objectives. Effective Work write scope is

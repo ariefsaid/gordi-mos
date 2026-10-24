@@ -15,6 +15,7 @@ vi.mock('@/lib/db/objectives', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/db/objectives')>()),
   searchObjectivesByName: vi.fn(),
 }))
+vi.mock('@/lib/db/meetings', () => ({ searchMeetingsByTitle: vi.fn() }))
 vi.mock('@/lib/db/work-lines', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/db/work-lines')>()),
   searchWorkLinesByName: vi.fn(),
@@ -37,6 +38,7 @@ import { searchFollowUpsByCounterparty } from '@/lib/db/follow-ups'
 import { searchPeopleByName } from '@/lib/db/directory'
 import { searchObjectivesByName } from '@/lib/db/objectives'
 import { searchWorkLinesByName } from '@/lib/db/work-lines'
+import { searchMeetingsByTitle } from '@/lib/db/meetings'
 import { CommandMenu } from './command-menu'
 import { readRecentTasks, pushRecentTask } from './recent-tasks'
 
@@ -46,6 +48,7 @@ const mockSearchFollowUps = vi.mocked(searchFollowUpsByCounterparty)
 const mockSearchPeople = vi.mocked(searchPeopleByName)
 const mockSearchObjectives = vi.mocked(searchObjectivesByName)
 const mockSearchWorkLines = vi.mocked(searchWorkLinesByName)
+const mockSearchMeetings = vi.mocked(searchMeetingsByTitle)
 const mockUseAuth = vi.mocked(useAuth)
 
 function setAuth(accessRoles: string[] = ['admin']) {
@@ -101,6 +104,7 @@ beforeEach(() => {
   mockSearchPeople.mockResolvedValue([])
   mockSearchObjectives.mockResolvedValue([])
   mockSearchWorkLines.mockResolvedValue([])
+  mockSearchMeetings.mockResolvedValue([])
   setAuth(['admin'])
 })
 afterEach(() => {
@@ -773,6 +777,16 @@ describe('issue 1193: ⌘K search finds Objectives and Projects & Processes', ()
     expect(screen.getByTestId('location')).toHaveTextContent('/work/objectives/o1')
     expect(onClose).toHaveBeenCalled()
     expect(readRecentTasks()).toHaveLength(0)
+  })
+
+  it('a Meeting hit carries the "Meeting" kind and opens its page', async () => {
+    mockSearchMeetings.mockResolvedValue([{ id: 'm1', title: 'Weekly bar ops sync', startsAt: null }])
+    renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'weekly' } })
+    const opt = await screen.findByRole('option', { name: /Weekly bar ops sync/ })
+    expect(screen.getByRole('group', { name: 'Meeting' })).toContainElement(opt)
+    fireEvent.click(opt)
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/meetings/m1')
   })
 
   it('a Project and a Process each carry their own kind and open /work/projects/:id', async () => {

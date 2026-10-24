@@ -32,6 +32,8 @@ import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogReco
 import './catalog-record-document.css'
 import { ObjectiveKeyResultsSection, type ObjectiveKeyResultsActionState } from './objective-key-results-section'
 import { RecordHistory } from './record-history'
+import { MeetingsSection } from '@/components/meetings/meetings-section'
+import '@/components/meetings/meetings-list.css'
 import { countRecordHistory } from '@/lib/db/record-history'
 import { copyCanonicalLink } from '@/lib/copy-canonical-link'
 import { priorWorkLine, withLinkedWorkLine, withPriorWorkLine } from './catalog-record-optimistic'
@@ -817,6 +819,7 @@ export function CatalogRecordDocument({
           onOpenRelated={onOpenRelated}
           today={today}
         />
+        <MeetingsSection {...(isObjective ? { objectiveId: id } : { workLineId: id })} onOpenRelated={onOpenRelated} />
         {getStartedLast ? getStarted : null}
         {stepsFirst ? null : stepsSection}
         {isObjective ? <WriteUpSection objectiveId={id} canEdit={writeUpEditable} archived={archived} onDirtyChange={setFieldDirty} onSaved={() => setHistoryVersion((v) => v + 1)} /> : null}

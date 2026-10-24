@@ -1,7 +1,7 @@
 import type { Attention } from '@/lib/db/signals.types'
 import type { TriageNotificationRow } from './read-handled-semantics'
 
-export type InboxEntityType = 'signal' | 'task' | 'follow_up' | 'unknown'
+export type InboxEntityType = 'signal' | 'task' | 'meeting' | 'follow_up' | 'unknown'
 
 export interface InboxRowPresentation {
   actorName: string | null
@@ -16,7 +16,7 @@ export interface InboxRowPresentation {
   fallbackTitle: string
 }
 
-const ENTITY_TYPES: readonly InboxEntityType[] = ['signal', 'task', 'follow_up']
+const ENTITY_TYPES: readonly InboxEntityType[] = ['signal', 'task', 'meeting', 'follow_up']
 const ATTENTIONS: readonly Attention[] = ['FYI', 'Needs attention', 'Urgent']
 
 function isRecord(value: unknown): value is Record<string, unknown> {
