@@ -508,6 +508,7 @@ export const messages = {
     'inbox.target.unavailable.featureOff': "That record isn't available yet.",
     'inbox.target.type.task': 'Task',
     'inbox.target.type.signal': 'Signal',
+    'inbox.target.type.meeting': 'Meeting',
     'inbox.target.type.followUp': 'AR Follow-up',
     // NFR-300/FR-321 — phone card grammar + overdue prefix + catalog-resilience fallbacks.
     // Ported for #192 (Tasks): renamed by v4 to "AR". Both the Money page and the Task follow-ups
@@ -3236,6 +3237,7 @@ export const messages = {
     'meetings.private.off': 'Off',
     'meetings.private.on': 'On',
     'meetings.private.helpOff': 'Everyone in the organisation can read it; attendees and the owning Team edit.',
+    'meetings.private.attendeesOnly': 'Only an attendee or an admin can change this.',
     'meetings.private.helpOn': 'Only attendees and admins can see this meeting and the Tasks made in it.',
     'meetings.linked.none': 'Nothing linked',
     'meetings.linked.unavailable': 'Linked record',
@@ -4908,6 +4910,7 @@ export const messages = {
     'inbox.target.unavailable.featureOff': 'Catatan itu belum tersedia.',
     'inbox.target.type.task': 'Tugas',
     'inbox.target.type.signal': 'Sinyal',
+    'inbox.target.type.meeting': 'Rapat',
     'inbox.target.type.followUp': 'AR Follow-up',
     // NFR-300/FR-321 — tata bahasa kartu ponsel + prefiks terlambat + fallback ketahanan katalog.
     'followUps.title': 'Antrean AR Follow-up',
@@ -7550,6 +7553,7 @@ export const messages = {
     'meetings.private.off': 'Mati',
     'meetings.private.on': 'Aktif',
     'meetings.private.helpOff': 'Semua orang di organisasi bisa membaca; peserta dan Tim pemilik yang mengubah.',
+    'meetings.private.attendeesOnly': 'Hanya peserta atau admin yang bisa mengubah ini.',
     'meetings.private.helpOn': 'Hanya peserta dan admin yang bisa melihat rapat ini dan Tugas yang dibuat di dalamnya.',
     'meetings.linked.none': 'Belum ada tautan',
     'meetings.linked.unavailable': 'Catatan tertaut',

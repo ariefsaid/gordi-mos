@@ -39,6 +39,8 @@ export type MeetingPropertiesProps = {
   ctx: MeetingContext
   value: MeetingPropertyValues
   editable: boolean
+  /** Only an attendee or an admin switches Private; omitted = allowed (a new Meeting's creator is an attendee). */
+  canChangePrivacy?: boolean
   /** An attendee who cannot be removed (the creator, on a draft). */
   pinnedAttendeeId?: string | null
   /** A new meeting still without a Team shows the Needed cue. */
@@ -154,7 +156,7 @@ function linkedValue(workLineId: string | null, objectiveId: string | null): str
 }
 
 export function MeetingProperties({
-  ctx, value, editable, pinnedAttendeeId, teamNeeded, unfold, series, teamChoices,
+  ctx, value, editable, canChangePrivacy = true, pinnedAttendeeId, teamNeeded, unfold, series, teamChoices,
   onStartsAt, onTeam, onAddAttendee, onRemoveAttendee, onPrivate, onLinked, openMeeting,
 }: MeetingPropertiesProps) {
   const t = useT()
@@ -205,10 +207,12 @@ export function MeetingProperties({
     {
       key: 'private',
       label: t('meetings.prop.private'),
-      note: value.isPrivate ? t('meetings.private.helpOn') : t('meetings.private.helpOff'),
+      note: editable && !canChangePrivacy
+        ? t('meetings.private.attendeesOnly')
+        : value.isPrivate ? t('meetings.private.helpOn') : t('meetings.private.helpOff'),
       children: (
         <span className="meeting-private">
-          <Toggle value={value.isPrivate} disabled={!editable || offline} aria-label={t('meetings.private')} onChange={(next) => { void onPrivate(next) }} />
+          <Toggle value={value.isPrivate} disabled={!editable || !canChangePrivacy || offline} aria-label={t('meetings.private')} onChange={(next) => { void onPrivate(next) }} />
           <span>{value.isPrivate ? t('meetings.private.on') : t('meetings.private.off')}</span>
         </span>
       ),

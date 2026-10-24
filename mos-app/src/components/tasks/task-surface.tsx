@@ -454,9 +454,10 @@ function ViewSurface({
     if (next) setViewerIds(listed)
     const updated = { ...localTask, is_private: next }
     onTaskChanged?.(updated)
-    // The change is saved. An editor who is not the creator, PIC, Supervisor, an admin or on the list
-    // can no longer read the Task, so the page says so instead of loading what it can't read.
-    if (next && !canSeePrivateTask(updated, viewerId, listed, auth.status === 'authenticated' && auth.viewer.accessRoles.includes('admin'))) {
+    // The change is saved. An editor who is not the creator, PIC, Supervisor, an admin, on the list or
+    // (for a Task made in a private Meeting) an attendee of it can no longer read the Task, so the page
+    // says so instead of loading what it can't read.
+    if (next && !canSeePrivateTask(updated, viewerId, listed, auth.status === 'authenticated' && auth.viewer.accessRoles.includes('admin'), meeting?.viewerIn === true)) {
       setLostAccess(true)
       return
     }

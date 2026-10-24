@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { render, screen, fireEvent, within, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { translateFor } from '@/i18n/use-t'
@@ -144,6 +144,27 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
     const row = document.querySelector('[data-notification-id="task-mention-1"]') as HTMLElement
     expect(within(row).getByText('Cahya mentioned you')).toBeInTheDocument()
     expect(within(row).getByText('Replace grinder burrs')).toBeInTheDocument()
+  })
+
+  it('renders "<Actor> mentioned you" with a Meeting chip for a Meeting minutes mention, in both languages', () => {
+    const row = trow('meeting-mention-1', {
+      title: 'You were mentioned in meeting minutes',
+      body: 'Weekly bar ops sync',
+      metadata: {
+        source: 'meeting_mention',
+        actor: { id: 'person-cahya', name: 'Cahya' },
+        entity: { type: 'meeting', id: 'm1', route: '/work/meetings?record=m1' },
+      },
+    })
+    renderTriage({ rows: [row] })
+    const el = document.querySelector('[data-notification-id="meeting-mention-1"]') as HTMLElement
+    expect(within(el).getByText('Cahya mentioned you')).toBeInTheDocument()
+    expect(within(el).getByText('Meeting')).toBeInTheDocument()
+    cleanup()
+    renderTriage({ rows: [row] }, 'id')
+    const elId = document.querySelector('[data-notification-id="meeting-mention-1"]') as HTMLElement
+    expect(within(elId).getByText('Cahya menyebut Anda')).toBeInTheDocument()
+    expect(within(elId).getByText('Rapat')).toBeInTheDocument()
   })
 
   // #774 does NOT implement AC-074's legacy-author resolution (deferred — it would need a batch

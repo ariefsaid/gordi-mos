@@ -25,7 +25,7 @@ import type { MeetingDetail } from '@/lib/db/meetings.types'
 import { countRecordHistory } from '@/lib/db/record-history'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { loadMeetingContext, nameOf, pickableTeams, type MeetingContext } from './meeting-context'
-import { canEditMeeting } from './meeting-format'
+import { canChangeMeetingPrivacy, canEditMeeting } from './meeting-format'
 import { MeetingMinutesSlot } from './meeting-minutes-slot'
 import { MeetingProperties, type MeetingPropertyValues } from './meeting-properties'
 import './meeting-record.css'
@@ -231,6 +231,7 @@ function ExistingMeeting({ id, mode, onOpenMeeting, onTitleResolved, onChanged }
           teamChoices={pickableTeams(ctx, isAdmin, values.owningTeamId)}
           value={values}
           editable={editable}
+          canChangePrivacy={canChangeMeetingPrivacy({ attendeeIds: meeting.attendeeIds, viewerId, isAdmin })}
           openMeeting={openMeeting}
           series={{
             number: meeting.sequenceNumber,
