@@ -71,6 +71,13 @@ describe('mentions and record chips', () => {
     expect(open).toHaveBeenCalledWith({ kind: 'task', id: 'k1' })
   })
 
+  it('opens the record from the chip\'s phone hit area', async () => {
+    const open = vi.fn()
+    await mount(open)
+    fireEvent.click(document.querySelector('.block-doc__chip-hit') as HTMLElement)
+    expect(open).toHaveBeenCalledWith({ kind: 'task', id: 'k1' })
+  })
+
   it('shows a record the viewer cannot read as a Restricted record chip with no title and nothing to open', async () => {
     const open = vi.fn()
     await mount(open)

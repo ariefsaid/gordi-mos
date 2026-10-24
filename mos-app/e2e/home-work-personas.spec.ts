@@ -91,10 +91,11 @@ for (const width of [1440]) {
     await expect(page.getByRole('combobox', { name: 'Supervisor', exact: true })).toContainText('Cahya Cafe')
     await page.getByRole('button', { name: 'Retry', exact: true }).first().click()
     await expect(draft).not.toBeVisible()
-    const saved = page.getByRole('link').filter({ hasText: title }).first()
-    await expect(saved).toBeVisible()
+    // The draft page becomes the created Task at its own address.
+    await expect(page).toHaveURL(/record=|\/work\/tasks\/[0-9a-f-]{36}/)
+    await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
     await page.reload()
-    await expect(page.getByRole('link').filter({ hasText: title }).first()).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
   })
 }
 

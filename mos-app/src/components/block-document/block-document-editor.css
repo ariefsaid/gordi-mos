@@ -49,18 +49,15 @@
 }
 
 .block-doc .block-doc__editor [data-content-type='heading'] {
+  --level: var(--mos-size-3);
+  --prev-level: var(--mos-size-3);
+}
+
+/* A heading is drawn one level below its stored level (the page title is the only h1), so the library's
+   data-level is the stored level plus one: stored level 1 is data-level 2, the largest. */
+.block-doc .block-doc__editor [data-content-type='heading'][data-level='2'] {
   --level: var(--mos-size-4);
   --prev-level: var(--mos-size-4);
-}
-
-.block-doc .block-doc__editor [data-content-type='heading'][data-level='2'] {
-  --level: var(--mos-size-3);
-  --prev-level: var(--mos-size-3);
-}
-
-.block-doc .block-doc__editor :is([data-level='3'], [data-level='4'], [data-level='5'], [data-level='6'])[data-content-type='heading'] {
-  --level: var(--mos-size-3);
-  --prev-level: var(--mos-size-3);
 }
 
 .block-doc .block-doc__editor .bn-block-outer .bn-block .bn-block-content[data-content-type='heading'] {
@@ -333,6 +330,39 @@
 
 .block-doc__chip--link {
   cursor: pointer;
+}
+
+/* A record link's tap area on a phone: 44px, centred on the chip and out of flow, so line height and text
+   flow do not change. */
+.block-doc__chip-hit { display: none; }
+
+/* A checklist-note checkbox's hit area: a label for it (so a click toggles it natively) centred on the 12px
+   box, 24px on desktop and 44px on a phone. */
+.block-doc__editor .bn-block-content[data-content-type='checkListItem'] > div:has(> input) { position: relative; }
+
+.block-doc__check-hit {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+@media (max-width: 767.98px) {
+  .block-doc__chip--link { position: relative; }
+  .block-doc__chip-hit {
+    display: block;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  .block-doc__check-hit { width: 44px; height: 44px; }
 }
 
 .block-doc__chip--link:hover {
