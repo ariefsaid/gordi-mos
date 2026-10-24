@@ -44,7 +44,23 @@ import { linkRecordSlashItem, mentionItems, recordItems, useFooterMenu } from '.
 import './block-document-editor.css'
 
 // Text blocks only: no file, image, table, code or other upload-capable block exists in the schema.
-const { paragraph, heading, bulletListItem, numberedListItem, quote } = defaultBlockSpecs
+const { paragraph, bulletListItem, numberedListItem, quote } = defaultBlockSpecs
+
+// The library's heading drawn one level below its stored level (1 -> h2, 2 -> h3, 3 -> h4): the record title is
+// the page's only h1. Stored level and the `data-level` the styles read stay the stored ones.
+const libraryHeading = defaultBlockSpecs.heading
+const libraryHeadingRender = libraryHeading.implementation.render as unknown as (
+  this: unknown, block: { props: { level: number } }, editor: never,
+) => { dom: HTMLElement; contentDOM?: HTMLElement }
+const heading = {
+  ...libraryHeading,
+  implementation: {
+    ...libraryHeading.implementation,
+    render(this: unknown, block: { props: { level: number } }, editor: never) {
+      return libraryHeadingRender.call(this, { ...block, props: { ...block.props, level: Math.min(block.props.level + 1, 6) } }, editor)
+    },
+  },
+} as typeof libraryHeading
 
 // The library's checklist note with its checkbox named: the note label ("Checklist note") then the item's own
 // text, so an empty item is still named. Same block type and `checked` prop as the library's.
@@ -64,6 +80,14 @@ const checkListItem = {
       checkbox?.setAttribute('id', `check-box-${id}`)
       checkbox?.setAttribute('aria-label', (editor as { dictionary: { slash_menu: { check_list: { title: string } } } }).dictionary.slash_menu.check_list.title)
       checkbox?.setAttribute('aria-labelledby', `check-box-${id} check-text-${id}`)
+      // A 44px phone hit area around the checkbox: a label for it, shown on phone widths only (see the stylesheet).
+      if (checkbox) {
+        const hit = document.createElement('label')
+        hit.className = 'block-doc__check-hit'
+        hit.htmlFor = `check-box-${id}`
+        hit.setAttribute('aria-hidden', 'true')
+        checkbox.after(hit)
+      }
       return rendered
     },
   },

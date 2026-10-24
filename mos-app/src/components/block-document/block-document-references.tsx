@@ -141,6 +141,7 @@ export function RecordLinkNode({ kind, id }: { kind: RecordLinkKind; id: string 
       onClick={() => references.openRecord?.({ kind, id })}
     >
       {content}
+      <span className="block-doc__chip-hit" aria-hidden="true" />
     </button>
   )
 }

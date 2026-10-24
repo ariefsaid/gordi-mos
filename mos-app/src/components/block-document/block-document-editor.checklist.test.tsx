@@ -34,6 +34,14 @@ describe('checklist note checkboxes', () => {
     expect(screen.getByRole('checkbox', { name: 'Checklist note' })).toBeChecked()
   })
 
+  it('toggle from the 44px phone hit area around the checkbox', async () => {
+    await mount()
+    const hit = document.querySelector('.block-doc__check-hit') as HTMLElement
+    fireEvent.click(hit)
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)) })
+    expect(screen.getByRole('checkbox', { name: 'Checklist note Call the supplier' })).toBeChecked()
+  })
+
   it('are named in Indonesian', async () => {
     await mount({}, 'id')
     expect(screen.getByRole('checkbox', { name: 'Catatan centang' })).toBeChecked()
@@ -66,5 +74,26 @@ describe('a draft document', () => {
     )
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 100)) })
     expect(screen.queryByText('Empty')).toBeNull()
+  })
+})
+
+describe('document headings under a record title', () => {
+  const headings = [1, 2, 3].map((level) => ({
+    id: `h${level}`, type: 'heading', props: { level }, content: [{ type: 'text', text: `Part ${level}`, styles: {} }],
+  }))
+
+  it.each(['en', 'id'] as const)('keep the title the only level-1 heading (%s)', async (locale) => {
+    render(
+      <I18nProvider initialLocale={locale}>
+        <h1>Record title</h1>
+        <BlockDocumentEditor documentKey="d" store={{ read: async () => ({ blocks: headings, updatedAt: 't1' }), save: vi.fn() }}
+          canEdit copy={copy} />
+      </I18nProvider>,
+    )
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 100)) })
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getByRole('heading', { level: 2, name: 'Part 1' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Part 2' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 4, name: 'Part 3' })).toBeInTheDocument()
   })
 })
