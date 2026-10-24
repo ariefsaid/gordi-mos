@@ -122,6 +122,23 @@ describe('Task page — Private row', () => {
     expect(screen.getByRole('link', { name: 'All tasks →' })).toBeInTheDocument()
   })
 
+  it('keeps the Task open for a manager who attends the private Meeting it was made in', async () => {
+    vi.mocked(getDownlinePersonIds).mockResolvedValue([DEWI])
+    const task = makeTask({ responsible_person_id: DEWI, accountable_person_id: BUDI, created_by: DEWI, meeting_id: 'm1', created_in_private_meeting: true })
+    await renderPage(task, { meeting: { href: '/work/meetings/m1', title: 'Ops sync', isPrivate: true, viewerIn: true } })
+    await userEvent.click(screen.getByRole('switch', { name: 'Private' }))
+    await waitFor(() => expect(setTaskPrivate).toHaveBeenCalledWith('task-abc', true, ME))
+    expect(screen.queryByRole('heading', { name: 'Task is now private' })).toBeNull()
+  })
+
+  it('still says the change is saved for a manager who is not in the Meeting', async () => {
+    vi.mocked(getDownlinePersonIds).mockResolvedValue([DEWI])
+    const task = makeTask({ responsible_person_id: DEWI, accountable_person_id: BUDI, created_by: DEWI, meeting_id: 'm1', created_in_private_meeting: true })
+    await renderPage(task, { meeting: { href: '/work/meetings/m1', title: 'Ops sync', isPrivate: true, viewerIn: false } })
+    await userEvent.click(screen.getByRole('switch', { name: 'Private' }))
+    expect(await screen.findByRole('heading', { name: 'Task is now private' })).toBeInTheDocument()
+  })
+
   it('lists the extra people and adds and removes one', async () => {
     vi.mocked(listTaskViewers).mockResolvedValue([{ id: 'v1', org_id: 'org', task_id: 'task-abc', person_id: BUDI, created_by: ME, created_at: '' }])
     await renderPage(makeTask({ is_private: true }))

@@ -68,6 +68,13 @@ describe('private Task helpers (mirror mos.can_person_read_task / mos.can_change
     expect(canSeePrivateTask(priv, 'x', [], true)).toBe(true)
     expect(canSeePrivateTask(priv, 'x', ['l'])).toBe(false)
   })
+  it('an attendee reads a private Task only when it was created in a private Meeting', () => {
+    const fromMeeting = { ...priv, created_in_private_meeting: true }
+    expect(canSeePrivateTask(fromMeeting, 'x', [], false, true)).toBe(true)
+    expect(canSeePrivateTask(fromMeeting, 'x', [], false, false)).toBe(false)
+    expect(canSeePrivateTask({ ...priv, created_in_private_meeting: false }, 'x', [], false, true)).toBe(false)
+    expect(canSeePrivateTask(priv, 'x', [], false, true)).toBe(false)
+  })
   it('only an editor changes privacy (the Task edit gate)', () => {
     expect(canEdit(priv, 'r', [])).toBe(true)
     expect(canEdit(priv, 'x', [])).toBe(false)

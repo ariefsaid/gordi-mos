@@ -132,6 +132,7 @@ const BUS = [{ id: 'bu-1', name: 'Kitchen' }]
 const PEOPLE = [
   { id: VIEWER_ID, full_name: 'Arden Sample' },
   { id: 'other-id', full_name: 'Budi Setiawan' },
+  { id: 'third-id', full_name: 'Citra Third' },
 ]
 const VIEWER_TEAMS = [{
   id: 'team-1', name: 'Café team', businessUnitId: 'bu-1', siteId: null, orgId: 'org', isPrimary: true,
@@ -324,6 +325,29 @@ describe('D3e — Tasks create is an inline title row', () => {
     submitDraft()
     fireEvent.click(await screen.findByRole('button', { name: /retry/i }))
     await waitFor(() => expect(mockAddTaskViewer).toHaveBeenCalledTimes(2))
+    expect(mockCreateTask).toHaveBeenCalledTimes(1)
+  })
+
+  it('on Retry sends only the listed people that were not added yet', async () => {
+    mockAddTaskViewer.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
+    mockCreateTask.mockResolvedValue('created-private')
+    renderTable()
+    await waitFor(() => expect(screen.getByText('Existing task')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
+    fireEvent.change(await screen.findByRole('textbox', { name: /title/i }), { target: { value: 'Private plan' } })
+    fireEvent.click(screen.getByRole('switch', { name: 'Private' }))
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Supervisor' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'None, just me' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add person' }))
+    fireEvent.click(await screen.findByText('Budi Setiawan', { selector: '.person-picker-label' }))
+    await screen.findByRole('button', { name: 'Remove Budi Setiawan' })
+    fireEvent.click(screen.getByRole('button', { name: 'Add person' }))
+    fireEvent.click(await screen.findByText('Citra Third', { selector: '.person-picker-label' }))
+    submitDraft()
+    fireEvent.click(await screen.findByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(mockAddTaskViewer).toHaveBeenCalledTimes(3))
+    expect(mockAddTaskViewer.mock.calls.map((call) => call[1])).toEqual(['other-id', 'third-id', 'third-id'])
     expect(mockCreateTask).toHaveBeenCalledTimes(1)
   })
 

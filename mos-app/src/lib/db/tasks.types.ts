@@ -39,6 +39,8 @@ export interface TaskRow {
   is_private?: boolean
   /** The Meeting the Task was created in, when it was (#1840); read on the Task page only. */
   meeting_id?: string | null
+  /** True when the Task was created in a Meeting that was private then; its attendees read it while it is private. */
+  created_in_private_meeting?: boolean
 }
 /** One person on a private Task's who-can-see list (mos.task_viewers). */
 export interface TaskViewerRow {

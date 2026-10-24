@@ -90,9 +90,10 @@ export type InboxPendingAction = 'open' | 'read' | 'handled'
 const SEVERITY_STATUS = { info: 'fyi', warning: 'needsAttention', critical: 'urgent' } as const
 const ATTENTION_STATUS = { 'Urgent': 'urgent', 'Needs attention': 'needsAttention', 'FYI': 'fyi' } as const
 
-const ENTITY_KEY: Record<Exclude<InboxEntityType, 'unknown'>, 'inbox.target.type.signal' | 'inbox.target.type.task' | 'inbox.target.type.followUp'> = {
+const ENTITY_KEY: Record<Exclude<InboxEntityType, 'unknown'>, 'inbox.target.type.signal' | 'inbox.target.type.task' | 'inbox.target.type.meeting' | 'inbox.target.type.followUp'> = {
   signal: 'inbox.target.type.signal',
   task: 'inbox.target.type.task',
+  meeting: 'inbox.target.type.meeting',
   follow_up: 'inbox.target.type.followUp',
 }
 
@@ -226,7 +227,7 @@ export function InboxTriage({
                   name: presentation.actorName ?? t('inbox.signalRetraction.someone'),
                 })
                 : presentation.actorName && presentation.entityType !== 'unknown'
-                ? presentation.source === 'signal_mention' || presentation.source === 'task_mention'
+                ? presentation.source === 'signal_mention' || presentation.source === 'task_mention' || presentation.source === 'meeting_mention'
                   ? t('inbox.actorMentioned', { name: presentation.actorName })
                   : t('inbox.actorActivity', {
                     name: presentation.actorName,

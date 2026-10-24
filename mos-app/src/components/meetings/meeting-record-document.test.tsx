@@ -135,6 +135,28 @@ describe('an editor', () => {
     expect(screen.getByRole('button', { name: 'Start next meeting' })).toBeInTheDocument()
   })
 
+  it('keeps the Private switch off, with the reason, for a Team member who is not an attendee', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(meeting({ attendeeIds: ['p2'] }))
+    renderMeeting('m1')
+    const toggle = await screen.findByRole('switch', { name: 'Private meeting' })
+    expect(toggle).toBeDisabled()
+    expect(screen.getByText('Only an attendee or an admin can change this.')).toBeInTheDocument()
+    await userEvent.click(toggle)
+    expect(updateMeetingFields).not.toHaveBeenCalled()
+  })
+
+  it('lets an admin who is not an attendee change the Private switch', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(meeting({ attendeeIds: ['p2'] }))
+    renderMeeting('m1', { accessRoles: ['admin'] })
+    expect(await screen.findByRole('switch', { name: 'Private meeting' })).toBeEnabled()
+  })
+
+  it('says why in Indonesian', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(meeting({ attendeeIds: ['p2'] }))
+    renderMeeting('m1', { locale: 'id' })
+    expect(await screen.findByText('Hanya peserta atau admin yang bisa mengubah ini.')).toBeInTheDocument()
+  })
+
   it('Start next meeting opens the new meeting, where When reads Set date and time', async () => {
     vi.mocked(getMeeting).mockImplementation(async (id) => (id === 'm1' ? meeting() : meeting({ id: 'm2', startsAt: null, sequenceNumber: 8, previousMeetingId: 'm1' })))
     vi.mocked(startNextMeeting).mockResolvedValue('m2')

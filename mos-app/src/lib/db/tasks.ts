@@ -33,7 +33,7 @@ const LIST_SELECT = [
   'last_activity_at', 'archived_at', 'created_by', 'completed_at',
   'process_run_id', 'generated_from_task_def_id', 'is_private',
 ].join(',')
-const DETAIL_SELECT = `${LIST_SELECT},description,created_at,updated_at,meeting_id`
+const DETAIL_SELECT = `${LIST_SELECT},description,created_at,updated_at,meeting_id,created_in_private_meeting`
 const CHECKLIST_COLUMNS = 'id,org_id,task_id,label,is_done,position,created_at,updated_at'
 const EVENT_COLUMNS = 'id,org_id,task_id,actor_person_id,event_type,from_value,to_value,created_at'
 

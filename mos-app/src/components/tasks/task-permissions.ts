@@ -16,15 +16,22 @@ export function canEdit(task: TaskListRow, viewerId: string, downlineIds: readon
 }
 
 // Mirrors mos.can_person_read_task for a Task already in hand: a public Task reads org-wide; a private
-// one reads for the creator, PIC, Supervisor, a listed person or an admin. The database decides what
-// the viewer receives; this is for copy such as "you can see this because ...".
+// one reads for the creator, PIC, Supervisor, a listed person, an admin, or a live attendee of the
+// private Meeting it was created in. The database decides what the viewer receives; this is for copy
+// such as "you can see this because ...".
 export function canSeePrivateTask(
-  task: Pick<TaskListRow, 'is_private' | 'created_by' | 'responsible_person_id' | 'accountable_person_id'>,
+  task: Pick<TaskListRow, 'is_private' | 'created_by' | 'responsible_person_id' | 'accountable_person_id' | 'created_in_private_meeting'>,
   viewerId: string,
   listedPersonIds: readonly string[],
   isAdmin = false,
+  isMeetingAttendee = false,
 ): boolean {
-  return !task.is_private || isAdmin || [task.created_by, task.responsible_person_id, task.accountable_person_id, ...listedPersonIds].includes(viewerId)
+  return (
+    !task.is_private ||
+    isAdmin ||
+    (task.created_in_private_meeting === true && isMeetingAttendee) ||
+    [task.created_by, task.responsible_person_id, task.accountable_person_id, ...listedPersonIds].includes(viewerId)
+  )
 }
 
 // Toggling Private or editing the who-can-see list needs the Task's edit gate (mos.can_change_task_privacy).

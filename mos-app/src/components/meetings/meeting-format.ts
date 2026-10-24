@@ -48,6 +48,11 @@ export function canEditMeeting(input: {
   return viewerTeamIds.includes(meeting.owningTeamId)
 }
 
+/** Who may switch a Meeting's Private setting; mirrors the database rule: a live attendee or an admin. */
+export function canChangeMeetingPrivacy(input: { attendeeIds: readonly string[]; viewerId: string | null; isAdmin: boolean }): boolean {
+  return input.isAdmin || (input.viewerId !== null && input.attendeeIds.includes(input.viewerId))
+}
+
 /** Two-letter mark for a person's name. */
 export function initialsOf(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean)

@@ -220,6 +220,8 @@ export function TasksWorkspace({
   const [announcement, setAnnouncement] = useState('')
   const draftSourceSignalRef = useCreateDraftRef<string | null>('task.sourceSignal', new URLSearchParams(location.search).get('sourceSignal'))
   const createdDraftTaskRef = useCreateDraftRef<string | null>('task.createdId', null)
+  // Who-can-see people not yet added to the created Task; a retry sends only these.
+  const pendingViewerIdsRef = useCreateDraftRef<string[] | null>('task.pendingViewerIds', null)
   const draftTitleRef = useCreateDraftRef('task.submittedTitle', '')
   const createControlRef = useRef<HTMLElement | null>(null)
   const returnFocusAfterDiscard = useRef(false)
@@ -617,8 +619,13 @@ export function TasksWorkspace({
       })
       createdDraftTaskRef.current = createdTaskId
       if (existingTaskId) await updateTaskFields(createdTaskId, { title }, viewerId)
-      // The who-can-see list is added once the Task exists; adding someone twice is a no-op, so a retry re-sends it all.
-      if (draftFormState.isPrivate) for (const personId of draftFormState.viewerIds ?? []) await addTaskViewer(createdTaskId, personId)
+      // The who-can-see list is added once the Task exists. The people still to add are kept (not re-read
+      // from the form), so a retry sends only the ones that did not go through.
+      if (pendingViewerIdsRef.current === null) pendingViewerIdsRef.current = draftFormState.isPrivate ? [...(draftFormState.viewerIds ?? [])] : []
+      while (pendingViewerIdsRef.current.length > 0) {
+        await addTaskViewer(createdTaskId, pendingViewerIdsRef.current[0])
+        pendingViewerIdsRef.current = pendingViewerIdsRef.current.slice(1)
+      }
       if (draftSourceSignalRef.current) {
         try {
           await linkSignalTask(draftSourceSignalRef.current, createdTaskId)
@@ -636,6 +643,7 @@ export function TasksWorkspace({
         }
       }
       createdDraftTaskRef.current = null
+      pendingViewerIdsRef.current = null
       urlCreateClosedRef.current = true
       setDraftTask(null)
       setCompletedTaskId(createdTaskId)
@@ -645,7 +653,7 @@ export function TasksWorkspace({
     }
     if (!viewerId) throw new Error('inline title edit requires an authenticated viewer')
     await updateTaskFields(taskId, { title }, viewerId)
-  }, [createdDraftTaskRef, draftFormState.isPrivate, draftFormState.viewerIds, draftSourceSignalRef, draftTask, draftTitleRef, setCompletedTaskId, setDraftLinkError, setDraftTask, t, viewerId])
+  }, [createdDraftTaskRef, pendingViewerIdsRef, draftFormState.isPrivate, draftFormState.viewerIds, draftSourceSignalRef, draftTask, draftTitleRef, setCompletedTaskId, setDraftLinkError, setDraftTask, t, viewerId])
   const onRetryDraftLink = useCallback((title: string) => {
     if (!draftTask) return
     void onEditTitle(draftTask.id, title || draftTitleRef.current || draftTask.title)
@@ -658,12 +666,13 @@ export function TasksWorkspace({
     }
     draftSourceSignalRef.current = null
     createdDraftTaskRef.current = null
+    pendingViewerIdsRef.current = null
     draftTitleRef.current = ''
     urlCreateClosedRef.current = true
     setDraftLinkError(false)
     setDraftTask(null)
     setDraftFormState({ pending: false, saveError: false })
-  }, [createdDraftTaskRef, draftSourceSignalRef, draftTitleRef, draftFormState.pending, setDraftTask, setDraftLinkError, setDraftFormState, t])
+  }, [createdDraftTaskRef, pendingViewerIdsRef, draftSourceSignalRef, draftTitleRef, draftFormState.pending, setDraftTask, setDraftLinkError, setDraftFormState, t])
   useEffect(() => {
     if (draftTask || !returnFocusAfterDiscard.current) return
     returnFocusAfterDiscard.current = false
@@ -701,6 +710,7 @@ export function TasksWorkspace({
     setDraftFormState({ pending: false, saveError: false })
     setAnnouncement('')
     createdDraftTaskRef.current = null
+    pendingViewerIdsRef.current = null
     draftTitleRef.current = ''
     const firstPerson = dataContext.people[0]?.id ?? viewerId ?? ''
     const prefill = new URLSearchParams(prefillParam)
@@ -754,7 +764,7 @@ export function TasksWorkspace({
       created_at: now, updated_at: now, process_run_id: null, generated_from_task_def_id: null,
     })
     draftSourceSignalRef.current = sourceSignal ?? draftSourceSignalRef.current
-  }, [createdDraftTaskRef, dataContext, draftSourceSignalRef, draftTask, draftTitleRef, params, resetSupervisorDefault, setDraftFormState, setDraftLinkError, setDraftTask, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
+  }, [createdDraftTaskRef, pendingViewerIdsRef, dataContext, draftSourceSignalRef, draftTask, draftTitleRef, params, resetSupervisorDefault, setDraftFormState, setDraftLinkError, setDraftTask, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
   // Every create entry — page button, global actions menu, command menu, keyboard shortcut, group
   // "Add" — comes through here, so a draft and an open record are never on screen together. A
   // dirty record may refuse to close; the draft opens only on a committed close, and only once
