@@ -1,23 +1,18 @@
 /* Task record page: what is specific to a Task on top of the shared record layer
    (components/record/record-page.css). Tokens only; layout and rhythm. */
 
-/* Status reads as a pill in the facts line; its field label is spoken, not drawn. */
-.rp .rp-facts [data-field-key='status'] .record-field__label {
-  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
-}
+/* Page order: title, properties, document, Checklist, Comments, then Details and History. The title
+   carries no rule under it; the properties block closes with one. */
+.rp[data-record-kind='task'] .rp-head { border-bottom: 0; padding-bottom: 0; }
+.rp[data-record-kind='task'] .rp-main { max-width: 56rem; }
+.task-readonly { margin: var(--mos-inline-gap) 0 0; }
 
-/* Description: prose at a reading measure, label spoken. */
-.task-description .record-field { display: block; }
-.rp .task-description .record-field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.rp .task-description .record-field__edit { width: 100%; margin: 0; padding: 4px 0; justify-content: flex-start; text-align: left; }
-/* min-height:0 is the desktop fine-pointer density (record-viewer.css tiers the same way); the
-   phone resting activation target keeps the record layer's 44px floor (GUARD-TAP #667). */
-@media (pointer: fine) and (min-width: 768px) {
-  .rp .task-description .record-field__edit { min-height: 0; }
-}
-.rp .task-description .record-field__value { max-width: 65ch; padding: 0; min-height: 0; font-size: var(--mos-size-3); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
-.rp .task-description [data-empty='true'] .record-field__value { color: var(--muted-foreground); }
-.rp .task-description .record-field__control--textarea { max-width: 65ch; }
+/* The description is the document: unboxed, no heading, its own element. */
+.task-description-section { padding-top: var(--mos-section-above); }
+
+/* Details and History close the page as quiet disclosures. */
+.task-reference { margin-top: var(--mos-section-above); }
+.task-reference .rp-disclosure { font: var(--mos-type-label); color: var(--muted-foreground); }
 
 /* Checklist: a step is a checkbox, its words and one row menu. */
 .checklist-list { list-style: none; padding: 0; margin: 0; }

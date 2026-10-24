@@ -1,14 +1,18 @@
 // The create form's Due + Project/Process seam. TaskCreateForm is rendered by the desktop row and
 // the phone card, so these come from context instead of two more prop hops through both.
 import { createContext, useContext } from 'react'
+import type { BlockDocument } from '@/lib/db/block-document'
 
 type TaskWorkLineOption = { id: string; name: string; type: 'project' | 'process' }
 
-export type TaskCreateFormState = { dueText?: string; description?: string; pending: boolean; saveError: boolean }
+export type TaskCreateFormState = {
+  dueText?: string; body?: BlockDocument; pending: boolean; saveError: boolean
+  /** Private switch and the extra people who can see the Task, kept with the draft until Create. */
+  isPrivate?: boolean; viewerIds?: string[]
+}
 
 export type TaskCreateContextValue = {
   onTitleChange?: (title: string) => void
-  onDescriptionChange?: (description: string) => void
   formState?: TaskCreateFormState
   onFormStateChange?: (patch: Partial<TaskCreateFormState>) => void
   workLineOptions: readonly TaskWorkLineOption[]

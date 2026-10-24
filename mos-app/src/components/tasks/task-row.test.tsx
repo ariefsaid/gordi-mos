@@ -978,3 +978,13 @@ describe('TaskRow — inline due date commit, cancel and failure (#982)', () => 
     expect(onEditDue).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('TaskRow — a private Task carries a lock', () => {
+  it('marks only a private Task as "Private task"', () => {
+    const { unmount } = renderRow({ task: makeTask({ is_private: true }) })
+    expect(screen.getByRole('img', { name: 'Private task' })).toBeInTheDocument()
+    unmount()
+    renderRow()
+    expect(screen.queryByRole('img', { name: 'Private task' })).toBeNull()
+  })
+})

@@ -28,11 +28,12 @@ import { canManageForScope } from './use-work-write-authority'
 const ObjectiveWriteupEditor = lazy(() => import('./objective-writeup-editor').then((m) => ({ default: m.ObjectiveWriteupEditor })))
 
 type Translate = ReturnType<typeof useT>
-export type CatalogRelatedKind = 'objective' | 'work-line' | 'task'
+export type CatalogRelatedKind = 'objective' | 'work-line' | 'task' | 'meeting'
 type OpenRelated = ((kind: CatalogRelatedKind, id: string) => void) | undefined
 
 function relatedPath(kind: CatalogRelatedKind, id: string): string {
   if (kind === 'task') return `/work/tasks/${id}`
+  if (kind === 'meeting') return `/work/meetings/${id}`
   if (kind === 'objective') return `/work/objectives/${id}`
   return `/work/projects/${id}`
 }
@@ -46,7 +47,7 @@ type RelatedLinkProps = {
 }
 
 /** A link that opens in the same panel stack on a plain click and keeps its href for the rest. */
-function RelatedLink({ kind, id, children, onOpenRelated, className = 'rp-row__name' }: RelatedLinkProps) {
+export function RelatedLink({ kind, id, children, onOpenRelated, className = 'rp-row__name' }: RelatedLinkProps) {
   return (
     <Link
       className={className}

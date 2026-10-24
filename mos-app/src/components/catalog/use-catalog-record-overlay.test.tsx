@@ -42,6 +42,12 @@ describe('useCatalogRecordEntryFactory — panel chrome label', () => {
     expect(entry.label).toBe('Objective')
   })
 
+  it('builds a Meeting frame that names itself "Meeting" and opens its own page', () => {
+    const { result } = renderHook(() => useCatalogRecordEntryFactory({ owner: 'work' }), { wrapper })
+    const entry = result.current.buildEntry('meeting', 'm1', '?layout=list')
+    expect(entry).toMatchObject({ key: 'meeting:m1', label: 'Meeting', pageTo: { pathname: '/work/meetings/m1' } })
+  })
+
   it('opens the full page without the collection\'s layout param (a phone list layout is not a page setting)', () => {
     const { result } = renderHook(() => useCatalogRecordEntryFactory({ owner: 'work' }), { wrapper })
     expect(result.current.buildEntry('objective', 'o1', '?layout=list&view=all').pageTo).toEqual({ pathname: '/work/objectives/o1', search: '?view=all' })

@@ -1,0 +1,35 @@
+/* Meetings list: ruled rows like the other Work registers. Tokens only. */
+.meetings-list { min-width: 0; container: meetings-list / inline-size; }
+.meetings-table { table-layout: auto; }
+.meetings-table td { vertical-align: middle; padding-block: var(--mos-row-pad-y); border-bottom: 1px solid var(--row-divider); font-size: var(--mos-size-3); }
+.meetings-table th.meetings-col-name, .meetings-table td.meetings-col-name { width: 34%; }
+.meetings-table th.meetings-col-when, .meetings-table td.meetings-col-when { width: 20%; }
+.meetings-table th.meetings-col-num, .meetings-table td.meetings-col-num { width: 110px; text-align: right; font-variant-numeric: tabular-nums; }
+.meetings-identity { display: inline-flex; align-items: center; gap: var(--mos-inline-gap); min-width: 0; }
+.meetings-lock { display: inline-flex; color: var(--muted-foreground); }
+.meetings-name { display: inline-flex; align-items: center; min-height: 28px; color: var(--foreground); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.meetings-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+.meetings-name:focus-visible { outline: var(--mos-focus-width) solid var(--mos-accent); outline-offset: var(--mos-focus-offset); }
+.meetings-unset { color: var(--text-on-accent-tint); font-weight: 600; }
+
+.meetings-list .dt-cards { gap: 0; }
+.meetings-list .dt-card { padding: var(--mos-row-pad-y) 0; border: 0; border-bottom: 1px solid var(--row-divider); border-radius: 0; background: transparent; }
+.meetings-card__head { display: flex; align-items: center; justify-content: space-between; gap: var(--mos-row-gap); }
+.meetings-card .meetings-name { min-height: 44px; }
+.meetings-card__meta { margin: 0; color: var(--muted-foreground); font-size: var(--mos-size-3); }
+.meetings-badge { flex: none; padding: 2px 8px; border-radius: 999px; background: var(--surface-tertiary); font-size: var(--mos-size-2); font-weight: 600; }
+
+@container meetings-list (max-width: 640px) {
+  .meetings-table th.meetings-col-team, .meetings-table td.meetings-col-team { display: none; }
+}
+
+/* Toolbar: the scope switch and the search sit on one line when they fit. */
+.meetings-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--mos-field-gap) var(--mos-row-gap); margin-bottom: var(--mos-field-gap); }
+.meetings-toolbar .search-field { flex: 1 1 16rem; max-width: 24rem; }
+.meetings-summary { margin: 0 0 var(--mos-inline-gap); color: var(--muted-foreground); font-size: var(--mos-size-3); }
+
+/* Meetings section on a linked record. */
+.meetings-section__list { margin: 0; padding: 0; list-style: none; }
+.meetings-section__item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 var(--mos-row-gap); min-height: 44px; border-bottom: 1px solid var(--row-divider); font-size: var(--mos-size-3); }
+.meetings-section__item a { color: var(--text-on-accent-tint); text-underline-offset: 3px; font-weight: 600; }
+.meetings-section__when { color: var(--muted-foreground); }

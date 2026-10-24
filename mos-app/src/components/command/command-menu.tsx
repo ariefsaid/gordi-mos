@@ -6,6 +6,7 @@ import { searchFollowUpsByCounterparty } from '@/lib/db/follow-ups'
 import { searchPeopleByName } from '@/lib/db/directory'
 import { searchObjectivesByName } from '@/lib/db/objectives'
 import { searchWorkLinesByName } from '@/lib/db/work-lines'
+import { searchMeetingsByTitle } from '@/lib/db/meetings'
 import { SHOW_ASSISTANT, SHOW_FOLLOWUPS, SHOW_WORK_COLLECTIONS } from '@/config/features'
 import { useAuth } from '@/auth/use-auth'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
@@ -16,7 +17,7 @@ import { goToEntries } from '@/shell/module-registry'
 import { messages } from '@/i18n/messages'
 import { CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
 import {
-  SignalsIcon, TasksIcon, MoneyIcon, CafeIcon, ProfileIcon, ObjectiveIcon, WorkLineIcon, CloseIcon,
+  SignalsIcon, TasksIcon, MoneyIcon, CafeIcon, ProfileIcon, ObjectiveIcon, WorkLineIcon, MeetingIcon, CloseIcon,
 } from '@/shell/icons'
 import { DeputyIcon } from '@/shell/top-bar'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
@@ -59,7 +60,7 @@ type ItemGroup = { key: string; label: string; items: CommandItem[] }
 // OD-REDESIGN-91 #4/B2: the palette searches every record kind the viewer can read — Tasks,
 // Signals, Objectives, Projects & Processes, AR Follow-ups and people — so a hit carries its kind
 // (drives the row icon, route, and kind label).
-type RecordKind = 'task' | 'signal' | 'objective' | 'project' | 'process' | 'follow-up' | 'person'
+type RecordKind = 'task' | 'signal' | 'objective' | 'project' | 'process' | 'meeting' | 'follow-up' | 'person'
 type RecordHit = { id: string; title: string; kind: RecordKind }
 
 type RecordsState =
@@ -94,12 +95,13 @@ const RECORD_KIND_CONFIG: Record<RecordKind, { Icon: React.ComponentType; to: ((
   objective: { Icon: ObjectiveIcon, to: (id) => `/work/objectives/${id}`, kindLabelKey: 'commandMenu.kind.objective' },
   project: { Icon: WorkLineIcon, to: (id) => `/work/projects/${id}`, kindLabelKey: 'commandMenu.kind.project' },
   process: { Icon: WorkLineIcon, to: (id) => `/work/projects/${id}`, kindLabelKey: 'commandMenu.kind.process' },
+  meeting: { Icon: MeetingIcon, to: (id) => `/work/meetings/${id}`, kindLabelKey: 'commandMenu.kind.meeting' },
   'follow-up': { Icon: MoneyIcon, to: () => '/money/follow-ups', kindLabelKey: 'commandMenu.kind.followUp' },
   person: { Icon: ProfileIcon, to: null, kindLabelKey: 'commandMenu.kind.person' },
 }
 
 // A stable kind order gives work records first dibs without comparing scores across unlike records.
-const RECORD_KIND_ORDER: RecordKind[] = ['task', 'objective', 'project', 'process', 'signal', 'follow-up', 'person']
+const RECORD_KIND_ORDER: RecordKind[] = ['task', 'objective', 'project', 'process', 'meeting', 'signal', 'follow-up', 'person']
 
 // ⌘K command palette (ADR-0013 D4 / Redesign Step 2 §8). Centered modal (e7
 // presentation); contents = Recent + GO TO roots + ACT + async record search
@@ -270,13 +272,18 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
               rows.map<RecordHit>((r) => ({ id: r.id, title: r.name, kind: 'objective' })),
             )
           : Promise.resolve<RecordHit[]>([]),
+        SHOW_WORK_COLLECTIONS && workModuleOn
+          ? searchMeetingsByTitle(trimmed, 10).then((rows) =>
+              rows.map<RecordHit>((r) => ({ id: r.id, title: r.title, kind: 'meeting' })),
+            )
+          : Promise.resolve<RecordHit[]>([]),
         searchPeopleByName(trimmed).then((rows) =>
           rows.map<RecordHit>((r) => ({ id: r.id, title: r.full_name, kind: 'person' })),
         ),
       ])
-        .then(([tasks, signals, followUps, workLines, objectives, people]) => {
+        .then(([tasks, signals, followUps, workLines, objectives, meetings, people]) => {
           if (!cancelled && moduleVisibility.current.work === workModuleOn && moduleVisibility.current.money === moneyModuleOn) {
-            setRecords({ status: 'ready', rows: [...tasks, ...signals, ...followUps, ...workLines, ...objectives, ...people] })
+            setRecords({ status: 'ready', rows: [...tasks, ...signals, ...followUps, ...workLines, ...objectives, ...meetings, ...people] })
           }
         })
         .catch(() => {

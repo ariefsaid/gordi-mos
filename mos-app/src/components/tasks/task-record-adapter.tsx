@@ -20,7 +20,7 @@ import type { WorkLineRow } from '@/lib/db/work-lines'
 import { isOverdue } from '@/lib/due-status'
 import { interpolate } from '@/i18n/use-t'
 import { RecordFieldList } from '@/components/records/record-viewer'
-import { canEdit, canArchive, picOptions } from './task-permissions'
+import { canEdit, canArchive, picOptions, isSoloSupervisor } from './task-permissions'
 import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import type {
   RecordAction,
@@ -161,6 +161,8 @@ interface TaskFieldLabels {
   // AC-039/FR-029 (OD-REDESIGN-41): Supervisor's subline when it equals the parent's Accountable;
   // `${name}` interpolates the parent's name.
   supervisorInheritedFrom: string
+  /** "None, just me": a private Task the PIC created may have no other Supervisor. */
+  supervisorNone: string
 }
 
 /** i18n-able labels for the FULL Task record adapter's chrome — section titles, the
@@ -246,6 +248,7 @@ const DEFAULT_TASK_FIELD_LABELS: TaskFieldLabels = {
   dueDate: 'Due date',
   createdBy: 'Created by',
   supervisorInheritedFrom: 'inherited from ${name}',
+  supervisorNone: 'None, just me',
 }
 
 /** The honest Team field spec — Business Unit is NEVER relabelled Team; a real task.team_id lookup
@@ -301,6 +304,9 @@ function ownershipFields(
     && task.accountable_person_id
     && workLine.accountable_person_id === task.accountable_person_id,
   )
+  // A private Task whose PIC is its creator may name no other Supervisor: stored as Supervisor = PIC.
+  const soloAllowed = Boolean(task.is_private) && task.responsible_person_id === task.created_by
+  const supervisorOptions = personOptions(people)
   return [
     teamOwnershipField(team, labels, editable, teamOptions),
     {
@@ -328,8 +334,10 @@ function ownershipFields(
       label: labels.supervisor,
       control: 'person',
       value: task.accountable_person_id,
-      displayValue: personName(people, task.accountable_person_id),
-      options: personOptions(people),
+      displayValue: soloAllowed && isSoloSupervisor(task) ? labels.supervisorNone : personName(people, task.accountable_person_id),
+      options: soloAllowed
+        ? [{ value: task.responsible_person_id, label: labels.supervisorNone }, ...supervisorOptions.filter((option) => option.value !== task.responsible_person_id)]
+        : supervisorOptions,
       subline: inheritsSupervisor && workLine
         ? interpolate(labels.supervisorInheritedFrom, { name: workLine.name })
         : undefined,

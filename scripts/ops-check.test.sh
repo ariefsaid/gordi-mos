@@ -20,7 +20,9 @@ case "$*" in
   *in_flight*) [ "${FAKE_QUERY_FAIL:-}" = in_flight ] && exit 2; echo "${FAKE_IN_FLIGHT:-0}" ;;
   *posted_at*) [ "${FAKE_QUERY_FAIL:-}" = posted_at ] && exit 2; echo "${FAKE_OLD_SENT:-0}" ;;
   *"min(created_at)"*) [ "${FAKE_QUERY_FAIL:-}" = pending_age ] && exit 2; echo "${FAKE_AGE:-0}" ;;
-  *"max(revenue_date)"*) [ "${FAKE_QUERY_FAIL:-}" = reporting_freshness ] && exit 2; if [ "${FAKE_REPORTING_EMPTY:-0}" = 1 ]; then echo t; else echo "${FAKE_REPORTING_STALE:-f}"; fi ;;
+  *"max(revenue_date)"*) [ "${FAKE_QUERY_FAIL:-}" = reporting_freshness ] && exit 2; if [ "${FAKE_REPORTING_EMPTY:-0}" = 1 ]; then echo t
+    elif [ -n "${FAKE_SALES_MAX:-}" ]; then due="$(printf '%s' "$*" | sed -n "s/.*date '\([0-9-]*\)'.*/\1/p")"; [[ "$FAKE_SALES_MAX" < "$due" ]] && echo t || echo f
+    else echo "${FAKE_REPORTING_STALE:-f}"; fi ;;
   *to_regclass*) echo "${FAKE_TABLE:-f}" ;;
   *"interval '15 minutes'"*) echo "${FAKE_CLIENT_ERRS:-0}" ;;
 esac
@@ -177,9 +179,17 @@ mkenv "$tmp/ops.env"
 
 echo "reporting freshness"
 reset; run FAKE_REPORTING_STALE=f
-if [ "$(nmsg)" = 0 ] && grep -q 'max(revenue_date)' "$tmp/psql.log" && grep -q "interval '26 hours'" "$tmp/psql.log" && grep -q 'coalesce(max(revenue_date)' "$tmp/psql.log"; then
-  ok "fresh sales date stays quiet and the query uses the 26-hour limit"
+if [ "$(nmsg)" = 0 ] && grep -q 'coalesce(max(revenue_date)' "$tmp/psql.log"; then
+  ok "fresh sales date stays quiet"
 else bad "fresh reporting snapshot" "$(msgs) $(cat "$tmp/psql.log")"; fi
+# Sales are due by Jakarta date: yesterday's figures by 06:00 WIB (UTC+7). Clock in UTC epoch seconds.
+wib() { python3 -c "import calendar,sys; print(calendar.timegm(tuple(map(int,sys.argv[1:]))+(0,0,0)) - 7*3600)" "$@"; }
+reset; run OPS_NOW_EPOCH="$(wib 2026 10 24 9 0 0)" FAKE_SALES_MAX=2026-10-23
+[ "$(nmsg)" = 0 ] && grep -q "date '2026-10-23'" "$tmp/psql.log" && ok "09:00 WIB with yesterday's sales stays quiet" || bad "09:00 WIB yesterday present" "$(msgs) $(cat "$tmp/psql.log")"
+reset; run OPS_NOW_EPOCH="$(wib 2026 10 24 7 0 0)" FAKE_SALES_MAX=2026-10-22
+[ "$(nmsg)" = 1 ] && ok "07:00 WIB without yesterday's sales alerts" || bad "07:00 WIB yesterday missing" "$(msgs) $(cat "$tmp/psql.log")"
+reset; run OPS_NOW_EPOCH="$(wib 2026 10 24 5 0 0)" FAKE_SALES_MAX=2026-10-22
+[ "$(nmsg)" = 0 ] && ok "05:00 WIB with the day before yesterday stays quiet" || bad "05:00 WIB before cutoff" "$(msgs) $(cat "$tmp/psql.log")"
 reset; lifecycle "reporting freshness" \
   "Sales figures in MOS have not been updated for more than 26 hours. Please check the reporting refresh. / Angka penjualan di MOS belum diperbarui selama lebih dari 26 jam. Silakan periksa pembaruan laporan." \
   "Sales figures in MOS are up to date again. / Angka penjualan di MOS sudah diperbarui kembali." FAKE_REPORTING_STALE=t -- FAKE_REPORTING_STALE=f
