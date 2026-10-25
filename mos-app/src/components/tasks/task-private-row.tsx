@@ -23,9 +23,9 @@ export type TaskPrivateRowProps = {
   canChange: boolean
   /** Offline: controls are frozen. */
   frozen?: boolean
-  /** The Task was made in a private Meeting: everyone in it can read it. */
+  /** The Task was made in a private Meeting: everyone in it can read it, plus the people on the list. */
   meetingPrivate?: boolean
-  /** The viewer is in that Meeting; anyone else has the switch locked. */
+  /** The viewer is in that Meeting; anyone else has the switch and the list locked. */
   viewerInMeeting?: boolean
   /** Creator is the only person involved: "Only you, ..." wording. */
   solo?: boolean
@@ -51,13 +51,16 @@ export function TaskPrivateRow({
 
   const meetingLocked = isPrivate && meetingPrivate && !viewerInMeeting
   const stateText = !isPrivate ? t('tasks.private.off')
-    : meetingPrivate ? t('tasks.private.onMeeting')
+    : meetingPrivate ? (viewers.length === 0 ? t('tasks.private.onMeeting')
+      : t(viewers.length === 1 ? 'tasks.private.onMeetingCount.one' : 'tasks.private.onMeetingCount.other', { count: viewers.length }))
       : viewers.length === 0 ? t('tasks.private.on')
         : t(viewers.length === 1 ? 'tasks.private.onCount.one' : 'tasks.private.onCount.other', { count: viewers.length })
   const help = !isPrivate ? null
     : meetingPrivate ? (meetingLocked ? `${t('tasks.private.meetingHelp')} ${t('tasks.private.meetingLocked')}` : t('tasks.private.meetingHelp'))
       : t(solo ? 'tasks.private.helpSelf' : 'tasks.private.help')
   const editable = canChange && !frozen
+  // For a Task made in a private Meeting only that Meeting's people change who else can see it.
+  const listEditable = canChange && !meetingLocked
   const pickable = people.filter((person) => !alreadyIds.includes(person.id) && !viewers.some((viewer) => viewer.id === person.id))
 
   return (
@@ -75,13 +78,13 @@ export function TaskPrivateRow({
         {meetingLocked ? <PrivateLock /> : null}
       </div>
       {help ? <p className="tpr__help">{help}</p> : null}
-      {isPrivate && !meetingPrivate ? (
+      {isPrivate ? (
         <div className="tpr__people">
           {viewers.length === 0 ? <p className="tpr__nobody">{t('tasks.private.nobody')}</p> : null}
           {viewers.map((viewer) => (
             <span key={viewer.id} className="tpr__person">
               <Chip label={viewer.full_name} avatarColor={viewer.full_name} />
-              {canChange ? (
+              {listEditable ? (
                 <button
                   type="button"
                   className="tpr__remove"
@@ -92,7 +95,7 @@ export function TaskPrivateRow({
               ) : null}
             </span>
           ))}
-          {canChange ? (
+          {listEditable ? (
             <span className="tpr__add">
               <button type="button" className="tpr__addbtn" disabled={!editable || busy} onClick={() => setPicking(true)}>
                 {t('tasks.private.add')}

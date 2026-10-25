@@ -92,15 +92,12 @@ export interface ListMeetingsOptions {
   scope: MeetingListScope
   /** The viewer; required for the My meetings scope. */
   personId?: string
-  /** The viewer's live Team ids; Meetings owned by these count as "mine". */
-  teamIds?: string[]
   search?: string
   limit?: number
 }
 
 /**
- * Meetings newest first (undated ones, "Set date and time", on top). My meetings = I attend or my
- * Team owns it; All = everything the caller can read. Each row carries its live attendee ids and
+ * Meetings newest first (undated ones, "Set date and time", on top). My meetings = I attend; All = everything the caller can read. Each row carries its live attendee ids and
  * the number of Tasks created in it that are not Done.
  */
 export async function listMeetings(options: ListMeetingsOptions): Promise<MeetingListRow[]> {
@@ -123,11 +120,8 @@ export async function listMeetings(options: ListMeetingsOptions): Promise<Meetin
       .is('removed_at', null)
     if (attendedError) throw new Error(`listMeetings failed — ${attendedError.message}`)
     const attendedIds = ((attended ?? []) as Array<{ meeting_id: string }>).map((r) => r.meeting_id)
-    const clauses: string[] = []
-    if (attendedIds.length > 0) clauses.push(`id.in.(${attendedIds.join(',')})`)
-    if (options.teamIds && options.teamIds.length > 0) clauses.push(`owning_team_id.in.(${options.teamIds.join(',')})`)
-    if (clauses.length === 0) return []
-    query = query.or(clauses.join(','))
+    if (attendedIds.length === 0) return []
+    query = query.in('id', attendedIds)
   }
 
   const { data, error } = await query
@@ -184,6 +178,7 @@ const FIELD_COLUMNS: Record<keyof MeetingFieldsPatch, string> = {
   workLineId: 'work_line_id',
   objectiveId: 'objective_id',
   isPrivate: 'is_private',
+  archivedAt: 'archived_at',
 }
 
 /** Update the Meeting's own fields (not the minutes). Zero visible rows means the caller cannot edit it. */
@@ -263,6 +258,8 @@ type MeetingTaskDbRow = {
   due_date: string | null
   status: string
   meeting_id: string
+  is_private: boolean
+  created_in_private_meeting: boolean
 }
 
 function toMeetingTask(r: MeetingTaskDbRow): MeetingTaskRow {
@@ -274,6 +271,16 @@ function toMeetingTask(r: MeetingTaskDbRow): MeetingTaskRow {
     dueDate: r.due_date,
     status: r.status,
     meetingId: r.meeting_id,
+    isPrivate: r.is_private,
+    createdInPrivateMeeting: r.created_in_private_meeting,
+  }
+}
+
+/** Thrown when the PIC has no single manager and no Supervisor was chosen. */
+export class MeetingTaskNeedsSupervisorError extends Error {
+  constructor() {
+    super('createMeetingTask failed — choose a Supervisor')
+    this.name = 'MeetingTaskNeedsSupervisorError'
   }
 }
 
@@ -287,6 +294,7 @@ export async function createMeetingTask(input: CreateMeetingTaskInput): Promise<
     p_team_id: input.teamId ?? null,
     p_supervisor_id: input.supervisorId ?? null,
   })
+  if (error?.code === '23502') throw new MeetingTaskNeedsSupervisorError()
   if (error) throw new Error(`createMeetingTask failed — ${error.message}`)
   return data as string
 }

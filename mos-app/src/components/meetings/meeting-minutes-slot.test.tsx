@@ -1,6 +1,6 @@
 // The minutes of a Meeting as a person uses them, with the real block editor: the Still open table, task rows
 // written inline, the "Tasks from this meeting" table and its inline edits, Add task, the lock on a private
-// Meeting's Tasks, a [[ link to another Meeting, the read-only reader, and Indonesian.
+// Task's own lock, a [[ link to another Meeting, the read-only reader, and Indonesian.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -39,13 +39,13 @@ vi.mock('@/lib/db/document-references', async (importOriginal) => ({
 const online = vi.hoisted(() => ({ offline: false }))
 vi.mock('@/shell/use-is-offline', () => ({ useIsOffline: () => online.offline }))
 
-import { createMeetingTask, listMeetingTasks, listStillOpen, readMinutes } from '@/lib/db/meetings'
+import { MeetingTaskNeedsSupervisorError, createMeetingTask, listMeetingTasks, listStillOpen, readMinutes } from '@/lib/db/meetings'
 import { getDownlinePersonIds, getPeople } from '@/lib/db/directory'
 import { updateTaskFields, updateTaskStatus } from '@/lib/db/tasks'
 import { MeetingMinutesSlot } from './meeting-minutes-slot'
 
 const task = (over: Partial<MeetingTaskRow>): MeetingTaskRow => ({
-  id: T1, title: 'Order spare burrs', responsibleId: 'p2', supervisorId: 'p3', dueDate: '2026-10-30', status: 'Open', meetingId: 'm1', ...over,
+  id: T1, title: 'Order spare burrs', responsibleId: 'p2', supervisorId: 'p3', dueDate: '2026-10-30', status: 'Open', meetingId: 'm1', isPrivate: false, createdInPrivateMeeting: false, ...over,
 })
 // T1 is written inline and the viewer ("me") is neither its PIC nor its Supervisor; T2 is not inline and the viewer supervises it.
 const inlineTask = task({})
@@ -66,13 +66,13 @@ const minutes = [
 
 const auth = { status: 'authenticated', signOut: async () => {}, viewer: { person: { id: 'me', full_name: 'Dewi Director' }, roles: [], isManager: false, accessRoles: [], affiliated: [] } } as unknown as AuthState
 
-async function mount(opts: { canEdit?: boolean; isPrivate?: boolean; locale?: Locale; stillOpen?: MeetingTaskRow[] } = {}) {
+async function mount(opts: { canEdit?: boolean; locale?: Locale; stillOpen?: MeetingTaskRow[] } = {}) {
   vi.mocked(listStillOpen).mockResolvedValue(opts.stillOpen ?? [])
   render(
     <I18nProvider initialLocale={opts.locale ?? 'en'}>
       <AuthContext.Provider value={auth}>
         <MemoryRouter>
-          <MeetingMinutesSlot meetingId="m1" canEdit={opts.canEdit ?? true} isPrivate={opts.isPrivate} />
+          <MeetingMinutesSlot meetingId="m1" canEdit={opts.canEdit ?? true} />
         </MemoryRouter>
       </AuthContext.Provider>
     </I18nProvider>,
@@ -155,14 +155,50 @@ describe('Meeting minutes — Tasks from this meeting', () => {
     expect(listMeetingTasks).toHaveBeenCalledTimes(2)
   })
 
-  it('marks the Tasks of a private Meeting with the "Private task" lock', async () => {
-    await mount({ isPrivate: true })
-    expect(within(screen.getByRole('table')).getByRole('img', { name: 'Private task' })).toBeInTheDocument()
+  it('locks a Task by its own Private setting, whatever the Meeting is now', async () => {
+    vi.mocked(listMeetingTasks).mockResolvedValue([inlineTask, tableTask, { ...tableTask, id: 'k3', title: 'Salary note', isPrivate: true, createdInPrivateMeeting: true }])
+    await mount()
+    const table = screen.getByRole('table')
+    const rows = within(table).getAllByRole('row')
+    expect(within(rows.find((row) => within(row).queryByText('Salary note'))!).getByRole('img', { name: 'Private task' })).toBeInTheDocument()
+    expect(within(table).getAllByRole('img', { name: 'Private task' })).toHaveLength(1)
   })
 
-  it('shows no lock on the Tasks of an ordinary Meeting', async () => {
+  it('shows no lock on Tasks that are not private', async () => {
     await mount()
     expect(screen.queryByRole('img', { name: 'Private task' })).toBeNull()
+  })
+
+  it('Add task can name the Supervisor, or "None, just me" for a Task that is yours', async () => {
+    vi.mocked(createMeetingTask).mockResolvedValue('new-task')
+    await mount()
+    await userEvent.click(screen.getByRole('button', { name: /Add task/ }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Title of the new task' }), 'Renew the licence')
+    await userEvent.click(screen.getByRole('combobox', { name: /Supervisor/ }))
+    await userEvent.click(await screen.findByRole('option', { name: 'None, just me' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await waitFor(() => expect(createMeetingTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'Renew the licence', supervisorId: 'me' })))
+
+    await userEvent.click(screen.getByRole('button', { name: /Add task/ }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Title of the new task' }), 'Check the till')
+    await userEvent.click(screen.getByRole('combobox', { name: /Supervisor/ }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Bulan Barista' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await waitFor(() => expect(createMeetingTask).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Check the till', supervisorId: 'p3' })))
+  })
+
+  it('Add task asks for a Supervisor when the PIC has no single manager, and keeps the title', async () => {
+    vi.mocked(createMeetingTask).mockRejectedValueOnce(new MeetingTaskNeedsSupervisorError()).mockResolvedValueOnce('new-task')
+    await mount()
+    await userEvent.click(screen.getByRole('button', { name: /Add task/ }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Title of the new task' }), 'Renew the licence')
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Choose a Supervisor')
+    expect(screen.getByRole('textbox', { name: 'Title of the new task' })).toHaveValue('Renew the licence')
+    await userEvent.click(screen.getByRole('combobox', { name: /Supervisor/ }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Bulan Barista' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await waitFor(() => expect(createMeetingTask).toHaveBeenLastCalledWith(expect.objectContaining({ supervisorId: 'p3' })))
   })
 })
 

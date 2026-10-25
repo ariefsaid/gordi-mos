@@ -173,6 +173,51 @@ describe('an editor', () => {
   })
 })
 
+describe('Archive', () => {
+  const openMenu = async (locale: Locale = 'en') => userEvent.click(await screen.findByRole('button', { name: locale === 'id' ? 'Aksi lainnya' : 'More actions' }))
+
+  it('lets an editor archive the meeting from the more menu, after which the page is read only', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(meeting())
+    renderMeeting('m1')
+    await openMenu()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Archive meeting' }))
+    await waitFor(() => expect(updateMeetingFields).toHaveBeenCalledWith('m1', { archivedAt: expect.any(String) }))
+    expect(await screen.findByText('Archived · read only. It no longer shows in the list.')).toBeInTheDocument()
+    expect(document.querySelector('[data-record-section="minutes"]')).toHaveAttribute('data-can-edit', 'false')
+    expect(screen.queryByRole('button', { name: 'Start next meeting' })).toBeNull()
+    expect(screen.getByRole('switch', { name: 'Private meeting' })).toBeDisabled()
+  })
+
+  it('lets an editor unarchive an archived meeting', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(meeting({ archivedAt: '2026-10-24T00:00:00.000Z' }))
+    renderMeeting('m1')
+    expect(await screen.findByText('Archived · read only. It no longer shows in the list.')).toBeInTheDocument()
+    expect(screen.queryByRole('note')).toBeNull()
+    await openMenu()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Unarchive meeting' }))
+    await waitFor(() => expect(updateMeetingFields).toHaveBeenCalledWith('m1', { archivedAt: null }))
+    await waitFor(() => expect(document.querySelector('[data-record-section="minutes"]')).toHaveAttribute('data-can-edit', 'true'))
+    expect(screen.queryByText('Archived · read only. It no longer shows in the list.')).toBeNull()
+  })
+
+  it('offers no Archive to someone who cannot edit the meeting, who still sees it is archived', async () => {
+    vi.mocked(loadMeetingContext).mockResolvedValue(ctx(['t2']))
+    vi.mocked(getMeeting).mockResolvedValue(meeting({ attendeeIds: ['p2'], archivedAt: '2026-10-24T00:00:00.000Z' }))
+    renderMeeting('m1')
+    expect(await screen.findByText('Archived · read only. It no longer shows in the list.')).toBeInTheDocument()
+    await openMenu()
+    expect(screen.queryByRole('menuitem', { name: /Archive meeting|Unarchive meeting/ })).toBeNull()
+    expect(updateMeetingFields).not.toHaveBeenCalled()
+  })
+
+  it('names the action in Indonesian', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(meeting())
+    renderMeeting('m1', { locale: 'id' })
+    await openMenu('id')
+    expect(screen.getByRole('menuitem', { name: 'Arsipkan rapat' })).toBeInTheDocument()
+  })
+})
+
 describe('a reader', () => {
   it('sees values and a read-only note, with no edit controls', async () => {
     vi.mocked(loadMeetingContext).mockResolvedValue(ctx(['t2']))
