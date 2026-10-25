@@ -1,18 +1,11 @@
--- DOWN for 20261025000200_ops_cafe_stream_books_without_location.sql. Restores the helper, the plan fill
--- rule that works the stream out of from_location_id, the outlet-send places read from Locations, and the
--- backfill that points plans and logs at a stream's single production Location.
-begin;
-create function ops._cafe_stream_production_location(p_org uuid, p_branch uuid, p_activity text)
-returns uuid
-language sql stable security invoker set search_path = '' as $$
-  select case when count(*) = 1 then (array_agg(l.id))[1] end
-    from ops.locations l
-    join ops.location_branches lb on lb.org_id = l.org_id and lb.location_id = l.id and lb.branch_id = p_branch
-    join ops.location_activities la on la.org_id = l.org_id and la.location_id = l.id and la.activity = p_activity
-   where l.org_id = p_org and l.archived_at is null and l.use in ('production', 'both')
-$$;
-revoke execute on function ops._cafe_stream_production_location(uuid, uuid, text) from public, anon, service_role;
-grant execute on function ops._cafe_stream_production_location(uuid, uuid, text) to authenticated;
+-- Café back to stream-first (2 of 2): a stream's books no longer depend on one production Location.
+--  * A plan row's stream is its own Branch and Activity; the fill rule no longer works the stream out of
+--    from_location_id. The column stays (nullable) for history.
+--  * ops._cafe_stream_production_location (the "exactly one production Location" helper) is gone, and
+--    so are its uses: the plan fill rule, the one-off locations backfill (which no longer points plans
+--    and logs at a stream's single Location), and the outlet-send places (back to the stream defaults).
+--
+-- DOWN: run supabase/rollbacks/20261025002100_ops_cafe_stream_books_without_location.sql.
 
 create or replace function ops._fill_cafe_plan_locations()
 returns trigger
@@ -22,25 +15,9 @@ set search_path = ''
 as $$
 declare
   v_org uuid := coalesce(new.org_id, shared.current_org_id());
-  v_branch uuid;
-  v_activity text;
   v_branches uuid[];
 begin
-  if new.from_location_id is not null then
-    if tg_op = 'INSERT' or new.from_location_id is distinct from old.from_location_id
-       or (new.branch_id, new.activity) is distinct from (old.branch_id, old.activity) then
-      select s.branch_id, s.activity into v_branch, v_activity from ops._cafe_location_stream(v_org, new.from_location_id) s;
-      if v_branch is null then raise exception 'CAFE_LOCATION_INVALID' using errcode = '23514'; end if;
-      if new.branch_id is null then new.branch_id := v_branch;
-      elsif new.branch_id <> v_branch then raise exception 'CAFE_LOCATION_STREAM_MISMATCH' using errcode = '22023'; end if;
-      if new.activity is null then new.activity := v_activity;
-      elsif new.activity <> v_activity then raise exception 'CAFE_LOCATION_STREAM_MISMATCH' using errcode = '22023'; end if;
-    end if;
-  elsif new.branch_id is not null and new.activity is not null
-        and (tg_op = 'INSERT' or (new.branch_id, new.activity) is distinct from (old.branch_id, old.activity)) then
-    new.from_location_id := ops._cafe_stream_production_location(v_org, new.branch_id, new.activity);
-  end if;
-
+  -- The row's Branch and Activity are the stream it is for; from_location_id is history and names no stream.
   if new.action = 'transfer' then
     if new.to_location_id is not null then
       if tg_op = 'INSERT' or new.to_location_id is distinct from old.to_location_id
@@ -75,19 +52,20 @@ $$;
 create or replace function ops.cafe_outlet_send_places(p_branch uuid, p_activity text)
 returns table(from_location_id uuid,to_location_id uuid)
 language sql stable security invoker set search_path = '' as $$
- with src as (
-  select l.id from ops.locations l
-   where l.org_id = shared.current_org_id() and l.id = ops._cafe_stream_production_location(shared.current_org_id(), p_branch, p_activity)
-     and l.use = 'both'
+ with defaults as (
+  select d.* from ops.stream_location_defaults d
+  join shared.teams t on t.org_id=d.org_id and t.branch_id=d.branch_id and t.activity=d.activity
+  join shared.branches b on b.org_id=t.org_id and b.id=t.branch_id and b.archived_at is null
+  where d.org_id=shared.current_org_id() and d.branch_id=p_branch and d.activity=p_activity
+    and p_activity='kitchen' and t.produces and t.archived_at is null
+ ), active as (
+  select l.id,l.use from ops.locations l join ops.location_branches b on b.org_id=l.org_id and b.location_id=l.id
+  where l.org_id=shared.current_org_id() and b.branch_id=p_branch and l.archived_at is null
  ), choices as (
-  select src.id as source, s.id as destination from src
-   join ops.locations s on s.org_id = shared.current_org_id() and s.archived_at is null
-                       and s.use in ('storage','both') and s.id <> src.id
-   join ops.location_branches sb on sb.org_id = s.org_id and sb.location_id = s.id and sb.branch_id = p_branch
-   where p_activity = 'kitchen'
-     and exists (select 1 from shared.teams t join shared.branches b on b.org_id = t.org_id and b.id = t.branch_id and b.archived_at is null
-                  where t.org_id = shared.current_org_id() and t.branch_id = p_branch and t.activity = p_activity
-                    and t.produces and t.archived_at is null)
+  select d.storage_location_id as source, outlet.id as destination from defaults d
+  join active production on production.id=d.production_location_id and production.use in ('production','both')
+  join active storage on storage.id=d.storage_location_id and storage.use in ('storage','both')
+  join active outlet on outlet.id<>production.id and outlet.id<>storage.id and outlet.use in ('storage','both')
  ) select source,destination from choices where (select count(*) from choices)=1
 $$;
 
@@ -218,11 +196,7 @@ begin
    where l.action = 'outlet_send' and l.to_storage_location_id is not null
   on conflict do nothing;
 
-  -- 4a. Plans: every row points at its Stream's production Location; a transfer also at its
-  --     destination Location when the destination Branch has exactly one to go to.
-  update ops.kitchen_plans p
-     set from_location_id = ops._cafe_stream_production_location(p.org_id, p.branch_id, p.activity)
-   where p.from_location_id is null;
+  -- 4a. Plans: a transfer points at its destination Location when the destination Branch has exactly one to go to.
   update ops.kitchen_plans p
      set to_location_id = ops._cafe_sole_storage_location(p.org_id, p.destination_branch_id, p.from_location_id)
    where p.action = 'transfer' and p.to_location_id is null and p.destination_branch_id is not null;
@@ -244,19 +218,10 @@ begin
                 where o.org_id = p.org_id and o.branch_id = p.branch_id and o.activity = p.activity));
   get diagnostics v_plans_converted = row_count;
 
-  -- 4c. Logs: production points at the Stream's production Location; a reviewed transfer at its
-  --     source and destination Locations. Pending logs keep their own places. Waste is left alone.
+  -- 4c. Logs: a reviewed transfer points at its destination Location. Pending logs keep their own places. Waste is left alone.
   update ops.kitchen_logs l
-     set production_location_id = ops._cafe_stream_production_location(l.org_id, l.branch_id, l.activity)
-   where l.action = 'produce' and l.production_location_id is null;
-  update ops.kitchen_logs l
-     set from_storage_location_id = coalesce(l.from_storage_location_id,
-           ops._cafe_stream_production_location(l.org_id, l.branch_id, l.activity)),
-         to_storage_location_id = coalesce(l.to_storage_location_id,
-           ops._cafe_sole_storage_location(l.org_id, l.destination_branch_id,
-             coalesce(l.from_storage_location_id, ops._cafe_stream_production_location(l.org_id, l.branch_id, l.activity))))
-   where l.action = 'transfer' and l.status in ('Approved', 'Rejected')
-     and (l.from_storage_location_id is null or l.to_storage_location_id is null);
+     set to_storage_location_id = ops._cafe_sole_storage_location(l.org_id, l.destination_branch_id, l.from_storage_location_id)
+   where l.action = 'transfer' and l.status in ('Approved', 'Rejected') and l.to_storage_location_id is null;
   update ops.kitchen_logs l
      set action = 'transfer', destination_branch_id = l.branch_id
    where l.action = 'outlet_send';
@@ -270,4 +235,4 @@ begin
 end;
 $backfill$;
 
-commit;
+drop function ops._cafe_stream_production_location(uuid, uuid, text);

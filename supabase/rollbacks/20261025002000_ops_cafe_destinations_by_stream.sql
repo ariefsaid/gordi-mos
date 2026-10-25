@@ -1,4 +1,4 @@
--- DOWN for 20261025000100_ops_cafe_destinations_by_stream.sql. Restores the list keyed by the origin
+-- DOWN for 20261025002000_ops_cafe_destinations_by_stream.sql. Restores the list keyed by the origin
 -- Location and the guard that allows a transfer only inside the Branch or on a route.
 begin;
 -- Cross-branch transfers that are valid only because a Location sits at the stream's Site (no route). They stay
@@ -14,7 +14,7 @@ begin
    where p.action = 'transfer' and p.destination_branch_id is distinct from p.branch_id
      and not exists (select 1 from ops.cafe_destinations d where d.org_id = p.org_id and d.origin_branch_id = p.branch_id
                        and d.origin_activity = p.activity and d.destination_branch_id = p.destination_branch_id);
-  raise notice 'rollback 20261025000100: % submitted (unapproved) cross-branch transfer(s) and % cross-branch transfer plan(s) have no route and were valid only under the same-Site rule', v_logs, v_plans;
+  raise notice 'rollback 20261025002000: % submitted (unapproved) cross-branch transfer(s) and % cross-branch transfer plan(s) have no route and were valid only under the same-Site rule', v_logs, v_plans;
 end $$;
 drop function ops.list_cafe_destination_locations(uuid, text);
 create function ops.list_cafe_destination_locations(p_from_location_id uuid)

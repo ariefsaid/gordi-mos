@@ -6,7 +6,7 @@
 -- is posted to ESB, so without a route such a transfer is recorded in MOS only.
 -- The list is asked of the stream (branch + activity), not of one production Location.
 --
--- DOWN: run supabase/rollbacks/20261025000100_ops_cafe_destinations_by_stream.sql.
+-- DOWN: run supabase/rollbacks/20261025002000_ops_cafe_destinations_by_stream.sql.
 
 -- True when the storage Location sits at the same Site as any active Location of the stream (a Location of
 -- its Branch that works in its Activity). Sites are on Locations, not Teams, and the rule is symmetric.
