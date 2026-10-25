@@ -26,7 +26,7 @@ vi.mock('@/lib/db/work-lines', async (importActual) => ({
   ...(await importActual<typeof import('@/lib/db/work-lines')>()), listWorkLines: vi.fn(),
 }))
 
-import { getTask, setTaskPrivate } from '@/lib/db/tasks'
+import { getTask, setTaskPrivate, updateTaskFields } from '@/lib/db/tasks'
 import { listTaskViewers, addTaskViewer, removeTaskViewer } from '@/lib/db/task-viewers'
 import { getBusinessUnits, getPeople, getPersonTeams, getTeamsByIds, getDownlinePersonIds } from '@/lib/db/directory'
 import { listComments } from '@/lib/comments/postComment'
@@ -72,6 +72,7 @@ beforeEach(() => {
   vi.mocked(listWorkLines).mockResolvedValue([])
   vi.mocked(listTaskViewers).mockResolvedValue([])
   vi.mocked(setTaskPrivate).mockResolvedValue()
+  vi.mocked(updateTaskFields).mockResolvedValue()
   vi.mocked(addTaskViewer).mockResolvedValue()
   vi.mocked(removeTaskViewer).mockResolvedValue()
 })
@@ -100,6 +101,21 @@ describe('Task page — Private row', () => {
     expect(screen.getByText('Nobody added.')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('switch', { name: 'Private' }))
     await waitFor(() => expect(setTaskPrivate).toHaveBeenLastCalledWith('task-abc', false, ME))
+  })
+
+  it('makes "None, just me" the Supervisor when the PIC who made the Task turns Private on', async () => {
+    await renderPage(makeTask())
+    await userEvent.click(screen.getByRole('switch', { name: 'Private' }))
+    await waitFor(() => expect(updateTaskFields).toHaveBeenCalledWith('task-abc', { accountable_person_id: ME }, ME, DEWI))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Edit Supervisor$/ })).toHaveTextContent('None, just me'))
+  })
+
+  it('leaves the Supervisor alone when someone else is the PIC', async () => {
+    vi.mocked(getDownlinePersonIds).mockResolvedValue([BUDI])
+    await renderPage(makeTask({ responsible_person_id: BUDI, accountable_person_id: ME, created_by: ME }))
+    await userEvent.click(screen.getByRole('switch', { name: 'Private' }))
+    await waitFor(() => expect(setTaskPrivate).toHaveBeenCalledWith('task-abc', true, ME))
+    expect(updateTaskFields).not.toHaveBeenCalled()
   })
 
   it('keeps the old state and offers Retry when the save fails', async () => {
@@ -204,7 +220,7 @@ describe('Task page — created in a Meeting', () => {
   })
 
   it('locks the switch and hides the Meeting name for someone outside a private Meeting', async () => {
-    await renderPage(makeTask({ is_private: true }), { meeting: meeting({ viewerIn: false }) })
+    await renderPage(makeTask({ is_private: true }), { meeting: meeting({ viewerIn: false, title: '' }) })
     expect(screen.getByText('On · everyone in the meeting')).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: 'Private' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Record details' }))
@@ -226,12 +242,29 @@ describe('Task page — "Created in meeting" from the Task\'s own meeting_id', (
     expect(getMeeting).toHaveBeenCalledWith('m1')
   })
 
-  it('shows "Private meeting", no name, when the Meeting is private and the viewer is not an attendee', async () => {
+  it('names the Meeting for a viewer who can read it without being an attendee', async () => {
     vi.mocked(getMeeting).mockResolvedValue(detail({ isPrivate: true, attendeeIds: [DEWI] }))
-    await renderPage(makeTask({ meeting_id: 'm1', is_private: true }))
+    await renderPage(makeTask({ meeting_id: 'm1', is_private: true, created_in_private_meeting: true }))
     fireEvent.click(screen.getByRole('button', { name: 'Record details' }))
-    expect(await screen.findByText(/Private meeting/)).toBeInTheDocument()
-    expect(screen.queryByText('Weekly sync')).toBeNull()
+    expect(await screen.findByRole('link', { name: 'Weekly sync' })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Private' })).toBeDisabled()
+  })
+
+  it('follows the Task\'s own flag when the Meeting\'s Private setting changed after the Task was made', async () => {
+    // Made in a private Meeting that is public now: still "everyone in the meeting", switch for attendees only.
+    vi.mocked(getMeeting).mockResolvedValue(detail({ isPrivate: false, attendeeIds: [ME] }))
+    await renderPage(makeTask({ meeting_id: 'm1', is_private: true, created_in_private_meeting: true }))
+    expect(await screen.findByText('On · everyone in the meeting')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Private' })).toBeEnabled()
+  })
+
+  it('treats a Task made in a public Meeting that is private now as an ordinary private Task', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(detail({ isPrivate: true, attendeeIds: [DEWI] }))
+    await renderPage(makeTask({ meeting_id: 'm1', is_private: true, created_in_private_meeting: false }))
+    await waitFor(() => expect(getMeeting).toHaveBeenCalledWith('m1'))
+    expect(screen.getByText('Nobody added.')).toBeInTheDocument()
+    expect(screen.queryByText('On · everyone in the meeting')).toBeNull()
+    expect(screen.getByRole('switch', { name: 'Private' })).toBeEnabled()
   })
 
   it('shows "Private meeting" on a private Task whose Meeting the viewer cannot read', async () => {

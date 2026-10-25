@@ -8,7 +8,6 @@ import { useIsOffline } from '@/shell/use-is-offline'
 import { usePhoneActionBar } from '@/shell/page-action-bar'
 import { lazy, Suspense, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Picker } from '@/components/ui/picker'
-import { PillIcon } from '@/components/ui/pill'
 import { DateField } from '@/components/ui/date-field'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { RecordProperties, type RecordPropertyRow } from '@/components/record/record-properties'
@@ -30,7 +29,6 @@ const TaskDraftDescription = lazy(() => import('./task-draft-description').then(
 
 export type TaskCreateFormProps = {
   task: TaskListRow
-  businessUnitName: string
   teamOptions: readonly TaskTeamOption[]
   personOptions: readonly { id: string; full_name: string }[]
   supervisorOptions: readonly { id: string; full_name: string }[]
@@ -54,7 +52,7 @@ export type TaskCreateFormProps = {
 }
 
 export function TaskCreateForm({
-  task, businessUnitName, teamOptions, personOptions, supervisorOptions, ownerName, supervisorName,
+  task, teamOptions, personOptions, supervisorOptions, ownerName, supervisorName,
   onEditTeam, onEditPic, onEditSupervisor, onCreate, onCancel, linkError = false, onRetryLink,
   viewerHasNoDownline = false,
 }: TaskCreateFormProps) {
@@ -185,10 +183,6 @@ export function TaskCreateForm({
 
   const rows: RecordPropertyRow[] = [
     {
-      key: 'status', label: t('tasks.status.label'),
-      children: <span className="rp-props__plain"><span className="pill pill--neutral"><PillIcon tone="neutral" />{t('tasks.status.open')}</span></span>,
-    },
-    {
       key: 'pic', label: t('tasks.pic'), note: lockMessage,
       children: (
         <Picker
@@ -250,14 +244,6 @@ export function TaskCreateForm({
       ),
     },
     {
-      key: 'businessUnit', label: t('tasks.filter.businessUnit'),
-      children: (
-        <span className="rp-props__plain" data-testid="task-create-derived-bu">
-          {businessUnitName || <span className="tcf-muted">{t('tasks.create.buFromTeam')}</span>}
-        </span>
-      ),
-    },
-    {
       key: 'dueDate', label: t('tasks.create.dueDate'),
       children: (
         <DateField
@@ -291,10 +277,6 @@ export function TaskCreateForm({
       ),
     }] : []),
     {
-      key: 'objective', label: t('tasks.objective'),
-      children: <span className="rp-props__plain"><span className="tcf-muted">{t('tasks.create.objectiveFromWork')}</span></span>,
-    },
-    {
       key: 'private', label: t('tasks.private.label'),
       children: (
         <TaskPrivateRow
@@ -305,7 +287,11 @@ export function TaskCreateForm({
           canChange
           frozen={fieldsLocked}
           solo={soloAllowed && task.accountable_person_id === task.responsible_person_id}
-          onSetPrivate={async (next) => setPrivate({ isPrivate: next })}
+          onSetPrivate={async (next) => {
+            setPrivate({ isPrivate: next })
+            // "Only shown to the person who made it": a private Task you are the PIC of starts with no other Supervisor.
+            if (next && task.responsible_person_id === viewerId && task.accountable_person_id !== viewerId) await onEditSupervisor(task.id, viewerId)
+          }}
           onAddViewer={async (id) => setPrivate({ viewerIds: viewerIds.includes(id) ? viewerIds : [...viewerIds, id] })}
           onRemoveViewer={async (id) => setPrivate({ viewerIds: viewerIds.filter((viewer) => viewer !== id) })}
         />

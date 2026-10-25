@@ -5,9 +5,12 @@ import { useId, useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { PrivateLock } from '@/components/tasks/task-private-lock'
 import { useT } from '@/i18n/use-t'
+import { MeetingTaskNeedsSupervisorError } from '@/lib/db/meetings'
 import type { MeetingTaskRow } from '@/lib/db/meetings.types'
 import { useMeetingMinutes } from './meeting-minutes-context'
 import { TaskDueCell, TaskPicCell, TaskStatusCell } from './meeting-task-cells'
+import { supervisorFor } from './meeting-supervisor-choice'
+import { MeetingSupervisorPicker } from './meeting-supervisor-picker'
 
 type MeetingTaskTableProps = {
   title: string
@@ -25,18 +28,20 @@ function AddTaskRow() {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [busy, setBusy] = useState(false)
-  const [failed, setFailed] = useState(false)
+  const [supervisor, setSupervisor] = useState('')
+  const [failed, setFailed] = useState<'error' | 'needsSupervisor' | null>(null)
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (!title.trim() || busy) return
     setBusy(true)
-    setFailed(false)
+    setFailed(null)
     try {
-      await minutes.createTask({ title: title.trim() })
+      await minutes.createTask({ title: title.trim(), supervisorId: supervisorFor(supervisor, minutes.viewerId ?? '', minutes.viewerId) })
       setTitle('')
+      setSupervisor('')
       setOpen(false)
-    } catch {
-      setFailed(true)
+    } catch (error) {
+      setFailed(error instanceof MeetingTaskNeedsSupervisorError ? 'needsSupervisor' : 'error')
     } finally {
       setBusy(false)
     }
@@ -56,9 +61,10 @@ function AddTaskRow() {
         onChange={(event) => setTitle(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); setOpen(false) } }}
       />
+      <MeetingSupervisorPicker picId={minutes.viewerId ?? ''} value={supervisor} onChange={setSupervisor} disabled={busy} error={failed === 'needsSupervisor'} />
       <Button type="submit" variant="primary" disabled={busy || !title.trim()} aria-busy={busy || undefined}>{t('meetings.tasks.addSubmit')}</Button>
       <Button type="button" variant="outline" onClick={() => setOpen(false)}>{t('meetings.tasks.addCancel')}</Button>
-      {failed ? <p role="alert" className="meeting-tasks__error">{t('meetings.tasks.addError')}</p> : null}
+      {failed ? <p role="alert" className="meeting-tasks__error">{t(failed === 'needsSupervisor' ? 'meetings.taskRow.needsSupervisor' : 'meetings.tasks.addError')}</p> : null}
     </form>
   )
 }
@@ -85,7 +91,7 @@ export function MeetingTaskTable({ title, sub, rows, addable = false, empty }: M
               <tr key={row.id}>
                 <td className="meeting-tasks__title">
                   <button type="button" className="meeting-tasks__open" onClick={() => minutes.openTask(row.id)}>{row.title}</button>
-                  {minutes.isPrivate ? <PrivateLock /> : null}
+                  {row.isPrivate ? <PrivateLock /> : null}
                 </td>
                 <td data-label={t('tasks.pic')}><TaskPicCell task={row} /></td>
                 <td data-label={t('tasks.dueLabel')}><TaskDueCell task={row} /></td>
