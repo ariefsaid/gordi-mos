@@ -1,10 +1,10 @@
-// What a Café visit reads once and every Café page reuses: the active Locations, the Sites they sit at,
+// What a Café visit reads once and every Café page reuses: the active Locations
 // and where each stream may send. Before this, every page re-read them.
 //
 // Scoped to the signed-in person (a different person starts clean), expires after a few minutes so a
 // long-open tab still picks up changes made elsewhere, and is cleared by the admin screens that change
 // Locations or routes (the routes themselves are read by their own admin screen). A failed read is never kept.
-import { listCafeDestinationLocations, listCafeLocations, listCafeSites, type CafeLocation, type CafeSite, type DestinationLocation } from '@/lib/db/cafe-locations'
+import { listCafeDestinationLocations, listCafeLocations, type CafeLocation, type DestinationLocation } from '@/lib/db/cafe-locations'
 
 const TTL_MS = 5 * 60_000
 
@@ -30,9 +30,6 @@ export function clearCafeVisitCache(): void {
 
 export const getCafeLocations = (viewerId: string | null): Promise<CafeLocation[]> =>
   once(viewerId, 'locations', () => listCafeLocations({ archived: false }))
-
-export const getCafeSites = (viewerId: string | null): Promise<CafeSite[]> =>
-  once(viewerId, 'sites', listCafeSites)
 
 export const getCafeDestinationLocations = (viewerId: string | null, branchId: string, activity: string): Promise<DestinationLocation[]> =>
   once(viewerId, `destinations:${branchId}|${activity}`, () => listCafeDestinationLocations(branchId, activity))

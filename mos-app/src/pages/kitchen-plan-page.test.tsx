@@ -39,11 +39,10 @@ function idWrapper({ children }: { children: ReactNode }) {
 }
 
 // Where this stream works and where it may send: the visit's reads, mocked per test.
-const visit = vi.hoisted(() => ({ locations: vi.fn(), sites: vi.fn(), destinations: vi.fn() }))
+const visit = vi.hoisted(() => ({ locations: vi.fn(), destinations: vi.fn() }))
 vi.mock('@/lib/cafe-visit-cache', () => ({
   clearCafeVisitCache: () => undefined,
   getCafeLocations: visit.locations,
-  getCafeSites: visit.sites,
   getCafeDestinationLocations: visit.destinations,
 }))
 vi.mock('@/auth/use-auth')
@@ -182,7 +181,6 @@ const PESANAN: PesananRow[] = [
 beforeEach(() => {
   vi.clearAllMocks()
   visit.locations.mockResolvedValue([])
-  visit.sites.mockResolvedValue([])
   visit.destinations.mockResolvedValue([])
   // #440: the Café stream is remembered module-wide in sessionStorage — clear it so one test's
   // switch never seeds the next test's default.
@@ -231,7 +229,6 @@ describe('destination Locations', () => {
   ]
   beforeEach(() => {
     visit.locations.mockResolvedValue([CENTRAL])
-    visit.sites.mockResolvedValue([{ id: 'site-ghq', name: 'GHQ' }])
     visit.destinations.mockResolvedValue(FROM_CENTRAL)
   })
 

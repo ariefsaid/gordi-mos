@@ -1344,16 +1344,18 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
     ? <div className="kl-scope"><TransferToSelect value={movement} options={movementOptions} origin={stream} onChange={handleMovementChange} disabled={writeClosed || status.kind !== 'ready'} planCounts={planCounts} /></div>
     : null
 
+  const loadingFrame = (
+    <CafePageFrame page={page} date={logDate} streamBar={streamBar} state="loading">
+      <div className="kl-page">
+        <OfflineBanner show={!isOnline} />
+        <LoadingShell count={3} />
+      </div>
+    </CafePageFrame>
+  )
+
   // ── Auth guard ─────────────────────────────────────────────────────────────
   if (auth.status === 'loading') {
-    return (
-      <CafePageFrame page={page} date={logDate} streamBar={streamBar} state="loading">
-        <div className="kl-page">
-          <OfflineBanner show={!isOnline} />
-          <LoadingShell count={3} />
-        </div>
-      </CafePageFrame>
-    )
+    return loadingFrame
   }
 
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
@@ -1372,14 +1374,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   // read must never take away the control that switches off it (FR-003 default-not-wall),
   // and a head that goes silent about its stream is the #440 defect itself.
   if (status.kind === 'loading') {
-    return (
-      <CafePageFrame page={page} date={logDate} streamBar={streamBar} state="loading">
-        <div className="kl-page">
-          <OfflineBanner show={!isOnline} />
-          <LoadingShell count={3} />
-        </div>
-      </CafePageFrame>
-    )
+    return loadingFrame
   }
 
   // ── Error state — never a bare Retry loop when offline (#2, RI-2) ────────────

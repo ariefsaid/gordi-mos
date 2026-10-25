@@ -30,7 +30,6 @@ const visit = vi.hoisted(() => ({ locations: vi.fn(), destinations: vi.fn() }))
 vi.mock('@/lib/cafe-visit-cache', () => ({
   clearCafeVisitCache: () => undefined,
   getCafeLocations: visit.locations,
-  getCafeSites: async () => [],
   getCafeDestinationLocations: visit.destinations,
 }))
 import { useAuth } from '@/auth/use-auth'

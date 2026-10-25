@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/lib/cafe-visit-cache')
 
-const reads = vi.hoisted(() => ({ locations: vi.fn(), destinations: vi.fn(), sites: vi.fn() }))
+const reads = vi.hoisted(() => ({ locations: vi.fn(), destinations: vi.fn() }))
 vi.mock('@/lib/db/cafe-locations', async importOriginal => ({
   ...(await importOriginal<typeof import('@/lib/db/cafe-locations')>()),
-  listCafeLocations: reads.locations, listCafeDestinationLocations: reads.destinations, listCafeSites: reads.sites,
+  listCafeLocations: reads.locations, listCafeDestinationLocations: reads.destinations,
 }))
 
 import { clearCafeVisitCache, getCafeDestinationLocations, getCafeLocations } from './cafe-visit-cache'
