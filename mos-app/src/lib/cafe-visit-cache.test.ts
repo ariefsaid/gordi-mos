@@ -33,14 +33,14 @@ describe('Café visit cache', () => {
     expect(reads.locations).toHaveBeenCalledTimes(2)
   })
 
-  it('keeps destinations per origin Location and does not keep a failed read', async () => {
-    await getCafeDestinationLocations('p1', 'a')
-    await getCafeDestinationLocations('p1', 'a')
-    await getCafeDestinationLocations('p1', 'b')
+  it('keeps destinations per stream and does not keep a failed read', async () => {
+    await getCafeDestinationLocations('p1', 'a', 'kitchen')
+    await getCafeDestinationLocations('p1', 'a', 'kitchen')
+    await getCafeDestinationLocations('p1', 'a', 'bar')
     expect(reads.destinations).toHaveBeenCalledTimes(2)
     reads.destinations.mockRejectedValueOnce(new Error('offline'))
-    await expect(getCafeDestinationLocations('p1', 'c')).rejects.toThrow()
-    await getCafeDestinationLocations('p1', 'c')
+    await expect(getCafeDestinationLocations('p1', 'c', 'kitchen')).rejects.toThrow()
+    await getCafeDestinationLocations('p1', 'c', 'kitchen')
     expect(reads.destinations).toHaveBeenCalledTimes(4)
   })
 })

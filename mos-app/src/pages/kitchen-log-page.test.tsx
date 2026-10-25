@@ -172,8 +172,8 @@ const PRODUCTION_LOCATIONS = STREAM_PAIRS.map(pair => {
 /** Destination Location of a branch: named by the branch, as a floor reads it. */
 const destinationId = (branchId: string) => `dest-${branchId}`
 const ownKitchenId = (branchId: string) => `dest-${branchId}-kitchen`
-function destinationsFrom(locationId: string) {
-  const pair = STREAM_PAIRS.find(p => productionId(p.branch_id, p.activity) === locationId)
+function destinationsFrom(branchId: string, activity: string) {
+  const pair = STREAM_PAIRS.find(p => p.branch_id === branchId && p.activity === activity)
   if (!pair) return []
   const own = BRANCHES.find(b => b.id === pair.branch_id)!
   const same = pair.activity === 'bar'
@@ -378,7 +378,7 @@ beforeEach(() => {
   rememberCafeOpeningTeam('40000000-0000-0000-0000-000000000001', null)
   locationMocks.choices.mockReturnValue({ status: 'ready', locations: [], retry: vi.fn() })
   visit.locations.mockResolvedValue(PRODUCTION_LOCATIONS)
-  visit.destinations.mockImplementation(async (_viewer: unknown, id: string) => destinationsFrom(id))
+  visit.destinations.mockImplementation(async (_viewer: unknown, branchId: string, activity: string) => destinationsFrom(branchId, activity))
   mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS)
   mockListActiveBranches.mockResolvedValue(BRANCHES)
   mockListStreamPairs.mockResolvedValue(STREAM_PAIRS)
@@ -1267,9 +1267,14 @@ describe('AC-022: transfer over-availability rejects submit — "Only N availabl
 
 describe('Send to outlet is a transfer', () => {
   it.each(['en', 'id'] as const)('moves stock to a Location in the same branch as an ordinary transfer in %s', async locale => {
-    visit.destinations.mockImplementation(async (_viewer: unknown, id: string) => [
-      { location_id: 'loc-outlet', name: 'RRS Outlet', branch_id: BRANCH_RUMAH_RAMES.id, same_branch: true }, ...destinationsFrom(id),
+    visit.destinations.mockImplementation(async (_viewer: unknown, branchId: string, activity: string) => [
+      { location_id: 'loc-outlet', name: 'RRS Outlet', branch_id: BRANCH_RUMAH_RAMES.id, same_branch: true }, ...destinationsFrom(branchId, activity),
     ])
+    locationMocks.choices.mockReturnValue({
+      status: 'ready',
+      locations: PRODUCTION_LOCATIONS.filter(place => place.id === productionId(BRANCH_RUMAH_RAMES.id, 'kitchen')),
+      retry: vi.fn(),
+    })
     mockInsertKitchenLogBatch.mockResolvedValue(['outlet-log'])
     mockFetchPlanMap.mockResolvedValue({ w1: { 'transfer:loc-outlet': 4 } })
     await renderTransferPage(VIEWER_MEMBER, undefined, locale)
@@ -1320,7 +1325,7 @@ describe('AC-030: successful submit (increment semantics)', () => {
     ])
   })
 
-  it('books production to the Location in view and lets the person choose where the output sits', async () => {
+  it('records production against the stream, names no production Location, and lets the person choose where the output sits', async () => {
     mockInsertKitchenLogBatch.mockResolvedValue(['located-log'])
     const central = PRODUCTION_LOCATIONS.find(place => place.id === productionId(BRANCH_RUMAH_RAMES.id, 'kitchen'))!
     locationMocks.choices.mockReturnValue({
@@ -1333,9 +1338,9 @@ describe('AC-030: successful submit (increment semantics)', () => {
     })
     await renderPage()
     const outputLocation = await screen.findByRole('combobox', { name: 'Store output in' })
-    // No production-location choice: the Location in view is where it is made.
+    // No production-location choice: production belongs to the stream.
     expect(screen.queryByRole('combobox', { name: 'Production location' })).toBeNull()
-    // Output starts at the Location being worked at, since stock can sit there.
+    // Output starts at the stream's own place, since stock can sit there.
     expect(outputLocation).toHaveTextContent('Rumah Rames · Kitchen')
     fireEvent.click(outputLocation)
     fireEvent.click(await screen.findByRole('option', { name: 'Shelf' }))
@@ -1345,9 +1350,10 @@ describe('AC-030: successful submit (increment semantics)', () => {
     await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
     expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
       expect.objectContaining({
-        action: 'produce', wip_item_id: 'w2', production_location_id: productionId(BRANCH_RUMAH_RAMES.id, 'kitchen'), to_storage_location_id: 'shelf-1',
+        action: 'produce', wip_item_id: 'w2', branch_id: BRANCH_RUMAH_RAMES.id, activity: 'kitchen', to_storage_location_id: 'shelf-1',
       }),
     ])
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0][0]).not.toHaveProperty('production_location_id')
   })
 
   it.each(['1,5', '1.5'])('transfer accepts %s and saves 1.5', async raw => {
@@ -3399,7 +3405,7 @@ describe('AC-007: the destinations on offer come from Locations, grouped by whos
     expect(screen.queryByText('Same branch')).toBeNull()
   })
 
-  it('the offers follow the ORIGIN Location, not a hardcoded branch', async () => {
+  it('the offers follow the stream, not a hardcoded branch', async () => {
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar' })
     await renderTransferPage()
     await screen.findAllByText('Ayam Bakar')
@@ -3410,8 +3416,8 @@ describe('AC-007: the destinations on offer come from Locations, grouped by whos
   })
 
   it('AC-005: a new storage Location in a routed branch is offered with no code change', async () => {
-    visit.destinations.mockImplementation(async (_viewer: unknown, id: string) => [
-      ...destinationsFrom(id), { location_id: 'dest-new-fridge', name: 'Radiant Fridge', branch_id: BRANCH_RADIANT.id, same_branch: false },
+    visit.destinations.mockImplementation(async (_viewer: unknown, branchId: string, activity: string) => [
+      ...destinationsFrom(branchId, activity), { location_id: 'dest-new-fridge', name: 'Radiant Fridge', branch_id: BRANCH_RADIANT.id, same_branch: false },
     ])
     await renderTransferPage()
     await screen.findAllByText('Ayam Bakar')
@@ -3428,6 +3434,12 @@ describe('AC-007: the destinations on offer come from Locations, grouped by whos
   it('AC-007: a transfer inside the branch is submitted to the destination Location and its own branch', async () => {
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
+    // The bar's own place is where its stock sits, so that is where the transfer leaves from.
+    locationMocks.choices.mockReturnValue({
+      status: 'ready',
+      locations: PRODUCTION_LOCATIONS.filter(place => place.id === productionId(BRANCH_RUMAH_RAMES.id, 'bar')),
+      retry: vi.fn(),
+    })
     await renderTransferPage()
     await screen.findAllByText('Ayam Bakar')
     await chooseDestination(/rumah rames kitchen/i)

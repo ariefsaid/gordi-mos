@@ -235,21 +235,21 @@ describe('destination Locations', () => {
     visit.destinations.mockResolvedValue(FROM_CENTRAL)
   })
 
-  it('AC-001: a planner at RRS Central sees Production, To RRS Outlet, To Radiant and To Cikal', async () => {
+  it('AC-001: a planner for the stream sees Production, To RRS Outlet, To Radiant and To Cikal', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true, configurable: true,
       value: (query: string) => ({ matches: query === '(min-width: 768px)', media: query, onchange: null, addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false }),
     })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    expect(await screen.findByText('RRS Central · at GHQ')).toBeInTheDocument()
-    expect(visit.destinations).toHaveBeenCalledWith(expect.anything(), 'loc-central')
+    expect(await screen.findByRole('heading', { name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
+    expect(visit.destinations).toHaveBeenCalledWith(expect.anything(), 'branch-1', 'kitchen')
     for (const heading of ['Production', 'To RRS Outlet', 'To Radiant', 'To Cikal']) {
       expect((await screen.findAllByText(heading)).length).toBeGreaterThan(0)
     }
   })
 
-  it('saves a transfer plan by Location id and lets the server fill branch and activity', async () => {
+  it('saves a transfer plan for the stream and the destination Location, naming no production Location', async () => {
     render(<KitchenPlanPage />, { wrapper })
     fireEvent.click(await screen.findByRole('combobox', { name: 'Plan for' }))
     fireEvent.click(await screen.findByRole('option', { name: 'Transfer to Radiant' }))
@@ -257,8 +257,9 @@ describe('destination Locations', () => {
     fireEvent.change(input, { target: { value: '4' } })
     fireEvent.blur(input)
     await waitFor(() => expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'transfer', from_location_id: 'loc-central', to_location_id: 'loc-radiant', destination_branch_id: 'branch-2', qty_porsi: 4,
+      branch_id: 'branch-1', activity: 'kitchen', action: 'transfer', to_location_id: 'loc-radiant', destination_branch_id: 'branch-2', qty_porsi: 4,
     })))
+    expect(mockUpsert.mock.calls[0][0]).not.toHaveProperty('from_location_id')
   })
 
   it('offers a retry when destinations cannot load, without hiding ordinary planning', async () => {

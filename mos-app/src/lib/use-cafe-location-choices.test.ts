@@ -54,15 +54,19 @@ describe('useCafeLocationChoices', () => {
 })
 
 describe('defaultStorageLocationId', () => {
-  const place = { id: 'central', name: 'Central', siteName: null, holdsStock: true }
-  const central = { ...LOCATION, id: 'central', use: 'both' as const }
-
-  it('starts at the Location being worked at when stock can sit there', () => {
-    expect(defaultStorageLocationId({ ...STREAM, location: place }, [central, LOCATION])).toBe('central')
+  const own = (id: string, extra: Record<string, unknown> = {}) => ({
+    ...LOCATION, id, use: 'both' as const, branch_ids: [STREAM.branch.id], activities: [STREAM.activity], ...extra,
   })
 
-  it('guesses nothing otherwise: a production-only place, or no place, is Unassigned', () => {
-    expect(defaultStorageLocationId({ ...STREAM, location: { ...place, holdsStock: false } }, [central])).toBeNull()
+  it('starts at the stream\'s own place for its output when it has exactly one that can hold stock', () => {
+    expect(defaultStorageLocationId(STREAM, [own('central'), LOCATION])).toBe('central')
+  })
+
+  it('guesses nothing otherwise: several places, a production-only place, another stream\'s place, or none is Unassigned', () => {
+    expect(defaultStorageLocationId(STREAM, [own('a'), own('b')])).toBeNull()
+    expect(defaultStorageLocationId(STREAM, [own('p', { use: 'production' })])).toBeNull()
+    expect(defaultStorageLocationId(STREAM, [own('bar', { activities: ['bar'] })])).toBeNull()
     expect(defaultStorageLocationId(STREAM, [LOCATION])).toBeNull()
+    expect(defaultStorageLocationId(null, [own('central')])).toBeNull()
   })
 })

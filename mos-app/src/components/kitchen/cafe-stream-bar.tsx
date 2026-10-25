@@ -40,7 +40,7 @@ import { canAdminCafe } from '@/lib/kitchen-gates'
 import { EmptyState } from '@/components/ui/state-kit'
 import { useListboxPopover } from '@/components/ui/use-listbox-popover'
 import { CheckIcon } from '@/shell/icons'
-import { streamKey, streamLabel, streamOptionKey } from '@/lib/kitchen-action-label'
+import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { useT, type Translate } from '@/i18n/use-t'
 import './cafe-stream-bar.css'
@@ -50,15 +50,8 @@ export const ALL_STREAMS = 'all'
 
 const EMPTY_STREAM_KEYS: ReadonlySet<string> = new Set()
 
-/** The picker offers production Locations only — a stream with none (bar-only, receiving-only, storage-only) is not a place to work. Without any Location data it keeps the whole catalog. */
-function pickable(options: readonly ProductionStream[]): readonly ProductionStream[] {
-  return options.some(option => option.location) ? options.filter(option => option.location) : options
-}
-
 function sameStream(a: ProductionStream | null, b: ProductionStream | null): boolean {
-  if (a == null || b == null || a.branch.id !== b.branch.id || a.activity !== b.activity) return false
-  // Two entries of one stream differ by Location; a stream named without one matches any of them.
-  return !a.location || !b.location || a.location.id === b.location.id
+  return a != null && b != null && a.branch.id === b.branch.id && a.activity === b.activity
 }
 
 /**
@@ -165,7 +158,7 @@ export function CafeStreamBar({
   if (!allStreams && stream === null) return null
 
   const valueLabel = allStreams ? t('kitchen.review.allStreams') : streamLabel(t, stream)
-  const alternatives = pickable(options).filter((option) => !sameStream(option, stream))
+  const alternatives = options.filter((option) => !sameStream(option, stream))
   const canSwitch = allStreams ? options.length > 0 : alternatives.length > 0 || Boolean(onAllStreams)
   const backTarget = !allStreams && stream && homeStream && !sameStream(stream, homeStream)
     ? options.find((option) => sameStream(option, homeStream)) ?? null
@@ -191,7 +184,7 @@ export function CafeStreamBar({
         <StreamSwitchMenu
           id="cafe-stream"
           options={options}
-          current={allStreams ? ALL_STREAMS : stream ? streamOptionKey(stream) : null}
+          current={allStreams ? ALL_STREAMS : stream ? streamKey(stream.branch.id, stream.activity) : null}
           homeStream={homeStream}
           myStreamKeys={myStreamKeys}
           locationBranchId={locationBranchId}
@@ -231,14 +224,14 @@ function StreamSwitchMenu({ id, options, current, homeStream, myStreamKeys, loca
 
   const entries = useMemo<Array<{ value: string; label: string; isAllStreams: boolean; branch: 'this' | 'other' | null }>>(() => {
     // The All streams sentinel stays pinned first; real streams rank current memberships first.
-    const ranked = [...pickable(options)].sort(
+    const ranked = [...options].sort(
       (a, b) => myRank(a, homeStream, myStreamKeys, locationBranchId) - myRank(b, homeStream, myStreamKeys, locationBranchId)
-        || (a.location?.name ?? '').localeCompare(b.location?.name ?? ''),
+        || a.branch.name.localeCompare(b.branch.name) || a.activity.localeCompare(b.activity),
     )
     return [
       ...(onAllStreams ? [{ value: ALL_STREAMS, label: t('kitchen.review.allStreams'), isAllStreams: true, branch: null }] : []),
       ...ranked.map(option => ({
-        value: streamOptionKey(option),
+        value: streamKey(option.branch.id, option.activity),
         label: taggedLabel(t, option, homeStream, myStreamKeys, locationBranchId),
         isAllStreams: false,
         branch: !locationBranchId ? null : option.branch.id === locationBranchId ? 'this' as const : 'other' as const,
@@ -252,7 +245,7 @@ function StreamSwitchMenu({ id, options, current, homeStream, myStreamKeys, loca
     if (entry.value === current) { setOpen(false); return }
     if (entry.isAllStreams) onAllStreams?.()
     else {
-      const target = options.find((option) => streamOptionKey(option) === entry.value)
+      const target = options.find((option) => streamKey(option.branch.id, option.activity) === entry.value)
       if (target) onChange(target)
     }
     setOpen(false)
@@ -371,7 +364,7 @@ export function CafeStreamChoices({
   if (options.length === 0) {
     return <EmptyState variant="blank" title={t('cafe.stream.none')} />
   }
-  const ranked = [...pickable(options)].sort(
+  const ranked = [...options].sort(
     (a, b) => myRank(a, homeStream, myStreamKeys) - myRank(b, homeStream, myStreamKeys),
   )
   const showAdminHint = auth.status === 'authenticated' && canAdminCafe(auth.viewer.accessRoles)
@@ -380,7 +373,7 @@ export function CafeStreamChoices({
       <div className="cafe-stream-choices">
         <div className="cafe-stream-choices__list" role="group" aria-label={t('kitchen.log.stream.pickerAria')}>
         {ranked.map((option) => {
-          const key = streamOptionKey(option)
+          const key = streamKey(option.branch.id, option.activity)
           const isMine = isMineStream(option, homeStream, myStreamKeys)
           return (
             <button

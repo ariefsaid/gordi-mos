@@ -1,5 +1,5 @@
 // What a Café visit reads once and every Café page reuses: the active Locations, the Sites they sit at,
-// and where each production Location may send. Before this, every page re-read them.
+// and where each stream may send. Before this, every page re-read them.
 //
 // Scoped to the signed-in person (a different person starts clean), expires after a few minutes so a
 // long-open tab still picks up changes made elsewhere, and is cleared by the admin screens that change
@@ -34,5 +34,5 @@ export const getCafeLocations = (viewerId: string | null): Promise<CafeLocation[
 export const getCafeSites = (viewerId: string | null): Promise<CafeSite[]> =>
   once(viewerId, 'sites', listCafeSites)
 
-export const getCafeDestinationLocations = (viewerId: string | null, fromLocationId: string): Promise<DestinationLocation[]> =>
-  once(viewerId, `destinations:${fromLocationId}`, () => listCafeDestinationLocations(fromLocationId))
+export const getCafeDestinationLocations = (viewerId: string | null, branchId: string, activity: string): Promise<DestinationLocation[]> =>
+  once(viewerId, `destinations:${branchId}|${activity}`, () => listCafeDestinationLocations(branchId, activity))

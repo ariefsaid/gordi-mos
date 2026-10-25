@@ -40,15 +40,6 @@ export function streamKey(branchId: string, activity: ProductionActivity): strin
   return `${branchId}|${activity}`
 }
 
-/**
- * Key of one picker entry: the stream, plus the production Location when the stream has several
- * ways to work in it. A stream with one Location keys the same as the stream itself plus that id.
- */
-export function streamOptionKey(stream: ProductionStream): string {
-  const key = streamKey(stream.branch.id, stream.activity)
-  return stream.location ? `${key}|${stream.location.id}` : key
-}
-
 /** Stable key for review context scoped to one log date and production stream. */
 export function streamDateKey(logDate: string, branchId: string, activity: ProductionActivity): string {
   return `${logDate}|${streamKey(branchId, activity)}`
@@ -160,23 +151,13 @@ export function activityLabel(t: Translate, activity: ProductionActivity): strin
 
 /**
  * Names a (branch, activity) production stream by its branch's name · the activity ("Rumah Rames ·
- * Kitchen"), for the places that are about the stream's books rather than one place: review filters,
- * route lists. Never "HQ"/"Stok HQ" for the central kitchen (FR-061) — the catalog's own name is what
- * keeps that true. `null` renders the em dash rather than an empty gap.
- */
-function streamPairLabel(t: Translate, stream: ProductionStream | null): string {
-  if (!stream) return '—'
-  return `${stream.branch.name} · ${activityLabel(t, stream.activity)}`
-}
-
-/**
- * Names where the floor works: the production Location and where it physically is ("RRS Central ·
- * at GHQ"). A stream with no Location reads by its books, as `streamPairLabel`.
+ * Kitchen"): the stream is what people pick, plan and produce for. Never "HQ"/"Stok HQ" for the
+ * central kitchen (FR-061) — the catalog's own name is what keeps that true. `null` renders the em
+ * dash rather than an empty gap.
  */
 export function streamLabel(t: Translate, stream: ProductionStream | null): string {
-  if (!stream?.location) return streamPairLabel(t, stream)
-  const { name, siteName } = stream.location
-  return siteName && siteName !== name ? t('cafe.stream.locationAt', { location: name, site: siteName }) : name
+  if (!stream) return '—'
+  return `${stream.branch.name} · ${activityLabel(t, stream.activity)}`
 }
 
 /**

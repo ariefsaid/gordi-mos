@@ -1,9 +1,10 @@
 // Where the stream in view can send: Production, then one transfer per destination Location. The
-// answer is the database's (rule 2); this reads it once per Location per Café visit.
+// answer is the database's (rule 2); this reads it once per stream per Café visit.
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
-import { getCafeDestinationLocations } from '@/lib/cafe-visit-cache'
-import { movementsFromDestinations, PRODUCE, streamProduces } from '@/lib/kitchen-action-label'
+import { getCafeDestinationLocations, getCafeLocations } from '@/lib/cafe-visit-cache'
+import { defaultStorageLocationId } from '@/lib/use-cafe-location-choices'
+import { movementsFromDestinations, streamProduces } from '@/lib/kitchen-action-label'
 import type { KitchenMovement, ProductionStream } from '@/lib/db/kitchen-logs.types'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
@@ -15,23 +16,26 @@ export async function readCafeMovements(
   catalog: readonly ProductionStream[],
 ): Promise<KitchenMovement[]> {
   if (!streamProduces(stream, catalog)) return []
-  if (!stream.location) return [PRODUCE]
-  return movementsFromDestinations(await getCafeDestinationLocations(viewerId, stream.location.id))
+  const [destinations, places] = await Promise.all([
+    getCafeDestinationLocations(viewerId, stream.branch.id, stream.activity),
+    getCafeLocations(viewerId).catch(() => []),
+  ])
+  // A stream does not send to the place its own output sits at.
+  const own = defaultStorageLocationId(stream, places)
+  return movementsFromDestinations(destinations.filter(destination => destination.location_id !== own))
 }
 
 export function useCafeDestinations(stream: ProductionStream | null, catalog: readonly ProductionStream[]) {
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
-  const locationId = stream?.location?.id ?? null
   const produces = streamProduces(stream, catalog)
-  const scope = stream ? `${stream.branch.id}|${stream.activity}|${locationId ?? ''}|${produces}` : null
+  const scope = stream ? `${stream.branch.id}|${stream.activity}|${produces}` : null
   const [retryKey, setRetryKey] = useState(0)
   const [state, setState] = useState<{ scope: string | null; status: Status; movements: KitchenMovement[] }>({ scope: null, status: 'idle', movements: [] })
 
   useEffect(() => {
     if (!scope || !stream) { setState({ scope: null, status: 'idle', movements: [] }); return }
     if (!produces) { setState({ scope, status: 'ready', movements: [] }); return }
-    if (!locationId) { setState({ scope, status: 'ready', movements: [PRODUCE] }); return }
     let active = true
     setState({ scope, status: 'loading', movements: [] })
     void readCafeMovements(viewerId, stream, catalog).then(movements => {

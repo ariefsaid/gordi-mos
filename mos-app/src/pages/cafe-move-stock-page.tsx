@@ -14,6 +14,7 @@ import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canPushCafe } from '@/lib/kitchen-gates'
 import { compareDec, formatDec, parseDecimal } from '@/lib/cafe-records/decimal'
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { defaultStorageLocationId } from '@/lib/use-cafe-location-choices'
 import { useCafeStreamBootstrap } from '@/lib/use-cafe-stream-bootstrap'
 import { listCafeCountableItems, type CafeCountableItem } from '@/lib/db/cafe-count'
 import { fetchCafeLocationBalances, listCafeLocations, moveCafeStock, placeCafeUnassignedStock, type CafeLocation, type LocationBalances } from '@/lib/db/cafe-locations'
@@ -68,8 +69,9 @@ export function CafeMoveStockPage() {
       const streamKey = `${stream.branch.id}:${stream.activity}`
       if (selectionRef.current.stream !== streamKey) {
         const storage = locations.filter(location => location.use === 'storage' || location.use === 'both')
-        // Moves start from the Location the person is working at, when stock can sit there; the destination is theirs to pick.
-        const source = storage.find(location => location.id === stream.location?.id)?.id ?? ''
+        // Moves start from the stream's own place for its output, when it has exactly one; the destination is theirs to pick.
+        const ownPlace = defaultStorageLocationId(stream, locations)
+        const source = storage.find(location => location.id === ownPlace)?.id ?? ''
         const destination = ''
         selectionRef.current = { stream: streamKey, from: source, to: destination, date, note: '' }
         setFrom(source); setTo(destination)
