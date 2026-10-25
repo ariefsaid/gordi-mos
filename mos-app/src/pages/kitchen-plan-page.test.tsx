@@ -39,11 +39,10 @@ function idWrapper({ children }: { children: ReactNode }) {
 }
 
 // Where this stream works and where it may send: the visit's reads, mocked per test.
-const visit = vi.hoisted(() => ({ locations: vi.fn(), sites: vi.fn(), destinations: vi.fn() }))
+const visit = vi.hoisted(() => ({ locations: vi.fn(), destinations: vi.fn() }))
 vi.mock('@/lib/cafe-visit-cache', () => ({
   clearCafeVisitCache: () => undefined,
   getCafeLocations: visit.locations,
-  getCafeSites: visit.sites,
   getCafeDestinationLocations: visit.destinations,
 }))
 vi.mock('@/auth/use-auth')
@@ -182,7 +181,6 @@ const PESANAN: PesananRow[] = [
 beforeEach(() => {
   vi.clearAllMocks()
   visit.locations.mockResolvedValue([])
-  visit.sites.mockResolvedValue([])
   visit.destinations.mockResolvedValue([])
   // #440: the Café stream is remembered module-wide in sessionStorage — clear it so one test's
   // switch never seeds the next test's default.
@@ -231,25 +229,24 @@ describe('destination Locations', () => {
   ]
   beforeEach(() => {
     visit.locations.mockResolvedValue([CENTRAL])
-    visit.sites.mockResolvedValue([{ id: 'site-ghq', name: 'GHQ' }])
     visit.destinations.mockResolvedValue(FROM_CENTRAL)
   })
 
-  it('AC-001: a planner at RRS Central sees Production, To RRS Outlet, To Radiant and To Cikal', async () => {
+  it('AC-001: a planner for the stream sees Production, To RRS Outlet, To Radiant and To Cikal', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true, configurable: true,
       value: (query: string) => ({ matches: query === '(min-width: 768px)', media: query, onchange: null, addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false }),
     })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    expect(await screen.findByText('RRS Central · at GHQ')).toBeInTheDocument()
-    expect(visit.destinations).toHaveBeenCalledWith(expect.anything(), 'loc-central')
+    expect(await screen.findByRole('heading', { name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
+    expect(visit.destinations).toHaveBeenCalledWith(expect.anything(), 'branch-1', 'kitchen')
     for (const heading of ['Production', 'To RRS Outlet', 'To Radiant', 'To Cikal']) {
       expect((await screen.findAllByText(heading)).length).toBeGreaterThan(0)
     }
   })
 
-  it('saves a transfer plan by Location id and lets the server fill branch and activity', async () => {
+  it('saves a transfer plan for the stream and the destination Location, naming no production Location', async () => {
     render(<KitchenPlanPage />, { wrapper })
     fireEvent.click(await screen.findByRole('combobox', { name: 'Plan for' }))
     fireEvent.click(await screen.findByRole('option', { name: 'Transfer to Radiant' }))
@@ -257,8 +254,9 @@ describe('destination Locations', () => {
     fireEvent.change(input, { target: { value: '4' } })
     fireEvent.blur(input)
     await waitFor(() => expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'transfer', from_location_id: 'loc-central', to_location_id: 'loc-radiant', destination_branch_id: 'branch-2', qty_porsi: 4,
+      branch_id: 'branch-1', activity: 'kitchen', action: 'transfer', to_location_id: 'loc-radiant', destination_branch_id: 'branch-2', qty_porsi: 4,
     })))
+    expect(mockUpsert.mock.calls[0][0]).not.toHaveProperty('from_location_id')
   })
 
   it('offers a retry when destinations cannot load, without hiding ordinary planning', async () => {

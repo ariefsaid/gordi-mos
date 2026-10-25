@@ -3,7 +3,7 @@
 -- admin-only. Each acceptance check is named AC<number> after the 2026-10-23 plan.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(90);
+select plan(101);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -128,8 +128,9 @@ select is((select count(*)::int from ops.location_activities where location_id =
   'AC8 another org cannot read these location activities');
 select is((select count(*)::int from ops.list_cafe_locations('{}') where name = 'RRS Central'), 0,
   'AC8 another org cannot list these locations');
-select throws_ok(format($f$insert into ops.kitchen_plans (log_date, wip_item_id, action, qty_porsi, from_location_id)
-  values ('2026-07-01', '00000000-0000-0000-0000-00000000ab09', 'produce', 1, %L)$f$, current_setting('app.central')::jsonb ->> 'id'),
+select throws_ok(format($f$insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi, to_location_id)
+  values ('2026-07-01', '00000000-0000-0000-0000-00000000ab09', '00000000-0000-0000-0000-00000000bf09', 'kitchen', 'transfer',
+          '00000000-0000-0000-0000-00000000bf09', 1, %L)$f$, current_setting('app.central')::jsonb ->> 'id'),
   '23514', null, 'AC8 another org cannot use these locations in a plan');
 select throws_ok($$select ops.update_cafe_location(
   (current_setting('app.central')::jsonb ->> 'id')::uuid, 1,
@@ -137,46 +138,51 @@ select throws_ok($$select ops.update_cafe_location(
   '43000000-0000-0000-8000-00000000000d')$$, '42501', null, 'AC8 another org cannot change these locations');
 reset role;
 
--- ── Plans point at Locations; Branch, Activity and destination Branch are filled ─────────────
+-- ── Plans are for a stream; a transfer plan names its destination Location ───────────────────
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
-insert into ops.kitchen_plans (id, log_date, wip_item_id, action, qty_porsi, from_location_id, to_location_id) values
-  ('43000000-0000-0000-0000-0000000000f1', '2026-07-01', '00000000-0000-0000-0000-00000000ab01', 'transfer', 4,
-   pg_temp.loc('RRS Central'), pg_temp.loc('RRS Outlet'));
+insert into ops.kitchen_plans (id, log_date, wip_item_id, branch_id, activity, action, qty_porsi, to_location_id) values
+  ('43000000-0000-0000-0000-0000000000f1', '2026-07-01', '00000000-0000-0000-0000-00000000ab01',
+   '00000000-0000-0000-0000-00000000bf02', 'kitchen', 'transfer', 4, pg_temp.loc('RRS Outlet'));
 select row_eq($$select branch_id, activity, destination_branch_id from ops.kitchen_plans where id = '43000000-0000-0000-0000-0000000000f1'$$,
   row('00000000-0000-0000-0000-00000000bf02'::uuid, 'kitchen'::text, '00000000-0000-0000-0000-00000000bf02'::uuid),
-  'AC2 RRS Central to RRS Outlet saves, with Branch, Activity and destination Branch filled from the Locations');
+  'AC2 the RRS kitchen stream plans a transfer to RRS Outlet, with the destination Branch filled from the Location');
 -- A second Location of the same Branch is its own plan row; the same Location twice is not.
-insert into ops.kitchen_plans (id, log_date, wip_item_id, action, destination_branch_id, qty_porsi, from_location_id, to_location_id) values
-  ('43000000-0000-0000-0000-0000000000f2', '2026-07-01', '00000000-0000-0000-0000-00000000ab01', 'transfer',
-   '00000000-0000-0000-0000-00000000bf02', 2, pg_temp.loc('RRS Central'), pg_temp.loc('Shared cold room'));
+insert into ops.kitchen_plans (id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi, to_location_id) values
+  ('43000000-0000-0000-0000-0000000000f2', '2026-07-01', '00000000-0000-0000-0000-00000000ab01',
+   '00000000-0000-0000-0000-00000000bf02', 'kitchen', 'transfer', '00000000-0000-0000-0000-00000000bf02', 2, pg_temp.loc('Shared cold room'));
 select is((select count(*)::int from ops.kitchen_plans where log_date = '2026-07-01' and wip_item_id = '00000000-0000-0000-0000-00000000ab01'
              and destination_branch_id = '00000000-0000-0000-0000-00000000bf02'), 2,
   'two destination Locations in one Branch are two plan rows');
-select throws_ok($$insert into ops.kitchen_plans (log_date, wip_item_id, action, qty_porsi, from_location_id, to_location_id)
-  values ('2026-07-01', '00000000-0000-0000-0000-00000000ab01', 'transfer', 9, pg_temp.loc('RRS Central'), pg_temp.loc('RRS Outlet'))$$,
+select throws_ok($$insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, qty_porsi, to_location_id)
+  values ('2026-07-01', '00000000-0000-0000-0000-00000000ab01', '00000000-0000-0000-0000-00000000bf02', 'kitchen', 'transfer', 9, pg_temp.loc('RRS Outlet'))$$,
   '23505', null, 'the same destination Location twice on one day and item is one plan row');
-select throws_ok($$insert into ops.kitchen_plans (log_date, wip_item_id, action, qty_porsi, from_location_id, to_location_id)
-  values ('2026-07-02', '00000000-0000-0000-0000-00000000ab01', 'transfer', 1, pg_temp.loc('RRS Central'), pg_temp.loc('RRS Central'))$$,
-  '23514', null, 'a plan cannot send a Location to itself');
-select throws_ok($$insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, qty_porsi, from_location_id)
-  values ('2026-07-02', '00000000-0000-0000-0000-00000000ab01', '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'produce', 1, pg_temp.loc('RRS Central'))$$,
-  '22023', 'CAFE_LOCATION_STREAM_MISMATCH', 'a plan cannot name a stream that is not its production Location''s');
+select throws_ok($$insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi, to_location_id)
+  values ('2026-07-02', '00000000-0000-0000-0000-00000000ab01', '00000000-0000-0000-0000-00000000bf02', 'kitchen', 'transfer',
+          '00000000-0000-0000-0000-00000000bf01', 1, pg_temp.loc('RRS Outlet'))$$,
+  '23514', null, 'a transfer plan''s destination Branch must be a Branch of its destination Location');
+-- The plan's stream is its own Branch and Activity: an old from_location_id names no stream.
+insert into ops.kitchen_plans (id, log_date, wip_item_id, branch_id, activity, action, qty_porsi, from_location_id) values
+  ('43000000-0000-0000-0000-0000000000f5', '2026-07-02', '00000000-0000-0000-0000-00000000ab01',
+   '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'produce', 1, pg_temp.loc('RRS Central'));
+select row_eq($$select branch_id, activity from ops.kitchen_plans where id = '43000000-0000-0000-0000-0000000000f5'$$,
+  row('00000000-0000-0000-0000-00000000bf01'::uuid, 'kitchen'::text),
+  'a plan stays in the stream it was written for, whatever from_location_id says');
 -- AC10: two GHQ Locations of different Activities, no route, saves.
-insert into ops.kitchen_plans (id, log_date, wip_item_id, action, qty_porsi, from_location_id, to_location_id) values
-  ('43000000-0000-0000-0000-0000000000f3', '2026-07-01', '00000000-0000-0000-0000-00000000ab01', 'transfer', 3,
-   pg_temp.loc('GHQ Kitchen'), pg_temp.loc('GHQ Bar'));
+insert into ops.kitchen_plans (id, log_date, wip_item_id, branch_id, activity, action, qty_porsi, to_location_id) values
+  ('43000000-0000-0000-0000-0000000000f3', '2026-07-01', '00000000-0000-0000-0000-00000000ab01',
+   '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'transfer', 3, pg_temp.loc('GHQ Bar'));
 select row_eq($$select branch_id, activity, destination_branch_id from ops.kitchen_plans where id = '43000000-0000-0000-0000-0000000000f3'$$,
   row('00000000-0000-0000-0000-00000000bf01'::uuid, 'kitchen'::text, '00000000-0000-0000-0000-00000000bf01'::uuid),
   'AC10 a transfer between two GHQ locations of different activities saves with no route');
 select is((select count(*)::int from ops.cafe_destinations where origin_branch_id = '00000000-0000-0000-0000-00000000bf01'
              and destination_branch_id = '00000000-0000-0000-0000-00000000bf01'), 0, 'AC10 and there is no route for it');
--- A kitchen with a legacy plan (no Location ids) keeps working: it points at its Stream's production Location.
+-- A plan for a stream with no Location ids is just that: it points at no production Location.
 insert into ops.kitchen_plans (id, log_date, wip_item_id, branch_id, activity, action, qty_porsi) values
   ('43000000-0000-0000-0000-0000000000f4', '2026-07-01', '00000000-0000-0000-0000-00000000ab02',
    '00000000-0000-0000-0000-00000000bf02', 'kitchen', 'produce', 5);
-select is((select from_location_id from ops.kitchen_plans where id = '43000000-0000-0000-0000-0000000000f4'), pg_temp.loc('RRS Central'),
-  'a plan written the old way (stream only) is pointed at the stream''s only production Location');
+select is((select from_location_id from ops.kitchen_plans where id = '43000000-0000-0000-0000-0000000000f4'), null,
+  'a plan written for a stream names no production Location');
 -- A same-branch kitchen move with no Location ids is still refused: nothing says where it goes.
 select throws_ok($$insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi)
   values ('2026-07-03', '00000000-0000-0000-0000-00000000ab01', '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'transfer',
@@ -184,24 +190,62 @@ select throws_ok($$insert into ops.kitchen_plans (log_date, wip_item_id, branch_
   'a kitchen move inside its branch needs a destination Location');
 reset role;
 
--- ── Rule 2: where a Location may send ───────────────────────────────────────────────────────
+-- ── Rule 2: where a stream may send ─────────────────────────────────────────────────────────
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
-select results_eq($$select name from ops.list_cafe_destination_locations(pg_temp.loc('RRS Central')) order by same_branch desc, name$$,
-  $$values ('RRS Outlet'), ('Shared cold room'), ('Radiant Counter')$$,
-  'a Location sends to every other storage Location of its Branch, then to Branches it has a route to');
-select ok(not exists (select 1 from ops.list_cafe_destination_locations(pg_temp.loc('RRS Central')) where name in ('GHQ Bar', 'GHQ Kitchen', 'RRS Central')),
-  'and not to another Branch without a route, nor to itself');
-select results_eq($$select name from ops.list_cafe_destination_locations(pg_temp.loc('GHQ Kitchen')) order by name$$,
-  $$values ('GHQ Bar'), ('Shared cold room')$$,
-  'a Branch''s Locations reach each other with no route (GHQ kitchen to GHQ bar)');
+select results_eq($$select name from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf02', 'kitchen') order by same_branch desc, name$$,
+  $$values ('RRS Central'), ('RRS Outlet'), ('Shared cold room'), ('Radiant Counter')$$,
+  'a stream sends to every storage Location of its Branch, then to Branches it has a route to');
+select ok(not exists (select 1 from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf02', 'kitchen') where name in ('GHQ Bar', 'GHQ Kitchen')),
+  'and not to another Branch without a route');
+select results_eq($$select name from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf01', 'kitchen') order by name$$,
+  $$values ('GHQ Bar'), ('GHQ Kitchen'), ('Shared cold room')$$,
+  'a Branch''s Locations reach each other with no route (GHQ kitchen to GHQ bar), and no other Branch''s Location');
+select is((select count(*)::int from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf01', 'bar')
+             where name = 'GHQ Kitchen'), 1, 'the answer is the stream''s, so the GHQ bar stream sees the GHQ kitchen too');
+select is((select count(*)::int from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf09', 'kitchen')), 0,
+  'a stream of another organisation has no destinations here');
 reset role;
+-- Staging shape: no Team has a Site; Locations do. RRS Central (RRS kitchen) and GHQ Kitchen both sit at Gordi HQ.
+select is((select count(*)::int from shared.teams where site_id is not null and org_id = '00000000-0000-0000-0000-0000000000a1'), 0,
+  'no Team has a Site in this data');
+update ops.locations set site_id = '43000000-0000-0000-0000-0000000000a1'
+ where org_id = '00000000-0000-0000-0000-0000000000a1' and name = 'GHQ Kitchen';
 set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
+select results_eq($$select name from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf01', 'kitchen') order by name$$,
+  $$values ('GHQ Bar'), ('GHQ Kitchen'), ('RRS Central'), ('Shared cold room')$$,
+  'a Location at the same Site as one of the stream''s Locations is offered with no route (GHQ kitchen to RRS Central)');
+select is((select branch_id from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf01', 'kitchen') where name = 'RRS Central'),
+  '00000000-0000-0000-0000-00000000bf02'::uuid, 'and it is a move between Branches: RRS Central belongs to RRS');
+select ok(not exists (select 1 from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf01', 'kitchen') where name = 'RRS Outlet'),
+  'a Location at another Site (RRS Outlet) is not offered');
+select ok(exists (select 1 from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf02', 'kitchen') where name = 'GHQ Kitchen')
+      and not exists (select 1 from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf02', 'kitchen') where name = 'GHQ Bar'),
+  'the Site rule is symmetric: the RRS kitchen is offered GHQ Kitchen at Gordi HQ, but not GHQ Bar, which has no Site');
+insert into ops.kitchen_plans (id, log_date, wip_item_id, branch_id, activity, action, qty_porsi, to_location_id) values
+  ('43000000-0000-0000-0000-0000000000f6', '2026-07-08', '00000000-0000-0000-0000-00000000ab01',
+   '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'transfer', 2, pg_temp.loc('RRS Central'));
+select row_eq($$select branch_id, destination_branch_id from ops.kitchen_plans where id = '43000000-0000-0000-0000-0000000000f6'$$,
+  row('00000000-0000-0000-0000-00000000bf01'::uuid, '00000000-0000-0000-0000-00000000bf02'::uuid),
+  'the GHQ kitchen can plan a transfer to RRS Central with no route');
+select throws_ok($$insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, qty_porsi, to_location_id)
+  values ('2026-07-08', '00000000-0000-0000-0000-00000000ab01', '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'transfer', 2, pg_temp.loc('Radiant Counter'))$$,
+  '42501', null, 'a Location that is neither at the Site nor on a route is still refused');
+insert into ops.kitchen_logs (id, business_unit_id, log_date, action, wip_item_id, qty_porsi, from_storage_location_id, to_storage_location_id) values
+  ('43000000-0000-0000-0000-0000000000a8', '00000000-0000-0000-0000-00000000bb01', '2026-07-08', 'transfer',
+   '00000000-0000-0000-0000-00000000ab01', 1, pg_temp.loc('GHQ Kitchen'), pg_temp.loc('RRS Central'));
+select row_eq($$select branch_id, destination_branch_id from ops.kitchen_logs where id = '43000000-0000-0000-0000-0000000000a8'$$,
+  row('00000000-0000-0000-0000-00000000bf01'::uuid, '00000000-0000-0000-0000-00000000bf02'::uuid),
+  'and the GHQ kitchen can record the transfer to RRS Central, booked to GHQ and received by RRS');
+reset role;
+select is(ops.esb_endpoint_for_movement('transfer', '00000000-0000-0000-0000-00000000bf01', 'kitchen', '00000000-0000-0000-0000-00000000bf02'),
+  'noop', 'with no route the move is recorded in MOS and never queued for ESB');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
 select ops.create_cafe_location(
   '{"name":"Radiant Fridge","use":"storage","branch_ids":["00000000-0000-0000-0000-00000000bf03"]}',
   '43000000-0000-0000-8000-00000000000e');
-select ok(exists (select 1 from ops.list_cafe_destination_locations(pg_temp.loc('RRS Central')) where name = 'Radiant Fridge'),
+select ok(exists (select 1 from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf02', 'kitchen') where name = 'Radiant Fridge'),
   'a new storage Location in a routed Branch is a destination with no code change');
 reset role;
 
@@ -458,18 +502,18 @@ select is((select site_id from ops.locations where org_id = '00000000-0000-0000-
   '43000000-0000-0000-0000-0000000000a2'::uuid, 'AC7 a created Location sits at the Site that matches its Branch by name');
 select is((select count(*)::int from ops.locations where org_id = '00000000-0000-0000-0000-0000000000a1' and name = 'Radiant Bar' and site_id is null), 1,
   'AC7 and has no Site when none matches');
-select is((select from_location_id from ops.kitchen_plans where id = '00000000-0000-0000-0000-00000000ae01'), pg_temp.loc('RRS Central'),
-  'AC7 an old plan row now points at its stream''s production Location');
-select row_eq($$select action, destination_branch_id, from_location_id, to_location_id from ops.kitchen_plans where id = '43000000-0000-0000-0000-0000000000b1'$$,
-  row('transfer'::text, '00000000-0000-0000-0000-00000000bf09'::uuid, '43000000-0000-0000-0000-0000000000e1'::uuid, '43000000-0000-0000-0000-0000000000e2'::uuid),
+select is((select from_location_id from ops.kitchen_plans where id = '00000000-0000-0000-0000-00000000ae01'), null,
+  'AC7 an old plan row is left for its stream: no production Location is worked out for it');
+select row_eq($$select action, destination_branch_id, to_location_id from ops.kitchen_plans where id = '43000000-0000-0000-0000-0000000000b1'$$,
+  row('transfer'::text, '00000000-0000-0000-0000-00000000bf09'::uuid, '43000000-0000-0000-0000-0000000000e2'::uuid),
   'AC7 an old outlet-send plan is now a transfer inside the Branch to the outlet Location');
 select row_eq($$select action, destination_branch_id, from_storage_location_id, to_storage_location_id from ops.kitchen_logs where id = '43000000-0000-0000-0000-0000000000b2'$$,
   row('transfer'::text, '00000000-0000-0000-0000-00000000bf09'::uuid, '43000000-0000-0000-0000-0000000000e1'::uuid, '43000000-0000-0000-0000-0000000000e2'::uuid),
   'AC7 an old outlet-send log is now a transfer inside the Branch, between the same Locations');
 select is((select count(*)::int from ops.location_activities where location_id = '43000000-0000-0000-0000-0000000000e2' and activity = 'kitchen'), 1,
   'AC7 the outlet works in the sending stream''s Activity, so the converted send still leaves the stream''s stock alone');
-select is((select production_location_id from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000ac01'), pg_temp.loc('RRS Central'),
-  'AC7 an old production log now points at its stream''s production Location');
+select is((select production_location_id from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000ac01'), null,
+  'AC7 an old production log stays against its stream: no production Location is worked out for it');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$update ops.kitchen_plans set qty_porsi = qty_porsi + 1 where id = '00000000-0000-0000-0000-00000000ae01'$$,
   'AC7 an old plan edits correctly');

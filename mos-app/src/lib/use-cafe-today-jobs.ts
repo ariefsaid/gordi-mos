@@ -11,7 +11,7 @@ import { listCafeReceipts } from '@/lib/db/cafe-receipts'
 import { listCafePurchaseRequests, type CafePurchaseRequest } from '@/lib/db/cafe-purchase-requests'
 import { canManageCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { listCafeCaptureDrafts, type CafeCaptureForm } from '@/lib/cafe-capture-storage'
-import { movementKey, streamOptionKey, streamProduces, PRODUCE } from '@/lib/kitchen-action-label'
+import { movementKey, streamKey, streamProduces, PRODUCE } from '@/lib/kitchen-action-label'
 import { readCafeMovements } from '@/lib/use-cafe-destinations'
 import { wibToday } from '@/lib/format/date'
 import type { BranchOption, ProductionStream } from '@/lib/db/kitchen-logs.types'
@@ -62,7 +62,7 @@ export function useCafeTodayJobs({ stream, allOptions, branches, canCapture }: {
   const [state, setState] = useState<TodayJobs['state']>('loading')
   const [retryKey, setRetryKey] = useState(0)
   const retry = useCallback(() => setRetryKey(key => key + 1), [])
-  const streamId = stream ? streamOptionKey(stream) : null
+  const streamId = stream ? streamKey(stream.branch.id, stream.activity) : null
 
   useEffect(() => {
     let live = true

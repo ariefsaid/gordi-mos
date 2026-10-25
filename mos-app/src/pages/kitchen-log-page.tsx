@@ -360,8 +360,8 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   // submit production against them (DD-MVP-9).
   const streamCanProduce = streamProduces(stream, streamOptions)
   const streamNonProducing = stream !== null && !streamCanProduce
-  // Where this stream's work happens is the production Location in view; where a transfer can go is
-  // the database's answer for that Location (one read per Location per Café visit).
+  // Production is recorded against the stream; where a transfer can go is the database's answer for
+  // that stream (one read per stream per Café visit).
   const placeChoices = useCafeLocationChoices(canCapture ? stream : null)
   const destinations = useCafeDestinations(stream, streamOptions)
   const allMovementOptions = destinations.movements
@@ -379,15 +379,14 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   const transferDestinationChosen = mode !== 'transfer' || (
     movement.action !== 'produce' && movementOptions.some(option => movementKey(option) === movementKey(movement))
   )
-  const locationScope = `${mode}:${stream?.branch.id ?? ''}:${stream?.activity ?? ''}:${stream?.location?.id ?? ''}`
-  // Production is stored in the Location in view, so the only place left to choose is where the output sits.
+  const locationScope = `${mode}:${stream?.branch.id ?? ''}:${stream?.activity ?? ''}`
+  // Production names no Location, so the only physical choice is where the output sits (it starts at the stream's own place).
   const [selectedLocationState, setSelectedLocationState] = useState<{ scope: string; values: LocationFieldValues } | null>(null)
+  const ownPlaceId = defaultStorageLocationId(stream, placeChoices.locations)
   const defaultLocationValues: LocationFieldValues = {
-    production_location_id: stream?.location?.id ?? null,
-    from_storage_location_id: stream?.location?.holdsStock ? stream.location.id : null,
-    to_storage_location_id: mode === 'transfer'
-      ? movement.toLocationId ?? null
-      : defaultStorageLocationId(stream, placeChoices.locations),
+    production_location_id: null,
+    from_storage_location_id: ownPlaceId,
+    to_storage_location_id: mode === 'transfer' ? movement.toLocationId ?? null : ownPlaceId,
   }
   const locationValues: LocationFieldValues = selectedLocationState?.scope === locationScope
     ? { ...defaultLocationValues, to_storage_location_id: selectedLocationState.values.to_storage_location_id }
@@ -1265,7 +1264,6 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
           entry_unit_factor: line.entry_unit_factor ?? 1,
           notes: line.notes.trim() || null,
           ...(locationLoadState === 'ready' ? movement.action === 'produce' ? {
-            production_location_id: locationValues.production_location_id ?? null,
             to_storage_location_id: locationValues.to_storage_location_id ?? null,
           } : {
             from_storage_location_id: locationValues.from_storage_location_id ?? null,
@@ -1346,16 +1344,18 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
     ? <div className="kl-scope"><TransferToSelect value={movement} options={movementOptions} origin={stream} onChange={handleMovementChange} disabled={writeClosed || status.kind !== 'ready'} planCounts={planCounts} /></div>
     : null
 
+  const loadingFrame = (
+    <CafePageFrame page={page} date={logDate} streamBar={streamBar} state="loading">
+      <div className="kl-page">
+        <OfflineBanner show={!isOnline} />
+        <LoadingShell count={3} />
+      </div>
+    </CafePageFrame>
+  )
+
   // ── Auth guard ─────────────────────────────────────────────────────────────
   if (auth.status === 'loading') {
-    return (
-      <CafePageFrame page={page} date={logDate} streamBar={streamBar} state="loading">
-        <div className="kl-page">
-          <OfflineBanner show={!isOnline} />
-          <LoadingShell count={3} />
-        </div>
-      </CafePageFrame>
-    )
+    return loadingFrame
   }
 
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
@@ -1374,14 +1374,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   // read must never take away the control that switches off it (FR-003 default-not-wall),
   // and a head that goes silent about its stream is the #440 defect itself.
   if (status.kind === 'loading') {
-    return (
-      <CafePageFrame page={page} date={logDate} streamBar={streamBar} state="loading">
-        <div className="kl-page">
-          <OfflineBanner show={!isOnline} />
-          <LoadingShell count={3} />
-        </div>
-      </CafePageFrame>
-    )
+    return loadingFrame
   }
 
   // ── Error state — never a bare Retry loop when offline (#2, RI-2) ────────────

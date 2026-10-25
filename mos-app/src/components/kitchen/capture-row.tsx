@@ -127,7 +127,11 @@ export function CaptureTable<Row extends { id: string }>({
         data-controls={shape.controls}
         data-compact={compact ? '' : undefined}
         data-action={shape.action ? '' : undefined}
-        style={shape.action && shape.actionRem !== DEFAULT_ACTION_REM ? ({ '--cap-act-w': `${shape.actionRem}rem` } as CSSProperties) : undefined}
+        // One track per control, however many a stream's destinations make (Plan has Production plus every destination).
+        style={{
+          '--cap-ctl-cols': `repeat(${shape.controls}, var(--cap-control-w))`,
+          ...(shape.action && shape.actionRem !== DEFAULT_ACTION_REM ? { '--cap-act-w': `${shape.actionRem}rem` } : {}),
+        } as CSSProperties}
       >
         <div role="rowgroup">
           <div role="row" className={hideHead ? 'cap-head cap-head--hidden' : 'cap-head'}>

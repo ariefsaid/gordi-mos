@@ -14,7 +14,6 @@ vi.mock('@/lib/db/deployment-stamp', () => ({ readDeploymentStamp: async () => n
 vi.mock('@/lib/cafe-visit-cache', () => ({
   clearCafeVisitCache: () => undefined,
   getCafeLocations: async () => [],
-  getCafeSites: async () => [],
   getCafeDestinationLocations: async () => [],
 }))
 

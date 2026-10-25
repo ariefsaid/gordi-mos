@@ -9,14 +9,14 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
   return { ...actual, listStreamPairs: vi.fn() }
 })
-vi.mock('@/lib/cafe-visit-cache', () => ({ getCafeLocations: vi.fn(), getCafeSites: vi.fn() }))
+vi.mock('@/lib/cafe-visit-cache', () => ({ getCafeLocations: vi.fn() }))
 vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn() }))
 vi.mock('@/auth/use-auth')
 
 import { listActiveBranches } from '@/lib/db/branches'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { listStreamPairs } from '@/lib/db/kitchen-logs'
-import { getCafeLocations, getCafeSites } from '@/lib/cafe-visit-cache'
+import { getCafeLocations } from '@/lib/cafe-visit-cache'
 import type { CafeLocation } from '@/lib/db/cafe-locations'
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import { useAuth } from '@/auth/use-auth'
@@ -54,7 +54,6 @@ beforeEach(() => {
   vi.mocked(listActiveBranches).mockResolvedValue(BRANCHES)
   vi.mocked(listStreamPairs).mockResolvedValue(PAIRS)
   vi.mocked(getCafeLocations).mockResolvedValue([])
-  vi.mocked(getCafeSites).mockResolvedValue([])
   vi.mocked(fetchDefaultStream).mockResolvedValue(RADIANT_BAR)
   // Unauthenticated by default (matches the pre-existing, unmocked React.createContext default of
   // `{status: 'loading'}` every other case here relied on) — `viewerId` is null, so authenticated
@@ -83,26 +82,31 @@ describe('useCafeStream — the shared Café bootstrap', () => {
     expect(result.current.branches).toEqual([])
   })
 
-  it('offers one picker entry per production Location, named with where it is, and opens on the person\'s only one', async () => {
-    vi.mocked(getCafeLocations).mockResolvedValue([place('loc-bar', 'Radiant Bar', BRANCH_RAD.id, 'bar', 'site-rad')])
-    vi.mocked(getCafeSites).mockResolvedValue([{ id: 'site-rad', name: 'Radiant site' }])
-    const { result } = renderHook(() => useCafeStream())
-    const resolved = await act(async () => result.current.resolve())
-
-    const bar = resolved.options.find(option => option.branch.id === BRANCH_RAD.id && option.activity === 'bar')
-    expect(bar?.location).toEqual({ id: 'loc-bar', name: 'Radiant Bar', siteName: 'Radiant site', holdsStock: true })
-    expect(resolved.stream?.location?.id).toBe('loc-bar')
-  })
-
-  it('asks which Location when the person\'s stream has several, rather than guessing', async () => {
+  it('offers one picker entry per stream whatever production Locations it has, and opens on the person\'s team stream', async () => {
+    // Two production places for one stream, a bar with none: still one entry each, and the default needs no choice of place.
     vi.mocked(getCafeLocations).mockResolvedValue([
       place('loc-a', 'Radiant Bar A', BRANCH_RAD.id, 'bar'), place('loc-b', 'Radiant Bar B', BRANCH_RAD.id, 'bar'),
     ])
     const { result } = renderHook(() => useCafeStream())
     const resolved = await act(async () => result.current.resolve())
 
-    expect(resolved.options.filter(option => option.branch.id === BRANCH_RAD.id && option.activity === 'bar')).toHaveLength(2)
-    expect(resolved.stream).toBeNull()
+    expect(resolved.options.filter(option => option.branch.id === BRANCH_RAD.id && option.activity === 'bar')).toHaveLength(1)
+    expect(resolved.options).toHaveLength(4)
+    expect(resolved.stream).toEqual(RADIANT_BAR)
+  })
+
+  it('remembers a choice by branch and activity, and reads an older three-part key as the same stream', async () => {
+    vi.mocked(fetchDefaultStream).mockResolvedValue(null)
+    const { result } = renderHook(() => useCafeStream())
+    const RR_KITCHEN = { branch: BRANCH_RR, activity: 'kitchen' as const, produces: true }
+    act(() => result.current.setStream(RR_KITCHEN))
+    expect(rememberedStreamKey(undefined, BRANCH_RR.id)).toBe(streamKey(BRANCH_RR.id, 'kitchen'))
+
+    rememberStream(null)
+    window.sessionStorage.setItem(`mos.cafe.stream.${BRANCH_RR.id}`, `${streamKey(BRANCH_RR.id, 'kitchen')}|old-location`)
+    const resolved = await act(async () => result.current.resolve())
+    expect(rememberedStreamKey(undefined, BRANCH_RR.id)).toBe(streamKey(BRANCH_RR.id, 'kitchen'))
+    expect(resolved.options.some(option => option.branch.id === BRANCH_RR.id)).toBe(true)
   })
 
   it('adopt() is what puts a resolved catalog on screen', async () => {

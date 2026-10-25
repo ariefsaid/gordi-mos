@@ -60,7 +60,7 @@ const PLAN_QTY = 50
 // (branch, activity) production stream + movement; this journey exercises Rumah Rames Kitchen.
 const STREAM_BRANCH_ID = '25000000-0000-0000-0000-000000000002'
 const STREAM_ACTIVITY = 'kitchen'
-const STREAM_LABEL = 'Rumah Rames Kitchen'
+const STREAM_LABEL = 'Rumah Rames · Kitchen'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function wibToday(): string {

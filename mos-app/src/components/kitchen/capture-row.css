@@ -21,10 +21,6 @@
 .cap-table[data-figures='1'] { --cap-figs-cols: var(--cap-fig-w); }
 .cap-table[data-figures='2'] { --cap-figs-cols: var(--cap-fig-w) var(--cap-fig-w); }
 .cap-table[data-figures='3'] { --cap-figs-cols: var(--cap-fig-w) var(--cap-fig-w) var(--cap-fig-w); }
-.cap-table[data-controls='1'] { --cap-ctl-cols: var(--cap-control-w); }
-.cap-table[data-controls='2'] { --cap-ctl-cols: var(--cap-control-w) var(--cap-control-w); }
-.cap-table[data-controls='3'] { --cap-ctl-cols: var(--cap-control-w) var(--cap-control-w) var(--cap-control-w); }
-.cap-table[data-controls='4'] { --cap-ctl-cols: var(--cap-control-w) var(--cap-control-w) var(--cap-control-w) var(--cap-control-w); }
 .cap-table[data-action] { --cap-act-col: var(--cap-act-w); }
 @media (max-width: 767.98px) { .cap-table { --cap-qty-w: 5.5rem; } }
 
