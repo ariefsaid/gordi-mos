@@ -48,8 +48,8 @@ select is((select description from mos.tasks where id = '00000000-0000-0000-0000
 update mos.tasks set body = jsonb_build_array(jsonb_build_object('type','paragraph','content',jsonb_build_array(
   jsonb_build_object('type','text','text',repeat('x',3000),'styles','{}'::jsonb))))
 where id = '00000000-0000-0000-0000-000000007001';
-select is((select char_length(description) from mos.tasks where id = '00000000-0000-0000-0000-000000007001'), 2000,
-  'AC-004: the plain-text copy is capped at the description column limit');
+select is((select char_length(description) from mos.tasks where id = '00000000-0000-0000-0000-000000007001'), 3000,
+  'AC-004: the plain-text copy keeps the whole document');
 
 update mos.tasks set body = '[{"type":"paragraph","content":[]}]'::jsonb where id = '00000000-0000-0000-0000-000000007001';
 select ok((select body is null and description is null from mos.tasks where id = '00000000-0000-0000-0000-000000007001'),

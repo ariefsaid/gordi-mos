@@ -1112,7 +1112,6 @@ export function TasksWorkspace({
                 {draftSourceSignalRef.current && <div className="task-capture-heading"><p>{t('tasks.create.sourceSignal')}</p></div>}
                 <TaskCreateForm
                   task={draftTask}
-                  businessUnitName={buOptions.find((unit) => unit.id === draftTask.business_unit_id)?.name ?? ''}
                   teamOptions={viewerTeams ?? []}
                   personOptions={picOptions(viewerId ?? '', personOptions, dataContext?.downlinePersonIds ?? [], viewerOrgWide)}
                   supervisorOptions={personOptions}

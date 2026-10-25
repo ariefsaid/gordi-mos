@@ -227,9 +227,14 @@ export async function listCafeSites(): Promise<CafeSite[]> {
 
 export type DestinationLocation = { location_id: UUID; name: string; branch_id: UUID; same_branch: boolean }
 
-/** Where a production location may send: its own branch's other storage locations, then routed branches. */
-export async function listCafeDestinationLocations(fromLocationId: UUID): Promise<DestinationLocation[]> {
-  const { data, error } = await supabase.schema('ops').rpc('list_cafe_destination_locations', { p_from_location_id: fromLocationId })
+/**
+ * Where a stream can send: its own branch's storage Locations, the Locations physically at the branch's
+ * Site, then the Locations of routed branches.
+ */
+export async function listCafeDestinationLocations(branchId: UUID, activity: string): Promise<DestinationLocation[]> {
+  const { data, error } = await supabase.schema('ops').rpc('list_cafe_destination_locations', {
+    p_branch_id: branchId, p_activity: activity,
+  })
   if (error) throw contractError('listCafeDestinationLocations', error)
   return ((data ?? []) as unknown[]).map((raw) => {
     const row = asObject(raw, 'listCafeDestinationLocations')

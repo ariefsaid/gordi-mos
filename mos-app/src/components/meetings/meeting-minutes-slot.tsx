@@ -6,7 +6,6 @@
 //   meetingId  string    the Meeting whose minutes these are
 //   canEdit    boolean   true when the viewer may edit the Meeting (attendee, owning Team member or admin);
 //                        false is the read-only reader: no Save, no Add, no inline edit
-//   isPrivate  boolean   the Meeting is Private: its Tasks carry the "Private task" lock
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { BlockDocumentEditor, type BlockDocumentCopy } from '@/components/block-document/block-document-editor'
@@ -31,7 +30,6 @@ import './meeting-minutes.css'
 type MeetingMinutesSlotProps = {
   meetingId: string
   canEdit: boolean
-  isPrivate?: boolean
 }
 
 type Loaded = { tasks: MeetingTaskRow[]; stillOpen: MeetingTaskRow[]; people: PersonOption[]; downlineIds: string[] }
@@ -40,7 +38,7 @@ type Load = { status: 'loading' } | { status: 'error' } | ({ status: 'ready' } &
 // The stored minutes keep only the allowed blocks, the way a reload would show them.
 const SANITIZE = { mentions: true, recordLinks: true, blocks: Object.fromEntries(Object.entries(meetingMinutesExtension.blocks).map(([type, block]) => [type, block.sanitize])) }
 
-export function MeetingMinutesSlot({ meetingId, canEdit, isPrivate = false }: MeetingMinutesSlotProps) {
+export function MeetingMinutesSlot({ meetingId, canEdit }: MeetingMinutesSlotProps) {
   const t = useT()
   const auth = useAuth()
   const offline = useIsOffline()
@@ -77,7 +75,7 @@ export function MeetingMinutesSlot({ meetingId, canEdit, isPrivate = false }: Me
       updateTaskFields(task.id, patch, actor(), from).then(refresh)
     return {
       meetingId,
-      isPrivate,
+      viewerId,
       canAdd: canEdit && !offline,
       tasks: ready.tasks,
       people: ready.people,
@@ -86,8 +84,8 @@ export function MeetingMinutesSlot({ meetingId, canEdit, isPrivate = false }: Me
       canEditTask: (task) => Boolean(viewerId) && canEditTask(
         { responsible_person_id: task.responsibleId, accountable_person_id: task.supervisorId } as TaskListRow, viewerId ?? '', ready.downlineIds),
       openTask: (taskId) => openRecord({ kind: 'task', id: taskId }),
-      createTask: async ({ title, picId, dueDate }) => {
-        const id = await createMeetingTask({ meetingId, title, picId, dueDate })
+      createTask: async ({ title, picId, dueDate, supervisorId }) => {
+        const id = await createMeetingTask({ meetingId, title, picId, dueDate, supervisorId })
         await refresh()
         return id
       },
@@ -95,7 +93,7 @@ export function MeetingMinutesSlot({ meetingId, canEdit, isPrivate = false }: Me
       setDue: (task, dueDate) => edit(task, { due_date: dueDate }, task.dueDate),
       setPic: (task, personId) => edit(task, { responsible_person_id: personId }, task.responsibleId),
     }
-  }, [canEdit, isPrivate, meetingId, offline, openRecord, orgWide, ready, refresh, viewerId])
+  }, [canEdit, meetingId, offline, openRecord, orgWide, ready, refresh, viewerId])
 
   const store = useMemo(() => ({
     read: async () => {

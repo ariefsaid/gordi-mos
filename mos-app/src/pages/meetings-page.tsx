@@ -67,7 +67,7 @@ export function MeetingsPage() {
     if (!ctx || !viewerId) return
     let live = true
     setLoad({ status: 'loading' })
-    listMeetings({ scope, personId: viewerId, teamIds: ctx.viewerTeamIds, search: urlSearch }).then(
+    listMeetings({ scope, personId: viewerId, search: urlSearch }).then(
       (rows) => { if (live) setLoad({ status: 'ready', rows }) },
       () => { if (live) setLoad({ status: 'error' }) },
     )

@@ -144,7 +144,7 @@ select throws_ok($$ insert into mos.tasks (org_id, title, business_unit_id, resp
           '00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000d1') $$,
   '23514', null, 'task titles have a database-enforced length cap');
 select throws_ok($$ insert into mos.tasks (org_id, title, description, business_unit_id, responsible_person_id, accountable_person_id, created_by)
-  values ('00000000-0000-0000-0000-0000000000a1','Long description',repeat('d',2001),'00000000-0000-0000-0000-0000000000a2',
+  values ('00000000-0000-0000-0000-0000000000a1','Long description',repeat('d',262145),'00000000-0000-0000-0000-0000000000a2',
           '00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000d1') $$,
   '23514', null, 'task descriptions have a database-enforced length cap');
 select throws_ok($$ insert into mos.process_task_defs (org_id, work_line_id, title, pic_person_id)

@@ -40,8 +40,9 @@ type TaskPrivacy = {
   onRemoveViewer: (personId: string) => Promise<void>
 }
 
-/** The Meeting a Task was created in: `isPrivate` makes everyone in it a reader; `viewerIn` says whether
- * the viewer is in it. An outsider of a private Meeting sees "Private meeting" instead of its name. */
+/** The Meeting a Task was created in: `isPrivate` is the Task's own flag (made in a private Meeting, so everyone
+ * in it is a reader); `viewerIn` says whether the viewer is in it. A Meeting the viewer cannot read has an
+ * empty `title` and shows as "Private meeting". */
 export type TaskMeetingOrigin = { href: string; title: string; isPrivate: boolean; viewerIn: boolean }
 
 type TaskRecordDocumentProps = {
@@ -223,7 +224,7 @@ export function TaskRecordDocument({
   if (meeting) {
     detailsItems.push({
       key: 'meeting', label: t('tasks.private.createdInMeeting'),
-      value: meeting.isPrivate && !meeting.viewerIn
+      value: meeting.title === ''
         ? <span className="rp-about__field">{t('tasks.private.privateMeeting')} <PrivateLock /></span>
         : <span className="rp-about__field"><Link to={meeting.href}>{meeting.title}</Link></span>,
     })

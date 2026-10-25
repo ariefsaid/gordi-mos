@@ -82,10 +82,27 @@ describe('TaskPrivateRow', () => {
     expect(screen.getByRole('switch', { name: 'Private' })).toBeDisabled()
   })
 
-  it('offers no who-can-see list for a Task from a private Meeting, whoever the viewer is', () => {
-    setup({ isPrivate: true, meetingPrivate: true, viewerInMeeting: true })
+  it('lists the people added to a Task from a private Meeting, beside everyone in the meeting, and lets someone in it add or remove one', async () => {
+    const { onAddViewer, onRemoveViewer } = setup({ isPrivate: true, meetingPrivate: true, viewerInMeeting: true, viewers: [PEOPLE[1]] })
+    expect(screen.getByRole('status')).toHaveTextContent('On · everyone in the meeting and 1 more person')
+    expect(screen.getByText('Dewi Director')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Dewi Director' }))
+    expect(onRemoveViewer).toHaveBeenCalledWith('dewi')
+    await userEvent.click(screen.getByRole('button', { name: 'Add person' }))
+    await userEvent.click(within(await screen.findByRole('listbox')).getByText('Budi Barista'))
+    expect(onAddViewer).toHaveBeenCalledWith('budi')
+  })
+
+  it('shows the list but no way to change it to someone outside the private Meeting', () => {
+    setup({ isPrivate: true, meetingPrivate: true, viewerInMeeting: false, viewers: [PEOPLE[1]] })
+    expect(screen.getByText('Dewi Director')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add person' })).toBeNull()
-    expect(screen.queryByText('Nobody added.')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Remove/ })).toBeNull()
+  })
+
+  it('says nobody is added to a Task from a private Meeting when the list is empty', () => {
+    setup({ isPrivate: true, meetingPrivate: true, viewerInMeeting: true })
+    expect(screen.getByText('Nobody added.')).toBeInTheDocument()
   })
 
   it('lets someone in the private Meeting turn Private off', async () => {

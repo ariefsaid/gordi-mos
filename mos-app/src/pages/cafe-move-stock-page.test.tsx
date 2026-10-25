@@ -10,8 +10,8 @@ import { CafeMoveStockPage } from './cafe-move-stock-page'
 
 const state = vi.hoisted(() => ({ offline: false, coverage: 'complete' as 'complete' | 'unallocated' | 'unavailable', roles: ['member'], available: '5' }))
 const reads = vi.hoisted(() => ({ items: vi.fn(), locations: vi.fn(), balances: vi.fn(), move: vi.fn(), place: vi.fn(), setStream: vi.fn(), resolve: vi.fn(), adopt: vi.fn() }))
-// The person works at the kitchen Location, so a move starts from it; the destination is theirs to pick.
-const stream = { branch: { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' }, activity: 'kitchen' as const, location: { id: 'store-1', name: 'Rumah Rames kitchen', siteName: 'Gordi HQ', holdsStock: true } }
+// The stream has one place for its own stock, so a move starts from it; the destination is theirs to pick.
+const stream = { branch: { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' }, activity: 'kitchen' as const }
 
 vi.mock('@/auth/use-auth', () => ({
   useAuth: () => ({ status: 'authenticated', viewer: { person: { id: 'person-1' }, accessRoles: state.roles, affiliated: ['cafe'], roles: [], isManager: false }, signOut: vi.fn() }),
@@ -36,7 +36,7 @@ beforeEach(() => {
   reads.resolve.mockResolvedValue({ branches: [stream.branch], options: [stream], locationOptions: [stream], stream, homeStream: stream, myStreamKeys: new Set(['branch-1:kitchen']) })
   reads.items.mockResolvedValue([{ id: 'item-1', name: 'Coffee beans', category: 'Raw', kind: 'RAW', unitId: 'unit-1', unitName: 'kg' }])
   reads.locations.mockResolvedValue([
-    { id: 'store-1', name: 'Rumah Rames kitchen (Gordi HQ)', use: 'both', archived_at: null },
+    { id: 'store-1', name: 'Rumah Rames kitchen (Gordi HQ)', use: 'both', archived_at: null, branch_ids: ['branch-1'], activities: ['kitchen'] },
     { id: 'store-2', name: 'Rumah Rames outlet', use: 'storage', archived_at: null },
   ])
   reads.balances.mockImplementation(async () => ({
@@ -64,7 +64,7 @@ for (const locale of ['en', 'id'] as const) {
   }
 
   describe(`Change location (${locale})`, () => {
-    it('starts from the Location being worked at, uses through-date stock, and keeps places/date after saving', async () => {
+    it('starts from the stream\'s own place, uses through-date stock, and keeps places/date after saving', async () => {
       const user = userEvent.setup()
       renderPage(locale)
       expect(await screen.findByRole('combobox', { name: text['cafe.locations.field.from'] })).toHaveTextContent('Rumah Rames kitchen (Gordi HQ)')

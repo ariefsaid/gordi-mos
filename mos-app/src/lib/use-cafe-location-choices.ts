@@ -14,15 +14,19 @@ export async function readCafeLocationChoices(viewerId: string | null, branchId:
 }
 
 /**
- * Where stock goes when the person does not say: the Location they are working at, when stock can sit
- * there. Nothing else is guessed; every other case starts Unassigned.
+ * Where stock goes when the person does not say: the stream's own place for its output, when the
+ * stream has exactly one production Location that can hold stock. Nothing else is guessed; every
+ * other case starts Unassigned.
  */
 export function defaultStorageLocationId(
   stream: ProductionStream | null,
   locations: readonly CafeLocation[],
 ): string | null {
-  const here = stream?.location
-  return here?.holdsStock && locations.some(place => place.id === here.id) ? here.id : null
+  if (!stream) return null
+  const own = locations.filter(place => !place.archived_at && place.use === 'both'
+    && place.branch_ids.length === 1 && place.branch_ids[0] === stream.branch.id
+    && place.activities.length === 1 && place.activities[0] === stream.activity)
+  return own.length === 1 ? own[0].id : null
 }
 
 type ChoiceSnapshot = { scope: string | null; status: ChoiceStatus; locations: CafeLocation[] }
