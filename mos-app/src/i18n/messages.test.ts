@@ -294,7 +294,7 @@ describe('admin access actions use the nav terms for Work collections', () => {
 // languages and is not left as the other language's text.
 describe('Café locations-first labels exist in both languages', () => {
   const KEYS = [
-    'cafe.stream.locationAt', 'cafe.transfer.choose', 'cafe.transfer.group.same', 'cafe.transfer.group.other',
+    'cafe.transfer.choose', 'cafe.transfer.group.same', 'cafe.transfer.group.other',
     'records.field.fromTo', 'records.field.madeAt', 'cafe.locations.site', 'cafe.locations.siteNone',
     'cafe.locations.col.site', 'cafe.locations.at', 'cafe.locations.activities', 'cafe.locations.error.productionShape',
     'cafe.routes.col.esb', 'cafe.routes.esb', 'cafe.routes.esb.on', 'cafe.routes.esb.off', 'cafe.routes.esb.note',

@@ -46,7 +46,6 @@ function baseProps(overrides: Partial<ComponentProps<typeof TaskCreateForm>> = {
   const onCancel = vi.fn()
   return {
     task: makeDraft(),
-    businessUnitName: 'Retail Ops',
     teamOptions: [{ id: 'team-1', name: 'HQ Operations', businessUnitId: 'bu-1' }],
     personOptions: [{ id: 'viewer-1', full_name: 'Dewi Director' }],
     supervisorOptions: [{ id: 'person-2', full_name: 'Budi Setiawan' }],
@@ -133,10 +132,13 @@ describe('TaskCreateForm — the blank Task page', () => {
     expect(screen.getByRole('combobox', { name: 'PIC' })).toHaveTextContent('Dewi Director (you)')
   })
 
-  it('shows the derived Business Unit once, as read-only text', () => {
+  it('lists only the properties a person fills in: no read-only Status, Business Unit or Objective', () => {
     renderForm()
-    expect(screen.getByTestId('task-create-derived-bu')).toHaveTextContent('Retail Ops')
-    expect(screen.getAllByText('Retail Ops')).toHaveLength(1)
+    const labels = Array.from(document.querySelectorAll('.rp-props__label')).map((label) => label.textContent)
+    expect(labels).toEqual(expect.arrayContaining(['PIC', 'Supervisor', 'Team', 'Private']))
+    expect(labels).not.toEqual(expect.arrayContaining(['Status']))
+    expect(labels).not.toEqual(expect.arrayContaining(['Business Unit']))
+    expect(labels).not.toEqual(expect.arrayContaining(['Objective']))
   })
 })
 
@@ -536,6 +538,20 @@ describe('TaskCreateForm — Private', () => {
     const options = await supervisorOptions()
     expect(options).toContain('None, just me')
     expect(options.filter((name) => name === 'Dewi Director')).toHaveLength(0)
+  })
+
+  it('sets Supervisor to "None, just me" when Private is turned on and I am the PIC', async () => {
+    const onEditSupervisor = vi.fn().mockResolvedValue(undefined)
+    renderForm({ onEditSupervisor }, asViewer('viewer-1'))
+    await userEvent.click(screen.getByRole('switch', { name: 'Private' }))
+    expect(onEditSupervisor).toHaveBeenCalledWith('new-task-1', 'viewer-1')
+  })
+
+  it('keeps the Supervisor when Private is turned on and someone else is the PIC', async () => {
+    const onEditSupervisor = vi.fn().mockResolvedValue(undefined)
+    renderForm({ onEditSupervisor, task: makeDraft({ responsible_person_id: 'person-3' }), personOptions: [{ id: 'person-3', full_name: 'Rina Staff' }] }, asViewer('viewer-1'))
+    await userEvent.click(screen.getByRole('switch', { name: 'Private' }))
+    expect(onEditSupervisor).not.toHaveBeenCalled()
   })
 
   it('does not offer "None, just me" when someone else is the PIC', async () => {

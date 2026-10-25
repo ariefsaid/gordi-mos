@@ -192,8 +192,7 @@ export async function upsertKitchenPlan(input: UpsertKitchenPlanInput): Promise<
     activity: input.activity,
     action: input.action,
     destination_branch_id: input.destination_branch_id,
-    // The server fills Branch, Activity and the destination Branch from these.
-    from_location_id: input.from_location_id ?? null,
+    // The server fills the destination Branch from the destination Location.
     to_location_id: input.to_location_id ?? null,
     qty_porsi: input.qty_porsi,
     notes: input.notes ?? null,

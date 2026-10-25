@@ -26,8 +26,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
-import { resolveCafeStream, rememberStream, withProductionLocations } from '@/lib/cafe-stream'
-import { getCafeLocations, getCafeSites } from '@/lib/cafe-visit-cache'
+import { resolveCafeStream, rememberStream } from '@/lib/cafe-stream'
 import { listStreamPairs, streamCatalogFrom } from '@/lib/db/kitchen-logs'
 import { listActiveBranches } from '@/lib/db/branches'
 import { activeCafeLocation, rememberCafeLocation } from '@/lib/cafe-opening-location'
@@ -115,12 +114,9 @@ export function useCafeStream(): CafeStreamState {
   }, [viewerId])
 
   const resolve = useCallback(async (): Promise<CafeStreamCatalog> => {
-    const [branches, pairs, locations, sites, myTeams] = await Promise.all([
+    const [branches, pairs, myTeams] = await Promise.all([
       listActiveBranches(),
       listStreamPairs(),
-      // Read once per Café visit and reused by every Café page (lib/cafe-visit-cache).
-      getCafeLocations(viewerId),
-      getCafeSites(viewerId).catch(() => []),
       // Current profile memberships (effective-dated, home included) — the read the "Your Team"
       // tag needs beyond the single default (issue #781 follow-up). Skipped when unauthenticated.
       // Display only: a failure drops the tags, never the surface.
@@ -131,7 +127,7 @@ export function useCafeStream(): CafeStreamState {
         })
         : Promise.resolve([]),
     ])
-    const options = withProductionLocations(streamCatalogFrom(pairs, branches), locations, sites)
+    const options = streamCatalogFrom(pairs, branches)
     const myStreamKeys = new Set(
       myTeams
         .filter((team) => team.branch_id !== null && team.activity !== null)

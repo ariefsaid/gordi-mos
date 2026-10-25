@@ -39,25 +39,10 @@ export interface BranchOption {
   name: string
 }
 
-/** The production Location a stream's work is done at, with where it physically is. */
-interface StreamLocation {
-  id: string
-  name: string
-  /** Name of the Site it is physically at; null when none is set. */
-  siteName: string | null
-  /** Whether stock can sit here too (use storage or both), so a transfer can leave from it. */
-  holdsStock: boolean
-}
-
 /** The origin half plus the activity: the stream a captured row belongs to. */
 export interface ProductionStream {
   branch: BranchOption
   activity: ProductionActivity
-  /**
-   * The production Location this entry stands for. A stream may have several; each is its own
-   * choice on the picker. Absent on a stream that has none (a receiving-only stream, or one not set up yet).
-   */
-  location?: StreamLocation
   /**
    * Whether this stream may record production. This is carried by its Team catalog row;
    * absent only on an unresolved default stream, which must be resolved back into the
@@ -322,8 +307,6 @@ export interface UpsertKitchenPlanInput {
   action: KitchenAction
   /** null for produce, required for transfer (kitchen_plans_destination_matches_action) */
   destination_branch_id: string | null
-  /** The production Location the plan is for; the server fills Branch and Activity from it. */
-  from_location_id?: string | null
   /** For a transfer, the Location it goes to; the server fills the destination Branch from it. */
   to_location_id?: string | null
   qty_porsi: number // ≥ 0

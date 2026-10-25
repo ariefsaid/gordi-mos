@@ -7,8 +7,7 @@ import type { TaskStatus } from '@/lib/db/tasks.types'
 
 export interface MeetingMinutes {
   meetingId: string
-  /** Tasks of a private Meeting carry the "Private task" lock. */
-  isPrivate: boolean
+  viewerId: string | null
   /** The viewer may add Tasks and rows (can edit the Meeting, and is online). */
   canAdd: boolean
   /** This Meeting's Tasks the viewer can read. */
@@ -20,7 +19,7 @@ export interface MeetingMinutes {
   frozen: boolean
   canEditTask: (task: MeetingTaskRow) => boolean
   openTask: (taskId: string) => void
-  createTask: (input: { title: string; picId?: string; dueDate?: string | null }) => Promise<string>
+  createTask: (input: { title: string; picId?: string; dueDate?: string | null; supervisorId?: string | null }) => Promise<string>
   setStatus: (task: MeetingTaskRow, status: TaskStatus) => Promise<void>
   setDue: (task: MeetingTaskRow, dueDate: string | null) => Promise<void>
   setPic: (task: MeetingTaskRow, personId: string) => Promise<void>

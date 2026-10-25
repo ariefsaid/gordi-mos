@@ -137,6 +137,11 @@ async function cleanupFixture(): Promise<void> {
     DELETE FROM ops.kitchen_logs WHERE org_id=${uuidLiteral(ORG)} AND wip_item_id=${uuidLiteral(ITEM_ID)};
     DELETE FROM ops.kitchen_plans WHERE org_id=${uuidLiteral(ORG)} AND id=${uuidLiteral(PLAN_ID)};
     DELETE FROM ops.stream_items WHERE org_id=${uuidLiteral(ORG)} AND wip_item_id=${uuidLiteral(ITEM_ID)};
+    -- Approval puts the output at the stream's own place, so a location movement references the unit; it is
+    -- append-only, so the fixture lifts that guard for its own rows only.
+    ALTER TABLE ops.location_movements DISABLE TRIGGER location_movements_immutable;
+    DELETE FROM ops.location_movements WHERE org_id=${uuidLiteral(ORG)} AND item_id=${uuidLiteral(ITEM_ID)};
+    ALTER TABLE ops.location_movements ENABLE TRIGGER location_movements_immutable;
     DELETE FROM ops.item_units WHERE org_id=${uuidLiteral(ORG)} AND wip_item_id=${uuidLiteral(ITEM_ID)};
     DELETE FROM ops.wip_items WHERE org_id=${uuidLiteral(ORG)} AND id=${uuidLiteral(ITEM_ID)};
     DELETE FROM ops.locations WHERE org_id=${uuidLiteral(ORG)} AND id IN (${uuidLiteral(PRODUCTION_LOCATION_ID)}, ${uuidLiteral(DESTINATION_LOCATION_ID)});

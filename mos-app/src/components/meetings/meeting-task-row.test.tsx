@@ -4,6 +4,7 @@ import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { sanitizeBlockDocument } from '@/lib/db/block-document'
+import { MeetingTaskNeedsSupervisorError } from '@/lib/db/meetings'
 import { MeetingMinutesProvider, type MeetingMinutes } from './meeting-minutes-context'
 import { meetingMinutesExtension } from './meeting-minutes-blocks'
 import { DraftTaskRow } from './meeting-task-row'
@@ -12,7 +13,7 @@ const TASK = '11111111-1111-4111-8111-111111111111'
 
 function minutes(createTask: MeetingMinutes['createTask']): MeetingMinutes {
   return {
-    meetingId: 'm1', isPrivate: false, canAdd: true, tasks: [], frozen: false,
+    meetingId: 'm1', viewerId: 'me', canAdd: true, tasks: [], frozen: false,
     people: [{ id: 'me', full_name: 'Dewi Director' }, { id: 'p2', full_name: 'Cahya Cafe' }],
     picChoices: [{ id: 'me', full_name: 'Dewi Director' }, { id: 'p2', full_name: 'Cahya Cafe' }],
     canEditTask: () => true, openTask: vi.fn(), createTask, setStatus: vi.fn(), setDue: vi.fn(), setPic: vi.fn(),
@@ -42,11 +43,51 @@ describe('/task draft row', () => {
     const onCreated = mount(createTask)
     await userEvent.type(screen.getByRole('textbox', { name: 'Title of the new task' }), 'Fix the Cafe 2 ice machine drain')
     await pick('Cahya Cafe')
-    expect(createTask).toHaveBeenCalledWith({ title: 'Fix the Cafe 2 ice machine drain', picId: 'p2', dueDate: null })
+    expect(createTask).toHaveBeenCalledWith({ title: 'Fix the Cafe 2 ice machine drain', picId: 'p2', dueDate: null, supervisorId: null })
     expect(screen.getByText('Creating the Task…')).toBeInTheDocument()
     expect(onCreated).not.toHaveBeenCalled()
     await act(async () => { finish(TASK) })
     expect(onCreated).toHaveBeenCalledWith(TASK)
+  })
+
+  it('sends a Supervisor chosen before the PIC with the Task', async () => {
+    const createTask = vi.fn().mockResolvedValue(TASK)
+    mount(createTask)
+    await userEvent.type(screen.getByRole('textbox', { name: 'Title of the new task' }), 'Fix the drain')
+    await userEvent.click(screen.getByRole('combobox', { name: /Supervisor/ }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Cahya Cafe' }))
+    expect(createTask).not.toHaveBeenCalled()
+    await pick('Dewi Director')
+    expect(createTask).toHaveBeenCalledWith({ title: 'Fix the drain', picId: 'me', dueDate: null, supervisorId: 'p2' })
+  })
+
+  it('"None, just me" makes the viewer the PIC and their own only Supervisor', async () => {
+    const createTask = vi.fn().mockResolvedValue(TASK)
+    mount(createTask)
+    await userEvent.type(screen.getByRole('textbox', { name: 'Title of the new task' }), 'Renew the licence')
+    await userEvent.click(screen.getByRole('combobox', { name: /Supervisor/ }))
+    await userEvent.click(await screen.findByRole('option', { name: 'None, just me' }))
+    expect(createTask).toHaveBeenCalledWith({ title: 'Renew the licence', picId: 'me', dueDate: null, supervisorId: 'me' })
+  })
+
+  it('offers "None, just me" only when the PIC is the viewer', async () => {
+    mount(vi.fn().mockResolvedValue(TASK))
+    await pick('Cahya Cafe')
+    await userEvent.click(screen.getByRole('combobox', { name: /Supervisor/ }))
+    expect(await screen.findByRole('option', { name: 'Dewi Director' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'None, just me' })).toBeNull()
+  })
+
+  it('asks for a Supervisor when the PIC has no single manager, then creates the Task once one is chosen', async () => {
+    const createTask = vi.fn().mockRejectedValueOnce(new MeetingTaskNeedsSupervisorError()).mockResolvedValueOnce(TASK)
+    const onCreated = mount(createTask)
+    await userEvent.type(screen.getByRole('textbox', { name: 'Title of the new task' }), 'Fix the drain')
+    await pick('Cahya Cafe')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Choose a Supervisor')
+    await userEvent.click(screen.getByRole('combobox', { name: /Supervisor/ }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Dewi Director' }))
+    await vi.waitFor(() => expect(createTask).toHaveBeenLastCalledWith({ title: 'Fix the drain', picId: 'p2', dueDate: null, supervisorId: 'me' }))
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith(TASK))
   })
 
   it('creates nothing while the title is empty', async () => {

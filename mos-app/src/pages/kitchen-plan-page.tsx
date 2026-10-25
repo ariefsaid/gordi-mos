@@ -226,7 +226,7 @@ function PlanEditor() {
   const streamCanProduce = streamProduces(stream, streamOptions)
   const streamNonProducing = stream !== null && !streamCanProduce
   const planWriteClosed = streamMissing || streamNonProducing
-  // Production, then one column per destination Location (the database's answer for this Location).
+  // Production, then one column per destination Location (the database's answer for this stream).
   const destinations = useCafeDestinations(stream, streamOptions)
   const movementOptions = destinations.movements
   // Her own/current default stream is always writable (same trust the Review queue places in
@@ -428,8 +428,6 @@ function PlanEditor() {
         activity: stream.activity,
         action: forMovement.action,
         destination_branch_id: forMovement.destinationBranchId,
-        // The Location ids are what the server reads; it fills Branch and Activity from them.
-        from_location_id: stream.location?.id ?? null,
         to_location_id: forMovement.toLocationId ?? null,
         qty_porsi: nextQty,
       })

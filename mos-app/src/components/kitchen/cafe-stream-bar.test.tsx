@@ -30,15 +30,14 @@ describe('Café switch menu', () => {
     expect(onChange).toHaveBeenCalledWith(cikalBar)
   })
 
-  it('lists production Locations only: streams with no Location (bar-only, receiving-only) are not offered', () => {
-    const at = (stream: ProductionStream, id: string, name: string): ProductionStream =>
-      ({ ...stream, location: { id, name, siteName: 'Gordi HQ', holdsStock: true } })
-    const central = at(hqKitchen, 'l1', 'Central')
-    const bar = at(hqBar, 'l2', 'Bar Place')
+  it('offers one entry per stream, bar-only and receiving-only ones included, headed "Branch · Activity"', () => {
     const receiving: ProductionStream = { branch: cikal, activity: 'kitchen', produces: false }
-    render(<CafeStreamBar options={[central, bar, cikalBar, receiving]} stream={central} locationBranchId="b1" onChange={vi.fn()} />)
+    render(<CafeStreamBar options={[hqKitchen, hqBar, cikalBar, receiving]} stream={hqKitchen} locationBranchId="b1" onChange={vi.fn()} />)
+    expect(screen.getByRole('heading', { name: 'Gordi HQ · Kitchen' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Switch kitchen' }))
     const options = within(screen.getByRole('listbox')).getAllByRole('option')
-    expect(options.map(option => option.textContent)).toEqual(['Bar Place · at Gordi HQ', 'Central · at Gordi HQ'])
+    expect(options.map(option => option.textContent)).toEqual([
+      'Gordi HQ · Bar', 'Gordi HQ · Kitchen', 'Cikal · Bar', expect.stringMatching(/^Cikal · Kitchen/),
+    ])
   })
 })

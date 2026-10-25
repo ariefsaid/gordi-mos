@@ -51,12 +51,12 @@ describe('Café Locations client: site, activities and destinations', () => {
     }))
   })
 
-  it('lists where a location may send, own branch first', async () => {
+  it('lists where a stream may send, own branch first', async () => {
     rpc.mockResolvedValue({ data: [{ location_id: 'out', name: 'RRS Outlet', branch_id: 'rrs', same_branch: true }], error: null })
-    await expect(listCafeDestinationLocations('central')).resolves.toEqual([
+    await expect(listCafeDestinationLocations('rrs', 'kitchen')).resolves.toEqual([
       { location_id: 'out', name: 'RRS Outlet', branch_id: 'rrs', same_branch: true },
     ])
-    expect(rpc).toHaveBeenCalledWith('list_cafe_destination_locations', { p_from_location_id: 'central' })
+    expect(rpc).toHaveBeenCalledWith('list_cafe_destination_locations', { p_branch_id: 'rrs', p_activity: 'kitchen' })
   })
 })
 

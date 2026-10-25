@@ -75,7 +75,8 @@ describe('Meetings list', () => {
   it('shows My meetings first, switches to All, and searches', async () => {
     renderAt('/work/meetings')
     expect(await screen.findByRole('link', { name: 'Weekly bar ops sync' })).toBeInTheDocument()
-    expect(listMeetings).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'mine', personId: 'me', teamIds: ['t1'] }))
+    expect(listMeetings).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'mine', personId: 'me' }))
+    expect(listMeetings).not.toHaveBeenCalledWith(expect.objectContaining({ teamIds: expect.anything() }))
     expect(screen.getByRole('button', { name: 'My meetings' })).toHaveAttribute('aria-pressed', 'true')
 
     await userEvent.click(screen.getByRole('button', { name: 'All' }))
