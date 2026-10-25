@@ -1,6 +1,21 @@
 -- DOWN for 20261025000100_ops_cafe_destinations_by_stream.sql. Restores the list keyed by the origin
 -- Location and the guard that allows a transfer only inside the Branch or on a route.
 begin;
+-- Cross-branch transfers that are valid only because a Location sits at the stream's Site (no route). They stay
+-- in the data; once the rule is gone they cannot be re-saved or re-submitted as they are.
+do $$
+declare v_logs integer; v_plans integer;
+begin
+  select count(*) into v_logs from ops.kitchen_logs l
+   where l.action = 'transfer' and l.status = 'Submitted' and l.destination_branch_id is distinct from l.branch_id
+     and not exists (select 1 from ops.cafe_destinations d where d.org_id = l.org_id and d.origin_branch_id = l.branch_id
+                       and d.origin_activity = l.activity and d.destination_branch_id = l.destination_branch_id);
+  select count(*) into v_plans from ops.kitchen_plans p
+   where p.action = 'transfer' and p.destination_branch_id is distinct from p.branch_id
+     and not exists (select 1 from ops.cafe_destinations d where d.org_id = p.org_id and d.origin_branch_id = p.branch_id
+                       and d.origin_activity = p.activity and d.destination_branch_id = p.destination_branch_id);
+  raise notice 'rollback 20261025000100: % submitted (unapproved) cross-branch transfer(s) and % cross-branch transfer plan(s) have no route and were valid only under the same-Site rule', v_logs, v_plans;
+end $$;
 drop function ops.list_cafe_destination_locations(uuid, text);
 create function ops.list_cafe_destination_locations(p_from_location_id uuid)
 returns table(location_id uuid, name text, branch_id uuid, same_branch boolean)
@@ -87,5 +102,5 @@ begin
 end;
 $$;
 revoke execute on function ops._lock_cafe_transfer_route() from public, anon, authenticated, service_role;
-drop function ops._cafe_location_at_branch_site(uuid, uuid, uuid);
+drop function ops._cafe_location_at_stream_site(uuid, uuid, text, uuid);
 commit;

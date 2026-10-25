@@ -3,7 +3,7 @@
 -- admin-only. Each acceptance check is named AC<number> after the 2026-10-23 plan.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(99);
+select plan(101);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -206,19 +206,23 @@ select is((select count(*)::int from ops.list_cafe_destination_locations('000000
 select is((select count(*)::int from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf09', 'kitchen')), 0,
   'a stream of another organisation has no destinations here');
 reset role;
--- Gordi HQ's teams sit at the Gordi HQ site, where RRS Central also is: that Location is on offer to the
--- GHQ kitchen with no route, as a move between Branches.
-update shared.teams set site_id = '43000000-0000-0000-0000-0000000000a1'
- where org_id = '00000000-0000-0000-0000-0000000000a1' and branch_id = '00000000-0000-0000-0000-00000000bf01';
+-- Staging shape: no Team has a Site; Locations do. RRS Central (RRS kitchen) and GHQ Kitchen both sit at Gordi HQ.
+select is((select count(*)::int from shared.teams where site_id is not null and org_id = '00000000-0000-0000-0000-0000000000a1'), 0,
+  'no Team has a Site in this data');
+update ops.locations set site_id = '43000000-0000-0000-0000-0000000000a1'
+ where org_id = '00000000-0000-0000-0000-0000000000a1' and name = 'GHQ Kitchen';
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select results_eq($$select name from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf01', 'kitchen') order by name$$,
   $$values ('GHQ Bar'), ('GHQ Kitchen'), ('RRS Central'), ('Shared cold room')$$,
-  'a Location physically at the Branch''s Site is offered with no route (GHQ kitchen to RRS Central)');
+  'a Location at the same Site as one of the stream''s Locations is offered with no route (GHQ kitchen to RRS Central)');
 select is((select branch_id from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf01', 'kitchen') where name = 'RRS Central'),
   '00000000-0000-0000-0000-00000000bf02'::uuid, 'and it is a move between Branches: RRS Central belongs to RRS');
-select ok(not exists (select 1 from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf02', 'kitchen') where name in ('GHQ Bar', 'GHQ Kitchen')),
-  'the Site rule is one-way: the RRS kitchen is not offered Gordi HQ''s Locations');
+select ok(not exists (select 1 from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf01', 'kitchen') where name = 'RRS Outlet'),
+  'a Location at another Site (RRS Outlet) is not offered');
+select ok(exists (select 1 from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf02', 'kitchen') where name = 'GHQ Kitchen')
+      and not exists (select 1 from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf02', 'kitchen') where name = 'GHQ Bar'),
+  'the Site rule is symmetric: the RRS kitchen is offered GHQ Kitchen at Gordi HQ, but not GHQ Bar, which has no Site');
 insert into ops.kitchen_plans (id, log_date, wip_item_id, branch_id, activity, action, qty_porsi, to_location_id) values
   ('43000000-0000-0000-0000-0000000000f6', '2026-07-08', '00000000-0000-0000-0000-00000000ab01',
    '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'transfer', 2, pg_temp.loc('RRS Central'));

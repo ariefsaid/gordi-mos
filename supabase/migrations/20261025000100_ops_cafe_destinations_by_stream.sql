@@ -1,27 +1,30 @@
 -- Café back to stream-first (1 of 2): where a stream can send.
--- A stream sends to its own branch's storage Locations, to any storage Location physically at a
--- Site where the branch has a Team (so Gordi HQ's kitchen can send to a Location sitting at the same
--- Site under another branch), and to the Locations of branches it has a route to. No route is needed
+-- A stream sends to its own branch's storage Locations, to any storage Location physically at the same
+-- Site as one of the stream's own Locations (so Gordi HQ's kitchen can send to a Location sitting at the
+-- same Site under another branch, and the reverse), and to the Locations of branches it has a route to. No route is needed
 -- for the first two; a route's "Record in ESB" switch still decides whether a cross-branch transfer
 -- is posted to ESB, so without a route such a transfer is recorded in MOS only.
 -- The list is asked of the stream (branch + activity), not of one production Location.
 --
 -- DOWN: run supabase/rollbacks/20261025000100_ops_cafe_destinations_by_stream.sql.
 
--- True when the storage Location sits at a Site where the Branch has an active Team.
-create function ops._cafe_location_at_branch_site(p_org uuid, p_branch uuid, p_location uuid)
+-- True when the storage Location sits at the same Site as any active Location of the stream (a Location of
+-- its Branch that works in its Activity). Sites are on Locations, not Teams, and the rule is symmetric.
+create function ops._cafe_location_at_stream_site(p_org uuid, p_branch uuid, p_activity text, p_location uuid)
 returns boolean
 language sql stable security invoker set search_path = '' as $$
   select exists (
     select 1 from ops.locations l
      where l.org_id = p_org and l.id = p_location and l.archived_at is null
        and l.use in ('storage', 'both') and l.site_id is not null
-       and exists (select 1 from shared.teams t
-                    where t.org_id = p_org and t.branch_id = p_branch and t.archived_at is null
-                      and t.site_id = l.site_id))
+       and exists (
+         select 1 from ops.locations own
+           join ops.location_branches ob on ob.org_id = own.org_id and ob.location_id = own.id and ob.branch_id = p_branch
+           join ops.location_activities oa on oa.org_id = own.org_id and oa.location_id = own.id and oa.activity = p_activity
+          where own.org_id = p_org and own.archived_at is null and own.site_id = l.site_id))
 $$;
-revoke execute on function ops._cafe_location_at_branch_site(uuid, uuid, uuid) from public, anon, service_role;
-grant execute on function ops._cafe_location_at_branch_site(uuid, uuid, uuid) to authenticated;
+revoke execute on function ops._cafe_location_at_stream_site(uuid, uuid, text, uuid) from public, anon, service_role;
+grant execute on function ops._cafe_location_at_stream_site(uuid, uuid, text, uuid) to authenticated;
 
 create or replace function ops._guard_cafe_books()
 returns trigger language plpgsql security invoker set search_path = '' as $$
@@ -49,7 +52,7 @@ begin
         select 1 from ops.allowed_kitchen_destinations(new.org_id, new.branch_id, new.activity) d
         where d.destination_branch_id = new.destination_branch_id)
       or (new.destination_branch_id is not distinct from new.branch_id and v_to is not null)
-      or (v_to is not null and ops._cafe_location_at_branch_site(new.org_id, new.branch_id, v_to))
+      or (v_to is not null and ops._cafe_location_at_stream_site(new.org_id, new.branch_id, new.activity, v_to))
     ) then
       raise exception 'the destination is outside the production stream''s allowed books' using errcode = '42501';
     end if;
@@ -61,7 +64,7 @@ begin
 end;
 $$;
 comment on function ops._guard_cafe_books() is
-  'On an inserted or re-pointed Café movement, requires the row stream Team to produce and a transfer to be inside the allowed books: a route for another Branch, any Location of its own Branch, or a Location at a Site where its Branch has a Team (42501). SECURITY INVOKER.';
+  'On an inserted or re-pointed Café movement, requires the row stream Team to produce and a transfer to be inside the allowed books: a route for another Branch, any Location of its own Branch, or a Location at the same Site as one of the stream''s own Locations (42501). SECURITY INVOKER.';
 
 -- The route lock also lets a movement to a Location at the Branch's Site through (see the books guard).
 create or replace function ops._lock_cafe_transfer_route()
@@ -81,11 +84,11 @@ begin
      where d.org_id = new.org_id and d.origin_branch_id = new.branch_id
        and d.origin_activity = new.activity and d.destination_branch_id = new.destination_branch_id
      for key share;
-    -- A destination Location physically at a Site where the Branch has a Team needs no route (the books guard
+    -- A destination Location physically at the same Site as one of the stream's own Locations needs no route (the books guard
     -- has already accepted it); a route's Record in ESB switch still decides whether it is posted.
     if not found then
       if tg_table_name = 'kitchen_plans' then v_to := new.to_location_id; else v_to := new.to_storage_location_id; end if;
-      if v_to is null or not ops._cafe_location_at_branch_site(new.org_id, new.branch_id, v_to) then
+      if v_to is null or not ops._cafe_location_at_stream_site(new.org_id, new.branch_id, new.activity, v_to) then
         raise exception 'transfer route was disabled before submission' using errcode = '42501';
       end if;
     end if;
@@ -111,7 +114,7 @@ language sql stable security invoker set search_path = '' as $$
                       where t.org_id = s.org_id and t.branch_id = p_branch_id and t.activity = p_activity
                         and t.archived_at is null)
          and (sb.branch_id = p_branch_id
-              or ops._cafe_location_at_branch_site(s.org_id, p_branch_id, s.id)
+              or ops._cafe_location_at_stream_site(s.org_id, p_branch_id, p_activity, s.id)
               or exists (select 1 from ops.allowed_kitchen_destinations(s.org_id, p_branch_id, p_activity) d
                           where d.destination_branch_id = sb.branch_id))
        order by s.id, (sb.branch_id <> p_branch_id), sb.branch_id
@@ -119,6 +122,6 @@ language sql stable security invoker set search_path = '' as $$
    order by (not c.same_branch), c.name, c.id
 $$;
 comment on function ops.list_cafe_destination_locations(uuid, text) is
-  'Every active storage Location the stream can send to: in its Branch, physically at a Site where its Branch has a Team, or in a Branch it has a route to.';
+  'Every active storage Location the stream can send to: in its Branch, physically at the same Site as one of the stream''s own Locations, or in a Branch it has a route to.';
 revoke execute on function ops.list_cafe_destination_locations(uuid, text) from public, anon, service_role;
 grant execute on function ops.list_cafe_destination_locations(uuid, text) to authenticated;
