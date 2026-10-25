@@ -308,7 +308,11 @@ function ViewSurface({
     return () => { current = false }
   }, [linkedObjectiveId])
 
-  const meeting = useTaskMeetingOrigin(localTask?.meeting_id, viewerId, localTask?.is_private === true, meetingOrigin)
+  const meeting = useTaskMeetingOrigin(
+    localTask?.meeting_id, viewerId,
+    { isPrivate: localTask?.is_private === true, createdInPrivateMeeting: localTask?.created_in_private_meeting === true },
+    meetingOrigin,
+  )
 
   // Notify a host of the resolved title (e.g. for the breadcrumb)
   useEffect(() => {
@@ -452,7 +456,13 @@ function ViewSurface({
       ? await listTaskViewers(localTask.id).then((rows) => rows.map((row) => row.person_id)).catch(() => [])
       : []
     if (next) setViewerIds(listed)
-    const updated = { ...localTask, is_private: next }
+    // "Only shown to the person who made it": a PIC who made the Task and turns Private on becomes the only
+    // Supervisor ("None, just me"). Someone else's Task keeps its Supervisor. A failure here keeps the old one.
+    const solo = next && localTask.responsible_person_id === viewerId && localTask.created_by === viewerId
+      && localTask.accountable_person_id !== viewerId
+    const soloSaved = solo
+      && await updateTaskFields(localTask.id, { accountable_person_id: viewerId }, viewerId, localTask.accountable_person_id).then(() => true, () => false)
+    const updated = { ...localTask, is_private: next, ...(soloSaved ? { accountable_person_id: viewerId } : {}) }
     onTaskChanged?.(updated)
     // The change is saved. An editor who is not the creator, PIC, Supervisor, an admin, on the list or
     // (for a Task made in a private Meeting) an attendee of it can no longer read the Task, so the page

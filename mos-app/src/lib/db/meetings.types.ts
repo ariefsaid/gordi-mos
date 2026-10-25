@@ -54,6 +54,10 @@ export interface MeetingTaskRow {
   dueDate: string | null
   status: string
   meetingId: string
+  /** The Task's own Private setting. */
+  isPrivate: boolean
+  /** The Task was made in a Meeting that was private at that moment. */
+  createdInPrivateMeeting: boolean
 }
 
 export interface CreateMeetingInput {
@@ -74,6 +78,8 @@ export interface MeetingFieldsPatch {
   workLineId?: string | null
   objectiveId?: string | null
   isPrivate?: boolean
+  /** Archive (an ISO instant) or unarchive (null) a Meeting. */
+  archivedAt?: string | null
 }
 
 export interface CreateMeetingTaskInput {
@@ -84,7 +90,7 @@ export interface CreateMeetingTaskInput {
   dueDate?: string | null
   /** Defaults to the PIC's primary Team, else the Meeting's owning Team. */
   teamId?: string | null
-  /** Defaults to the PIC's one direct manager, else the PIC when the PIC is the caller. */
+  /** A chosen Supervisor; by default the PIC's one direct manager, else the PIC when the PIC is the caller. */
   supervisorId?: string | null
 }
 

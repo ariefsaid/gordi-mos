@@ -5,7 +5,7 @@ vi.mock('../supabase', () => ({ supabase: { schema: vi.fn() } }))
 import { supabase } from '@/lib/supabase'
 import { WriteUpConflictError, WriteUpTooLargeError } from './objective-writeup'
 import {
-  MINUTES_MAX_BYTES, addAttendee, createMeeting, createMeetingTask, getMeeting, getMeetingTitlesByIds,
+  MINUTES_MAX_BYTES, MeetingTaskNeedsSupervisorError, addAttendee, createMeeting, createMeetingTask, getMeeting, getMeetingTitlesByIds,
   listMeetings, listMeetingsForRecord, listMeetingTasks, listStillOpen, readMinutes, removeAttendee,
   saveMinutes, searchMeetingsByTitle, startNextMeeting, updateMeetingFields,
 } from './meetings'
@@ -20,12 +20,13 @@ interface Calls {
   upserts: unknown[]
   eqs: Array<[string, unknown]>
   ors: string[]
+  ins: Array<[string, unknown]>
   ilikes: Array<[string, unknown]>
 }
 
 /** Chainable PostgREST stand-in: every query on `table` resolves to its queued results, in order. */
 function stub(tables: Record<string, Result[]>, rpcs: Record<string, Result> = {}): Calls {
-  const calls: Calls = { tables: [], rpcs: [], updates: [], upserts: [], eqs: [], ors: [], ilikes: [] }
+  const calls: Calls = { tables: [], rpcs: [], updates: [], upserts: [], eqs: [], ors: [], ins: [], ilikes: [] }
   const seen: Record<string, number> = {}
   const from = (table: string) => {
     calls.tables.push(table)
@@ -34,7 +35,8 @@ function stub(tables: Record<string, Result[]>, rpcs: Record<string, Result> = {
     seen[table] = i + 1
     const result = queue[Math.min(i, queue.length - 1)] ?? { data: [], error: null }
     const b: Record<string, unknown> = {}
-    for (const m of ['select', 'is', 'in', 'neq', 'order', 'limit']) b[m] = vi.fn(() => b)
+    for (const m of ['select', 'is', 'neq', 'order', 'limit']) b[m] = vi.fn(() => b)
+    b.in = vi.fn((c: string, v: unknown) => { calls.ins.push([c, v]); return b })
     b.eq = vi.fn((c: string, v: unknown) => { calls.eqs.push([c, v]); return b })
     b.ilike = vi.fn((c: string, v: unknown) => { calls.ilikes.push([c, v]); return b })
     b.or = vi.fn((s: string) => { calls.ors.push(s); return b })
@@ -61,7 +63,7 @@ const row = (over: Record<string, unknown> = {}) => ({
 beforeEach(() => vi.clearAllMocks())
 
 describe('meetings data layer', () => {
-  it('lists My meetings as attended or team-owned, with attendees and open-task counts', async () => {
+  it('lists My meetings as the ones the viewer attends, with attendees and open-task counts', async () => {
     const calls = stub({
       meeting_attendees: [
         { data: [{ meeting_id: 'm1' }], error: null },
@@ -70,16 +72,17 @@ describe('meetings data layer', () => {
       meetings: [{ data: [row(), row({ id: 'm2', is_private: true })], error: null }],
       tasks: [{ data: [{ meeting_id: 'm1' }, { meeting_id: 'm1' }, { meeting_id: 'm2' }], error: null }],
     })
-    const rows = await listMeetings({ scope: 'mine', personId: 'p1', teamIds: ['t1'], search: ' ops ' })
-    expect(calls.ors).toEqual(['id.in.(m1),owning_team_id.in.(t1)'])
+    const rows = await listMeetings({ scope: 'mine', personId: 'p1', search: ' ops ' })
+    expect(calls.ins).toContainEqual(['id', ['m1']])
+    expect(calls.ors).toEqual([])
     expect(calls.ilikes).toEqual([['title', '%ops%']])
     expect(rows.map((r) => [r.id, r.attendeeIds, r.openTaskCount])).toEqual([['m1', ['p1', 'p2'], 2], ['m2', [], 1]])
     expect(rows[1].isPrivate).toBe(true)
   })
 
-  it('lists nothing for My meetings when the viewer attends nothing and has no Team', async () => {
+  it('lists nothing for My meetings when the viewer attends nothing, even with a Team', async () => {
     stub({ meeting_attendees: [{ data: [], error: null }] })
-    expect(await listMeetings({ scope: 'mine', personId: 'p1', teamIds: [] })).toEqual([])
+    expect(await listMeetings({ scope: 'mine', personId: 'p1' })).toEqual([])
   })
 
   it('lists All meetings without a membership filter', async () => {
@@ -170,10 +173,25 @@ describe('meetings data layer', () => {
     }])
   })
 
+  it('sends a chosen Supervisor and reports when the PIC needs one', async () => {
+    const calls = stub({}, { create_meeting_task: { data: 'task2', error: null } })
+    await createMeetingTask({ meetingId: 'm1', title: 'Call', picId: 'p2', supervisorId: 'p3' })
+    expect(calls.rpcs[0][1]).toMatchObject({ p_pic_id: 'p2', p_supervisor_id: 'p3' })
+    stub({}, { create_meeting_task: { data: null, error: { code: '23502', message: 'no single manager found for this PIC; choose a Supervisor' } } })
+    await expect(createMeetingTask({ meetingId: 'm1', title: 'Call', picId: 'p2' })).rejects.toBeInstanceOf(MeetingTaskNeedsSupervisorError)
+  })
+
+  it('archives and unarchives a Meeting through its archived_at', async () => {
+    const calls = stub({ meetings: [{ data: [{ id: 'm1' }], error: null }] })
+    await updateMeetingFields('m1', { archivedAt: '2027-01-15T00:00:00.000Z' })
+    await updateMeetingFields('m1', { archivedAt: null })
+    expect(calls.updates).toEqual([{ archived_at: '2027-01-15T00:00:00.000Z' }, { archived_at: null }])
+  })
+
   it('maps still-open and meeting tasks to Task, PIC, Due, Status rows', async () => {
-    const task = { id: 'k1', title: 'Pay bill', responsible_person_id: 'p1', accountable_person_id: 'p2', due_date: '2027-01-15', status: 'Open', meeting_id: 'm1' }
+    const task = { id: 'k1', title: 'Pay bill', responsible_person_id: 'p1', accountable_person_id: 'p2', due_date: '2027-01-15', status: 'Open', meeting_id: 'm1', is_private: true, created_in_private_meeting: true }
     const calls = stub({}, { meeting_still_open: { data: [task], error: null }, meeting_tasks: { data: [task], error: null } })
-    const expected = [{ id: 'k1', title: 'Pay bill', responsibleId: 'p1', supervisorId: 'p2', dueDate: '2027-01-15', status: 'Open', meetingId: 'm1' }]
+    const expected = [{ id: 'k1', title: 'Pay bill', responsibleId: 'p1', supervisorId: 'p2', dueDate: '2027-01-15', status: 'Open', meetingId: 'm1', isPrivate: true, createdInPrivateMeeting: true }]
     expect(await listStillOpen('m2')).toEqual(expected)
     expect(await listMeetingTasks('m1')).toEqual(expected)
     expect(calls.rpcs.map(([n]) => n)).toEqual(['meeting_still_open', 'meeting_tasks'])

@@ -92,6 +92,7 @@ type Load =
 
 function ExistingMeeting({ id, mode, onOpenMeeting, onTitleResolved, onChanged }: MeetingRecordDocumentProps & { id: string }) {
   const t = useT()
+  const offline = useIsOffline()
   const navigate = useNavigate()
   const canonicalHref = useHref(`/work/meetings/${id}`)
   const { toast, showToast, clearToast } = useToast()
@@ -135,7 +136,10 @@ function ExistingMeeting({ id, mode, onOpenMeeting, onTitleResolved, onChanged }
 
   const { meeting } = load
   const ctx = directory.ctx
-  const editable = canEditMeeting({ meeting, viewerId, viewerTeamIds: ctx.viewerTeamIds, isAdmin })
+  // Whoever edits the Meeting may archive it; an archived Meeting is read only until it is unarchived.
+  const mayArchive = canEditMeeting({ meeting, viewerId, viewerTeamIds: ctx.viewerTeamIds, isAdmin })
+  const archived = meeting.archivedAt !== null
+  const editable = mayArchive && !archived
   const headingLevel = mode === 'page' ? 1 : 2
   const apply = (patch: Partial<MeetingDetail>) => {
     setLoad((current) => (current.status === 'ready' ? { status: 'ready', meeting: { ...current.meeting, ...patch } } : current))
@@ -165,6 +169,10 @@ function ExistingMeeting({ id, mode, onOpenMeeting, onTitleResolved, onChanged }
     }
   }
 
+  const setArchived = async (next: boolean) => {
+    const archivedAt = next ? new Date().toISOString() : null
+    if (await field({ archivedAt }, { archivedAt })) showToast(t(next ? 'meetings.archive.done' : 'meetings.unarchive.done'))
+  }
   const menu: RecordMenuItem[] = [{
     id: 'copy',
     label: t('record.copyLink'),
@@ -176,7 +184,13 @@ function ExistingMeeting({ id, mode, onOpenMeeting, onTitleResolved, onChanged }
         showToast(t('record.copyLinkFailed'))
       }
     },
-  }]
+  }, ...(mayArchive ? [{
+    id: archived ? 'unarchive' : 'archive',
+    label: t(archived ? 'meetings.unarchive.action' : 'meetings.archive.action'),
+    separatorBefore: true,
+    disabled: offline,
+    onSelect: () => { void setArchived(!archived) },
+  }] : [])]
   const values: MeetingPropertyValues = {
     startsAt: meeting.startsAt,
     owningTeamId: meeting.owningTeamId,
@@ -190,7 +204,8 @@ function ExistingMeeting({ id, mode, onOpenMeeting, onTitleResolved, onChanged }
   const details = creator ? [{ key: 'createdBy', label: t('meetings.details.createdBy'), value: creator }] : []
   const noticeNode: ReactNode = (
     <>
-      {editable ? <OfflineNotice /> : null}
+      {mayArchive ? <OfflineNotice /> : null}
+      {archived ? <Notice tone="info">{t('meetings.archived.note')}</Notice> : null}
       {notice ? <Notice tone="attention">{notice}</Notice> : null}
     </>
   )
@@ -252,8 +267,8 @@ function ExistingMeeting({ id, mode, onOpenMeeting, onTitleResolved, onChanged }
             await save(() => removeAttendee(id, personId), { attendeeIds: meeting.attendeeIds.filter((other) => other !== personId) })
           }}
         />
-        {!editable ? <p className="rp-readonly meeting-readonly" role="note">{t('meetings.readOnly', { team: teamName })}</p> : null}
-        <MeetingMinutesSlot meetingId={id} canEdit={editable} isPrivate={meeting.isPrivate} />
+        {!editable && !archived ? <p className="rp-readonly meeting-readonly" role="note">{t('meetings.readOnly', { team: teamName })}</p> : null}
+        <MeetingMinutesSlot meetingId={id} canEdit={editable} />
         <div className="meeting-reference">
           {details.length > 0 ? (
             <RecordDisclosure title={t('workbench.record.details')}>

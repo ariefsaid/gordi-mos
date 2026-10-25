@@ -1,7 +1,7 @@
 {
   "name": "mos-app",
   "private": true,
-  "version": "0.17.0",
+  "version": "0.17.1",
   "type": "module",
   "engines": {
     "node": "22.x"
