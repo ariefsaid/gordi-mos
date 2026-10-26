@@ -184,7 +184,7 @@ language sql stable security invoker set search_path = '' as $$
         join ops.location_branches sb on sb.org_id = s.org_id and sb.location_id = s.id
        where s.org_id = (select shared.current_org_id()) and s.archived_at is null
          and s.use in ('storage', 'both')
-         and s.id is distinct from ops._cafe_stream_output_location(s.org_id, p_branch_id, p_activity)
+         and s.id is distinct from (select ops._cafe_stream_output_location((select shared.current_org_id()), p_branch_id, p_activity))
          and (select shared.is_org_member())
          and exists (select 1 from shared.teams t
                       where t.org_id = s.org_id and t.branch_id = p_branch_id and t.activity = p_activity
