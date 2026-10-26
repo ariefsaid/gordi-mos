@@ -1796,6 +1796,20 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
     logTableReadOnly
   )
 
+  const renderProductionLocationFields = () => canCapture ? (
+    <LocationPanelFields
+      kind="production"
+      locations={locationChoices}
+      values={locationValues}
+      onChange={(field, value) => setSelectedLocationState({
+        scope: locationScope, values: { ...locationValues, [field]: value },
+      })}
+      loadState={locationLoadState}
+      onRetry={retryLocationChoices}
+      disabled={status.kind === 'submitting'}
+    />
+  ) : null
+
   return (
     <CafePageFrame
       page={page}
@@ -1984,24 +1998,15 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
                     {draftCount > 0 && <p className="cafe-production-local-only" role="status">{t('workbench.production.localOnly')}</p>}
                     {draftCount > 0 && stagedCount > 0 && savedDraftAt && <time className="cafe-production-saved-at" dateTime={savedDraftAt}>{t('cafe.captureDraft.savedAt', { time: formatWibDateTime(savedDraftAt) })}</time>}
                     {captureDraftContent}
+                    {renderProductionLocationFields()}
                   </section>}
+                  {!isDesktop && renderProductionLocationFields()}
                   <Panel title={t('cafe.production.recordedToday')} className="cafe-production-recorded">
                     <ul>{wipItems.filter(item => (actualsMap[item.id]?.[movementKey(movement)] ?? []).length > 0).map(item => <li key={item.id}><strong>{mixedKinds ? cafeItemLabel(item) : item.name}</strong><span>{renderActualUnits(actualsMap[item.id]?.[movementKey(movement)] ?? [], item)}</span></li>)}</ul>
                     {wipItems.every(item => !(actualsMap[item.id]?.[movementKey(movement)] ?? []).length) && <p>{t('cafe.production.noRecordedToday')}</p>}
                   </Panel>
                 </aside>
               </div>
-              {canCapture && <LocationPanelFields
-                kind="production"
-                locations={locationChoices}
-                values={locationValues}
-                onChange={(field, value) => setSelectedLocationState({
-                  scope: locationScope, values: { ...locationValues, [field]: value },
-                })}
-                loadState={locationLoadState}
-                onRetry={retryLocationChoices}
-                disabled={status.kind === 'submitting'}
-              />}
             </>
           ) : (
             <>

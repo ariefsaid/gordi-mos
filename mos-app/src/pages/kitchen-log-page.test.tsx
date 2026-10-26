@@ -1356,6 +1356,22 @@ describe('AC-030: successful submit (increment semantics)', () => {
     expect(mockInsertKitchenLogBatch.mock.calls[0][0][0]).not.toHaveProperty('production_location_id')
   })
 
+  it('keeps Store output in inside the desktop Entries to submit panel', async () => {
+    setWideMatchMedia(true)
+    await renderPage()
+
+    const entries = screen.getByRole('complementary', { name: 'Entries to submit' })
+    expect(within(entries).getByRole('combobox', { name: 'Store output in' })).toBeInTheDocument()
+  })
+
+  it('keeps Store output in inside the phone companion panel before the submit action', async () => {
+    await renderPage()
+    const companion = screen.getByRole('complementary', { name: 'Recorded today' })
+    const outputLocation = within(companion).getByRole('combobox', { name: 'Store output in' })
+    const submitButton = screen.getByRole('button', { name: /submit/i })
+    expect(outputLocation.compareDocumentPosition(submitButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it.each(['1,5', '1.5'])('transfer accepts %s and saves 1.5', async raw => {
     mockInsertKitchenLogBatch.mockResolvedValue(['decimal-transfer-log'])
     await renderTransferPage()

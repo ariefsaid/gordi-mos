@@ -72,6 +72,7 @@
 .collection-toolbar__check input { width: 18px; height: 18px; accent-color: var(--primary); }
 .collection-toolbar__fieldset { flex: 1 1 100%; min-width: 0; margin: 0; padding: 0; border: 0; }
 .collection-toolbar__fieldset-grid { display: flex; flex-wrap: wrap; gap: var(--mos-label-gap) var(--mos-gutter); margin-top: var(--mos-label-gap); }
+.collection-toolbar__description { margin: var(--mos-label-gap) 0 0; color: var(--muted-foreground); font: var(--mos-type-meta); }
 .collection-toolbar__save { flex: 1 1 100%; }
 .collection-toolbar__save-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--mos-toolbar-gap); }
 .collection-toolbar__save-field { display: flex; flex-direction: column; gap: var(--mos-label-gap); flex: 1 1 220px; max-width: 360px; }
