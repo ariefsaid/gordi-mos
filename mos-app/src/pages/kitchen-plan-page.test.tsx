@@ -159,11 +159,8 @@ function setDesktopViewport() {
   })
 }
 
-function toolbarDisclosure(label: string): HTMLElement {
-  const summary = [...document.querySelectorAll('.ktb-panel > summary')]
-    .find(element => element.textContent?.includes(label))
-  if (!summary) throw new Error(`Could not find the ${label} toolbar disclosure`)
-  return summary as HTMLElement
+function toolbarDisclosure(label: string) {
+  return screen.findByRole('button', { name: new RegExp(label) })
 }
 
 function viewer(accessRoles: string[], personId = 'p-1'): AuthState {
@@ -307,13 +304,33 @@ describe('Plan column choices', () => {
     ])
   })
 
+  it('opens destination options from a compact column button and keeps guidance inside it', async () => {
+    setDesktopViewport()
+    const user = userEvent.setup()
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByRole('table', { name: /café plan/i })
+
+    const chooser = await screen.findByRole('button', { name: 'Columns (5/5)' })
+    expect(screen.queryByRole('checkbox', { name: 'Production' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Columns with a planned quantity for this day stay visible.')).not.toBeInTheDocument()
+
+    await user.click(chooser)
+    expect(screen.getByRole('checkbox', { name: 'Production' })).toBeChecked()
+    expect(screen.getByText('Columns with a planned quantity for this day stay visible.')).toBeInTheDocument()
+
+    await user.tab()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('checkbox', { name: 'Production' })).not.toBeInTheDocument()
+    expect(chooser).toHaveFocus()
+  })
+
   it('remembers a hidden destination for the same stream and leaves another stream visible', async () => {
     setDesktopViewport()
     const user = userEvent.setup()
     const first = render(<KitchenPlanPage />, { wrapper })
     await screen.findByRole('table', { name: /café plan/i })
+    await user.click(await toolbarDisclosure('Columns'))
     await screen.findByRole('checkbox', { name: 'To Radiant' })
-    await user.click(toolbarDisclosure('Columns'))
 
     const destination = screen.getByRole('checkbox', { name: 'To Radiant' })
     expect(destination).toBeChecked()
@@ -324,13 +341,14 @@ describe('Plan column choices', () => {
     first.unmount()
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByRole('table', { name: /café plan/i })
+    await user.click(await toolbarDisclosure('Columns'))
     await screen.findByRole('checkbox', { name: 'To Radiant' })
-    await user.click(toolbarDisclosure('Columns'))
     expect(screen.getByRole('checkbox', { name: 'To Radiant' })).not.toBeChecked()
     expect(within(screen.getByRole('table', { name: /café plan/i })).queryByRole('columnheader', { name: 'To Radiant' })).toBeNull()
 
     chooseStream('Radiant · Bar')
     await screen.findByRole('heading', { level: 2, name: 'Radiant · Bar' })
+    await user.click(await toolbarDisclosure('Columns'))
     await waitFor(() => expect(screen.getByRole('checkbox', { name: 'To Rumah Rames' })).toBeChecked())
     expect(within(screen.getByRole('table', { name: /café plan/i })).getByRole('columnheader', { name: 'To Rumah Rames' })).toBeInTheDocument()
   })
@@ -340,8 +358,8 @@ describe('Plan column choices', () => {
     const user = userEvent.setup()
     const first = render(<KitchenPlanPage />, { wrapper })
     await screen.findByRole('table', { name: /café plan/i })
+    await user.click(await toolbarDisclosure('Columns'))
     await screen.findByRole('checkbox', { name: 'To Radiant' })
-    await user.click(toolbarDisclosure('Columns'))
     await user.click(screen.getByRole('checkbox', { name: 'To Radiant' }))
     expect(screen.getByRole('checkbox', { name: 'To Radiant' })).not.toBeChecked()
     first.unmount()
@@ -350,8 +368,8 @@ describe('Plan column choices', () => {
     mockUseAuth.mockReturnValue(viewer(['ops_lead'], 'person-b'))
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByRole('table', { name: /café plan/i })
+    await user.click(await toolbarDisclosure('Columns'))
     await screen.findByRole('checkbox', { name: 'To Radiant' })
-    await user.click(toolbarDisclosure('Columns'))
     expect(screen.getByRole('checkbox', { name: 'To Radiant' })).toBeChecked()
     expect(within(screen.getByRole('table', { name: /café plan/i })).getByRole('columnheader', { name: 'To Radiant' })).toBeInTheDocument()
   })
@@ -360,8 +378,8 @@ describe('Plan column choices', () => {
     const user = userEvent.setup()
     const phone = render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
+    await user.click(await toolbarDisclosure('Columns'))
     await screen.findByRole('checkbox', { name: 'To Radiant' })
-    await user.click(toolbarDisclosure('Filters'))
     const destination = screen.getByRole('checkbox', { name: 'To Radiant' })
     await user.click(destination)
     expect(destination).not.toBeChecked()
@@ -370,8 +388,8 @@ describe('Plan column choices', () => {
     setDesktopViewport()
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByRole('table', { name: /café plan/i })
+    await user.click(await toolbarDisclosure('Columns'))
     await screen.findByRole('checkbox', { name: 'To Radiant' })
-    await user.click(toolbarDisclosure('Columns'))
     expect(screen.getByRole('checkbox', { name: 'To Radiant' })).not.toBeChecked()
     expect(within(screen.getByRole('table', { name: /café plan/i })).queryByRole('columnheader', { name: 'To Radiant' })).toBeNull()
   })
@@ -382,8 +400,8 @@ describe('Plan column choices', () => {
     const user = userEvent.setup()
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByRole('table', { name: /café plan/i })
+    await user.click(await toolbarDisclosure('Columns'))
     await screen.findByRole('checkbox', { name: 'Production' })
-    await user.click(toolbarDisclosure('Columns'))
 
     const production = screen.getByRole('checkbox', { name: 'Production' })
     await user.click(production)
@@ -402,9 +420,9 @@ describe('Plan column choices', () => {
     const user = userEvent.setup()
     render(<KitchenPlanPage />, { wrapper: testWrapper })
     await screen.findByText('Ayam Bakar')
-    await screen.findByRole('checkbox', { name: destinationLabel })
-    const disclosure = toolbarDisclosure(fieldsLabel)
+    const disclosure = await toolbarDisclosure(fieldsLabel)
     await user.click(disclosure)
+    await screen.findByRole('checkbox', { name: destinationLabel })
     disclosure.focus()
     await user.tab()
     expect(screen.getByRole('checkbox', { name: productionLabel })).toHaveFocus()

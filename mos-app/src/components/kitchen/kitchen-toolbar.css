@@ -160,6 +160,22 @@
 .ktb-panel__body { display: grid; gap: var(--mos-toolbar-gap); padding-bottom: var(--mos-inline-gap); }
 .ktb-panel__body .ktb-filter-selects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 
+/* Plan keeps the shared FieldsChooser beside the search and filters. Its panel floats over the
+   table so opening it does not displace the toolbar or the first planned row. */
+.ktb-fields-popover { position: relative; z-index: var(--z-popover); flex: 0 0 auto; min-width: 0; align-self: flex-end; }
+.ktb-fields-popover__trigger { gap: var(--mos-space-2); }
+.ktb-fields-popover__panel {
+  position: absolute; z-index: var(--z-popover); inset-inline-end: 0; top: calc(100% + 6px);
+  box-sizing: border-box; width: min(320px, calc(100vw - 32px)); min-width: min(260px, calc(100vw - 32px));
+  max-height: min(70vh, 480px); overflow-y: auto; box-shadow: var(--shadow-popover);
+}
+.ktb-fields-popover__panel .collection-toolbar__label {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+.ktb-fields-popover__panel .collection-toolbar__fieldset-grid { margin-top: 0; }
+.ktb-fields-popover__panel .collection-toolbar__description { margin-top: var(--mos-label-gap); }
+
 /* Result count: the right end of the toolbar (UX-STANDARD CT1). On phone it takes its own muted line. */
 .ktb-count { flex: 0 0 auto; margin-inline-start: auto; color: var(--mos-muted); font: var(--mos-type-body); white-space: nowrap; }
 /* Desktop: the count sits on the controls' centre line, not the toolbar's bottom edge. */
@@ -202,6 +218,19 @@
   .ktb-panel[open] > summary::after { transform: translateY(1px) rotate(-135deg); }
   /* Closed: the button says "Filters"; the chosen values show as chips below (CT1). */
   .ktb-panel:not([open]) .ktb-panel__summary { display: none; }
+
+  /* Plan wraps the full-width search above two touch-sized doors; the field chooser remains
+     independently reachable while the item filters stay folded. */
+  .ktb-filters:has(> .ktb-fields-popover) { grid-template-columns: minmax(0, 1fr) auto; }
+  .ktb-filters:has(> .ktb-fields-popover) > .ktb-search-wrap,
+  .ktb-filters:has(> .ktb-fields-popover) > .ktb-search-wrap > .search-field { display: contents; }
+  .ktb-filters:has(> .ktb-fields-popover) .search-field__head,
+  .ktb-filters:has(> .ktb-fields-popover) .search-field__label { grid-column: 1 / -1; grid-row: 1; }
+  .ktb-filters:has(> .ktb-fields-popover) .search-field__box { grid-column: 1 / -1; grid-row: 2; }
+  .ktb-filters:has(> .ktb-fields-popover) > .ktb-panel { grid-column: 1; grid-row: 3; flex: none; }
+  .ktb-filters:has(> .ktb-fields-popover) > .ktb-panel[open] { grid-column: 1 / -1; grid-row: 4; }
+  .ktb-filters:has(> .ktb-fields-popover) > .ktb-fields-popover { grid-column: 2; grid-row: 3; justify-self: end; }
+  .ktb-fields-popover__trigger { min-height: var(--mos-control-height); }
 }
 
 

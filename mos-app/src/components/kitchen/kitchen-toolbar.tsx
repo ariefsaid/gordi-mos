@@ -12,7 +12,8 @@
 // plan/made), so it outranks the filters — and leading it in the DOM keeps focus and
 // reading order agreeing with the visual order instead of buying that with `order: -1`.
 
-import type { ReactNode } from 'react'
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { SearchField } from '@/components/ui/search-field'
 import { FilterChip } from '@/components/ui/filter-chip'
@@ -80,6 +81,8 @@ interface KitchenToolbarProps {
   extraChips?: readonly { key: string; label: string; clear: () => void }[]
   /** Optional table-column chooser; phone places it inside the existing Filters disclosure. */
   fields?: FieldsChooserProps & { disclosureLabel: string; summary: string }
+  /** Keep a page's column chooser beside the other toolbar controls at every width. */
+  fieldsAsPopover?: boolean
   /** Display text for a non-default kind (chip label); defaults to the raw value. */
   kindLabel?: (kind: KitchenItemKindFilter) => string
   /** Replaces "Clear all" on the chip row (a page whose chips are all filters says "Clear filters"). */
@@ -121,12 +124,16 @@ export function KitchenToolbar({
   sortControlIn = 'toolbar',
   extraChips,
   fields,
+  fieldsAsPopover = false,
   kindLabel,
   clearAllLabel,
   onClearAll,
 }: KitchenToolbarProps) {
   const t = useT()
   const desktop = useIsDesktop()
+  const fieldsPanelId = useId()
+  const fieldsButtonRef = useRef<HTMLButtonElement | null>(null)
+  const [fieldsOpen, setFieldsOpen] = useState(false)
   const folded = Boolean(filtersPanel) && !desktop
   const sortInPanel = folded && sortControlIn === 'panel'
   const placeholder = searchPlaceholder ?? t('kitchen.log.searchPlaceholder')
@@ -247,6 +254,42 @@ export function KitchenToolbar({
       description={fields.description}
     />
   ) : null
+  const closeFields = () => {
+    setFieldsOpen(false)
+    fieldsButtonRef.current?.focus()
+  }
+  const fieldsPopover = fields && fieldsAsPopover ? (
+    <div className="ktb-fields-popover">
+      <Button
+        ref={fieldsButtonRef}
+        className="ktb-fields-popover__trigger"
+        aria-expanded={fieldsOpen}
+        aria-controls={fieldsPanelId}
+        onClick={() => setFieldsOpen(open => !open)}
+      >
+        {fields.disclosureLabel} ({fields.summary})
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </Button>
+      {fieldsOpen && (
+        <div
+          id={fieldsPanelId}
+          className="ktb-fields-popover__panel collection-toolbar__panel"
+          role="group"
+          aria-label={fields.disclosureLabel}
+          onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+            if (event.key !== 'Escape') return
+            event.preventDefault()
+            event.stopPropagation()
+            closeFields()
+          }}
+        >
+          {fieldsChooser}
+        </div>
+      )}
+    </div>
+  ) : null
   return (
     <div className="ktb" role="group" aria-label={ariaLabel}>
       {children && (
@@ -260,7 +303,8 @@ export function KitchenToolbar({
         </div>
         {!folded && selectsBlock}
         {!folded && trailing}
-        {!folded && fields && (
+        {fieldsPopover}
+        {!folded && fields && !fieldsAsPopover && (
           <details className="ktb-panel ktb-fields-panel">
             <summary>
               <span>{fields.disclosureLabel}</span>
@@ -271,7 +315,7 @@ export function KitchenToolbar({
         )}
         {folded && filtersPanel && <details className="ktb-panel">
           <summary><span>{filtersPanel.label}</span><span className="ktb-panel__summary">{filtersPanel.summary}</span></summary>
-          <div className="ktb-panel__body">{selectsBlock}{trailing}{fieldsChooser}{sortInPanel ? sortControl : null}</div>
+          <div className="ktb-panel__body">{selectsBlock}{trailing}{fieldsAsPopover ? null : fieldsChooser}{sortInPanel ? sortControl : null}</div>
         </details>}
       </div>
       {sortControl && !desktop && !sortInPanel && <div className="ktb-sort">{sortControl}</div>}
