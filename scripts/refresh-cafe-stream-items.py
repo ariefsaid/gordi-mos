@@ -105,6 +105,7 @@ def main():
     source.add_argument('--erp-query-cmd', help='read-only replica query command')
     parser.add_argument('--catalog', help='item reference source JSON for replica query')
     parser.add_argument('--esb-code', help='ERP company code for replica query')
+    parser.add_argument('--erp-db-url-env', help='environment variable containing the replica PostgreSQL URL')
     parser.add_argument('--branch-map', required=True, help='ERP=MOS pairs, comma separated')
     parser.add_argument('--days', type=int, default=180)
     parser.add_argument('--as-of', type=date.fromisoformat, default=datetime.now(ZoneInfo('Asia/Jakarta')).date())
@@ -136,7 +137,19 @@ def main():
             with open(args.catalog, encoding='utf-8') as handle:
                 catalog = json.load(handle)
             query = build_usage_sql(catalog, args.esb_code, args.as_of - timedelta(days=args.days), args.as_of)
-            result = subprocess.run(shlex.split(args.erp_query_cmd) + [query], capture_output=True, text=True, check=True)
+            command = shlex.split(args.erp_query_cmd)
+            query_env = None
+            if args.erp_db_url_env:
+                warehouse_url = os.environ.get(args.erp_db_url_env)
+                if not warehouse_url or urlsplit(warehouse_url).scheme not in ('postgres', 'postgresql'):
+                    raise ValueError(f'--erp-db-url-env {args.erp_db_url_env} must name a PostgreSQL URL')
+                if command and command[-1] == '-c':
+                    raise ValueError('--erp-query-cmd must omit -c when --erp-db-url-env is used')
+                target, query_env = psql_target(warehouse_url)
+                command.extend([target, '-c', query])
+            else:
+                command.append(query)
+            result = subprocess.run(command, capture_output=True, text=True, check=True, env=query_env)
             text = result.stdout
         rows = parse_rows(text)
         # Empty input is more likely a failed/stale replica query than a genuine full snapshot.
