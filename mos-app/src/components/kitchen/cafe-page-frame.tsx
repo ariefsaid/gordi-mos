@@ -72,7 +72,7 @@ export interface CafePageFrameProps {
   contextLine?: string
   /** The only stream line this page may render; dates belong in `date`, never in its context. */
   streamBar?: CafeStreamBarProps
-  /** Where "View records" goes: the Records page already scoped to this job, stream and day. Shown under the scope line. */
+  /** Where "View records" goes: the Records page already scoped to this job, stream and day. Shown beside the scope line where space allows. */
   recordsHref?: string
   /** Preview only: "View stock comparison", beside "View records". Callers pass it only for viewers the comparison admits, with the preview on; absent = the page is unchanged. */
   comparisonHref?: string
@@ -105,8 +105,10 @@ export function CafePageFrame({ page, date, meta, description, contextLine, stre
   const contextRow = !showStreamBar && !recordsHref && !comparisonHref && !description ? undefined : (
     <div className="cafe-page-context">
       {description && <p className="cafe-page-description">{description}</p>}
-      {showStreamBar && streamBar && <CafeStreamBar {...streamBar} />}
-      {comparisonLink ? <div className="cafe-page-links">{recordsLink}{comparisonLink}</div> : recordsLink}
+      <div className="cafe-page-scope">
+        {showStreamBar && streamBar && <CafeStreamBar {...streamBar} />}
+        {comparisonLink ? <div className="cafe-page-links">{recordsLink}{comparisonLink}</div> : recordsLink}
+      </div>
     </div>
   )
   if (embedded) {

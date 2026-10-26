@@ -8,23 +8,17 @@
 .ktb {
   display: flex;
   align-items: flex-end;
-  gap: 12px;
-  padding: var(--mos-inline-gap) 0 var(--mos-toolbar-gap);
+  gap: var(--mos-inline-gap);
+  padding: var(--mos-label-gap) 0 var(--mos-inline-gap);
   flex-wrap: wrap;
   background: transparent;
   border-bottom: 1px solid var(--border);
 }
 
-/* #378: the search's floor and bracket. `flex-basis: 0` meant the search only ever got
-   LEFTOVER row space — with the derived catalog the scope slot's content (931–1091px at
-   1440) left it 40.75–49px. The basis is now the usable minimum itself: --control-measure-search ≈ 18 mono
-   characters at the 13px control size, enough to identify every catalog dish name; the
-   bracket idiom (basis + max on a flexible track, DESIGN.md §Thin progress track) keeps
-   these bracket values, not rendered geometry. It grows into the filters row up to the
-   200px cap it has always had. */
 .ktb-filters {
   display: flex;
   flex: 1 1 auto;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--mos-inline-gap);
   min-width: 0;
@@ -93,12 +87,18 @@
   max-width: 100%;
 }
 
-/* ── Tablet item setup: let search use the remaining toolbar width ────────────── */
-@media (min-width: 640px) {
-  /* Item setup: search takes a full row, the three filters share the next, so the list starts high. */
-  .ktb-filters--setup { display: grid; grid-template-columns: repeat(3, max-content) minmax(0, 1fr); gap: var(--mos-inline-gap) var(--mos-toolbar-gap); align-items: end; }
-  .ktb-filters--setup .ktb-search-wrap { grid-column: 1 / -1; max-width: none; }
-  .ktb-filters--setup .ktb-filter-selects { display: contents; }
+/* Desktop controls share one wrapping row. Labels remain available to assistive technology;
+   each select states its current scope and the search placeholder names what can be found. */
+@media (min-width: 768px) {
+  .ktb-filters--setup { display: flex; }
+  .ktb-filter-selects { display: contents; }
+  .ktb-search-wrap .search-field__label,
+  .ktb .mk-select__label,
+  .ktb-count__sort {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .ktb-chips { flex: 0 1 auto; }
 }
 
 /* ── Phone: scope on its own line, search + category on ONE line below (v4) ─────
