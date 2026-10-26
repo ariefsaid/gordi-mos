@@ -221,18 +221,18 @@ describe('destination Locations', () => {
   const place = (id: string, name: string, use: 'both' | 'storage', branch: string, activities: string[], site: string | null = null) => ({
     id, name, use, parent_id: null, branch_ids: [branch], archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: site, activities,
   })
-  const CENTRAL = place('loc-central', 'RRS Central', 'both', 'branch-1', ['kitchen'], 'site-ghq')
+  const CENTRAL = { ...place('loc-central', 'RRS Central', 'both', 'branch-1', ['kitchen'], 'site-ghq'), is_stream_output: true }
   const FROM_CENTRAL = [
-    { location_id: 'loc-outlet', name: 'RRS Outlet', branch_id: 'branch-1', same_branch: true },
+    { location_id: 'loc-outlet', name: 'RRS Outlet Bar', branch_id: 'branch-1', same_branch: true },
+    { location_id: 'loc-outlet-kitchen', name: 'RRS Outlet Kitchen', branch_id: 'branch-1', same_branch: true },
     { location_id: 'loc-radiant', name: 'Radiant', branch_id: 'branch-2', same_branch: false },
-    { location_id: 'loc-cikal', name: 'Cikal', branch_id: 'branch-3', same_branch: false },
   ]
   beforeEach(() => {
-    visit.locations.mockResolvedValue([CENTRAL])
+    visit.locations.mockResolvedValue([CENTRAL, place('loc-outlet-kitchen', 'RRS Outlet Kitchen', 'both', 'branch-1', ['kitchen'], 'site-rrs')])
     visit.destinations.mockResolvedValue(FROM_CENTRAL)
   })
 
-  it('AC-001: a planner for the stream sees Production, To RRS Outlet, To Radiant and To Cikal', async () => {
+  it('RRS Plan offers exactly Production, the two outlets and routed Radiant', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true, configurable: true,
       value: (query: string) => ({ matches: query === '(min-width: 768px)', media: query, onchange: null, addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false }),
@@ -241,9 +241,14 @@ describe('destination Locations', () => {
     await screen.findByText('Ayam Bakar')
     expect(await screen.findByRole('heading', { name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
     expect(visit.destinations).toHaveBeenCalledWith(expect.anything(), 'branch-1', 'kitchen')
-    for (const heading of ['Production', 'To RRS Outlet', 'To Radiant', 'To Cikal']) {
+    for (const heading of ['Production', 'To RRS Outlet Bar', 'To RRS Outlet Kitchen', 'To Radiant']) {
       expect((await screen.findAllByText(heading)).length).toBeGreaterThan(0)
     }
+    const transfers = screen.getAllByRole('columnheader').map(header => header.textContent).filter(text => text?.startsWith('To '))
+    expect(transfers).toEqual(['To RRS Outlet Bar', 'To RRS Outlet Kitchen', 'To Radiant'])
+    expect(screen.queryByText('To RRS Central')).toBeNull()
+    expect(screen.queryByText('To Gordi HQ Bar')).toBeNull()
+    expect(screen.queryByText('To Gordi HQ Kitchen')).toBeNull()
   })
 
   it('saves a transfer plan for the stream and the destination Location, naming no production Location', async () => {
