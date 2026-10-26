@@ -89,10 +89,10 @@ describe('CafeItemsEmptyState', () => {
   })
 
   it.each([
-    ['en', true, undefined, '2 items are set up', 'bar manager', 'No eligible stock units'],
-    ['en', true, 6, '2 items are set up', 'bar manager', 'No eligible stock units'],
-    ['id', false, undefined, '2 item sudah diatur', 'Manajer bar', 'Belum ada satuan stok yang memenuhi syarat'],
-    ['id', false, 6, '2 item sudah diatur', 'Manajer bar', 'Belum ada satuan stok yang memenuhi syarat'],
+    ['en', true, undefined, '2 items are set up', 'Items → the item → default unit', 'No eligible stock units'],
+    ['en', true, 6, '2 items are set up', 'Items → the item → default unit', 'No eligible stock units'],
+    ['id', false, undefined, '2 item sudah diatur', 'Item → pilih item → satuan default', 'Belum ada satuan stok yang memenuhi syarat'],
+    ['id', false, 6, '2 item sudah diatur', 'Item → pilih item → satuan default', 'Belum ada satuan stok yang memenuhi syarat'],
   ] as const)('distinguishes configured items from stock-unit eligibility in %s (manage: %s, cached count: %s)', async (locale, canManage, esbItemCount, tally, manager, title) => {
     const configured = (id: string): CafeItemSetting => ({
       ...unsetItem(id), kind: 'WIP', isActive: true, defaultUnitId: 'unit-portion',
