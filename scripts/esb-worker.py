@@ -48,6 +48,10 @@ number is written to the group and fanned out to every kitchen log, keeping
 ════════════════════════════════════════════════════════════════════════════════════════
 Worker retry and dispatch policy
 ════════════════════════════════════════════════════════════════════════════════════════
+NO SECOND POST: before an assembly or simple-transfer POST, the worker asks ESB for a document
+already carrying this push's source_ref(s) and reuses its number (a POST that timed out may have
+been saved). A failed lookup is transient: nothing is posted. Rejected documents do not count.
+
 RETRY BUDGET lives here, in the worker, as ESB_MAX_RETRY (default 5). Transient faults
 (network, timeout, 5xx, 408, 429) spend one retry; permanent faults (guard refusal,
 unmapped item, 4xx from the ERP, unknown endpoint) dead-letter on first sight. Failed
@@ -954,6 +958,7 @@ class Request:
     body: dict[str, Any]
     result_key: str
     materials_from: int | list[int] | None = None
+    refs: tuple[str, ...] = ()  # the push's source_refs, one per detail; its identity in ESB
 
 
 def _own_env(cfg: Config, row: dict[str, Any]) -> None:
@@ -988,6 +993,7 @@ def compose(cfg: Config, row: dict[str, Any],
             path="/production/simple-manufacturing/assembly-actual",
             result_key="simpleManufacturingNum",
             materials_from=ids["bom_id"],
+            refs=(str(row.get("source_ref") or ""),),
             body={
                 "simpleManufacturingDate": date_str,
                 "branchID": origin["branch_id"],
@@ -1009,6 +1015,7 @@ def compose(cfg: Config, row: dict[str, Any],
         return Request(
             path="/simple-transfer",
             result_key="simpleTransferNum",
+            refs=(str(row.get("source_ref") or ""),),
             body={
                 "simpleTransferDate": date_str,
                 "originLocationID": origin["location_id"],
@@ -1064,7 +1071,8 @@ def compose_group(cfg: Config, rows: list[dict[str, Any]],
         body['additionalInfo'] = ' | '.join(str(row.get('source_ref') or '') for row in rows)
     materials = [req.materials_from for req in requests if req.materials_from is not None]
     return Request(path=first.path, body=body, result_key=first.result_key,
-                   materials_from=materials or None)
+                   materials_from=materials or None,
+                   refs=tuple(ref for req in requests for ref in req.refs))
 
 
 def _assembly_notes(row: dict[str, Any], wip_names: dict[str, str] | None) -> str:
@@ -1090,12 +1098,89 @@ def _as_float(value: Any, what: str = "qty_porsi") -> float:
 # ══════════════════════════════════════════════════════════════════════════════════════
 
 
+ESB_REJECTED = 2
+LOOKUP_LIMIT = 100
+LOOKUP_MAX_PAGES = 50
+
+
+def _lookup(client: ErpClient, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    """A read made to decide whether to post. Any failure, however ESB words it, is Transient:
+    nothing is posted and the next tick asks again."""
+    try:
+        return client.get(path, params)
+    except Classified as exc:
+        raise Transient(f"could not look up what ESB already holds ({path}): {esb_message(exc)}",
+                        kind=exc.kind) from None
+
+
+def _lookup_all(client: ErpClient, path: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for page in range(1, LOOKUP_MAX_PAGES + 1):
+        data = _dig(_lookup(client, path, {**params, "page": page, "limit": LOOKUP_LIMIT}), "result.data")
+        if not isinstance(data, list) or any(not isinstance(r, dict) for r in data):
+            raise Transient(f"the lookup at {path} returned no list")
+        rows += data
+        if len(data) < LOOKUP_LIMIT:
+            return rows
+    raise Transient(f"the lookup at {path} did not end within {LOOKUP_MAX_PAGES} pages")
+
+
+def _line_no(num: str) -> int:
+    tail = num.rsplit(" - ", 1)[-1]
+    return int(tail) if tail.isdigit() else 0
+
+
+def find_posted(client: ErpClient, req: Request) -> str | None:
+    """The document ESB already holds for this push (an assembly or a simple transfer), or None.
+
+    A POST that timed out may still have been saved, so the next attempt asks ESB first. The
+    identity is the push's source_refs: a transfer carries them in its additionalInfo (matched
+    whole), an assembly carries each in its line's notes, "<ref> | <name>" (matched on the
+    first line's ref and the line count). A rejected document does not count."""
+    if not req.refs or not all(req.refs):
+        raise Permanent("a push with no source_ref has no identity to look up in ESB")
+    body = req.body
+    if req.path == "/simple-transfer":
+        docs = _lookup_all(client, req.path, {
+            "dateFrom": body["simpleTransferDate"], "dateTo": body["simpleTransferDate"],
+            "originLocationID": body["originLocationID"],
+            "destinationLocationID": body["destinationLocationID"],
+            "additionalInfo": body["additionalInfo"]})
+        nums = sorted(str(d["simpleTransferNum"]) for d in docs
+                      if str(d.get("additionalInfo") or "").strip() == body["additionalInfo"]
+                      and d.get("statusID") != ESB_REJECTED and d.get("simpleTransferNum"))
+        return nums[0] if nums else None
+    if not req.path.endswith("/assembly-actual"):
+        return None
+    lines = _lookup_all(client, "/production/simple-manufacturing", {
+        "dateFrom": body["simpleManufacturingDate"], "dateTo": body["simpleManufacturingDate"],
+        "branchID": body["branchID"], "bomTypeID": 1})
+    by_doc: dict[str, list[str]] = {}
+    for line in lines:
+        if line.get("statusID") != ESB_REJECTED and line.get("simpleManufacturingNum"):
+            num = str(line["simpleManufacturingNum"])
+            by_doc.setdefault(num.split(" - ")[0], []).append(num)
+    for doc in sorted(by_doc):
+        if len(by_doc[doc]) != len(req.refs):
+            continue
+        first = min(by_doc[doc], key=_line_no)
+        notes = _dig(_lookup(client, f"/production/simple-manufacturing/{urllib.parse.quote(first)}"),
+                     "result.additionalInfo")
+        if str(notes or "").split(" | ")[0].strip() == req.refs[0]:
+            return doc
+    return None
+
+
 def dispatch(cfg: Config, client: ErpClient, req: Request) -> str:
-    """Post one composed request and return the ERP's document number.
+    """Post one composed request and return the ERP's document number. A document ESB already
+    holds for this push is returned instead of posting a second one (find_posted).
 
     There is no rehearsal arm here any more, and that absence is the point: the only
     value this function can return is one the ERP handed back. A drain that cannot post
     never gets this far — load_config refuses it (see THE SAFETY LINE)."""
+    existing = find_posted(client, req)
+    if existing:
+        return existing
     if req.materials_from is not None:
         bom_ids = [req.materials_from] if isinstance(req.materials_from, int) else req.materials_from
         try:

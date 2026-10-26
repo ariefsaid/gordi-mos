@@ -264,6 +264,8 @@ def happy_routes(**over):
               "rpc/reap_esb_pushes": _reap_ok, "rpc/prune_esb_pushes": _prune_ok,
               "kitchen_logs": _logs_ok,
               "auth/login": _login_ok, "product/bom": _bom_ok,
+              # ESB holds nothing yet: the read before an assembly or transfer POST finds no document.
+              "dateFrom": lambda *a: {"status": "ok", "result": {"data": []}},
               "assembly-actual": _assembly_ok}
     routes.update(over)
     return routes
@@ -2126,6 +2128,138 @@ run(lambda: W.run_tick(count_cfg(), count_rows(), outbox=None, plan_only=True, o
 check("AC-1374 --plan prints the item-journal create and authorize without network calls",
       f.calls == [] and f"POST {COUNT_PATH}" in out.getvalue() and COUNT_KEY in out.getvalue()
       and "authorize" in out.getvalue(), out.getvalue())
+
+# ══════════════════════════════════════════════════════════════════════════════════════
+print("P. a document ESB already holds is never posted a second time")
+# ══════════════════════════════════════════════════════════════════════════════════════
+SM_DOC, STF_DOC = "SM202608200001", "STF202608200001"
+
+
+class Esb:
+    """What ESB holds for the day: assembly lines (with the first line's notes) and transfers."""
+
+    def __init__(self, lines=(), notes=None, transfers=()) -> None:
+        self.lines, self.notes, self.transfers = lines, notes, list(transfers)  # lines: kept live
+
+    def routes(self, **over):
+        def listing(fake, method, url, body):
+            data = self.transfers if "simple-transfer" in url else self.lines
+            return {"status": "ok", "result": {"data": list(data)}}
+        return happy_routes(**{"dateFrom": listing,
+                               "simple-manufacturing/SM": lambda *a: {
+                                   "status": "ok", "result": {"additionalInfo": self.notes}},
+                               "simple-transfer": lambda *a: {
+                                   "status": "ok", "result": {"simpleTransferNum": "STF-NEW"}},
+                               **over})
+
+
+def sm_lines(n: int, status: int = 1) -> list[dict]:
+    return [{"simpleManufacturingNum": f"{SM_DOC} - {i}", "statusID": status} for i in range(1, n + 1)]
+
+
+def erp_posts(f) -> list[dict]:
+    return [c for c in f.calls if c["method"] == "POST"
+            and ("assembly-actual" in c["url"] or "/simple-transfer" in c["url"])]
+
+
+def posted_doc(f):
+    docs = [b["esb_doc_num"] for b in f.bodies("esb_push") if isinstance(b, dict) and b.get("status") == "posted"]
+    return docs[0] if docs else None
+
+
+def failed_close(f):
+    return [b for b in f.bodies("esb_push") if isinstance(b, dict) and b.get("status") == "failed"]
+
+
+GOO = lambda: cfg_for("goo", ESB_PUSH_ENABLED="1")
+NAMES = {WIP: WIP_NAME}
+
+# P1. One assembly already saved by an earlier timed-out POST: reuse it, post nothing.
+f = Fake(**Esb(sm_lines(1), notes=f"{BATCH} | {WIP_NAME}").routes())
+n, out = tick(GOO(), [row()], f, wip_names=NAMES)
+check("an assembly ESB already holds for this push is reused and not posted again",
+      n == 0 and erp_posts(f) == [] and posted_doc(f) == SM_DOC, repr(f.calls) + out)
+
+# P2. Not there: it is posted once (the falsifier of P1), after the lookup.
+f = Fake(**Esb().routes())
+n, out = tick(GOO(), [row()], f, wip_names=NAMES)
+check("...an assembly ESB does not hold is posted once", n == 0 and len(erp_posts(f)) == 1
+      and posted_doc(f) == "SM-0001", repr(f.calls) + out)
+
+# P3. A rejected document, or another push's document, does not count.
+f = Fake(**Esb(sm_lines(1, status=2), notes=f"{BATCH} | {WIP_NAME}").routes())
+n, out = tick(GOO(), [row()], f, wip_names=NAMES)
+check("...a rejected document does not count as posted", len(erp_posts(f)) == 1, repr(f.calls) + out)
+f = Fake(**Esb(sm_lines(1), notes=f"{BATCH}9 | {WIP_NAME}").routes())
+n, out = tick(GOO(), [row()], f, wip_names=NAMES)
+check("...nor does a document carrying another push's reference", len(erp_posts(f)) == 1, repr(f.calls) + out)
+
+# P4. The incident itself: the first POST times out but ESB saved it; the retry posts nothing.
+saved: list = []
+
+
+def post_saved_then_timeout(fake, method, url, body):
+    saved.extend(sm_lines(1))
+    raise W.Transient("timed out", kind="timeout")
+
+
+esb = Esb(saved, notes=f"{BATCH} | {WIP_NAME}")
+f = Fake(**esb.routes(**{"assembly-actual": post_saved_then_timeout}))
+n1, out1 = tick(GOO(), [row()], f, wip_names=NAMES)
+n2, out2 = tick(GOO(), [row(retry_count=1)], f, wip_names=NAMES)
+check("a POST that timed out but was saved is found on the retry: one ERP post in all",
+      n1 == 1 and n2 == 0 and len(erp_posts(f)) == 1 and posted_doc(f) == SM_DOC, repr(f.calls) + out1 + out2)
+
+# P5. A lookup that fails posts nothing and spends a retry.
+for label, fault in (("transient", W.Transient("ERP unavailable", status=503)),
+                     ("refused", W.Permanent("ERP rejected the read", status=400))):
+    def broken(fake, method, url, body, fault=fault):
+        raise fault
+    f = Fake(**Esb().routes(dateFrom=broken))
+    n, out = tick(GOO(), [row()], f, wip_names=NAMES)
+    closed = failed_close(f)
+    check(f"a {label} failure of the lookup posts nothing and leaves the row to retry",
+          n == 1 and erp_posts(f) == [] and closed and closed[0]["retry_count"] == 1, repr(f.calls) + out)
+
+# P6. A grouped assembly is matched on its first line's reference and its line count.
+GA, GB = "bbbbbbbb-0000-0000-0000-0000000000a1", None
+ga = row(source_ref="PR-GA-1", push_group_id=GA)
+gb = row(id="aaaaaaaa-0000-0000-0000-000000000002", source_ref="PR-GA-2", push_group_id=GA)
+f = Fake(**Esb(sm_lines(2), notes=f"PR-GA-1 | {WIP_NAME}").routes(**{"esb_push_groups": lambda *a: None}))
+n, out = tick(GOO(), [ga, gb], f, wip_names=NAMES)
+check("a grouped assembly ESB already holds is reused, and every member is closed with its number",
+      n == 0 and erp_posts(f) == [] and sum(1 for b in f.bodies("esb_push?")
+                                           if isinstance(b, dict) and b.get("esb_doc_num") == SM_DOC) == 2,
+      repr(f.calls) + out)
+ga["status"] = gb["status"] = "pending"
+f = Fake(**Esb(sm_lines(1), notes=f"PR-GA-1 | {WIP_NAME}").routes(**{"esb_push_groups": lambda *a: None}))
+n, out = tick(GOO(), [ga, gb], f, wip_names=NAMES)
+check("...a one-line document is not this two-line group", len(erp_posts(f)) == 1, repr(f.calls) + out)
+
+# P7. Transfers: matched on the exact additionalInfo, single and grouped.
+TR = row(endpoint="simple-transfer", source_ref="PR-T-1",
+         payload={**row()["payload"], "action": "transfer", "destination_branch_code": "radiant"})
+f = Fake(**Esb(transfers=[{"simpleTransferNum": STF_DOC, "additionalInfo": "PR-T-1", "statusID": 1}]).routes())
+n, out = tick(GOO(), [TR], f, wip_names=NAMES)
+check("a transfer ESB already holds for this push is reused and not posted again",
+      n == 0 and erp_posts(f) == [] and posted_doc(f) == STF_DOC, repr(f.calls) + out)
+for label, held in (("a rejected one", {"simpleTransferNum": STF_DOC, "additionalInfo": "PR-T-1", "statusID": 2}),
+                    ("one whose reference merely contains this one",
+                     {"simpleTransferNum": STF_DOC, "additionalInfo": "PR-T-12", "statusID": 1})):
+    f = Fake(**Esb(transfers=[held]).routes())
+    n, out = tick(GOO(), [TR], f, wip_names=NAMES)
+    check(f"...{label} does not count", len(erp_posts(f)) == 1 and posted_doc(f) == "STF-NEW", repr(f.calls) + out)
+TG = "bbbbbbbb-0000-0000-0000-0000000000b1"
+ta = {**TR, "push_group_id": TG}
+tb = {**TR, "id": "aaaaaaaa-0000-0000-0000-000000000002", "source_ref": "PR-T-2", "push_group_id": TG}
+f = Fake(**Esb(transfers=[{"simpleTransferNum": STF_DOC, "additionalInfo": "PR-T-1 | PR-T-2", "statusID": 1}]
+               ).routes(**{"esb_push_groups": lambda *a: None}))
+n, out = tick(GOO(), [ta, tb], f, wip_names=NAMES)
+check("a grouped transfer is found by its joined references", n == 0 and erp_posts(f) == [], repr(f.calls) + out)
+f = Fake(**Esb().routes(dateFrom=lambda *a: (_ for _ in ()).throw(W.Transient("down", status=503)),
+                        **{"esb_push_groups": lambda *a: None}))
+n, out = tick(GOO(), [ta, tb], f, wip_names=NAMES)
+check("a grouped transfer whose lookup fails posts nothing", n == 2 and erp_posts(f) == [], repr(f.calls) + out)
 
 print(f"{_pass} passed, {_fail} failed")
 sys.exit(1 if _fail else 0)
