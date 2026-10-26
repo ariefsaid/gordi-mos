@@ -144,6 +144,28 @@ function chooseCategory(optionName: string) {
   fireEvent.click(screen.getByRole('option', { name: optionName }))
 }
 
+function setDesktopViewport() {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: query === '(min-width: 768px)',
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+}
+
+function toolbarDisclosure(label: string): HTMLElement {
+  const summary = [...document.querySelectorAll('.ktb-panel > summary')]
+    .find(element => element.textContent?.includes(label))
+  if (!summary) throw new Error(`Could not find the ${label} toolbar disclosure`)
+  return summary as HTMLElement
+}
+
 function viewer(accessRoles: string[], personId = 'p-1'): AuthState {
   return {
     status: 'authenticated',
@@ -180,6 +202,10 @@ const PESANAN: PesananRow[] = [
 
 beforeEach(() => {
   vi.clearAllMocks()
+  for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+    const key = window.localStorage.key(index)
+    if (key?.startsWith('mos.cafe.plan.columns.')) window.localStorage.removeItem(key)
+  }
   visit.locations.mockResolvedValue([])
   visit.destinations.mockResolvedValue([])
   // #440: the Café stream is remembered module-wide in sessionStorage — clear it so one test's
@@ -264,6 +290,134 @@ describe('destination Locations', () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByRole('spinbutton', { name: /Ayam Bakar/i })
     expect(await screen.findByRole('button', { name: /try again/i })).toBeInTheDocument()
+  })
+})
+
+describe('Plan column choices', () => {
+  beforeEach(() => {
+    visit.locations.mockResolvedValue([
+      { id: 'loc-central', name: 'RRS Central', use: 'both', parent_id: null, branch_ids: ['branch-1'], archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: 'site-ghq', activities: ['kitchen'] },
+      { id: 'loc-radiant', name: 'Radiant', use: 'both', parent_id: null, branch_ids: ['branch-2'], archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: ['bar'] },
+    ])
+    visit.destinations.mockResolvedValue([
+      { location_id: 'loc-outlet', name: 'RRS Outlet', branch_id: 'branch-1', same_branch: true },
+      { location_id: 'loc-radiant', name: 'Radiant', branch_id: 'branch-2', same_branch: false },
+      { location_id: 'loc-cikal', name: 'Cikal', branch_id: 'branch-3', same_branch: false },
+      { location_id: 'loc-rumah-rames', name: 'Rumah Rames', branch_id: 'branch-1', same_branch: false },
+    ])
+  })
+
+  it('remembers a hidden destination for the same stream and leaves another stream visible', async () => {
+    setDesktopViewport()
+    const user = userEvent.setup()
+    const first = render(<KitchenPlanPage />, { wrapper })
+    await screen.findByRole('table', { name: /café plan/i })
+    await screen.findByRole('checkbox', { name: 'To Radiant' })
+    await user.click(toolbarDisclosure('Columns'))
+
+    const destination = screen.getByRole('checkbox', { name: 'To Radiant' })
+    expect(destination).toBeChecked()
+    await user.click(destination)
+    expect(destination).not.toBeChecked()
+    expect(within(screen.getByRole('table', { name: /café plan/i })).queryByRole('columnheader', { name: 'To Radiant' })).toBeNull()
+
+    first.unmount()
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByRole('table', { name: /café plan/i })
+    await screen.findByRole('checkbox', { name: 'To Radiant' })
+    await user.click(toolbarDisclosure('Columns'))
+    expect(screen.getByRole('checkbox', { name: 'To Radiant' })).not.toBeChecked()
+    expect(within(screen.getByRole('table', { name: /café plan/i })).queryByRole('columnheader', { name: 'To Radiant' })).toBeNull()
+
+    chooseStream('Radiant · Bar')
+    await screen.findByRole('heading', { level: 2, name: 'Radiant · Bar' })
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'To Rumah Rames' })).toBeChecked())
+    expect(within(screen.getByRole('table', { name: /café plan/i })).getByRole('columnheader', { name: 'To Rumah Rames' })).toBeInTheDocument()
+  })
+
+  it('keeps column choices separate for different people on the same stream', async () => {
+    setDesktopViewport()
+    const user = userEvent.setup()
+    const first = render(<KitchenPlanPage />, { wrapper })
+    await screen.findByRole('table', { name: /café plan/i })
+    await screen.findByRole('checkbox', { name: 'To Radiant' })
+    await user.click(toolbarDisclosure('Columns'))
+    await user.click(screen.getByRole('checkbox', { name: 'To Radiant' }))
+    expect(screen.getByRole('checkbox', { name: 'To Radiant' })).not.toBeChecked()
+    first.unmount()
+
+    rememberStream(null)
+    mockUseAuth.mockReturnValue(viewer(['ops_lead'], 'person-b'))
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByRole('table', { name: /café plan/i })
+    await screen.findByRole('checkbox', { name: 'To Radiant' })
+    await user.click(toolbarDisclosure('Columns'))
+    expect(screen.getByRole('checkbox', { name: 'To Radiant' })).toBeChecked()
+    expect(within(screen.getByRole('table', { name: /café plan/i })).getByRole('columnheader', { name: 'To Radiant' })).toBeInTheDocument()
+  })
+
+  it('lets a phone user change a column choice that applies on the wide table', async () => {
+    const user = userEvent.setup()
+    const phone = render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    await screen.findByRole('checkbox', { name: 'To Radiant' })
+    await user.click(toolbarDisclosure('Filters'))
+    const destination = screen.getByRole('checkbox', { name: 'To Radiant' })
+    await user.click(destination)
+    expect(destination).not.toBeChecked()
+    phone.unmount()
+
+    setDesktopViewport()
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByRole('table', { name: /café plan/i })
+    await screen.findByRole('checkbox', { name: 'To Radiant' })
+    await user.click(toolbarDisclosure('Columns'))
+    expect(screen.getByRole('checkbox', { name: 'To Radiant' })).not.toBeChecked()
+    expect(within(screen.getByRole('table', { name: /café plan/i })).queryByRole('columnheader', { name: 'To Radiant' })).toBeNull()
+  })
+
+  it('shows a column with a planned quantity even when its saved preference is hidden', async () => {
+    setDesktopViewport()
+    mockPlans.mockResolvedValue(PLAN_CELLS)
+    const user = userEvent.setup()
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByRole('table', { name: /café plan/i })
+    await screen.findByRole('checkbox', { name: 'Production' })
+    await user.click(toolbarDisclosure('Columns'))
+
+    const production = screen.getByRole('checkbox', { name: 'Production' })
+    await user.click(production)
+    expect(production).not.toBeChecked()
+    const table = within(screen.getByRole('table', { name: /café plan/i }))
+    expect(table.getByRole('columnheader', { name: 'Production' })).toBeInTheDocument()
+    expect(table.getAllByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+      .some(input => (input as HTMLInputElement).value === '12')).toBe(true)
+  })
+
+  it.each([
+    { language: 'English', fieldsLabel: 'Columns', productionLabel: 'Production', firstDestinationLabel: 'To RRS Outlet', secondDestinationLabel: 'To Cikal', destinationLabel: 'To Radiant', testWrapper: wrapper },
+    { language: 'Indonesian', fieldsLabel: 'Kolom', productionLabel: 'Produksi', firstDestinationLabel: 'Ke RRS Outlet', secondDestinationLabel: 'Ke Cikal', destinationLabel: 'Ke Radiant', testWrapper: idWrapper },
+  ])('$language chooser works with the keyboard and announces each destination', async ({ fieldsLabel, productionLabel, firstDestinationLabel, secondDestinationLabel, destinationLabel, testWrapper }) => {
+    setDesktopViewport()
+    const user = userEvent.setup()
+    render(<KitchenPlanPage />, { wrapper: testWrapper })
+    await screen.findByText('Ayam Bakar')
+    await screen.findByRole('checkbox', { name: destinationLabel })
+    const disclosure = toolbarDisclosure(fieldsLabel)
+    await user.click(disclosure)
+    disclosure.focus()
+    await user.tab()
+    expect(screen.getByRole('checkbox', { name: productionLabel })).toHaveFocus()
+    await user.tab()
+    expect(screen.getByRole('checkbox', { name: firstDestinationLabel })).toHaveFocus()
+    await user.tab()
+    expect(screen.getByRole('checkbox', { name: secondDestinationLabel })).toHaveFocus()
+    await user.tab()
+
+    const destination = screen.getByRole('checkbox', { name: destinationLabel })
+    expect(destination).toHaveFocus()
+    await user.keyboard(' ')
+    expect(destination).not.toBeChecked()
   })
 })
 

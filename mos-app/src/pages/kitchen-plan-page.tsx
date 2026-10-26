@@ -65,6 +65,7 @@ import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { PlanQtyField } from '@/components/kitchen/plan-qty-field'
 import { CaptureControl, CaptureRow, CaptureTable } from '@/components/kitchen/capture-row'
+import { columnVisibilityState } from '@/components/record-collection/column-visibility'
 import { PlanWorkspace, PlanSheet, PlanScope } from '@/components/cafe/redesign/cafe-plan-workspace'
 import { PlanHorizon, type PlanHorizonDate } from '@/components/cafe/redesign/cafe-plan-horizon'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
@@ -91,6 +92,19 @@ function shiftPlanDate(date: string, days: number): string {
   const shifted = new Date(`${date}T00:00:00Z`)
   shifted.setUTCDate(shifted.getUTCDate() + days)
   return shifted.toISOString().slice(0, 10)
+}
+
+function planColumnPreferenceKey(personId: string, branchId: string, activity: string): string {
+  return `mos.cafe.plan.columns.${encodeURIComponent(personId)}.${encodeURIComponent(branchId)}.${encodeURIComponent(activity)}`
+}
+
+function readHiddenPlanColumns(key: string): string[] {
+  try {
+    const stored: unknown = JSON.parse(window.localStorage.getItem(key) ?? '[]')
+    return Array.isArray(stored) ? stored.filter((value): value is string => typeof value === 'string') : []
+  } catch {
+    return []
+  }
 }
 
 export function KitchenPlanPage() {
@@ -266,6 +280,42 @@ function PlanEditor() {
   const [offeredIds, setOfferedIds] = useState<Set<string>>(new Set())
   const [planableIds, setPlanableIds] = useState<Set<string>>(new Set())
   const [cells, setCells] = useState<PlanCell[]>([])
+  const columnPreferenceScope = viewerId && stream
+    ? planColumnPreferenceKey(viewerId, stream.branch.id, stream.activity)
+    : null
+  const [columnPreference, setColumnPreference] = useState<{ scope: string; hidden: string[] } | null>(null)
+  useEffect(() => {
+    if (columnPreferenceScope) {
+      setColumnPreference({ scope: columnPreferenceScope, hidden: readHiddenPlanColumns(columnPreferenceScope) })
+    }
+  }, [columnPreferenceScope])
+  const hiddenColumnIds = columnPreference?.scope === columnPreferenceScope ? columnPreference.hidden : []
+  const columnDefinitions = movementOptions.map(option => {
+    const id = movementKey(option)
+    return { id, meta: { field: id } }
+  })
+  const preferredVisibleColumnIds = columnDefinitions
+    .filter(column => !hiddenColumnIds.includes(column.id))
+    .map(column => column.id)
+  const plannedColumnIds = [...new Set(cells
+    .filter(cell => cell.qty_porsi > 0)
+    .map(cell => movementKey(cell.movement)))]
+  const columnVisibility = columnVisibilityState(columnDefinitions, preferredVisibleColumnIds, plannedColumnIds)
+  const setPlanColumnVisible = (columnId: string, visible: boolean) => {
+    if (!columnPreferenceScope) return
+    const currentHidden = columnPreference?.scope === columnPreferenceScope
+      ? columnPreference.hidden
+      : readHiddenPlanColumns(columnPreferenceScope)
+    const hidden = visible
+      ? currentHidden.filter(id => id !== columnId)
+      : [...new Set([...currentHidden, columnId])]
+    try {
+      window.localStorage.setItem(columnPreferenceScope, JSON.stringify(hidden))
+    } catch {
+      // Keep the in-session choice usable when the browser blocks persistent storage.
+    }
+    setColumnPreference({ scope: columnPreferenceScope, hidden })
+  }
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const requestGen = useRef(0)
@@ -541,8 +591,11 @@ function PlanEditor() {
   }
   const wideColumns = isDesktop && movementOptions.length > 0
   const planControls = wideColumns
-    ? movementOptions.map(option => ({ label: movementColumnHeader(option), movement: option }))
+    ? movementOptions
+      .filter(option => columnVisibility[movementKey(option)] === true)
+      .map(option => ({ label: movementColumnHeader(option), movement: option }))
     : [{ label: t('kitchen.plan.col.plan'), movement }]
+  const shownColumnCount = movementOptions.filter(option => columnVisibility[movementKey(option)] === true).length
   const planTable = (
     rows: KitchenListRow<PlanItem>[],
     caption: string,
@@ -665,7 +718,15 @@ function PlanEditor() {
               {load.kind === 'ready' && stream !== null && items.length > 0 && <MetricSummaryRule ariaLabel={t(summary.ariaLabel)} metrics={summary.metrics.map(metric => ({ key: metric.key, label: t(metric.label), value: wideColumns ? String(new Set(cells.filter(cell => cell.qty_porsi > 0).map(cell => cell.wip_item_id)).size) : metric.value }))} />}
               <p className="kp-save-boundary">{t('kitchen.plan.saveBoundary')}</p>
             </div>
-            <KitchenToolbar search={search} onSearchChange={setSearch} kinds={WIP_KIND_FILTER_OPTIONS} kind={kindFilter as KitchenItemKindFilter} kindId="cafe-plan-kind" onKindChange={setKindFilter} categories={categories} categoryId="cafe-plan-category" categoryLabel={value => kitchenCategoryLabel(t, value)} category={category} onCategoryChange={setCategory} searchPlaceholder={t('kitchen.plan.searchPlaceholder')} ariaLabel={t('kitchen.plan.toolbarAria')} resultCount={{ shown: visible.length, total: items.length }} sortLabel={t('cafe.toolbar.sorted.az')} filtersPanel={{ label: t('cafe.toolbar.filters'), summary: [kindFilter !== 'All' ? kindFilter : t('kitchen.filter.kind.all'), category !== 'All' ? kitchenCategoryLabel(t, category) : t('kitchen.filter.all')].join(' · ') }} />
+            <KitchenToolbar search={search} onSearchChange={setSearch} kinds={WIP_KIND_FILTER_OPTIONS} kind={kindFilter as KitchenItemKindFilter} kindId="cafe-plan-kind" onKindChange={setKindFilter} categories={categories} categoryId="cafe-plan-category" categoryLabel={value => kitchenCategoryLabel(t, value)} category={category} onCategoryChange={setCategory} searchPlaceholder={t('kitchen.plan.searchPlaceholder')} ariaLabel={t('kitchen.plan.toolbarAria')} resultCount={{ shown: visible.length, total: items.length }} sortLabel={t('cafe.toolbar.sorted.az')} filtersPanel={{ label: t('cafe.toolbar.filters'), summary: [kindFilter !== 'All' ? kindFilter : t('kitchen.filter.kind.all'), category !== 'All' ? kitchenCategoryLabel(t, category) : t('kitchen.filter.all')].join(' · ') }} fields={movementOptions.length > 0 ? {
+              disclosureLabel: t('kitchen.plan.columns.label'),
+              summary: t('kitchen.plan.columns.summary', { shown: shownColumnCount, total: movementOptions.length }),
+              label: t('kitchen.plan.columns.label'),
+              options: movementOptions.map(option => ({ value: movementKey(option), label: movementColumnHeader(option) })),
+              visible: preferredVisibleColumnIds,
+              onToggle: setPlanColumnVisible,
+              description: t('kitchen.plan.columns.plannedAlwaysVisible'),
+            } : undefined} />
             <div className="kp-list">
               {visible.some(item => planableIds.has(item.id)) ? (streamNonProducing
                 ? <DataTable cardsHead={false} columns={receivingPlanColumns} rows={visible.filter(item => planableIds.has(item.id))} groups={mainPlanGroups} isDesktop={isDesktop} state="ready" caption={t('kitchen.stream.receivingOnly.planCaption')} />

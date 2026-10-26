@@ -16,6 +16,7 @@ import type { ReactNode } from 'react'
 import { Select } from '@/components/ui/select'
 import { SearchField } from '@/components/ui/search-field'
 import { FilterChip } from '@/components/ui/filter-chip'
+import { FieldsChooser, type FieldsChooserProps } from '@/components/record-collection/fields-chooser'
 import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import type {
@@ -77,6 +78,8 @@ interface KitchenToolbarProps {
   sortControlIn?: 'toolbar' | 'panel'
   /** Page-specific active filters shown as removable chips beside the built-in ones. */
   extraChips?: readonly { key: string; label: string; clear: () => void }[]
+  /** Optional table-column chooser; phone places it inside the existing Filters disclosure. */
+  fields?: FieldsChooserProps & { disclosureLabel: string; summary: string }
   /** Display text for a non-default kind (chip label); defaults to the raw value. */
   kindLabel?: (kind: KitchenItemKindFilter) => string
   /** Replaces "Clear all" on the chip row (a page whose chips are all filters says "Clear filters"). */
@@ -117,6 +120,7 @@ export function KitchenToolbar({
   sortControl,
   sortControlIn = 'toolbar',
   extraChips,
+  fields,
   kindLabel,
   clearAllLabel,
   onClearAll,
@@ -234,6 +238,15 @@ export function KitchenToolbar({
     : null
   // Phone, no leading scope band: the count shares the search label's line (PA4: one row less above the first entry).
   const countOnLabel = !desktop && !children && countNode !== null
+  const fieldsChooser = fields ? (
+    <FieldsChooser
+      label={fields.label}
+      options={fields.options}
+      visible={fields.visible}
+      onToggle={fields.onToggle}
+      description={fields.description}
+    />
+  ) : null
   return (
     <div className="ktb" role="group" aria-label={ariaLabel}>
       {children && (
@@ -247,9 +260,18 @@ export function KitchenToolbar({
         </div>
         {!folded && selectsBlock}
         {!folded && trailing}
+        {!folded && fields && (
+          <details className="ktb-panel ktb-fields-panel">
+            <summary>
+              <span>{fields.disclosureLabel}</span>
+              <span className="ktb-panel__summary">{fields.summary}</span>
+            </summary>
+            <div className="ktb-panel__body">{fieldsChooser}</div>
+          </details>
+        )}
         {folded && filtersPanel && <details className="ktb-panel">
           <summary><span>{filtersPanel.label}</span><span className="ktb-panel__summary">{filtersPanel.summary}</span></summary>
-          <div className="ktb-panel__body">{selectsBlock}{trailing}{sortInPanel ? sortControl : null}</div>
+          <div className="ktb-panel__body">{selectsBlock}{trailing}{fieldsChooser}{sortInPanel ? sortControl : null}</div>
         </details>}
       </div>
       {sortControl && !desktop && !sortInPanel && <div className="ktb-sort">{sortControl}</div>}
