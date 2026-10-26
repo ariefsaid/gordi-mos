@@ -188,7 +188,9 @@ export function CafeCountPage() {
       setHydratedKey(draftKey)
       setFloorLines(byItem(nextLines))
       setElsewhere(nextElsewhere)
-      setMultiples(Object.fromEntries(settings.map(setting => [setting.id, setting.unitMultiples ?? []])))
+      setMultiples(Object.fromEntries(settings.map(setting => [setting.id,
+        nextItems.some(item => item.id === setting.id && item.unitId === setting.defaultUnitId) ? setting.unitMultiples ?? [] : [],
+      ])))
       setExcluded(nextExcluded)
       setLoadState('ready')
     }).catch(() => {
@@ -400,7 +402,11 @@ export function CafeCountPage() {
                 onChange={value => setLogDate(value || today)} />
             </div>
             {canSeeExcluded && excluded.length > 0 && <Notice tone="info">
-              {t(excluded.length === 1 ? 'cafe.count.excluded.one' : 'cafe.count.excluded.other', { count: excluded.length, items: excluded.join(', ') })}
+              <details className="kl-about">
+                <summary>{t(excluded.length === 1 ? 'cafe.count.excluded.one' : 'cafe.count.excluded.other', { count: excluded.length })}</summary>
+                <p>{t('cafe.count.excluded.help')}</p>
+                <ul>{excluded.map((name, index) => <li key={`${name}-${index}`}>{name}</li>)}</ul>
+              </details>
             </Notice>}
             {items.length === 0 ? (
               <CafeItemsEmptyState stream={stream} requiresStockUnit />

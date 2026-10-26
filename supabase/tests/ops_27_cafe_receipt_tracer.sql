@@ -97,7 +97,7 @@ select ops.save_cafe_item_settings(
   'Receipt milk', current_setting('app.milk_l')::uuid,
   array[current_setting('app.milk_l')::uuid], 'RAW', true);
 reset role;
-update ops.item_units set confirmed_at = null where id = current_setting('app.unconf_box')::uuid;
+update ops.item_units set confirmed_at = null, esb_product_detail_id = null where id = current_setting('app.unconf_box')::uuid;
 update ops.item_units set source_active = false, is_default = false where id = current_setting('app.off_case')::uuid;
 
 -- Baselines for AC-1039, captured before any receipt exists.
@@ -151,13 +151,13 @@ select is((select unit_name from ops.cafe_receivable_items('00000000-0000-0000-0
           'kg', 'FR-1007 the stream default unit is the one marked default');
 select ok(not exists (select 1 from ops.cafe_receivable_items('00000000-0000-0000-0000-00000000bf01', 'kitchen')
                        where item_id in (current_setting('app.unconf_id')::uuid, current_setting('app.off_id')::uuid)),
-          'FR-1006 unconfirmed and inactive product details are not offered');
+          'FR-1006 missing-coordinate and inactive product details are not offered');
 
 -- ── AC-1004 a line for an unconfirmed or inactive detail is refused ──────────────────────────
 select throws_ok(format($$select ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen', null,
   'f1422000-0000-0000-0000-0000000000a1', '[{"item_unit_id":"%s","quantity":"2"}]'::jsonb)$$,
   current_setting('app.unconf_box')), '23514', null,
-  'AC-1004 a line for an unconfirmed product detail is refused');
+  'AC-1004 a line for a product detail without coordinates is refused');
 select throws_ok(format($$select ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen', null,
   'f1422000-0000-0000-0000-0000000000a2', '[{"item_unit_id":"%s","quantity":"2"}]'::jsonb)$$,
   current_setting('app.off_case')), '23514', null,

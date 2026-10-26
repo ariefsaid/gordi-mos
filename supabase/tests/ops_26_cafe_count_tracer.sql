@@ -78,7 +78,7 @@ select ops.save_cafe_item_settings(
   '00000000-0000-0000-0000-00000000bf01', 'bar', current_setting('app.count_raw_id')::uuid,
   'Count raw item', current_setting('app.count_raw_unit_id')::uuid,
   array[current_setting('app.count_raw_unit_id')::uuid], 'RAW', true);
-update ops.item_units set confirmed_at = null
+update ops.item_units set confirmed_at = null, esb_product_detail_id = null
  where id = current_setting('app.count_unconfirmed_unit_id')::uuid;
 
 select ok((select c.relrowsecurity and c.relforcerowsecurity
@@ -111,7 +111,7 @@ select ok(not exists (select 1 from ops.cafe_countable_items('00000000-0000-0000
                                         current_setting('app.count_nonstock_id')::uuid,
                                         current_setting('app.count_unconfirmed_id')::uuid,
                                         current_setting('app.count_inactive_unit_item_id')::uuid)),
-          'AC-004 inactive items, non-stock defaults, unconfirmed and inactive ERP units are absent');
+          'AC-004 inactive items, non-stock defaults, missing-coordinate and inactive ERP units are absent');
 select is((select count(*)::int from ops.cafe_countable_items('00000000-0000-0000-0000-00000000bf01', 'bar')),
           1, 'AC-003 the other stream returns only its own active RAW list item');
 select ok(exists (select 1 from ops.cafe_countable_items('00000000-0000-0000-0000-00000000bf01', 'bar')
@@ -149,7 +149,7 @@ select is(current_setting('app.count_submit_results')::jsonb -> 2 ->> 'reason', 
 select is(current_setting('app.count_submit_results')::jsonb -> 3 ->> 'reason', 'already_counted',
           'AC-006 a second live line for the branch/item/day is refused');
 select is(current_setting('app.count_submit_results')::jsonb -> 4 ->> 'reason', 'item_not_countable',
-          'AC-004 an unconfirmed default ERP unit is refused at insert');
+          'AC-004 a default ERP unit without coordinates is refused at insert');
 select is(current_setting('app.count_submit_results')::jsonb -> 5 ->> 'reason', 'item_not_countable',
           'AC-004 an inactive default ERP unit is refused at insert');
 select is((select count(*)::int from ops.cafe_count_lines

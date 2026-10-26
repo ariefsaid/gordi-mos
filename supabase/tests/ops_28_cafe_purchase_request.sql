@@ -63,7 +63,7 @@ select ops.save_cafe_item_settings(
   'Request milk', current_setting('app.milk_l')::uuid,
   array[current_setting('app.milk_l')::uuid], 'RAW', true);
 reset role;
-update ops.item_units set confirmed_at = null where id = current_setting('app.unconf_box')::uuid;
+update ops.item_units set confirmed_at = null, esb_product_detail_id = null where id = current_setting('app.unconf_box')::uuid;
 select set_config('app.outbox_before', (select count(*)::text from integrations.esb_push), true);
 
 -- ── Shape and the org seam ───────────────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000
 select throws_ok(format($$select ops.submit_cafe_purchase_request('00000000-0000-0000-0000-00000000bf01', 'kitchen',
   '%s', null, 'f1428000-0000-0000-0000-0000000000a1', '[{"item_unit_id":"%s","quantity":"2"}]'::jsonb)$$,
   current_setting('app.today'), current_setting('app.unconf_box')), '23514', null,
-  'FR-1051 a line for an unconfirmed ESB product detail is refused');
+  'FR-1051 a line for an ESB product detail without coordinates is refused');
 select throws_ok(format($$select ops.submit_cafe_purchase_request('00000000-0000-0000-0000-00000000bf01', 'bar',
   '%s', null, 'f1428000-0000-0000-0000-0000000000a2', '[{"item_unit_id":"%s","quantity":"2"}]'::jsonb)$$,
   current_setting('app.today'), current_setting('app.bean_kg')), '23514', null,
