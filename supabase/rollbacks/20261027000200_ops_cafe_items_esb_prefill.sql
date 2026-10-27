@@ -103,6 +103,13 @@ revoke execute on function ops.refresh_cafe_stream_items(jsonb) from public, ano
 
 select ops._rollback_cafe_item_settings_prefills();
 drop function ops._rollback_cafe_item_settings_prefills();
+drop function ops.save_cafe_item_settings(uuid,text,uuid,text,uuid,uuid[],text,boolean,numeric[]);
+alter function ops._save_cafe_item_settings_before_prefill_ownership(uuid,text,uuid,text,uuid,uuid[],text,boolean,numeric[])
+  rename to save_cafe_item_settings;
+revoke execute on function ops.save_cafe_item_settings(uuid,text,uuid,text,uuid,uuid[],text,boolean,numeric[])
+  from public, anon, service_role;
+grant execute on function ops.save_cafe_item_settings(uuid,text,uuid,text,uuid,uuid[],text,boolean,numeric[])
+  to authenticated;
 drop table ops.cafe_item_settings_prefills;
 drop function ops.prefill_cafe_item_settings(uuid);
 drop function ops._cafe_kind_from_esb(boolean);

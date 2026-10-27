@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(23);
 select set_config('app.allow_test_seeds','on',true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -61,11 +61,21 @@ set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}');
 select lives_ok($$select ops.set_cafe_stream_item('00000000-0000-0000-0000-00000000bf01','kitchen',
   (select id from ops.wip_items where esb_product_id='PREFILL-UNLISTED'),false)$$,'manual restore also prefills its listed membership');
+select ops.save_cafe_item_settings(
+  '00000000-0000-0000-0000-00000000bf01', 'kitchen',
+  (select id from ops.wip_items where esb_product_id='PREFILL-RAW'), 'Manager-owned prefill',
+  (select unit.id from ops.item_units unit join ops.wip_items item on item.id=unit.wip_item_id where item.esb_product_id='PREFILL-RAW'),
+  array[(select unit.id from ops.item_units unit join ops.wip_items item on item.id=unit.wip_item_id where item.esb_product_id='PREFILL-RAW')],
+  'RAW', true, array[]::numeric[]
+);
 reset role;
 select is((select count(*)::int from prefilled where esb_product_id='PREFILL-UNLISTED' and not is_active and default_item_unit_id is not null),1,'manual restore keeps its generated setup inactive');
+select is((select count(*)::int from ops.cafe_item_settings_prefills p join prefilled s on s.id=p.setting_id where s.esb_product_id='PREFILL-RAW'),0,'manager save clears prefill ownership');
 select ops._rollback_cafe_item_settings_prefills();
-select is((select count(*)::int from prefilled),1,'rollback removes only prefill-created settings');
-select results_eq('select s.* from ops.cafe_item_settings s join original_settings o on o.id=s.id order by s.id','select * from original_settings order by id','rollback preserves all original setups');
+select is((select count(*)::int from prefilled),2,'rollback removes inactive prefills and keeps manager and existing settings');
+select is((select count(*)::int from prefilled where esb_product_id='PREFILL-RAW' and is_active and mos_name='Manager-owned prefill'),1,'manager activation and name edit survive rollback');
+select is((select count(*)::int from prefilled s join ops.cafe_item_setting_units shown on shown.cafe_item_setting_id=s.id and shown.item_unit_id=s.default_item_unit_id where s.esb_product_id='PREFILL-RAW'),1,'shown unit selection survives rollback');
+select is((select count(*)::int from prefilled where esb_product_id in ('PREFILL-WIP','PREFILL-UNLISTED')),0,'untouched prefills are removed by rollback');
 select is(has_function_privilege('authenticated','ops._rollback_cafe_item_settings_prefills()','EXECUTE'),false,'rollback deletion is private');
 select * from finish();
 rollback;

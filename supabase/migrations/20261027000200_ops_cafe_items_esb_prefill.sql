@@ -22,9 +22,50 @@ comment on table ops.cafe_item_settings_prefills is
 create function ops._rollback_cafe_item_settings_prefills()
 returns void language sql security invoker set search_path = '' as $$
   delete from ops.cafe_item_settings setting using ops.cafe_item_settings_prefills prefill
-   where setting.org_id=prefill.org_id and setting.id=prefill.setting_id;
+   where setting.org_id=prefill.org_id and setting.id=prefill.setting_id and not setting.is_active;
 $$;
 revoke all on function ops._rollback_cafe_item_settings_prefills() from public, anon, authenticated, service_role;
+
+-- Keep the existing manager validation and write logic, then transfer ownership of any
+-- prefilled row as soon as a manager saves it. Activation uses this same RPC.
+alter function ops.save_cafe_item_settings(uuid,text,uuid,text,uuid,uuid[],text,boolean,numeric[])
+  rename to _save_cafe_item_settings_before_prefill_ownership;
+revoke all on function ops._save_cafe_item_settings_before_prefill_ownership(uuid,text,uuid,text,uuid,uuid[],text,boolean,numeric[])
+  from public, anon, authenticated, service_role;
+
+create function ops.save_cafe_item_settings(
+  p_branch_id uuid,
+  p_activity text,
+  p_wip_item_id uuid,
+  p_mos_name text,
+  p_default_item_unit_id uuid,
+  p_shown_item_unit_ids uuid[],
+  p_kind text,
+  p_is_active boolean,
+  p_unit_multiples numeric[]
+)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  perform ops._save_cafe_item_settings_before_prefill_ownership(
+    p_branch_id,p_activity,p_wip_item_id,p_mos_name,p_default_item_unit_id,
+    p_shown_item_unit_ids,p_kind,p_is_active,p_unit_multiples
+  );
+  delete from ops.cafe_item_settings_prefills prefill
+   using ops.cafe_item_settings setting
+   where setting.org_id=shared.current_org_id()
+     and setting.branch_id=p_branch_id
+     and setting.activity=p_activity
+     and setting.wip_item_id=p_wip_item_id
+     and prefill.org_id=setting.org_id
+     and prefill.setting_id=setting.id;
+end;
+$$;
+comment on function ops.save_cafe_item_settings(uuid,text,uuid,text,uuid,uuid[],text,boolean,numeric[]) is
+  'SECURITY DEFINER: saves manager-owned Café settings using the existing validated writer and clears prefill rollback ownership after a successful save.';
+revoke execute on function ops.save_cafe_item_settings(uuid,text,uuid,text,uuid,uuid[],text,boolean,numeric[])
+  from public, anon, service_role;
+grant execute on function ops.save_cafe_item_settings(uuid,text,uuid,text,uuid,uuid[],text,boolean,numeric[])
+  to authenticated;
 
 create function ops.prefill_cafe_item_settings(p_org_id uuid)
 returns integer language plpgsql security invoker set search_path = '' as $$
