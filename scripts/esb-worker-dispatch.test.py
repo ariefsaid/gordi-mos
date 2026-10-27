@@ -32,15 +32,28 @@ something real. The identifiers below are fabricated — this repo is public.
 from __future__ import annotations
 
 import contextlib
-import http.server
+import copy
+import email.message
 import importlib.util
 import io
+import itertools
 import json
 import os
 import sys
 import tempfile
-import threading
+import urllib.error
 import urllib.parse
+import urllib.request
+import urllib.response
+from unittest.mock import patch as mock_patch
+
+
+def forbid_network(event, _args):
+    if event in ("socket.connect", "socket.bind", "socket.getaddrinfo"):
+        raise AssertionError(f"worker tests must not use the network: {event}")
+
+
+sys.addaudithook(forbid_network)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WIP = "11111111-2222-3333-4444-555555555555"
@@ -137,6 +150,64 @@ def cfg_for(target: str, **over: str):
     return W.load_config(env(target, **over), offline=False, drains=False)
 
 
+# Sanitized fixtures from esb-core-api_data.js GET success examples (simple-transfer,
+# simple-manufacturing and their details), checked against esb-core-openapi.json and
+# esb-core-api.md Response format / Pagination. esb-goo-integration.md identifies the
+# Core API and the assembly-actual route. Values are fabricated; field shapes are kept.
+def esb_envelope(result):
+    return {"path": "https://erp.example.invalid/request", "timestamp": "2026-08-20 12:00:00",
+            "status": "ok", "code": "EC03100000", "message": "OK", "result": result, "errors": None}
+
+
+def real_page(endpoint, rows, *, page=1, limit=100, count=..., **extra):
+    path = "/simple-transfer" if endpoint == "transfer" else "/production/simple-manufacturing"
+    count = len(rows) if count is ... else count
+    def link(n):
+        return f"https://erp.example.invalid{path}?page={n}&limit={limit}"
+    return esb_envelope({"page": page, "limit": limit, "count": count, "data": rows,
+                         "prev": link(page - 1) if page > 1 else "",
+                         "next": link(page + 1) if type(count) is int and type(limit) is int
+                             and page * limit < count else "", **extra})
+
+
+def real_row(endpoint, number="SAVED", refs=("PR-A",), ordinal=1, status=3):
+    if endpoint == "transfer":
+        return {"simpleTransferNum": number, "simpleTransferDate": "2026-08-20",
+                "originLocationName": "Origin", "destinationLocationName": "Destination",
+                "destinationLocationID": 511, "additionalInfo": " | ".join(refs),
+                "statusID": status, "statusName": "Authorized"}
+    return {"simpleManufacturingNum": f"{number} - {ordinal}",
+            "simpleManufacturingDate": "2026-08-20T00:00:00+07:00", "branchID": 176,
+            "branchName": "Branch", "bomTypeID": 1, "bomTypeName": "Assembly", "bomID": 131,
+            "bomName": "Item", "bomCode": "ITEM", "manufacturingQty": 1,
+            "statusID": status, "statusName": "Authorized"}
+
+
+def real_detail(endpoint, number="SAVED", refs=("PR-A",), ordinal=1, status=3):
+    data = {**real_row(endpoint, number, refs, ordinal, status), "originLocationID": 510,
+            "destinationLocationID": 511, "createdBy": "fixture-user",
+            "createdDate": "2026-08-20T12:00:00+07:00", "editedBy": None, "editedDate": None,
+            "authorizedBy": "fixture-user", "authorizedDate": "2026-08-20T12:00:00+07:00"}
+    if endpoint == "transfer":
+        data.update(costCenterID=1, projectID=None, imageAttachments=None, simpleTransferAssets=[],
+                    simpleTransferDetails=[{"productDetailID": 97, "productName": "Item", "uomName": "Pcs",
+                                            "stockQty": 12, "availableQty": 12, "qty": 1,
+                                            "isAsset": False, "assetIDs": []} for _ in refs])
+    else:
+        data.update(additionalInfo=f"{refs[ordinal - 1]} | Item", originLocationName="Origin",
+                    destinationLocationName="Destination", simpleManufacturingMaterials=[{
+                        "ID": 1, "simpleManufacturingNum": f"{number} - {ordinal}", "productDetailID": 98,
+                        "productID": 98, "productName": "Material", "productCode": "", "uomID": 2,
+                        "uomName": "Pcs", "systemQty": 12, "qty": 12, "formulaQty": 12, "totalQty": 0,
+                        "actualTotalQty": 0, "stockQty": -77, "hpp": 0, "printGroup": "",
+                        "subtitutionManufacturing": [{"productDetailID": 98, "productName": "Material"}]}],
+                    simpleManufacturingResults=[{"ID": 1, "simpleManufacturingNum": f"{number} - {ordinal}",
+                        "productDetailID": 97, "productName": "Item", "productCode": "", "uomID": 2,
+                        "uomName": "Pcs", "qty": 1, "manufacturingQty": 1, "actualTotalQty": 0,
+                        "hpp": 0, "weightFactor": 0, "expiredDate": None}])
+    return esb_envelope(data)
+
+
 for name, values in (
     ("Supabase endpoint requires HTTPS", {"MOS_SUPABASE_URL": "http://db.example.invalid"}),
     ("ERP endpoint requires HTTPS", {"ESB_BASE_URL": "http://erp.example.invalid"}),
@@ -147,38 +218,33 @@ for name, values in (
                  needle="HTTPS")
 
 
-class RedirectHandler(http.server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.server.seen.append((self.path, self.headers.get("Authorization")))
-        if self.path == "/start":
-            self.send_response(302)
-            self.send_header("Location", "/target")
-            self.end_headers()
-            return
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.end_headers()
-        self.wfile.write(b"{}")
+class RedirectTransport(urllib.request.HTTPHandler):
+    """Feed urllib a redirect response without opening a socket."""
 
-    def log_message(self, *_args):
-        pass
+    def __init__(self):
+        super().__init__()
+        self.seen = []
+
+    def http_open(self, req):
+        self.seen.append((req.selector, req.get_header("Authorization")))
+        headers = email.message.Message()
+        headers["Location"] = "/target"
+        response = urllib.response.addinfourl(io.BytesIO(b"{}"), headers, req.full_url, 302)
+        response.msg = "Found"
+        return response
 
 
-with http.server.ThreadingHTTPServer(("127.0.0.1", 0), RedirectHandler) as redirect_server:
-    redirect_server.seen = []
-    redirect_thread = threading.Thread(target=redirect_server.serve_forever, daemon=True)
-    redirect_thread.start()
+redirect_transport = RedirectTransport()
+build_opener = urllib.request.build_opener
+with mock_patch.object(W.urllib.request, "build_opener",
+                  side_effect=lambda *handlers: build_opener(redirect_transport, *handlers)):
     try:
-        try:
-            W._request("GET", f"http://127.0.0.1:{redirect_server.server_port}/start",
-                       headers={"Authorization": "Bearer test-key"}, timeout=2)
-        except W.Permanent:
-            pass
-        check("service request stops at the redirect response",
-              redirect_server.seen == [("/start", "Bearer test-key")])
-    finally:
-        redirect_server.shutdown()
-        redirect_thread.join(timeout=2)
+        W._request("GET", "http://service.example.invalid/start",
+                   headers={"Authorization": "Bearer test-key"}, timeout=2)
+    except W.Permanent:
+        pass
+check("service request stops at the redirect response",
+      redirect_transport.seen == [("/start", "Bearer test-key")])
 
 
 def row(endpoint: str = "assembly-actual", target: str = "goo", **over: str):
@@ -264,6 +330,8 @@ def happy_routes(**over):
               "rpc/reap_esb_pushes": _reap_ok, "rpc/prune_esb_pushes": _prune_ok,
               "kitchen_logs": _logs_ok,
               "auth/login": _login_ok, "product/bom": _bom_ok,
+              # ESB holds nothing yet: the read before an assembly or transfer POST finds no document.
+              "dateFrom": lambda *a: real_page("assembly", []),
               "assembly-actual": _assembly_ok}
     routes.update(over)
     return routes
@@ -583,6 +651,10 @@ finally:
 check("a group straddling the page is expanded to its full membership",
       len(pending) == 2 and {r["source_ref"] for r in pending} == {"PR-GROUP-001", "PR-GROUP-002"},
       repr(pending))
+membership_call = next(c for c in f.calls if "push_group_id" in c["url"])
+membership_query = urllib.parse.parse_qs(urllib.parse.urlsplit(membership_call["url"]).query)
+check("membership reads break created_at ties by id", membership_query.get("order") == ["created_at.asc,id.asc"],
+      repr(membership_query))
 
 # ══════════════════════════════════════════════════════════════════════════════════════
 print("N. grouped ERP execution and resume (round 4 red-first)")
@@ -1486,11 +1558,13 @@ check("CQ3 lines without the configured product-detail field fail the group as u
 
 # S5: a transport failure's stored message names the path, never the host.
 check("S5 _safe keeps only the path", W._safe("https://erp.example.invalid/inventory/x?a=1") == "/inventory/x")
-try:
-    W._request("GET", "http://127.0.0.1:1/inventory/goods-receipt", headers={}, timeout=2)
-    s5 = ""
-except W.Classified as exc:
-    s5 = str(exc)
+with mock_patch.object(urllib.request.OpenerDirector, "open",
+                  side_effect=urllib.error.URLError(ConnectionRefusedError("connection refused"))):
+    try:
+        W._request("GET", "http://127.0.0.1:1/inventory/goods-receipt", headers={}, timeout=2)
+        s5 = ""
+    except W.Classified as exc:
+        s5 = str(exc)
 check("S5 a refused connection's message carries no host", s5.startswith("GET /inventory/goods-receipt")
       and "127.0.0.1" not in s5, s5)
 
@@ -2126,6 +2200,687 @@ run(lambda: W.run_tick(count_cfg(), count_rows(), outbox=None, plan_only=True, o
 check("AC-1374 --plan prints the item-journal create and authorize without network calls",
       f.calls == [] and f"POST {COUNT_PATH}" in out.getvalue() and COUNT_KEY in out.getvalue()
       and "authorize" in out.getvalue(), out.getvalue())
+
+# ══════════════════════════════════════════════════════════════════════════════════════
+print("P. a document ESB already holds is never posted a second time")
+# ══════════════════════════════════════════════════════════════════════════════════════
+SM_DOC, STF_DOC = "SM202608200001", "STF202608200001"
+
+
+class Esb:
+    """What ESB holds for the day: assembly lines, their notes, and transfers."""
+
+    def __init__(self, lines=(), notes=None, transfers=(), transfer_counts=None) -> None:
+        self.lines, self.notes, self.transfers = lines, notes, list(transfers)  # lines: kept live
+        self.transfer_counts = transfer_counts or {}
+
+    def routes(self, **over):
+        def listing(fake, method, url, body):
+            data = self.transfers if "simple-transfer" in url else self.lines
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+            if "additionalInfo" in query:
+                data = [d for d in data if d.get("additionalInfo") == query["additionalInfo"][0]]
+            return real_page("transfer" if "simple-transfer" in url else "assembly", list(data))
+        def detail(fake, method, url, body):
+            num = urllib.parse.unquote(urllib.parse.urlsplit(url).path.rsplit("/", 1)[-1])
+            if "simple-transfer" in url:
+                row = next(r for r in self.transfers if r.get("simpleTransferNum") == num)
+                refs = str(row.get("additionalInfo", "")).split(" | ")
+                count = self.transfer_counts.get(num, len(refs))
+                result = real_detail("transfer", num, refs=tuple("PR-DETAIL" for _ in range(count)),
+                                     status=row.get("statusID"))
+                result["result"]["additionalInfo"] = row.get("additionalInfo")
+                return result
+            notes = self.notes.get(num) if isinstance(self.notes, dict) else self.notes
+            status = next(r["statusID"] for r in self.lines if r["simpleManufacturingNum"] == num)
+            return esb_envelope({"simpleManufacturingNum": num, "statusID": status, "additionalInfo": notes})
+        return happy_routes(**{"dateFrom": listing,
+                               "simple-manufacturing/SM": detail,
+                               "simple-transfer": lambda fake, method, url, body: detail(fake, method, url, body)
+                                   if method == "GET" else {
+                                       "status": "ok", "result": {"simpleTransferNum": "STF-NEW"}},
+                               **over})
+
+
+def sm_lines(n: int, status: int = 1) -> list[dict]:
+    return [{"simpleManufacturingNum": f"{SM_DOC} - {i}", "statusID": status} for i in range(1, n + 1)]
+
+
+def erp_posts(f) -> list[dict]:
+    return [c for c in f.calls if c["method"] == "POST"
+            and ("assembly-actual" in c["url"] or "/simple-transfer" in c["url"])]
+
+
+def posted_doc(f):
+    docs = [b["esb_doc_num"] for b in f.bodies("esb_push") if isinstance(b, dict) and b.get("status") == "posted"]
+    return docs[0] if docs else None
+
+
+def failed_close(f):
+    return [b for b in f.bodies("esb_push") if isinstance(b, dict) and b.get("status") == "failed"]
+
+
+GOO = lambda: cfg_for("goo", ESB_PUSH_ENABLED="1")
+NAMES = {WIP: WIP_NAME}
+
+def lookup_dispatch(endpoint, pages, *, details=None, refs=("PR-A",), base_url=None):
+    def listing(fake, method, url, body):
+        page = int(urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["page"][0])
+        response = pages[min(page - 1, len(pages) - 1)]
+        if isinstance(response, W.Classified):
+            raise response
+        return response
+
+    def detail(fake, method, url, body):
+        number = urllib.parse.unquote(urllib.parse.urlsplit(url).path.rsplit("/", 1)[-1])
+        listed = next((r for p in pages if isinstance(p, dict)
+                       for r in p.get("result", {}).get("data", []) if isinstance(r, dict)
+                       and r.get("simpleTransferNum", r.get("simpleManufacturingNum")) == number), {})
+        if endpoint == "transfer":
+            default = real_detail("transfer", number, refs=tuple(str(listed.get("additionalInfo", "")).split(" | ")),
+                                  status=listed.get("statusID"))
+        else:
+            default = esb_envelope({"simpleManufacturingNum": number, "statusID": listed.get("statusID"),
+                                    "additionalInfo": "PR-OTHER | Item"})
+        response = (details or {}).get(number, default)
+        if isinstance(response, W.Classified):
+            raise response
+        return response
+
+    f = Fake(**happy_routes(**{
+        "dateFrom": listing, "simple-manufacturing/": detail,
+        "simple-transfer": lambda fake, method, url, body: detail(fake, method, url, body)
+            if method == "GET" else {"status": "ok", "result": {"simpleTransferNum": "NEW"}},
+    }))
+    assembly = endpoint == "assembly"
+    req = W.Request(path="/production/simple-manufacturing/assembly-actual" if assembly else "/simple-transfer",
+                    body={"simpleManufacturingDate": "2026-08-20", "branchID": 176} if assembly else
+                         {"simpleTransferDate": "2026-08-20", "originLocationID": 510,
+                          "destinationLocationID": 511},
+                    result_key="simpleManufacturingNum" if assembly else "simpleTransferNum", refs=refs)
+    cfg = cfg_for("goo", ESB_PUSH_ENABLED="1", ESB_BASE_URL=base_url or BASE_ENV["ESB_BASE_URL"])
+    try:
+        result = run(lambda: W.dispatch(cfg, W.ErpClient(cfg), req), f)
+    except W.Classified as exc:
+        result = exc
+    return result, f
+
+
+def lookup_blocks(endpoint, label, pages, **kwargs):
+    result, f = lookup_dispatch(endpoint, pages, **kwargs)
+    check(f"{endpoint} incomplete/inconsistent lookup ({label}) is Transient with zero POSTs",
+          type(result) is W.Transient and erp_posts(f) == [],
+          f"result={result!r}; ERP POSTs={erp_posts(f)!r}")
+
+
+# Real documented replies must let work progress before adversarial cases are added.
+for endpoint in ("assembly", "transfer"):
+    result, f = lookup_dispatch(endpoint, [real_page(endpoint, [])])
+    check(f"REAL {endpoint} complete empty envelope posts exactly once",
+          isinstance(result, str) and len(erp_posts(f)) == 1, repr(result))
+    for refs in (("PR-A",), ("PR-B", "PR-A"), ("PR-A", "PR-A")):
+        rows = ([real_row(endpoint, ordinal=i) for i in range(1, len(refs) + 1)]
+                if endpoint == "assembly" else [real_row(endpoint, refs=refs)])
+        details = ({f"SAVED - {i}": real_detail(endpoint, refs=refs, ordinal=i)
+                    for i in range(1, len(refs) + 1)} if endpoint == "assembly" else
+                   {"SAVED": real_detail(endpoint, refs=refs)})
+        result, f = lookup_dispatch(endpoint, [real_page(endpoint, rows)], details=details, refs=refs)
+        check(f"REAL {endpoint} rich saved document {refs!r} is reused",
+              result == "SAVED" and erp_posts(f) == [], repr(result))
+    other = real_row(endpoint, "OTHER", refs=("PR-OTHER",))
+    match = real_row(endpoint)
+    details = {"OTHER - 1": real_detail(endpoint, "OTHER", refs=("PR-OTHER",)),
+               "SAVED - 1": real_detail(endpoint), "OTHER": real_detail(endpoint, "OTHER", refs=("PR-OTHER",)),
+               "SAVED": real_detail(endpoint)}
+    pages = [real_page(endpoint, [other], limit=1, count=2),
+             real_page(endpoint, [match], page=2, limit=1, count=2)]
+    result, f = lookup_dispatch(endpoint, pages, details=details)
+    check(f"REAL {endpoint} URL pagination reaches a saved document on page two",
+          result == "SAVED" and erp_posts(f) == [] and len(f.to("dateFrom")) == 2, repr(result))
+    # The archived transfer example repeats the current query before the next query.
+    archived_pages = copy.deepcopy(pages)
+    archived_pages[0]["result"]["next"] = pages[0]["result"]["next"].replace("?page=2", "?page=1&limit=1?page=2")
+    result, f = lookup_dispatch(endpoint, archived_pages, details=details)
+    check(f"REAL {endpoint} archived repeated-query URL is handled without following it",
+          result == "SAVED" and erp_posts(f) == [], repr(result))
+    extras = real_page(endpoint, [other], trace={"arbitrary": [None]})
+    extras["extra"] = {"arbitrary": True}
+    extras["result"]["data"][0]["extra"] = [1, None, {}]
+    rich_details = copy.deepcopy(details)
+    rich_details["OTHER - 1"]["result"]["extra"] = {"arbitrary": True}
+    rich_details["OTHER"]["result"]["extra"] = {"arbitrary": True}
+    result, f = lookup_dispatch(endpoint, [extras], details=rich_details)
+    check(f"REAL {endpoint} unused envelope/page/row/detail fields are ignored",
+          isinstance(result, str) and len(erp_posts(f)) == 1, repr(result))
+
+for saved_refs, requested_refs, matching in (
+        (("PR-OTHER",), ("PR-A", "PR-B"), False),
+        (("PR-OTHER", "PR-ELSE"), ("PR-A",), False),
+        (("PR-B", "PR-A"), ("PR-A", "PR-B"), True)):
+    rows = [real_row("transfer", refs=saved_refs), real_row("transfer", "UNRELATED", refs=("PR-UNRELATED",))]
+    details = {"SAVED": real_detail("transfer", refs=saved_refs),
+               "UNRELATED": real_detail("transfer", "UNRELATED", refs=("PR-UNRELATED",))}
+    result, f = lookup_dispatch("transfer", [real_page("transfer", rows)], details=details, refs=requested_refs)
+    check(f"REAL mixed transfer group sizes {saved_refs!r}/{requested_refs!r} progress",
+          result == ("SAVED" if matching else "NEW") and len(erp_posts(f)) == (0 if matching else 1), repr(result))
+
+# P1. One assembly already saved by an earlier timed-out POST: reuse it, post nothing.
+f = Fake(**Esb(sm_lines(1), notes=f"{BATCH} | {WIP_NAME}").routes())
+n, out = tick(GOO(), [row()], f, wip_names=NAMES)
+check("an assembly ESB already holds for this push is reused and not posted again",
+      n == 0 and erp_posts(f) == [] and posted_doc(f) == SM_DOC, repr(f.calls) + out)
+
+# P2. Not there: it is posted once (the falsifier of P1), after the lookup.
+f = Fake(**Esb().routes())
+n, out = tick(GOO(), [row()], f, wip_names=NAMES)
+check("...an assembly ESB does not hold is posted once", n == 0 and len(erp_posts(f)) == 1
+      and posted_doc(f) == "SM-0001", repr(f.calls) + out)
+
+# P3. A rejected document, or another push's document, does not count.
+f = Fake(**Esb(sm_lines(1, status=2), notes=f"{BATCH} | {WIP_NAME}").routes())
+n, out = tick(GOO(), [row()], f, wip_names=NAMES)
+check("...a rejected document does not count as posted", len(erp_posts(f)) == 1, repr(f.calls) + out)
+f = Fake(**Esb(sm_lines(1), notes=f"{BATCH}9 | {WIP_NAME}").routes())
+n, out = tick(GOO(), [row()], f, wip_names=NAMES)
+check("...nor does a document carrying another push's reference", len(erp_posts(f)) == 1, repr(f.calls) + out)
+
+# P4. The incident itself: the first POST times out but ESB saved it; the retry posts nothing.
+saved: list = []
+
+
+def post_saved_then_timeout(fake, method, url, body):
+    saved.extend(sm_lines(1))
+    raise W.Transient("timed out", kind="timeout")
+
+
+esb = Esb(saved, notes=f"{BATCH} | {WIP_NAME}")
+f = Fake(**esb.routes(**{"assembly-actual": post_saved_then_timeout}))
+n1, out1 = tick(GOO(), [row()], f, wip_names=NAMES)
+n2, out2 = tick(GOO(), [row(retry_count=1)], f, wip_names=NAMES)
+check("a POST that timed out but was saved is found on the retry: one ERP post in all",
+      n1 == 1 and n2 == 0 and len(erp_posts(f)) == 1 and posted_doc(f) == SM_DOC, repr(f.calls) + out1 + out2)
+
+# P5. A lookup that fails posts nothing and spends a retry.
+for label, fault in (("transient", W.Transient("ERP unavailable", status=503)),
+                     ("refused", W.Permanent("ERP rejected the read", status=400))):
+    def broken(fake, method, url, body, fault=fault):
+        raise fault
+    f = Fake(**Esb().routes(dateFrom=broken))
+    n, out = tick(GOO(), [row()], f, wip_names=NAMES)
+    closed = failed_close(f)
+    check(f"a {label} failure of the lookup posts nothing and leaves the row to retry",
+          n == 1 and erp_posts(f) == [] and closed and closed[0]["retry_count"] == 1, repr(f.calls) + out)
+
+# P6. A grouped assembly is matched on all its references and its line count.
+GA, GB = "bbbbbbbb-0000-0000-0000-0000000000a1", None
+ga = row(source_ref="PR-GA-1", push_group_id=GA)
+gb = row(id="aaaaaaaa-0000-0000-0000-000000000002", source_ref="PR-GA-2", push_group_id=GA)
+group_notes = {f"{SM_DOC} - 1": f"PR-GA-1 | {WIP_NAME}", f"{SM_DOC} - 2": f"PR-GA-2 | {WIP_NAME}"}
+f = Fake(**Esb(sm_lines(2), notes=group_notes).routes(**{"esb_push_groups": lambda *a: None}))
+n, out = tick(GOO(), [ga, gb], f, wip_names=NAMES)
+check("a grouped assembly ESB already holds is reused, and every member is closed with its number",
+      n == 0 and erp_posts(f) == [] and sum(1 for b in f.bodies("esb_push?")
+                                           if isinstance(b, dict) and b.get("esb_doc_num") == SM_DOC) == 2,
+      repr(f.calls) + out)
+ga["status"] = gb["status"] = "pending"
+f = Fake(**Esb(sm_lines(1), notes=f"PR-GA-1 | {WIP_NAME}").routes(**{"esb_push_groups": lambda *a: None}))
+n, out = tick(GOO(), [ga, gb], f, wip_names=NAMES)
+check("...a one-line document is not this two-line group", len(erp_posts(f)) == 1, repr(f.calls) + out)
+
+# P7. Transfers: matched on the exact additionalInfo, single and grouped.
+TR = row(endpoint="simple-transfer", source_ref="PR-T-1",
+         payload={**row()["payload"], "action": "transfer", "destination_branch_code": "radiant"})
+f = Fake(**Esb(transfers=[{"simpleTransferNum": STF_DOC, "additionalInfo": "PR-T-1", "statusID": 1}]).routes())
+n, out = tick(GOO(), [TR], f, wip_names=NAMES)
+check("a transfer ESB already holds for this push is reused and not posted again",
+      n == 0 and erp_posts(f) == [] and posted_doc(f) == STF_DOC, repr(f.calls) + out)
+for label, held in (("a rejected one", {"simpleTransferNum": STF_DOC, "additionalInfo": "PR-T-1", "statusID": 2}),
+                    ("one whose reference merely contains this one",
+                     {"simpleTransferNum": STF_DOC, "additionalInfo": "PR-T-12", "statusID": 1})):
+    f = Fake(**Esb(transfers=[held]).routes())
+    n, out = tick(GOO(), [TR], f, wip_names=NAMES)
+    check(f"...{label} does not count", len(erp_posts(f)) == 1 and posted_doc(f) == "STF-NEW", repr(f.calls) + out)
+TG = "bbbbbbbb-0000-0000-0000-0000000000b1"
+ta = {**TR, "push_group_id": TG}
+tb = {**TR, "id": "aaaaaaaa-0000-0000-0000-000000000002", "source_ref": "PR-T-2", "push_group_id": TG}
+f = Fake(**Esb(transfers=[{"simpleTransferNum": STF_DOC, "additionalInfo": "PR-T-1 | PR-T-2", "statusID": 1}]
+               ).routes(**{"esb_push_groups": lambda *a: None}))
+n, out = tick(GOO(), [ta, tb], f, wip_names=NAMES)
+check("a grouped transfer is found by its joined references", n == 0 and erp_posts(f) == [], repr(f.calls) + out)
+f = Fake(**Esb().routes(dateFrom=lambda *a: (_ for _ in ()).throw(W.Transient("down", status=503)),
+                        **{"esb_push_groups": lambda *a: None}))
+n, out = tick(GOO(), [ta, tb], f, wip_names=NAMES)
+check("a grouped transfer whose lookup fails posts nothing", n == 2 and erp_posts(f) == [], repr(f.calls) + out)
+
+# P8. Tied members can arrive in either order, including after an older POST was saved.
+for endpoint, members, held in (
+        ("assembly", [ga, gb], Esb(sm_lines(2), notes={
+            f"{SM_DOC} - 1": f"PR-GA-2 | {WIP_NAME}", f"{SM_DOC} - 2": f"PR-GA-1 | {WIP_NAME}"})),
+        ("transfer", [ta, tb], Esb(transfers=[{
+            "simpleTransferNum": STF_DOC, "additionalInfo": "PR-T-2 | PR-T-1", "statusID": 1}]))):
+    for reverse in (False, True):
+        retry = [{**m, "status": "pending", "retry_count": 1,
+                  "created_at": "2026-08-20T00:00:00Z"} for m in members[::(-1 if reverse else 1)]]
+        req = W.compose_group(GOO(), retry, NAMES)
+        check(f"{endpoint} composition has canonical member identities (reverse={reverse})",
+              req.refs == (("PR-GA-1", "PR-GA-2") if endpoint == "assembly" else ("PR-T-1", "PR-T-2")),
+              repr(req))
+        f = Fake(**held.routes(**{"esb_push_groups": lambda *a: None}))
+        n, out = tick(GOO(), retry, f, wip_names=NAMES)
+        expected_doc = SM_DOC if endpoint == "assembly" else STF_DOC
+        check(f"{endpoint} retry finds the saved group despite tied member order (reverse={reverse})",
+              n == 0 and erp_posts(f) == [] and posted_doc(f) == expected_doc, repr(f.calls) + out)
+
+f = Fake(**Esb(sm_lines(2), notes={**group_notes, f"{SM_DOC} - 2": "PR-OTHER | Item"}
+               ).routes(**{"esb_push_groups": lambda *a: None}))
+n, out = tick(GOO(), [{**ga, "status": "pending"}, {**gb, "status": "pending"}], f, wip_names=NAMES)
+check("matching only the first reference does not adopt another group's assembly",
+      n == 0 and len(erp_posts(f)) == 1, repr(f.calls) + out)
+
+# P9. An unreadable identity never proves absence, even with a successful envelope.
+for label, result in (("missing notes", {}), ("null notes", {"additionalInfo": None}),
+                      ("non-string notes", {"additionalInfo": []}),
+                      ("empty notes", {"additionalInfo": " "}), ("invalid result", [])):
+    f = Fake(**Esb(sm_lines(1)).routes(**{"simple-manufacturing/SM":
+        lambda *a, result=result: {"status": "ok", "result": result}}))
+    n, out = tick(GOO(), [row()], f, wip_names=NAMES)
+    closed = failed_close(f)
+    check(f"assembly detail with {label} posts nothing and retries later",
+          n == 1 and erp_posts(f) == [] and len(closed) == 1 and closed[0]["retry_count"] == 1,
+          repr(f.calls) + out)
+
+for endpoint, base_row, valid_doc, fields in (
+        ("assembly", row(), sm_lines(1)[0], ("simpleManufacturingNum", "statusID")),
+        ("transfer", TR, {"simpleTransferNum": STF_DOC, "additionalInfo": "PR-T-1", "statusID": 1},
+         ("simpleTransferNum", "additionalInfo", "statusID"))):
+    for field in fields:
+        for label, value in (("missing", None), ("invalid", [])):
+            malformed = {k: v for k, v in valid_doc.items() if k != field}
+            if label == "invalid":
+                malformed[field] = value
+            held = Esb([malformed], notes=BATCH) if endpoint == "assembly" else Esb(transfers=[malformed])
+            f = Fake(**held.routes())
+            n, out = tick(GOO(), [{**base_row, "status": "pending"}], f, wip_names=NAMES)
+            closed = failed_close(f)
+            check(f"{endpoint} lookup row with {label} {field} posts nothing and retries later",
+                  n == 1 and erp_posts(f) == [] and len(closed) == 1 and closed[0]["retry_count"] == 1,
+                  repr(f.calls) + out)
+
+# P10. A successful response with an incomplete identity must fail closed on retry.
+identity_members = [
+    row(id=f"aaaaaaaa-0000-0000-0000-{i:012d}", source_ref=ref,
+        push_group_id=GA, retry_count=1)
+    for i, ref in enumerate(("PR-A", "PR-B", "PR-C"), 1)
+]
+assembly_identities = (
+    " | Item", "| Item", "\t | Item", "\u2003 | Item",
+    "PR-A | ", "PR-A |", "PR-A | \t", "PR-A | \u2003",
+    "PR-A", "PR-A | Item | Extra", "PR-A |  | Item",
+    "PR-A||Item", "PR-A / Item",
+)
+for notes in assembly_identities:
+    for position in range(1, 4):
+        saved_notes = {f"{SM_DOC} - {i}": f"{ref} | Item"
+                       for i, ref in enumerate(("PR-C", "PR-B", "PR-A"), 1)}
+        saved_notes[f"{SM_DOC} - {position}"] = notes
+        f = Fake(**Esb(sm_lines(3), notes=saved_notes).routes(
+            **{"esb_push_groups": lambda *a: None}))
+        n, out = tick(GOO(), [dict(m) for m in identity_members], f, wip_names=NAMES)
+        closed = list(member_closes(f).values())
+        check(f"assembly identity {notes!r} on line {position} posts nothing and retries",
+              n == 3 and erp_posts(f) == [] and len(closed) == 3
+              and all(c["status"] == "failed" and c["retry_count"] == 2
+                      and not c.get("esb_doc_num") for c in closed),
+              repr(f.calls) + out)
+
+transfer_members = [{**m, "endpoint": "simple-transfer", "payload": dict(TR["payload"])}
+                    for m in identity_members]
+transfer_identities = (
+    "PR-C |  | PR-B", " | PR-B | PR-A", "PR-C | PR-B | ",
+    "PR-C | \t | PR-A", "\t | PR-B | PR-A", "PR-C | PR-B | \u2003",
+    "PR-C | PR-B", "PR-C", "PR-C | PR-B | PR-A | PR-D",
+    "PR-C||PR-B", "PR-C / PR-B / PR-A", "PR-C | PR-B |PR-A",
+)
+for info in transfer_identities:
+    f = Fake(**Esb(transfers=[{
+        "simpleTransferNum": STF_DOC, "additionalInfo": info, "statusID": 1,
+    }], transfer_counts={STF_DOC: 3}).routes(**{"esb_push_groups": lambda *a: None}))
+    n, out = tick(GOO(), [dict(m) for m in transfer_members], f, wip_names=NAMES)
+    closed = list(member_closes(f).values())
+    check(f"transfer identity {info!r} posts nothing and retries",
+          n == 3 and erp_posts(f) == [] and len(closed) == 3
+          and all(c["status"] == "failed" and c["retry_count"] == 2
+                  and not c.get("esb_doc_num") for c in closed),
+          repr(f.calls) + out)
+
+# P11. Challenge shortcuts before parsing and retain matching/nonmatching controls.
+for count in (1, 2, 4):
+    f = Fake(**Esb(sm_lines(count), notes=" | Item").routes(
+        **{"esb_push_groups": lambda *a: None}))
+    n, out = tick(GOO(), [dict(m) for m in identity_members], f, wip_names=NAMES)
+    closed = list(member_closes(f).values())
+    check(f"an unreadable {count}-line assembly cannot prove a three-line retry absent",
+          n == 3 and erp_posts(f) == [] and len(closed) == 3
+          and all(c["status"] == "failed" and c["retry_count"] == 2 for c in closed),
+          repr(f.calls) + out)
+
+for endpoint, members in (("assembly", identity_members), ("transfer", transfer_members)):
+    for matching in (True, False):
+        saved_refs = ("PR-C", "PR-B", "PR-A" if matching else "PR-OTHER")
+        held = (Esb(sm_lines(3), notes={f"{SM_DOC} - {i}": f" {ref} | Item "
+                                      for i, ref in enumerate(saved_refs, 1)})
+                if endpoint == "assembly" else Esb(transfers=[{
+                    "simpleTransferNum": STF_DOC, "statusID": 1,
+                    "additionalInfo": " " + " | ".join(saved_refs) + " ",
+                }]))
+        f = Fake(**held.routes(**{"esb_push_groups": lambda *a: None}))
+        n, out = tick(GOO(), [dict(m) for m in members], f, wip_names=NAMES)
+        expected_doc = ((SM_DOC if endpoint == "assembly" else STF_DOC) if matching
+                        else ("SM-0001" if endpoint == "assembly" else "STF-NEW"))
+        check(f"complete {endpoint} identity (matching={matching}) permits the correct outcome",
+              n == 0 and len(erp_posts(f)) == (0 if matching else 1)
+              and posted_doc(f) == expected_doc, repr(f.calls) + out)
+
+# P12. Absence is actionable only after the whole lookup passes its contract.
+# Replacing the transport keeps ErpClient's envelope handling and dispatch's POST real.
+def lookup_page(rows, *, endpoint="assembly", **metadata):
+    return real_page(endpoint, rows, **metadata)
+
+
+def lookup_detail(number, info, status=1, **extra):
+    return esb_envelope({"simpleManufacturingNum": number, "statusID": status,
+                         "additionalInfo": info, **extra})
+
+
+def lookup_row(endpoint, ref="PR-OTHER", number="SAVED", ordinal=1, **extra):
+    return ({"simpleManufacturingNum": f"{number} - {ordinal}", "statusID": 1, **extra}
+            if endpoint == "assembly" else
+            {"simpleTransferNum": number, "additionalInfo": ref, "statusID": 1, **extra})
+
+
+
+
+for endpoint in ("assembly", "transfer"):
+    test_page = lambda rows, **kw: lookup_page(rows, endpoint=endpoint, **kw)
+    valid = lookup_row(endpoint)
+    # Both open findings, including short unrelated pages and later-page truncation.
+    lookup_blocks(endpoint, "count=2 with no rows", [test_page([], count=2)])
+    lookup_blocks(endpoint, "short unrelated page", [test_page([valid], count=2)])
+    full = [lookup_row(endpoint, number=f"OTHER-{i}") for i in range(100)]
+    lookup_blocks(endpoint, "empty second page still promises 101 rows",
+                  [test_page(full, count=101), test_page([], count=101)])
+    lookup_blocks(endpoint, "total changes on second page",
+                  [test_page(full, count=101), test_page([valid], count=1)])
+    lookup_blocks(endpoint, "page repeats an identifier",
+                  [test_page(full, count=101), test_page([full[0]], count=101)])
+    lookup_blocks(endpoint, "later page fails",
+                  [test_page(full, count=101), W.Transient("read timed out")])
+
+    # Property-style mutations: each removes one prerequisite for proving absence.
+    for count in (None, True, False, "0", "1", 0.0, 1.0, -1, [], {}, 2):
+        lookup_blocks(endpoint, f"invalid/contradictory count {count!r}", [test_page([valid], count=count)])
+    for label, response in (
+            ("missing status", {"result": {"count": 0, "data": []}}),
+            ("non-ok status", {"status": "error", "result": {"count": 0, "data": []}}),
+            ("wrong status type", {"status": True, "result": {"count": 0, "data": []}}),
+            ("missing result", {"status": "ok"}),
+            ("missing count", {"status": "ok", "result": {"data": []}}),
+            ("missing data", {"status": "ok", "result": {"count": 0}}),
+            ("unfinished continuation", test_page([], next="cursor")),
+            ("wrong page number", test_page([], page=2)),
+            ("invalid page size", test_page([], limit=0))):
+        lookup_blocks(endpoint, label, [response])
+    for value in (None, False, 0, "", [], {}):
+        lookup_blocks(endpoint, f"invalid result {value!r}", [{"status": "ok", "result": value}])
+    for value in (None, False, 0, "", {}):
+        lookup_blocks(endpoint, f"invalid data {value!r}", [test_page([], data=value)])
+    for value in (None, False, 0, "", [], {}):
+        lookup_blocks(endpoint, f"invalid row {value!r}", [test_page([value])])
+    number_field = "simpleManufacturingNum" if endpoint == "assembly" else "simpleTransferNum"
+    fields = (number_field, "statusID") + (() if endpoint == "assembly" else ("additionalInfo",))
+    for field in fields:
+        lookup_blocks(endpoint, f"missing {field}", [test_page([{k: v for k, v in valid.items() if k != field}])])
+        for value in (None, True, False, [], {}, 1.0, "", " \t", "\u2003"):
+            lookup_blocks(endpoint, f"{field}={value!r}", [test_page([{**valid, field: value}])])
+    lookup_blocks(endpoint, "duplicate saved row", [test_page([valid, valid])])
+    for info in ("", " ", " | Item", "PR-A | ", "PR-A||Item", "PR-A |  | Item"):
+        if endpoint == "assembly":
+            lookup_blocks(endpoint, f"malformed detail identity {info!r}", [test_page([valid])],
+                          details={"SAVED - 1": {"status": "ok", "result": {"additionalInfo": info}}})
+        else:
+            lookup_blocks(endpoint, f"malformed identity {info!r}",
+                          [test_page([{**valid, "additionalInfo": info}])])
+
+    # A matching first document cannot skip validation of later saved documents.
+    match = lookup_row(endpoint, ref="PR-A", number="A-MATCH")
+    later = lookup_row(endpoint, number="Z-OTHER")
+    lookup_blocks(endpoint, "match before malformed document", [test_page([match, later if endpoint == "assembly" else {**later, "additionalInfo": None}])],
+                  details={"A-MATCH - 1": {"status": "ok", "result": {"additionalInfo": "PR-A | Item"}},
+                           "Z-OTHER - 1": {"status": "ok", "result": {}}}
+                  if endpoint == "assembly" else None,
+                  refs=("PR-A",))
+    if endpoint == "transfer":
+        lookup_blocks(endpoint, "matching first row cannot hide a malformed later identity",
+                      [test_page([match, {**later, "additionalInfo": None}])])
+    for field, value in (("page", True), ("limit", "100"), ("next", None), ("prev", False)):
+        lookup_blocks(endpoint, f"pagination type {field}={value!r}", [test_page([], **{field: value})])
+    for info in ("PR-OTHER\x00", "PR-OTHER\n", "PR-OTHER\u200b"):
+        lookup_blocks(endpoint, f"non-printable identity {info!r}",
+                      [test_page([valid if endpoint == "assembly" else {**valid, "additionalInfo": info}])],
+                      details={"SAVED - 1": {"status": "ok", "result": {"additionalInfo": info + " | Item"}}})
+
+    for matching in (False, True):
+        result, f = lookup_dispatch(endpoint, [test_page([lookup_row(endpoint, ref="PR-A" if matching else "PR-OTHER")])],
+                                   details={"SAVED - 1": lookup_detail("SAVED - 1", ("PR-A" if matching else "PR-OTHER") + " | Item")})
+        check(f"validated {endpoint} {'match reuses' if matching else 'genuine nonmatch posts once'}",
+              result == ("SAVED" if matching else "SM-0001" if endpoint == "assembly" else "NEW")
+              and len(erp_posts(f)) == (0 if matching else 1), repr(result))
+    result, f = lookup_dispatch(endpoint, [test_page([])])
+    check(f"validated empty {endpoint} lookup posts once", isinstance(result, str) and len(erp_posts(f)) == 1)
+    result, f = lookup_dispatch(endpoint, [test_page(full, count=101), test_page([valid], page=2, count=101)])
+    check(f"complete two-page {endpoint} nonmatch posts once", isinstance(result, str) and len(erp_posts(f)) == 1)
+    result, f = lookup_dispatch(endpoint, [test_page(full)])
+    check(f"exact full-page {endpoint} total proves absence without another page",
+          isinstance(result, str) and len(erp_posts(f)) == 1 and len(f.to("dateFrom")) == 1)
+    result, f = lookup_dispatch(endpoint, [test_page([], page=1, limit=100, total=0,
+                                                     totalPages=1, hasNext=False, nextPage=None, next="")])
+    check(f"consistent explicit {endpoint} pagination proves absence",
+          isinstance(result, str) and len(erp_posts(f)) == 1)
+    result, f = lookup_dispatch(endpoint, [
+        test_page(full, count=101, page=1, limit=100, totalPages=2, hasNext=True, nextPage=2),
+        test_page([lookup_row(endpoint, ref="PR-A")], count=101, page=2, limit=100,
+                    totalPages=2, hasNext=False, nextPage=None, next="")],
+        details={"SAVED - 1": lookup_detail("SAVED - 1", "PR-A | Item")})
+    check(f"{endpoint} saved match on page two is reused after fetching all pages",
+          result == "SAVED" and erp_posts(f) == [] and len(f.to("dateFrom")) == 2, repr(result))
+    lookup_blocks(endpoint, "pagination exhaustion", [test_page(full, count=5001)])
+
+for ordinals in ((1, 1), (1, 3), (1, 1, 3), (2,), (0,), (-1,), ("01",), ("\u0661",), ("1.0",), ("",)):
+    lookup_blocks("assembly", f"invalid line inventory {ordinals!r}",
+                  [lookup_page([lookup_row("assembly", ordinal=i) for i in ordinals])])
+lookup_blocks("assembly", "repeated saved matching line", [lookup_page([
+    lookup_row("assembly"), lookup_row("assembly")])],
+    details={"SAVED - 1": {"status": "ok", "result": {"additionalInfo": "PR-A | Item"}}})
+lookup_blocks("assembly", "saved matching lines 1 and 3", [lookup_page([
+    lookup_row("assembly", ordinal=1), lookup_row("assembly", ordinal=3)])], refs=("PR-A", "PR-B", "PR-C"),
+    details={"SAVED - 1": {"status": "ok", "result": {"additionalInfo": "PR-A | Item"}},
+             "SAVED - 3": {"status": "ok", "result": {"additionalInfo": "PR-C | Item"}}})
+lookup_blocks("assembly", "mixed status within one document", [lookup_page([
+    lookup_row("assembly", ordinal=1), lookup_row("assembly", ordinal=2, statusID=2),
+    lookup_row("assembly", ordinal=3)])])
+for count in (None, True, "1", 0, 2):
+    lookup_blocks("assembly", f"invalid declared line count {count!r}",
+                  [lookup_page([lookup_row("assembly", lineCount=count)])])
+lookup_blocks("assembly", "inconsistent declared line counts", [lookup_page([
+    lookup_row("assembly", ordinal=1, lineCount=2), lookup_row("assembly", ordinal=2, lineCount=3)])])
+lookup_blocks("assembly", "missing line count on a later line", [lookup_page([
+    lookup_row("assembly", ordinal=1, lineCount=2), lookup_row("assembly", ordinal=2)])])
+for field, value in (("simpleManufacturingNum", "OTHER - 1"), ("statusID", 2),
+                     ("statusID", True), ("lineCount", 2)):
+    lookup_blocks("assembly", f"detail contradicts listing: {field}={value!r}",
+                  [lookup_page([lookup_row("assembly")])], details={"SAVED - 1": {
+                      "status": "ok", "result": {"additionalInfo": "PR-OTHER | Item", field: value}}})
+for status in (1, 2):
+    result, f = lookup_dispatch("assembly", [lookup_page([
+        lookup_row("assembly", ordinal=2, statusID=status, lineCount=2),
+        lookup_row("assembly", ordinal=1, statusID=status, lineCount=2)])], refs=("PR-A", "PR-A"),
+        details={f"SAVED - {i}": {"status": "ok", "result": {"additionalInfo": "PR-A | Item",
+                 "simpleManufacturingNum": f"SAVED - {i}", "statusID": status, "lineCount": 2}}
+                 for i in (1, 2)})
+    check(f"distinct assembly lines retain duplicate source-reference multiplicity (status={status})",
+          result == ("SAVED" if status == 1 else "SM-0001") and len(erp_posts(f)) == (0 if status == 1 else 1),
+          repr(result))
+lookup_blocks("assembly", "rejected document still needs readable identity",
+              [lookup_page([lookup_row("assembly", statusID=2)])],
+              details={"SAVED - 1": {"status": "ok", "result": {}}})
+
+# Mutate real replies one decision field at a time; unrelated fields stay intact.
+for endpoint in ("assembly", "transfer"):
+    good = real_page(endpoint, [real_row(endpoint)])
+    number = "SAVED - 1" if endpoint == "assembly" else "SAVED"
+    for field in ("count", "data", "page", "limit", "prev", "next"):
+        broken = copy.deepcopy(good)
+        del broken["result"][field]
+        lookup_blocks(endpoint, f"REAL missing pagination {field}", [broken])
+    for url in ("https://elsewhere.example.invalid/next?page=2&limit=1",
+                "https://erp.example.invalid/wrong?page=2&limit=1",
+                "https://erp.example.invalid{path}?page=3&limit=1",
+                "https://erp.example.invalid{path}?page=2&limit=2",
+                "https://erp.example.invalid{path}?page=2&page=3&limit=1",
+                "https://erp.example.invalid{path}?page=2&limit=1&dateFrom=1900-01-01",
+                "https://nobody@erp.example.invalid{path}?page=2&limit=1",
+                "https://erp.example.invalid{path}?page=2&limit=1#fragment",
+                "https://erp.example.invalid{path}?page=1&limit=9?page=2&limit=1",
+                "", None, True, 2):
+        path = "/simple-transfer" if endpoint == "transfer" else "/production/simple-manufacturing"
+        link = url.replace("{path}", path) if isinstance(url, str) else url
+        lookup_blocks(endpoint, f"REAL invalid continuation {link!r}",
+                      [real_page(endpoint, [real_row(endpoint, "OTHER")], count=2, limit=1, next=link)])
+    lookup_blocks(endpoint, "REAL missing last page", [
+        real_page(endpoint, [real_row(endpoint, "OTHER")], count=2, limit=1),
+        real_page(endpoint, [], count=2, limit=1, page=2)])
+    lookup_blocks(endpoint, "REAL wrong previous page", [
+        real_page(endpoint, [real_row(endpoint, "OTHER")], count=2, limit=1),
+        real_page(endpoint, [real_row(endpoint)], count=2, limit=1, page=2, prev="")])
+    for field in ("additionalInfo", "statusID", "simpleManufacturingNum" if endpoint == "assembly" else "simpleTransferNum"):
+        for value in (None, " ", [], True):
+            broken = real_detail(endpoint)
+            broken["result"][field] = value
+            lookup_blocks(endpoint, f"REAL malformed detail {field}={value!r}", [good], details={number: broken})
+        broken = real_detail(endpoint)
+        del broken["result"][field]
+        lookup_blocks(endpoint, f"REAL missing detail {field}", [good], details={number: broken})
+    for fault in (W.Transient("timeout"), W.Permanent("refused", status=400)):
+        lookup_blocks(endpoint, f"REAL detail error {fault}", [good], details={number: fault})
+    # A matching page cannot skip a missing page or a later malformed document.
+    lookup_blocks(endpoint, "REAL match before missing page", [
+        real_page(endpoint, [real_row(endpoint)], count=2, limit=1),
+        W.Transient("later page timed out")])
+
+for refs, detail_count in ((("PR-A",), 2), (("PR-A", "PR-B", "PR-C"), 2),
+                           (("PR-A", "PR-B"), 3), (("PR-A",), 0)):
+    broken = real_detail("transfer", refs=refs)
+    broken["result"]["simpleTransferDetails"] = [
+        {"productDetailID": 97, "qty": 1} for _ in range(detail_count)]
+    lookup_blocks("transfer", f"REAL identity length {len(refs)} vs own lines {detail_count}",
+                  [real_page("transfer", [real_row("transfer", refs=refs)])], details={"SAVED": broken}, refs=refs)
+for lines in (None, {}, [], [None], [{}], [{"productDetailID": 97}],
+              [{"productDetailID": True, "qty": 1}], [{"productDetailID": 97, "qty": 0}],
+              [{"productDetailID": 97, "qty": float("nan")}],
+              [{"productDetailID": 97, "qty": float("inf")}], [{"productDetailID": 97, "qty": "1"}],
+              [{"productDetailID": 97, "qty": 10 ** 400}]):
+    broken = real_detail("transfer")
+    broken["result"]["simpleTransferDetails"] = lines
+    lookup_blocks("transfer", f"REAL malformed line inventory {lines!r}",
+                  [real_page("transfer", [real_row("transfer")])], details={"SAVED": broken})
+broken = real_detail("transfer")
+del broken["result"]["simpleTransferDetails"]
+lookup_blocks("transfer", "REAL missing line inventory", [real_page("transfer", [real_row("transfer")])],
+              details={"SAVED": broken})
+broken = real_detail("transfer", refs=("PR-OTHER",))
+lookup_blocks("transfer", "REAL detail identity disagrees with listing",
+              [real_page("transfer", [real_row("transfer")])], details={"SAVED": broken})
+
+# Old saved member orders are all valid; retain multiplicity rather than using sets.
+for endpoint in ("assembly", "transfer"):
+    for saved in itertools.permutations(("PR-A", "PR-B", "PR-C")):
+        rows = ([real_row(endpoint, ordinal=i) for i in range(1, 4)] if endpoint == "assembly"
+                else [real_row(endpoint, refs=saved)])
+        details = ({f"SAVED - {i}": real_detail(endpoint, refs=saved, ordinal=i) for i in range(1, 4)}
+                   if endpoint == "assembly" else {"SAVED": real_detail(endpoint, refs=saved)})
+        result, f = lookup_dispatch(endpoint, [real_page(endpoint, rows)], details=details,
+                                    refs=("PR-A", "PR-B", "PR-C"))
+        check(f"REAL {endpoint} saved order {saved!r} reuses without a POST",
+              result == "SAVED" and erp_posts(f) == [], repr(result))
+    for value in (" ", "\n", "https://[bad", "https://erp.example.invalid{path}?page=2&limit=1\n",
+                  "https://erp.example.invalid{path}?page=2&limit=1&broken"):
+        path = "/simple-transfer" if endpoint == "transfer" else "/production/simple-manufacturing"
+        lookup_blocks(endpoint, f"REAL malformed URL {value!r}", [real_page(endpoint,
+            [real_row(endpoint)], count=2, limit=1, next=value.replace("{path}", path)),
+            real_page(endpoint, [real_row(endpoint, "LATER")], page=2, count=2, limit=1)])
+
+for endpoint, members in (("assembly", [ga, gb]), ("transfer", [ta, tb])):
+    esb = Esb(notes=group_notes)
+    def saved_then_timeout(fake, method, url, body):
+        if endpoint == "assembly":
+            esb.lines = sm_lines(2)
+        else:
+            esb.transfers = [{"simpleTransferNum": STF_DOC, "additionalInfo": body["additionalInfo"], "statusID": 1}]
+        raise W.Transient("reply lost after save", kind="timeout")
+    route = "assembly-actual" if endpoint == "assembly" else "simple-transfer"
+    normal_transfer = esb.routes()["simple-transfer"]
+    def post_or_detail(fake, method, url, body):
+        return (normal_transfer(fake, method, url, body) if method == "GET"
+                else saved_then_timeout(fake, method, url, body))
+    f = Fake(**esb.routes(**{"esb_push_groups": lambda *a: None,
+                            route: saved_then_timeout if endpoint == "assembly" else post_or_detail}))
+    first, first_out = tick(GOO(), [{**m, "status": "pending"} for m in members], f, wip_names=NAMES)
+    second, second_out = tick(GOO(), [{**m, "status": "pending", "retry_count": 1} for m in reversed(members)],
+                              f, wip_names=NAMES)
+    check(f"REAL {endpoint} lost reply then reversed retry makes one POST in total",
+          first == 2 and second == 0 and len(erp_posts(f)) == 1
+          and posted_doc(f) == (SM_DOC if endpoint == "assembly" else STF_DOC),
+          first_out + second_out + repr(f.calls))
+
+for endpoint in ("assembly", "transfer"):
+    # A real Core API base contains a path prefix; retain it and the original filters.
+    pages = [real_page(endpoint, [real_row(endpoint, "OTHER", refs=("PR-OTHER",))], limit=1, count=3),
+             real_page(endpoint, [real_row(endpoint, "ELSE", refs=("PR-ELSE",))], limit=1, count=3, page=2),
+             real_page(endpoint, [real_row(endpoint, "LAST", refs=("PR-LAST",))], limit=1, count=3, page=3)]
+    details = {}
+    for number, ref in (("OTHER", "PR-OTHER"), ("ELSE", "PR-ELSE"), ("LAST", "PR-LAST")):
+        details[number if endpoint == "transfer" else number + " - 1"] = real_detail(endpoint, number, refs=(ref,))
+    for page in pages:
+        for key in ("prev", "next"):
+            page["result"][key] = page["result"][key].replace("erp.example.invalid/", "erp.example.invalid/core-stg/")
+    result, f = lookup_dispatch(endpoint, pages, details=details, base_url="https://erp.example.invalid/core-stg")
+    reads = f.to("dateFrom")
+    queries = [urllib.parse.parse_qs(urllib.parse.urlsplit(c["url"]).query) for c in reads]
+    check(f"REAL {endpoint} three complete pages prove absence and post once with Core API prefix",
+          isinstance(result, str) and len(erp_posts(f)) == 1 and len(reads) == 3
+          and [q["page"] for q in queries] == [["1"], ["2"], ["3"]]
+          and [q["limit"] for q in queries] == [["100"], ["1"], ["1"]]
+          and all(q["dateFrom"] == ["2026-08-20"] and q["dateTo"] == ["2026-08-20"] for q in queries)
+          and all("/core-stg/" in c["url"] for c in reads), repr(result))
+
+lookup_blocks("assembly", "REAL gapped assembly among unrelated documents", [real_page("assembly", [
+    real_row("assembly", ordinal=1), real_row("assembly", ordinal=3), real_row("assembly", "UNRELATED")])])
+for endpoint in ("assembly", "transfer"):
+    refs = ("PR-A", "PR-A", "PR-B")
+    rows = ([real_row(endpoint, ordinal=i) for i in range(1, 4)] if endpoint == "assembly"
+            else [real_row(endpoint, refs=refs)])
+    details = ({f"SAVED - {i}": real_detail(endpoint, refs=refs, ordinal=i) for i in range(1, 4)}
+               if endpoint == "assembly" else {"SAVED": real_detail(endpoint, refs=refs)})
+    result, f = lookup_dispatch(endpoint, [real_page(endpoint, rows)], details=details,
+                               refs=("PR-A", "PR-B", "PR-B"))
+    check(f"REAL {endpoint} equal reference sets with different multiplicity are a genuine nonmatch",
+          isinstance(result, str) and result != "SAVED" and len(erp_posts(f)) == 1, repr(result))
+
+fractional = real_detail("transfer")
+fractional["result"]["simpleTransferDetails"][0]["qty"] = 1.25
+result, f = lookup_dispatch("transfer", [real_page("transfer", [real_row("transfer")])],
+                           details={"SAVED": fractional})
+check("REAL transfer fractional quantity reuses saved document", result == "SAVED" and erp_posts(f) == [], repr(result))
 
 print(f"{_pass} passed, {_fail} failed")
 sys.exit(1 if _fail else 0)
