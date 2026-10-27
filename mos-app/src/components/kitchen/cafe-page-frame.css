@@ -1,6 +1,16 @@
 /* The shell's translucent secondary wash cools Café pages away from the Round-1 canvas. */
 body:has(.cafe-page-head) .h-dvh { background: var(--mos-canvas); }
-.cafe-page-context { display:flex; flex-direction:column; align-items:flex-start; gap:0; min-width:0; }
+.cafe-page-context { display: flex; flex-direction: column; min-width: 0; }
+.cafe-page-scope { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 var(--mos-space-5); min-width: 0; }
+.cafe-page-head.content-header { margin-bottom: var(--mos-inline-gap); }
+@media (min-width: 768px) {
+  .cafe-page-head .page-back-link { min-height: var(--mos-space-8); }
+  .cafe-page-head .ch-status-row { flex: 1 1 auto; }
+  .cafe-page-head:has(.cafe-page-description) .ch-status-row { flex-basis: 100%; }
+}
+@media (max-width: 767.98px) {
+  .cafe-page-scope { justify-content: flex-start; }
+}
 /* Keep the Café task title on the same page-title rung even where legacy page CSS
    tightens a title for a different workspace; every Café route shares this head. */
 .mos-cafe-design .cafe-page-head { font-family:var(--font-sans); }

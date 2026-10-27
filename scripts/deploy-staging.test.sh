@@ -225,7 +225,8 @@ case "$cmd" in
   *"checkout -q -B main ${FAKE_ORIGIN_MAIN:-aaaa}"*) printf 'ssh update %s\n' "$host" >> "$CALLS"
     [ "$cmd" = "cd ~/fake-ops/repo && git fetch -q origin main && git merge-base --is-ancestor ${FAKE_ORIGIN_MAIN:-aaaa} origin/main && git checkout -q -B main ${FAKE_ORIGIN_MAIN:-aaaa} && test \"\$(git rev-parse HEAD)\" = ${FAKE_ORIGIN_MAIN:-aaaa}" ] && printf 'ssh update-command-ok\n' >> "$CALLS"
     [ "${FAKE_SSH_UPDATE_RC:-0}" = 0 ] || { echo "fatal: clone update refused on $host" >&2; exit "$FAKE_SSH_UPDATE_RC"; } ;;
-  "flock -n /tmp/fake-snapshot.lock ~/fake-ops/run.sh reporting-snapshot-cron.sh") printf 'ssh snapshot %s\n' "$host" >> "$CALLS"
+  "flock -n /tmp/fake-snapshot.lock ~/fake-ops/run.sh reporting-snapshot-cron.sh --snapshot-only") printf 'ssh snapshot %s\n' "$host" >> "$CALLS"
+    printf 'snapshot-only-command-ok\n' >> "$CALLS"
     echo "--- reporting-snapshot START on $host ---"
     [ "${FAKE_SSH_SNAPSHOT_RC:-0}" = 0 ] || { echo "snapshot failed" >&2; exit "$FAKE_SSH_SNAPSHOT_RC"; } ;;
   *) printf 'ssh unexpected %s\n' "$cmd" >> "$CALLS"; exit 9 ;;
@@ -567,14 +568,18 @@ run "changed snapshot code updates the server clone and runs the snapshot once" 
 expect "server clone moved to the deployed commit" "ssh update fake-ops-box"
 expect "clone update is the exact fetch and checkout of the deployed commit" "ssh update-command-ok"
 expect "snapshot ran through the server runner" "ssh snapshot fake-ops-box"
-if [ "$(grep -c '^ssh snapshot' "$calls")" = 1 ]; then ok "snapshot runs exactly once"; else bad "snapshot did not run exactly once"; fi
-order="$(grep -E '^(supabase push|supabase functions-deploy test-function|ssh update |ssh snapshot|psql deployment-stamp$)' "$calls" | tr '\n' ' ')"
+expect "deploy snapshot skips the director's first Café refresh" "snapshot-only-command-ok"
+if [ "$(grep -c '^ssh snapshot fake-ops-box$' "$calls")" = 1 ]; then ok "snapshot runs exactly once"; else bad "snapshot did not run exactly once"; fi
+order="$(grep -E '^(supabase push|supabase functions-deploy test-function|ssh update |ssh snapshot fake-ops-box$|psql deployment-stamp$)' "$calls" | tr '\n' ' ')"
 case "$order" in "supabase push supabase functions-deploy test-function ssh update fake-ops-box ssh snapshot fake-ops-box psql deployment-stamp ") ok "order: migrations, functions, server ops, stamp" ;; *) bad "unexpected order: $order" ;; esac
 hasnt "ssh host alias is redacted from output" "fake-ops-box"
 run "other script changes leave the server alone" 0 "" FAKE_FN_DIFF=$'scripts/gh-post.sh\nscripts/deploy-staging.sh\n' -- --yes --no-pr
 expect_not "no server update when ops scripts are unchanged" "ssh "
 run "shared ops library change runs the server step" 0 "" "${OPS_MAIN[@]}" FAKE_FN_DIFF=$'scripts/lib/ops-common.sh\n' -- --yes --no-pr
 expect "ops library change updates the server clone" "ssh update"
+run "stream refresh driver change updates the server clone without applying it" 0 "" "${OPS_MAIN[@]}" FAKE_FN_DIFF=$'scripts/refresh-cafe-stream-items.py\n' -- --yes --no-pr
+expect "stream refresh driver change updates the server clone" "ssh update"
+expect "stream refresh deploy defers to the director's first-run review" "snapshot-only-command-ok"
 run "missing ops coordinates are refused before migration push" 1 "" "${OPS_MAIN[@]}" STAGING_OP_ENV_FILE="$tmp/op-no-ops.env" FAKE_FN_DIFF=$'scripts/reporting_snapshot.py\n' -- --yes --no-pr
 has "missing ops keys are named" "STAGING_OPS_SSH_HOST"
 expect_not "no migration push without ops coordinates" "supabase push"

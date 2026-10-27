@@ -2,8 +2,7 @@
 // answer is the database's (rule 2); this reads it once per stream per Café visit.
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
-import { getCafeDestinationLocations, getCafeLocations } from '@/lib/cafe-visit-cache'
-import { defaultStorageLocationId } from '@/lib/use-cafe-location-choices'
+import { getCafeDestinationLocations } from '@/lib/cafe-visit-cache'
 import { movementsFromDestinations, streamProduces } from '@/lib/kitchen-action-label'
 import type { KitchenMovement, ProductionStream } from '@/lib/db/kitchen-logs.types'
 
@@ -16,13 +15,8 @@ export async function readCafeMovements(
   catalog: readonly ProductionStream[],
 ): Promise<KitchenMovement[]> {
   if (!streamProduces(stream, catalog)) return []
-  const [destinations, places] = await Promise.all([
-    getCafeDestinationLocations(viewerId, stream.branch.id, stream.activity),
-    getCafeLocations(viewerId).catch(() => []),
-  ])
-  // A stream does not send to the place its own output sits at.
-  const own = defaultStorageLocationId(stream, places)
-  return movementsFromDestinations(destinations.filter(destination => destination.location_id !== own))
+  const destinations = await getCafeDestinationLocations(viewerId, stream.branch.id, stream.activity)
+  return movementsFromDestinations(destinations)
 }
 
 export function useCafeDestinations(stream: ProductionStream | null, catalog: readonly ProductionStream[]) {

@@ -7,18 +7,17 @@ vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => viewport.desktop 
 afterEach(cleanup)
 beforeEach(() => { viewport.desktop = true })
 
-describe('Café toolbar: search, count at the right, removable chips', () => {
+describe('Café toolbar: search, filters and results', () => {
   it('exposes its filters as a named group, not a toolbar contract', () => {
     render(<KitchenToolbar search="" onSearchChange={vi.fn()} ariaLabel="Kitchen item filters" />)
     expect(screen.getByRole('group', { name: 'Kitchen item filters' })).toBeInTheDocument()
   })
 
-  it('names the search field with a visible label and reports shown of total with the sort', () => {
+  it('names the search field and reports shown of total with the sort', () => {
     const onSearch = vi.fn()
     render(<KitchenToolbar search="" onSearchChange={onSearch} searchPlaceholder="Find an item"
       resultCount={{ shown: 2, total: 15 }} sortLabel="Sorted A–Z" />)
     const field = screen.getByRole('searchbox', { name: 'Search items' })
-    expect(document.querySelector('label.search-field__label')?.textContent).toBe('Search items')
     fireEvent.change(field, { target: { value: 'latte' } })
     expect(onSearch).toHaveBeenCalledWith('latte')
     expect(screen.getByRole('status')).toHaveTextContent('2 of 15 items · Sorted A–Z')
@@ -29,11 +28,37 @@ describe('Café toolbar: search, count at the right, removable chips', () => {
     expect(screen.getByRole('status')).toHaveTextContent('15 items')
   })
 
-  it('shows each non-default filter as a removable chip and clears it', () => {
+  it('clears a filter from its chip when phone filters are folded', () => {
+    viewport.desktop = false
     const onCategory = vi.fn()
-    render(<KitchenToolbar search="" onSearchChange={vi.fn()} categories={['All', 'Bar']} category="Bar" onCategoryChange={onCategory} />)
+    render(<KitchenToolbar search="" onSearchChange={vi.fn()} filtersPanel={{ label: 'Filters', summary: 'Bar' }} categories={['All', 'Bar']} category="Bar" onCategoryChange={onCategory} />)
     fireEvent.click(screen.getByRole('button', { name: 'Remove filter: Bar' }))
     expect(onCategory).toHaveBeenCalledWith('All')
+  })
+
+  it('retains extra chip actions alongside visible desktop filters', () => {
+    const onCategory = vi.fn(), onExtra = vi.fn()
+    render(<KitchenToolbar search="" onSearchChange={vi.fn()} categories={['All', 'Bar']} category="Bar" onCategoryChange={onCategory}
+      extraChips={[{ key: 'day', label: 'Today', clear: onExtra }]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Remove filter: Today' }))
+    expect(onExtra).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
+    expect(onCategory).toHaveBeenCalledWith('All')
+  })
+
+  it('resets one visible desktop filter in one action', () => {
+    const onCategory = vi.fn()
+    render(<KitchenToolbar search="" onSearchChange={vi.fn()} categories={['All', 'Bar']} category="Bar" onCategoryChange={onCategory} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
+    expect(onCategory).toHaveBeenCalledWith('All')
+  })
+
+  it('uses the caller’s atomic reset when filters share URL state', () => {
+    const onCategory = vi.fn(), onClearAll = vi.fn()
+    render(<KitchenToolbar search="" onSearchChange={vi.fn()} categories={['All', 'Bar']} category="Bar" onCategoryChange={onCategory} onClearAll={onClearAll} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
+    expect(onClearAll).toHaveBeenCalledOnce()
+    expect(onCategory).not.toHaveBeenCalled()
   })
 
   it('lets Café Records move its one sort control into the phone Filters panel', () => {
@@ -64,7 +89,7 @@ describe('Café toolbar: search, count at the right, removable chips', () => {
     expect(onSort).toHaveBeenCalledWith('oldest')
   })
 
-  it('offers Clear all once two filters are active', () => {
+  it('clears visible desktop filters in one action', () => {
     const onCategory = vi.fn(), onKind = vi.fn()
     render(<KitchenToolbar search="" onSearchChange={vi.fn()} categories={['All', 'Bar']} category="Bar" onCategoryChange={onCategory}
       kinds={['All', 'WIP']} kind="WIP" onKindChange={onKind} />)
