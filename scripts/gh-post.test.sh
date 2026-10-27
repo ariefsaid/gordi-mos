@@ -221,7 +221,7 @@ check_message "a grouped short flag carrying B refuses" 1 no "grouped" pr create
 check_message "a grouped short flag ending in B refuses" 1 no "grouped" pr create --base dev -dB main --title t --body "Reused: x"
 check "main PR without the full verify stamp refuses" 1 no pr create --base main --title t --body "Reused: x"
 printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
-check "main PR with only the --dev verify stamp refuses" 1 no pr create --base main --title t --body "Reused: x"
+check "main PR with only the --dev verify stamp passes" 0 yes pr create --base main --title t --body "Reused: x"
 check "--dev verify stamp is not needed for --base dev" 0 yes pr create --base dev --title t --body "Reused: x"
 check "no --base resolves to default dev without full verify" 0 yes pr create --title t --body "Reused: x"
 check_message "conflicting --base values refuse rather than using the last value" 1 no "name one base" pr create --base dev --base main --title t --body "Reused: x"
@@ -367,7 +367,7 @@ check "REST pr create, --raw-field= form passes" 0 yes api repos/x/y/pulls --raw
 check "REST pr create, owner:branch head passes" 0 yes api repos/x/y/pulls -f head=x:feat-rest -f base=dev -f body="Reused: x"
 check "REST main PR without full verify stamp refuses" 1 no api repos/x/y/pulls -f head=feat-rest -f base=main
 printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
-check "REST main PR with only --dev verify stamp refuses" 1 no api repos/x/y/pulls -f head=feat-rest -f base=main
+check_message "REST main PR with only --dev verify stamp gets past verify to the release stamp" 1 no "release-rule stamps" api repos/x/y/pulls -f head=feat-rest -f base=main
 rm -f "$gitdir/pre-pr-verify-dev-ok"; printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
 check_message "REST main PR without a release security stamp refuses" 1 no "a PR into main needs release-rule stamps" api repos/x/y/pulls -f head=feat-rest -f base=main
 check_message "REST staging PR without a release security stamp refuses" 1 no "a PR into staging needs release-rule stamps" api repos/x/y/pulls -f head=feat-rest -f base=staging
