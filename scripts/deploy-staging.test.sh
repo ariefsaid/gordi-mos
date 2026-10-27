@@ -187,7 +187,13 @@ case "$*" in
   *refs/remotes/origin/main*) echo "${FAKE_ORIGIN_MAIN:-aaaa}" ;;
   *refs/remotes/origin/staging*) echo "${FAKE_ORIGIN_STAGING:-stage-old}" ;;
   "status --porcelain"*) printf '%s' "${FAKE_DIRTY:-}" ;;
-  "merge-base --is-ancestor "*) [ "${FAKE_STAGE_ANCESTOR:-1}" = 1 ] && exit 0 || exit 1 ;;
+  "merge-base --is-ancestor "*)
+    case "$*" in
+      "merge-base --is-ancestor stage-old aaaa") [ "${FAKE_STAGE_ANCESTOR:-1}" = 1 ] && exit 0 || exit 1 ;;
+      "merge-base --is-ancestor aaaa stage-old") [ "${FAKE_MAIN_ANCESTOR_STAGE:-0}" = 1 ] && exit 0 || exit 1 ;;
+    esac
+    exit 1 ;;
+  "rev-list --no-merges --count aaaa..stage-old") echo "${FAKE_STAGING_NONMERGE_COUNT:-1}" ;;
   "push origin "*:refs/heads/staging) printf 'git-push %s\n' "$*" >> "$CALLS"; exit "${FAKE_GIT_PUSH_RC:-0}" ;;
   "ls-remote --exit-code origin refs/heads/staging") printf '%s\trefs/heads/staging\n' "${FAKE_ORIGIN_STAGING_AFTER_PUSH:-aaaa}" ;;
   "diff --name-only"*) printf '%s' "${FAKE_FN_DIFF:-}" ;;
@@ -204,9 +210,14 @@ exit 0
 EOF
 cat > "$tmp/gh-post.sh" <<'EOF'
 #!/usr/bin/env bash
-# Only a call made from the temp worktree, with main checked out there, counts as a promotion.
-if [ "$(pwd -P)" = "$(cd "$(cat "$WTFILE")" && pwd -P)" ] && [ -f .on-main ]; then printf 'gh-post %s\n' "$*" >> "$CALLS"
-else printf 'gh-post-WRONG-CHECKOUT %s\n' "$*" >> "$CALLS"; fi
+# Promotion PRs must be opened from the main checkout and only report a URL; never merge.
+if [ "$(pwd -P)" = "$(cd "$FAKE_MAIN_CHECKOUT" && pwd -P)" ]; then
+  printf 'gh-post %s\n' "$*" >> "$CALLS"
+  printf 'https://github.com/ariefsaid/gordi-mos/pull/999\n'
+else
+  printf 'gh-post-WRONG-CHECKOUT %s\n' "$*" >> "$CALLS"
+  exit 1
+fi
 EOF
 cat > "$tmp/bin/grep" <<'EOF'
 #!/usr/bin/env bash
@@ -259,7 +270,7 @@ run() {
     FAKE_DRY_OUT="Would push these migrations:
  • 20260101000001_plain.sql
  • 20260101000002_gate.sql" tmp_main="$tmp" \
-    STAGING_OP_ENV_FILE="$tmp/op.env" MIGRATIONS_DIR="$tmp/mig" GH_POST="$tmp/gh-post.sh" HOME="$tmp" \
+    STAGING_OP_ENV_FILE="$tmp/op.env" MIGRATIONS_DIR="$tmp/mig" GH_POST="$tmp/gh-post.sh" FAKE_MAIN_CHECKOUT="$tmp/repo" HOME="$tmp" \
     STAGING_PREDEPLOY_DUMP_DIR="$tmp/dumps" \
     "${envs[@]+"${envs[@]}"}" bash ${BASHX:-} "$SCRIPT" "$@" 2>&1)"; rc=$?
   printf '%s\n' "$out" >> "$allout"
@@ -280,11 +291,11 @@ expect "probe ran (migration alters authenticator)" "psql probe"
 expect "push called" "supabase push"
 expect "deployment stamp is written after a successful database deploy" "psql deployment-stamp"
 if before "supabase push" "psql deployment-stamp"; then ok "deployment stamp follows the successful database push"; else bad "deployment stamp precedes the database push"; fi
-expect "promotion pushes the deployed origin/main sha to staging" "git-push push origin aaaa:refs/heads/staging"
-expect "remote staging is confirmed after the push" "git ls-remote --exit-code origin refs/heads/staging"
-expect_not "promotion never opens a PR" "gh-post"
-has "pushed sha is printed" "Pushed origin/main sha aaaa to staging."
-has "origin/staging exact sha is confirmed" "Confirmed origin/staging at aaaa."
+expect "ancestor promotion pushes the deployed origin/main sha to staging" "git-push push origin aaaa:refs/heads/staging"
+expect "ancestor promotion confirms remote staging after the push" "git ls-remote --exit-code origin refs/heads/staging"
+expect_not "ancestor promotion does not open a PR" "gh-post"
+has "ancestor promotion prints the pushed sha" "Pushed origin/main sha aaaa to staging."
+has "ancestor promotion confirms origin/staging exact sha" "Confirmed origin/staging at aaaa."
 has "pending list printed" "20260101000002_gate.sql"
 has "verify line printed" "verify: max version 20260101000002 (newest local 20260101000002) · db_pre_request set · trusted clients 0 · sample orgs 1/1"
 expect_not "no function deploy" "supabase functions-deploy"
@@ -357,9 +368,22 @@ expect_not "no direct push with --no-pr" "git-push"
 run "unknown option refused" 2 "" -- --force
 run "already-promoted main is not pushed again" 0 "" FAKE_ORIGIN_STAGING=aaaa -- --yes
 expect_not "already-promoted main is not pushed" "git-push"
-run "staging that is not an ancestor is refused" 1 "" FAKE_STAGE_ANCESTOR=0 -- --yes
-has "non-ancestor refusal is explained" "origin/staging is not an ancestor of origin/main"
-expect_not "non-ancestor staging is never pushed" "git-push"
+run "staging merge-commit-only divergence opens a main-to-staging PR" 0 "" \
+  FAKE_STAGE_ANCESTOR=0 FAKE_MAIN_ANCESTOR_STAGE=1 FAKE_STAGING_NONMERGE_COUNT=0 -- --yes
+expect "merge-commit-only divergence opens PR through gh-post from main checkout" "gh-post pr create --base staging"
+expect_not "merge-commit-only divergence never pushes staging" "git-push"
+expect_not "promotion does not merge staging itself" "gh-post pr merge"
+has "merge-commit-only divergence prints the PR URL" "https://github.com/ariefsaid/gordi-mos/pull/999"
+run "main behind staging with a non-merge commit is refused" 1 "" \
+  FAKE_STAGE_ANCESTOR=0 FAKE_MAIN_ANCESTOR_STAGE=1 FAKE_STAGING_NONMERGE_COUNT=1 -- --yes
+has "non-merge staging commit refusal is explained" "origin/staging contains non-merge commits absent from origin/main"
+expect_not "non-merge staging commit does not open a PR" "gh-post"
+expect_not "non-merge staging commit is never pushed" "git-push"
+run "real staging divergence is refused" 1 "" \
+  FAKE_STAGE_ANCESTOR=0 FAKE_MAIN_ANCESTOR_STAGE=0 -- --yes
+has "real divergence refusal is explained" "origin/staging is not an ancestor of origin/main"
+expect_not "real divergence never opens a PR" "gh-post"
+expect_not "real divergence never pushes staging" "git-push"
 run "remote staging mismatch after push is refused" 1 "" FAKE_ORIGIN_STAGING_AFTER_PUSH=bbbb -- --yes
 expect "post-push mismatch case pushed the deployed sha" "git-push push origin aaaa:refs/heads/staging"
 expect "post-push mismatch case queried origin/staging" "git ls-remote --exit-code origin refs/heads/staging"
