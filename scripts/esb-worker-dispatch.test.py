@@ -41,6 +41,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -274,10 +275,13 @@ class Fake:
     def __init__(self, **routes) -> None:
         self.routes = routes
         self.calls: list[dict] = []
+        self.claimed_rows = {}
 
     def __call__(self, method, url, *, headers, body=None, timeout=0):
         self.calls.append({"method": method, "url": url, "headers": headers,
                            "body": body})
+        if method == "GET" and "select=id%2Cstatus%2Clocked_at%2Cretry_count" in url:
+            return 200, list(self.claimed_rows.values())
         for key, handler in self.routes.items():
             # `esb_push` is a substring of `esb_push_groups`; keep the two reads
             # independently routable so group-read faults exercise the worker branch.
@@ -286,7 +290,11 @@ class Fake:
                                        or "/rpc/prune_esb_pushes" in url):
                 continue
             if key in url:
-                return 200, handler(self, method, url, body)
+                result = handler(self, method, url, body)
+                if "/rpc/claim_esb_pushes" in url:
+                    self.claimed_rows = {r["id"]: {**r, "status": "in_flight", "retry_count": 0,
+                        "locked_at": "2026-08-20T00:00:00+00:00"} for r in result}
+                return 200, result
         raise AssertionError(f"unrouted call: {method} {url}")
 
     def to(self, needle: str) -> list[dict]:
@@ -2641,9 +2649,11 @@ for endpoint in ("assembly", "transfer"):
     for field in fields:
         lookup_blocks(endpoint, f"missing {field}", [test_page([{k: v for k, v in valid.items() if k != field}])])
         for value in (None, True, False, [], {}, 1.0, "", " \t", "\u2003"):
+            if field == "additionalInfo" and value in (None, "", " \t", "\u2003"):
+                continue  # Optional non-MOS identities are exercised by the liveness cases.
             lookup_blocks(endpoint, f"{field}={value!r}", [test_page([{**valid, field: value}])])
     lookup_blocks(endpoint, "duplicate saved row", [test_page([valid, valid])])
-    for info in ("", " ", " | Item", "PR-A | ", "PR-A||Item", "PR-A |  | Item"):
+    for info in (" | Item", "PR-A | ", "PR-A||Item", "PR-A |  | Item"):
         if endpoint == "assembly":
             lookup_blocks(endpoint, f"malformed detail identity {info!r}", [test_page([valid])],
                           details={"SAVED - 1": {"status": "ok", "result": {"additionalInfo": info}}})
@@ -2654,14 +2664,14 @@ for endpoint in ("assembly", "transfer"):
     # A matching first document cannot skip validation of later saved documents.
     match = lookup_row(endpoint, ref="PR-A", number="A-MATCH")
     later = lookup_row(endpoint, number="Z-OTHER")
-    lookup_blocks(endpoint, "match before malformed document", [test_page([match, later if endpoint == "assembly" else {**later, "additionalInfo": None}])],
+    lookup_blocks(endpoint, "match before malformed document", [test_page([match, later if endpoint == "assembly" else {**later, "additionalInfo": "PR-"}])],
                   details={"A-MATCH - 1": {"status": "ok", "result": {"additionalInfo": "PR-A | Item"}},
                            "Z-OTHER - 1": {"status": "ok", "result": {}}}
                   if endpoint == "assembly" else None,
                   refs=("PR-A",))
     if endpoint == "transfer":
         lookup_blocks(endpoint, "matching first row cannot hide a malformed later identity",
-                      [test_page([match, {**later, "additionalInfo": None}])])
+                      [test_page([match, {**later, "additionalInfo": "PR-"}])])
     for field, value in (("page", True), ("limit", "100"), ("next", None), ("prev", False)):
         lookup_blocks(endpoint, f"pagination type {field}={value!r}", [test_page([], **{field: value})])
     for info in ("PR-OTHER\x00", "PR-OTHER\n", "PR-OTHER\u200b"):
@@ -2764,6 +2774,8 @@ for endpoint in ("assembly", "transfer"):
         real_page(endpoint, [real_row(endpoint)], count=2, limit=1, page=2, prev="")])
     for field in ("additionalInfo", "statusID", "simpleManufacturingNum" if endpoint == "assembly" else "simpleTransferNum"):
         for value in (None, " ", [], True):
+            if endpoint == "assembly" and field == "additionalInfo" and value in (None, " "):
+                continue  # A complete unrelated document may have no optional identity.
             broken = real_detail(endpoint)
             broken["result"][field] = value
             lookup_blocks(endpoint, f"REAL malformed detail {field}={value!r}", [good], details={number: broken})
@@ -2881,6 +2893,174 @@ fractional["result"]["simpleTransferDetails"][0]["qty"] = 1.25
 result, f = lookup_dispatch("transfer", [real_page("transfer", [real_row("transfer")])],
                            details={"SAVED": fractional})
 check("REAL transfer fractional quantity reuses saved document", result == "SAVED" and erp_posts(f) == [], repr(result))
+
+# Optional identities from archived GET examples belong to ordinary ESB documents.
+# A blank/non-MOS document must neither prevent a new post nor hide a saved match.
+for endpoint in ("assembly", "transfer"):
+    for info in (None, "", " ", " \t", "\u2003", "Operator entered inventory", "operator | memo"):
+        for matching in (False, True):
+            unrelated = real_row(endpoint, "OTHER")
+            unrelated_detail = real_detail(endpoint, "OTHER")
+            unrelated_detail["result"]["additionalInfo"] = info
+            number = "OTHER - 1" if endpoint == "assembly" else "OTHER"
+            if endpoint == "transfer":
+                unrelated["additionalInfo"] = info
+            rows = [unrelated]
+            details = {number: unrelated_detail}
+            if matching:
+                rows.append(real_row(endpoint))
+                details["SAVED - 1" if endpoint == "assembly" else "SAVED"] = real_detail(endpoint)
+            result, f = lookup_dispatch(endpoint, [real_page(endpoint, rows)], details=details)
+            check(f"archived {endpoint} optional identity {info!r} permits {'reuse' if matching else 'POST'}",
+                  result == ("SAVED" if matching else "SM-0001" if endpoint == "assembly" else "NEW")
+                  and len(erp_posts(f)) == (0 if matching else 1), repr(result))
+
+lookup_blocks("assembly", "MOS document has one unidentified member", [real_page("assembly", [
+    real_row("assembly", ordinal=1), real_row("assembly", ordinal=2)])],
+    details={"SAVED - 1": real_detail("assembly"),
+             "SAVED - 2": lookup_detail("SAVED - 2", None, status=3)})
+for endpoint in ("assembly", "transfer"):
+    for info in ("PR-", "PR-A | ", "PR-A||Item", "PR-A | operator text"):
+        if endpoint == "assembly" and info == "PR-A | operator text":
+            continue  # This is a complete assembly reference and item name.
+        listed = real_row(endpoint)
+        detail = real_detail(endpoint)
+        detail["result"]["additionalInfo"] = info
+        if endpoint == "transfer":
+            listed["additionalInfo"] = info
+        lookup_blocks(endpoint, f"partial MOS identity {info!r}", [real_page(endpoint, [listed])],
+                      details={"SAVED - 1" if endpoint == "assembly" else "SAVED": detail})
+
+
+class LeaseTransport(Fake):
+    """HTTP seam with the SQL claim/reaper state; worker and dispatch stay real."""
+    def __init__(self, endpoint, *, delay=0, lose=False, grouped=False, claim_delay=0, verify_delay=0,
+                 snapshot=None, snapshot_at=2, reauth_delay=None, reauth_lost=False):
+        super().__init__(**happy_routes())
+        self.endpoint, self.delay, self.lose = endpoint, delay, lose
+        self.clock, self.claim_delay, self.verify_delay = 0, claim_delay, verify_delay
+        self.state, self.locked_at, self.attempt = "pending", None, 0
+        self.posts, self.snapshots, self.details_read = [], 0, 0
+        self.interleaved = False
+        self.snapshot, self.snapshot_at = snapshot, snapshot_at
+        self.reauth_delay, self.reauth_lost = reauth_delay, reauth_lost
+        self.auth_reads, self.refused = 0, False
+        self.members = ([{**ga, "status": "pending"}, {**gb, "status": "pending"}] if grouped else [row()])
+        if endpoint == "transfer":
+            self.members = [{**m, **{k: TR[k] for k in ("endpoint", "payload")}} for m in self.members]
+        self.req = (W.compose_group(GOO(), self.members, NAMES) if grouped
+                    else W.compose(GOO(), self.members[0], NAMES))
+        self.listed = [real_row(endpoint, f"OTHER-{i}", refs=("PR-OTHER",)) for i in range(21)]
+
+    def __call__(self, method, url, *, headers, body=None, timeout=0):
+        self.calls.append({"method": method, "url": url, "headers": headers, "body": body})
+        if "/rpc/claim_esb_pushes" in url:
+            if self.state != "pending":
+                return 200, []
+            self.state, self.locked_at = "in_flight", str(self.clock)
+            self.clock += self.claim_delay
+            return 200, [{"id": rid} for rid in body["p_row_ids"]]
+        if "/esb_push?" in url and method == "GET":
+            self.snapshots += 1
+            if self.snapshots == 2:
+                self.clock += self.verify_delay
+                if self.lose:
+                    if self.lose == "attempt":
+                        self.attempt += 1
+                    else:
+                        self.locked_at = "replacement-claim"
+            rows = [{"id": m["id"], "status": self.state, "locked_at": self.locked_at,
+                     "retry_count": self.attempt} for m in self.members]
+            if self.snapshot and self.snapshots == self.snapshot_at:
+                return 200, self.snapshot(rows)
+            return 200, rows
+        if "/esb_push?" in url and method == "PATCH":
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+            if "locked_at" not in query or query["locked_at"] == [f"eq.{self.locked_at}"]:
+                self.state = body["status"]
+            return 200, None
+        if "dateFrom=" in url:
+            return 200, real_page(self.endpoint, self.listed)
+        if method == "GET" and ("simple-manufacturing/" in url or "simple-transfer/" in url):
+            self.details_read += 1
+            detail_delay = self.delay
+            self.clock += detail_delay
+            if self.clock > 600 and not self.interleaved:
+                self.interleaved = True
+                self.state, self.locked_at, self.attempt = "pending", None, self.attempt + 1
+                self.delay = 0
+                second = W._drain_one(GOO(), W.ErpClient(GOO()), W.Outbox(GOO()), self.members[0], self.req)
+                assert second[1], second
+            number = urllib.parse.unquote(urllib.parse.urlsplit(url).path.rsplit("/", 1)[-1])
+            return 200, real_detail(self.endpoint, number.removesuffix(" - 1"), refs=("PR-OTHER",))
+        if method == "POST" and ("assembly-actual" in url or url.endswith("/simple-transfer")):
+            if self.reauth_delay is not None and not self.refused:
+                self.refused = True
+                raise W.Permanent("token expired", status=401)
+            self.posts.append(body)
+            return 200, esb_envelope({self.req.result_key: "NEW"})
+        if "/esb_push_groups?" in url or "kitchen_logs" in url:
+            return 200, None
+        if "product/bom" in url:
+            return 200, _bom_ok(self, method, url, body)
+        if "auth/login" in url:
+            self.auth_reads += 1
+            if self.auth_reads == 2 and self.reauth_delay is not None:
+                self.clock += self.reauth_delay
+                if self.reauth_lost:
+                    self.locked_at = "replaced-during-login"
+            return 200, _login_ok(self, method, url, body)
+        raise AssertionError(f"unrouted lease call: {method} {url}")
+
+
+for endpoint in ("assembly", "transfer"):
+    for label, options, want_posts in (
+            ("healthy owned claim", {}, 1),
+            ("bounded sequential reads", {"delay": 29}, 0),
+            ("expiry interleaving", {"delay": 609}, 1),
+            ("same-status replacement claim", {"lose": True}, 0),
+            ("replacement retry attempt", {"lose": "attempt"}, 0),
+            ("claim RPC consumes budget", {"claim_delay": 301}, 0),
+            ("ownership read consumes budget", {"verify_delay": 301}, 0)):
+        for grouped in ((False, True) if label != "expiry interleaving" else (False,)):
+            transport = LeaseTransport(endpoint, grouped=grouped, **options)
+            with mock_patch.object(time, "monotonic", side_effect=lambda: transport.clock):
+                n, output = tick(GOO(), transport.members, transport, wip_names=NAMES)
+            check(f"lease {endpoint} {label} (group={grouped}) permits exactly {want_posts} POSTs",
+                  len(transport.posts) == want_posts and (n == 0 if label == "healthy owned claim" else n > 0),
+                  f"posts={len(transport.posts)}, seconds={transport.clock}; {output}")
+            if label == "bounded sequential reads":
+                check(f"lease {endpoint} stops detail scan within half the lease (group={grouped})",
+                      transport.details_read < 21 and transport.clock < 600, output)
+            if label in ("expiry interleaving", "same-status replacement claim", "replacement retry attempt"):
+                check(f"lease {endpoint} stale worker leaves replacement claim untouched",
+                      transport.state == ("posted" if label == "expiry interleaving" else "in_flight"), output)
+
+for options in ({"reauth_delay": 301}, {"reauth_delay": 0, "reauth_lost": True}):
+    transport = LeaseTransport("transfer", **options)
+    with mock_patch.object(time, "monotonic", side_effect=lambda: transport.clock):
+        n, output = tick(GOO(), transport.members, transport, wip_names=NAMES)
+    check(f"POST re-login rechecks deadline and ownership ({options})",
+          n == 1 and transport.posts == [] and transport.state == "in_flight", output)
+
+def snapshot_fault(_rows):
+    raise W.Transient("ownership read timed out")
+
+
+for label, mutate in (
+        ("non-list", lambda rows: None),
+        ("missing member", lambda rows: rows[:-1]),
+        ("duplicate member", lambda rows: rows + rows[:1]),
+        ("non-object", lambda rows: [None]),
+        ("not in flight", lambda rows: [{**rows[0], "status": "posted"}]),
+        ("missing lease", lambda rows: [{**rows[0], "locked_at": None}]),
+        ("invalid attempt", lambda rows: [{**rows[0], "retry_count": True}]),
+        ("read fault", snapshot_fault)):
+    for when in (1, 2):
+        transport = LeaseTransport("transfer", grouped=True, snapshot=mutate, snapshot_at=when)
+        n, output = tick(GOO(), transport.members, transport, wip_names=NAMES)
+        check(f"ownership {label} at read {when} cannot POST or overwrite the claim",
+              n == 2 and transport.posts == [] and transport.state == "in_flight", output)
 
 print(f"{_pass} passed, {_fail} failed")
 sys.exit(1 if _fail else 0)

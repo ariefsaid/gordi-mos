@@ -181,6 +181,7 @@ import math
 import os
 import re
 import sys
+import time
 import unicodedata
 import urllib.error
 import urllib.parse
@@ -188,7 +189,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, Callable
 
 TARGET_ENVS = ("dry_run", "goo", "gkid")
 ERP_OF_RECORD = "gkid"
@@ -742,6 +743,30 @@ class Outbox:
         """Claim one pending row, if it is still available."""
         return row_id in self.claim_many([row_id])
 
+    def claim_tokens(self, row_ids: list[str]) -> dict[str, tuple[str, int]]:
+        """Read the lease timestamp and retry attempt for every requested member."""
+        query = urllib.parse.urlencode({
+            "id": f"in.({','.join(row_ids)})", "target_env": f"eq.{self.cfg.target_env}",
+            "select": "id,status,locked_at,retry_count"})
+        try:
+            _, rows = _request("GET", f"{self.cfg.supabase_url}/rest/v1/esb_push?{query}",
+                               headers=self._headers(write=False), timeout=self.cfg.timeout)
+        except Classified as exc:
+            raise ClaimLost(f"could not verify outbox claim: {esb_message(exc)}") from None
+        tokens = {}
+        if not isinstance(rows, list):
+            raise ClaimLost("could not verify outbox claim")
+        for row in rows:
+            if (not isinstance(row, dict) or row.get("id") not in row_ids
+                    or row["id"] in tokens or row.get("status") != "in_flight"
+                    or not isinstance(row.get("locked_at"), str) or not row["locked_at"]
+                    or type(row.get("retry_count")) is not int or row["retry_count"] < 0):
+                raise ClaimLost("outbox claim is no longer owned by this worker")
+            tokens[row["id"]] = (row["locked_at"], row["retry_count"])
+        if set(tokens) != set(row_ids):
+            raise ClaimLost("outbox claim is missing a member")
+        return tokens
+
     def reap(self) -> int:
         """Promote due retries and recover expired worker leases before selecting rows."""
         _, result = _request(
@@ -901,10 +926,14 @@ class ErpClient:
     def _auth(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._token or self._login()}"}
 
-    def _call(self, method: str, path: str, body: Any = None) -> dict[str, Any]:
+    def _call(self, method: str, path: str, body: Any = None, *,
+              before_post: Callable[[], None] | None = None) -> dict[str, Any]:
         url = f"{self.cfg.esb_base_url}{path}"
         try:
-            _, out = _request(method, url, headers=self._auth(), body=body,
+            headers = self._auth()
+            if before_post:
+                before_post()
+            _, out = _request(method, url, headers=headers, body=body,
                               timeout=self.cfg.timeout)
         except Permanent as exc:
             # The STATUS decides, not the message: the message carries the ERP's own body,
@@ -913,7 +942,10 @@ class ErpClient:
             if exc.status != 401:
                 raise
             self._token = None
-            _, out = _request(method, url, headers=self._auth(), body=body,
+            headers = self._auth()
+            if before_post:
+                before_post()
+            _, out = _request(method, url, headers=headers, body=body,
                               timeout=self.cfg.timeout)
         out = _erp_object(out, f"{method} {path}")
         if out.get("status") != "ok":
@@ -934,8 +966,9 @@ class ErpClient:
                             f"{type(details).__name__}, not a list")
         return details
 
-    def post(self, path: str, body: dict[str, Any], key: str) -> str:
-        result = self._call("POST", path, body).get("result")
+    def post(self, path: str, body: dict[str, Any], key: str, *,
+             before_post: Callable[[], None] | None = None) -> str:
+        result = self._call("POST", path, body, before_post=before_post).get("result")
         if isinstance(result, dict):
             return (result.get(key) or "").strip()
         if isinstance(result, str) and "#" in result:
@@ -1102,20 +1135,51 @@ def _as_float(value: Any, what: str = "qty_porsi") -> float:
 ESB_REJECTED = 2
 LOOKUP_LIMIT = 100
 LOOKUP_MAX_PAGES = 50
+# The database reaps claims after ten minutes; posting may use only the first half.
+POSTING_BUDGET_SECONDS = 300
 
 
-def _lookup(client: ErpClient, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+class ClaimLost(Transient):
+    """No posting or write-back is safe for this worker's expired/replaced claim."""
+
+
+def _before_deadline(deadline: float) -> None:
+    if time.monotonic() >= deadline:
+        raise ClaimLost("outbox posting deadline exceeded; leave the claim to the reaper")
+
+
+class PostingClaim:
+    def __init__(self, outbox: Outbox, row_ids: list[str], started: float):
+        self.outbox, self.row_ids = outbox, row_ids
+        self.deadline = started + POSTING_BUDGET_SECONDS
+        _before_deadline(self.deadline)
+        self.tokens = outbox.claim_tokens(row_ids)
+        _before_deadline(self.deadline)
+
+    def check(self) -> None:
+        _before_deadline(self.deadline)
+        if self.outbox.claim_tokens(self.row_ids) != self.tokens:
+            raise ClaimLost("outbox claim was replaced; this worker must not POST")
+        _before_deadline(self.deadline)
+
+
+def _lookup(client: ErpClient, path: str, params: dict[str, Any] | None = None, *,
+            deadline: float) -> dict[str, Any]:
     """A read made to decide whether to post. Any failure, however ESB words it, is Transient:
     nothing is posted and the next tick asks again."""
+    _before_deadline(deadline)
     try:
-        return client.get(path, params)
+        result = client.get(path, params)
     except Classified as exc:
+        _before_deadline(deadline)
         raise Transient(f"could not look up what ESB already holds ({path}): {esb_message(exc)}",
                         kind=exc.kind) from None
+    _before_deadline(deadline)
+    return result
 
 
 def _validated_lookup(client: ErpClient, path: str,
-                      params: dict[str, Any]) -> list[tuple[str, list[str], int]]:
+                      params: dict[str, Any], *, deadline: float) -> list[tuple[str, list[str], int]]:
     """Validate the fields that prove complete pages and complete document identities.
     Informational envelope, row and detail fields do not participate in the decision."""
     def require(condition: bool, what: str) -> None:
@@ -1147,6 +1211,18 @@ def _validated_lookup(client: ErpClient, path: str,
         require(len(parts) == count, "identity component count")
         require(all("|" not in part for part in parts), "identity delimiter")
         return [text(part) for part in parts]
+
+    def mos_identity(value: Any) -> bool:
+        require(value is None or type(value) is str, "identity type")
+        return isinstance(value, str) and (
+            value.lstrip().startswith("|")
+            or re.search(r"(?:^|\|)\s*(?:PR|TR|TB)(?:-|$)", value) is not None)
+
+    def references(value: Any, count: int) -> list[str]:
+        refs = identity(value, count)
+        require(all(re.fullmatch(r"(?:PR|TR|TB)-[A-Za-z0-9][A-Za-z0-9_-]*", ref)
+                    for ref in refs), "MOS source reference")
+        return refs
 
     def continuation(value: Any, target: int | None, current: int, limit: int) -> None:
         require(type(value) is str and value.isprintable() and value == value.strip(), "pagination URL text")
@@ -1185,7 +1261,7 @@ def _validated_lookup(client: ErpClient, path: str,
     by_doc: dict[str, list[tuple[str, int, dict[str, Any]]]] = {}
     documents: list[tuple[str, list[str], int]] = []
     for page in range(1, LOOKUP_MAX_PAGES + 1):
-        result = envelope(_lookup(client, path, {**params, "page": page, "limit": limit}),
+        result = envelope(_lookup(client, path, {**params, "page": page, "limit": limit}, deadline=deadline),
                           {"count", "data", "page", "limit", "prev", "next"})
         count = integer(result["count"])
         page_limit = integer(result["limit"], 1)
@@ -1228,7 +1304,7 @@ def _validated_lookup(client: ErpClient, path: str,
     if transfer:
         for row in rows:
             number = text(row[number_field])
-            detail = envelope(_lookup(client, f"{path}/{urllib.parse.quote(number, safe='')}"),
+            detail = envelope(_lookup(client, f"{path}/{urllib.parse.quote(number, safe='')}", deadline=deadline),
                               {number_field, "statusID", "additionalInfo", "simpleTransferDetails"})
             require(text(detail[number_field]) == number, "detail identifier agrees with listing")
             require(integer(detail["statusID"]) == row["statusID"], "detail status agrees with listing")
@@ -1241,8 +1317,10 @@ def _validated_lookup(client: ErpClient, path: str,
                 require(type(qty) in (int, float) and 0 < qty <= sys.float_info.max, "transfer line quantity")
             # MOS writes one reference per transfer detail. Other documents have their
             # own group size, established here rather than inherited from this request.
-            saved_refs = identity(detail["additionalInfo"], len(lines))
-            require(sorted(identity(row["additionalInfo"], len(lines))) == sorted(saved_refs),
+            if not any(mos_identity(record["additionalInfo"]) for record in (row, detail)):
+                continue
+            saved_refs = references(detail["additionalInfo"], len(lines))
+            require(sorted(references(row["additionalInfo"], len(lines))) == sorted(saved_refs),
                     "detail identity agrees with listing")
             documents.append((number, saved_refs, row["statusID"]))
 
@@ -1256,20 +1334,26 @@ def _validated_lookup(client: ErpClient, path: str,
         require(all(value is None for value in declared) or all(value == count for value in declared),
                 "consistent document line count")
         saved_refs = []
+        unidentified = 0
         for number, _, row in sorted(lines, key=lambda line: line[1]):
-            detail = envelope(_lookup(client, f"{path}/{urllib.parse.quote(number, safe='')}"),
+            detail = envelope(_lookup(client, f"{path}/{urllib.parse.quote(number, safe='')}", deadline=deadline),
                               {"additionalInfo", number_field, "statusID"})
             require(text(detail[number_field]) == number, "detail identifier agrees with listing")
             require(integer(detail["statusID"]) == row["statusID"], "detail status agrees with listing")
             if "lineCount" in detail:
                 require(integer(detail["lineCount"], 1) == count, "detail line count agrees with listing")
-            ref, _name = identity(detail["additionalInfo"], 2)
-            saved_refs.append(ref)
-        documents.append((doc, saved_refs, next(iter(statuses))))
+            if mos_identity(detail["additionalInfo"]):
+                ref, _name = identity(detail["additionalInfo"], 2)
+                saved_refs.extend(references(ref, 1))
+            else:
+                unidentified += 1
+        if saved_refs:
+            require(unidentified == 0, "complete MOS assembly identity")
+            documents.append((doc, saved_refs, next(iter(statuses))))
     return documents
 
 
-def find_posted(client: ErpClient, req: Request) -> str | None:
+def find_posted(client: ErpClient, req: Request, *, deadline: float) -> str | None:
     """The document ESB already holds for this push (an assembly or a simple transfer), or None.
 
     A POST that timed out may still have been saved, so the next attempt asks ESB first. The
@@ -1284,11 +1368,11 @@ def find_posted(client: ErpClient, req: Request) -> str | None:
         docs = _validated_lookup(client, req.path, {
             "dateFrom": body["simpleTransferDate"], "dateTo": body["simpleTransferDate"],
             "originLocationID": body["originLocationID"],
-            "destinationLocationID": body["destinationLocationID"]})
+            "destinationLocationID": body["destinationLocationID"]}, deadline=deadline)
     elif req.path.endswith("/assembly-actual"):
         docs = _validated_lookup(client, "/production/simple-manufacturing", {
             "dateFrom": body["simpleManufacturingDate"], "dateTo": body["simpleManufacturingDate"],
-            "branchID": body["branchID"], "bomTypeID": 1})
+            "branchID": body["branchID"], "bomTypeID": 1}, deadline=deadline)
     else:
         return None
     matches = [num for num, saved_refs, status in docs
@@ -1296,20 +1380,24 @@ def find_posted(client: ErpClient, req: Request) -> str | None:
     return min(matches) if matches else None
 
 
-def dispatch(cfg: Config, client: ErpClient, req: Request) -> str:
+def dispatch(cfg: Config, client: ErpClient, req: Request, *, claim: PostingClaim | None = None) -> str:
     """Post one composed request and return the ERP's document number. A document ESB already
     holds for this push is returned instead of posting a second one (find_posted).
 
     There is no rehearsal arm here any more, and that absence is the point: the only
     value this function can return is one the ERP handed back. A drain that cannot post
     never gets this far — load_config refuses it (see THE SAFETY LINE)."""
-    existing = find_posted(client, req)
+    deadline = claim.deadline if claim else time.monotonic() + POSTING_BUDGET_SECONDS
+    existing = find_posted(client, req, deadline=deadline)
     if existing:
+        if claim:
+            claim.check()
         return existing
     if req.materials_from is not None:
         bom_ids = [req.materials_from] if isinstance(req.materials_from, int) else req.materials_from
         try:
             for detail, bom_id in zip(req.body["simpleManufacturingDetails"], bom_ids):
+                _before_deadline(deadline)
                 qty = detail["manufacturingQty"]
                 materials = [
                     {"productDetailID": int(line["productDetailID"]),
@@ -1320,7 +1408,9 @@ def dispatch(cfg: Config, client: ErpClient, req: Request) -> str:
                 detail["simpleManufacturingMaterials"] = materials
         except (AttributeError, KeyError, TypeError, ValueError) as exc:
             raise Transient(f"ERP BOM {bom_id} material data is invalid: {type(exc).__name__}: {exc}") from None
-    doc = client.post(req.path, req.body, req.result_key)
+    _before_deadline(deadline)
+    doc = (client.post(req.path, req.body, req.result_key, before_post=claim.check) if claim
+           else client.post(req.path, req.body, req.result_key))
     if not doc:
         raise Transient("ERP accepted the post but returned no document number")
     return doc
@@ -1333,10 +1423,14 @@ def _drain_one(cfg: Config, client: ErpClient, outbox: Outbox, row: dict[str, An
     Every PostgREST call in here can raise — that is the caller's problem to contain, and
     containing it is why this is a separate function: one blip must cost one row, not the
     rest of the tick."""
+    started = time.monotonic()
     if not outbox.claim(row["id"]):
         return "already claimed by another tick — skipped", True
     try:
-        doc = dispatch(cfg, client, req)
+        claim = PostingClaim(outbox, [row["id"]], started)
+        doc = dispatch(cfg, client, req, claim=claim)
+    except ClaimLost as exc:
+        return f"claim no longer usable — {exc}", False
     except Permanent as exc:
         return f"{outbox.close_failed(row, str(exc), permanent=True)} — {exc}", False
     except Transient as exc:
@@ -1416,6 +1510,7 @@ def _run_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
     doc = meta.get('esb_doc_num')
     try:
         if not doc:
+            started = time.monotonic()
             claimed = outbox.claim_many([row["id"] for row in rows])
             if len(claimed) != len(rows):
                 # The RPC claims all requested members or none, so a lost race cannot
@@ -1426,7 +1521,8 @@ def _run_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
                 return len(rows)
             for row in rows:
                 row["status"] = "in_flight"
-            doc = dispatch(cfg, client, req)
+            claim = PostingClaim(outbox, [row["id"] for row in rows], started)
+            doc = dispatch(cfg, client, req, claim=claim)
             # Persist the ERP receipt before fan-out. This is the resume checkpoint.
             outbox.patch_group(gid, {"status": "in_flight", "esb_doc_num": doc})
         else:
@@ -1443,6 +1539,9 @@ def _run_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
             row['status'] = 'posted'
             outbox.stamp_log_posted(row, doc)
         outbox.patch_group(gid, {"status": "posted", "esb_doc_num": doc, "posted_at": _now(), "last_error": None})
+    except ClaimLost as exc:
+        print(f"{ref}: claim no longer usable — {exc}", file=out)
+        return len(rows)
     except Exception as exc:
         # Includes PostgREST faults during any write-back. The group remains resumable
         # when doc is known; only unposted members are failed for the next tick.
