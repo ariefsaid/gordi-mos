@@ -5,7 +5,7 @@
 #
 #   --dry-run     list pending migrations, functions and the server ops step; change nothing
 #   --yes         skip the y/N confirmation (default answer is No)
-#   --no-promote  do not push origin/main to staging (--no-pr is an alias)
+#   --no-promote  do not promote origin/main to staging (--no-pr is an alias)
 #
 # Before pending migrations are pushed, a custom-format backup is verified with pg_restore --list.
 # Its directory defaults to ~/backups/gordi-mos-staging/ and can be overridden with
@@ -459,14 +459,13 @@ sqlq "insert into shared.deployment_stamp (id, backend_sha, deployed_at) values 
   || die "could not update the backend deployment stamp"
 say "Updated backend deployment stamp."
 
-# ── 10. Promote the deployed origin/main commit with a fast-forward-only push.
+# ── 10. Promote the deployed origin/main commit. A linear staging history keeps the existing
+# fast-forward path; staging's own merge commits use a main-to-staging PR for owner approval.
 if [ "$PROMOTE" = 1 ]; then
   staging_sha="$(git -C "$ROOT" rev-parse --verify -q refs/remotes/origin/staging)" || die "origin/staging not found"
   if [ "$staging_sha" = "$om" ]; then
     say "staging already contains origin/main: no promotion needed."
-  else
-    git -C "$ROOT" merge-base --is-ancestor "$staging_sha" "$om" || \
-      die "origin/staging is not an ancestor of origin/main; refusing to promote"
+  elif git -C "$ROOT" merge-base --is-ancestor "$staging_sha" "$om"; then
     git -C "$ROOT" push origin "$om:refs/heads/staging" || die "fast-forward push to staging failed"
     say "Pushed origin/main sha $om to staging."
     remote_staging="$(git -C "$ROOT" ls-remote --exit-code origin refs/heads/staging)" || \
@@ -474,6 +473,20 @@ if [ "$PROMOTE" = 1 ]; then
     remote_sha="${remote_staging%%[[:space:]]*}"
     [ "$remote_sha" = "$om" ] || die "origin/staging does not match the promoted commit"
     say "Confirmed origin/staging at $remote_sha."
+  elif git -C "$ROOT" merge-base --is-ancestor "$om" "$staging_sha"; then
+    non_merge_count="$(git -C "$ROOT" rev-list --no-merges --count "$om..$staging_sha")" || \
+      die "could not inspect staging commits"
+    [ "$non_merge_count" = 0 ] || \
+      die "origin/staging contains non-merge commits absent from origin/main; refusing to promote"
+    gh_post="${GH_POST:-$ROOT/scripts/gh-post.sh}"
+    pr_url="$(cd "$ROOT" && "$gh_post" pr create --base staging \
+      --title "Promote main to staging" \
+      --body "Promote the deployed origin/main commit to staging for owner review.")" || \
+      die "could not open the main-to-staging promotion PR"
+    [ -n "$pr_url" ] || die "promotion PR creation returned no URL"
+    say "Opened main-to-staging promotion PR: $pr_url"
+  else
+    die "origin/staging is not an ancestor of origin/main; refusing to promote"
   fi
 fi
 say "Staging deploy complete."
