@@ -21,7 +21,7 @@ select org_id,'00000000-0000-0000-0000-00000000bf01','kitchen',id,'esb',
   case when esb_product_id='PREFILL-HIDDEN' then now() end, esb_product_id<>'PREFILL-UNLISTED'
 from ops.wip_items where esb_product_id in ('PREFILL-EXISTING','PREFILL-HIDDEN','PREFILL-UNLISTED');
 insert into ops.cafe_item_settings(org_id,branch_id,activity,wip_item_id,mos_name,kind,is_active)
-select org_id,'00000000-0000-0000-0000-00000000bf01','kitchen',id,'Manager label',null,false
+select org_id,'00000000-0000-0000-0000-00000000bf01','kitchen',id,null,null,false
 from ops.wip_items where esb_product_id='PREFILL-EXISTING';
 insert into ops.stream_items(org_id,branch_id,activity,wip_item_id,source)
 select org_id,'00000000-0000-0000-0000-00000000bf02','kitchen',id,'manual'
