@@ -1,7 +1,7 @@
 -- #1287 — per-stream team kind, active status, capture guards, history and tenant isolation.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(22);
+select plan(23);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -23,11 +23,16 @@ select ops.refresh_cafe_stream_items('[{"esb_product_id":"SYNTH-ERP-P-1287-RAW",
 select is((select count(*)::int from ops.wip_items
             where esb_product_id like 'SYNTH-ERP-P-1287-%' and kind is null and flag_active),
           2, 'ERP import rows start without an item-level classification');
-select is((select count(*)::int from ops.cafe_item_settings_read
-            where item_id in (select id from ops.wip_items where esb_product_id like 'SYNTH-ERP-P-1287-%')
+select is((select kind from ops.cafe_item_settings_read
+            where item_id = (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1287-RAW')
               and branch_id = '00000000-0000-0000-0000-00000000bf01'
-              and activity = 'kitchen' and kind is null and not is_active),
-          2, 'every stream starts unclassified and inactive');
+              and activity = 'kitchen' and not is_active),
+          'RAW', 'a unique confirmed stock unit prefills its known non-BOM kind while the stream stays inactive');
+select is((select kind from ops.cafe_item_settings_read
+            where item_id = (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1287-WIP')
+              and branch_id = '00000000-0000-0000-0000-00000000bf01'
+              and activity = 'kitchen' and not is_active),
+          null::text, 'an item without a stock unit stays unclassified and inactive');
 select is((select count(*)::int from ops.wip_items
             where id = '00000000-0000-0000-0000-00000000c287' and kind = 'WIP' and flag_active
               and reference_source = 'manual'),
