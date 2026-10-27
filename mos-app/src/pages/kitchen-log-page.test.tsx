@@ -1324,13 +1324,14 @@ describe('AC-030: successful submit (increment semantics)', () => {
     ])
   })
 
-  it('records production against the stream, names no production Location, and lets the person choose where the output sits', async () => {
+  it('opens RRS Production at its designated Central output place and records a chosen place', async () => {
     mockInsertKitchenLogBatch.mockResolvedValue(['located-log'])
     const central = PRODUCTION_LOCATIONS.find(place => place.id === productionId(BRANCH_RUMAH_RAMES.id, 'kitchen'))!
     locationMocks.choices.mockReturnValue({
       status: 'ready',
       locations: [
-        central,
+        { ...central, name: 'RRS Central', is_stream_output: true },
+        { ...central, id: 'rrs-outlet-kitchen', name: 'RRS Outlet Kitchen' },
         { id: 'shelf-1', name: 'Shelf', use: 'storage', parent_id: null, branch_ids: [BRANCH_RUMAH_RAMES.id], archived_at: null, row_version: 1, updated_at: '', updated_by: null, site_id: null, activities: [] },
       ],
       retry: vi.fn(),
@@ -1340,7 +1341,7 @@ describe('AC-030: successful submit (increment semantics)', () => {
     // No production-location choice: production belongs to the stream.
     expect(screen.queryByRole('combobox', { name: 'Production location' })).toBeNull()
     // Output starts at the stream's own place, since stock can sit there.
-    expect(outputLocation).toHaveTextContent('Rumah Rames · Kitchen')
+    expect(outputLocation).toHaveTextContent('RRS Central')
     fireEvent.click(outputLocation)
     fireEvent.click(await screen.findByRole('option', { name: 'Shelf' }))
     fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }), { target: { value: '12' } })
@@ -1353,6 +1354,22 @@ describe('AC-030: successful submit (increment semantics)', () => {
       }),
     ])
     expect(mockInsertKitchenLogBatch.mock.calls[0][0][0]).not.toHaveProperty('production_location_id')
+  })
+
+  it('keeps Store output in inside the desktop Entries to submit panel', async () => {
+    setWideMatchMedia(true)
+    await renderPage()
+
+    const entries = screen.getByRole('complementary', { name: 'Entries to submit' })
+    expect(within(entries).getByRole('combobox', { name: 'Store output in' })).toBeInTheDocument()
+  })
+
+  it('keeps Store output in inside the phone companion panel before the submit action', async () => {
+    await renderPage()
+    const companion = screen.getByRole('complementary', { name: 'Recorded today' })
+    const outputLocation = within(companion).getByRole('combobox', { name: 'Store output in' })
+    const submitButton = screen.getByRole('button', { name: /submit/i })
+    expect(outputLocation.compareDocumentPosition(submitButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it.each(['1,5', '1.5'])('transfer accepts %s and saves 1.5', async raw => {

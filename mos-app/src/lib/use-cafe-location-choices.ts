@@ -15,8 +15,8 @@ export async function readCafeLocationChoices(viewerId: string | null, branchId:
 
 /**
  * Where stock goes when the person does not say: the stream's own place for its output, when the
- * stream has exactly one production Location that can hold stock. Nothing else is guessed; every
- * other case starts Unassigned.
+ * stream designates one eligible Location, or has only one that can hold stock. Ambiguity
+ * starts Unassigned.
  */
 export function defaultStorageLocationId(
   stream: ProductionStream | null,
@@ -26,7 +26,9 @@ export function defaultStorageLocationId(
   const own = locations.filter(place => !place.archived_at && place.use === 'both'
     && place.branch_ids.length === 1 && place.branch_ids[0] === stream.branch.id
     && place.activities.length === 1 && place.activities[0] === stream.activity)
-  return own.length === 1 ? own[0].id : null
+  const designated = own.filter(place => place.is_stream_output)
+  const candidates = designated.length ? designated : own
+  return candidates.length === 1 ? candidates[0].id : null
 }
 
 type ChoiceSnapshot = { scope: string | null; status: ChoiceStatus; locations: CafeLocation[] }

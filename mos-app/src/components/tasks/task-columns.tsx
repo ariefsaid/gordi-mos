@@ -8,6 +8,7 @@ import type { ColumnDef, RowData, SortingState, VisibilityState } from '@tanstac
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { TaskCollectionVisibleField } from '@/lib/record-collection/collection-view-spec'
+import { columnVisibilityState } from '@/components/record-collection/column-visibility'
 import type { MessageKey } from '@/i18n/messages'
 import type { TaskCollectionSort, TaskColumnId } from './task-collection-query'
 import type { TaskTreeNode } from './task-group-tree'
@@ -138,35 +139,23 @@ export const TASK_COLUMN_DEFS: TaskColumnDef[] = [
   },
 ]
 
-// The ONE visibility mapping: a column renders iff it is a decision column (no `field`) or
-// its Fields-chooser field is checked. Both consumers — TanStack's `columnVisibility` state
-// and TaskRow's instance-less filter — read this function, never their own copy.
-function taskColumnIsVisible(
-  column: TaskColumnDef,
-  visibleFields: readonly TaskCollectionVisibleField[],
-): boolean {
-  const field = column.meta?.field
-  return !field || visibleFields.includes(field)
-}
-
 // TanStack `columnVisibility` state for the Tasks table (FR-002): derived from
-// `query.visibleFields` through `taskColumnIsVisible`, so the table instance's
+// `query.visibleFields` through the shared collection mapping, so the table instance's
 // `getVisibleLeafColumns()` is exactly the columns TaskRow renders.
 export function taskColumnVisibilityState(
   visibleFields: readonly TaskCollectionVisibleField[],
 ): VisibilityState {
-  return Object.fromEntries(
-    TASK_COLUMN_DEFS.map((column) => [column.id, taskColumnIsVisible(column, visibleFields)]),
-  )
+  return columnVisibilityState(TASK_COLUMN_DEFS, visibleFields)
 }
 
 // The visible columns in rendered order, for the per-row renderer (which has no table
-// instance). Identical by construction to `table.getVisibleLeafColumns()` — both filter
-// TASK_COLUMN_DEFS with the one `taskColumnIsVisible` mapping (spec AC-003).
+// instance). Identical by construction to `table.getVisibleLeafColumns()` — both read the
+// same visibility state from TASK_COLUMN_DEFS (spec AC-003).
 export function visibleTaskColumnDefs(
   visibleFields: readonly TaskCollectionVisibleField[],
 ): TaskColumnDef[] {
-  return TASK_COLUMN_DEFS.filter((column) => taskColumnIsVisible(column, visibleFields))
+  const visibility = taskColumnVisibilityState(visibleFields)
+  return TASK_COLUMN_DEFS.filter((column) => visibility[column.id] === true)
 }
 
 // Resolve a column's <td> hook class (the Due column's is row-state dependent).

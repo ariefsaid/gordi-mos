@@ -248,7 +248,7 @@ describe('CafeReceivePage', () => {
 
     const empty = await screen.findByTestId('empty-state')
     expect(empty).toHaveTextContent('1 item is set up')
-    expect(empty).toHaveTextContent('default unit confirmed as an ESB stock unit')
+    expect(empty).toHaveTextContent('Items → the item → default unit')
     expect(empty).not.toHaveTextContent('not set up for this list')
   })
 

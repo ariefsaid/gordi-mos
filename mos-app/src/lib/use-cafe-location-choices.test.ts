@@ -62,6 +62,17 @@ describe('defaultStorageLocationId', () => {
     expect(defaultStorageLocationId(STREAM, [own('central'), LOCATION])).toBe('central')
   })
 
+  it('uses the designated output place when Central and Outlet Kitchen share the stream', () => {
+    expect(defaultStorageLocationId(STREAM, [own('central', { is_stream_output: true }), own('outlet')])).toBe('central')
+  })
+
+  it('never guesses between designated places or uses an ineligible designation', () => {
+    expect(defaultStorageLocationId(STREAM, [own('a', { is_stream_output: true }), own('b', { is_stream_output: true })])).toBeNull()
+    expect(defaultStorageLocationId(STREAM, [own('a'), own('b'), own('archived', { is_stream_output: true, archived_at: '2026-01-01' })])).toBeNull()
+    expect(defaultStorageLocationId(STREAM, [own('a'), own('b'), own('bar', { is_stream_output: true, activities: ['bar'] })])).toBeNull()
+    expect(defaultStorageLocationId(STREAM, [own('a'), own('b'), own('other', { is_stream_output: true, branch_ids: ['other'] })])).toBeNull()
+  })
+
   it('guesses nothing otherwise: several places, a production-only place, another stream\'s place, or none is Unassigned', () => {
     expect(defaultStorageLocationId(STREAM, [own('a'), own('b')])).toBeNull()
     expect(defaultStorageLocationId(STREAM, [own('p', { use: 'production' })])).toBeNull()

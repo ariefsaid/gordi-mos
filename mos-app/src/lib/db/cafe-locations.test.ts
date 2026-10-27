@@ -72,6 +72,11 @@ describe('Café Locations client', () => {
     expect(range).toEqual([[0, 199], [200, 399]])
   })
 
+  it('carries the designated own-output place from the location catalog', async () => {
+    listResponse([{ ...location('central'), is_stream_output: true }])
+    expect((await listCafeLocations())[0].is_stream_output).toBe(true)
+  })
+
   it('looks up stored IDs in bounded batches without dropping archived identities', async () => {
     const rows = Array.from({ length: 201 }, (_, index) => ({ ...location(`loc-${index}`), archived_at: '2026-10-01T00:00:00Z' }))
     const range = listResponse(rows)
