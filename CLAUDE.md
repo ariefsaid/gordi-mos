@@ -10,7 +10,7 @@ Load only what the task needs. `docs/` is local-only (gitignored); in a managed 
 - `docs/decisions.md` when applying an owner decision (`OD-*`) or Director decision (`DD-*`); name the type when citing it.
 - `CONTEXT.md` and `docs/agents/domain.md` when domain language or model is relevant.
 - `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md` when finding or preparing work.
-- `docs/agents/pi-delegation.md` before delegating a build: Sol (`gpt-6.1-sol`) designs, Luna (`gpt-6-luna`) builds, through `pi`. Delegate there before using Claude subagents.
+- `docs/agents/orca-delegation.md` before delegating: every subagent and cross-model job runs through Orca orchestration (harnesses claude, codex, antigravity, pi, zcode, dsh); never `pi` from the shell or Claude subagents.
 - `docs/quality-model.md` when choosing tests.
 - `docs/environments.md` when operating non-local environments.
 - `mos-app/package.json` for app commands; `scripts/setup-hooks.sh` to install hooks; `scripts/*.test.sh` when diagnosing a guard.
