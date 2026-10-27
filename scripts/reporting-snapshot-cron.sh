@@ -2,6 +2,7 @@
 # Nightly warehouse -> Supabase snapshot and Café stream-usage refresh (cron). The existing 03:30
 # WIB entry runs 25 minutes after the 03:05 ESB sync. Every infrastructure coordinate comes from
 # the untracked env file (see scripts/ops.env.example, OPS_ENV_FILE); a missing value refuses the run.
+# Café refresh requires CAFE_STREAM_ITEMS_ENABLED=1 after first-run approval in each environment.
 set -u -o pipefail
 
 SKIP_CAFE_STREAM_REFRESH=0
@@ -70,11 +71,11 @@ PY
 
 run_cafe_stream_usage_refresh() {
   local db_url catalog_file error_file catalog_sql rc
-  local esb_code="${CAFE_STREAM_ITEMS_ESB_CODE:-GKID}"
-  local branch_map="${CAFE_STREAM_ITEMS_BRANCH_MAP:-GHQ=gordi_hq,GGS=radiant,SKC=cikal,RRS=rumah_rames}"
   local days="${CAFE_STREAM_ITEMS_DAYS:-180}"
 
-  ops_require cafe-stream-usage-refresh OPS_DB_USER OPS_DB_HOST OPS_DB_PORT OPS_DB_NAME || return 1
+  ops_require cafe-stream-usage-refresh \
+    CAFE_STREAM_ITEMS_ESB_CODE CAFE_STREAM_ITEMS_BRANCH_MAP CAFE_STREAM_ITEMS_ORG_SLUG \
+    OPS_DB_USER OPS_DB_HOST OPS_DB_PORT OPS_DB_NAME || return 2
   db_url="postgresql://${OPS_DB_USER}@${OPS_DB_HOST}:${OPS_DB_PORT}/${OPS_DB_NAME}?sslmode=require"
 
   catalog_file="$(umask 077; mktemp)" || { echo "cafe-stream-usage: cannot create temporary catalog file" >&2; return 1; }
@@ -90,7 +91,7 @@ run_cafe_stream_usage_refresh() {
   from ops.wip_items item
   join ops.item_units unit on unit.org_id = item.org_id and unit.wip_item_id = item.id and unit.source_active
   join shared.orgs org on org.id = item.org_id
-  where org.slug = 'gordi'
+  where org.slug = :'cafe_org_slug'
     and item.reference_source = 'erp_catalog'
     and item.flag_active
     and lower(btrim(item.category)) in ('kitchen', 'bar')
@@ -98,7 +99,7 @@ run_cafe_stream_usage_refresh() {
     and (item.has_active_bom_output or unit.erp_is_stock)"
 
   if ! PGOPTIONS='-c default_transaction_read_only=on' psql "$db_url" -X -qAt -v ON_ERROR_STOP=1 \
-      -c "$catalog_sql" >"$catalog_file" 2>"$error_file"; then
+      -v cafe_org_slug="$CAFE_STREAM_ITEMS_ORG_SLUG" >"$catalog_file" 2>"$error_file" <<< "$catalog_sql"; then
     ops_redact < "$error_file" >&2
     rm -f "$catalog_file" "$error_file"
     echo "cafe-stream-usage: active catalog read failed" >&2
@@ -116,7 +117,7 @@ run_cafe_stream_usage_refresh() {
     unset PGOPTIONS
     CAFE_STREAM_ITEMS_DB_URL="$db_url" "$REPORTING_PYTHON" "$HERE/refresh-cafe-stream-items.py" \
       --erp-query-cmd "psql -X -qAt -v ON_ERROR_STOP=1" --erp-db-url-env WAREHOUSE_DB_URL \
-      --catalog "$catalog_file" --esb-code "$esb_code" --branch-map "$branch_map" --days "$days" \
+      --catalog "$catalog_file" --esb-code "$CAFE_STREAM_ITEMS_ESB_CODE" --branch-map "$CAFE_STREAM_ITEMS_BRANCH_MAP" --days "$days" \
       --apply --allow-remote
   )
   rc=$?
@@ -132,6 +133,9 @@ snapshot_rc=$?
 stream_rc=0
 if [ "$SKIP_CAFE_STREAM_REFRESH" = 1 ]; then
   echo "cafe-stream-usage deferred for first-run review"
+elif [ "${CAFE_STREAM_ITEMS_ENABLED:-}" != 1 ]; then
+  SKIP_CAFE_STREAM_REFRESH=1
+  echo "cafe-stream-usage disabled pending first-run approval (set CAFE_STREAM_ITEMS_ENABLED=1 after approval)"
 else
   run_cafe_stream_usage_refresh
   stream_rc=$?

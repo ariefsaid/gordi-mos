@@ -569,6 +569,8 @@ expect "server clone moved to the deployed commit" "ssh update fake-ops-box"
 expect "clone update is the exact fetch and checkout of the deployed commit" "ssh update-command-ok"
 expect "snapshot ran through the server runner" "ssh snapshot fake-ops-box"
 expect "deploy snapshot skips the director's first Café refresh" "snapshot-only-command-ok"
+has "deploy explains that nightly refresh requires per-environment approval" "Scheduled Café stream refresh requires CAFE_STREAM_ITEMS_ENABLED=1 configured per environment after first-run approval."
+if grep '^argv ssh ' "$ARGVLOG" | grep -q 'CAFE_STREAM_ITEMS_ENABLED'; then bad "deploy changed the server refresh enable setting"; else ok "deploy never sets the server refresh enable setting"; fi
 if [ "$(grep -c '^ssh snapshot fake-ops-box$' "$calls")" = 1 ]; then ok "snapshot runs exactly once"; else bad "snapshot did not run exactly once"; fi
 order="$(grep -E '^(supabase push|supabase functions-deploy test-function|ssh update |ssh snapshot fake-ops-box$|psql deployment-stamp$)' "$calls" | tr '\n' ' ')"
 case "$order" in "supabase push supabase functions-deploy test-function ssh update fake-ops-box ssh snapshot fake-ops-box psql deployment-stamp ") ok "order: migrations, functions, server ops, stamp" ;; *) bad "unexpected order: $order" ;; esac
@@ -660,27 +662,27 @@ case "$order" in pg_dump\ pg_restore-list\ supabase\ push\ supabase\ functions-d
 if grep -q 'rehearse-migrations\.sh' "$SCRIPT"; then bad "removed migration helper is still called"; else ok "no removed migration helper call remains"; fi
 
 echo "pooler url file"
-printf 'postgresql://postgres.abcdefghijklmnopqrst@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres\n' > "$tmp/pooler-url"
+printf 'postgresql://postgres.abcdefghijklmnopqrst@aws-9-synthetic-region-1.pooler.supabase.com:5432/postgres\n' > "$tmp/pooler-url"
 run "pooler file routes the database commands through the pooler host" 0 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url" -- --dry-run
 has "pooler path announced" "Database host: session pooler (IPv4)"
-if grep -qx 'db-url-host aws-0-ap-southeast-1.pooler.supabase.com' "$ARGVLOG"; then ok "db push used the pooler host"; else bad "db push did not use the pooler host"; fi
-if grep -qx 'db-url-host aws-0-ap-southeast-1.pooler.supabase.com' "$ARGVLOG" && ! grep -q "^db-url-host $SECRET_HOST" <(tail -n 3 "$ARGVLOG"); then ok "direct host not used on the pooler run"; else bad "direct host still used on the pooler run"; fi
-printf 'postgresql://postgres.abcdefghijklmnopqrst:leak@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres\n' > "$tmp/pooler-url-pw"
+if grep -qx 'db-url-host aws-9-synthetic-region-1.pooler.supabase.com' "$ARGVLOG"; then ok "db push used the pooler host"; else bad "db push did not use the pooler host"; fi
+if grep -qx 'db-url-host aws-9-synthetic-region-1.pooler.supabase.com' "$ARGVLOG" && ! grep -q "^db-url-host $SECRET_HOST" <(tail -n 3 "$ARGVLOG"); then ok "direct host not used on the pooler run"; else bad "direct host still used on the pooler run"; fi
+printf 'postgresql://postgres.abcdefghijklmnopqrst:leak@aws-9-synthetic-region-1.pooler.supabase.com:5432/postgres\n' > "$tmp/pooler-url-pw"
 run "pooler file with a password is refused" 1 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url-pw" -- --dry-run
 has "refusal names the rule" "pooler URL file must be this project's Supabase session pooler"
 expect_not "no dry run after a refused pooler file" "supabase dry-run"
-printf 'postgresql://postgres.abcdefghijklmnopqrst@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?Password=leak\n' > "$tmp/pooler-url-qs"
+printf 'postgresql://postgres.abcdefghijklmnopqrst@aws-9-synthetic-region-1.pooler.supabase.com:5432/postgres?Password=leak\n' > "$tmp/pooler-url-qs"
 run "pooler file with a password in the query string is refused" 1 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url-qs" -- --dry-run
 has "query-string refusal names the rule" "pooler URL file must be this project's Supabase session pooler"
 expect_not "no dry run after a refused query-string pooler file" "supabase dry-run"
 run "pooler host is masked on a failed dry run" 1 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url" FAKE_DRY_RC=7 -- --dry-run
-hasnt "failed dry run output hides the pooler host" "aws-0-ap-southeast-1.pooler.supabase.com"
+hasnt "failed dry run output hides the pooler host" "aws-9-synthetic-region-1.pooler.supabase.com"
 for bad_url in \
   'postgresql://postgres.abcdefghijklmnopqrst@attacker.example:5432/postgres' \
-  'postgresql://postgres.otherprojectref0000@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres' \
-  'postgresql://postgres.abcdefghijklmnopqrst@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=disable' \
-  'postgresql://postgres.abcdefghijklmnopqrst@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres' \
-  'postgresql://postgres.abcdefghijklmnopqrst@aws-0-ap-southeast-1.pooler.supabase.com.attacker.example:5432/postgres'; do
+  'postgresql://postgres.otherprojectref0000@aws-9-synthetic-region-1.pooler.supabase.com:5432/postgres' \
+  'postgresql://postgres.abcdefghijklmnopqrst@aws-9-synthetic-region-1.pooler.supabase.com:5432/postgres?sslmode=disable' \
+  'postgresql://postgres.abcdefghijklmnopqrst@aws-9-synthetic-region-1.pooler.supabase.com:6543/postgres' \
+  'postgresql://postgres.abcdefghijklmnopqrst@aws-9-synthetic-region-1.pooler.supabase.com.attacker.example:5432/postgres'; do
   printf '%s\n' "$bad_url" > "$tmp/pooler-url-bad"
   : > "$ARGVLOG"
   run "pooler file outside this project's session pooler is refused" 1 "" STAGING_POOLER_URL_FILE="$tmp/pooler-url-bad" -- --dry-run
