@@ -26,46 +26,43 @@ returns void language sql security invoker set search_path = '' as $$
 $$;
 revoke all on function ops._rollback_cafe_item_settings_prefills() from public, anon, authenticated, service_role;
 
--- Keep the existing manager validation and write logic, then transfer ownership of any
--- prefilled row as soon as a manager saves it. Activation uses this same RPC.
-alter function ops.save_cafe_item_settings(uuid,text,uuid,text,uuid,uuid[],text,boolean,numeric[])
-  rename to _save_cafe_item_settings_before_prefill_ownership;
-revoke all on function ops._save_cafe_item_settings_before_prefill_ownership(uuid,text,uuid,text,uuid,uuid[],text,boolean,numeric[])
-  from public, anon, authenticated, service_role;
-
-create function ops.save_cafe_item_settings(
-  p_branch_id uuid,
-  p_activity text,
-  p_wip_item_id uuid,
-  p_mos_name text,
-  p_default_item_unit_id uuid,
-  p_shown_item_unit_ids uuid[],
-  p_kind text,
-  p_is_active boolean,
-  p_unit_multiples numeric[]
-)
-returns void language plpgsql security definer set search_path = '' as $$
+-- Settings and shown-unit writes transfer ownership regardless of the caller's API.
+create function ops._adopt_cafe_item_settings_prefill()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare
+  v_org_id uuid;
+  v_setting_id uuid;
 begin
-  perform ops._save_cafe_item_settings_before_prefill_ownership(
-    p_branch_id,p_activity,p_wip_item_id,p_mos_name,p_default_item_unit_id,
-    p_shown_item_unit_ids,p_kind,p_is_active,p_unit_multiples
-  );
-  delete from ops.cafe_item_settings_prefills prefill
-   using ops.cafe_item_settings setting
-   where setting.org_id=shared.current_org_id()
-     and setting.branch_id=p_branch_id
-     and setting.activity=p_activity
-     and setting.wip_item_id=p_wip_item_id
-     and prefill.org_id=setting.org_id
-     and prefill.setting_id=setting.id;
+  if tg_table_name = 'cafe_item_settings' then
+    v_org_id := new.org_id;
+    v_setting_id := new.id;
+  elsif tg_op = 'DELETE' then
+    v_org_id := old.org_id;
+    v_setting_id := old.cafe_item_setting_id;
+  else
+    v_org_id := new.org_id;
+    v_setting_id := new.cafe_item_setting_id;
+  end if;
+  delete from ops.cafe_item_settings_prefills
+   where org_id = v_org_id and setting_id = v_setting_id;
+  return null;
 end;
 $$;
-comment on function ops.save_cafe_item_settings(uuid,text,uuid,text,uuid,uuid[],text,boolean,numeric[]) is
-  'SECURITY DEFINER: saves manager-owned Café settings using the existing validated writer and clears prefill rollback ownership after a successful save.';
-revoke execute on function ops.save_cafe_item_settings(uuid,text,uuid,text,uuid,uuid[],text,boolean,numeric[])
-  from public, anon, service_role;
-grant execute on function ops.save_cafe_item_settings(uuid,text,uuid,text,uuid,uuid[],text,boolean,numeric[])
-  to authenticated;
+comment on function ops._adopt_cafe_item_settings_prefill() is
+  'SECURITY DEFINER: a settings or shown-unit trigger removes private rollback provenance after a configuration change; table grants, RLS and guards authorize the originating write.';
+revoke execute on function ops._adopt_cafe_item_settings_prefill()
+  from public, anon, authenticated, service_role;
+
+create trigger cafe_item_settings_adopt_prefill
+  after update on ops.cafe_item_settings
+  for each row when (
+    (old.mos_name,old.default_item_unit_id,old.kind,old.is_active,old.unit_multiples)
+    is distinct from
+    (new.mos_name,new.default_item_unit_id,new.kind,new.is_active,new.unit_multiples)
+  ) execute function ops._adopt_cafe_item_settings_prefill();
+create trigger cafe_item_setting_units_adopt_prefill
+  after insert or delete on ops.cafe_item_setting_units
+  for each row execute function ops._adopt_cafe_item_settings_prefill();
 
 create function ops.prefill_cafe_item_settings(p_org_id uuid)
 returns integer language plpgsql security invoker set search_path = '' as $$
@@ -99,10 +96,11 @@ begin
     on conflict (org_id,branch_id,activity,wip_item_id) do nothing
     returning id into setting_id;
     if setting_id is null then continue; end if;
-    insert into ops.cafe_item_settings_prefills(org_id,setting_id) values(candidate.org_id,setting_id);
     insert into ops.cafe_item_setting_units(org_id,cafe_item_setting_id,item_unit_id)
     values(candidate.org_id,setting_id,candidate.stock_unit_id);
     update ops.cafe_item_settings set default_item_unit_id=candidate.stock_unit_id where id=setting_id;
+    -- Record provenance only after initialization so its own writes cannot adopt the row.
+    insert into ops.cafe_item_settings_prefills(org_id,setting_id) values(candidate.org_id,setting_id);
     added := added+1;
   end loop;
   return added;

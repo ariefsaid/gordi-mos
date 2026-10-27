@@ -28,11 +28,11 @@ select is((select kind from ops.cafe_item_settings_read
               and branch_id = '00000000-0000-0000-0000-00000000bf01'
               and activity = 'kitchen' and not is_active),
           'RAW', 'a unique confirmed stock unit prefills its known non-BOM kind while the stream stays inactive');
-select is((select kind from ops.cafe_item_settings_read
+select is((select count(*)::int from ops.cafe_item_settings_read
             where item_id = (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1287-WIP')
               and branch_id = '00000000-0000-0000-0000-00000000bf01'
-              and activity = 'kitchen' and not is_active),
-          null::text, 'an item without a stock unit stays unclassified and inactive');
+              and activity = 'kitchen' and not is_active and kind is null),
+          1, 'an item without a stock unit stays unclassified and inactive');
 select is((select count(*)::int from ops.wip_items
             where id = '00000000-0000-0000-0000-00000000c287' and kind = 'WIP' and flag_active
               and reference_source = 'manual'),
