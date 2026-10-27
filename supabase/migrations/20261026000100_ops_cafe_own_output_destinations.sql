@@ -72,6 +72,7 @@ as $$
   from ops.locations l
   where l.org_id = (select shared.current_org_id()) and l.id = p_location_id
 $$;
+revoke execute on function ops._cafe_location_snapshot(uuid) from public, anon, authenticated, service_role;
 
 
 drop function ops.list_cafe_locations(jsonb);

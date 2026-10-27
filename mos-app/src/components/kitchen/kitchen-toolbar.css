@@ -1,3 +1,5 @@
+@reference "tailwindcss";
+
 /* ════════════════════════════════════════════════════════════════════════════
    KitchenToolbar — the shared search-mini + category filter (OD-K-5 redesign §2.3).
    Flat utility surface (no --shadow-rest): --card bg, --border bottom, 10–12px pad.
@@ -170,8 +172,7 @@
   max-height: min(70vh, 480px); overflow-y: auto; box-shadow: var(--shadow-popover);
 }
 .ktb-fields-popover__panel .collection-toolbar__label {
-  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
-  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  @apply sr-only;
 }
 .ktb-fields-popover__panel .collection-toolbar__fieldset-grid { margin-top: 0; }
 .ktb-fields-popover__panel .collection-toolbar__description { margin-top: var(--mos-label-gap); }
