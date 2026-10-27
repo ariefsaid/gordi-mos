@@ -293,7 +293,7 @@ describe('CafeItemSettingsPage active grouping', () => {
   })
 })
 
-describe('CafeItemSettingsPage kinds and table columns', () => {
+describe('CafeItemSettingsPage kind choices', () => {
   it.each([
     { locale: 'en' as const, kindName: 'Kind for Oat milk', raw: 'Raw material (RAW)', wip: 'Prepared item (WIP)' },
     { locale: 'id' as const, kindName: 'Jenis untuk Oat milk', raw: 'Bahan baku (RAW)', wip: 'Item olahan (WIP)' },
@@ -306,19 +306,7 @@ describe('CafeItemSettingsPage kinds and table columns', () => {
     expect(await screen.findByRole('option', { name: wip })).toBeInTheDocument()
   })
 
-  it('omits extra units from the wide table while retaining item-level editing', async () => {
-    const mediaSpy = vi.spyOn(window, 'matchMedia').mockImplementation(query => ({
-      matches: query === '(min-width: 1280px)', media: query, onchange: null,
-      addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(() => true),
-    }))
-    restoreMedia = () => mediaSpy.mockRestore()
-    renderPage()
-    const table = await screen.findByRole('table')
-    expect(within(table).queryByRole('columnheader', { name: 'Extra units' })).not.toBeInTheDocument()
-    expect(within(table).queryByRole('button', { name: /Extra units for/ })).not.toBeInTheDocument()
-    expect(table.getAttribute('aria-label')).not.toMatch(/extra unit/i)
-  })
+
 })
 
 describe('CafeItemSettingsPage unit multiples', () => {
@@ -620,7 +608,7 @@ describe('ESB-owned item fields (OD-2026-10-06-ESB-ITEMS)', () => {
     restoreMedia = () => mediaSpy.mockRestore()
   }
 
-  it.each([390, 1024])('shows the ESB name and category as read-only values at %ipx while MOS settings stay editable', async width => {
+  it.each([390, 1024, 1440])('shows the ESB name and category as read-only values at %ipx while MOS settings stay editable', async width => {
     viewportWidth(width)
     renderPage()
     const editor = await openItem(userEvent.setup())
@@ -631,16 +619,7 @@ describe('ESB-owned item fields (OD-2026-10-06-ESB-ITEMS)', () => {
     expect(within(editor).getByRole('checkbox', { name: 'Active for Oat milk' })).toBeEnabled()
   })
 
-  it('lists items in a table at the wide width, with the ESB fields read-only and the editor opening on choice', async () => {
-    viewportWidth(1280)
-    renderPage()
-    const row = await screen.findByRole('row', { name: /ERP Oat milk/ })
-    expect(screen.getByRole('columnheader', { name: 'ESB name' })).toBeInTheDocument()
-    expect(within(row).getByText('ERP Oat milk')).toBeInTheDocument()
-    expect(within(row).queryByRole('textbox')).not.toBeInTheDocument()
-    const editor = await openItem(userEvent.setup())
-    expect(within(editor).getAllByRole('textbox')).toEqual([within(editor).getByRole('textbox', { name: 'MOS name' })])
-  })
+
 
   it('saves an edited MOS name without touching the ESB name', async () => {
     const user = userEvent.setup()
@@ -665,4 +644,67 @@ describe('ESB-owned item fields (OD-2026-10-06-ESB-ITEMS)', () => {
     await openItem(userEvent.setup())
     expect(await screen.findByText(note, { exact: true })).toBeInTheDocument()
   })
+})
+
+
+describe('Café ESB prefill activation', () => {
+  it.each(['en', 'id'] as const)('activates a prefilled item in one action in %s', async locale => {
+    const user = userEvent.setup()
+    mockListReports.mockResolvedValue([])
+    mockListItems.mockResolvedValue([{
+      id: 'item-prefilled', erpName: 'Icing Sugar', mosName: 'Icing Sugar', category: 'Kitchen',
+      kind: 'RAW', isActive: false, defaultUnitId: 'stock-kg',
+      units: [{ id: 'stock-kg', name: 'kg', isDefault: true, isShown: true, labelOrdinal: null, labelCount: 1 }],
+    }])
+    renderPage(locale)
+    await user.click(await screen.findByRole('button', { name: locale === 'en' ? 'Not active (1)' : 'Tidak aktif (1)' }))
+    await user.click(await screen.findByRole('button', { name: /Icing Sugar/ }))
+    const kind = screen.getByRole('combobox', { name: locale === 'en' ? 'Kind for Icing Sugar' : 'Jenis untuk Icing Sugar' })
+    expect(kind).toHaveTextContent(locale === 'en' ? 'Raw material (RAW)' : 'Bahan baku (RAW)')
+    expect(screen.getByRole('combobox', { name: locale === 'en' ? 'Default unit' : 'Satuan default' })).toHaveTextContent('kg')
+    await user.click(screen.getByRole('checkbox', { name: locale === 'en' ? 'Active for Icing Sugar' : 'Aktif untuk Icing Sugar' }))
+    await waitFor(() => expect(mockSaveItem).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      itemId: 'item-prefilled', kind: 'RAW', isActive: true, defaultUnitId: 'stock-kg', shownUnitIds: ['stock-kg'],
+    })))
+    expect(screen.getByRole('checkbox', { name: locale === 'en' ? 'Active for Icing Sugar' : 'Aktif untuk Icing Sugar' })).toBeChecked()
+  })
+})
+
+
+it('keeps a failed one-action activation available to retry with Save item', async () => {
+  const user = userEvent.setup()
+  mockListReports.mockResolvedValue([])
+  mockListItems.mockResolvedValue([{
+    id: 'item-prefilled', erpName: 'Icing Sugar', mosName: 'Icing Sugar', category: 'Kitchen',
+    kind: 'RAW', isActive: false, defaultUnitId: 'stock-kg',
+    units: [{ id: 'stock-kg', name: 'kg', isDefault: true, isShown: true, labelOrdinal: null, labelCount: 1 }],
+  }])
+  mockSaveItem.mockRejectedValueOnce(new Error('offline'))
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Not active (1)' }))
+  await user.click(await screen.findByRole('button', { name: /Icing Sugar/ }))
+  await user.click(screen.getByRole('checkbox', { name: 'Active for Icing Sugar' }))
+  await screen.findByRole('alert')
+  expect(mockSaveItem).toHaveBeenCalledTimes(1)
+  await user.click(screen.getByRole('button', { name: 'Save item' }))
+  await waitFor(() => expect(mockSaveItem).toHaveBeenCalledTimes(2))
+  expect(screen.getByRole('checkbox', { name: 'Active for Icing Sugar' })).toBeChecked()
+})
+
+it('keeps activation with other unsaved edits in the explicit save flow', async () => {
+  const user = userEvent.setup()
+  mockListReports.mockResolvedValue([])
+  mockListItems.mockResolvedValue([{
+    id: 'item-prefilled', erpName: 'Icing Sugar', mosName: 'Icing Sugar', category: 'Kitchen',
+    kind: 'RAW', isActive: false, defaultUnitId: 'stock-kg',
+    units: [{ id: 'stock-kg', name: 'kg', isDefault: true, isShown: true, labelOrdinal: null, labelCount: 1 }],
+  }])
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Not active (1)' }))
+  await user.click(await screen.findByRole('button', { name: /Icing Sugar/ }))
+  await user.type(screen.getByRole('textbox', { name: 'MOS name' }), ' fine')
+  await user.click(screen.getByRole('checkbox', { name: 'Active for Icing Sugar fine' }))
+  expect(mockSaveItem).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('button', { name: 'Save item' }))
+  await waitFor(() => expect(mockSaveItem).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ mosName: 'Icing Sugar fine', isActive: true })))
 })

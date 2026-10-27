@@ -109,8 +109,7 @@ begin
          item.id,
          -- Sample test data: a BOM output is WIP, an item with no BOM output is RAW, unknown stays unset.
          -- The real org never gets a kind from a load (the team sets it, OD-CAFE-MVP-12).
-         case when item.has_active_bom_output is true then 'WIP'
-              when item.has_active_bom_output is false then 'RAW' end,
+         ops._cafe_kind_from_esb(item.has_active_bom_output),
          units.confirmed_stock_unit_count > 0,
          case when units.confirmed_stock_unit_count = 1
               then units.sole_confirmed_stock_unit_id end

@@ -61,21 +61,38 @@ select ops.refresh_cafe_stream_items((
 insert into ops.cafe_item_settings (org_id, branch_id, activity, wip_item_id)
 select item.org_id, '00000000-0000-0000-0000-00000000bf01', 'kitchen', item.id
   from ops.wip_items item
- where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW';
+ where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW'
+on conflict (org_id, branch_id, activity, wip_item_id) do nothing;
+-- Treat the prefilled row as an explicitly team-unclassified setting for this reference-view test.
+update ops.cafe_item_settings setting
+   set kind = null
+  from ops.wip_items item
+ where setting.wip_item_id = item.id
+   and item.esb_product_id = 'SYNTH-ERP-P-1240-RAW';
 insert into ops.cafe_item_setting_units (org_id, cafe_item_setting_id, item_unit_id)
 select setting.org_id, setting.id, unit.id
   from ops.cafe_item_settings setting
   join ops.wip_items item on item.id = setting.wip_item_id
   join ops.item_units unit on unit.wip_item_id = item.id
  where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW'
-   and unit.esb_product_detail_id = 'SYNTH-ERP-PD-1240-RAW-A';
+   and unit.esb_product_detail_id = 'SYNTH-ERP-PD-1240-RAW-B'
+on conflict (cafe_item_setting_id, item_unit_id) do nothing;
 update ops.cafe_item_settings setting
    set default_item_unit_id = unit.id
   from ops.wip_items item
   join ops.item_units unit on unit.wip_item_id = item.id
  where setting.wip_item_id = item.id
    and item.esb_product_id = 'SYNTH-ERP-P-1240-RAW'
-   and unit.esb_product_detail_id = 'SYNTH-ERP-PD-1240-RAW-A';
+   and unit.esb_product_detail_id = 'SYNTH-ERP-PD-1240-RAW-B';
+delete from ops.cafe_item_setting_units shown
+ using ops.cafe_item_settings setting, ops.wip_items item, ops.item_units unit
+ where shown.cafe_item_setting_id = setting.id
+   and setting.wip_item_id = item.id
+   and unit.wip_item_id = item.id
+   and shown.item_unit_id = unit.id
+   and item.esb_product_id = 'SYNTH-ERP-P-1240-RAW'
+   and setting.branch_id = '00000000-0000-0000-0000-00000000bf01'
+   and unit.esb_product_detail_id <> 'SYNTH-ERP-PD-1240-RAW-B';
 select lives_ok($$select ops.refresh_cafe_item_references((select source_rows from cafe_reference_test_source))$$,
   'refresh: replaying the same source snapshot is idempotent');
 select is((select unit.esb_product_detail_id from ops.cafe_item_settings setting
@@ -83,7 +100,7 @@ select is((select unit.esb_product_detail_id from ops.cafe_item_settings setting
   join ops.wip_items item on item.id = setting.wip_item_id
   where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW'
     and setting.branch_id = '00000000-0000-0000-0000-00000000bf01'),
-  'SYNTH-ERP-PD-1240-RAW-A', 'refresh preserves the manager-selected default detail');
+  'SYNTH-ERP-PD-1240-RAW-B', 'refresh preserves the manager-selected default detail');
 select is((select string_agg(unit.esb_product_detail_id, ',' order by unit.esb_product_detail_id)
   from ops.cafe_item_settings setting
   join ops.cafe_item_setting_units shown on shown.cafe_item_setting_id = setting.id
@@ -91,7 +108,7 @@ select is((select string_agg(unit.esb_product_detail_id, ',' order by unit.esb_p
   join ops.wip_items item on item.id = setting.wip_item_id
   where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW'
     and setting.branch_id = '00000000-0000-0000-0000-00000000bf01'),
-  'SYNTH-ERP-PD-1240-RAW-A', 'refresh preserves the manager-selected shown details');
+  'SYNTH-ERP-PD-1240-RAW-B', 'refresh preserves the manager-selected shown details');
 select is((select count(*)::int from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1240-RAW' and kind is null and flag_active), 1,
   'refresh: one ERP product creates one active but unclassified shared item');
 select is((select count(*)::int from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1240-WIP' and kind is null and flag_active), 1,
