@@ -37,6 +37,9 @@ insert into shared.team_memberships (org_id, person_id, team_id, is_primary) val
   (pg_temp.p('a1'), pg_temp.p('f201'), pg_temp.p('5b02'), false), (pg_temp.p('a1'), pg_temp.p('f202'), pg_temp.p('5b02'), false),
   (pg_temp.p('a1'), pg_temp.p('f203'), pg_temp.p('5b02'), false),
   (pg_temp.p('a1'), pg_temp.p('f301'), pg_temp.p('5b04'), false), (pg_temp.p('a1'), pg_temp.p('f501'), pg_temp.p('5b05'), false);
+-- All fixture memberships, including seeded leads, predate the fixed attendance scenarios.
+update shared.team_memberships set effective_from = date '2026-10-01'
+ where org_id = '00000000-0000-0000-0000-0000000000a1';
 insert into shared.team_lead_assignments (org_id, team_id, lead_person_id) values
   (pg_temp.p('a1'), pg_temp.p('5b01'), pg_temp.p('d1')), (pg_temp.p('a1'), pg_temp.p('5b02'), pg_temp.p('d4'));
 
@@ -317,7 +320,9 @@ select is((select count(*)::int from jsonb_array_elements(ops.list_staff_monthly
 
 -- ── Owner rule: nobody decides their own request; a lead's goes to admin or hr, hr's goes to admin ──
 reset role;
-insert into shared.team_memberships (org_id, person_id, team_id, is_primary) values (pg_temp.p('a1'), pg_temp.p('f401'), pg_temp.p('5b02'), false), (pg_temp.p('a1'), pg_temp.p('f105'), pg_temp.p('5b04'), false);
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from) values
+  (pg_temp.p('a1'), pg_temp.p('f401'), pg_temp.p('5b02'), false, '2026-10-01'),
+  (pg_temp.p('a1'), pg_temp.p('f105'), pg_temp.p('5b04'), false, '2026-10-01');
 insert into shared.team_lead_assignments (org_id, team_id, lead_person_id) values (pg_temp.p('a1'), pg_temp.p('5b04'), pg_temp.p('f105'));
 set local role authenticated;
 select pg_temp.as_('f105');

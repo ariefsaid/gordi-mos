@@ -17,8 +17,7 @@ Load only what the task needs. `docs/` is local-only (gitignored); in a managed 
 
 ## UI and design
 
-- Look and composition are designed in `~/Coding/mos-ui-fresh` and port back here per its `PORT-BACK.md`. The look authority is the owner's approval of rendered screens there. No document in this repo governs how the app looks.
-- On `dev`, add fields and actions with existing components; never recompose a page. A feature that needs a new layout is designed in the fresh folder first.
+- Design happens in this repo on a branch: iterate on rendered screens locally, and the owner approves the shots before the PR merges. The look authority is that approval; no document governs how the app looks. `~/Coding/mos-ui-fresh` is retired as the design lane.
 - A test asserts what a user can do, never how it looks. Delete look-asserting tests when you touch the page they pin; never add new ones. Keep behaviour, accessibility (WCAG AA, 44px phone targets, no horizontal scroll at 390px), both languages, and data tests.
 - Before handing back UI work: run the impeccable and taste skills on the rendered screens, fix what they find, attach 390px and 1440px screenshots. Hard cap: two rounds.
 
@@ -27,6 +26,7 @@ Load only what the task needs. `docs/` is local-only (gitignored); in a managed 
 - This repo is public: GitHub prose is permanent, and deletion does not unpublish; never publish unpatched weaknesses or missing-control lists, PII, secrets, or secret coordinates. Send weaknesses to a private security advisory and describe them publicly only after the fix ships.
 - Keep documentary material and integration-partner coordinates in local `docs/`; before security, auth, infrastructure, or people work, check `gh repo view --json visibility`. Public writing states rules, not dated causes; MOS design artifacts use no external brand, product, or AGPL references.
 - GitHub writes go through `scripts/gh-post.sh`; raw `gh` writes are blocked, with `gh pr merge` as the merge exception. Follow refusals from `scripts/pre-pr-verify.sh`, `scripts/gh-post.sh`, `.claude/hooks/pre-pr-gate.sh`, `.claude/hooks/merge-migration-order.sh`, `.githooks/commit-msg`, and `.githooks/pre-push`.
+- Never run the full suite or full e2e locally, for dev or main PRs. Local gate: `scripts/pre-pr-verify.sh --dev` (typecheck, eslint, directly touched tests), plus touched e2e specs and UI captures; CI on the dev and main PRs is the full proof. A release gets one security review, no second reviewer.
 - Review is machine-first. Typecheck, lint, behaviour tests, build, gitleaks, RLS tests and migration order run in CI on every PR and are the merge gate. One security review by someone who did not build the branch, only when the diff touches auth, schema/RLS, migrations, money or CI/gate scripts; `scripts/gh-post.sh` enforces this. Round cap: one review and one re-review; if the second verdict is still not a pass, stop and bring the findings to the owner. No spec or code-quality review rounds. No review of looks.
 - Keep migrations reversible; every business table has RLS and the `org_id` tenancy seam is enforced.
 - `OD-*` decisions are owner-locked until changed; `DD-*` decisions are Director-made and binding until revised, but may be challenged with evidence. Name the decision type when citing it.

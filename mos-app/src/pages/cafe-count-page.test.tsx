@@ -116,7 +116,7 @@ describe('CafeCountPage', () => {
 
     const empty = await screen.findByTestId('empty-state')
     expect(empty).toHaveTextContent('1 item is set up')
-    expect(empty).toHaveTextContent('default unit confirmed as an ESB stock unit')
+    expect(empty).toHaveTextContent('Items → the item → default unit')
     expect(empty).not.toHaveTextContent('not set up for this list')
     expect(empty).not.toHaveTextContent('Give it a kind')
     expect(screen.queryByRole('textbox', { name: /counted/ })).not.toBeInTheDocument()
@@ -124,26 +124,13 @@ describe('CafeCountPage', () => {
     expect(listCafeItemSettings).toHaveBeenCalledWith(streamMocks.stream)
   })
 
-  it('puts the localized date in PageHead metadata and labels the kitchen switch in both locales', async () => {
+  it('shows the localized count date and lets the user switch stream in both locales', async () => {
     for (const locale of ['en', 'id'] as const) {
       const { unmount } = renderPage(locale)
       const streamName = locale === 'en' ? 'Cafe Branch · Kitchen' : 'Cafe Branch · Dapur'
-      const stream = await screen.findByRole('heading', { name: streamName })
-      const context = stream.closest('.ch-status-row')
-      expect(context).toBeInTheDocument()
-      expect(context?.querySelector('time')).toBeNull()
-
-      const head = screen.getByTestId('page-head')
-      const date = head.querySelector('time')
-      expect(date).toHaveAttribute('datetime', '2026-10-06')
-      expect(date).toHaveTextContent(formatWeekdayDayMonth('2026-10-06', locale))
-      expect(date?.closest('.ch-meta, .page-head-meta')).toBeInTheDocument()
-
-      const switchLabel = locale === 'en' ? 'Switch kitchen' : 'Ganti dapur'
-      const switchButton = within(context as HTMLElement).getByRole('button', { name: switchLabel })
-      expect(switchButton).toHaveTextContent(locale === 'en' ? 'Switch kitchen' : 'Ganti dapur')
-      expect(context).not.toHaveTextContent(formatWeekdayDayMonth('2026-10-06', locale))
-      fireEvent.click(switchButton)
+      await screen.findByRole('heading', { name: streamName })
+      expect(screen.getByText(formatWeekdayDayMonth('2026-10-06', locale))).toHaveAttribute('datetime', '2026-10-06')
+      fireEvent.click(screen.getByRole('button', { name: locale === 'en' ? 'Switch kitchen' : 'Ganti dapur' }))
       expect(await screen.findByRole('option', { name: /Other Cafe · Bar/ })).toBeInTheDocument()
       unmount()
     }
@@ -404,7 +391,7 @@ describe('CafeCountPage', () => {
   })
 
   it('AC-008 a count typed in a manager multiple shows its default-unit amount and sends the multiple; no multiples, no unit control', async () => {
-    vi.mocked(listCafeItemSettings).mockResolvedValue([{ id: 'raw-1', unitMultiples: [0.5] }] as never)
+    vi.mocked(listCafeItemSettings).mockResolvedValue([{ id: 'raw-1', defaultUnitId: 'unit-kg', unitMultiples: [0.5] }] as never)
     mockSubmit.mockResolvedValue([{ client_key: 'client-1', outcome: 'submitted', line_id: 'line-1' }])
     renderPage()
     const box = await screen.findByRole('textbox', { name: 'Raw flour, counted, kg' })
@@ -417,17 +404,30 @@ describe('CafeCountPage', () => {
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledWith(streamMocks.stream, [expect.objectContaining({ quantity: '3', unit_factor: 0.5 })], '2026-10-06'))
   })
 
-  it('AC-005 a reviewer sees which stream items cannot be counted; a floor member is never asked', async () => {
-    vi.mocked(listCafeCountExcludedItems).mockResolvedValue(['Boxed tea', 'Paper cups'])
-    const floor = renderPage()
+  it('AC-1863 stock-unit fallback does not offer multiples of the production default', async () => {
+    vi.mocked(listCafeItemSettings).mockResolvedValue([{ id: 'raw-1', defaultUnitId: 'unit-batch', unitMultiples: [2] }] as never)
+    renderPage()
     await screen.findByRole('textbox', { name: 'Raw flour, counted, kg' })
+    expect(screen.queryByRole('button', { name: 'Change unit' })).not.toBeInTheDocument()
+  })
+
+  it.each(['en', 'id'] as const)('AC-005 in %s a reviewer sees which stream items cannot be counted; a floor member is never asked', async locale => {
+    vi.mocked(listCafeCountExcludedItems).mockResolvedValue(['Boxed tea', 'Paper cups'])
+    const floor = renderPage(locale)
+    await screen.findByRole('textbox', { name: /Raw flour.*kg/ })
     expect(listCafeCountExcludedItems).not.toHaveBeenCalled()
     expect(screen.queryByText(/cannot be counted/)).not.toBeInTheDocument()
     floor.unmount()
 
     mockUseAuth.mockReturnValue({ ...VIEWER, viewer: { ...(VIEWER as Extract<AuthState, { status: 'authenticated' }>).viewer, accessRoles: ['member', 'supervisor'] } } as AuthState)
-    renderPage()
-    expect(await screen.findByText('2 items on this list cannot be counted because their unit is not the ESB stock unit: Boxed tea, Paper cups.')).toBeInTheDocument()
+    renderPage(locale)
+    const summary = await screen.findByText(locale === 'en' ? '2 items cannot be counted' : '2 item tidak dapat dihitung')
+    const disclosure = summary.closest('details')!
+    expect(disclosure.open).toBe(false)
+    fireEvent.click(summary)
+    expect(disclosure.open).toBe(true)
+    expect(within(disclosure).getByRole('list')).toHaveTextContent('Boxed tea')
+    expect(within(disclosure).getByRole('list')).toHaveTextContent('Paper cups')
   })
 
   it('FR-006 an item another stream of the branch counted today shows where and takes no entry', async () => {

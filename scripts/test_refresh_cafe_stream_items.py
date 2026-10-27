@@ -122,6 +122,48 @@ class StreamUsageTest(unittest.TestCase):
             self.assertIn('"branch_code": "branch_a"', output)
             self.assertIn('rollback;', output)
 
+    def test_replica_database_password_only_reaches_psql_environment(self):
+        catalog = [dict(esb_product_id='1', esb_product_detail_id='detail-1', category='Kitchen',
+                        has_active_bom_output=True, is_active=True, erp_category_type_name='Inventory')]
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'catalog.json'
+            path.write_text(json.dumps(catalog))
+            with patch.dict(self.module.os.environ, {
+                    'WAREHOUSE_DB_URL': 'postgresql://reader:s%40cret@warehouse.example.test:5432/warehouse'}), \
+                    patch.object(self.module.subprocess, 'run', return_value=SimpleNamespace(stdout=json.dumps([
+                        self.row('A', '1', 'Simple Manufacturing', 1, 0, True)]))) as run:
+                result, output, error = self.main([
+                    '--erp-query-cmd', 'replica-reader', '--erp-db-url-env', 'WAREHOUSE_DB_URL',
+                    '--catalog', str(path), '--esb-code', 'TEST'])
+            self.assertEqual(result, 0, error)
+            command = run.call_args.args[0]
+            self.assertEqual(command, [
+                'replica-reader', 'postgresql://reader@warehouse.example.test:5432/warehouse',
+                '-c', command[-1]])
+            self.assertNotIn('s%40cret', ' '.join(command))
+            self.assertEqual(run.call_args.kwargs['env']['PGPASSWORD'], 's@cret')
+            self.assertIn('rollback;', output)
+
+    def test_replica_database_url_env_and_command_shape_fail_closed(self):
+        catalog = [dict(esb_product_id='1', esb_product_detail_id='detail-1', category='Kitchen',
+                        has_active_bom_output=True, is_active=True, erp_category_type_name='Inventory')]
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'catalog.json'
+            path.write_text(json.dumps(catalog))
+            for env, command in [({}, 'replica-reader'),
+                                 ({'WAREHOUSE_DB_URL': 'mysql://reader:secret@warehouse.example.test/db'}, 'replica-reader'),
+                                 ({'WAREHOUSE_DB_URL': 'postgresql://reader:secret@warehouse.example.test/db'}, 'psql -c')]:
+                with self.subTest(env=env, command=command), \
+                        patch.dict(self.module.os.environ, env, clear=True), \
+                        patch.object(self.module.subprocess, 'run') as run:
+                    result, output, error = self.main([
+                        '--erp-query-cmd', command, '--erp-db-url-env', 'WAREHOUSE_DB_URL',
+                        '--catalog', str(path), '--esb-code', 'TEST'])
+                self.assertEqual(result, 2)
+                self.assertNotIn('secret', error)
+                self.assertEqual(output, '')
+                run.assert_not_called()
+
     def test_apply_prefers_environment_url_and_passes_password_only_to_psql_environment(self):
         url = 'postgresql://ops:s%40cret@localhost:5432/test'
         target = 'postgresql://ops@localhost:5432/test'

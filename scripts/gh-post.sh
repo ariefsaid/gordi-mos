@@ -193,9 +193,11 @@ require_pr_stamps() { # $1 base branch ('' when none named)
   # CI still gates that PR. Any other route into staging needs the stamps.
   [ "$base_val" = "staging" ] && [ "$(git branch --show-current)" = "main" ] && return 0
   v="$(cat "$gitdir/pre-pr-verify-ok" 2>/dev/null || true)"
-  # CI verify is the gate for dev PRs, so only every other base needs the full local stamp.
-  if [ "$base_val" != "dev" ] && [ "$v" != "$head" ]; then
-    die "no full verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh (only --base dev is exempt; CI verify is its gate)"
+  # CI is the full proof for dev and main PRs: dev needs no local stamp, main accepts the light
+  # --dev stamp; every other base needs the full local stamp.
+  if [ "$base_val" = "main" ] && [ "$(cat "$gitdir/pre-pr-verify-dev-ok" 2>/dev/null || true)" = "$head" ]; then :
+  elif [ "$base_val" != "dev" ] && [ "$v" != "$head" ]; then
+    die "no full verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh (--dev is enough for main; --base dev is exempt; CI verify is its gate)"
   fi
   # Security lens only, and only when the diff touches auth, schema/RLS, migrations, money or the
   # CI/gate scripts (or the base cannot be resolved: fail closed). Spec and code quality are machine

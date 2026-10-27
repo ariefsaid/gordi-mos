@@ -3,7 +3,7 @@
 -- admin-only. Each acceptance check is named AC<number> after the 2026-10-23 plan.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(101);
+select plan(98);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -194,53 +194,45 @@ reset role;
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select results_eq($$select name from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf02', 'kitchen') order by same_branch desc, name$$,
-  $$values ('RRS Central'), ('RRS Outlet'), ('Shared cold room'), ('Radiant Counter')$$,
+  $$values ('RRS Outlet'), ('Shared cold room'), ('Radiant Counter')$$,
   'a stream sends to every storage Location of its Branch, then to Branches it has a route to');
 select ok(not exists (select 1 from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf02', 'kitchen') where name in ('GHQ Bar', 'GHQ Kitchen')),
   'and not to another Branch without a route');
 select results_eq($$select name from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf01', 'kitchen') order by name$$,
-  $$values ('GHQ Bar'), ('GHQ Kitchen'), ('Shared cold room')$$,
+  $$values ('GHQ Bar'), ('Shared cold room')$$,
   'a Branch''s Locations reach each other with no route (GHQ kitchen to GHQ bar), and no other Branch''s Location');
 select is((select count(*)::int from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf01', 'bar')
              where name = 'GHQ Kitchen'), 1, 'the answer is the stream''s, so the GHQ bar stream sees the GHQ kitchen too');
 select is((select count(*)::int from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf09', 'kitchen')), 0,
   'a stream of another organisation has no destinations here');
 reset role;
--- Staging shape: no Team has a Site; Locations do. RRS Central (RRS kitchen) and GHQ Kitchen both sit at Gordi HQ.
+-- Locations carry Sites; the fixture Teams do not. The two kitchens share Gordi HQ.
 select is((select count(*)::int from shared.teams where site_id is not null and org_id = '00000000-0000-0000-0000-0000000000a1'), 0,
   'no Team has a Site in this data');
 update ops.locations set site_id = '43000000-0000-0000-0000-0000000000a1'
- where org_id = '00000000-0000-0000-0000-0000000000a1' and name = 'GHQ Kitchen';
+ where org_id = '00000000-0000-0000-0000-0000000000a1' and name in ('GHQ Kitchen', 'GHQ Bar');
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select results_eq($$select name from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf01', 'kitchen') order by name$$,
-  $$values ('GHQ Bar'), ('GHQ Kitchen'), ('RRS Central'), ('Shared cold room')$$,
-  'a Location at the same Site as one of the stream''s Locations is offered with no route (GHQ kitchen to RRS Central)');
-select is((select branch_id from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf01', 'kitchen') where name = 'RRS Central'),
-  '00000000-0000-0000-0000-00000000bf02'::uuid, 'and it is a move between Branches: RRS Central belongs to RRS');
-select ok(not exists (select 1 from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf01', 'kitchen') where name = 'RRS Outlet'),
-  'a Location at another Site (RRS Outlet) is not offered');
-select ok(exists (select 1 from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf02', 'kitchen') where name = 'GHQ Kitchen')
-      and not exists (select 1 from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf02', 'kitchen') where name = 'GHQ Bar'),
-  'the Site rule is symmetric: the RRS kitchen is offered GHQ Kitchen at Gordi HQ, but not GHQ Bar, which has no Site');
-insert into ops.kitchen_plans (id, log_date, wip_item_id, branch_id, activity, action, qty_porsi, to_location_id) values
-  ('43000000-0000-0000-0000-0000000000f6', '2026-07-08', '00000000-0000-0000-0000-00000000ab01',
-   '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'transfer', 2, pg_temp.loc('RRS Central'));
-select row_eq($$select branch_id, destination_branch_id from ops.kitchen_plans where id = '43000000-0000-0000-0000-0000000000f6'$$,
-  row('00000000-0000-0000-0000-00000000bf01'::uuid, '00000000-0000-0000-0000-00000000bf02'::uuid),
-  'the GHQ kitchen can plan a transfer to RRS Central with no route');
+  $$values ('GHQ Bar'), ('Shared cold room')$$,
+  'a shared Site grants no destinations in another Branch without a route, and excludes the own place');
 select throws_ok($$insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, qty_porsi, to_location_id)
-  values ('2026-07-08', '00000000-0000-0000-0000-00000000ab01', '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'transfer', 2, pg_temp.loc('Radiant Counter'))$$,
-  '42501', null, 'a Location that is neither at the Site nor on a route is still refused');
-insert into ops.kitchen_logs (id, business_unit_id, log_date, action, wip_item_id, qty_porsi, from_storage_location_id, to_storage_location_id) values
-  ('43000000-0000-0000-0000-0000000000a8', '00000000-0000-0000-0000-00000000bb01', '2026-07-08', 'transfer',
-   '00000000-0000-0000-0000-00000000ab01', 1, pg_temp.loc('GHQ Kitchen'), pg_temp.loc('RRS Central'));
-select row_eq($$select branch_id, destination_branch_id from ops.kitchen_logs where id = '43000000-0000-0000-0000-0000000000a8'$$,
-  row('00000000-0000-0000-0000-00000000bf01'::uuid, '00000000-0000-0000-0000-00000000bf02'::uuid),
-  'and the GHQ kitchen can record the transfer to RRS Central, booked to GHQ and received by RRS');
+  values ('2026-07-08', '00000000-0000-0000-0000-00000000ab01', '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'transfer', 2, pg_temp.loc('RRS Central'))$$,
+  '42501', null, 'a plan cannot use a shared Site instead of a route');
+select throws_ok($$insert into ops.kitchen_logs (business_unit_id, log_date, action, wip_item_id, qty_porsi, from_storage_location_id, to_storage_location_id)
+  values ('00000000-0000-0000-0000-00000000bb01', '2026-07-08', 'transfer', '00000000-0000-0000-0000-00000000ab01', 1, pg_temp.loc('GHQ Kitchen'), pg_temp.loc('RRS Central'))$$,
+  '42501', null, 'a log cannot use a shared Site instead of a route');
 reset role;
-select is(ops.esb_endpoint_for_movement('transfer', '00000000-0000-0000-0000-00000000bf01', 'kitchen', '00000000-0000-0000-0000-00000000bf02'),
-  'noop', 'with no route the move is recorded in MOS and never queued for ESB');
+insert into ops.cafe_destinations (org_id, origin_branch_id, origin_activity, destination_branch_id)
+values ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf01', 'kitchen', '00000000-0000-0000-0000-00000000bf02');
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
+select ok(exists (select 1 from ops.list_cafe_destination_locations('00000000-0000-0000-0000-00000000bf01', 'kitchen') where name = 'RRS Central'),
+  'the other Branch at the shared Site becomes available with a route');
+select lives_ok($$insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, qty_porsi, to_location_id)
+  values ('2026-07-08', '00000000-0000-0000-0000-00000000ab01', '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'transfer', 2, pg_temp.loc('RRS Central'))$$,
+  'a plan to the same Site succeeds with a route');
+reset role;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
 select ops.create_cafe_location(
   '{"name":"Radiant Fridge","use":"storage","branch_ids":["00000000-0000-0000-0000-00000000bf03"]}',

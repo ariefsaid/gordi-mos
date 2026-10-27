@@ -1,7 +1,7 @@
 -- #1370 — Count date rule, a manager multiple stored in the default unit, and the excluded-items read.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(17);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -31,8 +31,10 @@ select ops.save_cafe_item_settings('00000000-0000-0000-0000-00000000bf01', 'kitc
   from ops.wip_items w join ops.item_units u on u.wip_item_id = w.id
  where w.esb_product_id like 'SYNTH-ERP-P-1370-%';
 reset role;
--- The excluded item: its default unit is no longer a confirmed ERP stock unit, so Count does not offer it.
-update ops.item_units set confirmed_at = null where esb_product_id = 'SYNTH-ERP-P-1370-X';
+-- Catalog coordinates confirm synced units without a human confirmation timestamp.
+update ops.item_units set confirmed_at = null where esb_product_id = 'SYNTH-ERP-P-1370-B';
+-- The excluded item has no ESB stock unit; clearing confirmation alone no longer excludes it.
+update ops.item_units set erp_is_stock = false, confirmed_at = null where esb_product_id = 'SYNTH-ERP-P-1370-X';
 update ops.cafe_item_settings set unit_multiples = array[0.5]::numeric[]
  where wip_item_id = (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1370-A');
 set local role authenticated;
@@ -87,6 +89,9 @@ select throws_ok($$select ops.submit_cafe_counts('00000000-0000-0000-0000-000000
 select ok(has_column_privilege('authenticated', 'ops.cafe_count_lines', 'entry_quantity', 'SELECT')
           and has_column_privilege('authenticated', 'ops.cafe_count_lines', 'entry_unit_factor', 'SELECT'),
   'FR-008 the browser role reads the typed multiple');
+
+select is((select unit_name from ops.cafe_countable_items('00000000-0000-0000-0000-00000000bf01', 'kitchen') where item_name = 'Phone item B'),
+  'kg', 'FR-005 an ESB-synced stock unit is countable without a human confirmation timestamp');
 
 -- FR-005 the excluded items read: the stream reviewer sees them, a floor member and another stream do not.
 select ok(exists (select 1 from ops.cafe_count_excluded_items('00000000-0000-0000-0000-00000000bf01', 'kitchen') where item_name = 'Phone non-stock item')

@@ -15,7 +15,7 @@ export interface CafeItemsEmptyStateProps {
   esbItemCount?: number
   /** The viewer's manage right when the page already knows it; otherwise it is checked here. */
   canManage?: boolean
-  /** The list requires a confirmed ERP stock default in addition to ordinary item setup. */
+  /** The list requires an eligible active ERP stock unit in addition to ordinary item setup. */
   requiresStockUnit?: boolean
 }
 

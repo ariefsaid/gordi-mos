@@ -4,6 +4,7 @@ import { Picker } from '@/components/ui/picker'
 import { SearchField } from '@/components/ui/search-field'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { ErrorState } from '@/components/ui/state-kit'
+import { FieldsChooser, type FieldsChooserProps } from './fields-chooser'
 import type { CollectionViewOperationStatus } from '@/lib/record-collection/types'
 import { useT } from '@/i18n/use-t'
 import './collection-toolbar.css'
@@ -46,19 +47,6 @@ export interface CollectionToolbarSearch {
   onChange: (value: string) => void
 }
 
-interface CollectionToolbarField {
-  value: string
-  label: string
-  required?: boolean
-}
-
-interface CollectionToolbarFields {
-  label: string
-  options: readonly CollectionToolbarField[]
-  visible: readonly string[]
-  onToggle: (field: string, visible: boolean) => void
-}
-
 export interface CollectionToolbarSavedViews {
   label: string
   selectedId: string | null
@@ -81,7 +69,7 @@ export interface CollectionToolbarProps<TPresentation extends string, TView exte
   exposedFilterIds?: readonly string[]
   checks?: readonly CollectionToolbarCheck[]
   savedViews?: CollectionToolbarSavedViews
-  fields?: CollectionToolbarFields
+  fields?: FieldsChooserProps
   /** Active refinements, shown as removable chips under the bar. */
   chips?: readonly CollectionToolbarChip[]
   onClearAll?: () => void
@@ -241,24 +229,7 @@ export function CollectionToolbar<TPresentation extends string, TView extends st
               <span>{check.label}</span>
             </label>
           ))}
-          {fields ? (
-            <fieldset className="collection-toolbar__fieldset">
-              <legend className="collection-toolbar__label">{fields.label}</legend>
-              <div className="collection-toolbar__fieldset-grid">
-                {fields.options.map((field) => (
-                  <label key={field.value} className="collection-toolbar__check">
-                    <input
-                      type="checkbox"
-                      checked={fields.visible.includes(field.value)}
-                      disabled={field.required}
-                      onChange={(event) => fields.onToggle(field.value, event.target.checked)}
-                    />
-                    <span>{field.label}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          ) : null}
+          {fields ? <FieldsChooser {...fields} /> : null}
           {savedViews ? (
             <div className="collection-toolbar__save">
               {saveOpen ? (

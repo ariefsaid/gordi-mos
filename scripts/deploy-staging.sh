@@ -171,7 +171,7 @@ done
 # Server ops: the ERP-sync box runs these scripts from its own clone of main.
 OPS=0
 while IFS= read -r f; do
-  case "$f" in scripts/reporting_snapshot.py|scripts/reporting-snapshot-cron.sh|scripts/requirements-reporting.txt|scripts/db-backup.sh|scripts/ops-check.sh|scripts/lib/ops-common.sh) OPS=1 ;; esac
+  case "$f" in scripts/reporting_snapshot.py|scripts/reporting-snapshot-cron.sh|scripts/refresh-cafe-stream-items.py|scripts/requirements-reporting.txt|scripts/db-backup.sh|scripts/ops-check.sh|scripts/lib/ops-common.sh) OPS=1 ;; esac
 done <<< "$changed_files"
 if [ "$OPS" = 1 ]; then
   [ -n "$OPS_SSH_HOST" ] && [ -n "$OPS_REPO_DIR" ] && [ -n "$OPS_RUNNER" ] && [ -n "$OPS_LOCK" ] || \
@@ -444,13 +444,14 @@ if [ "$OPS" = 1 ]; then
   set -e
   if [ "$rc" -ne 0 ]; then printf '%s\n' "$out" | ops_redact >&2; die "could not move the server ops clone to the deployed commit (exit $rc)"; fi
   say "Server ops clone is at the deployed commit."
-  say "Running the reporting snapshot on the server (takes a few minutes)..."
+  say "Running the reporting snapshot on the server (Café stream refresh stays deferred for the director's first-run review)..."
   set +e
-  out="$(ssh -o BatchMode=yes "$OPS_SSH_HOST" "flock -n $OPS_LOCK $OPS_RUNNER reporting-snapshot-cron.sh" 2>&1 </dev/null)"; rc=$?
+  out="$(ssh -o BatchMode=yes "$OPS_SSH_HOST" "flock -n $OPS_LOCK $OPS_RUNNER reporting-snapshot-cron.sh --snapshot-only" 2>&1 </dev/null)"; rc=$?
   set -e
   printf '%s\n' "$out" | ops_redact | tail -n 20
   [ "$rc" -eq 0 ] || die "the server reporting snapshot failed (exit $rc; a held lock means a run is already in progress)"
   say "Server reporting snapshot finished."
+  say "Scheduled Café stream refresh requires CAFE_STREAM_ITEMS_ENABLED=1 configured per environment after first-run approval."
 fi
 
 # ── 9. Record origin/main only after the database, every changed function and the server ops step succeeded.

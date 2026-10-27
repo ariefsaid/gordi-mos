@@ -13,6 +13,8 @@ export type CafeLocation = {
   site_id: UUID | null
   /** Activities it works in; a production location has exactly one. */
   activities: string[]
+  /** Explicit own output place for its sole Branch/Activity. */
+  is_stream_output?: boolean
 }
 /** `site_id` and `activities` left out keep the current values on an update. */
 export type LocationInput = Pick<CafeLocation, 'name' | 'use' | 'parent_id' | 'branch_ids'>
@@ -68,6 +70,7 @@ function parseLocation(value: unknown): CafeLocation {
     updated_at: asString(row.updated_at, 'updated timestamp'),
     updated_by: asNullableString(row.updated_by, 'updated person'),
     site_id: row.site_id == null ? null : asString(row.site_id, 'site id'),
+    is_stream_output: row.is_stream_output === true,
     activities: Array.isArray(row.activities) ? row.activities.map((code) => asString(code, 'activity')) : [],
   }
 }
