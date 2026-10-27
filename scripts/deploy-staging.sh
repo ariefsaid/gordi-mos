@@ -451,6 +451,7 @@ if [ "$OPS" = 1 ]; then
   printf '%s\n' "$out" | ops_redact | tail -n 20
   [ "$rc" -eq 0 ] || die "the server reporting snapshot failed (exit $rc; a held lock means a run is already in progress)"
   say "Server reporting snapshot finished."
+  say "Scheduled Café stream refresh requires CAFE_STREAM_ITEMS_ENABLED=1 configured per environment after first-run approval."
 fi
 
 # ── 9. Record origin/main only after the database, every changed function and the server ops step succeeded.

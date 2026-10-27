@@ -18,8 +18,11 @@ select ops.refresh_cafe_item_references((select jsonb_agg(row) from (
   'category','KITCHEN','unit_name','batch','erp_category_type_name','Inventory',
   'is_stock',false,'has_active_bom_output',false,'is_active',true) from generate_series(119,154) n
 ) fixtures));
+update shared.branches set code = 'synthetic_stream_branch'
+ where org_id = '00000000-0000-0000-0000-0000000000a1'
+   and id = '00000000-0000-0000-0000-00000000bf02';
 select ops.refresh_cafe_stream_items((select jsonb_agg(jsonb_build_object(
- 'esb_product_id', esb_product_id, 'branch_code','rumah_rames')) from ops.wip_items
+ 'esb_product_id', esb_product_id, 'branch_code','synthetic_stream_branch')) from ops.wip_items
  where org_id='00000000-0000-0000-0000-0000000000a1' and esb_product_id like 'SYNTH-1863-%'));
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
