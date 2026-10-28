@@ -1309,6 +1309,27 @@ describe('Issue 1551: shared Jakarta date on kitchen capture', () => {
 
 // ── AC-030: successful submit ──────────────────────────────────────────────────
 describe('AC-030: successful submit (increment semantics)', () => {
+  it('waits for the output default before submitting production', async () => {
+    const central = PRODUCTION_LOCATIONS.find(place => place.id === productionId(BRANCH_RUMAH_RAMES.id, 'kitchen'))!
+    const retry = vi.fn()
+    locationMocks.choices.mockReturnValue({ status: 'loading', locations: [], retry })
+    mockInsertKitchenLogBatch.mockResolvedValue(['located-log'])
+    await renderPage()
+    const quantity = await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(quantity, { target: { value: '12' } })
+    const submit = screen.getByRole('button', { name: /^submit/i })
+    expect(submit).toBeDisabled()
+
+    locationMocks.choices.mockReturnValue({ status: 'ready', locations: [{ ...central, is_stream_output: true }], retry })
+    fireEvent.change(quantity, { target: { value: '11' } })
+    fireEvent.change(quantity, { target: { value: '12' } })
+    expect(submit).toBeEnabled()
+    fireEvent.click(submit)
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledWith([
+      expect.objectContaining({ to_storage_location_id: central.id, qty_porsi: 12 }),
+    ]))
+  })
+
   it.each(['1,5', '1.5'])('production accepts %s and saves 1.5', async raw => {
     mockInsertKitchenLogBatch.mockResolvedValue(['decimal-production-log'])
     await renderPage()

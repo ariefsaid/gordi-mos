@@ -395,6 +395,8 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   const locationLoadState = placeChoices.status === 'error' || (needsDestinations && destinations.status === 'error')
     ? 'error'
     : placeChoices.status === 'ready' && (!needsDestinations || destinations.status === 'ready') ? 'ready' : 'loading'
+  const outputLocationPending = mode === 'production' && placeChoices.status !== 'ready'
+    && !(selectedLocationState?.scope === locationScope && selectedLocationState.values.to_storage_location_id)
   const locationChoices: LocationChoices = {
     storage: placeChoices.locations.filter(location => location.use === 'storage' || location.use === 'both'),
   }
@@ -1196,7 +1198,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!isOnline || invalidQuantityCount > 0 || unitNotShownBatch) return
+    if (!isOnline || invalidQuantityCount > 0 || unitNotShownBatch || outputLocationPending) return
 
     const staged = Object.values(lines).filter(l => l.qty_porsi > 0)
     if (staged.length === 0 || staged.some(line => unitNotShownItemIds.has(line.wip_item_id))) return
@@ -2098,7 +2100,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
               stagedCount={stagedCount}
               isSubmitting={isSubmitting}
               isOnline={isOnline}
-              blocked={captureClosed || hasBlockingError || noteUnresolved || invalidQuantityCount > 0}
+              blocked={captureClosed || outputLocationPending || hasBlockingError || noteUnresolved || invalidQuantityCount > 0}
               t={t}
             />}
           />
