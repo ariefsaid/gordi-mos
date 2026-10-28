@@ -20,7 +20,8 @@ for attempt in 1 2 3; do
     exit 0
   fi
 
-  if ! grep -Eiq '((pull|image).*(toomanyrequests|too many requests|429|retry-after)|(toomanyrequests|too many requests|429|retry-after).*(pull|image))' "$log_file"; then
+  terminal_line="$(sed '/^[[:space:]]*$/d' "$log_file" | tail -n 1)"
+  if ! grep -Eiq '((pull|image).*(toomanyrequests|too many requests|429|retry-after)|(toomanyrequests|too many requests|429|retry-after).*(pull|image))' <<<"$terminal_line"; then
     exit "$status"
   fi
   if [ "$attempt" -eq 3 ]; then
