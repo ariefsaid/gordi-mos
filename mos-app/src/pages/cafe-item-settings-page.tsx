@@ -369,9 +369,11 @@ function CafeItemSettingsPageForViewer() {
     setSaveStates(current => ({ ...current, [itemId]: null }))
   }, [])
 
-  const saveItem = useCallback(async (item: CafeItemSetting) => {
-    const draft = drafts[item.id]
-    if (!draft || !stream || !canEdit || !changed.has(item.id)) return
+  const savingItems = useRef(new Set<string>())
+  const saveItem = useCallback(async (item: CafeItemSetting, activationDraft?: ItemDraft) => {
+    const draft = activationDraft ?? drafts[item.id]
+    if (!draft || !stream || !canEdit || !itemDraftChanged(item, draft) || savingItems.current.has(item.id)) return
+    savingItems.current.add(item.id)
     const generation = requestGeneration.current
     setSavingIds(current => new Set(current).add(item.id))
     setSaveStates(current => ({ ...current, [item.id]: null }))
@@ -414,6 +416,7 @@ function CafeItemSettingsPageForViewer() {
       if (generation !== requestGeneration.current) return
       setSaveStates(current => ({ ...current, [item.id]: { kind: 'error', message: t('cafe.items.saveError') } }))
     } finally {
+      savingItems.current.delete(item.id)
       if (generation === requestGeneration.current) {
         setSavingIds(current => {
           const next = new Set(current)
@@ -422,7 +425,7 @@ function CafeItemSettingsPageForViewer() {
         })
       }
     }
-  }, [canEdit, changed, drafts, requestGeneration, stream, t])
+  }, [canEdit, drafts, requestGeneration, stream, t])
 
   const resolveReport = useCallback(async (report: CafeMissingItemReport) => {
     if (!stream || !canEdit || resolvingReportIds.has(report.id)) return
@@ -495,7 +498,14 @@ function CafeItemSettingsPageForViewer() {
     saving: savingIds.has(item.id),
     changed: changed.has(item.id),
     saveState: saveStates[item.id] ?? null,
-    onDraftChange: update => setDraft(item.id, update),
+    onDraftChange: update => {
+      const current = drafts[item.id]
+      const next = update(current)
+      setDraft(item.id, () => next)
+      if (!item.isActive && next.isActive && item.kind && hasDefault(item) && !itemDraftChanged(item, current)) {
+        void saveItem(item, next)
+      }
+    },
     onSave: () => void saveItem(item),
   })
   // One category for the whole stream is stated by the stream itself; the row names it only when categories differ.

@@ -48,6 +48,10 @@ number is written to the group and fanned out to every kitchen log, keeping
 ════════════════════════════════════════════════════════════════════════════════════════
 Worker retry and dispatch policy
 ════════════════════════════════════════════════════════════════════════════════════════
+NO SECOND POST: before an assembly or simple-transfer POST, the worker asks ESB for a document
+already carrying this push's source_ref(s) and reuses its number (a POST that timed out may have
+been saved). A failed lookup is transient: nothing is posted. Rejected documents do not count.
+
 RETRY BUDGET lives here, in the worker, as ESB_MAX_RETRY (default 5). Transient faults
 (network, timeout, 5xx, 408, 429) spend one retry; permanent faults (guard refusal,
 unmapped item, 4xx from the ERP, unknown endpoint) dead-letter on first sight. Failed
@@ -177,6 +181,7 @@ import math
 import os
 import re
 import sys
+import time
 import unicodedata
 import urllib.error
 import urllib.parse
@@ -184,7 +189,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, Callable
 
 TARGET_ENVS = ("dry_run", "goo", "gkid")
 ERP_OF_RECORD = "gkid"
@@ -688,7 +693,7 @@ class Outbox:
         membership_query = urllib.parse.urlencode({
             'push_group_id': f"in.({','.join(group_ids)})",
             'target_env': f'eq.{self.cfg.target_env}', 'select': '*',
-            'order': 'created_at.asc',
+            'order': 'created_at.asc,id.asc',
         })
         _, membership = _request(
             'GET', f"{self.cfg.supabase_url}/rest/v1/esb_push?{membership_query}",
@@ -737,6 +742,30 @@ class Outbox:
     def claim(self, row_id: str) -> bool:
         """Claim one pending row, if it is still available."""
         return row_id in self.claim_many([row_id])
+
+    def claim_tokens(self, row_ids: list[str]) -> dict[str, tuple[str, int]]:
+        """Read the lease timestamp and retry attempt for every requested member."""
+        query = urllib.parse.urlencode({
+            "id": f"in.({','.join(row_ids)})", "target_env": f"eq.{self.cfg.target_env}",
+            "select": "id,status,locked_at,retry_count"})
+        try:
+            _, rows = _request("GET", f"{self.cfg.supabase_url}/rest/v1/esb_push?{query}",
+                               headers=self._headers(write=False), timeout=self.cfg.timeout)
+        except Classified as exc:
+            raise ClaimLost(f"could not verify outbox claim: {esb_message(exc)}") from None
+        tokens = {}
+        if not isinstance(rows, list):
+            raise ClaimLost("could not verify outbox claim")
+        for row in rows:
+            if (not isinstance(row, dict) or row.get("id") not in row_ids
+                    or row["id"] in tokens or row.get("status") != "in_flight"
+                    or not isinstance(row.get("locked_at"), str) or not row["locked_at"]
+                    or type(row.get("retry_count")) is not int or row["retry_count"] < 0):
+                raise ClaimLost("outbox claim is no longer owned by this worker")
+            tokens[row["id"]] = (row["locked_at"], row["retry_count"])
+        if set(tokens) != set(row_ids):
+            raise ClaimLost("outbox claim is missing a member")
+        return tokens
 
     def reap(self) -> int:
         """Promote due retries and recover expired worker leases before selecting rows."""
@@ -897,10 +926,14 @@ class ErpClient:
     def _auth(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._token or self._login()}"}
 
-    def _call(self, method: str, path: str, body: Any = None) -> dict[str, Any]:
+    def _call(self, method: str, path: str, body: Any = None, *,
+              before_post: Callable[[], None] | None = None) -> dict[str, Any]:
         url = f"{self.cfg.esb_base_url}{path}"
         try:
-            _, out = _request(method, url, headers=self._auth(), body=body,
+            headers = self._auth()
+            if before_post:
+                before_post()
+            _, out = _request(method, url, headers=headers, body=body,
                               timeout=self.cfg.timeout)
         except Permanent as exc:
             # The STATUS decides, not the message: the message carries the ERP's own body,
@@ -909,7 +942,10 @@ class ErpClient:
             if exc.status != 401:
                 raise
             self._token = None
-            _, out = _request(method, url, headers=self._auth(), body=body,
+            headers = self._auth()
+            if before_post:
+                before_post()
+            _, out = _request(method, url, headers=headers, body=body,
                               timeout=self.cfg.timeout)
         out = _erp_object(out, f"{method} {path}")
         if out.get("status") != "ok":
@@ -930,8 +966,9 @@ class ErpClient:
                             f"{type(details).__name__}, not a list")
         return details
 
-    def post(self, path: str, body: dict[str, Any], key: str) -> str:
-        result = self._call("POST", path, body).get("result")
+    def post(self, path: str, body: dict[str, Any], key: str, *,
+             before_post: Callable[[], None] | None = None) -> str:
+        result = self._call("POST", path, body, before_post=before_post).get("result")
         if isinstance(result, dict):
             return (result.get(key) or "").strip()
         if isinstance(result, str) and "#" in result:
@@ -954,6 +991,7 @@ class Request:
     body: dict[str, Any]
     result_key: str
     materials_from: int | list[int] | None = None
+    refs: tuple[str, ...] = ()  # the push's source_refs, one per detail; its identity in ESB
 
 
 def _own_env(cfg: Config, row: dict[str, Any]) -> None:
@@ -988,6 +1026,7 @@ def compose(cfg: Config, row: dict[str, Any],
             path="/production/simple-manufacturing/assembly-actual",
             result_key="simpleManufacturingNum",
             materials_from=ids["bom_id"],
+            refs=(str(row.get("source_ref") or ""),),
             body={
                 "simpleManufacturingDate": date_str,
                 "branchID": origin["branch_id"],
@@ -1009,6 +1048,7 @@ def compose(cfg: Config, row: dict[str, Any],
         return Request(
             path="/simple-transfer",
             result_key="simpleTransferNum",
+            refs=(str(row.get("source_ref") or ""),),
             body={
                 "simpleTransferDate": date_str,
                 "originLocationID": origin["location_id"],
@@ -1034,6 +1074,7 @@ def compose_group(cfg: Config, rows: list[dict[str, Any]],
     """
     if not rows:
         raise Permanent("empty approval group")
+    rows = sorted(rows, key=lambda row: str(row['id']))
     requests = [compose(cfg, row, wip_names) for row in rows]
     if any(req is None for req in requests):
         raise Permanent("approval group contains a held movement")
@@ -1064,7 +1105,8 @@ def compose_group(cfg: Config, rows: list[dict[str, Any]],
         body['additionalInfo'] = ' | '.join(str(row.get('source_ref') or '') for row in rows)
     materials = [req.materials_from for req in requests if req.materials_from is not None]
     return Request(path=first.path, body=body, result_key=first.result_key,
-                   materials_from=materials or None)
+                   materials_from=materials or None,
+                   refs=tuple(ref for req in requests for ref in req.refs))
 
 
 def _assembly_notes(row: dict[str, Any], wip_names: dict[str, str] | None) -> str:
@@ -1090,16 +1132,272 @@ def _as_float(value: Any, what: str = "qty_porsi") -> float:
 # ══════════════════════════════════════════════════════════════════════════════════════
 
 
-def dispatch(cfg: Config, client: ErpClient, req: Request) -> str:
-    """Post one composed request and return the ERP's document number.
+ESB_REJECTED = 2
+LOOKUP_LIMIT = 100
+LOOKUP_MAX_PAGES = 50
+# The database reaps claims after ten minutes; posting may use only the first half.
+POSTING_BUDGET_SECONDS = 300
+
+
+class ClaimLost(Transient):
+    """No posting or write-back is safe for this worker's expired/replaced claim."""
+
+
+def _before_deadline(deadline: float) -> None:
+    if time.monotonic() >= deadline:
+        raise ClaimLost("outbox posting deadline exceeded; leave the claim to the reaper")
+
+
+class PostingClaim:
+    def __init__(self, outbox: Outbox, row_ids: list[str], started: float):
+        self.outbox, self.row_ids = outbox, row_ids
+        self.deadline = started + POSTING_BUDGET_SECONDS
+        _before_deadline(self.deadline)
+        self.tokens = outbox.claim_tokens(row_ids)
+        _before_deadline(self.deadline)
+
+    def check(self) -> None:
+        _before_deadline(self.deadline)
+        if self.outbox.claim_tokens(self.row_ids) != self.tokens:
+            raise ClaimLost("outbox claim was replaced; this worker must not POST")
+        _before_deadline(self.deadline)
+
+
+def _lookup(client: ErpClient, path: str, params: dict[str, Any] | None = None, *,
+            deadline: float) -> dict[str, Any]:
+    """A read made to decide whether to post. Any failure, however ESB words it, is Transient:
+    nothing is posted and the next tick asks again."""
+    _before_deadline(deadline)
+    try:
+        result = client.get(path, params)
+    except Classified as exc:
+        _before_deadline(deadline)
+        raise Transient(f"could not look up what ESB already holds ({path}): {esb_message(exc)}",
+                        kind=exc.kind) from None
+    _before_deadline(deadline)
+    return result
+
+
+def _validated_lookup(client: ErpClient, path: str,
+                      params: dict[str, Any], *, deadline: float) -> list[tuple[str, list[str], int]]:
+    """Validate the fields that prove complete pages and complete document identities.
+    Informational envelope, row and detail fields do not participate in the decision."""
+    def require(condition: bool, what: str) -> None:
+        if not condition:
+            raise Transient(f"ESB lookup is not proven complete and consistent: {what}")
+
+    def obj(value: Any, required: set[str]) -> dict[str, Any]:
+        require(type(value) is dict, "object shape")
+        require(required <= value.keys(), "required object fields")
+        return value
+
+    def envelope(value: Any, required: set[str]) -> dict[str, Any]:
+        value = obj(value, {"status", "result"})
+        require(type(value["status"]) is str and value["status"] == "ok", "status")
+        return obj(value["result"], required)
+
+    def integer(value: Any, minimum: int = 0) -> int:
+        require(type(value) is int and value >= minimum, "integer field")
+        return value
+
+    def text(value: Any) -> str:
+        require(type(value) is str and value.isprintable() and bool(value.strip()), "text field")
+        return value.strip()
+
+    def identity(value: Any, count: int) -> list[str]:
+        # Split before trimming so a blank component cannot become a fallback identity.
+        require(type(value) is str, "identity type")
+        parts = value.split(" | ")
+        require(len(parts) == count, "identity component count")
+        require(all("|" not in part for part in parts), "identity delimiter")
+        return [text(part) for part in parts]
+
+    def mos_identity(value: Any) -> bool:
+        require(value is None or type(value) is str, "identity type")
+        return isinstance(value, str) and (
+            value.lstrip().startswith("|")
+            or re.search(r"(?:^|\|)\s*(?:PR|TR|TB)(?:-|$)", value) is not None)
+
+    def references(value: Any, count: int) -> list[str]:
+        refs = identity(value, count)
+        require(all(re.fullmatch(r"(?:PR|TR|TB)-[A-Za-z0-9][A-Za-z0-9_-]*", ref)
+                    for ref in refs), "MOS source reference")
+        return refs
+
+    def continuation(value: Any, target: int | None, current: int, limit: int) -> None:
+        require(type(value) is str and value.isprintable() and value == value.strip(), "pagination URL text")
+        if target is None:
+            require(value == "", "finished pagination URL")
+            return
+        try:
+            url = urllib.parse.urlsplit(value)
+            expected = urllib.parse.urlsplit(f"{client.cfg.esb_base_url}{path}")
+            require((url.scheme, url.netloc, url.path) ==
+                    (expected.scheme, expected.netloc, expected.path) and not url.fragment,
+                    "pagination URL endpoint")
+            # The archived success example repeats the current page query before '?page=N'.
+            # Check both segments, then use our own endpoint/filters, never the supplied URL.
+            segments = url.query.split("?")
+            require(len(segments) <= 2, "pagination URL query")
+            for index, segment in enumerate(segments):
+                query = urllib.parse.parse_qs(segment, keep_blank_values=True, strict_parsing=True)
+                page = current if len(segments) == 2 and index == 0 else target
+                require(query.get("page") == [str(page)] and query.get("limit") == [str(limit)],
+                        "pagination URL page/limit")
+                for field, expected_value in params.items():
+                    if field in query:
+                        require(query[field] == [str(expected_value)], "pagination URL filters")
+        except ValueError:
+            raise Transient("ESB lookup returned a malformed pagination URL") from None
+
+    transfer = path == "/simple-transfer"
+    require(transfer or path == "/production/simple-manufacturing", "endpoint")
+    number_field = "simpleTransferNum" if transfer else "simpleManufacturingNum"
+    row_fields = {number_field, "statusID"} | ({"additionalInfo"} if transfer else set())
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    total: int | None = None
+    limit = LOOKUP_LIMIT
+    by_doc: dict[str, list[tuple[str, int, dict[str, Any]]]] = {}
+    documents: list[tuple[str, list[str], int]] = []
+    for page in range(1, LOOKUP_MAX_PAGES + 1):
+        result = envelope(_lookup(client, path, {**params, "page": page, "limit": limit}, deadline=deadline),
+                          {"count", "data", "page", "limit", "prev", "next"})
+        count = integer(result["count"])
+        page_limit = integer(result["limit"], 1)
+        require(page_limit <= LOOKUP_LIMIT and (page == 1 or page_limit == limit), "stable page size")
+        limit = page_limit
+        require(integer(result["page"], 1) == page, "pagination page")
+        require(count <= limit * LOOKUP_MAX_PAGES, "page budget")
+        require(total is None or count == total, "stable total")
+        total = count
+        data = result["data"]
+        require(type(data) is list, "row list")
+        require(len(data) == min(limit, total - len(rows)), "page row count")
+        more = len(rows) + len(data) < total
+        continuation(result["prev"], page - 1 if page > 1 else None, page, limit)
+        continuation(result["next"], page + 1 if more else None, page, limit)
+        for raw in data:
+            row = obj(raw, row_fields)
+            number = text(row[number_field])
+            integer(row["statusID"])
+            require(number not in seen, "unique saved identifier")
+            seen.add(number)
+            if transfer:
+                require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", number) is not None, "document number")
+            else:
+                match = re.fullmatch(r"([A-Za-z0-9][A-Za-z0-9._/-]*) - ([1-9][0-9]*)", number)
+                require(match is not None, "assembly line identifier")
+                doc, ordinal_text = match.groups()
+                require(len(ordinal_text) <= len(str(total)), "assembly line ordinal")
+                ordinal = int(ordinal_text)
+                require(ordinal <= total, "assembly line ordinal")
+                if "lineCount" in row:
+                    integer(row["lineCount"], 1)
+                by_doc.setdefault(doc, []).append((number, ordinal, row))
+            rows.append(row)
+        if not more:
+            break
+    else:
+        raise Transient("ESB lookup did not fetch every page")
+
+    if transfer:
+        for row in rows:
+            number = text(row[number_field])
+            detail = envelope(_lookup(client, f"{path}/{urllib.parse.quote(number, safe='')}", deadline=deadline),
+                              {number_field, "statusID", "additionalInfo", "simpleTransferDetails"})
+            require(text(detail[number_field]) == number, "detail identifier agrees with listing")
+            require(integer(detail["statusID"]) == row["statusID"], "detail status agrees with listing")
+            lines = detail["simpleTransferDetails"]
+            require(type(lines) is list and bool(lines), "transfer line inventory")
+            for raw in lines:
+                line = obj(raw, {"productDetailID", "qty"})
+                integer(line["productDetailID"], 1)
+                qty = line["qty"]
+                require(type(qty) in (int, float) and 0 < qty <= sys.float_info.max, "transfer line quantity")
+            # MOS writes one reference per transfer detail. Other documents have their
+            # own group size, established here rather than inherited from this request.
+            if not any(mos_identity(record["additionalInfo"]) for record in (row, detail)):
+                continue
+            saved_refs = references(detail["additionalInfo"], len(lines))
+            require(sorted(references(row["additionalInfo"], len(lines))) == sorted(saved_refs),
+                    "detail identity agrees with listing")
+            documents.append((number, saved_refs, row["statusID"]))
+
+    for doc, lines in sorted(by_doc.items()):
+        count = len(lines)
+        require(sorted(ordinal for _, ordinal, _ in lines) == list(range(1, count + 1)),
+                "contiguous unique assembly lines")
+        statuses = {row["statusID"] for _, _, row in lines}
+        require(len(statuses) == 1, "consistent document status")
+        declared = [row.get("lineCount") for _, _, row in lines]
+        require(all(value is None for value in declared) or all(value == count for value in declared),
+                "consistent document line count")
+        saved_refs = []
+        unidentified = 0
+        for number, _, row in sorted(lines, key=lambda line: line[1]):
+            detail = envelope(_lookup(client, f"{path}/{urllib.parse.quote(number, safe='')}", deadline=deadline),
+                              {"additionalInfo", number_field, "statusID"})
+            require(text(detail[number_field]) == number, "detail identifier agrees with listing")
+            require(integer(detail["statusID"]) == row["statusID"], "detail status agrees with listing")
+            if "lineCount" in detail:
+                require(integer(detail["lineCount"], 1) == count, "detail line count agrees with listing")
+            if mos_identity(detail["additionalInfo"]):
+                ref, _name = identity(detail["additionalInfo"], 2)
+                saved_refs.extend(references(ref, 1))
+            else:
+                unidentified += 1
+        if saved_refs:
+            require(unidentified == 0, "complete MOS assembly identity")
+            documents.append((doc, saved_refs, next(iter(statuses))))
+    return documents
+
+
+def find_posted(client: ErpClient, req: Request, *, deadline: float) -> str | None:
+    """The document ESB already holds for this push (an assembly or a simple transfer), or None.
+
+    A POST that timed out may still have been saved, so the next attempt asks ESB first. The
+    identity is the complete sorted source_refs, preserving duplicates: a transfer carries
+    them in its additionalInfo, an assembly in each line's notes, "<ref> | <name>".
+    Saved documents match regardless of member order. A rejected document does not count."""
+    if not req.refs or not all(req.refs):
+        raise Permanent("a push with no source_ref has no identity to look up in ESB")
+    body = req.body
+    refs = sorted(req.refs)
+    if req.path == "/simple-transfer":
+        docs = _validated_lookup(client, req.path, {
+            "dateFrom": body["simpleTransferDate"], "dateTo": body["simpleTransferDate"],
+            "originLocationID": body["originLocationID"],
+            "destinationLocationID": body["destinationLocationID"]}, deadline=deadline)
+    elif req.path.endswith("/assembly-actual"):
+        docs = _validated_lookup(client, "/production/simple-manufacturing", {
+            "dateFrom": body["simpleManufacturingDate"], "dateTo": body["simpleManufacturingDate"],
+            "branchID": body["branchID"], "bomTypeID": 1}, deadline=deadline)
+    else:
+        return None
+    matches = [num for num, saved_refs, status in docs
+               if status != ESB_REJECTED and sorted(saved_refs) == refs]
+    return min(matches) if matches else None
+
+
+def dispatch(cfg: Config, client: ErpClient, req: Request, *, claim: PostingClaim | None = None) -> str:
+    """Post one composed request and return the ERP's document number. A document ESB already
+    holds for this push is returned instead of posting a second one (find_posted).
 
     There is no rehearsal arm here any more, and that absence is the point: the only
     value this function can return is one the ERP handed back. A drain that cannot post
     never gets this far — load_config refuses it (see THE SAFETY LINE)."""
+    deadline = claim.deadline if claim else time.monotonic() + POSTING_BUDGET_SECONDS
+    existing = find_posted(client, req, deadline=deadline)
+    if existing:
+        if claim:
+            claim.check()
+        return existing
     if req.materials_from is not None:
         bom_ids = [req.materials_from] if isinstance(req.materials_from, int) else req.materials_from
         try:
             for detail, bom_id in zip(req.body["simpleManufacturingDetails"], bom_ids):
+                _before_deadline(deadline)
                 qty = detail["manufacturingQty"]
                 materials = [
                     {"productDetailID": int(line["productDetailID"]),
@@ -1110,7 +1408,9 @@ def dispatch(cfg: Config, client: ErpClient, req: Request) -> str:
                 detail["simpleManufacturingMaterials"] = materials
         except (AttributeError, KeyError, TypeError, ValueError) as exc:
             raise Transient(f"ERP BOM {bom_id} material data is invalid: {type(exc).__name__}: {exc}") from None
-    doc = client.post(req.path, req.body, req.result_key)
+    _before_deadline(deadline)
+    doc = (client.post(req.path, req.body, req.result_key, before_post=claim.check) if claim
+           else client.post(req.path, req.body, req.result_key))
     if not doc:
         raise Transient("ERP accepted the post but returned no document number")
     return doc
@@ -1123,10 +1423,14 @@ def _drain_one(cfg: Config, client: ErpClient, outbox: Outbox, row: dict[str, An
     Every PostgREST call in here can raise — that is the caller's problem to contain, and
     containing it is why this is a separate function: one blip must cost one row, not the
     rest of the tick."""
+    started = time.monotonic()
     if not outbox.claim(row["id"]):
         return "already claimed by another tick — skipped", True
     try:
-        doc = dispatch(cfg, client, req)
+        claim = PostingClaim(outbox, [row["id"]], started)
+        doc = dispatch(cfg, client, req, claim=claim)
+    except ClaimLost as exc:
+        return f"claim no longer usable — {exc}", False
     except Permanent as exc:
         return f"{outbox.close_failed(row, str(exc), permanent=True)} — {exc}", False
     except Transient as exc:
@@ -1206,6 +1510,7 @@ def _run_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
     doc = meta.get('esb_doc_num')
     try:
         if not doc:
+            started = time.monotonic()
             claimed = outbox.claim_many([row["id"] for row in rows])
             if len(claimed) != len(rows):
                 # The RPC claims all requested members or none, so a lost race cannot
@@ -1216,7 +1521,8 @@ def _run_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
                 return len(rows)
             for row in rows:
                 row["status"] = "in_flight"
-            doc = dispatch(cfg, client, req)
+            claim = PostingClaim(outbox, [row["id"] for row in rows], started)
+            doc = dispatch(cfg, client, req, claim=claim)
             # Persist the ERP receipt before fan-out. This is the resume checkpoint.
             outbox.patch_group(gid, {"status": "in_flight", "esb_doc_num": doc})
         else:
@@ -1233,6 +1539,9 @@ def _run_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
             row['status'] = 'posted'
             outbox.stamp_log_posted(row, doc)
         outbox.patch_group(gid, {"status": "posted", "esb_doc_num": doc, "posted_at": _now(), "last_error": None})
+    except ClaimLost as exc:
+        print(f"{ref}: claim no longer usable — {exc}", file=out)
+        return len(rows)
     except Exception as exc:
         # Includes PostgREST faults during any write-back. The group remains resumable
         # when doc is known; only unposted members are failed for the next tick.

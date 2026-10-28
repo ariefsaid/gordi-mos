@@ -7,7 +7,8 @@ the item-reference importer. --branch-map is explicit ERP-code=MOS-code pairs; u
 stay unknown so the private refresh reports them. Run the catalog import before this script.
 Only --apply contacts MOS; its database URL comes from CAFE_STREAM_ITEMS_DB_URL. The deprecated
 --db-url fallback must be password-free. Run --dry-run SQL in a transaction for reconciliation
-evidence before applying. No item settings, counts or memberships are deleted.
+evidence before applying. New listed memberships receive inactive ESB stock-unit/kind defaults when unconfigured.
+Existing settings are preserved; no settings, counts or memberships are deleted.
 """
 import argparse
 import json

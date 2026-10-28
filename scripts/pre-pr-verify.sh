@@ -12,7 +12,7 @@
 # It never alters the verification exit status, and ledger append failures never fail that result.
 #
 # --dev: the light battery for a PR into dev, where CI is the full-suite gate — typecheck, lint
-# and only the tests related to files changed vs the base. It writes pre-pr-verify-dev-ok, which
+# and only tests changed in the branch or colocated with changed source files. It writes pre-pr-verify-dev-ok, which
 # scripts/gh-post.sh accepts for `--base dev` only. The default full battery (pre-pr-verify-ok) is
 # what a PR into main needs.
 set -euo pipefail
@@ -128,23 +128,46 @@ if [ "$app_touched" = 1 ]; then
   # The heavy section runs under the machine-global test lock: two concurrent batteries starve
   # each other into moving false REDs — and two full vitest pools OOM'd this host once already.
   if [ "$light" = 1 ]; then
-    # Tests related to the changed app files only (deleted files cannot be passed). Changes
-    # outside mos-app/src (config, dependencies) are CI's to catch on a dev PR.
-    related=()
+    # Select explicit test files only. `vitest related` follows imports from shared files and can
+    # expand a small change into the whole suite; changed tests and same-basename colocated tests
+    # give the dev gate the directly touched surface without traversing that import graph.
+    selected_tests=()
+    add_test_file() {
+      local candidate="$1" existing
+      [ -f "mos-app/$candidate" ] || return 0
+      for existing in "${selected_tests[@]+${selected_tests[@]}}"; do
+        [ "$existing" != "$candidate" ] || return 0
+      done
+      selected_tests+=("$candidate")
+    }
     while IFS= read -r _f; do
-      [ -n "$_f" ] && related+=("${_f#mos-app/}")
-    done < <(git diff --name-only --diff-filter=d "$base"...HEAD -- 'mos-app/src/*.ts' 'mos-app/src/*.tsx')
+      [ -n "$_f" ] || continue
+      rel="${_f#mos-app/}"
+      case "$rel" in
+        *.test.ts|*.test.tsx) add_test_file "$rel" ;;
+        *.ts|*.tsx)
+          stem="${rel%.*}"
+          dir="${stem%/*}"
+          name="${stem##*/}"
+          [ "$dir" != "$stem" ] || dir="."
+          add_test_file "$dir/$name.test.ts"
+          add_test_file "$dir/$name.test.tsx"
+          add_test_file "$dir/__tests__/$name.test.ts"
+          add_test_file "$dir/__tests__/$name.test.tsx"
+          ;;
+      esac
+    done < <(git diff --name-only --diff-filter=ACMRT "$base"...HEAD -- mos-app/src)
     # A supabase/ change has no import edge into mos-app, but some unit tests read those files
     # from disk: run them too.
     if [ -n "$(git diff --name-only "$base"...HEAD -- supabase/)" ]; then
       while IFS= read -r _f; do
-        [ -n "$_f" ] && related+=("${_f#mos-app/}")
+        [ -n "$_f" ] && add_test_file "${_f#mos-app/}"
       done < <(git grep -l -E "'supabase'|[^@]supabase/" -- 'mos-app/src/*.test.ts' 'mos-app/src/*.test.tsx')
     fi
-    echo "── light (--dev): typecheck, lint, tests related to ${#related[@]} changed file(s)"
+    echo "── light (--dev): typecheck, lint, ${#selected_tests[@]} directly touched test file(s)"
     bash scripts/with-test-lock.sh bash -c \
-      'cd mos-app && npm run typecheck && npm run lint && { [ "$#" -eq 0 ] || npm exec -- vitest related "$@" --run --passWithNoTests; }' \
-      _ ${related[@]+"${related[@]}"}
+      'cd mos-app && npm run typecheck && npm run lint && { [ "$#" -eq 0 ] || npm exec -- vitest run "$@" --passWithNoTests; }' \
+      _ ${selected_tests[@]+"${selected_tests[@]}"}
   else
     # `npm run quality` = scripts/quality-checks.sh: deterministic ratchets (duplication / dead
     # code / colour tokens) against mos-app/.quality-baseline.json.

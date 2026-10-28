@@ -264,18 +264,37 @@ chmod +x "$tmp/bin/npm"
 DEV_STAMP="$tmp/repo/.git/pre-pr-verify-dev-ok"
 run_dev() { (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" MOS_PR_BASE=lightbase bash scripts/pre-pr-verify.sh "$@") >/dev/null 2>&1; }
 run_full_lb() { (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" MOS_PR_BASE=lightbase bash scripts/pre-pr-verify.sh) >/dev/null 2>&1; }
-G update-ref refs/remotes/origin/lightbase "$(G rev-parse HEAD)"
 mkdir -p "$tmp/repo/mos-app/src"
+mkdir -p "$tmp/repo/mos-app/src/cafe/__tests__"
+echo "export const shared = 1" > "$tmp/repo/mos-app/src/cafe/shared.ts"
+echo "export {}" > "$tmp/repo/mos-app/src/cafe/shared.test.ts"
+echo "export {}" > "$tmp/repo/mos-app/src/cafe/__tests__/shared.test.tsx"
+echo "import '../shared'" > "$tmp/repo/mos-app/src/cafe/unrelated-consumer.test.tsx"
+echo "export {}" > "$tmp/repo/mos-app/src/cafe/directly-changed.test.tsx"
+G add mos-app/src/cafe; G commit -qm "light: app test selection fixtures"
+G update-ref refs/remotes/origin/lightbase "$(G rev-parse HEAD)"
 echo "export const a = 1" > "$tmp/repo/mos-app/src/light-a.ts"
 echo "export {}" > "$tmp/repo/mos-app/src/light-a.test.ts"
-G add mos-app/src/light-a.ts mos-app/src/light-a.test.ts; G commit -qm "light: app source + its test"
+G add mos-app/src/light-a.ts mos-app/src/light-a.test.ts; G commit -qm "light: app source and test"
+# Only the shared source and a test file change in this branch. The unrelated consumer imports the
+# shared module, so `vitest related shared.ts` would expand to its test graph; direct selection must
+# include only the source's colocated tests and the test changed in this branch.
+echo "export const shared = 2" > "$tmp/repo/mos-app/src/cafe/shared.ts"
+G add mos-app/src/cafe/shared.ts; G commit -qm "light: change shared cafe source"
+echo "// edited test" >> "$tmp/repo/mos-app/src/cafe/directly-changed.test.tsx"
+G add mos-app/src/cafe/directly-changed.test.tsx; G commit -qm "light: change a test directly"
 : > "$light_log"; rm -f "$STAMP" "$DEV_STAMP"
 if run_dev --dev; then ok "--dev battery passes"; else bad "--dev battery must pass"; fi
 [ "$(cat "$DEV_STAMP" 2>/dev/null)" = "$(G rev-parse HEAD)" ] && ok "--dev stamps pre-pr-verify-dev-ok with HEAD" || bad "--dev wrote no dev stamp for HEAD"
 [ ! -e "$STAMP" ] && ok "--dev does NOT write the full stamp" || bad "--dev wrote the full stamp — a light run would satisfy a PR into main"
 grep -q '^run typecheck' "$light_log" && grep -q '^run lint' "$light_log" && ok "--dev runs typecheck and lint" || bad "--dev skipped typecheck or lint"
-grep -q 'exec -- vitest related .*src/light-a\.ts' "$light_log" && grep -q 'exec -- vitest related .*src/light-a\.test\.ts' "$light_log" \
-  && ok "--dev runs vitest related on the changed source and test files" || bad "--dev did not run vitest related on the changed files: $(grep vitest "$light_log")"
+grep -q 'exec -- vitest run .*src/light-a\.test\.ts' "$light_log" \
+  && grep -q 'exec -- vitest run .*src/cafe/shared\.test\.ts' "$light_log" \
+  && grep -q 'exec -- vitest run .*src/cafe/__tests__/shared\.test\.tsx' "$light_log" \
+  && grep -q 'exec -- vitest run .*src/cafe/directly-changed\.test\.tsx' "$light_log" \
+  && ok "--dev selects changed and colocated test files directly" || bad "--dev missed a directly selected test: $(grep vitest "$light_log")"
+! grep -q 'vitest related' "$light_log" && ! grep -q 'unrelated-consumer\.test\.tsx' "$light_log" \
+  && ok "--dev shared-file change does not expand the related import graph" || bad "--dev selected the shared-file import graph: $(grep vitest "$light_log")"
 ! grep -q -e 'test:coverage' -e '^run build' "$light_log" && ok "--dev runs neither the coverage suite nor the build" || bad "--dev ran the full suite or the build"
 [ "$(tail -n 1 "$tmp/repo/.git/verify-ledger.log" | cut -f3)" = light ] && ok "--dev records ledger mode light" || bad "--dev ledger mode is not light"
 
@@ -296,7 +315,7 @@ echo "// cfg $RANDOM" >> "$tmp/repo/mos-app/vite.config.ts"; G add mos-app/vite.
 : > "$light_log"; rm -f "$DEV_STAMP"
 run_dev --dev
 grep -q '^run typecheck' "$light_log" && ! grep -q 'vitest' "$light_log" && [ -e "$DEV_STAMP" ] \
-  && ok "--dev with no related source files runs no tests and still stamps" || bad "--dev config-only case wrong: $(cat "$light_log")"
+  && ok "--dev with no directly touched tests runs no tests and still stamps" || bad "--dev config-only case wrong: $(cat "$light_log")"
 
 # A migration-only change must still run the unit tests that read supabase/ from disk.
 echo "const dir = join(root, 'supabase', 'migrations')" > "$tmp/repo/mos-app/src/reads-migrations.test.ts"
@@ -308,7 +327,7 @@ mkdir -p "$tmp/repo/supabase/migrations"; echo "-- m" > "$tmp/repo/supabase/migr
 G add supabase; G commit -qm "light: migration-only change"
 : > "$light_log"; rm -f "$DEV_STAMP"
 run_dev --dev
-grep -q 'exec -- vitest related .*src/reads-migrations\.test\.ts' "$light_log" && grep -q 'exec -- vitest related .*src/reads-seed\.test\.ts' "$light_log" \
+grep -q 'exec -- vitest run .*src/reads-migrations\.test\.ts' "$light_log" && grep -q 'exec -- vitest run .*src/reads-seed\.test\.ts' "$light_log" \
   && ok "--dev with a supabase/ change runs the tests that read supabase/" || bad "--dev migration-only case ran no supabase-reading test: $(grep vitest "$light_log")"
 ! grep -q 'imports-client\.test\.ts' "$light_log" \
   && ok "--dev leaves out a test that only imports the @supabase/ client library" || bad "--dev selected a test that only imports @supabase/supabase-js: $(grep vitest "$light_log")"
