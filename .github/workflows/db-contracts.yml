@@ -116,11 +116,27 @@ jobs:
         with:
           version: 2.104.0
 
+      - name: Cache local Supabase images
+        if: steps.scope.outputs.render == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: supabase-images
+        with:
+          path: /tmp/supabase-images.tar
+          key: supabase-images-${{ runner.os }}-2.104.0-${{ hashFiles('supabase/config.toml') }}
+
+      - name: Load cached Supabase images
+        if: steps.scope.outputs.render == 'true' && steps.supabase-images.outputs.cache-hit == 'true'
+        run: bash scripts/supabase-image-cache.sh load
+
       - name: Start local Supabase stack (applies migrations + seed)
         if: steps.scope.outputs.render == 'true'
         # Same exclusion list as integration.yml — proven to boot. auth/rest/kong are needed to
         # log the guards in; inbucket is needed by the AC-005 recovery round-trip.
-        run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
+        run: bash scripts/supabase-start-retry.sh edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
+
+      - name: Save Supabase images for later runs
+        if: success() && steps.scope.outputs.render == 'true' && steps.supabase-images.outputs.cache-hit != 'true'
+        run: bash scripts/supabase-image-cache.sh save
 
       # ─── absorbed from the old `pgtap` job (#565) — see scripts/lint-security-definer.sh for
       # what this checks; `db` in integration.yml runs the same script on the PR→main lane. ────

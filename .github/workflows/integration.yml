@@ -66,9 +66,24 @@ jobs:
         with:
           version: 2.104.0
 
+      - name: Cache local Supabase images
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: supabase-images
+        with:
+          path: /tmp/supabase-images.tar
+          key: supabase-images-${{ runner.os }}-2.104.0-${{ hashFiles('supabase/config.toml') }}
+
+      - name: Load cached Supabase images
+        if: steps.supabase-images.outputs.cache-hit == 'true'
+        run: bash scripts/supabase-image-cache.sh load
+
       - name: Start local Supabase stack (applies migrations + seed)
         # Same container set as the `e2e` job; its copy of this step explains the exclusions.
-        run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
+        run: bash scripts/supabase-start-retry.sh edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
+
+      - name: Save Supabase images for later runs
+        if: success() && steps.supabase-images.outputs.cache-hit != 'true'
+        run: bash scripts/supabase-image-cache.sh save
 
       # Logic lives in scripts/lint-security-definer.sh (#565) — this used to be inline here AND
       # in the `pgtap` job that has since moved to db-contracts.yml, an acknowledged sync burden.
@@ -116,6 +131,17 @@ jobs:
         with:
           version: 2.104.0
 
+      - name: Cache local Supabase images
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: supabase-images
+        with:
+          path: /tmp/supabase-images.tar
+          key: supabase-images-${{ runner.os }}-2.104.0-${{ hashFiles('supabase/config.toml') }}
+
+      - name: Load cached Supabase images
+        if: steps.supabase-images.outputs.cache-hit == 'true'
+        run: bash scripts/supabase-image-cache.sh load
+
       - name: Start local Supabase stack (applies migrations + seed)
         # Full `supabase start` (not `db start`): e2e needs auth/API/mailpit, and
         # `supabase status -o env` only emits keys when the full stack is up.
@@ -125,7 +151,11 @@ jobs:
         # edge-runtime container also intermittently 502s — flaked PR #9); studio/meta
         # (admin UI); imgproxy/storage (no file features); realtime (no subscriptions);
         # vector/analytics (log shipping). Re-add a name here if the app starts using it.
-        run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
+        run: bash scripts/supabase-start-retry.sh edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
+
+      - name: Save Supabase images for later runs
+        if: success() && steps.supabase-images.outputs.cache-hit != 'true'
+        run: bash scripts/supabase-image-cache.sh save
 
       # ── E2E against the live stack ────────────────────────────────────────────
       # e2e lives here (not verify.yml) because journeys need auth + DB (T-027).
