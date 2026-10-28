@@ -60,9 +60,20 @@ describe('DataTable — desktop, ready state', () => {
       configurable: true,
       get: function (this: HTMLElement) { return this.tagName === 'TR' ? 52 : 300 },
     })
+    const clientHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight')
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+      configurable: true,
+      get: function (this: HTMLElement) {
+        return this.classList.contains('dt-scroll-virtual')
+          ? 300
+          : clientHeight?.get?.call(this) ?? 0
+      },
+    })
     const { container } = render(<DataTable columns={COLUMNS} rows={rows} isDesktop virtualize caption="Sales by branch" />)
     if (offsetHeight) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', offsetHeight)
     else delete (HTMLElement.prototype as { offsetHeight?: number }).offsetHeight
+    if (clientHeight) Object.defineProperty(HTMLElement.prototype, 'clientHeight', clientHeight)
+    else delete (HTMLElement.prototype as { clientHeight?: number }).clientHeight
     const scroll = container.querySelector('.dt-scroll-virtual') as HTMLDivElement
     expect(screen.getByText('Branch 0')).toBeInTheDocument()
     expect(screen.queryByText('Branch 119')).not.toBeInTheDocument()
