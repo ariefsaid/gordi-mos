@@ -396,7 +396,6 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
     ? 'error'
     : placeChoices.status === 'ready' && (!needsDestinations || destinations.status === 'ready') ? 'ready' : 'loading'
   const outputLocationPending = mode === 'production' && placeChoices.status !== 'ready'
-    && !(selectedLocationState?.scope === locationScope && selectedLocationState.values.to_storage_location_id)
   const locationChoices: LocationChoices = {
     storage: placeChoices.locations.filter(location => location.use === 'storage' || location.use === 'both'),
   }
@@ -1265,12 +1264,12 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
           entry_quantity: line.entry_quantity ?? line.qty_porsi,
           entry_unit_factor: line.entry_unit_factor ?? 1,
           notes: line.notes.trim() || null,
-          ...(locationLoadState === 'ready' ? movement.action === 'produce' ? {
+          ...(movement.action === 'produce' ? {
             to_storage_location_id: locationValues.to_storage_location_id ?? null,
           } : {
             from_storage_location_id: locationValues.from_storage_location_id ?? null,
             to_storage_location_id: locationValues.to_storage_location_id ?? null,
-          } : {}),
+          }),
           // status / source / org_id / submitted_by NOT sent — server-stamped (NFR-003)
         })),
       )

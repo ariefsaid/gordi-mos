@@ -1309,6 +1309,55 @@ describe('Issue 1551: shared Jakarta date on kitchen capture', () => {
 
 // ── AC-030: successful submit ──────────────────────────────────────────────────
 describe('AC-030: successful submit (increment semantics)', () => {
+  it('blocks a staged production submit while reloading locations, then submits the selected output location', async () => {
+    const central = PRODUCTION_LOCATIONS.find(place => place.id === productionId(BRANCH_RUMAH_RAMES.id, 'kitchen'))!
+    const shelf = {
+      id: 'shelf-1', name: 'Shelf', use: 'storage' as const, parent_id: null,
+      branch_ids: [BRANCH_RUMAH_RAMES.id], archived_at: null, row_version: 1,
+      updated_at: '', updated_by: null, site_id: null, activities: [],
+    }
+    const retry = vi.fn()
+    locationMocks.choices.mockReturnValue({
+      status: 'ready', locations: [{ ...central, is_stream_output: true }, shelf], retry,
+    })
+    mockInsertKitchenLogBatch.mockResolvedValue(['located-log'])
+    await renderPage()
+
+    const outputLocation = await screen.findByRole('combobox', { name: 'Store output in' })
+    fireEvent.click(outputLocation)
+    fireEvent.click(await screen.findByRole('option', { name: 'Shelf' }))
+    const quantity = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(quantity, { target: { value: '12' } })
+
+    locationMocks.choices.mockReturnValue({ status: 'loading', locations: [], retry })
+    fireEvent.change(quantity, { target: { value: '11' } })
+    fireEvent.change(quantity, { target: { value: '12' } })
+    const submit = screen.getByRole('button', { name: /^submit/i })
+    const locationFields = screen.getByRole('group', { name: 'Locations' })
+    expect(within(locationFields).getByText('Loading locations')).toBeInTheDocument()
+    expect(submit).toBeDisabled()
+    fireEvent.click(submit)
+    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+
+    locationMocks.choices.mockReturnValue({ status: 'error', locations: [], retry })
+    fireEvent.change(quantity, { target: { value: '11' } })
+    fireEvent.change(quantity, { target: { value: '12' } })
+    expect(submit).toBeDisabled()
+    fireEvent.click(within(locationFields).getByRole('button', { name: 'Try again' }))
+    expect(retry).toHaveBeenCalledTimes(1)
+
+    locationMocks.choices.mockReturnValue({
+      status: 'ready', locations: [{ ...central, is_stream_output: true }, shelf], retry,
+    })
+    fireEvent.change(quantity, { target: { value: '11' } })
+    fireEvent.change(quantity, { target: { value: '12' } })
+    expect(submit).toBeEnabled()
+    fireEvent.click(submit)
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledWith([
+      expect.objectContaining({ to_storage_location_id: shelf.id, qty_porsi: 12 }),
+    ]))
+  })
+
   it('waits for the output default before submitting production', async () => {
     const central = PRODUCTION_LOCATIONS.find(place => place.id === productionId(BRANCH_RUMAH_RAMES.id, 'kitchen'))!
     const retry = vi.fn()
