@@ -31,6 +31,9 @@ select is((select (report->>'skipped_unmapped')::int from usage_result),1,'AC5: 
 update ops.item_units set is_default=true, confirmed_at=now()
  where org_id='00000000-0000-0000-0000-0000000000a1' and esb_product_id in ('USAGE-SHARED','USAGE-HQ');
 select ops._test_configure_cafe_items(array(select id from ops.wip_items where esb_product_id in ('USAGE-SHARED','USAGE-HQ')));
+-- Prefilled settings start inactive; the count fixture explicitly activates its configured items.
+update ops.cafe_item_settings set is_active=true
+ where wip_item_id in (select id from ops.wip_items where esb_product_id in ('USAGE-SHARED','USAGE-HQ'));
 select cmp_ok((select count(*)::int from ops.stream_items where org_id='00000000-0000-0000-0000-0000000000b1'),'>',0,'wrong-org read test has real memberships');
 update ops.wip_items set category='Kitchen' where id='00000000-0000-0000-0000-00000000ab09';
 update ops.stream_items set hidden_at=now() where org_id='00000000-0000-0000-0000-0000000000b1';
@@ -45,7 +48,9 @@ select is((select count(*)::int from ops.cafe_item_references where esb_product_
 select throws_ok($$insert into ops.kitchen_plans(log_date,branch_id,activity,action,wip_item_id,qty_porsi) values ('2026-10-20','00000000-0000-0000-0000-00000000bf02','kitchen','produce',(select id from ops.wip_items where esb_product_id='USAGE-SHARED'),1)$$,'P0012',null,'hidden item refused for new plan');
 select throws_ok($$insert into ops.kitchen_logs(business_unit_id,log_date,branch_id,activity,action,wip_item_id,qty_porsi) values ('00000000-0000-0000-0000-00000000bb01','2026-10-20','00000000-0000-0000-0000-00000000bf02','kitchen','produce',(select id from ops.wip_items where esb_product_id='USAGE-SHARED'),1)$$,'P0012',null,'hidden item refused for add-to-log');
 reset role;
-delete from ops.cafe_item_settings where wip_item_id=(select id from ops.wip_items where esb_product_id='USAGE-HQ');
+-- Retain the count-only and wholly unconfigured cases after refresh began prefilling memberships.
+delete from ops.cafe_item_settings where wip_item_id in
+  (select id from ops.wip_items where esb_product_id in ('USAGE-HQ','USAGE-DROP'));
 select ops.refresh_cafe_item_references((select rows from usage_source));
 select ops.refresh_cafe_stream_items('[{"esb_product_id":"USAGE-SHARED","branch_code":"rumah_rames"}]');
 select ok((select is_listed from ops.stream_items si join ops.wip_items item on item.id=si.wip_item_id where item.esb_product_id='USAGE-HQ'),
@@ -55,7 +60,7 @@ select is((select count(*)::int from ops.cafe_item_settings s join ops.wip_items
 select ok((select not is_listed from ops.stream_items si join ops.wip_items item on item.id=si.wip_item_id where item.esb_product_id='USAGE-DROP'),'AC9 amended: unused ESB membership retained but no longer listed');
 select is((select count(*)::int from ops.stream_items si join ops.wip_items item on item.id=si.wip_item_id where item.esb_product_id='USAGE-DROP'),1,'reconcile never deletes rows');
 create temp table kept_report as select ops.refresh_cafe_stream_items('[]') as report;
-select is((select jsonb_array_length(report->'kept_referenced') from kept_report),3,'AC9: settings-backed and count-backed rows kept and reported');
+select is((select jsonb_array_length(report->'kept_referenced') from kept_report),4,'AC9: settings-backed (including inactive prefill) and count-backed rows kept and reported');
 set local role authenticated;
 select lives_ok($$select ops.set_cafe_stream_item('00000000-0000-0000-0000-00000000bf02','kitchen',(select id from ops.wip_items where esb_product_id='USAGE-SHARED'),false)$$,'AC7: ops lead restores membership manually');
 select is((select count(*)::int from ops.cafe_item_settings_read where erp_name='USAGE-SHARED' and branch_id='00000000-0000-0000-0000-00000000bf02'),1,'restored item keeps saved settings and unit');
