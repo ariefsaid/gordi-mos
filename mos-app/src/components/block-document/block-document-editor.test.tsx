@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import type { ComponentType } from 'react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
 const fake = vi.hoisted(() => ({
   document: [] as unknown[],
+  editor: { marker: 'active editor' },
+  blockTypeEditor: undefined as unknown,
   domElement: undefined as undefined | HTMLElement,
   dictionary: { slash_menu: { paragraph: { group: 'Basic blocks' } } },
   insertInlineContent: undefined as unknown as (content: unknown[]) => void,
@@ -19,15 +22,16 @@ const fake = vi.hoisted(() => ({
 
 vi.mock('@blocknote/react', () => ({
   useCreateBlockNote: () => fake,
+  useBlockNoteEditor: () => fake.editor,
   SuggestionMenuController: (props: (typeof fake.controllers)[number]) => { fake.controllers.push(props); return <div data-testid={`menu-${props.triggerCharacter}`} /> },
-  FormattingToolbarController: () => null,
+  FormattingToolbarController: ({ formattingToolbar: Toolbar }: { formattingToolbar?: ComponentType }) => Toolbar ? <Toolbar /> : null,
   FormattingToolbar: () => null,
   getFormattingToolbarItems: () => [],
   SideMenuController: () => null,
   SideMenu: () => null,
   DragHandleMenu: () => null,
   RemoveBlockItem: () => null,
-  blockTypeSelectItems: () => [],
+  blockTypeSelectItems: (editor: unknown) => { fake.blockTypeEditor = editor; return [] },
   useDictionary: () => ({ drag_handle: { delete_menuitem: 'Delete' } }),
   getDefaultReactSlashMenuItems: () => [],
   createReactInlineContentSpec: vi.fn(() => ({})),
@@ -86,6 +90,7 @@ const controller = (trigger: string) => fake.controllers.filter((c) => c.trigger
 beforeEach(() => {
   vi.useFakeTimers()
   fake.document = []
+  fake.blockTypeEditor = undefined
   fake.controllers = []
   fake.domElement = document.createElement('div')
   fake.insertInlineContent = vi.fn()
@@ -107,6 +112,11 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks() })
 
 describe('BlockDocumentEditor menus', () => {
+  it('builds formatting toolbar items from the active editor', async () => {
+    await mount()
+    expect(fake.blockTypeEditor).toBe(fake.editor)
+  })
+
   it('offers only the slash menu to a text-only document', async () => {
     await mount()
     expect(fake.controllers.map((c) => c.triggerCharacter)).toEqual(['/'])

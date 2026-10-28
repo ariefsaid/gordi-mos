@@ -167,6 +167,9 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
       `)
     }
     await sql(`
+      ALTER TABLE ops.location_movements DISABLE TRIGGER location_movements_immutable;
+      DELETE FROM ops.location_movements WHERE org_id='${ORG}' AND item_id='${ITEM_ID}';
+      ALTER TABLE ops.location_movements ENABLE TRIGGER location_movements_immutable;
       DELETE FROM ops.kitchen_stock     WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.kitchen_logs      WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.kitchen_plans     WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
@@ -222,6 +225,11 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     await qty.click()
     await qty.fill(String(PLAN_QTY))
     await page.keyboard.press('Tab')
+
+    // Give the output a known storage location so this journey also leaves the ledger row
+    // its fixture must clean up, regardless of when the default location finishes loading.
+    await page.getByRole('combobox', { name: /Store output in/i }).click()
+    await page.getByRole('option', { name: 'Rumah Rames Bar', exact: true }).click()
 
     const submit = page.getByRole('button', { name: /Submit 1 entry/i })
     await expect(submit).toBeEnabled({ timeout: 10_000 })
@@ -307,10 +315,8 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     await page.waitForURL(/\/cafe\/stock$/, { timeout: 15_000 })
     await expect(streamStatement(page)).toContainText(/Rumah Rames · Bar/i, { timeout: 20_000 })
     // Balances read as item cards: the item name followed by its system quantity.
-    await expect(page.getByRole('region', { name: /^Stock for/i })).toContainText(
-      new RegExp(`${ITEM_NAME}\\s*${PLAN_QTY}`, 'i'),
-      { timeout: 15_000 },
-    )
+    const itemRow = page.getByRole('region', { name: /^Stock for/i }).locator('.ks-row').filter({ hasText: ITEM_NAME })
+    await expect(itemRow).toContainText(`${PLAN_QTY} ${UNIT_NAME}`, { timeout: 15_000 })
 
     // FR-061 (CONTEXT.md trap): the central kitchen is never labelled "HQ" on this surface.
     await expect(page.getByText(/\bStok HQ\b/i)).toHaveCount(0)

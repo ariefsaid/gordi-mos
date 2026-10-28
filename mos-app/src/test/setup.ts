@@ -123,7 +123,7 @@ if (typeof globalThis.localStorage === 'undefined' || globalThis.localStorage ==
 
 // jsdom has no ResizeObserver — @tanstack/react-virtual needs it to observe the
 // scroll element. A no-op stub lets the virtualizer mount; tests that assert
-// windowing stub the scroll element's offsetHeight to seed a viewport.
+// windowing stub the scroll element's clientHeight to seed a viewport.
 if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class {
     observe() {}
