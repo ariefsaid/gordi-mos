@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useNavigate, useSearchParams, type To } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
@@ -6,14 +6,11 @@ import { useIsRecordSplit } from '@/shell/use-is-split-width'
 import { OverlayHostSlot, useOptionalOverlayHost, type OverlayEntry } from '@/shell/overlay-host'
 import type { OverlayOwner } from '@/shell/overlay-navigation'
 import { TaskOverlayContent } from '@/components/tasks/task-drawer'
-import { LoadingShell } from '@/components/ui/state-kit'
+import { CatalogMeetingRecordDocument } from './catalog-meeting-record-document'
 import type { CatalogRow, CatalogType } from './catalog-collection-adapter'
 import { CatalogRecordDocument, type CatalogRecordKind, type CatalogRelatedKind } from './catalog-record-document'
 import { CatalogTaskCreateFrame } from './catalog-task-create-frame'
 import { createCatalogTaskCreateSession } from './catalog-task-create-session'
-
-// A Meeting opened from a record's Meetings section or a document link; loaded only when one is opened.
-const MeetingRecordDocument = lazy(() => import('@/components/meetings/meeting-record-document').then((m) => ({ default: m.MeetingRecordDocument })))
 
 /** The collection's query minus `layout`: a record page has no list layout to restore. */
 function withoutLayout(search: string): string {
@@ -114,9 +111,13 @@ export function useCatalogRecordEntryFactory({
 
     if (kind === 'meeting') {
       entry.content = (
-        <Suspense fallback={<LoadingShell label={t('meetings.record.loading')} />}>
-          <MeetingRecordDocument id={id} mode="panel" onChanged={onCollectionChanged} onOpenMeeting={(next) => { if (host) void host.push(makeEntry('meeting', next)) }} />
-        </Suspense>
+        <CatalogMeetingRecordDocument
+          id={id}
+          mode="panel"
+          onChanged={onCollectionChanged}
+          onOpenMeeting={(next) => { if (host) void host.push(makeEntry('meeting', next)) }}
+          loadingLabel={t('meetings.record.loading')}
+        />
       )
       return entry
     }
