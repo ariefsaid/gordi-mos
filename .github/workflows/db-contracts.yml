@@ -126,9 +126,11 @@ jobs:
         if: steps.scope.outputs.render == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: supabase-images
+        env:
+          SUPABASE_IMAGE_CACHE_KEY: supabase-images-${{ runner.os }}-2.104.0-${{ hashFiles('supabase/config.toml') }}
         with:
           path: /tmp/supabase-images.tar
-          key: supabase-images-${{ runner.os }}-2.104.0-${{ hashFiles('supabase/config.toml') }}
+          key: ${{ env.SUPABASE_IMAGE_CACHE_KEY }}
 
       - name: Load cached Supabase images
         if: steps.scope.outputs.render == 'true' && steps.supabase-images.outputs.cache-hit == 'true'

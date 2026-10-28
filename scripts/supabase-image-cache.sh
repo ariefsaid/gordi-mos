@@ -2,8 +2,8 @@
 # Save/load the images of the services started by the pinned Supabase CLI.
 set -euo pipefail
 
-if [ "$#" -ne 1 ] || [[ "$1" != load && "$1" != save ]]; then
-  echo "Usage: $0 load|save" >&2
+if [ "$#" -ne 1 ] || [[ "$1" != load && "$1" != pull && "$1" != save ]]; then
+  echo "Usage: $0 load|pull|save" >&2
   exit 2
 fi
 
@@ -11,6 +11,24 @@ archive=/tmp/supabase-images.tar
 if [ "$1" = load ]; then
   docker load --input "$archive"
   echo "Loaded cached Supabase images from $archive"
+  exit 0
+fi
+
+if [ "$1" = pull ]; then
+  # Supabase CLI 2.104.0's core services used by CI. Pulling these images seeds
+  # the same archive without starting any containers; update when the CLI pin changes.
+  images=(
+    public.ecr.aws/supabase/postgres:17.6.1.132
+    public.ecr.aws/supabase/gotrue:v2.189.0
+    public.ecr.aws/supabase/postgrest:v14.12
+    public.ecr.aws/supabase/kong:2.8.1
+    public.ecr.aws/supabase/mailpit:v1.22.3
+  )
+  for image in "${images[@]}"; do
+    docker pull "$image"
+  done
+  docker save --output "$archive" "${images[@]}"
+  echo "Pulled and saved ${#images[@]} Supabase images to $archive"
   exit 0
 fi
 
