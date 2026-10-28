@@ -2062,6 +2062,11 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
               )}
             </> : undefined}
             reason={<>
+              {!isDesktop && stagedCount > 0 && outputLocationPending && (
+                placeChoices.status === 'error'
+                  ? <button type="button" className="kl-submit-reason kl-note-pointer" onClick={retryLocationChoices}>{t('cafe.locations.loadError')} {t('common.retry')}</button>
+                  : <span className="kl-submit-reason" role="status">{t('cafe.locations.loading')}</span>
+              )}
               {mode === 'transfer' && stream !== null && !transferDestinationChosen && (
                 <span className="kl-submit-reason" role="status">
                   {movementOptions.length > 0 ? t('kitchen.transfer.destination.prompt') : t('kitchen.transfer.destination.none')}
