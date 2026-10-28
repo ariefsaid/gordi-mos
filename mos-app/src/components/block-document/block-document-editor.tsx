@@ -15,6 +15,7 @@ import {
   getDefaultReactSlashMenuItems,
   getFormattingToolbarItems,
   useCreateBlockNote,
+  useBlockNoteEditor,
   useDictionary,
   type DefaultReactSuggestionItem,
 } from '@blocknote/react'
@@ -132,7 +133,8 @@ const STORED_BLOCK_TYPES = new Set(['paragraph', 'quote', 'bulletListItem', 'num
 // The library's selection toolbar without text alignment (an ops write-up is left-aligned prose) and with
 // the block-type list limited to the stored types, so nothing the sanitizer would change on reload is offered.
 function DocumentToolbar() {
-  const items = blockTypeSelectItems(useDictionary()).filter((item) => {
+  const editor = useBlockNoteEditor()
+  const items = blockTypeSelectItems(editor).filter((item) => {
     if (item.type !== 'heading') return STORED_BLOCK_TYPES.has(item.type)
     const props = item.props as { level: number; isToggleable: boolean }
     return props.level <= 3 && !props.isToggleable

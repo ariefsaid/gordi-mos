@@ -1,5 +1,5 @@
 import type { Plugin } from 'vite'
-import { appManifest, cloudflareRedirects, normalizeBasePath } from './build-settings'
+import { appManifest, cloudflareRedirects, normalizeBasePath } from './build-settings.ts'
 
 export function buildSettingsArtifactsPlugin(basePath: string): Plugin {
   const base = normalizeBasePath(basePath)

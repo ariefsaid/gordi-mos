@@ -86,7 +86,13 @@ jobs:
           # gates' own spend). Same inert-allowlist polarity as pre-pr-verify's local scope.
           INERT='^(docs/|review/|adws/|\.claude/|scripts/|agents/|\.githooks/|\.github/|justfile$|\.env\.sample$|[^/]*\.md$|[^/]*\.(jpe?g|png)$|\.gitignore$)'
           CHANGED="$(git diff --name-only "$RANGE")"
-          NOT_INERT="$(printf '%s\n' "$CHANGED" | grep -Ev "$INERT" || true)"
+          # A manual dispatch is an explicit request to exercise the DB lane, even when the
+          # immediately preceding commit only changed CI or scripts.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            NOT_INERT='workflow_dispatch'
+          else
+            NOT_INERT="$(printf '%s\n' "$CHANGED" | grep -Ev "$INERT" || true)"
+          fi
           # Carve-out: the applied-path harness's own inputs (#393) live under scripts/, which is
           # otherwise inert here — a change to THESE two files must still run, even though nothing
           # else in scripts/ would.
@@ -112,15 +118,33 @@ jobs:
 
       - name: Install Supabase CLI
         if: steps.scope.outputs.render == 'true'
-        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: 2.104.0
+
+      - name: Cache local Supabase images
+        if: steps.scope.outputs.render == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: supabase-images
+        env:
+          SUPABASE_IMAGE_CACHE_KEY: supabase-images-${{ runner.os }}-2.104.0-${{ hashFiles('supabase/config.toml') }}
+        with:
+          path: /tmp/supabase-images.tar
+          key: ${{ env.SUPABASE_IMAGE_CACHE_KEY }}
+
+      - name: Load cached Supabase images
+        if: steps.scope.outputs.render == 'true' && steps.supabase-images.outputs.cache-hit == 'true'
+        run: bash scripts/supabase-image-cache.sh load
 
       - name: Start local Supabase stack (applies migrations + seed)
         if: steps.scope.outputs.render == 'true'
         # Same exclusion list as integration.yml — proven to boot. auth/rest/kong are needed to
         # log the guards in; inbucket is needed by the AC-005 recovery round-trip.
-        run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
+        run: bash scripts/supabase-start-retry.sh edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
+
+      - name: Save Supabase images for later runs
+        if: success() && steps.scope.outputs.render == 'true' && steps.supabase-images.outputs.cache-hit != 'true'
+        run: bash scripts/supabase-image-cache.sh save
 
       # ─── absorbed from the old `pgtap` job (#565) — see scripts/lint-security-definer.sh for
       # what this checks; `db` in integration.yml runs the same script on the PR→main lane. ────
@@ -214,7 +238,7 @@ jobs:
 
       - name: Upload applied-path artifacts on failure
         if: failure() && steps.scope.outputs.render == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: geometry-applied-path
           path: artifacts/applied-path/

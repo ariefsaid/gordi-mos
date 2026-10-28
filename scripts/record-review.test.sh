@@ -91,7 +91,7 @@ if [ "$(cat "$gitdir/independent-review-spec-ok" 2>/dev/null)" = "$spec_stamp_be
   pass=$((pass+1)); printf '  ok    other exact-HEAD lens stamps remain unchanged after security DNM\n'
 else fail=$((fail+1)); printf '  FAIL  security DNM changed another lens stamp\n'; fi
 
-# Release candidates need Opus or Sol; migration branches accept Opus or an exact-prefix Luna id.
+# Release candidates need Opus or Sol; migration branches accept Opus, Sol, or an exact-prefix Luna or Terra id.
 git init -q "$tmp/rel-repo"
 gr() { git -C "$tmp/rel-repo" -c user.email=t@t -c user.name=t "$@"; }
 gr commit -qm init --allow-empty
@@ -111,12 +111,15 @@ relcheck "HEAD contained in origin/dev is not a release candidate" 0 gpt-6-luna
 relcheck "release candidate: opus security accepted" 0 claude-opus
 gr commit -qm feature --allow-empty
 relcheck "feature branch without migrations: luna security accepted" 0 gpt-6-luna
+relcheck "feature branch without migrations: terra security accepted" 0 gpt-6.1-terra
 mkdir -p "$tmp/rel-repo/supabase/migrations"; echo 'select 1;' > "$tmp/rel-repo/supabase/migrations/20261007000000_x.sql"
 gr add -A && gr commit -qm migration
 relcheck "migration branch: gpt-6-luna security accepted" 0 gpt-6-luna
 relcheck "migration branch: openai-codex/gpt-6-luna security accepted" 0 openai-codex/gpt-6-luna-reviewer
 relcheck "migration branch: luna security accepted" 0 luna-reviewer
 relcheck "migration branch: opus security accepted" 0 claude-opus
+relcheck "migration branch: gpt-6.1-terra security accepted" 0 gpt-6.1-terra
+relcheck "spoofed id 'x-terra' refused on a migration branch" 1 x-gpt-6.1-terra
 relcheck "spoofed id 'x-luna' refused on a migration branch" 1 x-luna
 relcheck "spoofed id 'not-opus-luna' refused on a migration branch" 1 not-opus-luna
 gr mv supabase/migrations/20261007000000_x.sql supabase/migrations/20261007000001_x.sql; gr commit -qm renamed
@@ -127,6 +130,7 @@ git -C "$tmp/rel-repo" update-ref refs/remotes/origin/dev HEAD~1
 relcheck "release candidate with a migration: gpt-6-luna refused" 1 gpt-6-luna
 relcheck "release candidate: openai-codex/gpt-6.1-sol security accepted" 0 openai-codex/gpt-6.1-sol
 relcheck "release candidate: fable security refused" 1 claude-fable-5-1
+relcheck "release candidate: gpt-6.1-terra security refused" 1 gpt-6.1-terra
 
 gr checkout -qb feature/explicit-main "$(gr rev-parse origin/dev)"
 gr commit -q --allow-empty -m "ordinary work"
