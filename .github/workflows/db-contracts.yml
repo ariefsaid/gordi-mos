@@ -86,7 +86,13 @@ jobs:
           # gates' own spend). Same inert-allowlist polarity as pre-pr-verify's local scope.
           INERT='^(docs/|review/|adws/|\.claude/|scripts/|agents/|\.githooks/|\.github/|justfile$|\.env\.sample$|[^/]*\.md$|[^/]*\.(jpe?g|png)$|\.gitignore$)'
           CHANGED="$(git diff --name-only "$RANGE")"
-          NOT_INERT="$(printf '%s\n' "$CHANGED" | grep -Ev "$INERT" || true)"
+          # A manual dispatch is an explicit request to exercise the DB lane, even when the
+          # immediately preceding commit only changed CI or scripts.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            NOT_INERT='workflow_dispatch'
+          else
+            NOT_INERT="$(printf '%s\n' "$CHANGED" | grep -Ev "$INERT" || true)"
+          fi
           # Carve-out: the applied-path harness's own inputs (#393) live under scripts/, which is
           # otherwise inert here — a change to THESE two files must still run, even though nothing
           # else in scripts/ would.
