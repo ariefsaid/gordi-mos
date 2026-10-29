@@ -56,4 +56,25 @@ describe('EventsCalendarPresentation', () => {
     render(<I18nProvider><EventsCalendarPresentation month="2027-01" events={[]} /></I18nProvider>)
     expect(screen.queryByRole('article')).toBeNull()
   })
+
+  it('selects a date in the displayed month after changing months', async () => {
+    const user = userEvent.setup()
+    const januaryEvent = { ...event, title: 'January event', starts_at: '2027-01-08T01:00:00.000Z', ends_at: '2027-01-08T02:00:00.000Z' }
+    const februaryEvent = { ...event, title: 'February event', starts_at: '2027-02-10T01:00:00.000Z', ends_at: '2027-02-10T02:00:00.000Z' }
+    const { rerender } = render(<I18nProvider><EventsCalendarPresentation month="2027-01" events={[januaryEvent]} /></I18nProvider>)
+    const calendar = screen.getByRole('region', { name: 'Events calendar' })
+    const agenda = screen.getByRole('region', { name: 'Events agenda' })
+
+    await user.click(within(calendar).getByRole('button', { name: /12 Jan$/i }))
+    expect(within(calendar).getByRole('button', { name: /12 Jan$/i })).toHaveAttribute('aria-pressed', 'true')
+
+    rerender(<I18nProvider><EventsCalendarPresentation month="2027-02" events={[februaryEvent]} /></I18nProvider>)
+
+    expect(within(calendar).getByRole('button', { name: /10 Feb$/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(agenda).getByRole('button', { name: /10 Feb$/i })).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(within(agenda).getByRole('button', { name: /15 Feb$/i }))
+    expect(within(calendar).getByRole('button', { name: /15 Feb$/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(agenda).getByRole('button', { name: /15 Feb$/i })).toHaveAttribute('aria-pressed', 'true')
+  })
 })
