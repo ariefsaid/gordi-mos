@@ -6,7 +6,7 @@ import * as compilerModule from './../viewspec/compiler'
 // eslint-disable-next-line no-restricted-imports -- edge-function module lives outside src/ (D7)
 import { composeSpec, ComposeSpecError, MAX_REPAIR_ATTEMPTS } from '../../../../supabase/functions/compose-view/composeSpec'
 // eslint-disable-next-line no-restricted-imports -- edge-function module lives outside src/ (D7)
-import type { ModelClient, ModelResponse } from '../../../../supabase/functions/_shared/modelClient'
+import type { ModelClient, ModelClientParams, ModelResponse } from '../../../../supabase/functions/_shared/modelClient'
 
 function toolCallResponse(spec: unknown): ModelResponse {
   return {
@@ -56,6 +56,33 @@ describe('compose-view/composeSpec — compose+repair loop (T8)', () => {
 
     expect(result.repairAttempts).toBe(1)
     expect(result.spec).toEqual(VALID_SPEC)
+  })
+
+  it('AC #1924: includes the rejected tool call and matching validation result in the repair request', async () => {
+    const invalidSpec = { version: 1, panels: [{ id: 'p1', primitive: 'KPITile', querySpec: { entity: 'not_real', select: ['id'] } }] }
+    const requests: ModelClientParams[] = []
+    const modelClient: ModelClient = {
+      create: vi.fn(async (params) => {
+        requests.push(params)
+        return requests.length === 1 ? toolCallResponse(invalidSpec) : toolCallResponse(VALID_SPEC)
+      }),
+    }
+
+    await composeSpec('build a task view', 'org-1', { modelClient, personId: 'person-1', model: 'm' })
+
+    const retryMessages = requests[1]?.messages ?? []
+    expect(retryMessages.map(({ role }) => role)).toEqual(['system', 'user', 'assistant', 'tool'])
+    expect(retryMessages[2]).toMatchObject({
+      role: 'assistant',
+      content: null,
+      tool_calls: [{
+        id: 'call_1',
+        type: 'function',
+        function: { name: 'compose_view', arguments: JSON.stringify(invalidSpec) },
+      }],
+    })
+    expect(retryMessages[3]).toMatchObject({ role: 'tool', tool_call_id: 'call_1', name: 'compose_view' })
+    expect(retryMessages[3]?.content).toContain('Validation failed:')
   })
 
   it('AC-P2-CV-003: always-invalid → throws ComposeSpecError REPAIR_EXHAUSTED with code', async () => {
