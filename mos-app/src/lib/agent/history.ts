@@ -12,18 +12,15 @@
  * `listThreads()` (T7) lists the owner's `mos.agent_threads` rows, updated_at desc, for the
  * ThreadList panel.
  *
- * Fails open (never throws) — a read error degrades to an empty transcript / empty list rather
- * than breaking the panel (mirrors persistence.ts's fail-open posture on the edge-function side).
+ * Read errors return an unbound empty transcript or empty list without throwing.
  */
 
+import { MAX_RUN_EVENTS_READ, readEventPages } from '@/lib/agent/runtime/mosNativeRuntime'
 import { supabase } from '@/lib/supabase'
 import type { TranscriptItem } from '@/hooks/useAssistantPanel'
 import { isAgentWidget } from '@/lib/agent/widgets'
 
 const mos = () => supabase.schema('mos')
-
-/** Row cap mirroring the server's MAX_RUN_EVENTS_READ — a pathological thread degrades, never hangs. */
-const MAX_EVENTS_READ = 1000
 
 export interface ThreadSummary {
   id: string
@@ -85,16 +82,13 @@ export async function loadThreadForDisplay(threadId: string): Promise<ThreadForD
 
     const activeRunId = (runs[0] as { id: string }).id
 
-    const { data: events, error: eventsError } = await mos()
+    const events = await readEventPages(offset => mos()
       .from('agent_events')
       .select('id, type, text, payload')
       .eq('run_id', activeRunId)
       .order('seq', { ascending: true })
-      .limit(MAX_EVENTS_READ)
-
-    if (eventsError || !events) {
-      return { activeRunId, transcript: [] }
-    }
+      .range(offset, offset + MAX_RUN_EVENTS_READ - 1)
+      .limit(MAX_RUN_EVENTS_READ))
 
     return { activeRunId, transcript: foldEventsToTranscript(events as AgentEventRow[]) }
   } catch {

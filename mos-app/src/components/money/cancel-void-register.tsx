@@ -19,21 +19,42 @@ export function CancelVoidRegister({ branch, start, end }: CancelVoidRegisterPro
   const t = useT()
   const { locale } = useI18n()
   const [params, setParams] = useSearchParams()
-  const [data, setData] = useState<CancelVoidData | null>(null)
+  const selectionKey = `${branch}:${start}:${end}`
+  const [registerState, setRegisterState] = useState<{
+    key: string
+    data: CancelVoidData | null
+    status: 'loading' | 'ready' | 'error'
+  }>({
+    key: selectionKey,
+    data: null,
+    status: 'loading',
+  })
   const [people, setPeople] = useState<PersonOption[]>([])
-  const [status, setStatus] = useState('loading')
   const [attempt, setAttempt] = useState(0)
   const [selected, setSelected] = useState<CancelVoidRow | null>(null)
+
+  const isCurrent = registerState.key === selectionKey
+  const status = isCurrent ? registerState.status : 'loading'
+  const data = isCurrent && status === 'ready' ? registerState.data : null
+  const currentSelected = isCurrent ? selected : null
+
   useEffect(() => { setSelected(null) }, [branch, start, end])
   useEffect(() => {
     let live = true
-    setStatus('loading')
+    setRegisterState(prev => (prev.key === selectionKey && prev.status === 'error' ? prev : { key: selectionKey, data: null, status: 'loading' }))
     Promise.all([listCancelVoidRegister(branch, start, end), getPeople()]).then(
-      ([result, directory]) => { if (live) { setData(result); setPeople(directory); setStatus('ready') } },
-      () => { if (live) setStatus('error') },
+      ([result, directory]) => {
+        if (live) {
+          setPeople(directory)
+          setRegisterState({ key: selectionKey, data: result, status: 'ready' })
+        }
+      },
+      () => {
+        if (live) setRegisterState({ key: selectionKey, data: null, status: 'error' })
+      },
     )
     return () => { live = false }
-  }, [branch, start, end, attempt])
+  }, [branch, start, end, selectionKey, attempt])
   const personName = (id: string) => people.find(person => person.id === id)?.full_name ?? t('money.cancelVoid.personUnavailable')
   const latestReviews = new Map<string, CancelVoidReview>()
   const history = [...(data?.reviews ?? [])].sort((left, right) => right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id))
@@ -68,14 +89,14 @@ export function CancelVoidRegister({ branch, start, end }: CancelVoidRegisterPro
   return <section className="money-branch__panel cancel-void" aria-label={t('money.cancelVoid.title')}>
     <h3 className="money-branch__h2">{t('money.cancelVoid.title')}</h3>
     <p>{t('money.cancelVoid.context')}</p>
-    <label className="cancel-void__filter"><input type="checkbox" checked={unreviewed} disabled={selected !== null} onChange={event => {
+    <label className="cancel-void__filter"><input type="checkbox" checked={unreviewed} disabled={currentSelected !== null} onChange={event => {
       const next = new URLSearchParams(params)
       if (event.target.checked) next.set('cv_unreviewed', '1'); else next.delete('cv_unreviewed')
       setParams(next)
     }} />{t('money.cancelVoid.unreviewed')}</label>
-    {status === 'loading' && !data && <p role="status">{t('common.loading')}</p>}
+    {status === 'loading' && <p role="status">{t('common.loading')}</p>}
     {status === 'error' && <ErrorState message={t('money.cancelVoid.loadError')} onRetry={() => setAttempt(value => value + 1)} />}
-    {data && <div className="money-results" aria-busy={status === 'loading'}>
+    {data && <div className="money-results">
       {data.rows[0] && <p>{t('money.cancelVoid.received', { date: formatWibWeekdayTime(data.rows.reduce((latest, row) => row.snapshot_as_of > latest ? row.snapshot_as_of : latest, ''), locale) })}</p>}
       {visible.length === 0 && <p>{t(unreviewed && cases.length ? 'money.cancelVoid.allReviewed' : 'money.cancelVoid.empty')}</p>}
       <ul className="cancel-void__cases" aria-label={t('money.cancelVoid.cases')}>
@@ -93,9 +114,9 @@ export function CancelVoidRegister({ branch, start, end }: CancelVoidRegisterPro
             {details.length > 0 && <details><summary>{t('money.cancelVoid.lines')}</summary>{details.map(detail => <p key={detail.row_id}>{detail.menu_name ?? detail.node_kind} · {detail.line_total === null ? t('money.cancelVoid.amountMissing') : formatIDR(detail.line_total)} · {sourceReason(detail)}</p>)}</details>}
             {review && <p>{t('money.cancelVoid.reviewed', { person: personName(review.person_id), reason: t(CANCEL_VOID_REASON_LABELS[review.reason]) })}</p>}
             {reviews.length > 0 && <details open><summary>{t('money.cancelVoid.history')}</summary>{reviews.map(item => <p key={item.id}>{personName(item.person_id)} · {t(CANCEL_VOID_REASON_LABELS[item.reason])} · {item.note} · {t('money.cancelVoid.reviewAuthor', { person: personName(item.reviewed_by), date: formatWibWeekdayTime(item.created_at, locale) })}{item.source_evidence_hash !== row.source_evidence_hash && ` · ${t('money.cancelVoid.sourceChanged')}`}</p>)}</details>}
-            <Button variant="outline" disabled={selected !== null || status !== 'ready'} onClick={() => setSelected(row)}>{t('money.cancelVoid.review')}</Button>
-            {selected && caseKey(selected) === caseKey(row) && <CancelVoidReviewForm row={selected} people={people} onClose={() => setSelected(null)} onSaved={review => {
-              setData(current => current ? { ...current, reviews: [review, ...current.reviews] } : current)
+            <Button variant="outline" disabled={currentSelected !== null || status !== 'ready'} onClick={() => setSelected(row)}>{t('money.cancelVoid.review')}</Button>
+            {currentSelected && caseKey(currentSelected) === caseKey(row) && <CancelVoidReviewForm row={currentSelected} people={people} onClose={() => setSelected(null)} onSaved={review => {
+              setRegisterState(current => current && current.data ? { ...current, data: { ...current.data, reviews: [review, ...current.data.reviews] } } : current)
               setSelected(null)
             }} />}
           </li>

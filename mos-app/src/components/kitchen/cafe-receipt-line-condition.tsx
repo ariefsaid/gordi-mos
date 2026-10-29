@@ -191,15 +191,15 @@ export function CafeReceiptLineCondition({
               windowExpired: () => t('cafe.receive.photoUploadFailed'),
             }}
           />
-          {dirty && (
-            <button type="button" className="btn btn-outline btn-touch" disabled={disabled || saving || !online} onClick={() => void saveExplanation()}>
-              {saving ? t('common.working') : t('cafe.receive.saveExplanation')}
-            </button>
-          )}
-          {saved && !dirty && <p className="cafe-count__line-success" role="status">{t('cafe.receive.explanationSaved')}</p>}
-          {saveFailed && <p className="cafe-count__field-error" role="alert">{t('cafe.receive.explanationSaveFailed')}</p>}
         </div>
       )}
+      {dirty && (
+        <button type="button" className="btn btn-outline btn-touch" disabled={disabled || saving || !online} onClick={() => void saveExplanation()}>
+          {saving ? t('common.working') : t('cafe.receive.saveExplanation')}
+        </button>
+      )}
+      {saved && !dirty && <p className="cafe-count__line-success" role="status">{t('cafe.receive.explanationSaved')}</p>}
+      {saveFailed && <p className="cafe-count__field-error" role="alert">{t('cafe.receive.explanationSaveFailed')}</p>}
     </section>
   )
 }

@@ -3,7 +3,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   hashToolArgs, createThreadAndRun, insertEvent, heartbeat, setRunStatus,
-  loadMaxSeq, loadJournaledWrites,
+  loadMaxSeq, loadJournaledWrites, completeApprovedWrite,
 } from './../../../../supabase/functions/agent-chat/persistence'
 import type { PersistenceDeps } from './../../../../supabase/functions/agent-chat/persistence'
 
@@ -56,7 +56,12 @@ function makeDeps(overrides: Partial<{
   const runUpdate = vi.fn(overrides.runUpdate ?? (async (): Promise<{ data: unknown; error: unknown }> => ({ data: {}, error: null })))
   const eventsSelect = overrides.eventsSelect ?? (async () => ({ data: [], error: null }))
   const limitSpy = vi.fn(() => eventsSelect())
-  const orderSpy = vi.fn(() => ({ limit: limitSpy }))
+  const orderSpy = vi.fn(() => ({ limit: limitSpy, range: (start: number, end: number) => ({
+    limit: async () => {
+      const result = await eventsSelect()
+      return { ...result, data: result.data?.slice(start, end + 1) ?? null }
+    },
+  }) }))
 
   // Fixed nested-shape stub for the mos-schema table ops this test exercises — every level
   // is deliberately arity-0 (params aren't read) to keep the mock terse; the outer cast to
@@ -138,11 +143,11 @@ describe('insertEvent (T15, AC-P2-OB-001)', () => {
     expect(insertedRow.tool_name).toBeUndefined()
   })
 
-  it('swallows a DB error (never throws — NFR-AGP-SEC-005 analog)', async () => {
+  it('rejects an event insert failure before the handler can continue', async () => {
     const { deps } = makeDeps({ eventInsert: async () => ({ data: null, error: { code: 'XXXXX' } }) })
     await expect(
       insertEvent(deps, 'run-1', 0, { id: 'ev-1', runId: 'run-1', type: 'assistant', createdAt: 'x' }),
-    ).resolves.toBeUndefined()
+    ).rejects.toThrow('PERSISTENCE_UNAVAILABLE')
   })
 })
 
@@ -154,11 +159,11 @@ describe('createThreadAndRun (T15, mos-schema writes)', () => {
     ).resolves.toBeUndefined()
   })
 
-  it('swallows a thread-insert failure (never throws)', async () => {
+  it('rejects a thread-insert failure before a model turn', async () => {
     const { deps } = makeDeps({ threadInsert: async () => ({ data: null, error: { code: 'XXXXX' } }) })
     await expect(
       createThreadAndRun(deps, { runId: 'run-1', title: 'x' }),
-    ).resolves.toBeUndefined()
+    ).rejects.toThrow('PERSISTENCE_UNAVAILABLE')
   })
 })
 
@@ -189,9 +194,9 @@ describe('loadMaxSeq (T15, seq continuity)', () => {
     expect(limitSpy).toHaveBeenCalledWith(1)
   })
 
-  it('fails open to -1 on error', async () => {
+  it('rejects a sequence read error instead of restarting at zero', async () => {
     const { deps } = makeDeps({ eventsSelect: async () => ({ data: null, error: { code: 'X' } }) })
-    expect(await loadMaxSeq(deps, 'run-1')).toBe(-1)
+    await expect(loadMaxSeq(deps, 'run-1')).rejects.toThrow('PERSISTENCE_UNAVAILABLE')
   })
 })
 
@@ -211,8 +216,67 @@ describe('loadJournaledWrites (T15, resume de-dupe gate)', () => {
     expect(writes).toEqual([{ toolName: 'create_task', argsHash: 'h1', payload: { id: 't1' } }])
   })
 
-  it('fails open to [] on error', async () => {
+  it('rejects a journal read error instead of treating completed actions as absent', async () => {
     const { deps } = makeDeps({ eventsSelect: async () => ({ data: null, error: { code: 'X' } }) })
-    expect(await loadJournaledWrites(deps, 'run-1')).toEqual([])
+    await expect(loadJournaledWrites(deps, 'run-1')).rejects.toThrow('PERSISTENCE_UNAVAILABLE')
   })
+})
+
+
+it('loads completed writes beyond both the requested page and the server row cap', async () => {
+  const rows = Array.from({ length: 1003 }, (_, seq) => ({
+    seq, tool_name: 'create_task', tool_args_hash: `hash-${seq}`, tool_status: 'completed', payload: { id: `task-${seq}` },
+  }))
+  const read = (start = 0) => ({ data: rows.slice(start, start + 17), error: null })
+  const { deps } = makeDeps()
+  deps.supabase = { schema: () => ({ from: () => ({ select: () => ({ eq: () => ({
+    limit: async () => read(),
+    order: () => ({ limit: async () => read(), range: (start: number) => ({ limit: async () => read(start) }) }),
+  }) }) }) }) } as never
+  const writes = await loadJournaledWrites(deps, 'run-1')
+  expect(writes).toHaveLength(1003)
+  expect(writes.at(-1)).toEqual({ toolName: 'create_task', argsHash: 'hash-1002', payload: { id: 'task-1002' } })
+})
+
+it('rejects the entire journal when a later capped page cannot be read', async () => {
+  const page = { data: [{ tool_name: 'create_task', tool_args_hash: 'completed', tool_status: 'completed', payload: { id: 'saved' } }], error: null }
+  const { deps } = makeDeps()
+  deps.supabase = { schema: () => ({ from: () => ({ select: () => ({ eq: () => ({
+    limit: async () => page,
+    order: () => ({ range: (start: number) => ({ limit: async () => start === 0 ? page : { data: null, error: { code: 'read-failed' } } }) }),
+  }) }) }) }) } as never
+  await expect(loadJournaledWrites(deps, 'run-1')).rejects.toThrow('PERSISTENCE_UNAVAILABLE')
+})
+
+
+describe('approved completion boundary', () => {
+  it.each([
+    { data: null, error: { code: '23505' } },
+    { data: null, error: null },
+    { data: { result: { error: 'write_failed' }, replayed: false }, error: null },
+    { data: { result: { id: 'unconfirmed' } }, error: null },
+  ])('never returns success without confirmed durable evidence: %j', async response => {
+    const { deps } = makeDeps()
+    deps.supabase = { schema: () => ({ rpc: async () => response }) } as never
+    await expect(completeApprovedWrite(deps, { id: 'event-1', runId: 'run-1', type: 'tool' }, 5,
+      { toolName: 'create_task', pendingId: 'pending-1', toolCallId: 'call-1', args: { title: 'Saved' } },
+    )).rejects.toThrow('PERSISTENCE_UNAVAILABLE')
+  })
+
+  it('fails closed for a future unsupported confirmed action', async () => {
+    const { deps } = makeDeps()
+    const rpc = vi.fn()
+    deps.supabase = { schema: () => ({ rpc }) } as never
+    await expect(completeApprovedWrite(deps, { id: 'event-1', runId: 'run-1', type: 'tool' }, 5,
+      { toolName: 'future_write', pendingId: 'pending-1', toolCallId: 'call-1', args: {} },
+    )).rejects.toThrow('PERSISTENCE_UNAVAILABLE')
+    expect(rpc).not.toHaveBeenCalled()
+  })
+})
+
+it('refuses approved completion when the caller has no transaction interface', async () => {
+  const { deps } = makeDeps()
+  await expect(completeApprovedWrite(deps, { id: 'event-1', runId: 'run-1', type: 'tool' }, 5,
+    { toolName: 'post_update', pendingId: 'pending-1', toolCallId: 'call-1', args: { label: 'Saved', progress: 'done', weekStart: '2026-10-26' } },
+  )).rejects.toThrow('PERSISTENCE_UNAVAILABLE')
 })
