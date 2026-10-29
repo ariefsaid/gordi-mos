@@ -1,7 +1,7 @@
 -- #1286 — missing Café items land in the relevant stream's item-settings queue.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(23);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -48,6 +48,11 @@ select lives_ok($$
   insert into ops.cafe_missing_item_reports (branch_id, activity, item_name)
   values ('00000000-0000-0000-0000-00000000bf01', 'kitchen', 'Oat milk')
 $$, 'an affiliated Café member can report a missing item on a live stream');
+select lives_ok($$
+  insert into ops.cafe_missing_item_reports (branch_id, activity, item_name, reported_at)
+  values ('00000000-0000-0000-0000-00000000bf01', 'kitchen', 'Past', '2000-01-01'),
+         ('00000000-0000-0000-0000-00000000bf01', 'kitchen', 'Future', '2100-01-01')
+$$, 'capturers can submit reports with supplied timestamps');
 select is((select count(*)::int from ops.cafe_missing_item_reports), 0,
   'capturers cannot read the managers'' needs-attention queue');
 select throws_ok($$
@@ -66,7 +71,9 @@ select is(ops.can_manage_cafe_item_settings('kitchen'), true, 'the existing item
 select is((select reported_by::text from ops.cafe_missing_item_reports limit 1),
           '00000000-0000-0000-0000-0000000000d4',
   'reporter attribution is stamped from the authenticated session');
-select is((select count(*)::int from ops.cafe_missing_item_reports), 1,
+select is((select count(*)::int from ops.cafe_missing_item_reports where item_name in ('Past','Future') and reported_at between statement_timestamp() - interval '1 minute' and clock_timestamp()), 2,
+  'past and future client timestamps are replaced with server time');
+select is((select count(*)::int from ops.cafe_missing_item_reports), 3,
   'a Kitchen manager can see the newly reported item');
 select lives_ok($$
   update ops.cafe_missing_item_reports set needs_attention = false
@@ -87,6 +94,10 @@ select is((select needs_attention from ops.cafe_missing_item_reports where item_
   'the RLS update predicate leaves a resolved report closed');
 
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member","manager"]}');
+select throws_ok($$
+  insert into ops.cafe_missing_item_reports (branch_id, activity, item_name, reported_at)
+  values ('00000000-0000-0000-0000-00000000bf01', 'kitchen', 'Unauthorized', '2100-01-01')
+$$, '42501', null, 'an unaffiliated manager cannot create a report');
 select is(ops.can_manage_cafe_item_settings('kitchen'), false, 'a manager outside Retail Ops is not a Café item-settings manager');
 select is((select count(*)::int from ops.cafe_missing_item_reports), 0,
   'a manager outside Café cannot read another stream''s queue');

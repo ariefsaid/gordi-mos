@@ -58,8 +58,21 @@ export class ChatCompletionsClient implements ModelClient {
 
   async create(params: ModelClientParams): Promise<ModelResponse> {
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort()
+        reject(new Error('chat-completions request timed out'))
+      }, REQUEST_TIMEOUT_MS)
+    })
+    try {
+      return await Promise.race([this.request(params, controller.signal), timeout])
+    } finally {
+      clearTimeout(timer)
+    }
+  }
 
+  private async request(params: ModelClientParams, signal: AbortSignal): Promise<ModelResponse> {
     let response: Response
     try {
       response = await fetch(`${this.opts.baseUrl}/chat/completions`, {
@@ -75,7 +88,7 @@ export class ChatCompletionsClient implements ModelClient {
           ...(params.tools ? { tools: params.tools } : {}),
           ...(params.tool_choice ? { tool_choice: params.tool_choice } : {}),
         }),
-        signal: controller.signal,
+        signal,
       })
     } catch (err) {
       throw new Error(
@@ -83,8 +96,6 @@ export class ChatCompletionsClient implements ModelClient {
           ? 'chat-completions request timed out'
           : 'chat-completions request failed',
       )
-    } finally {
-      clearTimeout(timer)
     }
 
     if (!response.ok) {
