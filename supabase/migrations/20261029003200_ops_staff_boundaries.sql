@@ -18,6 +18,8 @@ begin
          or shared.is_designated_team_lead(a.team_id, shared.current_person_id())));
 end;
 $$;
+revoke execute on function ops.can_read_staff_note(text) from public, anon, authenticated;
+grant execute on function ops.can_read_staff_note(text) to authenticated, service_role;
 
 create or replace function ops.can_add_staff_note(p_name text)
 returns boolean
@@ -39,6 +41,8 @@ begin
        and (select count(*) from storage.objects o where o.bucket_id = 'staff-notes' and ops.staff_note_absence_id(o.name) = v_absence) < 2);
 end;
 $$;
+revoke execute on function ops.can_add_staff_note(text) from public, anon, authenticated;
+grant execute on function ops.can_add_staff_note(text) to authenticated, service_role;
 
 create or replace function ops.attach_staff_absence_note(p_absence_id uuid, p_path text)
 returns void
@@ -61,6 +65,8 @@ begin
   update ops.staff_absences set note_path = p_path, note_added_at = ops._attendance_now(), updated_at = ops._attendance_now() where id = v_abs.id;
 end;
 $$;
+revoke execute on function ops.attach_staff_absence_note(uuid,text) from public, anon;
+grant execute on function ops.attach_staff_absence_note(uuid,text) to authenticated;
 
 create or replace function ops._attendance_clock_counts(p_org uuid, p_first date, p_last date, p_teams uuid[])
 returns table (person_id uuid, worked bigint, late bigint, early_leave bigint)
@@ -126,6 +132,8 @@ begin
   ), '[]'::jsonb);
 end;
 $$;
+revoke execute on function ops.list_staff_monthly_totals(date) from public, anon;
+grant execute on function ops.list_staff_monthly_totals(date) to authenticated;
 
 drop function ops._attendance_clock_counts(uuid,date,date);
 
@@ -266,3 +274,5 @@ begin
   return jsonb_build_object('missing_alerts', v_missing, 'closed_no_clock_out', v_closed, 'abandoned_attempts', v_pending, 'selfies_queued', v_selfies, 'notes_queued', v_notes, 'locations_cleared', v_locations);
 end;
 $$;
+revoke execute on function ops.run_attendance_jobs() from public, anon, authenticated;
+grant execute on function ops.run_attendance_jobs() to service_role;
