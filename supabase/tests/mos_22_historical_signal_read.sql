@@ -6,7 +6,7 @@
 -- and no membership there, so none of the Team-rooted read rules reaches it for either of them.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(16);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
@@ -63,6 +63,10 @@ select throws_ok($$
   values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000009874',
           'person','00000000-0000-0000-0000-0000000000d4')
 $$, '42501', null, 'an author cannot add a mention after the Signal becomes a tombstone');
+select lives_ok($$
+  update mos.signal_mentions set revoked_at = revoked_at
+   where id = '00000000-0000-0000-0000-00000000e874'
+$$, 'a no-op mention update remains permitted after retraction');
 select throws_ok($$
   update mos.signal_mentions set revoked_at = now()
    where id = '00000000-0000-0000-0000-00000000e874'
