@@ -15,11 +15,13 @@ class CredentialsTest(unittest.TestCase):
             fake = root / 'psql'
             fake.write_text('''#!/usr/bin/env python3
 import json, os, pathlib, stat, sys
+from urllib.parse import parse_qs, urlsplit
 p = pathlib.Path(os.environ['PGPASSFILE'])
 assert stat.S_IMODE(p.stat().st_mode) == 0o600
 assert p.read_text() == os.environ['EXPECTED']
 assert all('secret' not in arg and 'password' not in arg for arg in sys.argv)
 assert 'sslmode=require' in sys.argv[1] and 'user=alice' in sys.argv[1]
+assert parse_qs(urlsplit(sys.argv[1]).query).get('passfile', [str(p)])[0] == str(p)
 pathlib.Path(os.environ['RECORD']).write_text(str(p))
 print('{"label":"fake"}')
 sys.exit(int(os.environ.get('FAIL', '0')))
@@ -31,7 +33,7 @@ sys.exit(int(os.environ.get('FAIL', '0')))
                 record = root / 'record'
                 url = 'postgresql://alice:user%3Asecret@localhost/db?sslmode=require&user=alice'
                 if query:
-                    url += '&password=query%3Asecret%5Cword'
+                    url += '&password=query%3Asecret%5Cword&passfile=%2Ftmp%2Fold'
                 expected = '*:*:*:*:query\\:secret\\\\word\n' if query else '*:*:*:*:user\\:secret\n'
                 env = dict(os.environ, CAFE_USAGE_SEED_DB_URL=url, RECORD=str(record), FAIL=fail, EXPECTED=expected)
                 result = subprocess.run([sys.executable, str(SCRIPT), '--rollback', str(manifest), '--psql', str(fake)], env=env, capture_output=True, text=True)

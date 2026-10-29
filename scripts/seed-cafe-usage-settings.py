@@ -46,7 +46,7 @@ import subprocess
 import sys
 import tempfile
 from datetime import date, datetime, timedelta
-from urllib.parse import unquote, urlsplit, urlunsplit
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 JAKARTA = ZoneInfo("Asia/Jakarta")
@@ -439,6 +439,11 @@ def run_psql(psql: str, sql: str, db_url: str) -> dict:
                 credentials.write(f"*:*:*:*:{escaped}\n")
             env.pop("PGPASSWORD", None)
             env["PGPASSFILE"] = credential_path
+            parts = urlsplit(safe_url)
+            query = [item for item in parts.query.split("&")
+                     if item and unquote(item.partition("=")[0]) != "passfile"]
+            query.append("passfile=" + quote(credential_path, safe=""))
+            safe_url = urlunsplit((parts.scheme, parts.netloc, parts.path, "&".join(query), parts.fragment))
         proc = subprocess.run([psql, safe_url, "-q", "-X", "-v", "ON_ERROR_STOP=1",
                                "-P", "format=unaligned", "-P", "tuples_only=on", "-f", path],
                               capture_output=True, text=True, env=env)
