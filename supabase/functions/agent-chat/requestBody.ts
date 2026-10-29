@@ -19,7 +19,11 @@ export async function readCappedJson(request: Request): Promise<CappedJsonResult
       if (done) break
       size += value.byteLength
       if (size > MAX_AGENT_CHAT_BODY_BYTES) {
-        await reader.cancel()
+        try {
+          await reader.cancel()
+        } catch {
+          // The body is already over the limit.
+        }
         return { ok: false, reason: 'too_large' }
       }
       chunks.push(value)
