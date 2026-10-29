@@ -138,18 +138,21 @@ it('the register follows the branch custom date slice, but is never read for a s
   expect(listCancelVoidRegister).not.toHaveBeenCalled()
 })
 
-it.each(['ops_lead', 'finance'])('keeps the previous register while %s changes the date window', async role => {
+it.each(['ops_lead', 'finance'])('loads the selected date window before showing an empty register for %s', async role => {
   const user = userEvent.setup()
   renderBranch([role])
   expect(await screen.findByText('No cancelled or voided sales recorded in this slice.')).toBeVisible()
-  vi.mocked(listCancelVoidRegister).mockReturnValue(new Promise(() => {}))
+  let resolveRead!: (value: Awaited<ReturnType<typeof listCancelVoidRegister>>) => void
+  vi.mocked(listCancelVoidRegister).mockReturnValue(new Promise(resolve => { resolveRead = resolve }))
   await user.click(screen.getByRole('combobox', { name: 'Period' }))
   await user.click(screen.getByRole('option', { name: '30 days' }))
   await waitFor(() => expect(listCancelVoidRegister).toHaveBeenLastCalledWith('GHQ', day(29), LATEST))
   const register = screen.getByRole('region', { name: 'Cancelled and voided sales' })
-  expect(within(register).getByText('No cancelled or voided sales recorded in this slice.')).toBeVisible()
+  expect(within(register).queryByText('No cancelled or voided sales recorded in this slice.')).toBeNull()
+  expect(within(register).getByRole('status')).toBeVisible()
+  resolveRead({ rows: [], reviews: [] })
+  expect(await within(register).findByText('No cancelled or voided sales recorded in this slice.')).toBeVisible()
   expect(within(register).queryByRole('status')).toBeNull()
-  expect(register.querySelector('[aria-busy="true"]')).not.toBeNull()
 })
 
 it('recipe/stock journey: prioritize a lead, filter, inspect evidence and blocked units', async () => {
