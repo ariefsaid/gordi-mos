@@ -93,6 +93,12 @@ describe('unit identity', () => {
     expect(formatDec(rows.find(r => r.unit.name === 'Batch')!.qty!)).toBe('7')
   })
 
+  it('keeps fractional entered factors in the fallback unit label', () => {
+    const [entry] = entriesOf({ logs: [log({ entry_quantity: 2, entry_unit_factor: 1.5, entry_unit_name: null })] })
+
+    expect(entry.unit.name).toBe('Batch ×1,5')
+  })
+
   it('an unknown historical unit is its own unsummable row, never merged', () => {
     const entries = entriesOf({ logs: [log({ item_unit_id: null, qty_porsi: 4 }), log({ item_unit_id: null, qty_porsi: 6 })] })
     const rows = summarize(entries, 'made')[0].rows
@@ -145,6 +151,15 @@ describe('status groups', () => {
 })
 
 describe('Counts', () => {
+  it('uses the recount as the Records quantity and preserves zero', () => {
+    const entries = entriesOf({ counts: [
+      count({ counted_quantity: 7, recounted_quantity: 0 }),
+      count({ counted_quantity: 5, recounted_quantity: null }),
+    ] })
+
+    expect(entries.map(entry => formatDec(entry.qty!))).toEqual(['0', '5'])
+  })
+
   it('shows the latest observation, never a sum of repeated Counts, with its date', () => {
     const entries = entriesOf({ counts: [
       count({ counted_quantity: 8, count_date: '2026-10-12', submitted_at: '2026-10-12T05:00:00+00:00' }),

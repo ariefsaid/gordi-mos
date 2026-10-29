@@ -119,6 +119,10 @@ const TASK_VISIBLE: readonly TaskCollectionVisibleField[] = [
 ]
 const TASK_VIEWS = ['all', 'my-work', 'team-work', 'my-pic', 'my-supervisor', 'overdue']
 const TASK_STATUSES: readonly TaskStatus[] = ['Open', 'In Progress', 'Blocked', 'Done']
+const TASK_SAVED_QUERY_FIELDS = [
+  'view', 'q', 'businessUnitId', 'status', 'picId', 'supervisorId', 'personId',
+  'includeArchived', 'overdueOnly', 'occurrenceId', 'team', 'teamId',
+]
 
 const SIGNAL_PRESENTATIONS: readonly SignalCollectionPresentation[] = ['feed', 'table']
 const SIGNAL_SORTS: readonly SignalCollectionSort[] = ['occurredAt', 'attention']
@@ -131,6 +135,8 @@ const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/
 
 const SIGNAL_VIEWS = ['all', 'needs-attention', 'retracted']
 const SIGNAL_ATTENTIONS: readonly Attention[] = ['FYI', 'Needs attention', 'Urgent']
+const SIGNAL_SAVED_QUERY_FIELDS = ['view', 'q', 'attention', 'category', 'teamId', 'showRetracted']
+const EVENT_SAVED_QUERY_FIELDS = ['month']
 const DIRECTIONS = ['ascending', 'descending']
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -182,6 +188,12 @@ export function parseCollectionViewSpec(input: unknown): CollectionViewValidatio
 
 type Push = (code: CollectionViewValidationIssue['code'], path: string, detail: string) => void
 
+function validateKnownQueryFields(query: Record<string, unknown>, allowedFields: readonly string[], push: Push): void {
+  for (const field of Object.keys(query)) {
+    if (!allowedFields.includes(field)) push('invalid-query', `query.${field}`, `unknown query field ${field}`)
+  }
+}
+
 function validateTaskSpec(input: Record<string, unknown>, push: Push): void {
   if (!TASK_PRESENTATIONS.includes(input.presentation as TaskCollectionPresentation)) {
     push('invalid-presentation', 'presentation', String(input.presentation))
@@ -202,11 +214,25 @@ function validateTaskSpec(input: Record<string, unknown>, push: Push): void {
   if (!isRecord(query)) {
     push('invalid-query', 'query', 'query must be an object')
   } else {
+    validateKnownQueryFields(query, TASK_SAVED_QUERY_FIELDS, push)
     if ('teamId' in query || 'team' in query) push('unsupported-domain-field', 'query.teamId', 'Task Team is not a free-form saved filter')
-    if (query.view !== undefined && !TASK_VIEWS.includes(query.view as string)) push('invalid-query', 'query.view', String(query.view))
-    if (query.status != null && !TASK_STATUSES.includes(query.status as TaskStatus)) push('invalid-query', 'query.status', String(query.status))
+    if (typeof query.view !== 'string' || !TASK_VIEWS.includes(query.view)) push('invalid-query', 'query.view', String(query.view))
+    if (typeof query.q !== 'string') push('invalid-query', 'query.q', 'must be a string')
+    if (query.businessUnitId !== null && typeof query.businessUnitId !== 'string') {
+      push('invalid-query', 'query.businessUnitId', 'must be a string or null')
+    }
+    if (query.status !== null && !TASK_STATUSES.includes(query.status as TaskStatus)) push('invalid-query', 'query.status', String(query.status))
+    if (query.picId !== null && typeof query.picId !== 'string') push('invalid-query', 'query.picId', 'must be a string or null')
+    if (query.supervisorId !== null && typeof query.supervisorId !== 'string') {
+      push('invalid-query', 'query.supervisorId', 'must be a string or null')
+    }
     if (query.personId !== undefined && query.personId !== null && typeof query.personId !== 'string') {
       push('invalid-query', 'query.personId', String(query.personId))
+    }
+    if (typeof query.includeArchived !== 'boolean') push('invalid-query', 'query.includeArchived', 'must be a boolean')
+    if (typeof query.overdueOnly !== 'boolean') push('invalid-query', 'query.overdueOnly', 'must be a boolean')
+    if (query.occurrenceId !== null && typeof query.occurrenceId !== 'string') {
+      push('invalid-query', 'query.occurrenceId', 'must be a string or null')
     }
   }
   // Sort
@@ -234,8 +260,13 @@ function validateEventSpec(input: Record<string, unknown>, push: Push): void {
   if (!Array.isArray(input.visibleFields) || input.visibleFields.some((field) => !EVENT_VISIBLE.includes(field as EventCollectionVisibleField))) {
     push('invalid-visible-field', 'visibleFields', 'invalid event field')
   }
-  if (!isRecord(input.query) || typeof input.query.month !== 'string' || !MONTH_KEY.test(input.query.month)) {
-    push('invalid-query', 'query.month', 'month must be YYYY-MM')
+  if (!isRecord(input.query)) {
+    push('invalid-query', 'query', 'query must be an object')
+  } else {
+    validateKnownQueryFields(input.query, EVENT_SAVED_QUERY_FIELDS, push)
+    if (typeof input.query.month !== 'string' || !MONTH_KEY.test(input.query.month)) {
+      push('invalid-query', 'query.month', 'month must be YYYY-MM')
+    }
   }
   if (!isRecord(input.sort) || input.sort.field !== 'startsAt' || input.sort.direction !== 'ascending') push('invalid-sort', 'sort', 'Events calendar has no sort control')
   if (input.grouping !== null) push('unsupported-grouping', 'grouping', 'Events calendar has no grouping')
@@ -258,9 +289,17 @@ function validateSignalSpec(input: Record<string, unknown>, push: Push): void {
   if (!isRecord(query)) {
     push('invalid-query', 'query', 'query must be an object')
   } else {
-    if (query.view !== undefined && !SIGNAL_VIEWS.includes(query.view as string)) push('invalid-query', 'query.view', String(query.view))
-    if (query.attention != null && !SIGNAL_ATTENTIONS.includes(query.attention as Attention)) push('invalid-query', 'query.attention', String(query.attention))
-    if (query.category != null && !(SIGNAL_CATEGORIES as readonly string[]).includes(query.category as SignalCategory)) push('invalid-query', 'query.category', String(query.category))
+    validateKnownQueryFields(query, SIGNAL_SAVED_QUERY_FIELDS, push)
+    if (typeof query.view !== 'string' || !SIGNAL_VIEWS.includes(query.view)) push('invalid-query', 'query.view', String(query.view))
+    if (typeof query.q !== 'string') push('invalid-query', 'query.q', 'must be a string')
+    if (query.attention !== null && !SIGNAL_ATTENTIONS.includes(query.attention as Attention)) {
+      push('invalid-query', 'query.attention', String(query.attention))
+    }
+    if (query.category !== null && !(SIGNAL_CATEGORIES as readonly string[]).includes(query.category as SignalCategory)) {
+      push('invalid-query', 'query.category', String(query.category))
+    }
+    if (query.teamId !== null && typeof query.teamId !== 'string') push('invalid-query', 'query.teamId', 'must be a string or null')
+    if (typeof query.showRetracted !== 'boolean') push('invalid-query', 'query.showRetracted', 'must be a boolean')
   }
   const sort = input.sort
   const sortValid = isRecord(sort) && SIGNAL_SORTS.includes(sort.field as SignalCollectionSort) && DIRECTIONS.includes(sort.direction as string)

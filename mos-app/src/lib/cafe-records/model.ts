@@ -6,7 +6,7 @@ import type { ProductionActivity } from '@/lib/db/kitchen-logs.types'
 import type { CafeRecordCount, CafeRecordLog } from '@/lib/db/cafe-records'
 import type { CafeReceipt, CafeReceiptLine } from '@/lib/db/cafe-receipts'
 import type { CafePurchaseRequest, CafePurchaseRequestLine } from '@/lib/db/cafe-purchase-requests'
-import { ZERO, addDec, compareDec, parseDecimal, type Dec } from './decimal'
+import { ZERO, addDec, compareDec, formatDec, parseDecimal, type Dec } from './decimal'
 import type { Question, SortDir, SortKey } from './url-state'
 
 type SourceKey = 'log' | 'count' | 'receipt' | 'request'
@@ -99,7 +99,7 @@ function logUnit(log: CafeRecordLog, ctx: BuildContext): { unit: UnitBasis; qty:
   }
   if (enteredQty !== null && factor !== null && factor > 0n && factor !== ONE) {
     // A manager-defined multiple: the entered amount is in its own unit, and a different factor is a different unit.
-    const name = log.entry_unit_name?.trim() || (storedName ? `${storedName} ×${factor / 1_000_000n / 1000n}` : null)
+    const name = log.entry_unit_name?.trim() || (storedName ? `${storedName} ×${formatDec(factor)}` : null)
     return { unit: { key: `${stored}|x${factor}`, name, unsummable: false }, qty: enteredQty, entered: { quantity: enteredQty, unitName: name, factor } }
   }
   return { unit: { key: stored, name: storedName ?? log.entry_unit_name?.trim() ?? null, unsummable: false }, qty: normalized, entered: null }
@@ -135,7 +135,7 @@ function fromCount(count: CafeRecordCount, ctx: BuildContext): RecordEntry {
     streamKey, branchId: count.branch_id, activity: count.activity, destinationKey: null, fromLocationId: null, toLocationId: null,
     status: count.status === 'Confirmed' ? 'confirmed' : count.status === 'Rejected' ? 'rejected' : 'pending',
     rawStatus: count.status, date: count.count_date, at: count.submitted_at,
-    personId: count.submitted_by, qty: parseDecimal(count.counted_quantity),
+    personId: count.submitted_by, qty: parseDecimal(count.recounted_quantity ?? count.counted_quantity),
     unit: unitId
       ? { key: unitId, name: count.unit_name?.trim() || ctx.unitName(unitId), unsummable: false }
       : { key: `unknown:${count.id}`, name: count.unit_name?.trim() || null, unsummable: !count.unit_name },
