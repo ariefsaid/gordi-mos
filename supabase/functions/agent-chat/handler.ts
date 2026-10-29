@@ -448,6 +448,7 @@ export async function* agentChatHandler(
   try {
     const persistence = deps.persistence
     let startSeq = 0
+    let isExistingRun = false
     if (persistence) {
       const { data: existing, error } = req.runId
         ? await persistence.supabase.schema('mos').from('agent_runs').select('id').eq('id', runId).maybeSingle()
@@ -460,12 +461,13 @@ export async function* agentChatHandler(
         await createThreadAndRun(persistence, { runId, title })
       }
       if (existing) {
+        isExistingRun = true
         startSeq = (await loadMaxSeq(persistence, runId)) + 1
         await loadJournaledWrites(persistence, runId)
       }
     }
     const persist = makePersistenceRuntime(persistence, startSeq)
-    yield* withPersistence(agentChatHandlerInner(req, deps, runId, persist), persist, runId)
+    yield* withPersistence(agentChatHandlerInner(req, deps, runId, persist, isExistingRun), persist, runId)
   } catch {
     yield mkEvent(runId, 'status', { payload: { status: 'error', error: 'PERSISTENCE_UNAVAILABLE' } }, deps.now ?? (() => new Date()))
   }
@@ -476,6 +478,7 @@ async function* agentChatHandlerInner(
   deps: HandlerDeps,
   runId: string,
   persist: PersistenceRuntime | undefined,
+  isExistingRun = false,
 ): AsyncGenerator<AgentEvent> {
   const now = deps.now ?? (() => new Date())
 
@@ -541,14 +544,15 @@ async function* agentChatHandlerInner(
   // ── Build system prompt (GROUNDING, FR-P2-GR-001) ───────────────────────────
   const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP)
 
-  // ── Replay branch (P3a, FR-P3-RP-001/AC-P3-RP-002): reopen a persisted run from the DB ───────
-  // When req.runId && req.replay, reconstruct ModelMessage[] from mos.agent_events (seq-ordered,
-  // tool_use<->tool_result paired) under the caller JWT (owner RLS), prepend the system prompt,
-  // and append only the new user turn. No tool re-executes — replay rebuilds messages, the loop's
-  // existing journal de-dupe gate still guards any write. Falls back to the stateless path when
-  // persistence is off (no deps.supabase to read from) — a degraded but functional fresh turn.
+  // ── Replay branch (P3a, FR-P3-RP-001/AC-P3-RP-002, A2a): reopen/continue a persisted run ───
+  // When req.runId && (req.replay || isExistingRun) && persist, reconstruct ModelMessage[] from
+  // mos.agent_events (seq-ordered, tool_use<->tool_result paired) under the caller JWT (owner RLS),
+  // prepend the system prompt, and append only the new user turn. No tool re-executes — replay
+  // rebuilds messages, the loop's existing journal de-dupe gate still guards any write. Falls back
+  // to the stateless path when persistence is off (no deps.supabase to read from) — a degraded
+  // but functional fresh turn.
   let messages: ModelMessage[]
-  if (req.runId && req.replay && persist) {
+  if (req.runId && (req.replay || isExistingRun) && persist) {
     const replayed = await replayRunHistory(persist.deps, req.runId)
     messages = [
       { role: 'system', content: system },
