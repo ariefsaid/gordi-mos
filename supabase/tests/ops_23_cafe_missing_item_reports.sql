@@ -1,7 +1,7 @@
 -- #1286 — missing Café items land in the relevant stream's item-settings queue.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(27);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
