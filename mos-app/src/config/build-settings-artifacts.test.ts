@@ -1,4 +1,3 @@
-import type { EmittedFile, NormalizedOutputOptions, OutputBundle, PluginContext } from 'rollup'
 import type { IndexHtmlTransformContext, MinimalPluginContextWithoutEnvironment, ViteDevServer } from 'vite'
 import { expect, it } from 'vitest'
 import { legacyRedirectDestination } from './build-settings'
@@ -8,17 +7,19 @@ it('emits a root manifest and redirects that preserve legacy route queries', asy
   const plugin = buildSettingsArtifactsPlugin('/')
   const generateBundle = plugin.generateBundle
   if (typeof generateBundle !== 'function') throw new Error('Build artifacts plugin has no bundle hook')
+  type GenerateBundleArguments = Parameters<typeof generateBundle>
+  type GenerateBundleContext = ThisParameterType<typeof generateBundle>
 
   const artifacts = new Map<string, string>()
   await generateBundle.call({
-    emitFile(file: EmittedFile) {
+    emitFile(file: { type: string; fileName?: string; source?: string }) {
       if (file.type !== 'asset' || typeof file.fileName !== 'string' || typeof file.source !== 'string') {
         throw new Error('Build settings must emit text assets')
       }
       artifacts.set(file.fileName, String(file.source))
       return file.fileName
     },
-  } as unknown as PluginContext, {} as NormalizedOutputOptions, {} as OutputBundle, false)
+  } as unknown as GenerateBundleContext, {} as GenerateBundleArguments[0], {} as GenerateBundleArguments[1], false)
 
   expect([...artifacts.keys()].sort()).toEqual(['_redirects', 'manifest.webmanifest'])
   expect(JSON.parse(artifacts.get('manifest.webmanifest') ?? '{}')).toMatchObject({ start_url: '/', scope: '/' })

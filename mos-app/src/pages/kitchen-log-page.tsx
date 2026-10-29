@@ -395,6 +395,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
   const locationLoadState = placeChoices.status === 'error' || (needsDestinations && destinations.status === 'error')
     ? 'error'
     : placeChoices.status === 'ready' && (!needsDestinations || destinations.status === 'ready') ? 'ready' : 'loading'
+  const outputLocationPending = mode === 'production' && placeChoices.status !== 'ready'
   const locationChoices: LocationChoices = {
     storage: placeChoices.locations.filter(location => location.use === 'storage' || location.use === 'both'),
   }
@@ -1196,7 +1197,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!isOnline || invalidQuantityCount > 0 || unitNotShownBatch) return
+    if (!isOnline || invalidQuantityCount > 0 || unitNotShownBatch || outputLocationPending) return
 
     const staged = Object.values(lines).filter(l => l.qty_porsi > 0)
     if (staged.length === 0 || staged.some(line => unitNotShownItemIds.has(line.wip_item_id))) return
@@ -1263,12 +1264,12 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
           entry_quantity: line.entry_quantity ?? line.qty_porsi,
           entry_unit_factor: line.entry_unit_factor ?? 1,
           notes: line.notes.trim() || null,
-          ...(locationLoadState === 'ready' ? movement.action === 'produce' ? {
+          ...(movement.action === 'produce' ? {
             to_storage_location_id: locationValues.to_storage_location_id ?? null,
           } : {
             from_storage_location_id: locationValues.from_storage_location_id ?? null,
             to_storage_location_id: locationValues.to_storage_location_id ?? null,
-          } : {}),
+          }),
           // status / source / org_id / submitted_by NOT sent — server-stamped (NFR-003)
         })),
       )
@@ -2060,6 +2061,11 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
               )}
             </> : undefined}
             reason={<>
+              {!isDesktop && stagedCount > 0 && outputLocationPending && (
+                placeChoices.status === 'error'
+                  ? <button type="button" className="kl-submit-reason kl-note-pointer" onClick={retryLocationChoices}>{t('cafe.locations.loadError')} {t('common.retry')}</button>
+                  : <span className="kl-submit-reason" role="status">{t('cafe.locations.loading')}</span>
+              )}
               {mode === 'transfer' && stream !== null && !transferDestinationChosen && (
                 <span className="kl-submit-reason" role="status">
                   {movementOptions.length > 0 ? t('kitchen.transfer.destination.prompt') : t('kitchen.transfer.destination.none')}
@@ -2098,7 +2104,7 @@ function KitchenLogPageForViewer({ mode, leading }: { mode: KitchenLogMode; lead
               stagedCount={stagedCount}
               isSubmitting={isSubmitting}
               isOnline={isOnline}
-              blocked={captureClosed || hasBlockingError || noteUnresolved || invalidQuantityCount > 0}
+              blocked={captureClosed || outputLocationPending || hasBlockingError || noteUnresolved || invalidQuantityCount > 0}
               t={t}
             />}
           />

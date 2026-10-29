@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { listNotifications, countUnread } from './notifications'
 
 describe('notifications DAL — bounded reads (CQ#2)', () => {
   const limitCalls: string[] = []
@@ -33,14 +32,17 @@ describe('notifications DAL — bounded reads (CQ#2)', () => {
     selectCalls.length = 0
     cursorCalls.length = 0
     orderCalls.length = 0
-    vi.resetModules()
-    vi.doMock('@/lib/supabase', () => ({ supabase: makeSb([{ id: 'n1' }]) }))
   })
+
+  async function loadWith(sb: unknown) {
+    vi.resetModules()
+    vi.doMock('@/lib/supabase', () => ({ supabase: sb }))
+    return import('./notifications')
+  }
 
   it('returns exactly the page size when the next row is absent', async () => {
     const rows = Array.from({ length: 200 }, (_, index) => ({ id: `n-${index}`, created_at: `2026-01-${String((index % 28) + 1).padStart(2, '0')}T00:00:00Z` }))
-    vi.doMock('@/lib/supabase', () => ({ supabase: makeSb(rows) }))
-    const { listNotifications: fresh } = await import('./notifications')
+    const { listNotifications: fresh } = await loadWith(makeSb(rows))
 
     const page = await fresh()
 
@@ -52,8 +54,7 @@ describe('notifications DAL — bounded reads (CQ#2)', () => {
 
   it('uses the extra row only as a continuation signal', async () => {
     const rows = Array.from({ length: 201 }, (_, index) => ({ id: `n-${index}`, created_at: `2026-01-${String((index % 28) + 1).padStart(2, '0')}T00:00:00Z` }))
-    vi.doMock('@/lib/supabase', () => ({ supabase: makeSb(rows) }))
-    const { listNotifications: fresh } = await import('./notifications')
+    const { listNotifications: fresh } = await loadWith(makeSb(rows))
 
     const page = await fresh()
 
@@ -63,22 +64,20 @@ describe('notifications DAL — bounded reads (CQ#2)', () => {
   })
 
   it('returns an empty complete page when there are no notifications', async () => {
-    vi.doMock('@/lib/supabase', () => ({ supabase: makeSb([]) }))
-    const { listNotifications: fresh } = await import('./notifications')
+    const { listNotifications: fresh } = await loadWith(makeSb([]))
 
     await expect(fresh()).resolves.toEqual({ rows: [], hasMore: false, nextCursor: null })
   })
 
   it('preserves a failed notification read as an error', async () => {
-    vi.doMock('@/lib/supabase', () => ({ supabase: makeSb(null, null, { message: 'offline' }) }))
-    const { listNotifications: fresh } = await import('./notifications')
+    const { listNotifications: fresh } = await loadWith(makeSb(null, null, { message: 'offline' }))
 
     await expect(fresh()).rejects.toThrow('listNotifications failed')
   })
 
   it('continues strictly after the last row using a stable ordered cursor', async () => {
     const cursor = { created_at: '2026-01-02T00:00:00Z', id: 'n-2' }
-    const { listNotifications: fresh } = await import('./notifications')
+    const { listNotifications: fresh } = await loadWith(makeSb([]))
 
     await fresh(cursor)
 
@@ -90,9 +89,7 @@ describe('notifications DAL — bounded reads (CQ#2)', () => {
   })
 
   it('countUnread is a HEAD exact count — no unread rows cross the wire (#1359)', async () => {
-    vi.doUnmock('@/lib/supabase')
-    vi.doMock('@/lib/supabase', () => ({ supabase: makeSb(null, 3) }))
-    const { countUnread: fresh } = await import('./notifications')
+    const { countUnread: fresh } = await loadWith(makeSb(null, 3))
     expect(await fresh()).toBe(3)
     expect(selectCalls).toContainEqual(['id', { count: 'exact', head: true }])
     expect(nullFilters).toContainEqual(['read_at', null])
@@ -130,12 +127,8 @@ describe('notifications DAL — bounded reads (CQ#2)', () => {
     }
 
     vi.stubEnv('VITE_RELEASE_PROFILE', 'cafe')
-    vi.resetModules()
-    vi.doUnmock('@/lib/supabase')
-    vi.doMock('@/lib/supabase', () => ({ supabase: { schema: () => ({ from: () => query }) } }))
-
     try {
-      const { countUnread: fresh } = await import('./notifications')
+      const { countUnread: fresh } = await loadWith({ schema: () => ({ from: () => query }) })
       const unread = await fresh()
       const cafeColumns = selectedColumns
 
@@ -151,8 +144,7 @@ describe('notifications DAL — bounded reads (CQ#2)', () => {
       expect(await fresh()).toBe(208)
 
       vi.stubEnv('VITE_RELEASE_PROFILE', 'full')
-      vi.resetModules()
-      const { countUnread: freshFull } = await import('./notifications')
+      const { countUnread: freshFull } = await loadWith({ schema: () => ({ from: () => query }) })
       expect(await freshFull()).toBe(211)
       expect(selectedColumns).toBe('id')
       expect(selectedOpts).toEqual({ count: 'exact', head: true })
@@ -161,6 +153,3 @@ describe('notifications DAL — bounded reads (CQ#2)', () => {
     }
   })
 })
-
-void listNotifications
-void countUnread

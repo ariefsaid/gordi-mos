@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import { createElement, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'

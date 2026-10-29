@@ -6,6 +6,7 @@ import { TextInput } from '@/components/ui/text-input'
 import { useT } from '@/i18n/use-t'
 import { Notice } from '@/components/ui/notice'
 import './set-password-form.css'
+import { REAUTHENTICATION_REQUIRED } from './reauthentication-required'
 
 /**
  * The shortest password GoTrue will accept. Stated to the person UNDER the field before they type
@@ -13,7 +14,6 @@ import './set-password-form.css'
  * only revealed by a server rejection is not a rule, it is a trap.
  */
 const MIN_PASSWORD_LENGTH = 8
-export const REAUTHENTICATION_REQUIRED = Symbol('reauthentication-required')
 
 interface Props {
   title?: string
