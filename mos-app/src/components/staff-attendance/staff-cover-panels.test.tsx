@@ -149,7 +149,7 @@ describe('RequestsPanel', () => {
     vi.mocked(cover.listStaffCoverQueue).mockResolvedValue({
       absences: [{ id: 'a1', person_name: 'Ayu', team_name: 'Bar', kind: 'leave', local_date: today(), start_at: later, end_at: muchLater, reason: null, can_decide: true }],
       claims: [{ id: 'c1', offer_kind: 'absence', claimant_name: 'Nisa', person_name: 'Ayu', team_name: 'Bar', local_date: today(), start_at: later, end_at: muchLater, can_decide: true }],
-      uncovered: [{ offer_id: 'o1', offer_kind: 'absence', person_name: 'Dimas', team_name: 'Bar', team_id: 't1', site_id: 's1', local_date: today(), start_at: later, end_at: muchLater, can_decide: true }],
+      uncovered: [{ offer_id: 'o1', offer_kind: 'absence', person_id: 'p5', person_name: 'Dimas', team_name: 'Bar', team_id: 't1', site_id: 's1', local_date: today(), start_at: later, end_at: muchLater, can_decide: true }],
       sick: [], candidates: [{ person_id: 'p9', full_name: 'Rani', site_id: 's1' }],
     })
     vi.mocked(cover.decideStaffAbsence).mockResolvedValue(undefined)
@@ -164,6 +164,29 @@ describe('RequestsPanel', () => {
     await userEvent.click(screen.getByRole('option', { name: 'Rani' }))
     await userEvent.click(screen.getByRole('button', { name: 'Assign cover' }))
     expect(cover.assignStaffCover).toHaveBeenCalledWith('o1', 'p9')
+  })
+
+  it('excludes only the absent person by ID so an eligible same-name person can be assigned', async () => {
+    vi.mocked(cover.listStaffCoverQueue).mockResolvedValue({
+      absences: [], claims: [],
+      uncovered: [{ offer_id: 'o-same-name', offer_kind: 'absence', person_id: 'absent-person', person_name: 'Rani', team_name: 'Bar', team_id: 't1', site_id: 's1', local_date: today(), start_at: later, end_at: muchLater, can_decide: true }],
+      sick: [],
+      candidates: [
+        { person_id: 'absent-person', full_name: 'Rani', site_id: 's1' },
+        { person_id: 'eligible-same-name', full_name: 'Rani', site_id: 's1' },
+        { person_id: 'eligible-other', full_name: 'Sari', site_id: 's1' },
+      ],
+    })
+    vi.mocked(cover.assignStaffCover).mockResolvedValue(undefined)
+    renderIn(<RequestsPanel />)
+
+    await userEvent.click(await screen.findByRole('combobox', { name: 'Assign directly' }))
+    expect(screen.getAllByRole('option', { name: 'Rani' })).toHaveLength(1)
+    expect(screen.getByRole('option', { name: 'Sari' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('option', { name: 'Rani' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Assign cover' }))
+
+    await waitFor(() => expect(cover.assignStaffCover).toHaveBeenCalledWith('o-same-name', 'eligible-same-name'))
   })
 
   it('AC-011 a rejection asks for a reason before it is sent', async () => {
