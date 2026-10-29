@@ -19,6 +19,27 @@ begin
 end;
 $$;
 
+create or replace function ops.can_add_staff_note(p_name text)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare v_absence uuid := ops.staff_note_absence_id(p_name); v_org uuid := shared.current_org_id();
+begin
+  if v_absence is null or v_org is null or split_part(p_name, '/', 1) <> v_org::text then return false; end if;
+  perform pg_advisory_xact_lock(hashtextextended('staff-note:' || v_absence::text, 0));
+  return exists (
+    select 1 from ops.staff_absences a
+     where a.id = v_absence and a.org_id = v_org and a.kind = 'sick' and a.status in ('accepted','approved')
+       and a.person_id = shared.current_person_id() and a.note_path is null
+       and a.created_at > now() - interval '30 days'
+       and not exists (select 1 from ops.attendance_selfie_purge_queue q where q.bucket = 'staff-notes' and q.path = p_name)
+       and (select count(*) from storage.objects o where o.bucket_id = 'staff-notes' and ops.staff_note_absence_id(o.name) = v_absence) < 2);
+end;
+$$;
+
 create or replace function ops.attach_staff_absence_note(p_absence_id uuid, p_path text)
 returns void
 language plpgsql

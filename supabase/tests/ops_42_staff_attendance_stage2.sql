@@ -2,7 +2,7 @@
 -- bucket, the lead's queue, HR views and the timed cover job. Time rules run on a fixed clock.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(140);
+select plan(141);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select set_config('app.attendance_now', '2026-10-25 21:00:00+00', true); -- Mon 04:00 Jakarta
@@ -459,6 +459,18 @@ update ops.staff_absences set note_path = null where id = current_setting('app.a
 set local role authenticated;
 select pg_temp.as_('f101');
 select throws_ok(format($f$select ops.attach_staff_absence_note(%L, %L)$f$, current_setting('app.a1'), pg_temp.p('a1') || '/' || current_setting('app.a1') || '/' || pg_temp.p('c005') || '.jpg'), '23514', 'STAFF_NOTE_MISSING', 'a queued upload cannot be attached');
+
+reset role;
+insert into ops.staff_absences (id, org_id, person_id, team_id, site_id, shift_id, local_date, shift_start_at, shift_end_at, kind, status, recorded_by)
+select pg_temp.p('a999'), org_id, person_id, team_id, site_id, shift_id, local_date + 5, shift_start_at + interval '5 days', shift_end_at + interval '5 days', kind, 'accepted', recorded_by
+from ops.staff_absences where id = current_setting('app.a1')::uuid;
+insert into ops.attendance_selfie_purge_queue (bucket, path, org_id, deleted_at) values
+ ('staff-notes', pg_temp.p('a1') || '/' || pg_temp.p('a999') || '/' || pg_temp.p('c007') || '.jpg', pg_temp.p('a1'), now());
+set local role authenticated;
+select pg_temp.as_('f101');
+select is(ops.can_add_staff_note(pg_temp.p('a1') || '/' || pg_temp.p('a999') || '/' || pg_temp.p('c007') || '.jpg')::text || ':' ||
+          ops.can_add_staff_note(pg_temp.p('a1') || '/' || pg_temp.p('a999') || '/' || pg_temp.p('c008') || '.jpg')::text,
+          'false:true', 'previously purged paths cannot be reused while fresh upload paths remain valid');
 
 select * from finish();
 rollback;
