@@ -5,6 +5,13 @@ grant usage on schema extensions to reporting_writer;
 select plan(43);
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
+-- Test-only assignments for this connection; rolled back with the fixture.
+insert into reporting_private.writer_orgs (login_oid, login_name, org_id)
+select oid, rolname, org_id from pg_catalog.pg_roles
+cross join (values ('00000000-0000-0000-0000-0000000000a1'::uuid),
+                   ('00000000-0000-0000-0000-0000000000b1'::uuid)) orgs(org_id)
+where rolname = session_user;
+
 select shared._test_seed_access_roles();
 insert into shared.branches(id,org_id,code,name) values
   ('00000000-0000-0000-0000-00000000ba01','00000000-0000-0000-0000-0000000000a1','test_a','Synthetic A'),
