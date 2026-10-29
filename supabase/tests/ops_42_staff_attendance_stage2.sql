@@ -2,7 +2,7 @@
 -- bucket, the lead's queue, HR views and the timed cover job. Time rules run on a fixed clock.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(129);
+select plan(149);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select set_config('app.attendance_now', '2026-10-25 21:00:00+00', true); -- Mon 04:00 Jakarta
@@ -119,6 +119,7 @@ select pg_temp.as_('d1');
 select throws_ok($$select ops.decide_staff_absence(current_setting('app.a3')::uuid, false)$$, '22023', 'STAFF_REASON_REQUIRED', 'AC-011 a rejection needs a reason');
 select ops.decide_staff_absence(current_setting('app.a3')::uuid, true);
 select is((select count(*)::int from ops.list_staff_cover_queue() q, jsonb_array_elements(q->'uncovered') u where u->>'person_name' = 'Crew 103'), 1, 'AC-011 approval opens the shift');
+select is((select u->>'person_id' from jsonb_array_elements(ops.list_staff_cover_queue()->'uncovered') u where u->>'person_name' = 'Crew 103'), pg_temp.p('f103')::text, '#1901 uncovered row identifies the absent person');
 select throws_ok($$select ops.decide_staff_absence(current_setting('app.a3')::uuid, true)$$, 'P0003', 'STAFF_ABSENCE_NOT_PENDING', 'AC-011 a decided request cannot be decided again');
 
 -- ── AC-013 doctor's note: private, insert-only, read through the checking function ───────────────
@@ -359,6 +360,9 @@ select set_config('app.o3', (select id::text from ops.staff_shift_offers where s
 set local role authenticated;
 select pg_temp.as_('f105');
 select set_config('app.c8', ops.claim_staff_shift(current_setting('app.o3')::uuid)::text, true);
+reset role;
+select is((select array_agg(owner_id::text order by owner_id::text) from mos.notifications where metadata->'entity'->>'id' = current_setting('app.c8') and title like 'Cover claimed%'), array[pg_temp.p('d3')::text, pg_temp.p('f401')::text], '#1938 lead claim reaches admin and hr only');
+set local role authenticated;
 select throws_ok($$select ops.decide_staff_claim(current_setting('app.c8')::uuid, true)$$, '42501', 'STAFF_CLAIM_FORBIDDEN', 'AC-016 nobody decides their own cover claim');
 select pg_temp.as_('d1');
 select throws_ok($$select ops.decide_staff_claim(current_setting('app.c8')::uuid, true)$$, '42501', 'STAFF_CLAIM_FORBIDDEN', 'AC-016 a co-lead cannot decide a lead''s cover claim');
@@ -366,6 +370,19 @@ select is((select (c->>'can_decide')::boolean from jsonb_array_elements(ops.list
 select pg_temp.as_('d3', 'admin');
 select is((select (c->>'can_decide')::boolean from jsonb_array_elements(ops.list_staff_cover_queue()->'claims') c where c->>'claimant_name' = 'Crew 105'), true, 'AC-016 the queue shows admin the claim as theirs to decide');
 select lives_ok($$select ops.decide_staff_claim(current_setting('app.c8')::uuid, true)$$, 'AC-016 admin confirms a lead''s cover claim');
+
+reset role;
+select set_config('app.correct_start', (select shift_start_at::text from ops.staff_shift_outcomes where person_id = pg_temp.p('f102')), true);
+set local role authenticated;
+select pg_temp.as_('f401', 'hr');
+select ops.correct_attendance_record(pg_temp.p('f102'), current_setting('app.correct_start')::timestamptz, current_setting('app.correct_start')::timestamptz, null, 'Missed clock-in');
+reset role;
+select ok(exists (select 1 from ops.attendance_record_history where reason = 'Missed clock-in' and before_state->'reconciled_no_show'->>'person_id' = pg_temp.p('f102')::text), '#1939 original outcome is preserved in correction history');
+select is((select count(*)::int from ops.staff_shift_outcomes where person_id = pg_temp.p('f201')), 1, '#1939 correction leaves another person’s outcome intact');
+select is((ops.run_staff_attendance_jobs())->>'no_show', '0', '#1939 scheduler does not restore the reconciled outcome');
+set local role authenticated;
+select pg_temp.as_('d3', 'admin');
+select is((select t->>'no_show' from jsonb_array_elements(ops.list_staff_monthly_totals('2026-10-15')) t where t->>'full_name' = 'Crew 102'), '0', '#1939 correction clears stale monthly no-show');
 
 -- ── Owner rule, by proxy: recording or assigning for a lead goes through the same decider rule ──
 select pg_temp.as_('d1');
@@ -377,6 +394,17 @@ select pg_temp.as_('d3', 'admin');
 select lives_ok($$select ops.report_staff_absence('leave', current_setting('app.s10')::uuid, null, null, pg_temp.p('f105'))$$, 'AC-020 admin can record a lead''s leave');
 select pg_temp.as_('f102');
 select set_config('app.o9', ops.offer_staff_shift(current_setting('app.s9')::uuid)::text, true);
+reset role;
+update shared.team_memberships set effective_to = '2026-11-08' where org_id = pg_temp.p('a1') and person_id = pg_temp.p('f401') and team_id = pg_temp.p('5b02');
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from) values (pg_temp.p('a1'), pg_temp.p('f401'), pg_temp.p('5b01'), false, '2026-10-01');
+set local role authenticated;
+select pg_temp.as_('f401', 'hr');
+select set_config('app.hrclaim', ops.claim_staff_shift(current_setting('app.o9')::uuid)::text, true);
+reset role;
+select is((select array_agg(owner_id::text order by owner_id::text) from mos.notifications where metadata->'entity'->>'id' = current_setting('app.hrclaim') and title like 'Cover claimed%'), array[pg_temp.p('d3')::text], '#1938 hr claim reaches admin only');
+set local role authenticated;
+select pg_temp.as_('f401', 'hr');
+select ops.withdraw_staff_claim(current_setting('app.hrclaim')::uuid);
 select pg_temp.as_('f105');
 select throws_ok($$select ops.assign_staff_cover(current_setting('app.o9')::uuid, pg_temp.p('f105'))$$, '42501', 'STAFF_OFFER_FORBIDDEN', 'AC-014 a lead cannot assign themselves');
 select pg_temp.as_('d1');
@@ -420,6 +448,65 @@ select is((select note_path from ops.staff_absences where id = current_setting('
 select is((select count(*)::int from ops.staff_absences where note_path like '%/' || pg_temp.p('c003') || '.jpg')
         + (select count(*)::int from ops.attendance_selfie_purge_queue where path like '%/' || pg_temp.p('c003') || '.jpg'), 1, 'NFR-002 a note under 2 years keeps its reference and is not queued');
 select is((ops.run_attendance_jobs()->>'notes_queued')::int + (select count(*)::int from ops.attendance_selfie_purge_queue where bucket = 'staff-notes'), 1, 'NFR-002 running the job again queues nothing new');
+
+
+-- Attendance totals are scoped before records are grouped by person.
+reset role;
+select ok(not has_function_privilege('anon', 'ops._attendance_clock_counts(uuid,date,date,uuid[])', 'execute')
+      and not has_function_privilege('authenticated', 'ops._attendance_clock_counts(uuid,date,date,uuid[])', 'execute'),
+  'application roles cannot call the attendance counts helper');
+insert into ops.attendance_records (org_id, person_id, team_id, site_id, shift_start_at, shift_end_at, status, clock_in_at, late, early_leave) values
+  (pg_temp.p('a1'), pg_temp.p('f101'), pg_temp.p('5b01'), pg_temp.p('5a01'), '2026-10-10 00:00+00', '2026-10-10 08:00+00', 'in', '2026-10-10 00:00+00', false, false),
+  (pg_temp.p('a1'), pg_temp.p('f101'), pg_temp.p('5b04'), pg_temp.p('5a03'), '2026-10-11 00:00+00', '2026-10-11 08:00+00', 'in', '2026-10-11 00:00+00', true, true);
+insert into shared.teams (id, org_id, business_unit_id, site_id, name, code, archived_at) values
+  (pg_temp.p('5b06'), pg_temp.p('a1'), pg_temp.p('a2'), pg_temp.p('5a03'), 'Archived Team', 'archived_team', '2026-10-20 00:00+00');
+insert into ops.attendance_records (org_id, person_id, team_id, site_id, shift_start_at, shift_end_at, status, clock_in_at, late, early_leave) values
+  (pg_temp.p('a1'), pg_temp.p('f101'), pg_temp.p('5b06'), pg_temp.p('5a03'), '2026-10-12 00:00+00', '2026-10-12 08:00+00', 'in', '2026-10-12 00:00+00', true, true);
+set local role authenticated;
+select pg_temp.as_('d1');
+select is((select (t->>'shifts_worked') || ':' || (t->>'late') || ':' || (t->>'early_leave') from jsonb_array_elements(ops.list_staff_monthly_totals('2026-10-01')) t where t->>'person_id' = pg_temp.p('f101')::text), '1:0:0', 'lead totals include only authorized team records for shared people');
+select pg_temp.as_('d3', 'admin');
+select is((select (t->>'shifts_worked') || ':' || (t->>'late') || ':' || (t->>'early_leave') from jsonb_array_elements(ops.list_staff_monthly_totals('2026-10-01')) t where t->>'person_id' = pg_temp.p('f101')::text), '3:2:2', 'admin totals include historical records from archived teams');
+
+-- Two uploads can be made before one is attached; only that attachment is readable.
+reset role;
+update ops.staff_absences set note_added_at = null where id = current_setting('app.a1')::uuid;
+insert into storage.objects (bucket_id, name, created_at) values
+ ('staff-notes', pg_temp.p('a1') || '/' || current_setting('app.a1') || '/' || pg_temp.p('c004') || '.jpg', ops._attendance_now() - interval '2 hours'),
+ ('staff-notes', pg_temp.p('a1') || '/' || current_setting('app.a1') || '/' || pg_temp.p('c005') || '.jpg', ops._attendance_now() - interval '2 hours'),
+ ('staff-notes', pg_temp.p('a1') || '/' || current_setting('app.a1') || '/' || pg_temp.p('c006') || '.jpg', ops._attendance_now()),
+ ('staff-notes', pg_temp.p('a1') || '/' || pg_temp.p('a998') || '/' || pg_temp.p('c009') || '.jpg', ops._attendance_now() - interval '2 hours');
+set local role authenticated;
+select pg_temp.as_('f101');
+select is((select count(*)::int from storage.objects where bucket_id = 'staff-notes'), 0, 'unattached uploads cannot be read');
+select lives_ok(format($f$select ops.attach_staff_absence_note(%L, %L)$f$, current_setting('app.a1'), pg_temp.p('a1') || '/' || current_setting('app.a1') || '/' || pg_temp.p('c004') || '.jpg'), 'the owner can attach an uploaded note');
+select is((select count(*)::int from storage.objects where bucket_id = 'staff-notes'), 1, 'only the attached upload is readable');
+reset role;
+select is((ops.run_attendance_jobs()->>'notes_queued')::int, 2, 'old extra and abandoned uploads are queued');
+select is((select count(*)::int from ops.attendance_selfie_purge_queue where path like any(array['%/' || pg_temp.p('c005') || '.jpg', '%/' || pg_temp.p('c009') || '.jpg']) and bucket = 'staff-notes'), 2, 'extra and abandoned uploads reach the existing purge queue');
+select is((select count(*)::int from ops.attendance_selfie_purge_queue where path like any(array['%/' || pg_temp.p('c004') || '.jpg', '%/' || pg_temp.p('c006') || '.jpg'])), 0, 'attached and recent uploads are retained');
+select is((ops.run_attendance_jobs()->>'notes_queued')::int, 0, 'the sweep is idempotent');
+set local role authenticated;
+select pg_temp.as_('f101');
+select is((select count(*)::int from storage.objects where bucket_id = 'staff-notes'), 1, 'the attached note remains readable after the sweep');
+
+reset role;
+update ops.staff_absences set note_path = null where id = current_setting('app.a1')::uuid;
+set local role authenticated;
+select pg_temp.as_('f101');
+select throws_ok(format($f$select ops.attach_staff_absence_note(%L, %L)$f$, current_setting('app.a1'), pg_temp.p('a1') || '/' || current_setting('app.a1') || '/' || pg_temp.p('c005') || '.jpg'), '23514', 'STAFF_NOTE_MISSING', 'a queued upload cannot be attached');
+
+reset role;
+insert into ops.staff_absences (id, org_id, person_id, team_id, site_id, shift_id, local_date, shift_start_at, shift_end_at, kind, status, recorded_by)
+select pg_temp.p('a999'), org_id, person_id, team_id, site_id, shift_id, local_date + 5, shift_start_at + interval '5 days', shift_end_at + interval '5 days', kind, 'accepted', recorded_by
+from ops.staff_absences where id = current_setting('app.a1')::uuid;
+insert into ops.attendance_selfie_purge_queue (bucket, path, org_id, deleted_at) values
+ ('staff-notes', pg_temp.p('a1') || '/' || pg_temp.p('a999') || '/' || pg_temp.p('c007') || '.jpg', pg_temp.p('a1'), now());
+set local role authenticated;
+select pg_temp.as_('f101');
+select is(ops.can_add_staff_note(pg_temp.p('a1') || '/' || pg_temp.p('a999') || '/' || pg_temp.p('c007') || '.jpg')::text || ':' ||
+          ops.can_add_staff_note(pg_temp.p('a1') || '/' || pg_temp.p('a999') || '/' || pg_temp.p('c008') || '.jpg')::text,
+          'false:true', 'previously purged paths cannot be reused while fresh upload paths remain valid');
 
 select * from finish();
 rollback;
