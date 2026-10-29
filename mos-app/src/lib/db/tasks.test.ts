@@ -10,6 +10,7 @@ vi.mock('../supabase', () => {
 
 import {
   listTasks, getTask, createTask,
+  listTasksPage, TASKS_LIST_PAGE_SIZE,
   updateTaskStatus, updateTaskFields, setTaskPrivate,
   archiveTask, unarchiveTask,
   addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,
@@ -213,6 +214,63 @@ describe('listTasks', () => {
       expect(rec.fromTables).toEqual(['tasks', 'tasks'])
     } finally {
       lease.dispose()
+      publishReadScope(null)
+    }
+  })
+
+  it('keeps a list read separate from the first page read with the same filters', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [
+      { data: [sampleListTask], error: null },
+      { data: [], error: null },
+    ] }, rec) as never)
+    const scope = {
+      generation: 1,
+      authUserId: 'auth-user-1',
+      viewerId: ACTOR,
+      orgId: 'org',
+      authorityKey: 'task-reader',
+    }
+    publishReadScope(scope)
+
+    try {
+      const [rows, page] = await Promise.all([
+        listTasks({}, undefined, '2026-10-29T00:00:00Z'),
+        listTasksPage({}, null, '2026-10-29T00:00:00Z'),
+      ])
+
+      expect(rows).toEqual([sampleListTask])
+      expect(page).toEqual({ rows: [], nextCursor: null, hasMore: false })
+      expect(rec.fromTables).toEqual(['tasks', 'tasks'])
+      expect(rec.limits).toEqual([1000, TASKS_LIST_PAGE_SIZE + 1])
+    } finally {
+      publishReadScope(null)
+    }
+  })
+
+  it('coalesces identical first-page reads', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [sampleListTask], error: null }] }, rec) as never)
+    const scope = {
+      generation: 1,
+      authUserId: 'auth-user-1',
+      viewerId: ACTOR,
+      orgId: 'org',
+      authorityKey: 'task-reader',
+    }
+    publishReadScope(scope)
+
+    try {
+      const [first, second] = await Promise.all([
+        listTasksPage({}, null, '2026-10-29T00:00:00Z'),
+        listTasksPage({}, null, '2026-10-29T00:00:00Z'),
+      ])
+
+      expect(first).toEqual({ rows: [sampleListTask], nextCursor: null, hasMore: false })
+      expect(second).toEqual(first)
+      expect(rec.fromTables).toEqual(['tasks'])
+      expect(rec.limits).toEqual([TASKS_LIST_PAGE_SIZE + 1])
+    } finally {
       publishReadScope(null)
     }
   })
