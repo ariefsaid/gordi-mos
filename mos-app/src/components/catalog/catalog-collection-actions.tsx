@@ -43,6 +43,10 @@ export interface CatalogCreateDraft {
   objectiveId?: string | null
   businessUnitId?: string | null
   businessUnitRequired?: boolean
+  businessUnitUnavailable?: boolean
+  businessUnitLoading?: boolean
+  businessUnitLoadError?: boolean
+  onRetryBusinessUnits?: () => void
   objectiveOptions?: readonly { value: string; label: string }[]
   businessUnitOptions?: readonly { value: string; label: string }[]
   adding: boolean

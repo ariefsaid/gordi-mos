@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -404,5 +404,135 @@ describe('DD-MVP-17 — door presentation', () => {
     const link = screen.getByRole('link', { name: /view opening tasks/i })
     expect(link).toHaveAttribute('href', `/work/tasks?occurrence=${RUN_ID}`)
     expect(container.querySelectorAll('h1, h2, h3')).toHaveLength(0)
+  })
+})
+
+describe('Issue 1943 — Recoverable pending assignments and run identity', () => {
+  const STARTED_OPENING = {
+    started: true,
+    runId: RUN_ID,
+    rollup: {
+      process_run_id: RUN_ID,
+      caption: 'Café Opening · 17 Jul 2026',
+      scheduled_date: '2026-07-17',
+      status: 'open' as const,
+      total: 5,
+      open: 4,
+      in_progress: 0,
+      blocked: 0,
+      done: 0,
+      overdue: 0,
+      pending_unresolved: 1,
+      completion_pct: 0,
+    },
+  }
+
+  it('shows error and retry when listPendingTasks fails, and retry recovers', async () => {
+    setAuthAs(['ops_lead'])
+    mockGetTodayOpeningForTeam.mockResolvedValue(STARTED_OPENING)
+    mockListPendingTasks.mockRejectedValueOnce(new Error('Network error')).mockResolvedValueOnce([PENDING_ROW])
+    mockGetPeople.mockResolvedValue(PEOPLE)
+
+    renderPanel()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toBeInTheDocument()
+    const retryBtn = screen.getByRole('button', { name: 'Try again' })
+    expect(retryBtn).toBeInTheDocument()
+
+    await userEvent.click(retryBtn)
+    expect(await screen.findByRole('button', { name: 'Twin A' })).toBeInTheDocument()
+  })
+
+  it('shows error and retry when getPeople fails, and retry recovers', async () => {
+    setAuthAs(['ops_lead'])
+    mockGetTodayOpeningForTeam.mockResolvedValue(STARTED_OPENING)
+    mockListPendingTasks.mockResolvedValue([PENDING_ROW])
+    mockGetPeople.mockRejectedValueOnce(new Error('Directory unavailable')).mockResolvedValueOnce(PEOPLE)
+
+    renderPanel()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toBeInTheDocument()
+    const retryBtn = screen.getByRole('button', { name: 'Try again' })
+    expect(retryBtn).toBeInTheDocument()
+
+    await userEvent.click(retryBtn)
+    expect(await screen.findByRole('button', { name: 'Twin A' })).toBeInTheDocument()
+  })
+
+  it('renders no error and no pending cards when pending list is successfully empty', async () => {
+    setAuthAs(['ops_lead'])
+    mockGetTodayOpeningForTeam.mockResolvedValue(STARTED_OPENING)
+    mockListPendingTasks.mockResolvedValue([])
+    mockGetPeople.mockResolvedValue(PEOPLE)
+
+    renderPanel()
+
+    await screen.findByText('Café Opening · 17 Jul 2026')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Twin A' })).not.toBeInTheDocument()
+  })
+
+  it('ignores an old run response after switching to a new run', async () => {
+    setAuthAs(['ops_lead'])
+    mockGetTodayOpeningForTeam.mockResolvedValue(STARTED_OPENING)
+    let resolveOld!: (rows: PendingTaskRow[]) => void
+    const oldRead = new Promise<PendingTaskRow[]>((resolve) => { resolveOld = resolve })
+    const newRun = 'new-run'
+    mockListPendingTasks.mockImplementation((run) => run === RUN_ID ? oldRead : Promise.resolve([]))
+    mockGetPeople.mockResolvedValue(PEOPLE)
+    const { rerender } = renderPanel()
+    await waitFor(() => expect(mockListPendingTasks).toHaveBeenCalledWith(RUN_ID))
+    mockGetTodayOpeningForTeam.mockResolvedValue({
+      ...STARTED_OPENING, runId: newRun,
+      rollup: { ...STARTED_OPENING.rollup, process_run_id: newRun, caption: 'New opening' },
+    })
+    rerender(<I18nProvider><MemoryRouter><CafeOpeningPanel processId="new-process" teamId={TEAM_ID} teamName="Radiant" /></MemoryRouter></I18nProvider>)
+    await screen.findByText('New opening')
+    await waitFor(() => expect(mockListPendingTasks).toHaveBeenCalledWith(newRun))
+    await act(async () => { resolveOld([PENDING_ROW]); await oldRead })
+    expect(screen.queryByRole('button', { name: 'Twin A' })).not.toBeInTheDocument()
+  })
+
+  it('hides old assignments when the new run fails and retries the new run', async () => {
+    setAuthAs(['ops_lead'])
+    mockGetTodayOpeningForTeam.mockResolvedValue(STARTED_OPENING)
+    mockListPendingTasks.mockResolvedValueOnce([PENDING_ROW]).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([])
+    mockGetPeople.mockResolvedValue(PEOPLE)
+    const view = renderPanel()
+    await screen.findByRole('button', { name: 'Twin A' })
+    const newRun = 'new-run'
+    mockGetTodayOpeningForTeam.mockResolvedValue({ ...STARTED_OPENING, runId: newRun, rollup: { ...STARTED_OPENING.rollup, process_run_id: newRun, caption: 'New opening' } })
+    view.rerender(<I18nProvider><MemoryRouter><CafeOpeningPanel processId="new-process" teamId={TEAM_ID} teamName="Radiant" /></MemoryRouter></I18nProvider>)
+    expect(screen.queryByRole('button', { name: 'Twin A' })).not.toBeInTheDocument()
+    const retry = await screen.findByRole('button', { name: 'Try again' })
+    expect(screen.queryByRole('button', { name: 'Twin A' })).not.toBeInTheDocument()
+    await userEvent.click(retry)
+    await waitFor(() => expect(mockListPendingTasks).toHaveBeenLastCalledWith(newRun))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('offers assignment retry in Indonesian', async () => {
+    setAuthAs(['ops_lead'])
+    mockGetTodayOpeningForTeam.mockResolvedValue(STARTED_OPENING)
+    mockListPendingTasks.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([])
+    mockGetPeople.mockResolvedValue(PEOPLE)
+    render(<I18nProvider initialLocale="id"><MemoryRouter><CafeOpeningPanel processId={PROCESS_ID} teamId={TEAM_ID} teamName="Radiant" /></MemoryRouter></I18nProvider>)
+    await userEvent.click(await screen.findByRole('button', { name: 'Coba lagi' }))
+    await waitFor(() => expect(mockListPendingTasks).toHaveBeenCalledTimes(2))
+  })
+
+  it('preserves capability gating so non-capable viewer cannot trigger read or see error', async () => {
+    setAuthAs(['member'])
+    mockCanStartProcessForTeam.mockResolvedValue(false)
+    mockGetTodayOpeningForTeam.mockResolvedValue(STARTED_OPENING)
+    mockListPendingTasks.mockRejectedValue(new Error('Permission denied'))
+
+    renderPanel()
+
+    await screen.findByText('Café Opening · 17 Jul 2026')
+    expect(mockListPendingTasks).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })
