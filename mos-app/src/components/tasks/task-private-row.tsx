@@ -5,6 +5,7 @@
 import { useState } from 'react'
 import { Chip } from '@/components/ui/chip'
 import { Toggle } from '@/components/ui/toggle'
+import { ErrorState } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import type { PersonOption } from '@/lib/db/directory'
 import { PersonPicker } from './person-picker'
@@ -29,6 +30,12 @@ export type TaskPrivateRowProps = {
   viewerInMeeting?: boolean
   /** Creator is the only person involved: "Only you, ..." wording. */
   solo?: boolean
+  /** Viewer list is loading */
+  loading?: boolean
+  /** Viewer list failed to load */
+  loadError?: boolean
+  /** Retry loading viewer list */
+  onRetryLoad?: () => void
   onSetPrivate: (next: boolean) => Promise<void>
   onAddViewer: (personId: string) => Promise<void>
   onRemoveViewer: (personId: string) => Promise<void>
@@ -36,7 +43,7 @@ export type TaskPrivateRowProps = {
 
 export function TaskPrivateRow({
   isPrivate, viewers, people, alreadyIds = [], canChange, frozen = false, meetingPrivate = false, viewerInMeeting = false,
-  solo = false, onSetPrivate, onAddViewer, onRemoveViewer,
+  solo = false, loading = false, loadError = false, onRetryLoad, onSetPrivate, onAddViewer, onRemoveViewer,
 }: TaskPrivateRowProps) {
   const t = useT()
   const [busy, setBusy] = useState(false)
@@ -51,6 +58,7 @@ export function TaskPrivateRow({
 
   const meetingLocked = isPrivate && meetingPrivate && !viewerInMeeting
   const stateText = !isPrivate ? t('tasks.private.off')
+    : (loading || loadError) ? t('tasks.private.on')
     : meetingPrivate ? (viewers.length === 0 ? t('tasks.private.onMeeting')
       : t(viewers.length === 1 ? 'tasks.private.onMeetingCount.one' : 'tasks.private.onMeetingCount.other', { count: viewers.length }))
       : viewers.length === 0 ? t('tasks.private.on')
@@ -60,7 +68,7 @@ export function TaskPrivateRow({
       : t(solo ? 'tasks.private.helpSelf' : 'tasks.private.help')
   const editable = canChange && !frozen
   // For a Task made in a private Meeting only that Meeting's people change who else can see it.
-  const listEditable = canChange && !meetingLocked
+  const listEditable = canChange && !meetingLocked && !loading && !loadError
   const pickable = people.filter((person) => !alreadyIds.includes(person.id) && !viewers.some((viewer) => viewer.id === person.id))
 
   return (
@@ -70,7 +78,7 @@ export function TaskPrivateRow({
           <Toggle
             aria-label={t('tasks.private.label')}
             value={isPrivate}
-            disabled={!editable || busy || meetingLocked}
+            disabled={!editable || busy || meetingLocked || loading || loadError}
             onChange={(next) => { void run(() => onSetPrivate(next)) }}
           />
         ) : null}
@@ -79,36 +87,44 @@ export function TaskPrivateRow({
       </div>
       {help ? <p className="tpr__help">{help}</p> : null}
       {isPrivate ? (
-        <div className="tpr__people">
-          {viewers.length === 0 ? <p className="tpr__nobody">{t('tasks.private.nobody')}</p> : null}
-          {viewers.map((viewer) => (
-            <span key={viewer.id} className="tpr__person">
-              <Chip label={viewer.full_name} avatarColor={viewer.full_name} />
+        <div className="tpr__people" aria-busy={loading ? 'true' : undefined}>
+          {loading ? (
+            <p className="tpr__loading" role="status">{t('common.loading')}</p>
+          ) : loadError ? (
+            <ErrorState message={t('tasks.private.peopleLoadError')} onRetry={onRetryLoad} />
+          ) : (
+            <>
+              {viewers.length === 0 ? <p className="tpr__nobody">{t('tasks.private.nobody')}</p> : null}
+              {viewers.map((viewer) => (
+                <span key={viewer.id} className="tpr__person">
+                  <Chip label={viewer.full_name} avatarColor={viewer.full_name} />
+                  {listEditable ? (
+                    <button
+                      type="button"
+                      className="tpr__remove"
+                      aria-label={t('tasks.private.remove', { name: viewer.full_name })}
+                      disabled={!editable || busy}
+                      onClick={() => { void run(() => onRemoveViewer(viewer.id)) }}
+                    >×</button>
+                  ) : null}
+                </span>
+              ))}
               {listEditable ? (
-                <button
-                  type="button"
-                  className="tpr__remove"
-                  aria-label={t('tasks.private.remove', { name: viewer.full_name })}
-                  disabled={!editable || busy}
-                  onClick={() => { void run(() => onRemoveViewer(viewer.id)) }}
-                >×</button>
+                <span className="tpr__add">
+                  <button type="button" className="tpr__addbtn" disabled={!editable || busy} onClick={() => setPicking(true)}>
+                    {t('tasks.private.add')}
+                  </button>
+                  {picking ? (
+                    <PersonPicker
+                      people={pickable as PersonOption[]}
+                      onSelect={(id) => { void run(() => onAddViewer(id)) }}
+                      onClose={() => setPicking(false)}
+                    />
+                  ) : null}
+                </span>
               ) : null}
-            </span>
-          ))}
-          {listEditable ? (
-            <span className="tpr__add">
-              <button type="button" className="tpr__addbtn" disabled={!editable || busy} onClick={() => setPicking(true)}>
-                {t('tasks.private.add')}
-              </button>
-              {picking ? (
-                <PersonPicker
-                  people={pickable as PersonOption[]}
-                  onSelect={(id) => { void run(() => onAddViewer(id)) }}
-                  onClose={() => setPicking(false)}
-                />
-              ) : null}
-            </span>
-          ) : null}
+            </>
+          )}
         </div>
       ) : null}
       {retry ? (

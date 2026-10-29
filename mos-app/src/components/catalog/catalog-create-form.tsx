@@ -7,6 +7,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Picker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
 import { Button } from '@/components/ui/button'
+import { ErrorState } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { OfflineNotice } from '@/components/ui/offline-notice'
@@ -43,6 +44,7 @@ export function CatalogCreateForm({ draft }: { draft: CatalogCreateDraft }) {
 
   function trySubmit() {
     setAttempted(true)
+    if (draft.businessUnitRequired && draft.businessUnitUnavailable) return
     if (!draft.name.trim()) {
       document.getElementById(nameId)?.focus()
       return
@@ -126,15 +128,17 @@ export function CatalogCreateForm({ draft }: { draft: CatalogCreateDraft }) {
             required={draft.businessUnitRequired}
             error={Boolean(businessUnitError)}
             describedBy={businessUnitError ? businessUnitErrorId : undefined}
-            disabled={draft.adding}
+            disabled={draft.adding || Boolean(draft.businessUnitRequired && draft.businessUnitUnavailable)}
           />
+          {draft.businessUnitLoading && <p role="status">{t('common.loading')}</p>}
+          {draft.businessUnitLoadError && <ErrorState message={t('catalog.record.businessUnitsLoadError')} onRetry={draft.onRetryBusinessUnits} />}
           {businessUnitError && <p id={businessUnitErrorId} role="alert" className="ccf-error">{businessUnitError}</p>}
         </div>
       ) : null}
 
       {offline ? <div className="form-grid__field form-grid__field--full"><OfflineNotice /></div> : null}
       <div className="ccf-foot form-grid__field form-grid__field--full">
-        <Button type="submit" variant="primary" disabled={draft.adding || offline} aria-busy={draft.adding}>
+        <Button type="submit" variant="primary" disabled={draft.adding || offline || Boolean(draft.businessUnitRequired && draft.businessUnitUnavailable)} aria-busy={draft.adding}>
           {draft.adding ? submittingLabel : submitLabel}
         </Button>
         <Button type="button" variant="ghost" disabled={draft.adding} onClick={draft.onCancel}>
