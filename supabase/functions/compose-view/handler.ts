@@ -11,8 +11,6 @@
  * (index.ts decodes org_id from the JWT and passes it as `deps.callerOrgId`) — NOT a
  * `profiles` table lookup (MOS has no profiles table).
  *
- * P2 scope (§0): `rateGuard` + `usage` deps are DROPPED for P2 (P3 threads them; see the
- * `// P3:` comment below) — no handler rewrite needed when P3 adds them back.
  */
 
 // Relative imports so this module resolves under both Deno and Node/Vitest.
@@ -39,8 +37,6 @@ export interface HandlerDeps {
   personId: string
   /** Caller org_id, decoded from the JWT by index.ts (D1). Compared against req.orgId (FR-P2-CV-004). */
   callerOrgId: string
-  // P3: rateGuard?: RateGuard; usage?: { supabase: SupabaseLike } — threaded when P3 lands
-  // the credits ledger; the handler is authored to accept them without a rewrite.
 }
 
 // ── Handler result type ────────────────────────────────────────────────────────
@@ -82,7 +78,7 @@ export async function composeViewHandler(
   }
 
   // ── Gate (2): input validation — prompt ────────────────────────────────────
-  if (!req.prompt || req.prompt.length === 0) {
+  if (!req || typeof req !== 'object' || Array.isArray(req) || typeof req.prompt !== 'string' || req.prompt.length === 0) {
     return {
       status: 400,
       body: { status: 400, error: 'BAD_REQUEST', detail: 'prompt' },
