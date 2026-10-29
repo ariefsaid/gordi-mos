@@ -7,6 +7,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { agentChatHandler } from './../../../../supabase/functions/agent-chat/handler'
 import type { HandlerDeps } from './../../../../supabase/functions/agent-chat/handler'
 import type { AgentChatRequest } from './runtime/transport'
+import { MAX_RUN_EVENTS_READ } from './runtime/mosNativeRuntime'
 import type { ModelResponse } from './../../../../supabase/functions/_shared/modelClient'
 
 function textResponse(text: string): ModelResponse {
@@ -39,12 +40,14 @@ function makeReplayMockSupabase(options: {
   } = options
   const fromCalls: string[] = []
   const inserts: Array<{ table: string; value: unknown }> = []
+  const replayOffsets: number[] = []
+  let journalReads = 0
   const client = {
     schema: () => ({
       from: (table: string) => {
         fromCalls.push(table)
         return {
-          select: () => ({
+          select: (columns = '') => ({
             eq: (_col: string, val: string) => ({
               // replay read: mos.agent_events ordered by seq
               order: () => ({
@@ -56,6 +59,13 @@ function makeReplayMockSupabase(options: {
                 },
                 range: (start: number, end: number) => ({
                   limit: async () => {
+                    const fields = new Set(columns.split(',').map((field) => field.trim()))
+                    const isReplay = fields.has('type') && fields.has('text') && fields.has('payload')
+                    if (!isReplay) {
+                      journalReads++
+                      return { data: [], error: null }
+                    }
+                    replayOffsets.push(start)
                     if (failOnOffset !== undefined && start >= failOnOffset) {
                       return { data: null, error: { message: 'PAGE_FETCH_ERROR' } }
                     }
@@ -82,7 +92,7 @@ function makeReplayMockSupabase(options: {
       },
     }),
   }
-  return { client, fromCalls, inserts }
+  return { client, fromCalls, inserts, replayOffsets, get journalReads() { return journalReads } }
 }
 
 async function collect(req: AgentChatRequest, deps: HandlerDeps) {
@@ -245,7 +255,8 @@ describe('agentChatHandler — replay branch (AC-P3-RP-002, A2a)', () => {
 
   it('a later history-page error surfaces a visible failure with zero model or business-action calls', async () => {
     // Page fetch fails when reading subsequent event pages
-    const mock = makeReplayMockSupabase({ failOnOffset: 1 })
+    const fixture = Array.from({ length: MAX_RUN_EVENTS_READ }, () => ({ type: 'status', payload: {} }))
+    const mock = makeReplayMockSupabase({ fixture, failOnOffset: MAX_RUN_EVENTS_READ })
     const create = vi.fn(async () => textResponse('ok'))
     const deps: HandlerDeps = {
       modelClient: { create },
@@ -266,12 +277,16 @@ describe('agentChatHandler — replay branch (AC-P3-RP-002, A2a)', () => {
     // Visible failure surfaced:
     const errorEvent = events.find((e) => e.type === 'status' && (e.payload as { error?: string })?.error === 'PERSISTENCE_UNAVAILABLE')
     expect(errorEvent).toBeDefined()
+    expect(mock.journalReads).toBeGreaterThan(0)
+    expect(mock.replayOffsets).toEqual([0, MAX_RUN_EVENTS_READ])
 
     // Zero model calls:
     expect(create).toHaveBeenCalledTimes(0)
 
     // Zero user events emitted/persisted:
     expect(events.filter((e) => e.type === 'user')).toHaveLength(0)
+    expect(mock.inserts.filter((i) => i.table === 'agent_events' && (i.value as { type?: string }).type === 'user')).toHaveLength(0)
+    expect(mock.fromCalls.every((table) => table === 'agent_events' || table === 'agent_runs')).toBe(true)
   })
 
   it('fresh client-created run persists its original goal without calling replay', async () => {
