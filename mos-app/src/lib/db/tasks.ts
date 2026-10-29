@@ -54,8 +54,16 @@ export const TASKS_OLDER_DONE_PAGE_SIZE = 50
 export type TaskListCursor = Pick<TaskListRow, 'due_date' | 'id'>
 export type TaskListPage = { rows: TaskListRow[]; nextCursor: TaskListCursor | null; hasMore: boolean }
 
-function taskListReadKey(filters: TaskListFilters, cutoff: string, before?: TaskListCursor | null): string {
-  return `mos.tasks:list:${JSON.stringify({
+function taskListReadKey(
+  operation: 'list' | 'page',
+  pageSize: number,
+  filters: TaskListFilters,
+  cutoff: string,
+  before?: TaskListCursor | null,
+): string {
+  return `mos.tasks:${JSON.stringify({
+    operation,
+    pageSize,
     select: LIST_SELECT,
     businessUnitId: filters.businessUnitId || null,
     status: filters.status ?? null,
@@ -86,7 +94,7 @@ export async function listTasks(
     return (data ?? []) as unknown as TaskListRow[]
   }
 
-  const key = taskListReadKey(f, cutoff)
+  const key = taskListReadKey('list', TASKS_LIST_MAX_ROWS, f, cutoff)
   if (readLease) return readLease.read(key, load)
   const scope = getReadScope()
   return scope ? sharePending(scope, key, load) : load()
@@ -117,7 +125,7 @@ export async function listTasksPage(
       (row) => ({ due_date: row.due_date, id: row.id }))
   }
 
-  const key = taskListReadKey(filters, cutoff, before)
+  const key = taskListReadKey('page', TASKS_LIST_PAGE_SIZE, filters, cutoff, before)
   if (readLease) return readLease.read(key, load)
   const scope = getReadScope()
   return scope ? sharePending(scope, key, load) : load()

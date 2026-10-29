@@ -9,6 +9,7 @@ const ORIGINAL_FETCH = global.fetch
 afterEach(() => {
   global.fetch = ORIGINAL_FETCH
   vi.restoreAllMocks()
+  vi.useRealTimers()
 })
 
 describe('_shared/chatCompletionsClient — ChatCompletionsClient (T4)', () => {
@@ -75,4 +76,19 @@ describe('_shared/chatCompletionsClient — ChatCompletionsClient (T4)', () => {
     const client = new ChatCompletionsClient({ apiKey: 'k', baseUrl: 'https://example.test/v1' })
     await expect(client.create({ model: 'm', max_tokens: 10, messages: [] })).rejects.toThrow(/malformed/)
   })
+  it('times out and aborts when the provider response body stalls', async () => {
+    vi.useFakeTimers()
+    let signal: AbortSignal | undefined
+    global.fetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      signal = init?.signal as AbortSignal
+      return new Response(new ReadableStream({ start() {} }))
+    }) as unknown as typeof fetch
+    const client = new ChatCompletionsClient({ apiKey: 'k', baseUrl: 'https://example.test/v1' })
+    const result = client.create({ model: 'm', max_tokens: 10, messages: [] })
+    const rejected = expect(result).rejects.toThrow(/timed out/)
+    await vi.advanceTimersByTimeAsync(30_000)
+    await rejected
+    expect((signal as AbortSignal | undefined)?.aborted).toBe(true)
+  })
+
 })
