@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(23);
+select plan(24);
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 set local role authenticated;
@@ -40,8 +40,11 @@ update mos.task_checklist_items set is_done=true where id='00000000-0000-0000-00
 select is((select count(*)::int from mos.task_events where task_id = '00000000-0000-0000-0000-000000004201'), 8, 'completing a checklist item creates one event');
 update mos.task_checklist_items set label='Revised step' where id='00000000-0000-0000-0000-000000004202';
 select is((select count(*)::int from mos.task_events where task_id = '00000000-0000-0000-0000-000000004201'), 9, 'editing a checklist label creates one event');
+select is(has_table_privilege('authenticated','mos.task_checklist_items','DELETE'),false,'the existing authenticated checklist delete boundary is retained');
+reset role;
 delete from mos.task_checklist_items where id='00000000-0000-0000-0000-000000004202';
-select is((select count(*)::int from mos.task_events where task_id = '00000000-0000-0000-0000-000000004201'), 10, 'deleting a checklist item creates one event');
+set local role authenticated;
+select is((select count(*)::int from mos.task_events where task_id = '00000000-0000-0000-0000-000000004201'), 10, 'a trusted checklist deletion creates one event for its session actor');
 update mos.tasks set body = '[{"type":"paragraph","content":[{"type":"text","text":"Body update"}]}]'::jsonb where id = '00000000-0000-0000-0000-000000004201';
 select is((select count(*)::int from mos.task_events where task_id = '00000000-0000-0000-0000-000000004201'), 11, 'a block document save creates one event including its derived description');
 select throws_ok($$update mos.tasks set last_activity_at='2099-01-01' where id='00000000-0000-0000-0000-000000004201'$$, '42501', null, 'direct activity-time updates remain refused');
