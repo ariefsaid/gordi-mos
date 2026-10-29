@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, AuthBackLink, Spinner } from '@/auth/auth-shell'
 import { SetPasswordForm } from '@/auth/set-password-form'
@@ -123,17 +123,12 @@ function ExpiredCard() {
 
 export function RecoveryPage() {
   const navigate = useNavigate()
-  const location = useLocation()
   const auth = useAuth()
   const t = useT()
 
   const [expired, setExpired] = useState(false)
 
-  const hasRecoveryParams =
-    /\b(code|token_hash|access_token|refresh_token)=/.test(location.search)
-    || /\b(access_token|refresh_token|type=recovery)=/.test(location.hash)
-  const waitingForRecoverySession =
-    auth.status === 'loading' || (auth.status === 'unauthenticated' && hasRecoveryParams)
+  const waitingForRecoverySession = auth.status === 'loading'
   const isRecoveryReady = auth.status === 'recovering'
 
   async function handleSubmit(newPassword: string): Promise<string | null> {

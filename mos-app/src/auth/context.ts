@@ -25,5 +25,11 @@ export type AuthState =
   // PASSWORD_RECOVERY flow: session exists, user must set a new password before accessing the app.
   // clearRecovering is called by RecoveryPage on successful password update to proceed to home.
   | { status: 'recovering'; clearRecovering: () => void | Promise<void> }
+  | {
+      status: 'error'
+      error: unknown
+      retry: () => void | Promise<void>
+      signOut: () => Promise<void>
+    }
 
 export const AuthContext = createContext<AuthState>({ status: 'loading' })

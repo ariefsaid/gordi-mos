@@ -373,4 +373,23 @@ describe('RecoveryPage', () => {
     expect(document.body.textContent).not.toContain('network detail must stay private')
     expect(screen.getByRole('link', { name: 'Back to sign in' })).toBeInTheDocument()
   })
+
+  it('AC-016 / #1943: an invalid or expired recovery callback reaches the expired-link form after callback processing finishes', () => {
+    mockAuthState = { status: 'unauthenticated' }
+    render(<RecoveryPage />)
+
+    expect(screen.getByText(/that link has expired/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Request a new link' })).toBeInTheDocument()
+    expect(screen.queryByRole('status', { name: /verifying recovery link/i })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('New password')).not.toBeInTheDocument()
+  })
+
+  it('AC-016 / #1943: a valid recovery callback with recovering status reaches password reset', () => {
+    mockAuthState = { status: 'recovering', clearRecovering: mockClearRecovering }
+    render(<RecoveryPage />)
+
+    expect(screen.getByLabelText('New password')).toBeInTheDocument()
+    expect(screen.getByLabelText('Confirm password')).toBeInTheDocument()
+    expect(screen.queryByText(/that link has expired/i)).not.toBeInTheDocument()
+  })
 })

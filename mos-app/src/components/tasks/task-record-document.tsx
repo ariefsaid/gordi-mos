@@ -35,6 +35,9 @@ type TaskPrivacy = {
   viewers: PersonOption[]
   /** The viewer may change privacy (the Task edit gate) and the Task is not archived. */
   canChange: boolean
+  loading?: boolean
+  loadError?: boolean
+  onRetryLoad?: () => void
   onSetPrivate: (next: boolean) => Promise<void>
   onAddViewer: (personId: string) => Promise<void>
   onRemoveViewer: (personId: string) => Promise<void>
@@ -202,6 +205,9 @@ export function TaskRecordDocument({
           meetingPrivate={meeting?.isPrivate}
           viewerInMeeting={meeting?.viewerIn}
           solo={soloShown}
+          loading={privacy.loading}
+          loadError={privacy.loadError}
+          onRetryLoad={privacy.onRetryLoad}
           onSetPrivate={privacy.onSetPrivate}
           onAddViewer={privacy.onAddViewer}
           onRemoveViewer={privacy.onRemoveViewer}

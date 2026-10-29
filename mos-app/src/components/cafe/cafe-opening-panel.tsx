@@ -40,6 +40,8 @@ export function CafeOpeningPanel({ processId, teamId, teamName, presentation = '
   const [canStart, setCanStart] = useState(false)
 
   const [state, setState] = useState<FetchState>('loading')
+  const [loadedSelection, setLoadedSelection] = useState<string | null>(null)
+  const selection = JSON.stringify([processId, teamId])
   const [started, setStarted] = useState(false)
   const [runId, setRunId] = useState<string | null>(null)
   const [rollup, setRollup] = useState<{
@@ -51,6 +53,9 @@ export function CafeOpeningPanel({ processId, teamId, teamName, presentation = '
   const [pending, setPending] = useState<PendingTaskRow[]>([])
   const [people, setPeople] = useState<PersonOption[]>([])
   const [pendingLoading, setPendingLoading] = useState(false)
+  const [pendingError, setPendingError] = useState(false)
+  const [pendingRunId, setPendingRunId] = useState<string | null>(null)
+  const pendingGeneration = useRef(0)
   const loadGeneration = useRef(0)
 
   const load = useCallback(() => {
@@ -59,15 +64,16 @@ export function CafeOpeningPanel({ processId, teamId, teamName, presentation = '
     getTodayOpeningForTeam(processId, teamId)
       .then((opening) => {
         if (generation !== loadGeneration.current) return
+        setLoadedSelection(selection)
         setStarted(opening.started)
         setRunId(opening.runId)
         setRollup(opening.rollup)
         setState('ready')
       })
       .catch(() => {
-        if (generation === loadGeneration.current) setState('error')
+        if (generation === loadGeneration.current) { setLoadedSelection(selection); setState('error') }
       })
-  }, [processId, teamId])
+  }, [processId, teamId, selection])
 
   useEffect(() => { load() }, [load])
   useEffect(() => () => { loadGeneration.current += 1 }, [])
@@ -83,14 +89,24 @@ export function CafeOpeningPanel({ processId, teamId, teamName, presentation = '
   }, [teamId, viewerId, viewerOrgId])
 
   const loadPending = useCallback((run: string) => {
+    const generation = ++pendingGeneration.current
+    setPendingRunId(run)
     setPendingLoading(true)
+    setPendingError(false)
+    setPending([])
     Promise.all([listPendingTasks(run), getPeople()])
       .then(([pendingRows, peopleRows]) => {
+        if (generation !== pendingGeneration.current) return
         setPending(pendingRows)
         setPeople(peopleRows)
         setPendingLoading(false)
       })
-      .catch(() => setPendingLoading(false))
+      .catch(() => {
+        if (generation !== pendingGeneration.current) return
+        setPending([])
+        setPendingError(true)
+        setPendingLoading(false)
+      })
   }, [])
 
   // Only a process.start-capable viewer fetches/sees the resolve queue (AC-715) — a non-capable
@@ -99,8 +115,12 @@ export function CafeOpeningPanel({ processId, teamId, teamName, presentation = '
     if (started && runId && canStart && (rollup?.pending_unresolved ?? 0) > 0) {
       loadPending(runId)
     } else {
+      pendingGeneration.current += 1
       setPending([])
+      setPendingError(false)
+      setPendingLoading(false)
     }
+    return () => { pendingGeneration.current += 1 }
   }, [started, runId, canStart, rollup?.pending_unresolved, loadPending])
 
   async function handleStart() {
@@ -123,7 +143,7 @@ export function CafeOpeningPanel({ processId, teamId, teamName, presentation = '
 
   const door = presentation === 'door'
 
-  if (state === 'loading') return <LoadingShell count={door ? 1 : 2} />
+  if (state === 'loading' || loadedSelection !== selection) return <LoadingShell count={door ? 1 : 2} />
   if (state === 'error') return <ErrorState message={t('tasks.error.load')} onRetry={load} />
 
   if (!started) {
@@ -196,10 +216,14 @@ export function CafeOpeningPanel({ processId, teamId, teamName, presentation = '
     { done: rollup.done, total: rollup.total, overdue: rollup.overdue, pending: rollup.pending_unresolved },
   )
 
+  const pendingCurrent = pendingRunId === runId
   const pendingResolutions = canStart && rollup.pending_unresolved > 0 && (
     <div className="cafe-opening-pending">
-      {pendingLoading && <LoadingShell count={1} />}
-      {!pendingLoading && pending.map((p) => (
+      {(!pendingCurrent || pendingLoading) && <LoadingShell count={1} />}
+      {pendingCurrent && pendingError && !pendingLoading && (
+        <ErrorState message={t('tasks.error.load')} onRetry={() => loadPending(runId)} />
+      )}
+      {pendingCurrent && !pendingLoading && !pendingError && pending.map((p) => (
         <PendingResolution
           key={p.id}
           pending={p}
