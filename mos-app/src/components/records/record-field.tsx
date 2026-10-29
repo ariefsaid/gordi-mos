@@ -419,7 +419,10 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
               // Escape isolation is owned by the native capture listener attached via
               // `attachFieldEscapeIsolation` above; React's synthetic handler is not needed.
             }}
-            onBlur={() => void commit(draft, false)}
+            onBlur={() => {
+              if (commitsFrozen || statusRef.current === 'error') return
+              void commit(draft, false)
+            }}
           />
         ) : (
           <input
