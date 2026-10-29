@@ -46,6 +46,10 @@ beforeEach(() => {
   vi.mocked(uploadAttendanceSelfie).mockResolvedValue(undefined)
 })
 
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 describe('ClockPanel', () => {
   it('AC-035 shows an empty state when no shift is assigned', async () => {
     vi.mocked(getMyClockState).mockResolvedValue(state({ shifts: [] }))
@@ -191,49 +195,52 @@ describe('ClockPanel', () => {
 
   it('AC-1888 leaving the clock open across a shift boundary selects the current eligible shift', async () => {
     vi.useFakeTimers()
-    const shift1: ClockShift = {
-      ...shift,
-      start_at: '2026-10-22T00:00:00Z',
-      opens_at: '2026-10-21T23:30:00Z',
-      end_at: '2026-10-22T08:00:00Z',
-      template_name: 'Pagi',
-      record: { id: 'rec-1', status: 'out', late: false, late_minutes: null, early_leave: false, early_minutes: null, closure: null, clock_in_at: '2026-10-22T00:00:00Z', clock_out_at: '2026-10-22T07:55:00Z' },
+    try {
+      const shift1: ClockShift = {
+        ...shift,
+        start_at: '2026-10-22T00:00:00Z',
+        opens_at: '2026-10-21T23:30:00Z',
+        end_at: '2026-10-22T08:00:00Z',
+        template_name: 'Pagi',
+        record: { id: 'rec-1', status: 'out', late: false, late_minutes: null, early_leave: false, early_minutes: null, closure: null, clock_in_at: '2026-10-22T00:00:00Z', clock_out_at: '2026-10-22T07:55:00Z' },
+      }
+      const shift2: ClockShift = {
+        ...shift,
+        start_at: '2026-10-22T01:00:00Z',
+        opens_at: '2026-10-22T00:30:00Z',
+        end_at: '2026-10-22T09:00:00Z',
+        template_name: 'Siang',
+        record: null,
+      }
+
+      const stateAt0020 = state({
+        now: '2026-10-22T00:20:00Z',
+        shifts: [shift1, shift2],
+      })
+      const stateAt0030 = state({
+        now: '2026-10-22T00:30:00Z',
+        shifts: [shift1, shift2],
+      })
+
+      vi.mocked(getMyClockState)
+        .mockResolvedValueOnce(stateAt0020)
+        .mockResolvedValue(stateAt0030)
+
+      renderPanel()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10)
+      })
+      expect(getMyClockState).toHaveBeenCalledTimes(1)
+
+      // Advance by 10 minutes (600,000 ms) to shift2.opens_at boundary
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(600_000)
+      })
+
+      expect(getMyClockState).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
     }
-    const shift2: ClockShift = {
-      ...shift,
-      start_at: '2026-10-22T08:00:00Z',
-      opens_at: '2026-10-22T07:30:00Z',
-      end_at: '2026-10-22T16:00:00Z',
-      template_name: 'Siang',
-      record: null,
-    }
-
-    const stateAt720 = state({
-      now: '2026-10-22T00:20:00Z',
-      shifts: [shift1, shift2],
-    })
-    const stateAt730 = state({
-      now: '2026-10-22T00:30:00Z',
-      shifts: [shift1, shift2],
-    })
-
-    vi.mocked(getMyClockState)
-      .mockResolvedValueOnce(stateAt720)
-      .mockResolvedValue(stateAt730)
-
-    renderPanel()
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(10)
-    })
-    expect(getMyClockState).toHaveBeenCalledTimes(1)
-
-    // Advance by 10 minutes (600,000 ms) to shift boundary
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(600_000)
-    })
-
-    expect(getMyClockState).toHaveBeenCalledTimes(2)
-    vi.useRealTimers()
   })
 
   it('AC-1888 resuming the clock on visibility change or focus refreshes the authoritative shift snapshot', async () => {
