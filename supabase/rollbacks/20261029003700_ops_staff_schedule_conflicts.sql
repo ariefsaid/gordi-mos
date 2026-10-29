@@ -1,4 +1,10 @@
--- Enforce date-specific membership and cross-Team schedule conflicts.
+drop trigger if exists staff_membership_schedule_validate on shared.team_memberships;
+drop trigger if exists zz_staff_membership_schedule_lock on shared.team_memberships;
+drop function if exists ops._attendance_validate_membership();
+drop function if exists ops._attendance_lock_membership();
+drop function if exists ops._attendance_standing_conflicts(uuid,uuid,uuid,date,date,uuid);
+
+-- Restore the previous schedule actions.
 create or replace function ops.copy_staff_roster(p_team_id uuid, p_week_start date)
 returns integer
 language plpgsql
@@ -19,7 +25,7 @@ begin
   for v_source_shift in select * from ops.staff_shifts where org_id=v_org and roster_id=v_source.id and removed_at is null order by local_date,person_id loop
     if not exists(select 1 from shared.team_memberships m join shared.people p on p.id=m.person_id and p.org_id=m.org_id
       where m.org_id=v_org and m.team_id=p_team_id and m.person_id=v_source_shift.person_id and p.archived_at is null
-        and m.effective_from <= v_source_shift.local_date+7 and (m.effective_to is null or m.effective_to >= v_source_shift.local_date+7)) then continue; end if;
+        and m.effective_from <= p_week_start+6 and (m.effective_to is null or m.effective_to >= p_week_start)) then continue; end if;
     v_start := v_source_shift.start_at + interval '7 days'; v_end := v_source_shift.end_at + interval '7 days';
     perform pg_advisory_xact_lock(hashtextextended(v_org::text || ':' || v_source_shift.person_id::text,0));
     if ops._attendance_shift_overlaps(v_source_shift.person_id,v_source_shift.local_date+7,v_start,v_end,null) then raise exception 'STAFF_SHIFT_OVERLAP' using errcode = '23P01'; end if;
@@ -68,63 +74,21 @@ begin
   else
     perform pg_advisory_xact_lock(hashtextextended(v_org::text || ':' || p_person_id::text,0));
   end if;
-  if (p_active is true or (p_active is null and p_person_id is not null)) and exists (
-    with affected as (
-      select distinct m.person_id from shared.team_memberships m
-      join shared.people p on p.org_id=m.org_id and p.id=m.person_id and p.archived_at is null
-      where m.org_id=v_org and m.team_id=p_team_id
-        and (p_person_id is null or m.person_id=p_person_id)
-        and (m.effective_to is null or m.effective_to>=v_effective)
-    ), boundaries as (
-      select a.person_id, v_effective as day from affected a
-      union select a.person_id, m.effective_from from affected a join shared.team_memberships m on m.org_id=v_org and m.person_id=a.person_id
-      union select a.person_id, m.effective_to+1 from affected a join shared.team_memberships m on m.org_id=v_org and m.person_id=a.person_id where m.effective_to is not null
-      union select a.person_id, r.effective_from from affected a join shared.team_memberships m on m.org_id=v_org and m.person_id=a.person_id
-        join ops.staff_standing_hours r on r.org_id=m.org_id and r.team_id=m.team_id and (r.person_id is null or r.person_id=a.person_id)
-      union select a.person_id, r.effective_to+1 from affected a join shared.team_memberships m on m.org_id=v_org and m.person_id=a.person_id
-        join ops.staff_standing_hours r on r.org_id=m.org_id and r.team_id=m.team_id and (r.person_id is null or r.person_id=a.person_id) where r.effective_to is not null
-      union select a.person_id, s.local_date from affected a join ops.staff_shifts s on s.org_id=v_org and s.person_id=a.person_id and s.removed_at is null
-    ), candidates as (
-      select distinct b.person_id, b.day+n as local_date from boundaries b cross join generate_series(-1,7) n
-      where b.day+n>=v_effective
-    ), proposed as (
-      select c.person_id,c.local_date,
-        (c.local_date+rule.start_time) at time zone 'Asia/Jakarta' as start_at,
-        ((c.local_date+rule.end_time)+case when rule.end_time<rule.start_time then interval '1 day' else interval '0 day' end) at time zone 'Asia/Jakarta' as end_at
-      from candidates c
-      left join lateral (select r.* from ops.staff_standing_hours r where r.org_id=v_org and r.team_id=p_team_id and r.person_id is null
-        and r.effective_from<=c.local_date and (r.effective_to is null or r.effective_to>=c.local_date) order by r.effective_from desc limit 1) def on p_active is null
-      cross join lateral (select case when p_active is null then def.active else p_active end as active,
-        case when p_active is null then def.working_days else p_working_days end as working_days,
-        case when p_active is null then def.start_time else p_start_time end as start_time,
-        case when p_active is null then def.end_time else p_end_time end as end_time) rule
-      where rule.active and (extract(isodow from c.local_date)::integer-1)::smallint=any(rule.working_days)
-        and not exists(select 1 from ops.staff_standing_hours future where future.org_id=v_org and future.team_id=p_team_id
-          and future.person_id is not distinct from p_person_id and future.effective_from>v_effective and future.effective_from<=c.local_date)
-        and exists(select 1 from shared.team_memberships m where m.org_id=v_org and m.team_id=p_team_id and m.person_id=c.person_id
-          and m.effective_from<=c.local_date and (m.effective_to is null or m.effective_to>=c.local_date))
-        and (p_person_id is not null or not exists(select 1 from ops.staff_standing_hours ex where ex.org_id=v_org and ex.team_id=p_team_id
-          and ex.person_id=c.person_id and ex.effective_from<=c.local_date and (ex.effective_to is null or ex.effective_to>=c.local_date)))
-    )
-    select 1 from proposed p where exists (
-      select 1 from ops.staff_shifts s where s.org_id=v_org and s.person_id=p.person_id and s.removed_at is null
-        and s.start_at<p.end_at and s.end_at>p.start_at
-    ) or exists (
-      select 1 from generate_series(-1,1) n
-      join shared.team_memberships m on m.org_id=v_org and m.person_id=p.person_id and m.team_id<>p_team_id
-        and m.effective_from<=p.local_date+n and (m.effective_to is null or m.effective_to>=p.local_date+n)
-      join shared.teams t on t.org_id=m.org_id and t.id=m.team_id and t.archived_at is null
-      join lateral (select r.* from ops.staff_standing_hours r where r.org_id=v_org and r.team_id=m.team_id and r.person_id is null
-        and r.effective_from<=p.local_date+n and (r.effective_to is null or r.effective_to>=p.local_date+n) order by r.effective_from desc limit 1) def on true
-      left join lateral (select r.* from ops.staff_standing_hours r where r.org_id=v_org and r.team_id=m.team_id and r.person_id=p.person_id
-        and r.effective_from<=p.local_date+n and (r.effective_to is null or r.effective_to>=p.local_date+n) order by r.effective_from desc limit 1) ex on true
-      cross join lateral (select coalesce(ex.active,def.active) as active, coalesce(ex.working_days,def.working_days) as working_days,
-        case when ex.id is not null then ex.start_time else def.start_time end as start_time,
-        case when ex.id is not null then ex.end_time else def.end_time end as end_time) r
-      where r.active and (extract(isodow from p.local_date+n)::integer-1)::smallint=any(r.working_days)
-        and ((p.local_date+n)+r.start_time) at time zone 'Asia/Jakarta'<p.end_at
-        and (((p.local_date+n)+r.end_time)+case when r.end_time<r.start_time then interval '1 day' else interval '0 day' end) at time zone 'Asia/Jakarta'>p.start_at
-    )
+  if p_active is true and exists(
+    select 1 from ops.staff_shifts s
+      join shared.team_memberships m on m.org_id=s.org_id and m.team_id=s.team_id and m.person_id=s.person_id
+      join shared.people p on p.id=m.person_id and p.org_id=m.org_id and p.archived_at is null
+      cross join lateral generate_series(0,2) as offsets(n)
+      cross join lateral (select s.local_date + offsets.n - 1 as local_date) d
+      cross join lateral (select (d.local_date + p_start_time) at time zone 'Asia/Jakarta' as start_at,
+        ((d.local_date + p_end_time) + case when p_end_time < p_start_time then interval '1 day' else interval '0 day' end) at time zone 'Asia/Jakarta' as end_at) standing
+     where s.org_id=v_org and s.team_id=p_team_id and s.removed_at is null and s.end_at > (v_effective::timestamp at time zone 'Asia/Jakarta')
+       and (p_person_id is null or s.person_id=p_person_id)
+       and d.local_date>=v_effective and m.effective_from<=d.local_date and (m.effective_to is null or m.effective_to>=d.local_date)
+       and (extract(isodow from d.local_date)::integer-1)::smallint=any(p_working_days)
+       and s.start_at < standing.end_at and s.end_at > standing.start_at
+       and (p_person_id is not null or not exists(select 1 from ops.staff_standing_hours ex where ex.org_id=v_org and ex.team_id=p_team_id
+         and ex.person_id=s.person_id and ex.effective_from<=d.local_date and (ex.effective_to is null or ex.effective_to>=d.local_date)))
   ) then raise exception 'STAFF_STANDING_CONFLICT' using errcode = '23P01'; end if;
   select * into v_prior from ops.staff_standing_hours where org_id=v_org and team_id=p_team_id and person_id is not distinct from p_person_id
     and effective_from<=v_effective and (effective_to is null or effective_to>=v_effective) order by effective_from desc limit 1 for update;

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(10);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select set_config('app.attendance_now', '2026-10-22 03:00:00+00', true);
@@ -69,5 +69,19 @@ select is(ops.save_standing_hours('00000000-0000-0000-0000-000000005b02',null,ar
 select throws_ok($$select ops.save_standing_hours('00000000-0000-0000-0000-000000005b02','00000000-0000-0000-0000-00000000f103',array[2]::smallint[],'10:00','18:00',true)$$,'23P01','STAFF_STANDING_CONFLICT','a person exception rejects another team recurring schedule');
 select throws_ok($$select ops.save_standing_hours('00000000-0000-0000-0000-000000005b02','00000000-0000-0000-0000-00000000f103',array[]::smallint[],null,null,null)$$,'23P01','STAFF_STANDING_CONFLICT','restoring team hours rejects another team shift');
 select throws_ok($$select ops.save_standing_hours('00000000-0000-0000-0000-000000005b02','00000000-0000-0000-0000-00000000f104',array[2]::smallint[],'23:00','02:00',true)$$,'23P01','STAFF_STANDING_CONFLICT','overnight standing hours reject another team shift on the next day');
+-- A later saved version stays outside a current-week edit.
+reset role;
+update ops.staff_standing_hours set effective_to='2026-11-01'
+  where org_id='00000000-0000-0000-0000-0000000000a1' and team_id='00000000-0000-0000-0000-000000005b02'
+    and person_id is null and effective_from='2026-10-26';
+insert into ops.staff_standing_hours(id,org_id,team_id,person_id,effective_from,working_days,start_time,end_time,active,changed_by)
+values('70000000-0000-0000-0000-000000000043','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000005b02',null,
+  '2026-11-02',array[2]::smallint[],'09:00','17:00',true,'00000000-0000-0000-0000-0000000000d3');
+set local role authenticated;
+select lives_ok($sql$select ops.save_standing_hours('00000000-0000-0000-0000-000000005b02',null,array[1]::smallint[],'18:00','20:30',true)$sql$,
+  'editing this week does not revalidate an unchanged later version');
+reset role;
+select is((select start_time from ops.staff_standing_hours where id='70000000-0000-0000-0000-000000000043'),time '09:00',
+  'the later standing version keeps its saved hours');
 select * from finish();
 rollback;
