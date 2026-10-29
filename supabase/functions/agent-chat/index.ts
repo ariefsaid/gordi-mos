@@ -13,7 +13,7 @@
  *   4. Read AGENT_MODEL_API_KEY / AGENT_MODEL_BASE_URL / AGENT_MODEL_DEFAULT from function
  *      secrets — fail loud (502 MODEL_NOT_CONFIGURED) if the model id is unset (D4, FR-CF-001).
  *   5. Cap the JSON body size, then parse into AgentChatRequest.
- *   6. Load journaledWrites/startSeq for a resumed run (body.runId present) — persistence gate.
+ *   6. Bind caller-JWT persistence deps; the handler verifies run identity and loads resume state.
  *   7. Delegate to agentChatHandler; pipe events into an SSE ReadableStream.
  */
 
@@ -21,7 +21,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { agentChatHandler } from './handler.ts'
 import type { HandlerDeps } from './handler.ts'
-import { loadJournaledWrites, loadMaxSeq } from './persistence.ts'
 import { createPendingActionStore } from './pendingActions.ts'
 import { readCappedJson } from './requestBody.ts'
 import { ChatCompletionsClient } from '../_shared/chatCompletionsClient.ts'
@@ -122,16 +121,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     now: () => new Date(),
   }
 
-  const journaledWrites = persistenceEnabled && body.runId
-    ? await loadJournaledWrites(persistenceDepsBase, body.runId)
-    : undefined
-
-  // Seq continuity (T15): a resumed run (body.runId already exists, e.g. a decision re-POST)
-  // must continue the run's seq counter, never restart at 0.
-  const startSeq = persistenceEnabled && body.runId
-    ? (await loadMaxSeq(persistenceDepsBase, body.runId)) + 1
-    : undefined
-
   // ── 7. Pipe agentChatHandler events into an SSE ReadableStream ────────────────
   const stream = new ReadableStream({
     async start(controller) {
@@ -154,7 +143,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         composeEnabled: true,
         pendingActions,
         persistence: persistenceEnabled
-          ? { ...persistenceDepsBase, journaledWrites, startSeq }
+          ? persistenceDepsBase
           : undefined,
       }
       try {

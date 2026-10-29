@@ -24,6 +24,26 @@ import type { AgentChatRequest, ConversationMessage, AgentDecision, AgentCancel 
 import type { AgentAnswer } from './port.ts'
 import { decodeSseStream } from './transport.ts'
 
+/** Per-request page size; a smaller server row cap is handled by advancing by actual rows. */
+export const MAX_RUN_EVENTS_READ = 1000
+
+/** Read to an empty page; failed pages never return a partial history or action journal. */
+export async function readEventPages<Row>(
+  readPage: (offset: number) => PromiseLike<{ data: Row[] | null; error: unknown }>,
+): Promise<Row[]> {
+  const rows: Row[] = []
+  try {
+    for (;;) {
+      const { data, error } = await readPage(rows.length)
+      if (error || !data) throw new Error('PERSISTENCE_UNAVAILABLE')
+      if (data.length === 0) return rows
+      rows.push(...data)
+    }
+  } catch {
+    throw new Error('PERSISTENCE_UNAVAILABLE')
+  }
+}
+
 export interface MosNativeRuntimeOptions {
   /** Full URL of the agent-chat edge function (e.g. `${supABaseUrl}/functions/v1/agent-chat`). */
   endpoint: string

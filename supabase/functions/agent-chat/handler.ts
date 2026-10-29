@@ -26,7 +26,7 @@ import {
 } from './actions.ts'
 import { buildAgentSystemPrompt } from './prompt.ts'
 import {
-  hashToolArgs, createThreadAndRun, insertEvent, heartbeat, setRunStatus,
+  hashToolArgs, createThreadAndRun, insertEvent, heartbeat, setRunStatus, loadMaxSeq, loadJournaledWrites,
 } from './persistence.ts'
 import type { PersistenceDeps, JournaledWrite, ToolJournal, HandlerSupabaseLike } from './persistence.ts'
 import { replayRunHistory } from './replay.ts'
@@ -89,7 +89,7 @@ export interface HandlerDeps {
   /**
    * Optional persistence dep (thread/run/event journal, heartbeat, de-dupe). Optional so
    * flag-off / existing tests pass unchanged — every persistence call site below is guarded
-   * on `deps.persistence` being present. `journaledWrites`/`startSeq` are pre-loaded by index.ts.
+   * on `deps.persistence` being present. `journaledWrites`/`startSeq` are loaded under the caller JWT before dispatch.
    */
   persistence?: PersistenceDeps & { journaledWrites?: JournaledWrite[]; startSeq?: number }
 }
@@ -458,20 +458,35 @@ export async function* agentChatHandler(
   deps: HandlerDeps,
 ): AsyncIterable<AgentEvent> {
   const runId = req.runId ?? crypto.randomUUID()
-  const persist = makePersistenceRuntime(deps)
-
-  // A fresh run (no req.runId on the wire) gets a new agent_threads + agent_runs row, created
-  // BEFORE any event is persisted (insertEvent's run_id FK requires the run to exist first).
-  if (persist && !req.runId) {
-    const lastUserMsgForTitle = req.messages.filter((m) => m.role === 'user').at(-1)
-    const title =
-      lastUserMsgForTitle && typeof lastUserMsgForTitle.content === 'string'
-        ? lastUserMsgForTitle.content.slice(0, 60)
-        : 'New conversation'
-    await createThreadAndRun(persist.deps, { runId, title })
+  if (!deps.userId || transcriptExceedsCap(req.messages)) {
+    yield* agentChatHandlerInner(req, deps, runId, undefined)
+    return
   }
 
-  yield* withPersistence(agentChatHandlerInner(req, deps, runId, persist), persist, runId)
+  try {
+    let persistence = deps.persistence
+    if (persistence) {
+      const { data: existing, error } = req.runId
+        ? await persistence.supabase.schema('mos').from('agent_runs').select('id').eq('id', runId).maybeSingle()
+        : { data: null, error: null }
+      if (error) throw new Error('PERSISTENCE_UNAVAILABLE')
+      if (!existing) {
+        if (req.replay || req.decision || req.answer || req.cancel) throw new Error('PERSISTENCE_UNAVAILABLE')
+        const lastUser = req.messages.filter(message => message.role === 'user').at(-1)
+        const title = typeof lastUser?.content === 'string' ? lastUser.content.slice(0, 60) : 'New conversation'
+        await createThreadAndRun(persistence, { runId, title })
+      }
+      persistence = {
+        ...persistence,
+        startSeq: existing ? (await loadMaxSeq(persistence, runId)) + 1 : 0,
+        journaledWrites: existing ? await loadJournaledWrites(persistence, runId) : [],
+      }
+    }
+    const persist = makePersistenceRuntime({ ...deps, persistence })
+    yield* withPersistence(agentChatHandlerInner(req, deps, runId, persist), persist, runId)
+  } catch {
+    yield mkEvent(runId, 'status', { payload: { status: 'error', error: 'PERSISTENCE_UNAVAILABLE' } }, deps.now ?? (() => new Date()))
+  }
 }
 
 async function* agentChatHandlerInner(
@@ -539,11 +554,7 @@ async function* agentChatHandlerInner(
     return
   }
 
-  // ── Yield the last user message ─────────────────────────────────────────────
   const lastUserMsg = req.messages.filter((m) => m.role === 'user').at(-1)
-  if (lastUserMsg) {
-    yield emit('user', { text: typeof lastUserMsg.content === 'string' ? lastUserMsg.content : undefined })
-  }
 
   // ── Build system prompt (GROUNDING, FR-P2-GR-001) ───────────────────────────
   const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP)
@@ -569,6 +580,11 @@ async function* agentChatHandlerInner(
       { role: 'system', content: system },
       ...req.messages.map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : null })),
     ]
+  }
+
+  // Read prior history before the submitted turn becomes part of that history.
+  if (lastUserMsg) {
+    yield emit('user', { text: typeof lastUserMsg.content === 'string' ? lastUserMsg.content : undefined })
   }
 
   // ── Tool-use loop ────────────────────────────────────────────────────────────
