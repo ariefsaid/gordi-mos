@@ -398,6 +398,24 @@ describe('TaskCreateForm — discard, busy and retry', () => {
   })
 })
 
+describe('TaskCreateForm — partial creation recovery', () => {
+  it.each([
+    ['en', 'Task created, but not everyone could be added.'],
+    ['id', 'Tugas sudah dibuat, tetapi belum semua orang dapat ditambahkan.'],
+  ] as const)('explains the locked retry in %s', (locale, message) => {
+    renderForm({ task: makeDraft({ title: 'Plan' }) }, (form) => (
+      <I18nProvider initialLocale={locale}>
+        <TaskCreateContext.Provider value={{
+          workLineOptions: [], onEditDue: async () => {}, onEditWorkLine: async () => {},
+          formState: { pending: false, saveError: true, created: true },
+        }}>{form}</TaskCreateContext.Provider>
+      </I18nProvider>
+    ))
+    expect(screen.getByRole('alert')).toHaveTextContent(message)
+    expect(screen.getByRole('textbox', { name: locale === 'id' ? 'Judul' : 'Title' })).toBeDisabled()
+  })
+})
+
 describe('TaskCreateForm — title length (#1034)', () => {
   it('stops the Title at the shared limit when a long text is pasted', async () => {
     const user = userEvent.setup()
