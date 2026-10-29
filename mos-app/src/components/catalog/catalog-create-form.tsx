@@ -131,7 +131,7 @@ export function CatalogCreateForm({ draft }: { draft: CatalogCreateDraft }) {
             disabled={draft.adding || Boolean(draft.businessUnitRequired && draft.businessUnitUnavailable)}
           />
           {draft.businessUnitLoading && <p role="status">{t('common.loading')}</p>}
-          {draft.businessUnitLoadError && <ErrorState message={t('catalog.record.editChoicesError')} onRetry={draft.onRetryBusinessUnits} />}
+          {draft.businessUnitLoadError && <ErrorState message={t('catalog.record.businessUnitsLoadError')} onRetry={draft.onRetryBusinessUnits} />}
           {businessUnitError && <p id={businessUnitErrorId} role="alert" className="ccf-error">{businessUnitError}</p>}
         </div>
       ) : null}

@@ -5,6 +5,7 @@
 import { useState } from 'react'
 import { Chip } from '@/components/ui/chip'
 import { Toggle } from '@/components/ui/toggle'
+import { ErrorState } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import type { PersonOption } from '@/lib/db/directory'
 import { PersonPicker } from './person-picker'
@@ -90,14 +91,7 @@ export function TaskPrivateRow({
           {loading ? (
             <p className="tpr__loading" role="status">{t('common.loading')}</p>
           ) : loadError ? (
-            <p role="alert" className="tpr__error">
-              {t('tasks.error.load')}
-              {onRetryLoad ? (
-                <button type="button" className="task-row-retry" onClick={onRetryLoad}>
-                  {t('common.retry')}
-                </button>
-              ) : null}
-            </p>
+            <ErrorState message={t('tasks.private.peopleLoadError')} onRetry={onRetryLoad} />
           ) : (
             <>
               {viewers.length === 0 ? <p className="tpr__nobody">{t('tasks.private.nobody')}</p> : null}

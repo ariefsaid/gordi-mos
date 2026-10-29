@@ -129,15 +129,18 @@ describe('TaskPrivateRow', () => {
       expect(screen.getByRole('switch', { name: 'Private' })).toBeDisabled()
     })
 
-    it('renders error state with retry on failure without zero-viewer result', async () => {
+    it.each([
+      { locale: 'en' as const, message: "Couldn't load people", retry: 'Try again', nobody: 'Nobody added.', add: 'Add person' },
+      { locale: 'id' as const, message: 'Tidak dapat memuat orang', retry: 'Coba lagi', nobody: 'Belum ada yang ditambahkan.', add: 'Tambah orang' },
+    ])('names the failed people read and retries in $locale without a zero-viewer result', async ({ locale, message, retry, nobody, add }) => {
       const onRetryLoad = vi.fn()
-      setup({ isPrivate: true, loadError: true, onRetryLoad, viewers: [] })
-      expect(screen.queryByText('Nobody added.')).toBeNull()
+      setup({ isPrivate: true, loadError: true, onRetryLoad, viewers: [] }, locale)
+      expect(screen.queryByText(nobody)).toBeNull()
       const alert = screen.getByRole('alert')
-      expect(alert).toHaveTextContent("Couldn't load tasks")
-      const retryBtn = screen.getByRole('button', { name: 'Try again' })
+      expect(alert).toHaveTextContent(message)
+      const retryBtn = screen.getByRole('button', { name: retry })
       expect(retryBtn).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Add person' })).toBeNull()
+      expect(screen.queryByRole('button', { name: add })).toBeNull()
 
       await userEvent.click(retryBtn)
       expect(onRetryLoad).toHaveBeenCalledTimes(1)

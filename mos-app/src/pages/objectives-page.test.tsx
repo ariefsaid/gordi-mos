@@ -421,6 +421,7 @@ it.each([{ locale: 'en' as const, retry: 'Try again' }, { locale: 'id' as const,
   const form = await screen.findByRole('form', { name: createLabel })
   fireEvent.change(within(form).getByRole('textbox', { name: nameLabel }), { target: { value: 'Scoped objective' } })
   const retry = await within(form).findByRole('button', { name: retryLabel })
+  expect(within(form).getByRole('alert')).toHaveTextContent(locale === 'en' ? "Couldn't load business units" : 'Tidak dapat memuat unit bisnis')
   fireEvent.submit(form)
   expect(createObjective).not.toHaveBeenCalled()
   fireEvent.click(retry)
