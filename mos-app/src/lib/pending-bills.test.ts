@@ -137,6 +137,36 @@ describe('AC-1134: payment form validation keeps invalid submissions off', () =>
     // More than two decimals is refused in the form even when it rounds to the remaining balance.
     expect(validate({ amount: '1000.001', cashInDate: '2026-10-06', hasProof: true, balance: 1000, today: '2026-10-06' }).errors).toEqual({ amount: 'invalid' })
   })
+
+  it('AC-1888: strictly validates cashInDate with shared calendar validator', async () => {
+    const { validatePendingBillPaymentForm } = await import('./pending-bills')
+    const base = { amount: '1000', hasProof: true, balance: 1000, today: '2026-10-06' }
+
+    // Valid dates
+    expect(validatePendingBillPaymentForm({ ...base, cashInDate: '2026-10-06' }).canSubmit).toBe(true)
+    expect(validatePendingBillPaymentForm({ ...base, cashInDate: '2026-09-30' }).canSubmit).toBe(true)
+
+    // Future date
+    expect(validatePendingBillPaymentForm({ ...base, cashInDate: '2026-10-07' }).errors).toEqual({ cashInDate: 'future' })
+
+    // Required/empty
+    expect(validatePendingBillPaymentForm({ ...base, cashInDate: '' }).errors).toEqual({ cashInDate: 'required' })
+
+    // Malformed dates
+    expect(validatePendingBillPaymentForm({ ...base, cashInDate: 'not-a-date' }).errors).toEqual({ cashInDate: 'invalid' })
+    expect(validatePendingBillPaymentForm({ ...base, cashInDate: '2026/10/06' }).errors).toEqual({ cashInDate: 'invalid' })
+    expect(validatePendingBillPaymentForm({ ...base, cashInDate: '2026-1-1' }).errors).toEqual({ cashInDate: 'invalid' })
+
+    // Invalid month/day
+    expect(validatePendingBillPaymentForm({ ...base, cashInDate: '2026-13-01' }).errors).toEqual({ cashInDate: 'invalid' })
+    expect(validatePendingBillPaymentForm({ ...base, cashInDate: '2026-00-10' }).errors).toEqual({ cashInDate: 'invalid' })
+    expect(validatePendingBillPaymentForm({ ...base, cashInDate: '2026-04-31' }).errors).toEqual({ cashInDate: 'invalid' })
+    expect(validatePendingBillPaymentForm({ ...base, cashInDate: '2026-02-30' }).errors).toEqual({ cashInDate: 'invalid' })
+
+    // Leap day handling
+    expect(validatePendingBillPaymentForm({ ...base, cashInDate: '2026-02-29' }).errors).toEqual({ cashInDate: 'invalid' })
+    expect(validatePendingBillPaymentForm({ ...base, cashInDate: '2024-02-29', today: '2024-03-01' }).canSubmit).toBe(true)
+  })
 })
 
 describe('multi-bill payment selection', () => {

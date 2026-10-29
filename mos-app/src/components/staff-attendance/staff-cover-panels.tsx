@@ -10,16 +10,11 @@ import {
   offerStaffShift, reportStaffAbsence, staffNoteUrl, withdrawStaffClaim,
   type AbsenceKind, type AbsenceStatus, type CoverQueue, type HrAbsence, type MonthlyTotal, type MyAbsence, type OpenShiftsView,
 } from '@/lib/db/staff-cover'
+import { wibToday } from '@/lib/format/date'
 import './staff-shift-panels.css'
 import './staff-cover-panels.css'
 
 type FetchState = 'loading' | 'ready' | 'error'
-
-function jakartaToday(): string {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? ''
-  return `${get('year')}-${get('month')}-${get('day')}`
-}
 
 function addDays(date: string, days: number): string {
   const value = new Date(`${date}T12:00:00Z`)
@@ -108,7 +103,7 @@ function shiftKey(shift: StaffShift): string {
 /** My upcoming shifts for this week and next, standing-hours days included. */
 function useUpcomingShifts() {
   const load = useCallback(async () => {
-    const week = mondayOf(jakartaToday())
+    const week = mondayOf(wibToday())
     const [a, b] = await Promise.all([listMyStaffShifts(week), listMyStaffShifts(addDays(week, 7))])
     const now = Date.now()
     return [...a, ...b].filter((shift) => Date.parse(shift.end_at) > now)
@@ -127,7 +122,7 @@ export function AbsencePanel({ orgId }: { orgId: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState('')
-  const today = jakartaToday()
+  const today = wibToday()
   const options = (shifts.data ?? []).filter((shift) => kind !== 'sick' || shift.local_date === today)
   const chosen = options.find((shift) => shiftKey(shift) === key) ?? options[0]
 
@@ -315,7 +310,7 @@ export function RequestsPanel() {
       {data && data.uncovered.length > 0 && <section className="staff-attendance__subpanel" aria-label={tt('queue.uncovered')}>
         <h2>{tt('queue.uncovered')}</h2>
         {data.uncovered.map((row) => {
-          const options = data.candidates.filter((c) => c.site_id === row.site_id)
+          const options = data.candidates.filter((c) => c.site_id === row.site_id && c.person_id !== row.person_id)
           const pick = assignees[row.offer_id] ?? ''
           return <article className="staff-attendance__shift" key={row.offer_id}>
             <div className="staff-attendance__shift-main">
@@ -325,7 +320,7 @@ export function RequestsPanel() {
             {row.can_decide && <div className="staff-attendance__actions">
               <Select aria-label={tt('queue.assignPick')} value={pick} onChange={(e) => setAssignees({ ...assignees, [row.offer_id]: e.target.value })}>
                 <option value="">{tt('queue.assignNone')}</option>
-                {options.filter((c) => c.full_name !== row.person_name).map((c) => <option key={c.person_id} value={c.person_id}>{c.full_name}</option>)}
+                {options.map((c) => <option key={c.person_id} value={c.person_id}>{c.full_name}</option>)}
               </Select>
               <button type="button" className="staff-attendance__primary" disabled={!pick || busy === row.offer_id} onClick={() => act(row.offer_id, () => assignStaffCover(row.offer_id, pick))}>{tt('queue.assign')}</button>
             </div>}
@@ -379,7 +374,7 @@ export function RequestsPanel() {
 }
 
 function currentMonth(): string {
-  return jakartaToday().slice(0, 7)
+  return wibToday().slice(0, 7)
 }
 
 function Count({ value, tt }: { value: number | null; tt: StaffCoverText }) {

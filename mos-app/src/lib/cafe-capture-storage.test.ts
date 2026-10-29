@@ -37,6 +37,27 @@ describe('Cafe capture draft storage', () => {
     expect(cafeCaptureDraftStorageKey(BASE_SCOPE)).not.toBe(cafeCaptureDraftStorageKey({ ...BASE_SCOPE, personId: 'person-2' }))
   })
 
+  it('AC-1888: strictly validates logDate on scope using shared calendar validator', () => {
+    // Valid dates
+    expect(() => cafeCaptureDraftStorageKey({ ...BASE_SCOPE, logDate: '2026-10-02' })).not.toThrow()
+    expect(() => cafeCaptureDraftStorageKey({ ...BASE_SCOPE, logDate: '2024-02-29' })).not.toThrow()
+
+    // Malformed strings
+    expect(() => cafeCaptureDraftStorageKey({ ...BASE_SCOPE, logDate: 'not-a-date' })).toThrow(/Invalid Café capture draft scope/)
+    expect(() => cafeCaptureDraftStorageKey({ ...BASE_SCOPE, logDate: '2026/10/02' })).toThrow(/Invalid Café capture draft scope/)
+    expect(() => cafeCaptureDraftStorageKey({ ...BASE_SCOPE, logDate: '2026-1-1' })).toThrow(/Invalid Café capture draft scope/)
+    expect(() => cafeCaptureDraftStorageKey({ ...BASE_SCOPE, logDate: '' })).toThrow(/Invalid Café capture draft scope/)
+
+    // Invalid month/day
+    expect(() => cafeCaptureDraftStorageKey({ ...BASE_SCOPE, logDate: '2026-13-01' })).toThrow(/Invalid Café capture draft scope/)
+    expect(() => cafeCaptureDraftStorageKey({ ...BASE_SCOPE, logDate: '2026-00-10' })).toThrow(/Invalid Café capture draft scope/)
+    expect(() => cafeCaptureDraftStorageKey({ ...BASE_SCOPE, logDate: '2026-04-31' })).toThrow(/Invalid Café capture draft scope/)
+    expect(() => cafeCaptureDraftStorageKey({ ...BASE_SCOPE, logDate: '2026-02-30' })).toThrow(/Invalid Café capture draft scope/)
+
+    // Non-leap year leap day
+    expect(() => cafeCaptureDraftStorageKey({ ...BASE_SCOPE, logDate: '2026-02-29' })).toThrow(/Invalid Café capture draft scope/)
+  })
+
   it('lists other-date drafts without returning them from the current-date read', () => {
     writeCafeCaptureDraft({ ...BASE_SCOPE, logDate: '2026-10-01' }, { entries: ['yesterday'] })
     writeCafeCaptureDraft(BASE_SCOPE, { entries: ['today'] })
