@@ -13,14 +13,15 @@ interface EventRow {
 }
 
 /** Build a PersistenceDeps whose mos.agent_events select returns the given seq-ordered rows. */
-function depsReturning(rows: EventRow[]): PersistenceDeps {
+function depsReturning(rows: EventRow[], cap = 1000): PersistenceDeps {
   const supabase = {
     schema: () => ({
       from: () => ({
         select: () => ({
           eq: () => ({
             order: () => ({
-              limit: async () => ({ data: rows, error: null }),
+              limit: async () => ({ data: rows.slice(0, cap), error: null }),
+              range: (start: number, end: number) => ({ limit: async () => ({ data: rows.slice(start, Math.min(end + 1, start + cap)), error: null }) }),
             }),
           }),
         }),
@@ -105,19 +106,51 @@ describe('replayRunHistory — reconstruct ModelMessage[] from events (AC-P3-RP-
     ])
   })
 
-  it('returns [] when the read errors or yields no data (fail open — caller appends the new turn only)', async () => {
+  it('rejects a failed history read and accepts a genuinely empty history', async () => {
     const depsErr: PersistenceDeps = {
       ...depsReturning([]),
       supabase: {
         schema: () => ({
           from: () => ({
-            select: () => ({ eq: () => ({ order: () => ({ limit: async () => ({ data: null, error: { code: 'boom' } }) }) }) }),
+            select: () => ({ eq: () => ({ order: () => ({ limit: async () => ({ data: null, error: { code: 'boom' } }), range: () => ({ limit: async () => ({ data: null, error: { code: 'boom' } }) }) }) }) }),
           }),
         }),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
     }
-    expect(await replayRunHistory(depsErr, 'run-1')).toEqual([])
+    await expect(replayRunHistory(depsErr, 'run-1')).rejects.toThrow('PERSISTENCE_UNAVAILABLE')
     expect(await replayRunHistory(depsReturning([]), 'run-1')).toEqual([])
   })
+})
+
+
+it('replays recent turns and complete multi-tool pairs spanning capped pages beyond 1000 events', async () => {
+  const rows: EventRow[] = Array.from({ length: 999 }, () => ({ type: 'status' }))
+  rows.push(
+    { type: 'assistant', payload: { tool_calls: [
+      { id: 'call-a', type: 'function', function: { name: 'query_entity', arguments: '{}' } },
+      { id: 'call-b', type: 'function', function: { name: 'query_entity', arguments: '{}' } },
+    ] } },
+    { type: 'tool', payload: { tool_call_id: 'call-a', result: 'first' } },
+    { type: 'tool', payload: { tool_call_id: 'call-b', result: 'second' } },
+    { type: 'user', text: 'recent message' },
+  )
+  const messages = await replayRunHistory(depsReturning(rows, 2), 'run-1')
+  expect(messages.map(message => message.role)).toEqual(['assistant', 'tool', 'tool', 'user'])
+  expect(messages[0].tool_calls?.map(call => call.id)).toEqual(['call-a', 'call-b'])
+  expect(messages.slice(1, 3).map(message => message.tool_call_id)).toEqual(['call-a', 'call-b'])
+  expect(messages.at(-1)?.content).toBe('recent message')
+})
+
+it.each(['missing', 'duplicate', 'interrupted'] as const)('rejects a %s result in a completed tool batch before model replay', async mode => {
+  const rows: EventRow[] = [
+    { type: 'assistant', payload: { tool_calls: [
+      { id: 'call-a', type: 'function', function: { name: 'query_entity', arguments: '{}' } },
+      { id: 'call-b', type: 'function', function: { name: 'query_entity', arguments: '{}' } },
+    ] } },
+    { type: 'tool', payload: { tool_call_id: 'call-a', result: 'first' } },
+  ]
+  if (mode === 'duplicate') rows.push({ type: 'tool', payload: { tool_call_id: 'call-a', result: 'duplicate' } })
+  if (mode === 'interrupted') rows.push({ type: 'user', text: 'new turn before the pair completes' })
+  await expect(replayRunHistory(depsReturning(rows), 'run-1')).rejects.toThrow('PERSISTENCE_UNAVAILABLE')
 })

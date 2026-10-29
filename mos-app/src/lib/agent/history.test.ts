@@ -17,15 +17,20 @@ const schemaMock = vi.mocked(supabase.schema)
 
 /** A chainable query-builder recorder: each .from(table) returns a builder whose terminal
  *  awaited result is the queued response for that table. */
-function makeSchema(responses: Record<string, { data: unknown; error: unknown }>) {
+function makeSchema(responses: Record<string, { data: unknown; error: unknown }>, cap = 1000) {
   const fromImpl = (table: string) => {
     const result = responses[table] ?? { data: null, error: null }
     const builder: Record<string, unknown> = {}
     builder.select = vi.fn(() => builder)
     builder.eq = vi.fn(() => builder)
     builder.order = vi.fn(() => builder)
-    builder.limit = vi.fn(() => builder)
-    builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve)
+    let offset = 0
+    let count = cap
+    builder.range = vi.fn((start: number, end: number) => { offset = start; count = Math.min(cap, end - start + 1); return builder })
+    builder.limit = vi.fn((limit: number) => { count = Math.min(cap, limit); return builder })
+    builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve({
+      ...result, data: Array.isArray(result.data) ? result.data.slice(offset, offset + count) : result.data,
+    }).then(resolve)
     return builder
   }
   return { from: vi.fn(fromImpl) }
@@ -145,4 +150,31 @@ describe('listThreads (T7, AC-P3-RP-003 ThreadList)', () => {
     const threads = await listThreads()
     expect(threads).toEqual([])
   })
+})
+
+
+it('reopens the recent messages after more than 1000 events under a smaller server cap', async () => {
+  const events = Array.from({ length: 1001 }, (_, index) => ({ id: `status-${index}`, type: 'status', text: null, payload: {} }))
+  const rows = [...events,
+    { id: 'recent-user', type: 'user', text: 'recent question', payload: {} },
+    { id: 'recent-assistant', type: 'assistant', text: 'recent answer', payload: {} },
+  ]
+  schemaMock.mockReturnValue(makeSchema({
+    agent_runs: { data: [{ id: 'saved-run' }], error: null },
+    agent_events: { data: rows, error: null },
+  }, 2) as never)
+  expect(await loadThreadForDisplay('saved-thread')).toEqual({
+    activeRunId: 'saved-run', transcript: [
+      { id: 'recent-user', role: 'user', text: 'recent question' },
+      { id: 'recent-assistant', role: 'assistant', text: 'recent answer' },
+    ],
+  })
+})
+
+it('does not bind an active run when its event history cannot be read', async () => {
+  schemaMock.mockReturnValue(makeSchema({
+    agent_runs: { data: [{ id: 'saved-run' }], error: null },
+    agent_events: { data: null, error: { code: 'unavailable' } },
+  }) as never)
+  expect(await loadThreadForDisplay('saved-thread')).toEqual({ activeRunId: null, transcript: [] })
 })

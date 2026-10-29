@@ -37,9 +37,9 @@ function makeReplayMockSupabase() {
           select: () => ({
             eq: () => ({
               // replay read: mos.agent_events ordered by seq
-              order: () => ({ limit: async () => ({ data: REPLAY_FIXTURE, error: null }) }),
+              order: () => ({ limit: async () => ({ data: REPLAY_FIXTURE, error: null }), range: (start: number, end: number) => ({ limit: async () => ({ data: REPLAY_FIXTURE.slice(start, end + 1), error: null }) }) }),
               limit: async () => ({ data: [], error: null }),
-              maybeSingle: async () => ({ data: null, error: null }),
+              maybeSingle: async () => ({ data: table === 'agent_runs' ? { id: 'run-1' } : null, error: null }),
               single: async () => ({ data: null, error: null }),
             }),
             in: () => ({ limit: async () => ({ data: [], error: null }) }),
