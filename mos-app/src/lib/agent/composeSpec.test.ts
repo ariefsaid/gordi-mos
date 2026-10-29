@@ -62,7 +62,7 @@ describe('compose-view/composeSpec — compose+repair loop (T8)', () => {
     const invalidSpec = { version: 1, panels: [{ id: 'p1', primitive: 'KPITile', querySpec: { entity: 'not_real', select: ['id'] } }] }
     const requests: ModelClientParams[] = []
     const modelClient: ModelClient = {
-      create: vi.fn(async (params) => {
+      create: vi.fn(async (params): Promise<ModelResponse> => {
         requests.push(params)
         if (requests.length === 1) {
           return {
