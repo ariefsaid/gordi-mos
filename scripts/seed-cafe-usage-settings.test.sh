@@ -34,8 +34,8 @@ assert_before() { # $1 name · $2 file · $3 earlier fixed string · $4 later fi
   else fail=$((fail+1)); printf '  FAIL  %s — %s not before %s\n' "$1" "$3" "$4"; fi
 }
 
-LOCAL_URL='postgresql://postgres:postgres@127.0.0.1:44322/postgres'
-REMOTE_URL='postgresql://postgres:secretpw@db.example.invalid:5432/postgres'
+LOCAL_URL='postgresql://postgres@127.0.0.1:44322/postgres'
+REMOTE_URL='postgresql://postgres@db.example.invalid:5432/postgres'
 COMMON=(--esb-code TEST --branch-map 11=branch_a,12=branch_b --as-of 2026-03-31)
 
 # Window for as-of 2026-03-31 is 2026-03-01 ..< 2026-03-31.

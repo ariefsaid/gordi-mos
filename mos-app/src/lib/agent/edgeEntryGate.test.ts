@@ -161,7 +161,9 @@ function mockAssistantClients(settings: AssistantSettings) {
   const getUser = vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null }))
   const verifier = { auth: { getUser } }
   const queries = new Map<string, { eq: ReturnType<typeof vi.fn> }>()
+  const rpc = vi.fn().mockResolvedValue({ data: null, error: null })
   const serviceRole = { schema: vi.fn(() => ({
+    rpc,
     from: vi.fn((table: string) => {
       const result = table === 'org_module_settings' ? settings.org : settings.person
       const query = {
@@ -178,7 +180,7 @@ function mockAssistantClients(settings: AssistantSettings) {
   createClient.mockReturnValueOnce(verifier as never)
     .mockReturnValueOnce(serviceRole as never)
     .mockReturnValue({} as never)
-  return { getUser, queries }
+  return { getUser, queries, rpc }
 }
 
 const enabledOrg = { data: { enabled: true }, error: null }
@@ -249,5 +251,69 @@ describe('compose-view Assistant gate ordering', () => {
     const response = await postAssistantEntry(serve, '{')
     expect(response.status).toBe(403)
     expect(await response.json()).toMatchObject({ error: 'MODULE_OFF' })
+  })
+})
+
+describe('compose-view request body limits', () => {
+  beforeEach(() => { createClient.mockReset() })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it.each([undefined, '1'])('rejects an oversized streamed body with content length %s', async (length) => {
+    mockAssistantClients({ org: enabledOrg, person: inheritPerson })
+    const serve = await loadServe(composeViewLoad, { AGENT_MODEL_DEFAULT: 'm', AGENT_MODEL_API_KEY: 'k', AGENT_MODEL_BASE_URL: 'http://model' })
+    const jwt = makeJwt({ org_id: 'org-1', person_id: 'person-1', access_roles: [] })
+    const headers: Record<string, string> = { Authorization: `Bearer ${jwt}` }
+    if (length) headers['Content-Length'] = length
+    const response = await serve(new Request('http://localhost/fn', { method: 'POST', headers, body: 'x'.repeat(1_048_577) }))
+    expect(response.status).toBe(413)
+  })
+
+  it.each(['null', '[]', '{"prompt":123,"orgId":"org-1"}'])('rejects invalid shape %s', async (body) => {
+    mockAssistantClients({ org: enabledOrg, person: inheritPerson })
+    const serve = await loadServe(composeViewLoad, { AGENT_MODEL_DEFAULT: 'm', AGENT_MODEL_API_KEY: 'k', AGENT_MODEL_BASE_URL: 'http://model' })
+    expect((await postAssistantEntry(serve, body)).status).toBe(400)
+  })
+})
+
+
+describe.each(ASSISTANT_GATED)('%s usage gate', (name, load) => {
+  beforeEach(() => { createClient.mockReset() })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('allows a request after a successful reservation', async () => {
+    const { rpc } = mockAssistantClients({ org: enabledOrg, person: inheritPerson })
+    rpc.mockResolvedValueOnce({ data: 'reservation', error: null }).mockResolvedValueOnce({ data: null, error: null })
+    const message = name === 'compose-view'
+      ? { role: 'assistant', content: null, tool_calls: [{ id: 'call', type: 'function', function: {
+          name: 'compose_view', arguments: JSON.stringify({ version: 1, panels: [{ id: 'p1', primitive: 'KPITile', querySpec: { entity: 'objectives', select: ['id', 'name'] } }] }),
+        } }] }
+      : { role: 'assistant', content: 'ok' }
+    const fetchProvider = vi.fn(async () => new Response(JSON.stringify({
+      model: 'm', choices: [{ finish_reason: name === 'compose-view' ? 'tool_calls' : 'stop', message }],
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchProvider)
+    const serve = await loadServe(load, { AGENT_MODEL_DEFAULT: 'm', AGENT_MODEL_API_KEY: 'k', AGENT_MODEL_BASE_URL: 'http://model', AGENT_PERSISTENCE: 'false' })
+    const body = name === 'compose-view'
+      ? JSON.stringify({ orgId: 'org-1', prompt: 'build a view' })
+      : JSON.stringify({ messages: [{ role: 'user', content: 'hello' }] })
+    const response = await postAssistantEntry(serve, body)
+    const output = await response.text()
+    expect(response.status).toBe(200)
+    if (name === 'agent-chat') expect(output).toContain('completed')
+    expect(fetchProvider).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not call the provider when usage is denied', async () => {
+    const { rpc } = mockAssistantClients({ org: enabledOrg, person: inheritPerson })
+    const fetchProvider = vi.fn()
+    vi.stubGlobal('fetch', fetchProvider)
+    const serve = await loadServe(load, { AGENT_MODEL_DEFAULT: 'm', AGENT_MODEL_API_KEY: 'k', AGENT_MODEL_BASE_URL: 'http://model', AGENT_PERSISTENCE: 'false' })
+    const body = name === 'compose-view'
+      ? JSON.stringify({ orgId: 'org-1', prompt: 'build a view' })
+      : JSON.stringify({ messages: [{ role: 'user', content: 'hello' }] })
+    const response = await postAssistantEntry(serve, body)
+    await response.text()
+    expect(rpc).toHaveBeenCalledWith('reserve_assistant_usage', expect.any(Object))
+    expect(fetchProvider).not.toHaveBeenCalled()
   })
 })
