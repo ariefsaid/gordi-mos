@@ -210,6 +210,8 @@ begin
       select o.name, ops.staff_note_absence_id(o.name) as absence_id from storage.objects o
        where o.bucket_id = 'staff-notes' and o.name like v_org.id::text || '/%'
          and ops.staff_note_absence_id(o.name) is not null and o.created_at <= v_now - interval '1 hour'
+         and not exists (select 1 from ops.staff_absences a where a.org_id = v_org.id and a.note_path = o.name)
+         and not exists (select 1 from ops.attendance_selfie_purge_queue q where q.bucket = 'staff-notes' and q.path = o.name)
     loop
       perform pg_advisory_xact_lock(hashtextextended('staff-note:' || v_row.absence_id::text, 0));
       insert into ops.attendance_selfie_purge_queue (path, org_id, bucket, queued_at)
