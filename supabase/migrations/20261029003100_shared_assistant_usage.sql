@@ -1,4 +1,4 @@
--- DOWN: run supabase/rollbacks/20261029001100_shared_assistant_usage.sql.
+-- DOWN: run supabase/rollbacks/20261029003100_shared_assistant_usage.sql.
 create table shared.assistant_usage (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references shared.orgs(id),
