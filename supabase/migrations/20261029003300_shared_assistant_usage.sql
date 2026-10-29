@@ -1,4 +1,4 @@
--- DOWN: run supabase/rollbacks/20261029003100_shared_assistant_usage.sql.
+-- DOWN: run supabase/rollbacks/20261029003300_shared_assistant_usage.sql.
 create table shared.assistant_usage (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references shared.orgs(id),
@@ -54,7 +54,7 @@ create function shared.finish_assistant_usage(p_id uuid)
 returns void language sql security definer set search_path = '' as $$
   update shared.assistant_usage set finished_at = clock_timestamp() where id = p_id and finished_at is null;
 $$;
-revoke all on function shared.reserve_assistant_usage(uuid,uuid,integer) from public, anon, authenticated;
-revoke all on function shared.finish_assistant_usage(uuid) from public, anon, authenticated;
+revoke execute on function shared.reserve_assistant_usage(uuid,uuid,integer) from public, anon, authenticated;
+revoke execute on function shared.finish_assistant_usage(uuid) from public, anon, authenticated;
 grant execute on function shared.reserve_assistant_usage(uuid,uuid,integer) to service_role;
 grant execute on function shared.finish_assistant_usage(uuid) to service_role;
