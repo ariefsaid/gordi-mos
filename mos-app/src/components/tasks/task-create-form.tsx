@@ -88,6 +88,7 @@ export function TaskCreateForm({
   const setPending = (next: boolean) => { setLocalPending(next); onFormStateChange?.({ pending: next }) }
   // Once created, retries finish the saved draft without accepting further edits.
   const fieldsLocked = pending || linkError || Boolean(formState?.created)
+  const savedSetupIncomplete = linkError || Boolean(formState?.created)
   const [localPrivate, setLocalPrivate] = useState<{ isPrivate: boolean; viewerIds: string[] }>({ isPrivate: false, viewerIds: [] })
   const isPrivate = formState?.isPrivate ?? localPrivate.isPrivate
   const viewerIds = formState?.viewerIds ?? localPrivate.viewerIds
@@ -309,18 +310,30 @@ export function TaskCreateForm({
   )
 
   const cancelButton = <button type="button" className="btn btn-outline" disabled={pending} onClick={onCancel}>{t('common.cancel')}</button>
-  const createButton = (
+  const retryButton = savedSetupIncomplete && !pending ? (
+    <button
+      type="button"
+      className="btn btn-primary"
+      disabled={offline}
+      aria-describedby={offline ? offlineReasonId : undefined}
+      onClick={() => { if (linkError) onRetryLink?.(title.trim()); else trySubmit() }}
+    >
+      {t('record.field.retry')}
+    </button>
+  ) : null
+  const createButton = retryButton ? null : (
     <button
       type="submit"
       form={formId}
       className={`btn ${ready ? 'btn-primary' : 'btn-outline'}`}
-      disabled={pending || offline}
+      disabled={pending || offline || savedSetupIncomplete}
       aria-busy={pending || undefined}
       aria-describedby={offline ? offlineReasonId : undefined}
     >
       {pending ? t('tasks.create.submitting') : t('tasks.create.submit')}
     </button>
   )
+  const primaryAction = retryButton ?? createButton
 
   return (
     <>
@@ -365,20 +378,18 @@ export function TaskCreateForm({
           />
           {titleError && <p id={titleErrorId} role="alert" className="tcf-error">{titleError}</p>}
         </div>
-        {phoneBar ? null : <div className="rp-head__primary tcf-actions">{cancelButton}{createButton}</div>}
+        {phoneBar ? null : <div className="rp-head__primary tcf-actions">{cancelButton}{primaryAction}</div>}
       </div>
-      <p className="tcf-draftnote">{t(formState?.created ? 'tasks.create.createdNote' : 'tasks.create.draftNote')}</p>
+      {savedSetupIncomplete ? (
+        <p role="status" className="tcf-draftnote">
+          {t(linkError ? 'tasks.create.linkFailed' : saveError ? 'tasks.create.partialFailed' : 'tasks.create.createdNote')}
+        </p>
+      ) : <p className="tcf-draftnote">{t('tasks.create.draftNote')}</p>}
       {offline && !phoneBar ? <p id={offlineReasonId} role="status" className="tcf-error">{t('tasks.create.offline')}</p> : null}
 
-      {linkError && (
+      {saveError && !savedSetupIncomplete && (
         <p role="alert" className="tcf-error tcf-save-error">
-          {t('tasks.create.linkFailed')}
-          <button type="button" className="task-row-retry" onClick={() => onRetryLink?.(title.trim())}>{t('record.field.retry')}</button>
-        </p>
-      )}
-      {saveError && (
-        <p role="alert" className="tcf-error tcf-save-error">
-          {t(formState?.created ? 'tasks.create.partialFailed' : 'record.field.saveError')}
+          {t('record.field.saveError')}
           <button type="button" className="task-row-retry" onClick={trySubmit}>{t('record.field.retry')}</button>
         </p>
       )}
@@ -397,7 +408,7 @@ export function TaskCreateForm({
         reason={offline ? t('tasks.create.offline') : undefined}
         reasonId={offlineReasonId}
         secondary={cancelButton}
-        primary={createButton}
+        primary={primaryAction}
       />
     ) : null}
     </>
