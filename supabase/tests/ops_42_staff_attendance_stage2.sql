@@ -439,15 +439,16 @@ update ops.staff_absences set note_added_at = null where id = current_setting('a
 insert into storage.objects (bucket_id, name, created_at) values
  ('staff-notes', pg_temp.p('a1') || '/' || current_setting('app.a1') || '/' || pg_temp.p('c004') || '.jpg', ops._attendance_now() - interval '2 hours'),
  ('staff-notes', pg_temp.p('a1') || '/' || current_setting('app.a1') || '/' || pg_temp.p('c005') || '.jpg', ops._attendance_now() - interval '2 hours'),
- ('staff-notes', pg_temp.p('a1') || '/' || current_setting('app.a1') || '/' || pg_temp.p('c006') || '.jpg', ops._attendance_now());
+ ('staff-notes', pg_temp.p('a1') || '/' || current_setting('app.a1') || '/' || pg_temp.p('c006') || '.jpg', ops._attendance_now()),
+ ('staff-notes', pg_temp.p('a1') || '/' || pg_temp.p('a998') || '/' || pg_temp.p('c009') || '.jpg', ops._attendance_now() - interval '2 hours');
 set local role authenticated;
 select pg_temp.as_('f101');
 select is((select count(*)::int from storage.objects where bucket_id = 'staff-notes'), 0, 'unattached uploads cannot be read');
 select lives_ok(format($f$select ops.attach_staff_absence_note(%L, %L)$f$, current_setting('app.a1'), pg_temp.p('a1') || '/' || current_setting('app.a1') || '/' || pg_temp.p('c004') || '.jpg'), 'the owner can attach an uploaded note');
 select is((select count(*)::int from storage.objects where bucket_id = 'staff-notes'), 1, 'only the attached upload is readable');
 reset role;
-select is((ops.run_attendance_jobs()->>'notes_queued')::int, 1, 'an old extra upload is queued');
-select is((select count(*)::int from ops.attendance_selfie_purge_queue where path like '%/' || pg_temp.p('c005') || '.jpg' and bucket = 'staff-notes'), 1, 'the extra upload reaches the existing purge queue');
+select is((ops.run_attendance_jobs()->>'notes_queued')::int, 2, 'old extra and abandoned uploads are queued');
+select is((select count(*)::int from ops.attendance_selfie_purge_queue where path like any(array['%/' || pg_temp.p('c005') || '.jpg', '%/' || pg_temp.p('c009') || '.jpg']) and bucket = 'staff-notes'), 2, 'extra and abandoned uploads reach the existing purge queue');
 select is((select count(*)::int from ops.attendance_selfie_purge_queue where path like any(array['%/' || pg_temp.p('c004') || '.jpg', '%/' || pg_temp.p('c006') || '.jpg'])), 0, 'attached and recent uploads are retained');
 select is((ops.run_attendance_jobs()->>'notes_queued')::int, 0, 'the sweep is idempotent');
 set local role authenticated;
