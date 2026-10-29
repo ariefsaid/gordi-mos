@@ -1970,7 +1970,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     mockUpdateTaskFields.mockRejectedValue(new Error('offline'))
     fireEvent.change(due, { target: { value: '2026-08-01' } })
     fireEvent.keyDown(due, { key: 'Enter' })
-    await screen.findByRole('alert')
+    expect(await screen.findByText("Couldn't save — try again.")).toHaveAttribute('role', 'alert')
 
     fireEvent.click(screen.getByRole('button', { name: /close/i }))
     expect(await screen.findByRole('dialog')).toHaveTextContent(/discard unsaved changes/i)
@@ -1983,7 +1983,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     // The field remains usable after Stay; make a fresh failed draft before exercising Discard.
     fireEvent.change(screen.getByLabelText('Due'), { target: { value: '2026-08-02' } })
     fireEvent.keyDown(screen.getByLabelText('Due'), { key: 'Enter' })
-    await screen.findByRole('alert')
+    expect(await screen.findByText("Couldn't save — try again.")).toHaveAttribute('role', 'alert')
     fireEvent.click(screen.getByRole('button', { name: /close/i }))
     fireEvent.click(await screen.findByRole('button', { name: /discard changes/i }))
     await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeNull())
