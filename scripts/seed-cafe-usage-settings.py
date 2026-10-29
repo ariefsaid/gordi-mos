@@ -432,6 +432,7 @@ def run_psql(psql: str, sql: str, db_url: str) -> dict:
     credential_path = None
     try:
         env = os.environ.copy()
+        env.pop("CAFE_USAGE_SEED_DB_URL", None)
         if password is not None:
             with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as credentials:
                 credential_path = credentials.name
@@ -504,6 +505,12 @@ def main() -> None:
     db_url = args.db_url or os.environ.get("CAFE_USAGE_SEED_DB_URL", "")
     if not db_url and not (args.dry_run or args.print_usage_sql):
         die("--db-url (or env CAFE_USAGE_SEED_DB_URL) is required for a real run")
+    if db_url:
+        _, password = separate_password(db_url)
+        query = urlsplit(db_url).query.split("&")
+        has_service = any(unquote(item.partition("=")[0]) == "service" for item in query)
+        if password is not None and (has_service or os.environ.get("PGSERVICE")):
+            die("explicit-password database URLs must not select a service")
     if db_url and not args.print_usage_sql:
         guard_db_url(db_url, args.allow_remote)
 

@@ -16,6 +16,7 @@ class CredentialsTest(unittest.TestCase):
             fake.write_text('''#!/usr/bin/env python3
 import json, os, pathlib, stat, sys
 from urllib.parse import parse_qs, urlsplit
+assert 'CAFE_USAGE_SEED_DB_URL' not in os.environ
 p = pathlib.Path(os.environ['PGPASSFILE'])
 assert stat.S_IMODE(p.stat().st_mode) == 0o600
 assert p.read_text() == os.environ['EXPECTED']
@@ -39,6 +40,28 @@ sys.exit(int(os.environ.get('FAIL', '0')))
                 result = subprocess.run([sys.executable, str(SCRIPT), '--rollback', str(manifest), '--psql', str(fake)], env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0 if fail == '0' else 3, result.stderr)
                 self.assertFalse(pathlib.Path(record.read_text()).exists())
+
+    def test_explicit_password_and_service_are_refused_before_input(self):
+        base = dict(os.environ)
+        base.pop('PGSERVICE', None)
+        for service_url, inherited in ((True, False), (False, True)):
+            url = 'postgresql://alice:secret@localhost/db'
+            if service_url:
+                url += '?%73ervice=fake'
+            env = dict(base, CAFE_USAGE_SEED_DB_URL=url)
+            if inherited:
+                env['PGSERVICE'] = 'fake'
+            result = subprocess.run([sys.executable, str(SCRIPT), '--rollback', '/nonexistent', '--dry-run'], env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn('service', result.stderr)
+            self.assertNotIn('secret', result.stderr)
+            self.assertNotIn('manifest unreadable', result.stderr)
+        env = dict(base, CAFE_USAGE_SEED_DB_URL='postgresql://alice:secret@localhost/db', PGSERVICEFILE='/nonexistent')
+        result = subprocess.run([sys.executable, str(SCRIPT), '--rollback', '/nonexistent', '--dry-run'], env=env, capture_output=True, text=True)
+        self.assertIn('manifest unreadable', result.stderr)
+        env = dict(base, CAFE_USAGE_SEED_DB_URL='postgresql://alice@localhost/db?service=fake', PGSERVICE='fake')
+        result = subprocess.run([sys.executable, str(SCRIPT), '--esb-code', 'TEST', '--branch-map', '1=a', '--print-usage-sql'], env=env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_cli_passwords_are_rejected_without_echo(self):
         for url in ('postgresql://alice:secret@localhost/db', 'postgresql://alice@localhost/db?%70assword=secret'):
