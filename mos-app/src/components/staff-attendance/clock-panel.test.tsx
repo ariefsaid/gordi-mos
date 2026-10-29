@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
@@ -44,6 +44,10 @@ beforeEach(() => {
   vi.mocked(compressSelfie).mockResolvedValue(new Blob(['small'], { type: 'image/jpeg' }))
   vi.mocked(beginClockIn).mockResolvedValue({ ok: true, attempt_id: 'attempt-1', org_id: 'org-1', shift_end_at: shift.end_at })
   vi.mocked(uploadAttendanceSelfie).mockResolvedValue(undefined)
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('ClockPanel', () => {
@@ -187,5 +191,136 @@ describe('ClockPanel', () => {
     renderPanel()
     expect(await screen.findByText(/no map point yet, so clock-in is unavailable/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Clock in' })).toBeDisabled()
+  })
+
+  it('AC-1888 leaving the clock open across a shift boundary selects the current eligible shift', async () => {
+    vi.useFakeTimers()
+    try {
+      const shift1: ClockShift = {
+        ...shift,
+        start_at: '2026-10-22T00:00:00Z',
+        opens_at: '2026-10-21T23:30:00Z',
+        end_at: '2026-10-22T08:00:00Z',
+        template_name: 'Pagi',
+        record: { id: 'rec-1', status: 'out', late: false, late_minutes: null, early_leave: false, early_minutes: null, closure: null, clock_in_at: '2026-10-22T00:00:00Z', clock_out_at: '2026-10-22T07:55:00Z' },
+      }
+      const shift2: ClockShift = {
+        ...shift,
+        start_at: '2026-10-22T01:00:00Z',
+        opens_at: '2026-10-22T00:30:00Z',
+        end_at: '2026-10-22T09:00:00Z',
+        template_name: 'Siang', site_name: 'Second site',
+        record: null,
+      }
+
+      const stateAt0020 = state({
+        now: '2026-10-22T00:20:00Z',
+        shifts: [shift1, shift2],
+      })
+      const stateAt0030 = state({
+        now: '2026-10-22T00:30:00Z',
+        shifts: [shift1, shift2],
+      })
+
+      vi.mocked(getMyClockState)
+        .mockResolvedValueOnce(stateAt0020)
+        .mockResolvedValue(stateAt0030)
+
+      renderPanel()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10)
+      })
+      expect(screen.getByText('HQ · Bar')).toBeInTheDocument()
+
+      // Advance by 10 minutes (600,000 ms) to shift2.opens_at boundary
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(600_000)
+      })
+
+      expect(screen.getByText('Second site · Bar')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('selects the next shift after the current shift ends', async () => {
+    vi.useFakeTimers()
+    const first = { ...shift, end_at: '2026-10-22T00:10:00Z' }
+    const second = { ...shift, site_name: 'Second site', start_at: '2026-10-22T00:10:00Z', opens_at: '2026-10-22T00:00:00Z' }
+    vi.mocked(getMyClockState).mockResolvedValueOnce(state({ shifts: [first, second] }))
+      .mockResolvedValue(state({ now: '2026-10-22T00:10:00Z', shifts: [first, second] }))
+    renderPanel()
+    await act(async () => { await vi.advanceTimersByTimeAsync(10) })
+    expect(screen.getByText('HQ · Bar')).toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(300_000) })
+    expect(screen.getByText('Second site · Bar')).toBeInTheDocument()
+  })
+
+  it('refreshes the rolling shift window when initially empty', async () => {
+    vi.useFakeTimers()
+    vi.mocked(getMyClockState).mockResolvedValueOnce(state({ shifts: [] })).mockResolvedValue(state())
+    renderPanel()
+    await act(async () => { await vi.advanceTimersByTimeAsync(10) })
+    expect(screen.getByText(/No shift to clock in for right now/)).toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_600_000) })
+    expect(screen.getByRole('button', { name: 'Clock in' })).toBeInTheDocument()
+  })
+
+  it('AC-1888 resuming the clock on visibility change or focus refreshes the authoritative shift snapshot', async () => {
+    const shift2: ClockShift = {
+      ...shift,
+      start_at: '2026-10-22T08:00:00Z',
+      opens_at: '2026-10-22T07:30:00Z',
+      end_at: '2026-10-22T16:00:00Z',
+      template_name: 'Siang', site_name: 'Second site',
+      record: null,
+    }
+    vi.mocked(getMyClockState)
+      .mockResolvedValueOnce(state())
+      .mockResolvedValue(state({ shifts: [shift2] }))
+
+    renderPanel()
+    await screen.findByRole('button', { name: 'Clock in' })
+    expect(getMyClockState).toHaveBeenCalledTimes(1)
+
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+
+    expect(await screen.findByText('Second site · Bar')).toBeInTheDocument()
+  })
+
+  it('AC-1888 unmount and stale responses do not overwrite newer state or throw errors', async () => {
+    let resolveFirst!: (val: ClockState) => void
+    let resolveSecond!: (val: ClockState) => void
+    const firstPromise = new Promise<ClockState>((res) => { resolveFirst = res })
+    const secondPromise = new Promise<ClockState>((res) => { resolveSecond = res })
+
+    vi.mocked(getMyClockState)
+      .mockImplementationOnce(() => firstPromise)
+      .mockImplementationOnce(() => secondPromise)
+
+    const { unmount } = renderPanel()
+
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'))
+    })
+
+    await act(async () => {
+      resolveSecond(state({ shifts: [{ ...shift, site_name: 'New site' }] }))
+    })
+
+    await act(async () => {
+      resolveFirst(state({ shifts: [{ ...shift, site_name: 'Old site' }] }))
+    })
+
+    expect(screen.getByText('New site · Bar')).toBeInTheDocument()
+    expect(screen.queryByText('Old site · Bar')).not.toBeInTheDocument()
+    let resolveAfterUnmount!: (val: ClockState) => void
+    vi.mocked(getMyClockState).mockImplementationOnce(() => new Promise((resolve) => { resolveAfterUnmount = resolve }))
+    await act(async () => { window.dispatchEvent(new Event('focus')) })
+    unmount()
+    await act(async () => { resolveAfterUnmount(state()) })
   })
 })

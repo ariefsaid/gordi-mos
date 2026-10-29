@@ -8,7 +8,7 @@
 -- org itself.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(39);
+select plan(44);
 
 select shared._test_seed_directory();
 
@@ -275,6 +275,35 @@ select is(
       "resolvedAggregate":{"fn":"count"}}'::jsonb)),
   1::numeric,
   'aggregate_compiled: the count covers only the caller''s OWN org — it is SECURITY INVOKER, so base-table RLS still filters what it sees');
+
+
+reset role;
+insert into mos.tasks (org_id, title, business_unit_id, responsible_person_id, accountable_person_id, created_by)
+select '00000000-0000-0000-0000-0000000000a1', 'Membership fixture',
+       '00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000d1',
+       '00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000d1'
+from generate_series(1, 501);
+insert into reporting.sales_daily_revenue (org_id, revenue_date, channel, esb_code, branch_code, transactions, clean_revenue, snapshot_as_of)
+values ('00000000-0000-0000-0000-0000000000a1', '2026-01-01', 'fixture', 'fixture', 'fixture', 7, 12, now());
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
+select is((select agg_value from mos.aggregate_compiled(
+  '{"entity":"tasks","resolvedTimeRange":{"column":"created_at","from":"2020-01-01","to":"2030-01-01"},"resolvedAggregate":{"fn":"count"},"resolvedFilters":[{"column":"business_unit_id","op":"in","value":["00000000-0000-0000-0000-0000000000a2","00000000-0000-0000-0000-0000000000b2"]}]}'::jsonb)), 502::numeric,
+  'UUID membership counts all matching rows beyond the client cap and excludes the other org');
+select is((select agg_value from mos.aggregate_compiled(
+  '{"entity":"tasks","resolvedTimeRange":{"column":"created_at","from":"2020-01-01","to":"2030-01-01"},"resolvedAggregate":{"fn":"count"},"resolvedFilters":[{"column":"title","op":"in","value":["Membership fixture"]}]}'::jsonb)), 501::numeric,
+  'text membership counts matching rows');
+select is((select agg_value from mos.aggregate_compiled(
+  '{"entity":"tasks","resolvedTimeRange":{"column":"created_at","from":"2020-01-01","to":"2030-01-01"},"resolvedAggregate":{"fn":"count"},"resolvedFilters":[{"column":"business_unit_id","op":"in","value":["00000000-0000-0000-0000-0000000000b2"]}]}'::jsonb)), 0::numeric,
+  'UUID membership with no visible match returns zero');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
+select is((select agg_value from mos.aggregate_compiled(
+  '{"entity":"tasks","resolvedTimeRange":{"column":"created_at","from":"2020-01-01","to":"2030-01-01"},"resolvedAggregate":{"fn":"count"},"resolvedFilters":[{"column":"business_unit_id","op":"in","value":["00000000-0000-0000-0000-0000000000a2","00000000-0000-0000-0000-0000000000b2"]}]}'::jsonb)), 1::numeric,
+  'UUID membership respects the other organization and member role');
+reset role;
+select is((select agg_value from mos.aggregate_compiled(
+  '{"entity":"sales_daily_revenue","resolvedTimeRange":{"column":"revenue_date","from":"2026-01-01","to":"2026-01-01"},"resolvedAggregate":{"fn":"sum","column":"clean_revenue"},"resolvedFilters":[{"column":"transactions","op":"in","value":[7,8]},{"column":"channel","op":"in","value":["fixture"]}]}'::jsonb)), 12::numeric,
+  'numeric and text membership preserve typed matching and sum');
 
 reset role;
 select * from finish();
