@@ -149,7 +149,7 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
   useEffect(() => {
     let active = true
     if (!draftKey || hydratedDraftKey !== draftKey) return () => { active = false }
-    const pending = photos.filter(photo => (photo.status === 'selected' || photo.status === 'error') && photo.file)
+    const pending = photos.filter(photo => (photo.status === 'selected' || photo.status === 'uploading' || photo.status === 'error') && photo.file)
     if (pending.length === 0) {
       setDraftSaveStatus('idle')
       void saveOfflinePhotoDraft(draftKey, [])
