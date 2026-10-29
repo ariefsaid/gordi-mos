@@ -78,12 +78,27 @@ export function BudgetPage() {
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const [selectedMenu, setSelectedMenu] = useState<string>(requestedMenu)
+  const [scenarioState, setScenarioState] = useState<{
+    menu: string
+    status: 'loading' | 'ready' | 'error'
+  }>({
+    menu: requestedMenu,
+    status: 'loading',
+  })
+  const [scenarioRetryKey, setScenarioRetryKey] = useState(0)
   const [scenarioLabel, setScenarioLabel] = useState('Baseline')
   const [scenarioType, setScenarioType] = useState<BudgetRow['scenario_type']>('baseline')
   const [owningBu, setOwningBu] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedId, setSavedId] = useState<string | null>(null)
+
+  const isCurrentMenu = scenarioState.menu === selectedMenu
+  const currentScenarioStatus = isCurrentMenu ? scenarioState.status : 'loading'
+  const currentBudgets = useMemo(
+    () => (isCurrentMenu && currentScenarioStatus === 'ready' ? budgets : []),
+    [budgets, currentScenarioStatus, isCurrentMenu],
+  )
 
   const fetchAll = useCallback(async () => {
     setLoad({ kind: 'loading' })
@@ -112,25 +127,31 @@ export function BudgetPage() {
     fetchAll()
   }, [fetchAll, retryKey])
 
-  // Refresh the scenario list whenever the selected menu changes (or after a save).
+  // Refresh the scenario list whenever the selected menu changes (or after a save or retry).
   useEffect(() => {
     invalidateBudgetPages()
     if (!selectedMenu) {
+      setScenarioState({ menu: '', status: 'ready' })
       replaceBudgetPage({ rows: [], cursor: null, hasMore: false })
       return
     }
     let active = true
+    setScenarioState((prev) => (prev.menu === selectedMenu && prev.status === 'error' ? prev : { menu: selectedMenu, status: 'loading' }))
     listBudgetsPage(selectedMenu)
       .then((page) => {
-        if (active) replaceBudgetPage(page)
+        if (!active) return
+        replaceBudgetPage(page)
+        setScenarioState({ menu: selectedMenu, status: 'ready' })
       })
       .catch(() => {
-        if (active) replaceBudgetPage({ rows: [], cursor: null, hasMore: false })
+        if (!active) return
+        replaceBudgetPage({ rows: [], cursor: null, hasMore: false })
+        setScenarioState({ menu: selectedMenu, status: 'error' })
       })
     return () => {
       active = false
     }
-  }, [selectedMenu, savedId, invalidateBudgetPages, replaceBudgetPage])
+  }, [selectedMenu, savedId, scenarioRetryKey, invalidateBudgetPages, replaceBudgetPage])
 
   const menuCodes = useMemo(
     () => Array.from(new Set(bom.map((x) => x.menu_item_esb_code))).sort(),
@@ -166,13 +187,13 @@ export function BudgetPage() {
   }, [costs, load.kind])
 
   useEffect(() => {
-    if (!requestedScenario || budgets.length === 0 || focusedScenario) return
+    if (!requestedScenario || currentBudgets.length === 0 || focusedScenario) return
     const row = document.getElementById(`budget-scenario-${CSS.escape(requestedScenario)}`)
     if (!row) return
     setFocusedScenario(true)
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#captured-scenarios`)
     window.requestAnimationFrame(() => row.scrollIntoView({ block: 'center' }))
-  }, [budgets, focusedScenario, requestedScenario])
+  }, [currentBudgets, focusedScenario, requestedScenario])
 
   const canCapture =
     !!selectedMenu &&
@@ -248,9 +269,11 @@ export function BudgetPage() {
      
       meta={
         // r5 F-1 (GUARD-R2 class): a labeled sentence, never a naked count pill.
-        <span className="ch-meta-line tabular-nums">
-          {t((budgets.length === 1 ? 'moneyB.budget.scenarioCount.one' : 'moneyB.budget.scenarioCount.other') as MessageKey, { count: String(budgets.length) })}
-        </span>
+        currentScenarioStatus === 'ready' ? (
+          <span className="ch-meta-line tabular-nums">
+            {t((currentBudgets.length === 1 ? 'moneyB.budget.scenarioCount.one' : 'moneyB.budget.scenarioCount.other') as MessageKey, { count: String(currentBudgets.length) })}
+          </span>
+        ) : HEAD_META_PLACEHOLDER
       }
       state={saving ? 'saving' : savedId ? 'saved' : saveError ? 'validation' : 'default'}
     >
@@ -325,17 +348,28 @@ export function BudgetPage() {
 
       <section id="captured-scenarios" className="bp-section bp-scenarios" aria-label={tx('moneyB.budget.aria.scenarios')}>
         <h2 className="bp-h2">{t('moneyB.budget.scenariosFor' as MessageKey, { menu: selectedMenu })}</h2>
-        {budgets.length === 0 ? <p className="bp-muted">{tx('moneyB.budget.noScenarios')}</p> : (
+        {currentScenarioStatus === 'loading' ? (
+          <p role="status">{t('common.loading')}</p>
+        ) : currentScenarioStatus === 'error' ? (
+          <ErrorState
+            message={t('common.loadFailed', { what: t('common.what.budgets') })}
+            onRetry={() => setScenarioRetryKey((k) => k + 1)}
+          />
+        ) : currentBudgets.length === 0 ? (
+          <p className="bp-muted">{tx('moneyB.budget.noScenarios')}</p>
+        ) : (
           <div className="bp-table-scroll"><table className="bp-table">
             <caption>{tx('moneyB.budget.scenarioCaption')}</caption>
             <thead><tr><th scope="col">{tx('moneyB.budget.scenario')}</th><th scope="col">{tx('moneyB.budget.type')}</th><th scope="col">{tx('moneyB.budget.readiness')}</th><th scope="col">{tx('moneyB.budget.basisAsOfColumn')}</th></tr></thead>
-            <tbody>{budgets.map((budget) => <tr key={budget.id} id={`budget-scenario-${budget.id}`} data-testid="budget-scenario-row">
+            <tbody>{currentBudgets.map((budget) => <tr key={budget.id} id={`budget-scenario-${budget.id}`} data-testid="budget-scenario-row">
               <th scope="row">{budget.scenario_label}</th><td>{budget.scenario_type}</td><td className="tabular">{formatIDR(budget.total_budgeted_cogs)}</td><td className="tabular">{budget.cost_basis_as_of ? shortDate(budget.cost_basis_as_of) : '—'}</td>
             </tr>)}</tbody>
           </table></div>
         )}
-        <ListPaging count={budgets.length} hasMore={budgetsHasMore} loading={loadingMoreBudgets} error={budgetsMoreError}
-          onLoadMore={() => { void loadMoreBudgetPage((cursor) => listBudgetsPage(selectedMenu, cursor)) }} />
+        {currentScenarioStatus === 'ready' && (
+          <ListPaging count={currentBudgets.length} hasMore={budgetsHasMore} loading={loadingMoreBudgets} error={budgetsMoreError}
+            onLoadMore={() => { void loadMoreBudgetPage((cursor) => listBudgetsPage(selectedMenu, cursor)) }} />
+        )}
       </section>
 
       <section className="bp-section bp-costlines">

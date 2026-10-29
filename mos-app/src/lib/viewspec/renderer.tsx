@@ -99,7 +99,7 @@ export function UserViewRenderer({
   // old async version is gone along with the loading flash it existed for.
   return (
     <section className="uv-render" aria-label={t('views.render.aria')}>
-      {panels!.map((p) => <PanelHost key={p.id} compiled={p} />)}
+      {panels!.map((p) => <PanelHost key={`${p.id}:${JSON.stringify(p.compiledQuery)}`} compiled={p} />)}
     </section>
   )
 }
@@ -108,7 +108,14 @@ function PanelHost({ compiled }: { compiled: CompiledPanel }) {
   const t = useT()
   const isDesktop = useIsDesktop()
   const desc = registry.get(compiled.primitive)
-  const [state, setState] = useState<PanelState>({ kind: 'loading' })
+  const queryKey = useMemo(() => JSON.stringify(compiled.compiledQuery), [compiled.compiledQuery])
+  const [panelState, setPanelState] = useState<{ key: string; state: PanelState }>({
+    key: queryKey,
+    state: { kind: 'loading' },
+  })
+
+  const isCurrent = panelState.key === queryKey
+  const state: PanelState = isCurrent ? panelState.state : { kind: 'loading' }
 
   useEffect(() => {
     let cancelled = false
@@ -117,18 +124,22 @@ function PanelHost({ compiled }: { compiled: CompiledPanel }) {
     // the planned placeholder (ADR-0017 D5 philosophy: known-to-the-registry but
     // not-yet-hydratable). doc-editor / data-grid are the registry's own stub descriptors.
     if (desc?.status === 'stub' || compiled.primitive === 'CutToggle') {
-      setState({ kind: 'stub', name: compiled.primitive })
+      setPanelState({ key: queryKey, state: { kind: 'stub', name: compiled.primitive } })
       return
     }
     executeCompiledQuery(compiled.compiledQuery)
-      .then(({ rows, truncated }) => { if (!cancelled) setState({ kind: 'ready', rows, truncated }) })
+      .then(({ rows, truncated }) => {
+        if (!cancelled) setPanelState({ key: queryKey, state: { kind: 'ready', rows, truncated } })
+      })
       .catch((e: unknown) => {
         if (cancelled) return
         const message = e instanceof Error ? e.message : String(e)
-        setState({ kind: 'error', message })
+        setPanelState({ key: queryKey, state: { kind: 'error', message } })
       })
-    return () => { cancelled = true }
-  }, [compiled, desc?.status])
+    return () => {
+      cancelled = true
+    }
+  }, [compiled, queryKey, desc?.status])
 
   if (state.kind === 'loading') {
     return <div className="uv-panel uv-panel--loading" aria-busy="true">{t('views.render.loading')}</div>
