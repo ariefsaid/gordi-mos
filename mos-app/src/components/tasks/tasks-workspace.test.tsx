@@ -1935,7 +1935,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     mockUpdateTaskFields.mockRejectedValue(new Error('offline'))
     fireEvent.change(due, { target: { value: '2026-08-01' } })
     fireEvent.keyDown(due, { key: 'Enter' })
-    await screen.findByRole('alert')
+    expect(await screen.findByText("Couldn't save — try again.")).toHaveAttribute('role', 'alert')
 
     // The shortcut is ignored while a field has focus, so move focus to a control. Blurring to
     // <body> would let the field's own failed-save recovery pull focus back into it whenever the
@@ -2076,7 +2076,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     const due2 = screen.getByLabelText('Due') as HTMLInputElement
     fireEvent.change(due2, { target: { value: '2026-08-01' } })
     fireEvent.keyDown(due2, { key: 'Enter' })
-    await screen.findByRole('alert')
+    expect(await screen.findByText("Couldn't save — try again.")).toHaveAttribute('role', 'alert')
 
     const panel = document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]') as HTMLElement
     expect(panel).toBeTruthy()
