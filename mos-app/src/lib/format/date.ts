@@ -15,12 +15,6 @@ import type { Locale } from '@/i18n/messages'
 
 export const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
 
-const WIB_DATE = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'Asia/Jakarta',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-})
 const WIB_WEEKDAY_FORMATTER = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Jakarta',
   year: 'numeric',
@@ -51,10 +45,7 @@ function cachedDateFormatter(
   return formatter
 }
 
-/** The Asia/Jakarta calendar date for an instant, formatted as YYYY-MM-DD. */
-export function wibToday(now: Date = new Date()): string {
-  return WIB_DATE.format(now)
-}
+export { wibToday } from './wib-calendar.ts'
 
 /** Map an app Locale to the BCP-47 tag used for Intl date formatting. */
 export function dateLocaleTag(locale: Locale): string {

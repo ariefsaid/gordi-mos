@@ -1,7 +1,7 @@
+import { wibToday } from '@/lib/format/date'
+
 export function todayInJakarta(): string {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? ''
-  return `${get('year')}-${get('month')}-${get('day')}`
+  return wibToday()
 }
 
 export function formatDay(date: string, locale: string): string {
