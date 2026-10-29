@@ -328,6 +328,18 @@ describe('D3e — Tasks create is an inline title row', () => {
     expect(mockCreateTask).toHaveBeenCalledTimes(1)
   })
 
+  it('explains that discarding a partially created task leaves already-added people with access', async () => {
+    mockAddTaskViewer.mockRejectedValueOnce(new Error('offline'))
+    await startPrivateDraft()
+    submitDraft()
+    await screen.findByRole('button', { name: /retry/i })
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    expect(await screen.findByText(/task already exists.*people already added keep access/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^discard and leave$/i }))
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: /title/i })).toBeNull())
+    expect(mockCreateTask).toHaveBeenCalledTimes(1)
+  })
+
   it('on Retry sends only the listed people that were not added yet', async () => {
     mockAddTaskViewer.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
     mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
@@ -345,7 +357,14 @@ describe('D3e — Tasks create is an inline title row', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add person' }))
     fireEvent.click(await screen.findByText('Citra Third', { selector: '.person-picker-label' }))
     submitDraft()
-    fireEvent.click(await screen.findByRole('button', { name: /retry/i }))
+    const retry = await screen.findByRole('button', { name: /retry/i })
+    expect(screen.getByRole('textbox', { name: /title/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Remove Budi Setiawan' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Remove Citra Third' })).toBeDisabled()
+    expect(screen.getByRole('switch', { name: 'Private' })).toBeDisabled()
+    for (const name of ['PIC', 'Supervisor', 'Team']) expect(screen.getByRole('combobox', { name })).toBeDisabled()
+    expect(screen.getByLabelText('Due date')).toBeDisabled()
+    fireEvent.click(retry)
     await waitFor(() => expect(mockAddTaskViewer).toHaveBeenCalledTimes(3))
     expect(mockAddTaskViewer.mock.calls.map((call) => call[1])).toEqual(['other-id', 'third-id', 'third-id'])
     expect(mockCreateTask).toHaveBeenCalledTimes(1)
@@ -517,7 +536,8 @@ describe('Create from Signal convergence', () => {
     fireEvent.change(title, { target: { value: 'Original' } })
     await chooseDraftSupervisor()
     submitDraft()
-    await screen.findByRole('alert')
+    const form = await screen.findByRole('form', { name: /create task form/i })
+    expect(await within(form).findByText('Task saved; it still needs a Signal link.')).toHaveAttribute('role', 'status')
     expect(screen.getByRole('textbox', { name: /title/i })).toHaveValue('Original')
     const edited = await screen.findByRole('textbox', { name: /title/i })
     fireEvent.change(edited, { target: { value: 'Edited after failure' } })
@@ -538,7 +558,8 @@ describe('Create from Signal convergence', () => {
     fireEvent.change(title, { target: { value: 'Original' } })
     await chooseDraftSupervisor()
     submitDraft()
-    await screen.findByRole('alert')
+    const form = await screen.findByRole('form', { name: /create task form/i })
+    expect(await within(form).findByText('Task saved; it still needs a Signal link.')).toHaveAttribute('role', 'status')
     expect(screen.getByRole('textbox', { name: /title/i })).toHaveValue('Original')
     fireEvent.keyDown(await screen.findByRole('textbox', { name: /title/i }), { key: 'Escape' })
     // Text was typed, so discarding asks first.
@@ -557,7 +578,8 @@ describe('Create from Signal convergence', () => {
     fireEvent.change(title, { target: { value: 'Original' } })
     await chooseDraftSupervisor('Budi Setiawan')
     submitDraft()
-    await waitFor(() => expect(screen.getAllByRole('status').map((node) => node.textContent).join(' ')).toContain('Tugas dibuat, tautan gagal'))
+    const form = await screen.findByRole('form', { name: /formulir pembuatan tugas/i })
+    expect(await within(form).findByText('Tugas tersimpan; belum tertaut ke Sinyal.')).toHaveAttribute('role', 'status')
   })
 })
 
@@ -1913,7 +1935,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     mockUpdateTaskFields.mockRejectedValue(new Error('offline'))
     fireEvent.change(due, { target: { value: '2026-08-01' } })
     fireEvent.keyDown(due, { key: 'Enter' })
-    await screen.findByRole('alert')
+    expect(await screen.findByText("Couldn't save — try again.")).toHaveAttribute('role', 'alert')
 
     // The shortcut is ignored while a field has focus, so move focus to a control. Blurring to
     // <body> would let the field's own failed-save recovery pull focus back into it whenever the
@@ -1948,7 +1970,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     mockUpdateTaskFields.mockRejectedValue(new Error('offline'))
     fireEvent.change(due, { target: { value: '2026-08-01' } })
     fireEvent.keyDown(due, { key: 'Enter' })
-    await screen.findByRole('alert')
+    expect(await screen.findByText("Couldn't save — try again.")).toHaveAttribute('role', 'alert')
 
     fireEvent.click(screen.getByRole('button', { name: /close/i }))
     expect(await screen.findByRole('dialog')).toHaveTextContent(/discard unsaved changes/i)
@@ -1961,7 +1983,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     // The field remains usable after Stay; make a fresh failed draft before exercising Discard.
     fireEvent.change(screen.getByLabelText('Due'), { target: { value: '2026-08-02' } })
     fireEvent.keyDown(screen.getByLabelText('Due'), { key: 'Enter' })
-    await screen.findByRole('alert')
+    expect(await screen.findByText("Couldn't save — try again.")).toHaveAttribute('role', 'alert')
     fireEvent.click(screen.getByRole('button', { name: /close/i }))
     fireEvent.click(await screen.findByRole('button', { name: /discard changes/i }))
     await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeNull())
@@ -2054,7 +2076,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     const due2 = screen.getByLabelText('Due') as HTMLInputElement
     fireEvent.change(due2, { target: { value: '2026-08-01' } })
     fireEvent.keyDown(due2, { key: 'Enter' })
-    await screen.findByRole('alert')
+    expect(await screen.findByText("Couldn't save — try again.")).toHaveAttribute('role', 'alert')
 
     const panel = document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]') as HTMLElement
     expect(panel).toBeTruthy()

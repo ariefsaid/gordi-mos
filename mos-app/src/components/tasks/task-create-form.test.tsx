@@ -398,6 +398,67 @@ describe('TaskCreateForm — discard, busy and retry', () => {
   })
 })
 
+describe('TaskCreateForm — partial creation recovery', () => {
+  it.each([
+    ['en', 'Task saved; some people still need to be added.', 'Title'],
+    ['id', 'Tugas tersimpan; beberapa orang belum dapat ditambahkan.', 'Judul'],
+  ] as const)('keeps saved setup on one status and retries it in %s', async (locale, message, titleLabel) => {
+    const onCreate = vi.fn().mockResolvedValue(undefined)
+    renderForm({ task: makeDraft({ title: 'Plan' }), onCreate }, (form) => (
+      <I18nProvider initialLocale={locale}>
+        <TaskCreateContext.Provider value={{
+          workLineOptions: [], onEditDue: async () => {}, onEditWorkLine: async () => {},
+          formState: { pending: false, saveError: true, created: true },
+        }}>{form}</TaskCreateContext.Provider>
+      </I18nProvider>
+    ))
+    const savedSetupSentences = screen.getAllByText(/^(Task saved|Task created|Tugas tersimpan|Tugas sudah dibuat|Tugas dibuat)/)
+    expect(savedSetupSentences).toHaveLength(1)
+    expect(savedSetupSentences[0]).toHaveTextContent(message)
+    expect(savedSetupSentences[0]).toHaveAttribute('role', 'status')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Create task' })).toBeNull()
+    expect(screen.getByRole('textbox', { name: titleLabel })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: locale === 'id' ? 'Coba lagi' : 'Retry' }))
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1))
+    expect(onCreate).toHaveBeenCalledWith('Plan', null)
+  })
+
+  it('keeps Create unavailable while a saved Task is still finishing setup', () => {
+    renderForm({ task: makeDraft({ title: 'Plan' }) }, (form) => (
+      <TaskCreateContext.Provider value={{
+        workLineOptions: [], onEditDue: async () => {}, onEditWorkLine: async () => {},
+        formState: { pending: true, saveError: false, created: true },
+      }}>{form}</TaskCreateContext.Provider>
+    ))
+
+    expect(screen.getByText('Task saved; finish setup with Retry.')).toHaveAttribute('role', 'status')
+    expect(screen.getByRole('button', { name: 'Creating…' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+  })
+
+  it('continues the saved Task link retry without offering Create task', () => {
+    const onRetryLink = vi.fn()
+    renderForm({
+      task: makeDraft({ title: 'Plan' }),
+      linkError: true,
+      onRetryLink,
+    }, (form) => (
+      <TaskCreateContext.Provider value={{
+        workLineOptions: [], onEditDue: async () => {}, onEditWorkLine: async () => {},
+        formState: { pending: false, saveError: false, created: true },
+      }}>{form}</TaskCreateContext.Provider>
+    ))
+
+    expect(screen.getByText('Task saved; it still needs a Signal link.')).toHaveAttribute('role', 'status')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Create task' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(onRetryLink).toHaveBeenCalledWith('Plan')
+  })
+})
+
 describe('TaskCreateForm — title length (#1034)', () => {
   it('stops the Title at the shared limit when a long text is pasted', async () => {
     const user = userEvent.setup()
@@ -457,7 +518,9 @@ describe('TaskCreateForm — Due date + Project/Process (#1029)', () => {
 
   it('a failed Signal link locks every draft field so no edit is lost by the link-only retry (#1116)', () => {
     const { onEditDue, onEditWorkLine } = renderWithContext({ linkError: true, onRetryLink: vi.fn() })
-    expect(screen.getByRole('alert')).toHaveTextContent('Retry')
+    expect(screen.getByText('Task saved; it still needs a Signal link.')).toHaveAttribute('role', 'status')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Create task' })).toBeNull()
     for (const name of ['Team', 'PIC', 'Supervisor', 'Project/Process']) {
       expect(screen.getByRole('combobox', { name })).toBeDisabled()
     }
