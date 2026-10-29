@@ -10,7 +10,7 @@
  * Approve/deny (FR-P2-WT-001..004):
  *   - confirm:true action -> persist its validated args and emit needs-approval + END stream.
  *   - On next POST, consume the owner's unexpired pending id and execute only its stored args.
- *     dispatchAction/dispatchActionForced are the ONLY sites that may call action.run.
+ *     read dispatch uses action.run; approved writes use the caller transaction RPC.
  *
  * D1 delta vs the sibling reference: there is no `profiles` lookup gate (2) — orgId/personId/
  * accessRoles arrive on HandlerDeps, already decoded from the caller's JWT by index.ts.
@@ -26,9 +26,9 @@ import {
 } from './actions.ts'
 import { buildAgentSystemPrompt } from './prompt.ts'
 import {
-  hashToolArgs, createThreadAndRun, insertEvent, heartbeat, setRunStatus,
+  hashToolArgs, createThreadAndRun, insertEvent, heartbeat, setRunStatus, loadMaxSeq, loadJournaledWrites, completeApprovedWrite,
 } from './persistence.ts'
-import type { PersistenceDeps, JournaledWrite, ToolJournal, HandlerSupabaseLike } from './persistence.ts'
+import type { PersistenceDeps, ToolJournal, HandlerSupabaseLike } from './persistence.ts'
 import { replayRunHistory } from './replay.ts'
 import { AGENT_PENDING_ACTION_TTL_MS } from './pendingActions.ts'
 import type { PendingActionStore } from './pendingActions.ts'
@@ -87,11 +87,10 @@ export interface HandlerDeps {
   /** Durable, owner-bound approval storage. Missing storage fails closed for write actions. */
   pendingActions?: PendingActionStore
   /**
-   * Optional persistence dep (thread/run/event journal, heartbeat, de-dupe). Optional so
-   * flag-off / existing tests pass unchanged — every persistence call site below is guarded
-   * on `deps.persistence` being present. `journaledWrites`/`startSeq` are pre-loaded by index.ts.
+   * Optional conversation persistence. Approved business writes require it; reads can run
+   * with persistence disabled. Existing run sequence and journal reads use the caller JWT.
    */
-  persistence?: PersistenceDeps & { journaledWrites?: JournaledWrite[]; startSeq?: number }
+  persistence?: PersistenceDeps
 }
 
 // ── Event builders ─────────────────────────────────────────────────────────────
@@ -109,23 +108,14 @@ function mkEvent(
 
 interface PersistenceRuntime {
   deps: PersistenceDeps
-  journaledWrites: JournaledWrite[]
   nextSeq(): number
+  committedEvents: WeakSet<AgentEvent>
 }
 
-function makePersistenceRuntime(deps: HandlerDeps): PersistenceRuntime | undefined {
-  if (!deps.persistence) return undefined
-  const { journaledWrites, startSeq, ...persistDeps } = deps.persistence
-  let seq = startSeq ?? 0
-  return { deps: persistDeps, journaledWrites: journaledWrites ?? [], nextSeq: () => seq++ }
-}
-
-function findJournaledWrite(
-  persist: PersistenceRuntime,
-  toolName: string,
-  argsHash: string,
-): JournaledWrite | undefined {
-  return persist.journaledWrites.find((j) => j.toolName === toolName && j.argsHash === argsHash)
+function makePersistenceRuntime(deps: PersistenceDeps | undefined, startSeq: number): PersistenceRuntime | undefined {
+  if (!deps) return undefined
+  let seq = startSeq
+  return { deps, nextSeq: () => seq++, committedEvents: new WeakSet() }
 }
 
 /**
@@ -155,7 +145,7 @@ async function* withPersistence(
   runId: string,
 ): AsyncGenerator<AgentEvent> {
   for await (const ev of inner) {
-    if (persist && isPersistableEvent(ev)) {
+    if (persist && isPersistableEvent(ev) && !persist.committedEvents.has(ev)) {
       let journal: ToolJournal | undefined
       if (ev.type === 'tool') {
         const payload = ev.payload as { name?: string; input?: unknown; result?: unknown } | undefined
@@ -165,9 +155,6 @@ async function* withPersistence(
             ? ('errored' as const)
             : ('completed' as const)
           journal = { toolName: payload.name, argsHash, status }
-          if (status === 'completed') {
-            persist.journaledWrites.push({ toolName: payload.name, argsHash, payload: payload.result })
-          }
         }
       }
       await insertEvent(persist.deps, runId, persist.nextSeq(), ev, journal)
@@ -190,11 +177,6 @@ async function dispatchAction(action: AgentAction, toolInput: unknown, ctx: Depu
     throw new Error(`dispatchAction: confirm:true action '${action.name}' must route through the approval branch`)
   }
   return action.run(toolInput, ctx)
-}
-
-/** Execute an approved confirm:true action (bypasses the confirm guard — approval already fired). */
-async function dispatchActionForced(action: AgentAction, storedArgs: unknown, ctx: DeputyContext): Promise<unknown> {
-  return action.run(storedArgs, ctx)
 }
 
 // ── Tool catalog builder ───────────────────────────────────────────────────────
@@ -458,20 +440,35 @@ export async function* agentChatHandler(
   deps: HandlerDeps,
 ): AsyncIterable<AgentEvent> {
   const runId = req.runId ?? crypto.randomUUID()
-  const persist = makePersistenceRuntime(deps)
-
-  // A fresh run (no req.runId on the wire) gets a new agent_threads + agent_runs row, created
-  // BEFORE any event is persisted (insertEvent's run_id FK requires the run to exist first).
-  if (persist && !req.runId) {
-    const lastUserMsgForTitle = req.messages.filter((m) => m.role === 'user').at(-1)
-    const title =
-      lastUserMsgForTitle && typeof lastUserMsgForTitle.content === 'string'
-        ? lastUserMsgForTitle.content.slice(0, 60)
-        : 'New conversation'
-    await createThreadAndRun(persist.deps, { runId, title })
+  if (!deps.userId || transcriptExceedsCap(req.messages)) {
+    yield* agentChatHandlerInner(req, deps, runId, undefined)
+    return
   }
 
-  yield* withPersistence(agentChatHandlerInner(req, deps, runId, persist), persist, runId)
+  try {
+    const persistence = deps.persistence
+    let startSeq = 0
+    if (persistence) {
+      const { data: existing, error } = req.runId
+        ? await persistence.supabase.schema('mos').from('agent_runs').select('id').eq('id', runId).maybeSingle()
+        : { data: null, error: null }
+      if (error) throw new Error('PERSISTENCE_UNAVAILABLE')
+      if (!existing) {
+        if (req.replay || req.decision || req.answer || req.cancel) throw new Error('PERSISTENCE_UNAVAILABLE')
+        const lastUser = req.messages.filter(message => message.role === 'user').at(-1)
+        const title = typeof lastUser?.content === 'string' ? lastUser.content.slice(0, 60) : 'New conversation'
+        await createThreadAndRun(persistence, { runId, title })
+      }
+      if (existing) {
+        startSeq = (await loadMaxSeq(persistence, runId)) + 1
+        await loadJournaledWrites(persistence, runId)
+      }
+    }
+    const persist = makePersistenceRuntime(persistence, startSeq)
+    yield* withPersistence(agentChatHandlerInner(req, deps, runId, persist), persist, runId)
+  } catch {
+    yield mkEvent(runId, 'status', { payload: { status: 'error', error: 'PERSISTENCE_UNAVAILABLE' } }, deps.now ?? (() => new Date()))
+  }
 }
 
 async function* agentChatHandlerInner(
@@ -539,11 +536,7 @@ async function* agentChatHandlerInner(
     return
   }
 
-  // ── Yield the last user message ─────────────────────────────────────────────
   const lastUserMsg = req.messages.filter((m) => m.role === 'user').at(-1)
-  if (lastUserMsg) {
-    yield emit('user', { text: typeof lastUserMsg.content === 'string' ? lastUserMsg.content : undefined })
-  }
 
   // ── Build system prompt (GROUNDING, FR-P2-GR-001) ───────────────────────────
   const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP)
@@ -569,6 +562,11 @@ async function* agentChatHandlerInner(
       { role: 'system', content: system },
       ...req.messages.map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : null })),
     ]
+  }
+
+  // Read prior history before the submitted turn becomes part of that history.
+  if (lastUserMsg) {
+    yield emit('user', { text: typeof lastUserMsg.content === 'string' ? lastUserMsg.content : undefined })
   }
 
   // ── Tool-use loop ────────────────────────────────────────────────────────────
@@ -646,25 +644,20 @@ async function* handleDecision(
     return
   }
 
-  // Resume de-dupe gate: a write whose (toolName, argsHash-of-VALIDATED-args) matches an
-  // already-journaled COMPLETED call is hard-blocked — action.run is never re-invoked.
-  const journaled = persist ? findJournaledWrite(persist, toolName, hashToolArgs(storedArgs)) : undefined
-
-  let writeResult: unknown
-  if (journaled) {
-    writeResult = journaled.payload
-  } else {
-    try {
-      writeResult = await dispatchActionForced(action, storedArgs, deputyCtx)
-    } catch {
-      messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify({ error: 'Write failed; database error.' }) })
-      yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist)
-      return
-    }
+  if (!persist) {
+    yield statusEvent('error', { error: 'PERSISTENCE_UNAVAILABLE' })
+    return
   }
 
-  // The approval executes and journals the stored validated arguments, never request-time arguments.
-  yield emit('tool', { payload: { name: toolName, pendingId, input: storedArgs, result: writeResult, tool_call_id: toolId } })
+  // The caller transaction serializes on the owned run and atomically writes both the
+  // business result and this exact event. A stale journal snapshot never authorizes a write.
+  const event = emit('tool', { payload: { name: toolName, pendingId, input: storedArgs, tool_call_id: toolId } })
+  const writeResult = await completeApprovedWrite(persist.deps, event, persist.nextSeq(), {
+    toolName, pendingId, toolCallId: toolId, args: storedArgs,
+  })
+  event.payload = { name: toolName, pendingId, input: storedArgs, result: writeResult, tool_call_id: toolId }
+  persist.committedEvents.add(event)
+  yield event
 
   yield emit('system', { text: 'approved', payload: { event: 'write_resolved', decision: 'approved', actionName: toolName, pendingId } })
 

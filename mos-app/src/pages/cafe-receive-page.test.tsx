@@ -1205,6 +1205,17 @@ describe('issue 1425 condition evidence', () => {
     expect(mockSaveExplanation.mock.invocationCallOrder[0]).toBeLessThan(mockSend.mock.invocationCallOrder[0])
   })
 
+  it('issue 1895 lets the receiver save a cleared damage flag before Send', async () => {
+    await lockWith([receiptLine({ conditions: ['damaged_wrong'], condition_reason: 'Box dented' })])
+    mockSaveExplanation.mockResolvedValue({ conditions: [], condition_reason: null, condition_updated_at: '2026-10-06T03:00:00Z' })
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Damaged or wrong for Coffee bean' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save explanation' }))
+
+    await waitFor(() => expect(mockSaveExplanation).toHaveBeenCalledWith('line-1', false, ''))
+    expect(await screen.findByText('Explanation saved.')).toHaveAttribute('role', 'status')
+  })
+
   it('AC-1011 a Send the server refuses for one line marks that line by id, even beside another line of the same item', async () => {
     const KG = '00000000-0000-0000-0000-0000000000a1'
     const BAG = '00000000-0000-0000-0000-0000000000a2'

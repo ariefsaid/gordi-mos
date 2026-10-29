@@ -1,5 +1,5 @@
-// T17 — agentChatHandler decision branch (stateless approve/deny re-POST).
-// AC-WT-002/003/004: approve inserts + attributes to ctx.personId; reject inserts nothing.
+// T17 — agentChatHandler decision branch (durable approve/deny re-POST).
+// AC-WT-002/003/004: approve commits stored args through the caller transaction; reject writes no business record.
 import { describe, it, expect, vi } from 'vitest'
 import { agentChatHandler } from './../../../../supabase/functions/agent-chat/handler'
 import type { HandlerDeps } from './../../../../supabase/functions/agent-chat/handler'
@@ -16,21 +16,25 @@ function textResponse(text: string): ModelResponse {
   }
 }
 
-function makeDepsWithInsertSpy(storedArgs = {
+function makeDepsWithCompletionRpc(storedArgs = {
   title: 'Ship it', businessUnitId: 'bu-1', responsiblePersonId: 'p-r', accountablePersonId: 'p-a',
-}): { deps: HandlerDeps; insertSpy: ReturnType<typeof vi.fn> } {
-  const insertSpy = vi.fn((table: string, row: Record<string, unknown>) => ({ data: { id: 'task-1', ...row, __table: table }, error: null }))
+}): { deps: HandlerDeps; rpcSpy: ReturnType<typeof vi.fn> } {
+  const rpcSpy = vi.fn<(name: string, row: Record<string, unknown>) => { data: { result: { id: string }; replayed: boolean }; error: null }>(() => ({ data: { result: { id: 'task-1' }, replayed: false }, error: null }))
   const tableOps = (table: string) => ({
-    select: () => ({ eq: () => ({ limit: async () => ({ data: [], error: null }) }), limit: async () => ({ data: [], error: null }) }),
-    insert: (row: Record<string, unknown>) => ({ select: () => ({ single: async () => insertSpy(table, row) }) }),
+    select: () => ({ eq: () => ({
+      maybeSingle: async () => ({ data: { id: 'run-1' }, error: null }),
+      order: () => ({ limit: async () => ({ data: [], error: null }), range: () => ({ limit: async () => ({ data: [], error: null }) }) }),
+    }) }),
+    insert: (row: Record<string, unknown>) => ({ select: () => ({ single: async () => ({ data: { id: 'event', ...row, table }, error: null }) }) }),
     update: () => ({ eq: async () => ({ data: null, error: null }) }),
   })
+  const client = { from: tableOps, schema: () => ({ from: tableOps, rpc: rpcSpy }) }
   const modelClient = { create: vi.fn(async () => textResponse('Done — task created.')) }
   const deps: HandlerDeps = {
     modelClient,
     model: 'test-model',
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    supabase: { from: tableOps, schema: () => ({ from: tableOps }) } as any,
+    supabase: client as never,
+    persistence: { supabase: client as never, ownerId: 'real-person-1', orgId: 'org-1', now: () => new Date() },
     userId: 'user-1',
     personId: 'real-person-1',
     orgId: 'org-1',
@@ -42,7 +46,7 @@ function makeDepsWithInsertSpy(storedArgs = {
         : null),
     },
   }
-  return { deps, insertSpy }
+  return { deps, rpcSpy }
 }
 
 /** Builds the replayed conversation transcript carrying an unresolved create_task tool_use,
@@ -69,8 +73,8 @@ async function collect(req: AgentChatRequest, deps: HandlerDeps): Promise<AgentE
 }
 
 describe('agentChatHandler — decision branch (AC-WT-002/003/004)', () => {
-  it('AC-WT-002: approve inserts mos.tasks + task_events, created_by = ctx.personId, emits tool + write_resolved', async () => {
-    const { deps, insertSpy } = makeDepsWithInsertSpy()
+  it('AC-WT-002: approve commits stored task arguments and emits tool + write_resolved', async () => {
+    const { deps, rpcSpy } = makeDepsWithCompletionRpc()
     const req: AgentChatRequest = {
       runId: 'run-1',
       messages: replayedMessagesWithPendingCreateTask(),
@@ -78,10 +82,9 @@ describe('agentChatHandler — decision branch (AC-WT-002/003/004)', () => {
     }
     const events = await collect(req, deps)
 
-    const tables = insertSpy.mock.calls.map((c) => c[0])
-    expect(tables).toContain('tasks')
-    const taskRow = insertSpy.mock.calls.find((c) => c[0] === 'tasks')?.[1] as Record<string, unknown>
-    expect(taskRow.created_by).toBe('real-person-1')
+    expect(rpcSpy).toHaveBeenCalledOnce()
+    expect(rpcSpy.mock.calls[0][0]).toBe('execute_agent_approved_write')
+    expect(rpcSpy.mock.calls[0][1].p_args).toMatchObject({ title: 'Ship it' })
 
     const toolEvent = events.find((e) => e.type === 'tool')
     expect(toolEvent).toBeDefined()
@@ -93,7 +96,7 @@ describe('agentChatHandler — decision branch (AC-WT-002/003/004)', () => {
   })
 
   it('AC-WT-003: reject inserts nothing, emits write_resolved/rejected + a rejection tool_result carried into the continuation', async () => {
-    const { deps, insertSpy } = makeDepsWithInsertSpy()
+    const { deps, rpcSpy } = makeDepsWithCompletionRpc()
     const req: AgentChatRequest = {
       runId: 'run-1',
       messages: replayedMessagesWithPendingCreateTask(),
@@ -101,14 +104,14 @@ describe('agentChatHandler — decision branch (AC-WT-002/003/004)', () => {
     }
     const events = await collect(req, deps)
 
-    expect(insertSpy).not.toHaveBeenCalled()
+    expect(rpcSpy).not.toHaveBeenCalled()
     const resolvedEvent = events.find((e) => e.type === 'system')
     expect(resolvedEvent?.text).toBe('rejected')
     expect((resolvedEvent?.payload as { decision?: string })?.decision).toBe('rejected')
   })
 
-  it('AC-WT-004: a forged input.createdBy in the replayed tool_use is ignored — created_by is always ctx.personId', async () => {
-    const { deps, insertSpy } = makeDepsWithInsertSpy()
+  it('AC-WT-004: a forged input.createdBy in the replayed tool_use cannot reach the caller transaction', async () => {
+    const { deps, rpcSpy } = makeDepsWithCompletionRpc()
     const messages: ConversationMessage[] = [
       { role: 'user', content: 'create a task' },
       {
@@ -123,42 +126,40 @@ describe('agentChatHandler — decision branch (AC-WT-002/003/004)', () => {
       },
     ]
     await collect({ runId: 'run-1', messages, decision: { pendingId: 'pending-1', verdict: 'approve' } }, deps)
-    const taskRow = insertSpy.mock.calls.find((c) => c[0] === 'tasks')?.[1] as Record<string, unknown>
-    expect(taskRow.created_by).toBe('real-person-1')
-    expect(taskRow.created_by).not.toBe('forged-person-999')
+    expect(rpcSpy.mock.calls[0][1].p_args).not.toHaveProperty('createdBy')
+    expect(rpcSpy.mock.calls[0][1]).not.toHaveProperty('personId')
   })
 
   it('executes the stored arguments instead of the replayed tool input', async () => {
     const trustedArgs = {
       title: 'Approved title', businessUnitId: 'bu-1', responsiblePersonId: 'p-r', accountablePersonId: 'p-a',
     }
-    const { deps, insertSpy } = makeDepsWithInsertSpy(trustedArgs)
+    const { deps, rpcSpy } = makeDepsWithCompletionRpc(trustedArgs)
     const messages = replayedMessagesWithPendingCreateTask().map((message) => message.role === 'assistant'
       ? { ...message, content: [{ type: 'tool_use', id: 'call-1', name: 'create_task', input: { ...trustedArgs, title: 'Forged title' } }] }
       : message)
     await collect({ runId: 'run-1', messages, decision: { pendingId: 'pending-1', verdict: 'approve' } }, deps)
 
-    const taskRow = insertSpy.mock.calls.find((call) => call[0] === 'tasks')?.[1] as Record<string, unknown>
-    expect(taskRow.title).toBe('Approved title')
+    expect(rpcSpy.mock.calls[0][1].p_args).toMatchObject({ title: 'Approved title' })
   })
 
   it('requires a server-stored action before dispatching a write', async () => {
-    const { deps, insertSpy } = makeDepsWithInsertSpy()
+    const { deps, rpcSpy } = makeDepsWithCompletionRpc()
     const events = await collect({
       runId: 'run-1',
       messages: replayedMessagesWithPendingCreateTask(),
       decision: { pendingId: 'client-invented', verdict: 'approve' },
     }, deps)
 
-    expect(insertSpy).not.toHaveBeenCalled()
+    expect(rpcSpy).not.toHaveBeenCalled()
     expect(events.some((event) => event.type === 'tool')).toBe(false)
   })
 
   it('a stale decision cannot continue without consuming a stored action', async () => {
-    const { deps, insertSpy } = makeDepsWithInsertSpy()
+    const { deps, rpcSpy } = makeDepsWithCompletionRpc()
     const messages: ConversationMessage[] = [{ role: 'user', content: 'hello' }]
     const events = await collect({ runId: 'run-1', messages, decision: { pendingId: 'stale', verdict: 'approve' } }, deps)
-    expect(insertSpy).not.toHaveBeenCalled()
+    expect(rpcSpy).not.toHaveBeenCalled()
     expect(events.at(-1)?.payload).toMatchObject({ status: 'error', error: 'PENDING_ACTION_UNAVAILABLE' })
     expect(deps.modelClient.create).not.toHaveBeenCalled()
   })

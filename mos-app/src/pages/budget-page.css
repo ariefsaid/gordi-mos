@@ -128,6 +128,7 @@
   .bp-bom .bp-table-scroll { overflow: visible; }
   .bp-bom .bp-table,
   .bp-bom .bp-table tbody { display: block; width: 100%; }
+  .bp-bom .bp-table caption { display: block; width: 100%; }
   .bp-bom .bp-table thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
   .bp-bom .bp-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
   .bp-bom .bp-table th,
