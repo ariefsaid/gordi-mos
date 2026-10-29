@@ -76,7 +76,7 @@ export function AdminUsersPage() {
       title={addOpen ? t('admin.create.title') : t('admin.people.title')}
       jobSentence={addOpen ? undefined : t('admin.people.job')}
       back={addOpen ? { onClick: () => setAddOpen(false), label: t('record.backToCollection', { collection: t('admin.people.title') }) } : undefined}
-      action={addOpen ? undefined : <Button variant="primary" onClick={() => setAddOpen(true)}>{t('admin.people.addPerson')}</Button>}
+      action={addOpen || data.refreshError ? undefined : <Button variant="primary" onClick={() => setAddOpen(true)}>{t('admin.people.addPerson')}</Button>}
       state={frameState}
     >
       {/* The section switcher is for browsing; a form has the back link above its title. */}
@@ -94,7 +94,13 @@ export function AdminUsersPage() {
         </div>
       )}
 
-      {!addOpen && (
+      {data.refreshError && (
+        <div className="admin-people-error">
+          <ErrorState message={t('admin.people.loadError')} onRetry={() => void data.refresh().catch(() => {})} retryLabel={t('admin.row.retry')} />
+        </div>
+      )}
+
+      {!addOpen && !data.refreshError && (
         <div
           data-testid="people-list-container"
           className={`admin-people-list-shell${presentsCards ? ' admin-people-list-shell--phone' : ''}`}
@@ -120,7 +126,7 @@ export function AdminUsersPage() {
       <CreatePersonDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onCreated={() => void data.refresh()}
+        onCreated={() => void data.refresh().catch(() => {})}
         takenEmails={takenEmails}
         onShowToast={actions.showToast}
         presentation="workspace"

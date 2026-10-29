@@ -81,6 +81,7 @@ export function ChoiceDialog({
   const [draft, setDraft] = useState<Set<string>>(() => new Set(saved))
   const [query, setQuery] = useState('')
   const [phase, setPhase] = useState<'edit' | 'confirm' | 'saving' | 'failed'>('edit')
+  const [refreshFailed, setRefreshFailed] = useState(false)
   const [confirmIndex, setConfirmIndex] = useState(0)
   const [rows, setRows] = useState<Record<string, RowState>>({})
   // The order is fixed when the dialog opens, so a row never jumps away from the pointer that ticked it.
@@ -122,19 +123,44 @@ export function ChoiceDialog({
 
   async function runAll() {
     setPhase('saving')
+    setRefreshFailed(false)
     succeeded.current = new Set()
     let failed = 0
     for (const change of order(changes)) {
       if (!(await runOne(change))) failed += 1
     }
-    await refresh()
-    if (failed === 0) onClose(true)
-    else setPhase('failed')
+    try {
+      await refresh()
+      if (failed === 0) onClose(true)
+      else setPhase('failed')
+    } catch {
+      setRefreshFailed(true)
+      setPhase('failed')
+    }
+  }
+
+  async function retryRefresh() {
+    setPhase('saving')
+    try {
+      await refresh()
+      setRefreshFailed(false)
+      if (succeeded.current.size === changes.length) onClose(true)
+      else setPhase('failed')
+    } catch {
+      setRefreshFailed(true)
+      setPhase('failed')
+    }
   }
 
   async function retry(change: ChoiceChange) {
     await runOne(change)
-    await refresh()
+    try {
+      await refresh()
+      setRefreshFailed(false)
+    } catch {
+      setRefreshFailed(true)
+      setPhase('failed')
+    }
   }
 
   function save() {
@@ -252,7 +278,9 @@ export function ChoiceDialog({
         <footer className="choice-dialog__foot">
           {phase === 'failed' ? (
             <p className="choice-dialog__summary choice-dialog__summary--failed" role="alert">
-              {t(failures.length === 1 ? 'admin.picker.failedOne' : 'admin.picker.failedMany', { count: failures.length })}
+              {refreshFailed
+                ? t('admin.people.loadError')
+                : t(failures.length === 1 ? 'admin.picker.failedOne' : 'admin.picker.failedMany', { count: failures.length })}
             </p>
           ) : (
             <div className="choice-dialog__summary" role="status">
@@ -262,7 +290,14 @@ export function ChoiceDialog({
           )}
           <div className="choice-dialog__actions">
             {phase === 'failed' ? (
-              <Button variant="primary" onClick={() => onClose(true)}>{t('admin.picker.close')}</Button>
+              refreshFailed ? (
+                <>
+                  <Button variant="outline" onClick={() => onClose(false)}>{t('common.cancel')}</Button>
+                  <Button variant="primary" onClick={() => void retryRefresh()}>{t('admin.row.retry')}</Button>
+                </>
+              ) : (
+                <Button variant="primary" onClick={() => onClose(true)}>{t('admin.picker.close')}</Button>
+              )
             ) : (
               <>
                 <Button variant="outline" disabled={busy} onClick={() => onClose(false)}>{t('common.cancel')}</Button>

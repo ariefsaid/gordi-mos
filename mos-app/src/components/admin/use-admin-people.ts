@@ -9,6 +9,7 @@ export type PeopleLoadState = 'loading' | 'loaded' | 'error'
 
 export function useAdminPeople() {
   const [state, setState] = useState<PeopleLoadState>('loading')
+  const [refreshError, setRefreshError] = useState<string | null>(null)
   const [people, setPeople] = useState<AdminPersonRow[]>([])
   const [roles, setRoles] = useState<RoleOption[]>([])
   const [teams, setTeams] = useState<TeamOption[]>([])
@@ -16,6 +17,7 @@ export function useAdminPeople() {
 
   const load = useCallback(async () => {
     setState('loading')
+    setRefreshError(null)
     try {
       setPeople(await listAdminPeople())
       setRoles(await listRoles())
@@ -29,13 +31,19 @@ export function useAdminPeople() {
 
   const refresh = useCallback(async () => {
     try {
-      setPeople(await listAdminPeople())
-    } catch {
-      // Keep the last good rows; the write that asked for this reports its own outcome.
+      const next = await listAdminPeople()
+      setPeople(next)
+      setRefreshError(null)
+    } catch (err) {
+      // Keep the last good rows; expose the refresh error and re-throw so callers
+      // do not claim the displayed data has refreshed until the reread succeeds.
+      const message = err instanceof Error ? err.message : 'refresh-failed'
+      setRefreshError(message)
+      throw err
     }
   }, [])
 
   useEffect(() => { void load() }, [load])
 
-  return { state, people, roles, teams, scopeOptions, load, refresh }
+  return { state, people, roles, teams, scopeOptions, load, refresh, refreshError }
 }

@@ -121,4 +121,56 @@ describe('ChoiceDialog: one Save, the same per-row writes', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledWith(true))
     expect(write).toHaveBeenCalledOnce()
   })
+
+  it('stays open with visible retry state when refresh fails after writes, and only claims saved once reread succeeds', async () => {
+    const refresh = vi.fn()
+      .mockRejectedValueOnce(new Error('refresh failed'))
+      .mockResolvedValue(undefined)
+    const { write, onClose } = setup({ refresh })
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Bravo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save picks' }))
+
+    // Write succeeded
+    await waitFor(() => expect(write).toHaveBeenCalledWith({ id: 'b', wanted: true }, expect.anything()))
+
+    // Refresh failed: dialog must not close and must not claim saved
+    expect(onClose).not.toHaveBeenCalled()
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load people. Try again.")
+
+    // Visible retry action is available
+    const retryBtn = screen.getByRole('button', { name: 'Retry' })
+    expect(retryBtn).toBeInTheDocument()
+
+    // Retrying refresh succeeds and closes claiming saved
+    fireEvent.click(retryBtn)
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(onClose).toHaveBeenCalledWith(true))
+  })
+
+  it('retains failed writes after the refresh retry succeeds', async () => {
+    const write = vi.fn().mockRejectedValueOnce(new Error('write failed'))
+    const refresh = vi.fn().mockRejectedValueOnce(new Error('read failed')).mockResolvedValue(undefined)
+    const { onClose } = setup({ write, refresh })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Bravo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save picks' }))
+    await screen.findByText("Couldn't load people. Try again.")
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await screen.findByText("1 change didn't save. Retry it, or close and try again later.")
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('closes without claiming saved when user cancels after a failed refresh', async () => {
+    const refresh = vi.fn().mockRejectedValue(new Error('refresh failed'))
+    const { write, onClose } = setup({ refresh })
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Bravo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save picks' }))
+
+    await waitFor(() => expect(write).toHaveBeenCalledWith({ id: 'b', wanted: true }, expect.anything()))
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load people. Try again.")
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onClose).toHaveBeenCalledWith(false)
+  })
 })

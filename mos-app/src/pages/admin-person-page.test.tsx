@@ -174,4 +174,43 @@ describe('AdminPersonPage', () => {
     await waitFor(() => expect(mockListRoleAuthority).toHaveBeenCalledTimes(2))
     expect(await within(canDo).findByText('Retail Operations, through their Position')).toBeInTheDocument()
   })
+
+  it('exposes refresh failure, retains a visible retry state, and does not claim saved until reread succeeds', async () => {
+    const user = userEvent.setup()
+    renderPersonPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Change Position' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Café Lead' }))
+
+    // First refresh attempt fails
+    mockListAdminPeople.mockRejectedValueOnce(new Error('refresh failed'))
+    await user.click(screen.getByRole('button', { name: 'Save Position' }))
+
+    await waitFor(() => expect(mockAssignJabatan).toHaveBeenCalledWith('person-1', 'role-cafe-lead'))
+
+    // Dialog stays open with visible retry state; card head does not claim saved
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('alert')).toHaveTextContent("Couldn't load people. Try again.")
+    const positionCard = screen.getByRole('region', { name: 'Position', hidden: true })
+    expect(positionCard.closest('.person-page')).toHaveAttribute('inert')
+    const cardHead = positionCard.querySelector<HTMLElement>('.person-card__head')!
+    expect(within(cardHead).queryByText('Saved')).not.toBeInTheDocument()
+
+    // Subsequent reread succeeds
+    const updatedWithPosition: AdminPersonRow = {
+      ...person,
+      jabatan: [
+        { role_id: 'role-retail-head', role_name: 'Retail Ops Head' },
+        { role_id: 'role-cafe-lead', role_name: 'Café Lead' },
+      ],
+    }
+    mockListAdminPeople.mockResolvedValueOnce([updatedWithPosition])
+
+    await user.click(within(dialog).getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(mockListAdminPeople).toHaveBeenCalledTimes(3))
+
+    // After reread succeeds, dialog closes and card head claims saved
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(within(cardHead).getByText('Saved')).toBeInTheDocument()
+  })
 })
