@@ -75,7 +75,7 @@ async function callModel(
   model: string,
   system: string,
   messages: ModelMessage[],
-): Promise<{ spec: CompositionSpec; tokensUsed: number }> {
+): Promise<{ spec: CompositionSpec; tokensUsed: number; assistantMessage: ModelMessage; toolCallId: string }> {
   const response = await modelClient.create({
     model,
     max_tokens: 4096,
@@ -93,8 +93,10 @@ async function callModel(
     tool_choice: { type: 'function', function: { name: 'compose_view' } },
   })
 
-  const toolCall = response.message.tool_calls?.[0]
-  if (!toolCall || toolCall.function.name !== 'compose_view') {
+  const toolCall = response.message.tool_calls?.find(
+    (tc) => tc.type === 'function' && tc.function.name === 'compose_view',
+  )
+  if (!toolCall) {
     throw new Error('Model did not return a compose_view tool call')
   }
 
@@ -103,6 +105,11 @@ async function callModel(
   return {
     spec: JSON.parse(toolCall.function.arguments) as CompositionSpec,
     tokensUsed,
+    assistantMessage: {
+      ...response.message,
+      tool_calls: [toolCall],
+    },
+    toolCallId: toolCall.id,
   }
 }
 
@@ -145,7 +152,7 @@ export async function composeSpec(
 
   try {
     while (true) {
-      const { spec, tokensUsed } = await callModel(modelClient, model, system, conversationMessages)
+      const { spec, tokensUsed, assistantMessage, toolCallId } = await callModel(modelClient, model, system, conversationMessages)
       totalTokensUsed += tokensUsed
 
       try {
@@ -174,7 +181,12 @@ export async function composeSpec(
           ? `Validation failed: ${err.code} — ${err.detail}. Fix and re-emit a valid CompositionSpec.`
           : `Validation failed: ${err.code}. Fix and re-emit a valid CompositionSpec.`
 
-        conversationMessages.push({ role: 'user', content: repairFeedback })
+        conversationMessages.push(assistantMessage, {
+          role: 'tool',
+          tool_call_id: toolCallId,
+          name: 'compose_view',
+          content: repairFeedback,
+        })
 
         repairAttempts++
       }
