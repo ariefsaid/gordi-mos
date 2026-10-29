@@ -1,11 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { RedirectIfAuthed } from './redirect-if-authed'
+import { RecoveryPage } from '@/pages/recovery-page'
 
 // Mock supabase and resolveViewer before imports that use them
 vi.mock('../lib/supabase', () => ({
   supabase: {
+    from: vi.fn(),
+    schema: vi.fn(),
     auth: {
+      initialize: vi.fn(),
       getSession: vi.fn(),
       onAuthStateChange: vi.fn(),
       signOut: vi.fn(),
@@ -61,11 +67,18 @@ function AuthConsumer() {
       {auth.status === 'authenticated' && (
         <>
           <span data-testid="name">{auth.viewer.person.full_name}</span>
+          <span data-testid="must-change-password">{String(auth.viewer.person.must_change_password)}</span>
           <button onClick={() => auth.signOut()}>Sign out</button>
         </>
       )}
       {auth.status === 'orphan' && (
         <button onClick={() => auth.signOut()}>Sign out orphan</button>
+      )}
+      {auth.status === 'error' && (
+        <>
+          <button onClick={() => void auth.retry()}>Retry auth</button>
+          <button onClick={() => void auth.signOut()}>Sign out error</button>
+        </>
       )}
       {auth.status === 'unauthenticated' && auth.signedOut && <span data-testid="signed-out" />}
       {auth.status === 'recovering' && (
@@ -86,6 +99,8 @@ function ViewerIdentityConsumer({ capture }: { capture: (viewer: { canReadCafePu
   if (auth.status === 'authenticated') capture(auth.viewer)
   return <span>{auth.status}</span>
 }
+
+const RECOVERY_TOKEN = `header.${Buffer.from(JSON.stringify({ sub: 'auth-user-001' })).toString('base64url')}.sig`
 
 function sessionFor(userId: string): Session {
   return { user: { id: userId } } as Partial<Session> as Session
@@ -112,6 +127,8 @@ describe('AuthProvider', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockResolveViewer.mockReset()
+    vi.mocked(supabase.auth.initialize).mockResolvedValue({ error: null })
     __resetReferenceCacheForTests()
     // Default: onAuthStateChange returns an unsubscribe fn
     mockOnAuthStateChange.mockReturnValue({
@@ -612,6 +629,447 @@ describe('AuthProvider', () => {
 
       expect(mockSignOut).not.toHaveBeenCalled()
       expect(screen.getByTestId('status').textContent).toBe('authenticated')
+    })
+  })
+
+  it('shows a fresh-link form after an invalid callback finishes processing', async () => {
+    let finish!: (value: Awaited<ReturnType<typeof supabase.auth.getSession>>) => void
+    mockGetSession.mockReturnValue(new Promise(resolve => { finish = resolve }))
+    render(<MemoryRouter initialEntries={['/recovery#error=access_denied']}><AuthProvider><Routes>
+      <Route element={<RedirectIfAuthed />}><Route path="/recovery" element={<RecoveryPage />} /></Route>
+    </Routes></AuthProvider></MemoryRouter>)
+    expect(screen.getByRole('status', { name: /verifying recovery link/i })).toBeInTheDocument()
+    await act(async () => { finish({ data: { session: null }, error: null }) })
+    expect(screen.getByRole('button', { name: 'Request a new link' })).toBeInTheDocument()
+  })
+
+  it('shows the fresh-link form for a failed callback even if an old session exists', async () => {
+    window.history.replaceState({}, '', '/recovery#error=access_denied')
+    vi.mocked(supabase.auth.initialize).mockResolvedValue({ error: { name: 'AuthError', message: 'expired' } } as Awaited<ReturnType<typeof supabase.auth.initialize>>)
+    mockGetSession.mockResolvedValue({ data: { session: sessionFor('auth-user-001') }, error: null })
+    mockResolveViewer.mockResolvedValue(viewerFor('auth-user-001'))
+    try {
+      await act(async () => { render(<MemoryRouter initialEntries={['/recovery#error=access_denied']}><AuthProvider><Routes>
+        <Route element={<RedirectIfAuthed />}><Route path="/recovery" element={<RecoveryPage />} /></Route>
+        <Route path="/" element={<div>Home</div>} />
+      </Routes></AuthProvider></MemoryRouter>) })
+      expect(screen.getByRole('button', { name: 'Request a new link' })).toBeInTheDocument()
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+  })
+
+  it.each(['TOKEN_REFRESHED', 'SIGNED_IN'] as const)(
+    'keeps recovery pending when a same-account %s arrives before its recovery event',
+    async event => {
+      window.history.replaceState({}, '', `/recovery#access_token=${RECOVERY_TOKEN}&type=recovery`)
+      let callback!: Parameters<typeof supabase.auth.onAuthStateChange>[0]
+      vi.mocked(supabase.auth.initialize).mockReturnValue(new Promise(() => {}))
+      mockResolveViewer.mockResolvedValue(viewerFor('auth-user-001'))
+      mockOnAuthStateChange.mockImplementation(cb => {
+        callback = cb
+        return { data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } } } as ReturnType<typeof supabase.auth.onAuthStateChange>
+      })
+      try {
+        render(<AuthProvider><AuthConsumer /><AuthScopeConsumer /></AuthProvider>)
+        await act(async () => { callback(event, sessionFor('auth-user-001')) })
+        expect(screen.getByTestId('status').textContent).toBe('loading')
+        expect(mockResolveViewer).not.toHaveBeenCalled()
+        expect(getReadScope()).toBeNull()
+        await act(async () => { callback('PASSWORD_RECOVERY', { ...sessionFor('auth-user-001'), access_token: RECOVERY_TOKEN }) })
+        expect(screen.getByTestId('status').textContent).toBe('recovering')
+        expect(mockResolveViewer).not.toHaveBeenCalled()
+        expect(getReadScope()).toBeNull()
+      } finally {
+        window.history.replaceState({}, '', '/')
+      }
+    },
+  )
+
+  it('uses a newer sign-in when it supersedes a pending recovery callback', async () => {
+    window.history.replaceState({}, '', `/recovery#access_token=${RECOVERY_TOKEN}&type=recovery`)
+    let callback!: Parameters<typeof supabase.auth.onAuthStateChange>[0]
+    vi.mocked(supabase.auth.initialize).mockReturnValue(new Promise(() => {}))
+    mockResolveViewer.mockResolvedValue(viewerFor('auth-user-b'))
+    mockOnAuthStateChange.mockImplementation(cb => {
+      callback = cb
+      return { data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } } } as ReturnType<typeof supabase.auth.onAuthStateChange>
+    })
+    try {
+      render(<AuthProvider><AuthConsumer /></AuthProvider>)
+      await act(async () => { callback('SIGNED_IN', sessionFor('auth-user-b')) })
+      expect(screen.getByTestId('name').textContent).toBe('Other Fixture')
+      await act(async () => { callback('PASSWORD_RECOVERY', { ...sessionFor('auth-user-001'), access_token: RECOVERY_TOKEN }) })
+      expect(screen.getByTestId('name').textContent).toBe('Other Fixture')
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+  })
+
+  it('accepts a fresh recovery event while a superseded callback event is still outstanding', async () => {
+    window.history.replaceState({}, '', `/recovery#access_token=${RECOVERY_TOKEN}&type=recovery`)
+    let callback!: Parameters<typeof supabase.auth.onAuthStateChange>[0]
+    vi.mocked(supabase.auth.initialize).mockReturnValue(new Promise(() => {}))
+    mockResolveViewer.mockResolvedValue(viewerFor('auth-user-b'))
+    mockOnAuthStateChange.mockImplementation(cb => {
+      callback = cb
+      return { data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } } } as ReturnType<typeof supabase.auth.onAuthStateChange>
+    })
+    try {
+      render(<AuthProvider><AuthConsumer /><AuthScopeConsumer /></AuthProvider>)
+      await act(async () => { callback('SIGNED_IN', sessionFor('auth-user-b')) })
+      expect(screen.getByTestId('status').textContent).toBe('authenticated')
+      await act(async () => { callback('PASSWORD_RECOVERY', { ...sessionFor('auth-user-b'), access_token: 'new-recovery-token' }) })
+      expect(screen.getByTestId('status').textContent).toBe('recovering')
+      expect(getReadScope()).toBeNull()
+      await act(async () => { callback('PASSWORD_RECOVERY', { ...sessionFor('auth-user-001'), access_token: RECOVERY_TOKEN }) })
+      expect(screen.getByTestId('status').textContent).toBe('recovering')
+      expect(getReadScope()).toBeNull()
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+  })
+
+  it('does not revive a recovery callback after sign-out supersedes it', async () => {
+    window.history.replaceState({}, '', `/recovery#access_token=${RECOVERY_TOKEN}&type=recovery`)
+    let callback!: Parameters<typeof supabase.auth.onAuthStateChange>[0]
+    vi.mocked(supabase.auth.initialize).mockReturnValue(new Promise(() => {}))
+    mockOnAuthStateChange.mockImplementation(cb => {
+      callback = cb
+      return { data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } } } as ReturnType<typeof supabase.auth.onAuthStateChange>
+    })
+    try {
+      render(<AuthProvider><AuthConsumer /></AuthProvider>)
+      await act(async () => { callback('SIGNED_OUT', null) })
+      await act(async () => { callback('PASSWORD_RECOVERY', { ...sessionFor('auth-user-001'), access_token: RECOVERY_TOKEN }) })
+      expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+  })
+
+  it('does not return to recovery if its delayed callback event follows a completed reset', async () => {
+    window.history.replaceState({}, '', `/recovery#access_token=${RECOVERY_TOKEN}&type=recovery`)
+    let callback!: Parameters<typeof supabase.auth.onAuthStateChange>[0]
+    mockGetSession.mockResolvedValue({ data: { session: sessionFor('auth-user-001') }, error: null })
+    mockResolveViewer.mockResolvedValue(viewerFor('auth-user-001'))
+    mockOnAuthStateChange.mockImplementation(cb => {
+      callback = cb
+      return { data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } } } as ReturnType<typeof supabase.auth.onAuthStateChange>
+    })
+    try {
+      await act(async () => { render(<AuthProvider><AuthConsumer /></AuthProvider>) })
+      await act(async () => { screen.getByRole('button', { name: 'Clear recovering' }).click() })
+      expect(screen.getByTestId('status').textContent).toBe('authenticated')
+      await act(async () => { callback('PASSWORD_RECOVERY', { ...sessionFor('auth-user-001'), access_token: RECOVERY_TOKEN }) })
+      expect(screen.getByTestId('status').textContent).toBe('authenticated')
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+  })
+
+  it('keeps a valid recovery callback on recovery while Supabase delays its event', async () => {
+    window.history.replaceState({}, '', `/recovery#access_token=${RECOVERY_TOKEN}&type=recovery`)
+    let callback!: Parameters<typeof supabase.auth.onAuthStateChange>[0]
+    mockOnAuthStateChange.mockImplementation(cb => {
+      callback = cb
+      return { data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } } } as ReturnType<typeof supabase.auth.onAuthStateChange>
+    })
+    mockGetSession.mockResolvedValue({ data: { session: sessionFor('auth-user-001') }, error: null })
+    mockResolveViewer.mockResolvedValue(viewerFor('auth-user-001'))
+    try {
+      await act(async () => {
+        render(<MemoryRouter initialEntries={[`/recovery#access_token=${RECOVERY_TOKEN}&type=recovery`]}><AuthProvider><Routes>
+          <Route element={<RedirectIfAuthed />}><Route path="/recovery" element={<RecoveryPage />} /></Route>
+          <Route path="/" element={<div>Home</div>} />
+        </Routes></AuthProvider></MemoryRouter>)
+      })
+      expect(screen.getByLabelText('New password')).toBeInTheDocument()
+      await act(async () => { callback('PASSWORD_RECOVERY', { ...sessionFor('auth-user-001'), access_token: RECOVERY_TOKEN }) })
+      expect(screen.getByLabelText('New password')).toBeInTheDocument()
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+  })
+
+  it.each([
+    ['name', { full_name: 'New name' }, 'name', 'New name'],
+    ['password requirement', { must_change_password: true }, 'must-change-password', 'true'],
+  ] as const)('refreshes %s through the real viewer resolver within its cache window', async (_label, change, field, expected) => {
+    let person = { ...personRow }
+    const people = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), maybeSingle: vi.fn(async () => ({ data: person, error: null })) }
+    const rows = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve) }
+    vi.mocked(supabase.from).mockImplementation((table) => (table === 'people' ? people : rows) as unknown as ReturnType<typeof supabase.from>)
+    vi.mocked(supabase.schema).mockReturnValue({ rpc: vi.fn().mockResolvedValue({ data: false, error: null }) } as unknown as ReturnType<typeof supabase.schema>)
+    const realViewer = await vi.importActual<typeof import('@/lib/db/viewer')>('@/lib/db/viewer')
+    mockResolveViewer.mockImplementation(realViewer.resolveViewer)
+    mockGetSession.mockResolvedValue({ data: { session: sessionFor('auth-user-001') }, error: null })
+    let callback!: Parameters<typeof supabase.auth.onAuthStateChange>[0]
+    mockOnAuthStateChange.mockImplementation(cb => {
+      callback = cb
+      return { data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } } } as ReturnType<typeof supabase.auth.onAuthStateChange>
+    })
+    await act(async () => { render(<AuthProvider><AuthConsumer /></AuthProvider>) })
+    person = { ...person, ...change }
+    await act(async () => { callback('TOKEN_REFRESHED', sessionFor('auth-user-001')) })
+    await waitFor(() => expect(screen.getByTestId(field).textContent).toBe(expected))
+  })
+
+  describe('viewer resolution recovery and account refresh (#1943, #1959)', () => {
+    it('viewer resolution failure → status error with retry and signOut, retry finishes loading current session', async () => {
+      mockGetSession.mockResolvedValue({
+        data: { session: { user: { id: 'auth-user-001' }, access_token: 'valid-token' } },
+        error: null,
+      } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+      mockResolveViewer.mockRejectedValueOnce(new Error('Network error'))
+
+      await act(async () => {
+        render(
+          <AuthProvider>
+            <AuthConsumer />
+          </AuthProvider>,
+        )
+      })
+
+      expect(screen.getByTestId('status').textContent).toBe('error')
+
+      mockResolveViewer.mockResolvedValueOnce({
+        person: personRow,
+        roles,
+        isManager: false,
+        accessRoles: [],
+        affiliated: [],
+        canReadCafePushes: false,
+      })
+
+      await act(async () => {
+        screen.getByRole('button', { name: 'Retry auth' }).click()
+      })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('status').textContent).toBe('authenticated')
+        expect(screen.getByTestId('name').textContent).toBe('Cahya Cafe')
+      })
+    })
+
+    it('sign out from error state transitions to unauthenticated', async () => {
+      mockGetSession.mockResolvedValue({
+        data: { session: { user: { id: 'auth-user-001' } } },
+        error: null,
+      } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+      mockResolveViewer.mockRejectedValueOnce(new Error('Database unavailable'))
+      mockSignOut.mockResolvedValue({ error: null })
+
+      await act(async () => {
+        render(
+          <AuthProvider>
+            <AuthConsumer />
+          </AuthProvider>,
+        )
+      })
+
+      expect(screen.getByTestId('status').textContent).toBe('error')
+
+      await act(async () => {
+        screen.getByRole('button', { name: 'Sign out error' }).click()
+      })
+
+      await waitFor(() => {
+        expect(mockSignOut).toHaveBeenCalledOnce()
+        expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
+      })
+    })
+
+    it('stale rejection or completion after sign-out does not overwrite unauthenticated state', async () => {
+      let rejectViewer!: (err: Error) => void
+      mockGetSession.mockResolvedValue({
+        data: { session: { user: { id: 'auth-user-001' } } },
+        error: null,
+      } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+      mockResolveViewer.mockReturnValue(
+        new Promise((_, reject) => {
+          rejectViewer = reject
+        }),
+      )
+      mockSignOut.mockResolvedValue({ error: null })
+
+      let capturedCallback: Parameters<typeof supabase.auth.onAuthStateChange>[0] | null = null
+      mockOnAuthStateChange.mockImplementation((cb) => {
+        capturedCallback = cb
+        return {
+          data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } },
+        } as ReturnType<typeof supabase.auth.onAuthStateChange>
+      })
+
+      await act(async () => {
+        render(
+          <AuthProvider>
+            <AuthConsumer />
+          </AuthProvider>,
+        )
+      })
+
+      // While resolveViewer is pending, sign out
+      await act(async () => {
+        capturedCallback!('SIGNED_OUT', null)
+      })
+
+      expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
+
+      // Now reject the stale viewer fetch
+      await act(async () => {
+        rejectViewer(new Error('Late network error'))
+      })
+
+      // Must remain unauthenticated, NOT error
+      expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
+      expect(getReadScope()).toBeNull()
+    })
+
+    it('stale rejection while PASSWORD_RECOVERY is active does not overwrite recovering state', async () => {
+      let rejectViewer!: (err: Error) => void
+      mockGetSession.mockResolvedValue({
+        data: { session: { user: { id: 'auth-user-001' } } },
+        error: null,
+      } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+      mockResolveViewer.mockReturnValue(
+        new Promise((_, reject) => {
+          rejectViewer = reject
+        }),
+      )
+
+      let capturedCallback: Parameters<typeof supabase.auth.onAuthStateChange>[0] | null = null
+      mockOnAuthStateChange.mockImplementation((cb) => {
+        capturedCallback = cb
+        return {
+          data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } },
+        } as ReturnType<typeof supabase.auth.onAuthStateChange>
+      })
+
+      await act(async () => {
+        render(
+          <AuthProvider>
+            <AuthConsumer />
+          </AuthProvider>,
+        )
+      })
+
+      // Fire PASSWORD_RECOVERY event
+      await act(async () => {
+        capturedCallback!('PASSWORD_RECOVERY', {
+          user: { id: 'auth-user-001' },
+        } as Partial<Session> as Session)
+      })
+
+      expect(screen.getByTestId('status').textContent).toBe('recovering')
+
+      // Stale viewer rejection
+      await act(async () => {
+        rejectViewer(new Error('Late network failure'))
+      })
+
+      // Must remain recovering
+      expect(screen.getByTestId('status').textContent).toBe('recovering')
+    })
+
+    it('Issue 1959: refreshing a session after person name changes displays updated name even when roles stay same', async () => {
+      mockGetSession.mockResolvedValue({
+        data: { session: { user: { id: 'auth-user-001' } } },
+        error: null,
+      } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+      mockResolveViewer
+        .mockResolvedValueOnce({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [], canReadCafePushes: false })
+        .mockResolvedValueOnce({
+          person: { ...personRow, full_name: 'Cahya Updated Name' },
+          roles,
+          isManager: false,
+          accessRoles: [],
+          affiliated: [],
+          canReadCafePushes: false,
+        })
+
+      let capturedCallback: Parameters<typeof supabase.auth.onAuthStateChange>[0] | null = null
+      mockOnAuthStateChange.mockImplementation((cb) => {
+        capturedCallback = cb
+        return {
+          data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } },
+        } as ReturnType<typeof supabase.auth.onAuthStateChange>
+      })
+
+      await act(async () => {
+        render(
+          <AuthProvider>
+            <AuthConsumer />
+          </AuthProvider>,
+        )
+      })
+
+      expect(screen.getByTestId('status').textContent).toBe('authenticated')
+      expect(screen.getByTestId('name').textContent).toBe('Cahya Cafe')
+
+      // Trigger session refresh (e.g. token refresh / SIGNED_IN event with same user)
+      await act(async () => {
+        capturedCallback!('TOKEN_REFRESHED', {
+          user: { id: 'auth-user-001' },
+        } as Partial<Session> as Session)
+      })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('name').textContent).toBe('Cahya Updated Name')
+      })
+    })
+
+    it('Issue 1959: refreshing a session after password-change requirement changes updates requirement even when roles stay same', async () => {
+      mockGetSession.mockResolvedValue({
+        data: { session: { user: { id: 'auth-user-001' } } },
+        error: null,
+      } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+      mockResolveViewer
+        .mockResolvedValueOnce({
+          person: { ...personRow, must_change_password: false },
+          roles,
+          isManager: false,
+          accessRoles: [],
+          affiliated: [],
+          canReadCafePushes: false,
+        })
+        .mockResolvedValueOnce({
+          person: { ...personRow, must_change_password: true },
+          roles,
+          isManager: false,
+          accessRoles: [],
+          affiliated: [],
+          canReadCafePushes: false,
+        })
+
+      let capturedCallback: Parameters<typeof supabase.auth.onAuthStateChange>[0] | null = null
+      mockOnAuthStateChange.mockImplementation((cb) => {
+        capturedCallback = cb
+        return {
+          data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } },
+        } as ReturnType<typeof supabase.auth.onAuthStateChange>
+      })
+
+      await act(async () => {
+        render(
+          <AuthProvider>
+            <AuthConsumer />
+          </AuthProvider>,
+        )
+      })
+
+      expect(screen.getByTestId('must-change-password').textContent).toBe('false')
+
+      // Refresh session
+      await act(async () => {
+        capturedCallback!('TOKEN_REFRESHED', {
+          user: { id: 'auth-user-001' },
+        } as Partial<Session> as Session)
+      })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('must-change-password').textContent).toBe('true')
+      })
     })
   })
 })

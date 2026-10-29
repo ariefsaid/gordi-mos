@@ -217,6 +217,15 @@ describe('resolveViewer', () => {
     expect(orgIdFilters).toHaveLength(0)
   })
 
+  it('reports a failed person read instead of treating it as an absent person', async () => {
+    mockFrom.mockReturnValue(asChain({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: { message: 'unavailable' } }),
+    }))
+    await expect(resolveViewer(USER_ID)).rejects.toThrow()
+  })
+
   it('AC-012: resolveViewer returns { person: null } for orphan (no people row)', async () => {
     mockFrom.mockImplementation((table: string) => {
       if (table === 'people') {

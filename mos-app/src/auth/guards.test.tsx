@@ -151,9 +151,50 @@ describe('ProtectedRoute', () => {
 
     expect(screen.getByTestId('protected-content')).toBeInTheDocument()
   })
+
+  it('viewer resolution error on a protected route → error screen renders with retry and signOut, not protected content (#1943)', () => {
+    const retry = vi.fn()
+    const signOut = vi.fn()
+    mockUseAuth.mockReturnValue({
+      status: 'error',
+      error: new Error('connection refused'),
+      retry,
+      signOut,
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<ProtectedRoute />}>
+            <Route path="/" element={<ProtectedContent />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument()
+
+    screen.getByRole('button', { name: /retry/i }).click()
+    expect(retry).toHaveBeenCalledOnce()
+
+    screen.getByRole('button', { name: /sign out/i }).click()
+    expect(signOut).toHaveBeenCalledOnce()
+  })
 })
 
 describe('RedirectIfAuthed', () => {
+  it('shows retry when resolving the viewer fails after sign-in', () => {
+    const retry = vi.fn()
+    mockUseAuth.mockReturnValue({ status: 'error', error: new Error('unavailable'), retry, signOut: vi.fn() })
+    render(<MemoryRouter initialEntries={['/login']}><Routes>
+      <Route element={<RedirectIfAuthed />}><Route path="/login" element={<LoginPage />} /></Route>
+    </Routes></MemoryRouter>)
+    screen.getByRole('button', { name: /retry/i }).click()
+    expect(retry).toHaveBeenCalledOnce()
+  })
+
   it('AC-012: a Google OAuth return restores its sanitized protected-route destination', () => {
     mockUseAuth.mockReturnValue({
       status: 'authenticated',
