@@ -23,6 +23,13 @@ select plan(21);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
+-- Test-only assignments for this connection; rolled back with the fixture.
+insert into reporting_private.writer_orgs (login_oid, login_name, org_id)
+select oid, rolname, org_id from pg_catalog.pg_roles
+cross join (values ('00000000-0000-0000-0000-0000000000a1'::uuid),
+                   ('00000000-0000-0000-0000-0000000000b1'::uuid)) orgs(org_id)
+where rolname = session_user;
+
 
 -- A row of ORG B, planted by the migration runner (BYPASSRLS), so the cross-org UPDATE assertion
 -- later has something real to fail to reach rather than passing on an empty table.
