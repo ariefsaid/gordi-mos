@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from './use-auth'
 import { safeReturnTarget } from './return-target'
+import { AuthErrorScreen } from './auth-error-screen'
 
 // FR-011: when an authenticated user hits /login (or recovery), redirect them off the form.
 // Orphan users are also authenticated (they have a valid JWT) — redirect them too
@@ -17,6 +18,10 @@ import { safeReturnTarget } from './return-target'
 export function RedirectIfAuthed() {
   const auth = useAuth()
   const location = useLocation()
+
+  if (auth.status === 'error') {
+    return <AuthErrorScreen retry={auth.retry} signOut={auth.signOut} />
+  }
 
   if (auth.status === 'recovering') {
     // Already on /recovery — render the set-password form.

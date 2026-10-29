@@ -97,10 +97,9 @@ async function resolveViewerData(userId: string): Promise<CachedViewerResult> {
     .eq('user_id', userId)
     .maybeSingle()
 
-  if (personError || person === null) {
-    // Warn on RLS/read error so misconfiguration doesn't silently masquerade as an orphan.
-    if (personError) console.warn('viewer: person read failed', personError)
-    // Orphan: no people row or read error → fail closed, no throw
+  if (personError) throw new Error(`resolveViewer: person read failed — ${personError.message}`)
+  if (person === null) {
+    // A successful empty read identifies an orphan.
     return { person: null, roles: [], isManager: false, affiliated: [], canReadCafePushes: false }
   }
 

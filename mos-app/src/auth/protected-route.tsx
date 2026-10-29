@@ -4,6 +4,7 @@ import { useAccountLocale } from '@/i18n/account-locale'
 import { useModuleAvailabilitySession } from '@/lib/module-availability'
 import { OrphanScreen } from './orphan-screen'
 import { SetPasswordScreen } from './set-password-screen'
+import { AuthErrorScreen } from './auth-error-screen'
 
 // FR-010/011/013/016: gate for all protected routes.
 // loading → neutral loading indicator (no protected content flash, FR-013) — also while the
@@ -49,6 +50,10 @@ export function ProtectedRoute() {
 
   if (auth.status === 'orphan') {
     return <OrphanScreen />
+  }
+
+  if (auth.status === 'error') {
+    return <AuthErrorScreen retry={auth.retry} signOut={auth.signOut} />
   }
 
   // #131: the password was set by an admin and is known to them — block every route until the

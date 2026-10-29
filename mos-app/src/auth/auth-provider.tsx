@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
 import { resolveViewer } from '@/lib/db/viewer'
-import type { ViewerResult } from '@/lib/db/viewer'
-import type { ViewerPerson } from '@/lib/db/viewer'
+import type { ViewerResult, ViewerPerson, ViewerRole } from '@/lib/db/viewer'
 import { invalidateReferenceCache } from '@/lib/db/reference-cache'
 import {
   publishReadScope,
@@ -27,6 +26,19 @@ const DEVICE_CLEAR_TIMEOUT_MS = 2000
 interface Props {
   children: ReactNode
 }
+
+// Capture the callback before Supabase clears the URL during initialization.
+function recoveryCallback(): { recovery: boolean } | null {
+  if (typeof window === 'undefined' || !window.location.pathname.endsWith('/recovery')) return null
+  const hash = new URLSearchParams(window.location.hash.slice(1))
+  const query = new URLSearchParams(window.location.search)
+  const hasCallback = ['access_token', 'refresh_token', 'code', 'token_hash', 'error', 'error_code', 'error_description']
+    .some(key => hash.has(key) || query.has(key))
+  const accessTokenPresent = hash.has('access_token') || query.has('access_token')
+  const type = hash.get('type') ?? query.get('type')
+  return hasCallback ? { recovery: accessTokenPresent && type === 'recovery' } : null
+}
+let startupRecoveryCallback = recoveryCallback()
 
 // Scope generations survive provider unmount/remount in this JS activation. A reload also reloads
 // the in-memory read module, so it cannot revive an earlier lease.
@@ -57,6 +69,25 @@ function sameScopeFacts(left: ReadScope, right: Omit<ReadScope, 'generation'>): 
     && left.authorityKey === right.authorityKey
 }
 
+function sameViewerPerson(left: ViewerPerson, right: ViewerPerson): boolean {
+  const leftKeys = Object.keys(left) as (keyof ViewerPerson)[]
+  const rightKeys = Object.keys(right) as (keyof ViewerPerson)[]
+  if (leftKeys.length !== rightKeys.length) return false
+  return leftKeys.every(k => left[k] === right[k])
+}
+
+function sameViewerRoles(left: ViewerRole[], right: ViewerRole[]): boolean {
+  if (left.length !== right.length) return false
+  return left.every((l, idx) => {
+    const r = right[idx]
+    return r !== undefined
+      && l.id === r.id
+      && l.name === r.name
+      && l.business_unit_id === r.business_unit_id
+      && l.reports_to_role_id === r.reports_to_role_id
+  })
+}
+
 function buildReadScope(
   authUserId: string,
   person: ViewerPerson,
@@ -85,6 +116,8 @@ export function AuthProvider({ children }: Props) {
   // PASSWORD_RECOVERY. Since both run concurrently, we set this flag in the event handler so
   // resolveSession can bail out if recovery has already been detected.
   const isRecoveringRef = useRef(false)
+  const callbackEventOutstandingRef = useRef(false)
+  const ignoreRecoveryEventRef = useRef(false)
 
   const retireReadScope = useCallback(() => {
     activeScopeRef.current = null
@@ -131,9 +164,26 @@ export function AuthProvider({ children }: Props) {
       retireReadScope()
       invalidateReferenceCache()
       setState({ status: 'loading' })
+    } else {
+      setState(current => current.status === 'error' ? { status: 'loading' } : current)
     }
 
-    const result = await resolveViewer(userId, accessToken)
+    let result: ViewerResult
+    try {
+      result = await resolveViewer(userId, accessToken)
+    } catch (error) {
+      if (!providerMountedRef.current || ticket !== resolutionTicketRef.current || isRecoveringRef.current) return
+      retireReadScope()
+      setState({
+        status: 'error',
+        error,
+        retry: () => {
+          void resolveSession(userId, accessToken)
+        },
+        signOut: handleSignOut,
+      })
+      return
+    }
     if (!providerMountedRef.current || ticket !== resolutionTicketRef.current || isRecoveringRef.current) return
 
     const person = result.person
@@ -148,9 +198,11 @@ export function AuthProvider({ children }: Props) {
     publishReadScope(readScope)
     setState(current => {
       const currentViewer = current.status === 'authenticated' ? current.viewer : null
-      const viewer = currentViewer
-        && currentViewer.person.id === person.id
+      const canReuse = currentViewer
+        && sameViewerPerson(currentViewer.person, person)
+        && sameViewerRoles(currentViewer.roles, result.roles)
         && makeAuthorityKey(currentViewer) === makeAuthorityKey(result)
+      const viewer = canReuse
         ? currentViewer
         : {
             person,
@@ -171,6 +223,10 @@ export function AuthProvider({ children }: Props) {
     // Clearing recovery starts a fresh viewer-resolution ticket; an auth event during getSession
     // supersedes it and must remain the source of truth.
     isRecoveringRef.current = false
+    if (callbackEventOutstandingRef.current) {
+      ignoreRecoveryEventRef.current = true
+      callbackEventOutstandingRef.current = false
+    }
     const ticket = ++resolutionTicketRef.current
     const userId = recoveryUserIdRef.current
     if (!userId) {
@@ -194,15 +250,46 @@ export function AuthProvider({ children }: Props) {
     // Bootstrap only owns the ticket that was current when it began. Any auth event or
     // resolution that arrives first supersedes this potentially stale session snapshot.
     const bootstrapTicket = resolutionTicketRef.current
-    supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled && bootstrapTicket === resolutionTicketRef.current) {
-        void resolveSession(data.session?.user?.id, data.session?.access_token)
+    const callback = startupRecoveryCallback ?? recoveryCallback()
+    let callbackPending = Boolean(callback)
+    callbackEventOutstandingRef.current = Boolean(callback?.recovery)
+    ignoreRecoveryEventRef.current = false
+    if (callback) {
+      startupRecoveryCallback = callback
+      isRecoveringRef.current = true
+    }
+    const bootstrap = async () => {
+      const initialization = callback ? await supabase.auth.initialize() : null
+      const { data } = await supabase.auth.getSession()
+      if (cancelled || bootstrapTicket !== resolutionTicketRef.current) return
+      startupRecoveryCallback = null
+      callbackPending = false
+      if (callback) {
+        if (!initialization?.error && callback.recovery && data.session?.user?.id) {
+          recoveryUserIdRef.current = data.session.user.id
+          setState({ status: 'recovering', clearRecovering: handleClearRecovering })
+        } else {
+          callbackEventOutstandingRef.current = false
+          isRecoveringRef.current = false
+          retireReadScope()
+          setState({ status: 'unauthenticated' })
+        }
+        return
       }
-    })
+      void resolveSession(data.session?.user?.id, data.session?.access_token)
+    }
+    void bootstrap()
 
     // Subscribe to auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
+        if (ignoreRecoveryEventRef.current) {
+          ignoreRecoveryEventRef.current = false
+          return
+        }
+        callbackPending = false
+        callbackEventOutstandingRef.current = false
+        startupRecoveryCallback = null
         // Park in recovering — do NOT resolve a viewer until recovery is cleared.
         isRecoveringRef.current = true
         resolutionTicketRef.current += 1
@@ -210,9 +297,22 @@ export function AuthProvider({ children }: Props) {
         invalidateReferenceCache()
         recoveryUserIdRef.current = session?.user?.id
         if (!cancelled) setState({ status: 'recovering', clearRecovering: handleClearRecovering })
-      } else if (event === 'SIGNED_IN') {
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (callbackPending) {
+          ignoreRecoveryEventRef.current = callbackEventOutstandingRef.current
+          callbackPending = false
+          callbackEventOutstandingRef.current = false
+          startupRecoveryCallback = null
+          isRecoveringRef.current = false
+        }
+        if (isRecoveringRef.current) return
+        invalidateReferenceCache('shared.auth.viewer')
         void resolveSession(session?.user?.id, session?.access_token)
       } else if (event === 'SIGNED_OUT') {
+        ignoreRecoveryEventRef.current = callbackEventOutstandingRef.current
+        callbackPending = false
+        callbackEventOutstandingRef.current = false
+        startupRecoveryCallback = null
         isRecoveringRef.current = false
         resolutionTicketRef.current += 1
         recoveryUserIdRef.current = undefined
