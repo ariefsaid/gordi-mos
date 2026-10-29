@@ -10,16 +10,11 @@ import {
   offerStaffShift, reportStaffAbsence, staffNoteUrl, withdrawStaffClaim,
   type AbsenceKind, type AbsenceStatus, type CoverQueue, type HrAbsence, type MonthlyTotal, type MyAbsence, type OpenShiftsView,
 } from '@/lib/db/staff-cover'
+import { wibToday } from '@/lib/format/date'
 import './staff-shift-panels.css'
 import './staff-cover-panels.css'
 
 type FetchState = 'loading' | 'ready' | 'error'
-
-function jakartaToday(): string {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? ''
-  return `${get('year')}-${get('month')}-${get('day')}`
-}
 
 function addDays(date: string, days: number): string {
   const value = new Date(`${date}T12:00:00Z`)
@@ -108,7 +103,7 @@ function shiftKey(shift: StaffShift): string {
 /** My upcoming shifts for this week and next, standing-hours days included. */
 function useUpcomingShifts() {
   const load = useCallback(async () => {
-    const week = mondayOf(jakartaToday())
+    const week = mondayOf(wibToday())
     const [a, b] = await Promise.all([listMyStaffShifts(week), listMyStaffShifts(addDays(week, 7))])
     const now = Date.now()
     return [...a, ...b].filter((shift) => Date.parse(shift.end_at) > now)
@@ -127,7 +122,7 @@ export function AbsencePanel({ orgId }: { orgId: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState('')
-  const today = jakartaToday()
+  const today = wibToday()
   const options = (shifts.data ?? []).filter((shift) => kind !== 'sick' || shift.local_date === today)
   const chosen = options.find((shift) => shiftKey(shift) === key) ?? options[0]
 
@@ -379,7 +374,7 @@ export function RequestsPanel() {
 }
 
 function currentMonth(): string {
-  return jakartaToday().slice(0, 7)
+  return wibToday().slice(0, 7)
 }
 
 function Count({ value, tt }: { value: number | null; tt: StaffCoverText }) {

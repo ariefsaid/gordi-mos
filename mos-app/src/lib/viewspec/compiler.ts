@@ -19,18 +19,9 @@ import type {
 // compileCompositionSpec, T8/FR-P2-CV-002, so its import graph must stay React/CSS-free too;
 // Director build-note, 2026-07-04, pre-ADR-0018-P2-T7).
 import { validatePrimitiveInManifest } from './registry-manifest.ts'
-
-function startOfMonth(d: Date): string {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-01`
-}
-function endOfMonth(d: Date): string {
-  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))
-  return `${last.getUTCFullYear()}-${String(last.getUTCMonth() + 1).padStart(2, '0')}-${String(last.getUTCDate()).padStart(2, '0')}`
-}
-function todayISO(): string {
-  const d = new Date()
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-}
+// Deno imports this compiler directly and cannot resolve the app's @/ alias.
+// eslint-disable-next-line no-restricted-imports
+import { wibToday, wibStartOfMonth, wibEndOfMonth } from '../format/wib-calendar.ts'
 
 /** Resolves a $-token (scalar or array element). Throws UNKNOWN_TOKEN / UNRESOLVABLE_TOKEN. */
 function resolveValue(raw: FilterClause['value'], ctx: CompilerContext): ResolvedFilter['value'] {
@@ -41,9 +32,9 @@ function resolveValue(raw: FilterClause['value'], ctx: CompilerContext): Resolve
     switch (token) {
       case '$current_person': return ctx.personId
       case '$current_org': return ctx.orgId
-      case '$today': return todayISO()
-      case '$start_of_month': return startOfMonth(now)
-      case '$end_of_month': return endOfMonth(now)
+      case '$today': return wibToday(now)
+      case '$start_of_month': return wibStartOfMonth(now)
+      case '$end_of_month': return wibEndOfMonth(now)
     }
   }
   if (Array.isArray(raw)) {

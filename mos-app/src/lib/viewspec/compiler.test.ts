@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { compileQuerySpec, compileCompositionSpec } from './compiler'
 import { MAX_PANELS_PER_VIEW } from './types'
 import type { QuerySpec, CompositionSpec } from './types'
@@ -68,10 +68,114 @@ describe('compileQuerySpec — union groupBy/aggregate columns into resolvedSele
 })
 
 describe('compileQuerySpec — AC-UV-003 (tokens)', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('resolves $current_person / $current_org / date tokens', () => {
     const c = compileQuerySpec({ entity: 'tasks', select: ['id'], filters: [{ column: 'responsible_person_id', op: 'eq', value: '$current_person' }], timeRange: { column: 'due_date', from: '$start_of_month', to: '$end_of_month' } }, ctx)
     expect(c.resolvedFilters[0].value).toBe('p1')
     expect(c.resolvedFilters[1].value).toEqual([expect.any(String), expect.any(String)])
+  })
+
+  it('AC-1888: resolves $today, $start_of_month, $end_of_month to Jakarta calendar date around UTC midnight', () => {
+    vi.useFakeTimers()
+
+    // 2026-04-30T16:59:59Z is 23:59:59 WIB on 2026-04-30 (still April in Jakarta)
+    vi.setSystemTime(new Date('2026-04-30T16:59:59Z'))
+    const beforeJakartaMidnight = compileQuerySpec({
+      entity: 'tasks',
+      select: ['id'],
+      filters: [{ column: 'status', op: 'eq', value: '$today' }],
+      timeRange: { column: 'due_date', from: '$start_of_month', to: '$end_of_month' },
+    }, ctx)
+    expect(beforeJakartaMidnight.resolvedFilters[0].value).toBe('2026-04-30')
+    expect(beforeJakartaMidnight.resolvedFilters[1].value).toEqual(['2026-04-01', '2026-04-30'])
+
+    // 2026-04-30T17:00:00Z is 00:00:00 WIB on 2026-05-01 (May in Jakarta, but still April in UTC)
+    vi.setSystemTime(new Date('2026-04-30T17:00:00Z'))
+    const atJakartaMidnight = compileQuerySpec({
+      entity: 'tasks',
+      select: ['id'],
+      filters: [{ column: 'status', op: 'eq', value: '$today' }],
+      timeRange: { column: 'due_date', from: '$start_of_month', to: '$end_of_month' },
+    }, ctx)
+    expect(atJakartaMidnight.resolvedFilters[0].value).toBe('2026-05-01')
+    expect(atJakartaMidnight.resolvedFilters[1].value).toEqual(['2026-05-01', '2026-05-31'])
+
+    // 2026-04-30T23:59:59Z is 06:59:59 WIB on 2026-05-01 (just before UTC midnight)
+    vi.setSystemTime(new Date('2026-04-30T23:59:59Z'))
+    const beforeUtcMidnight = compileQuerySpec({
+      entity: 'tasks',
+      select: ['id'],
+      filters: [{ column: 'status', op: 'eq', value: '$today' }],
+      timeRange: { column: 'due_date', from: '$start_of_month', to: '$end_of_month' },
+    }, ctx)
+    expect(beforeUtcMidnight.resolvedFilters[0].value).toBe('2026-05-01')
+    expect(beforeUtcMidnight.resolvedFilters[1].value).toEqual(['2026-05-01', '2026-05-31'])
+
+    // 2026-05-01T00:00:00Z is 07:00:00 WIB on 2026-05-01 (at UTC midnight)
+    vi.setSystemTime(new Date('2026-05-01T00:00:00Z'))
+    const atUtcMidnight = compileQuerySpec({
+      entity: 'tasks',
+      select: ['id'],
+      filters: [{ column: 'status', op: 'eq', value: '$today' }],
+      timeRange: { column: 'due_date', from: '$start_of_month', to: '$end_of_month' },
+    }, ctx)
+    expect(atUtcMidnight.resolvedFilters[0].value).toBe('2026-05-01')
+    expect(atUtcMidnight.resolvedFilters[1].value).toEqual(['2026-05-01', '2026-05-31'])
+  })
+
+  it('AC-1888: resolves February end of month correctly for leap year vs non-leap year in Jakarta', () => {
+    vi.useFakeTimers()
+
+    // 2024 is a leap year (Feb has 29 days)
+    vi.setSystemTime(new Date('2024-02-15T12:00:00Z'))
+    const leapFeb = compileQuerySpec({
+      entity: 'tasks',
+      select: ['id'],
+      filters: [{ column: 'status', op: 'eq', value: '$today' }],
+      timeRange: { column: 'due_date', from: '$start_of_month', to: '$end_of_month' },
+    }, ctx)
+    expect(leapFeb.resolvedFilters[0].value).toBe('2024-02-15')
+    expect(leapFeb.resolvedFilters[1].value).toEqual(['2024-02-01', '2024-02-29'])
+
+    // 2026 is not a leap year (Feb has 28 days)
+    vi.setSystemTime(new Date('2026-02-15T12:00:00Z'))
+    const nonLeapFeb = compileQuerySpec({
+      entity: 'tasks',
+      select: ['id'],
+      filters: [{ column: 'status', op: 'eq', value: '$today' }],
+      timeRange: { column: 'due_date', from: '$start_of_month', to: '$end_of_month' },
+    }, ctx)
+    expect(nonLeapFeb.resolvedFilters[0].value).toBe('2026-02-15')
+    expect(nonLeapFeb.resolvedFilters[1].value).toEqual(['2026-02-01', '2026-02-28'])
+  })
+
+  it('AC-1888: resolves year-boundary transitions in Jakarta', () => {
+    vi.useFakeTimers()
+
+    // 2026-12-31T16:59:59Z is 23:59:59 WIB on 2026-12-31
+    vi.setSystemTime(new Date('2026-12-31T16:59:59Z'))
+    const beforeYearEnd = compileQuerySpec({
+      entity: 'tasks',
+      select: ['id'],
+      filters: [{ column: 'status', op: 'eq', value: '$today' }],
+      timeRange: { column: 'due_date', from: '$start_of_month', to: '$end_of_month' },
+    }, ctx)
+    expect(beforeYearEnd.resolvedFilters[0].value).toBe('2026-12-31')
+    expect(beforeYearEnd.resolvedFilters[1].value).toEqual(['2026-12-01', '2026-12-31'])
+
+    // 2026-12-31T17:00:00Z is 00:00:00 WIB on 2027-01-01
+    vi.setSystemTime(new Date('2026-12-31T17:00:00Z'))
+    const newYearJakarta = compileQuerySpec({
+      entity: 'tasks',
+      select: ['id'],
+      filters: [{ column: 'status', op: 'eq', value: '$today' }],
+      timeRange: { column: 'due_date', from: '$start_of_month', to: '$end_of_month' },
+    }, ctx)
+    expect(newYearJakarta.resolvedFilters[0].value).toBe('2027-01-01')
+    expect(newYearJakarta.resolvedFilters[1].value).toEqual(['2027-01-01', '2027-01-31'])
   })
   it('rejects unknown $ token and unresolvable-known token (none in P1 set, but guard holds)', () => {
     expect(() => compileQuerySpec({ entity: 'tasks', select: ['id'], filters: [{ column: 'status', op: 'eq', value: '$bogus' }], timeRange: { column: 'due_date', from: 'a', to: 'b' } }, ctx)).toThrowError(/UNKNOWN_TOKEN/)
