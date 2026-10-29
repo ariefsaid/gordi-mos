@@ -15,7 +15,7 @@
  * D1 delta vs the sibling reference: there is no `profiles` lookup gate (2) — orgId/personId/
  * accessRoles arrive on HandlerDeps, already decoded from the caller's JWT by index.ts.
  *
- * P2 scope (§0): DROPS vs the sibling reference — rateGuard/usage/credits (P3), ask_user/
+ * P2 scope (§0): DROPS vs the sibling reference — ask_user/
  * handleAnswer (P3), buildDataTableWidgetFromQueryResult (P3, ADR-0045 widget), buildGroundingHint/
  * narrowEntityScope (P3 live-context — RunContext carries only `route` in P2, no entity prompt
  * injection).
@@ -92,8 +92,6 @@ export interface HandlerDeps {
    * on `deps.persistence` being present. `journaledWrites`/`startSeq` are pre-loaded by index.ts.
    */
   persistence?: PersistenceDeps & { journaledWrites?: JournaledWrite[]; startSeq?: number }
-  // P3: rateGuard?: RateGuard; usage?: { supabase: HandlerSupabaseLike } — threaded when P3
-  // lands the credits ledger; the handler is authored to accept them without a rewrite.
 }
 
 // ── Event builders ─────────────────────────────────────────────────────────────
