@@ -618,6 +618,7 @@ export function TasksWorkspace({
         isPrivate: draftFormState.isPrivate,
       })
       createdDraftTaskRef.current = createdTaskId
+      setDraftFormState((current) => ({ ...current, created: true }))
       if (existingTaskId) await updateTaskFields(createdTaskId, { title }, viewerId)
       // The who-can-see list is added once the Task exists. The people still to add are kept (not re-read
       // from the form), so a retry sends only the ones that did not go through.
@@ -653,7 +654,7 @@ export function TasksWorkspace({
     }
     if (!viewerId) throw new Error('inline title edit requires an authenticated viewer')
     await updateTaskFields(taskId, { title }, viewerId)
-  }, [createdDraftTaskRef, pendingViewerIdsRef, draftFormState.isPrivate, draftFormState.viewerIds, draftSourceSignalRef, draftTask, draftTitleRef, setCompletedTaskId, setDraftLinkError, setDraftTask, t, viewerId])
+  }, [createdDraftTaskRef, pendingViewerIdsRef, draftFormState.isPrivate, draftFormState.viewerIds, draftSourceSignalRef, draftTask, draftTitleRef, setCompletedTaskId, setDraftFormState, setDraftLinkError, setDraftTask, t, viewerId])
   const onRetryDraftLink = useCallback((title: string) => {
     if (!draftTask) return
     void onEditTitle(draftTask.id, title || draftTitleRef.current || draftTask.title)
@@ -1091,11 +1092,11 @@ export function TasksWorkspace({
     >
       {announcement && <span role="status" aria-live="polite" className="sr-only">{announcement}</span>}
       {!draftTask && <OfflineNotice />}
-      <RouteLeaveGuard when={draftHasText} message={t('tasks.create.discardBody')} />
+      <RouteLeaveGuard when={draftHasText} message={t(draftFormState.created && !draftLinkError ? 'tasks.create.partialDiscard' : 'tasks.create.discardBody')} />
       <ConfirmDialog
         open={confirmDiscardOpen}
         title={t('leaveGuard.title')}
-        body={t('tasks.create.discardBody')}
+        body={t(draftFormState.created && !draftLinkError ? 'tasks.create.partialDiscard' : 'tasks.create.discardBody')}
         confirmLabel={t('leaveGuard.discard')}
         cancelLabel={t('leaveGuard.stay')}
         tone="destructive"

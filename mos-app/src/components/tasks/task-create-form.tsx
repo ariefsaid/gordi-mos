@@ -86,8 +86,8 @@ export function TaskCreateForm({
   const [localPending, setLocalPending] = useState(false)
   const pending = formState?.pending ?? localPending
   const setPending = (next: boolean) => { setLocalPending(next); onFormStateChange?.({ pending: next }) }
-  // A link retry only links the already-created Task; draft edits, Title included, would never be saved.
-  const fieldsLocked = pending || linkError
+  // Once created, retries finish the saved draft without accepting further edits.
+  const fieldsLocked = pending || linkError || Boolean(formState?.created)
   const [localPrivate, setLocalPrivate] = useState<{ isPrivate: boolean; viewerIds: string[] }>({ isPrivate: false, viewerIds: [] })
   const isPrivate = formState?.isPrivate ?? localPrivate.isPrivate
   const viewerIds = formState?.viewerIds ?? localPrivate.viewerIds
@@ -280,6 +280,7 @@ export function TaskCreateForm({
       key: 'private', label: t('tasks.private.label'),
       children: (
         <TaskPrivateRow
+          key={fieldsLocked ? 'locked' : 'editable'}
           isPrivate={isPrivate}
           viewers={viewerIds.flatMap((id) => supervisorOptions.filter((person) => person.id === id))}
           people={supervisorOptions}
@@ -366,7 +367,7 @@ export function TaskCreateForm({
         </div>
         {phoneBar ? null : <div className="rp-head__primary tcf-actions">{cancelButton}{createButton}</div>}
       </div>
-      <p className="tcf-draftnote">{t('tasks.create.draftNote')}</p>
+      <p className="tcf-draftnote">{t(formState?.created ? 'tasks.create.createdNote' : 'tasks.create.draftNote')}</p>
       {offline && !phoneBar ? <p id={offlineReasonId} role="status" className="tcf-error">{t('tasks.create.offline')}</p> : null}
 
       {linkError && (
@@ -377,7 +378,7 @@ export function TaskCreateForm({
       )}
       {saveError && (
         <p role="alert" className="tcf-error tcf-save-error">
-          {t('record.field.saveError')}
+          {t(formState?.created ? 'tasks.create.partialFailed' : 'record.field.saveError')}
           <button type="button" className="task-row-retry" onClick={trySubmit}>{t('record.field.retry')}</button>
         </p>
       )}
