@@ -63,7 +63,7 @@ describe('useAdminPeople', () => {
     const { result } = hookResult
     await waitFor(() => expect(result.current.state).toBe('loaded'))
 
-    mockListAdminPeople.mockRejectedValueOnce(new Error('network failure'))
+    mockListAdminPeople.mockRejectedValueOnce(new Error(''))
 
     let threw = false
     await act(async () => {
@@ -71,7 +71,7 @@ describe('useAdminPeople', () => {
         await result.current.refresh()
       } catch (err) {
         threw = true
-        expect((err as Error).message).toBe('network failure')
+        expect((err as Error).message).toBe('')
       }
     })
 
@@ -79,7 +79,7 @@ describe('useAdminPeople', () => {
     // Retains last good rows so display is not blanked
     expect(result.current.people).toEqual([samplePerson])
     // Exposes refresh failure
-    expect(result.current.refreshError).toBe('network failure')
+    expect(result.current.refreshError).toBe('refresh-failed')
 
     // Subsequent successful refresh updates people and clears refresh error
     mockListAdminPeople.mockResolvedValueOnce([updatedPerson])

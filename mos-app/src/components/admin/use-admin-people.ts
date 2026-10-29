@@ -37,7 +37,7 @@ export function useAdminPeople() {
     } catch (err) {
       // Keep the last good rows; expose the refresh error and re-throw so callers
       // do not claim the displayed data has refreshed until the reread succeeds.
-      const message = err instanceof Error ? err.message : 'refresh-failed'
+      const message = err instanceof Error && err.message ? err.message : 'refresh-failed'
       setRefreshError(message)
       throw err
     }
