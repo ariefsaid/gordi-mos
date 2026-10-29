@@ -6,7 +6,7 @@ import * as compilerModule from './../viewspec/compiler'
 // eslint-disable-next-line no-restricted-imports -- edge-function module lives outside src/ (D7)
 import { composeSpec, ComposeSpecError, MAX_REPAIR_ATTEMPTS } from '../../../../supabase/functions/compose-view/composeSpec'
 // eslint-disable-next-line no-restricted-imports -- edge-function module lives outside src/ (D7)
-import type { ModelClient, ModelResponse } from '../../../../supabase/functions/_shared/modelClient'
+import type { ModelClient, ModelClientParams, ModelResponse } from '../../../../supabase/functions/_shared/modelClient'
 
 function toolCallResponse(spec: unknown): ModelResponse {
   return {
@@ -56,6 +56,83 @@ describe('compose-view/composeSpec — compose+repair loop (T8)', () => {
 
     expect(result.repairAttempts).toBe(1)
     expect(result.spec).toEqual(VALID_SPEC)
+  })
+
+  it('AC #1924: includes the rejected tool call and matching validation result in the repair request across multiple upstream calls', async () => {
+    const invalidSpec = { version: 1, panels: [{ id: 'p1', primitive: 'KPITile', querySpec: { entity: 'not_real', select: ['id'] } }] }
+    const requests: ModelClientParams[] = []
+    const modelClient: ModelClient = {
+      create: vi.fn(async (params): Promise<ModelResponse> => {
+        requests.push(params)
+        if (requests.length === 1) {
+          return {
+            finish_reason: 'tool_calls',
+            message: {
+              role: 'assistant',
+              content: 'Drafting layout and spec...',
+              tool_calls: [
+                {
+                  id: 'call_search',
+                  type: 'function',
+                  function: { name: 'search_docs', arguments: '{"q":"objectives"}' },
+                },
+                {
+                  id: 'call_compose_99',
+                  type: 'function',
+                  function: { name: 'compose_view', arguments: JSON.stringify(invalidSpec) },
+                },
+                {
+                  id: 'call_audit',
+                  type: 'function',
+                  function: { name: 'audit_log', arguments: '{}' },
+                },
+              ],
+            },
+            usage: { prompt_tokens: 12, completion_tokens: 24, total_tokens: 36 },
+            model: 'test-model',
+          }
+        }
+        return toolCallResponse(VALID_SPEC)
+      }),
+    }
+
+    const result = await composeSpec('build a task view', 'org-1', { modelClient, personId: 'person-1', model: 'm' })
+
+    expect(result.repairAttempts).toBe(1)
+    expect(result.spec).toEqual(VALID_SPEC)
+
+    const retryMessages = requests[1]?.messages ?? []
+    expect(retryMessages.map(({ role }) => role)).toEqual(['system', 'user', 'assistant', 'tool'])
+
+    const assistantRetryMessage = retryMessages[2]
+    expect(assistantRetryMessage).toEqual({
+      role: 'assistant',
+      content: 'Drafting layout and spec...',
+      tool_calls: [{
+        id: 'call_compose_99',
+        type: 'function',
+        function: { name: 'compose_view', arguments: JSON.stringify(invalidSpec) },
+      }],
+    })
+
+    const toolRetryMessage = retryMessages[3]
+    expect(toolRetryMessage).toEqual({
+      role: 'tool',
+      tool_call_id: 'call_compose_99',
+      name: 'compose_view',
+      content: expect.stringContaining('Validation failed:'),
+    })
+
+    // Assert every retained tool call in the assistant message has its matching feedback tool message
+    const assistantToolCalls = assistantRetryMessage?.tool_calls ?? []
+    expect(assistantToolCalls).toHaveLength(1)
+    for (const tc of assistantToolCalls) {
+      const matchingToolMessage = retryMessages.find(
+        (m) => m.role === 'tool' && m.tool_call_id === tc.id,
+      )
+      expect(matchingToolMessage).toBeDefined()
+      expect(matchingToolMessage?.name).toBe(tc.function.name)
+    }
   })
 
   it('AC-P2-CV-003: always-invalid → throws ComposeSpecError REPAIR_EXHAUSTED with code', async () => {
