@@ -23,7 +23,9 @@
 // Deno-native imports (not in mos-app/package.json — this file is Deno-only glue, D7).
 import { createClient } from '@supabase/supabase-js'
 import { composeViewHandler } from './handler.ts'
+import { readCappedJson } from '../agent-chat/requestBody.ts'
 import { ChatCompletionsClient } from '../_shared/chatCompletionsClient.ts'
+import { quotaModelClient } from '../_shared/assistantQuota.ts'
 import { logStructuredError } from '../_shared/errorLog.ts'
 import { requireVerifiedClaims } from '../_shared/claims.ts'
 import { assistantRefusalResponse, checkAssistantAvailability } from '../_shared/assistantAvailability.ts'
@@ -76,12 +78,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
     )
   }
 
-  const modelClient = new ChatCompletionsClient({ apiKey, baseUrl })
+  const modelClient = quotaModelClient(new ChatCompletionsClient({ apiKey, baseUrl }), serviceRoleClient, orgId, personId)
 
   // ── 4. Parse request body ─────────────────────────────────────────────────
   let body: ComposeViewRequest
   try {
-    body = await req.json() as ComposeViewRequest
+    const parsed = await readCappedJson(req)
+    if (!parsed.ok) {
+      return new Response(
+        JSON.stringify({ status: 413, error: 'PAYLOAD_TOO_LARGE' }),
+        { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+    body = parsed.value as ComposeViewRequest
   } catch {
     return new Response(
       JSON.stringify({ status: 400, error: 'BAD_REQUEST', detail: 'invalid JSON body' }),

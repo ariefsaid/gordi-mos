@@ -25,6 +25,7 @@ import { loadJournaledWrites, loadMaxSeq } from './persistence.ts'
 import { createPendingActionStore } from './pendingActions.ts'
 import { readCappedJson } from './requestBody.ts'
 import { ChatCompletionsClient } from '../_shared/chatCompletionsClient.ts'
+import { quotaModelClient } from '../_shared/assistantQuota.ts'
 import { logStructuredError } from '../_shared/errorLog.ts'
 import { requireVerifiedClaims } from '../_shared/claims.ts'
 import { assistantRefusalResponse, checkAssistantAvailability } from '../_shared/assistantAvailability.ts'
@@ -86,7 +87,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     )
   }
 
-  const modelClient = new ChatCompletionsClient({ apiKey, baseUrl })
+  const modelClient = quotaModelClient(new ChatCompletionsClient({ apiKey, baseUrl }), serviceRoleClient, orgId, personId)
 
   // ── 5. Parse request body ─────────────────────────────────────────────────────
   let body: AgentChatRequest
