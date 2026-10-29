@@ -400,9 +400,9 @@ describe('TaskCreateForm — discard, busy and retry', () => {
 
 describe('TaskCreateForm — partial creation recovery', () => {
   it.each([
-    ['en', 'Task created, but not everyone could be added.'],
-    ['id', 'Tugas sudah dibuat, tetapi belum semua orang dapat ditambahkan.'],
-  ] as const)('explains the locked retry in %s', (locale, message) => {
+    ['en', 'Task created, but not everyone could be added.', 'Task saved'],
+    ['id', 'Tugas sudah dibuat, tetapi belum semua orang dapat ditambahkan.', 'Tugas tersimpan'],
+  ] as const)('explains the locked retry in %s', (locale, message, savedNote) => {
     renderForm({ task: makeDraft({ title: 'Plan' }) }, (form) => (
       <I18nProvider initialLocale={locale}>
         <TaskCreateContext.Provider value={{
@@ -412,6 +412,7 @@ describe('TaskCreateForm — partial creation recovery', () => {
       </I18nProvider>
     ))
     expect(screen.getByRole('alert')).toHaveTextContent(message)
+    expect(screen.getByText(new RegExp(savedNote))).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: locale === 'id' ? 'Judul' : 'Title' })).toBeDisabled()
   })
 })

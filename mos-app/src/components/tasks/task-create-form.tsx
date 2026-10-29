@@ -367,7 +367,7 @@ export function TaskCreateForm({
         </div>
         {phoneBar ? null : <div className="rp-head__primary tcf-actions">{cancelButton}{createButton}</div>}
       </div>
-      <p className="tcf-draftnote">{t('tasks.create.draftNote')}</p>
+      <p className="tcf-draftnote">{t(formState?.created ? 'tasks.create.createdNote' : 'tasks.create.draftNote')}</p>
       {offline && !phoneBar ? <p id={offlineReasonId} role="status" className="tcf-error">{t('tasks.create.offline')}</p> : null}
 
       {linkError && (
