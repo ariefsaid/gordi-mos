@@ -281,3 +281,93 @@ describe('UserViewRenderer — SECURITY INVARIANT: spec/row data renders as iner
     expect(document.querySelectorAll('a')).toHaveLength(0)
   })
 })
+
+describe('UserViewRenderer — View panel identity and recoverable queries (#1943)', () => {
+  const specA: CompositionSpec = {
+    version: 1,
+    panels: [{
+      id: 'p1', primitive: 'DataTable',
+      querySpec: { entity: 'objectives', select: ['id', 'name'] },
+    }],
+  }
+  const specB: CompositionSpec = {
+    version: 1,
+    panels: [{
+      id: 'p1', primitive: 'DataTable',
+      querySpec: { entity: 'objectives', select: ['id', 'name'], filters: [{ column: 'id', op: 'eq', value: '2' }] },
+    }],
+  }
+
+  it('proves prior rows never appear as current when query changes: holds query, rejects it, then succeeds on retry, ignoring late responses', async () => {
+    mockExecute.mockResolvedValueOnce(result([{ id: '1', name: 'Query A Row' }]))
+
+    const { rerender } = render(<UserViewRenderer spec={specA} ctx={ctx} />, { wrapper })
+    expect(await screen.findByText('Query A Row')).toBeInTheDocument()
+
+    // Now change to specB with held execution
+    let rejectB!: (err: Error) => void
+    const promiseB = new Promise<ExecutedQueryResult>((_res, rej) => {
+      rejectB = rej
+    })
+    mockExecute.mockReturnValueOnce(promiseB)
+
+    rerender(<UserViewRenderer spec={specB} ctx={ctx} />)
+
+    // Previous rows MUST NOT appear while loading the new query
+    expect(screen.queryByText('Query A Row')).not.toBeInTheDocument()
+    expect(screen.getByText('Loading…')).toBeInTheDocument()
+
+    // Rejection of specB
+    rejectB(new Error('boom'))
+    expect(await screen.findByText('This panel could not be loaded.')).toBeInTheDocument()
+    expect(screen.queryByText('Query A Row')).not.toBeInTheDocument()
+
+    // Now a new query succeeds
+    const specC: CompositionSpec = {
+      version: 1,
+      panels: [{
+        id: 'p1', primitive: 'DataTable',
+        querySpec: { entity: 'objectives', select: ['id', 'name'], filters: [{ column: 'id', op: 'eq', value: '3' }] },
+      }],
+    }
+    mockExecute.mockResolvedValueOnce(result([{ id: '3', name: 'Query C Row' }]))
+    rerender(<UserViewRenderer spec={specC} ctx={ctx} />)
+
+    expect(await screen.findByText('Query C Row')).toBeInTheDocument()
+    expect(screen.queryByText('Query A Row')).not.toBeInTheDocument()
+
+    // Test late response from old query
+    let resolveSlow!: (res: ExecutedQueryResult) => void
+    const slowPromise = new Promise<ExecutedQueryResult>((res) => { resolveSlow = res })
+    mockExecute.mockReturnValueOnce(slowPromise)
+
+    const specD: CompositionSpec = {
+      version: 1,
+      panels: [{
+        id: 'p1', primitive: 'DataTable',
+        querySpec: { entity: 'objectives', select: ['id', 'name'], filters: [{ column: 'id', op: 'eq', value: '4' }] },
+      }],
+    }
+    rerender(<UserViewRenderer spec={specD} ctx={ctx} />)
+    expect(screen.queryByText('Query C Row')).not.toBeInTheDocument()
+
+    const specE: CompositionSpec = {
+      version: 1,
+      panels: [{
+        id: 'p1', primitive: 'DataTable',
+        querySpec: { entity: 'objectives', select: ['id', 'name'], filters: [{ column: 'id', op: 'eq', value: '5' }] },
+      }],
+    }
+    mockExecute.mockResolvedValueOnce(result([{ id: '5', name: 'Query E Row' }]))
+    rerender(<UserViewRenderer spec={specE} ctx={ctx} />)
+
+    expect(await screen.findByText('Query E Row')).toBeInTheDocument()
+
+    // Slow promise resolves late
+    resolveSlow(result([{ id: '4', name: 'Slow Late Row' }]))
+    await new Promise((r) => setTimeout(r, 10))
+
+    expect(screen.getByText('Query E Row')).toBeInTheDocument()
+    expect(screen.queryByText('Slow Late Row')).not.toBeInTheDocument()
+  })
+})
