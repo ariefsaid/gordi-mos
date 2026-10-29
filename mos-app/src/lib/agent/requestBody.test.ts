@@ -32,4 +32,22 @@ describe('agent-chat request body cap', () => {
     const request = new Request('https://mos.test', { method: 'POST', body: '{"messages":[]}' })
     await expect(readCappedJson(request)).resolves.toEqual({ ok: true, value: { messages: [] } })
   })
+
+  it('supports a caller-defined byte limit', async () => {
+    const request = new Request('https://mos.test', {
+      method: 'POST',
+      body: JSON.stringify({ a: 1 }),
+    })
+    await expect(readCappedJson(request, 5)).resolves.toEqual({ ok: false, reason: 'too_large' })
+  })
+
+  it('throws on malformed JSON within the cap', async () => {
+    const request = new Request('https://mos.test', { method: 'POST', body: 'invalid-json' })
+    await expect(readCappedJson(request)).rejects.toThrow()
+  })
+
+  it('handles an empty body and throws on JSON parsing', async () => {
+    const request = new Request('https://mos.test', { method: 'POST' })
+    await expect(readCappedJson(request)).rejects.toThrow()
+  })
 })

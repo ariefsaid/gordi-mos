@@ -313,6 +313,84 @@ describe('tools/call', () => {
     expect(logs).toContainEqual({ event: 'data_api_error', tool: 'get_task', status: 404 })
   })
 
+  it('decodes an allowlisted conflict error with safe recovery message', async () => {
+    const { rpc } = await setup(() => Response.json(
+      { code: 'PT409', message: 'This conflicts with another change. Try again.', details: 'conflict' }, { status: 409 }))
+    const body = await (await rpc('tools/call', call('whoami', {}))).json()
+    expect(body.result).toEqual({
+      isError: true,
+      content: [{ type: 'text', text: 'This conflicts with another change. Try again.' }],
+      structuredContent: { code: 'conflict', message: 'This conflicts with another change. Try again.', field: null },
+    })
+  })
+
+  it('decodes a stale-version conflict error naming the entity for recovery retry', async () => {
+    const { rpc } = await setup(() => Response.json(
+      { code: 'PT409', message: 'This Task changed since you read it. Read it again and retry.', details: 'conflict' }, { status: 409 }))
+    const body = await (await rpc('tools/call', call('get_task', { id: 'x' }))).json()
+    expect(body.result).toEqual({
+      isError: true,
+      content: [{ type: 'text', text: 'This Task changed since you read it. Read it again and retry.' }],
+      structuredContent: { code: 'conflict', message: 'This Task changed since you read it. Read it again and retry.', field: null },
+    })
+  })
+
+  it('decodes an allowlisted invalid_input error with the target field hint', async () => {
+    const { rpc } = await setup(() => Response.json(
+      { code: 'PT400', message: 'current_value must be a finite number.', details: 'invalid_input', hint: 'current_value' }, { status: 400 }))
+    const body = await (await rpc('tools/call', call('whoami', {}))).json()
+    expect(body.result).toEqual({
+      isError: true,
+      content: [{ type: 'text', text: 'current_value must be a finite number.' }],
+      structuredContent: { code: 'invalid_input', message: 'current_value must be a finite number.', field: 'current_value' },
+    })
+  })
+
+  it('decodes an allowlisted authorization failure with safe permission message', async () => {
+    const { rpc } = await setup(() => Response.json(
+      { code: 'PT403', message: "You don't have permission to do this in MOS.", details: 'forbidden' }, { status: 403 }))
+    const body = await (await rpc('tools/call', call('whoami', {}))).json()
+    expect(body.result).toEqual({
+      isError: true,
+      content: [{ type: 'text', text: "You don't have permission to do this in MOS." }],
+      structuredContent: { code: 'forbidden', message: "You don't have permission to do this in MOS.", field: null },
+    })
+  })
+
+  it('decodes an allowlisted refused action into a forbidden failure', async () => {
+    const { rpc } = await setup(() => Response.json(
+      { code: 'PT403', message: "Archiving, restoring and retracting can't be done through the API or an agent. Do this in MOS.", details: 'refused.archive' }, { status: 403 }))
+    const body = await (await rpc('tools/call', call('whoami', {}))).json()
+    expect(body.result).toEqual({
+      isError: true,
+      content: [{ type: 'text', text: "Archiving, restoring and retracting can't be done through the API or an agent. Do this in MOS." }],
+      structuredContent: { code: 'forbidden', message: "Archiving, restoring and retracting can't be done through the API or an agent. Do this in MOS.", field: null },
+    })
+  })
+
+  it('decodes an allowlisted rate_limited error with safe recovery wait message', async () => {
+    const { rpc } = await setup(() => Response.json(
+      { code: 'PT429', message: 'Too many changes in the last minute. Wait a moment and try again.', details: 'rate_limited' }, { status: 429 }))
+    const body = await (await rpc('tools/call', call('whoami', {}))).json()
+    expect(body.result).toEqual({
+      isError: true,
+      content: [{ type: 'text', text: 'Too many changes in the last minute. Wait a moment and try again.' }],
+      structuredContent: { code: 'rate_limited', message: 'Too many changes in the last minute. Wait a moment and try again.', field: null },
+    })
+  })
+
+  it('falls back to generic error when an error message contains unsafe database details', async () => {
+    const { rpc } = await setup(() => Response.json(
+      { code: 'PT409', message: 'private database detail on relation mos.tasks', details: 'conflict' }, { status: 409 }))
+    const body = await (await rpc('tools/call', call('whoami', {}))).json()
+    expect(body.result).toEqual({
+      isError: true,
+      content: [{ type: 'text', text: 'The request could not be completed.' }],
+      structuredContent: { code: 'request_failed', message: 'The request could not be completed.', field: null },
+    })
+    expect(JSON.stringify(body)).not.toContain('private database detail')
+  })
+
   it('returns a generic tool error for a fence refusal', async () => {
     const { rpc } = await setup(() => Response.json({ code: 'PT403', message: 'Agent access is not available.', details: 'forbidden', hint: null }, { status: 403 }))
     const body = await (await rpc('tools/call', call('whoami', {}))).json()
