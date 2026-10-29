@@ -1,5 +1,5 @@
 -- Preserve captured unit associations and full daily batch sequence numbers.
--- DOWN: run supabase/rollbacks/20261029000100_ops_cafe_capture_integrity.sql.
+-- DOWN: run supabase/rollbacks/20261029002000_ops_cafe_capture_integrity.sql.
 
 alter table ops.item_units add constraint item_units_id_item_key unique (id, wip_item_id);
 alter table ops.kitchen_logs add constraint kitchen_logs_item_unit_item_fkey
