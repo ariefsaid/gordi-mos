@@ -32,6 +32,7 @@ describe('agent-chat request body cap', () => {
     const request = new Request('https://mos.test', { method: 'POST', body: '{"messages":[]}' })
     await expect(readCappedJson(request)).resolves.toEqual({ ok: true, value: { messages: [] } })
   })
+
   it('reports an oversized stream even when cancellation fails', async () => {
     const stream = new ReadableStream<Uint8Array>({
       start(controller) { controller.enqueue(new Uint8Array(MAX_AGENT_CHAT_BODY_BYTES + 1)) },
@@ -41,4 +42,38 @@ describe('agent-chat request body cap', () => {
     await expect(readCappedJson(request)).resolves.toEqual({ ok: false, reason: 'too_large' })
   })
 
+  it('cancels the stream when it exceeds the limit', async () => {
+    let cancelled = false
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) { controller.enqueue(new TextEncoder().encode('123456')) },
+      cancel() { cancelled = true },
+    })
+    const request = new Request('https://mos.test', { method: 'POST', body: stream, duplex: 'half' } as RequestInit)
+    await expect(readCappedJson(request, 5)).resolves.toEqual({ ok: false, reason: 'too_large' })
+    expect(cancelled).toBe(true)
+  })
+
+  it('propagates stream errors', async () => {
+    const stream = new ReadableStream<Uint8Array>({ pull(controller) { controller.error(new Error('read failed')) } })
+    const request = new Request('https://mos.test', { method: 'POST', body: stream, duplex: 'half' } as RequestInit)
+    await expect(readCappedJson(request)).rejects.toThrow('read failed')
+  })
+
+  it('supports a caller-defined byte limit', async () => {
+    const request = new Request('https://mos.test', {
+      method: 'POST',
+      body: JSON.stringify({ a: 1 }),
+    })
+    await expect(readCappedJson(request, 5)).resolves.toEqual({ ok: false, reason: 'too_large' })
+  })
+
+  it('throws on malformed JSON within the cap', async () => {
+    const request = new Request('https://mos.test', { method: 'POST', body: 'invalid-json' })
+    await expect(readCappedJson(request)).rejects.toThrow()
+  })
+
+  it('handles an empty body and throws on JSON parsing', async () => {
+    const request = new Request('https://mos.test', { method: 'POST' })
+    await expect(readCappedJson(request)).rejects.toThrow()
+  })
 })
