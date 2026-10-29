@@ -1,14 +1,14 @@
 -- #1286 — missing Café items land in the relevant stream's item-settings queue.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(24);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
 select ops._test_seed_cafe();
 
--- d4 is an affiliated Café capturer; d1 is the Retail Ops manager; d5 is a manager outside Café.
+-- d4 is an affiliated Café capturer; d8 is the Retail Ops manager; d5 is a manager outside Café.
 insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
 select '00000000-0000-0000-0000-0000000000a1',
        '00000000-0000-0000-0000-0000000000d4', team.id, true
@@ -24,8 +24,10 @@ insert into shared.roles (id, org_id, business_unit_id, name) values
   ('00000000-0000-0000-0000-00000000c522', '00000000-0000-0000-0000-0000000000a1',
    '00000000-0000-0000-0000-00000000bb52', 'Other BU report manager');
 update shared.roles set cafe_item_settings_scope='kitchen' where id='00000000-0000-0000-0000-00000000c521';
+insert into shared.people (id, org_id, full_name) values
+  ('00000000-0000-0000-0000-0000000000d8', '00000000-0000-0000-0000-0000000000a1', 'Report resolver');
 insert into shared.person_roles (org_id, person_id, role_id) values
-  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d1',
+  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d8',
    '00000000-0000-0000-0000-00000000c521'),
   ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d5',
    '00000000-0000-0000-0000-00000000c522');
@@ -61,7 +63,7 @@ select throws_ok($$
 $$, '23514', null,
   'an empty missing-item name is rejected');
 
-select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","manager"]}');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d8","access_roles":["member","manager"]}');
 select is(ops.can_manage_cafe_item_settings('kitchen'), true, 'the existing item-settings manager authority governs the queue');
 select is((select reported_by::text from ops.cafe_missing_item_reports limit 1),
           '00000000-0000-0000-0000-0000000000d4',
@@ -75,10 +77,13 @@ $$, 'an authorized stream manager can resolve the report from item settings');
 select is((select needs_attention from ops.cafe_missing_item_reports where item_name = 'Oat milk'), false,
   'resolution clears needs_attention');
 select is((select resolved_by::text from ops.cafe_missing_item_reports where item_name = 'Oat milk'),
-          '00000000-0000-0000-0000-0000000000d1',
+          '00000000-0000-0000-0000-0000000000d8',
   'resolution attribution is server-stamped to the resolving manager');
 select ok((select resolved_at is not null from ops.cafe_missing_item_reports where item_name = 'Oat milk'),
   'resolution time is server-stamped');
+select throws_ok($$
+  update ops.cafe_missing_item_reports set resolved_by = null where item_name = 'Oat milk'
+$$, '42501', null, 'a manager cannot clear resolver attribution directly');
 select lives_ok($$
   update ops.cafe_missing_item_reports set needs_attention = true
    where item_name = 'Oat milk'
@@ -91,6 +96,26 @@ select is(ops.can_manage_cafe_item_settings('kitchen'), false, 'a manager outsid
 select is((select count(*)::int from ops.cafe_missing_item_reports), 0,
   'a manager outside Café cannot read another stream''s queue');
 
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
+select is((select count(*)::int from ops.cafe_missing_item_reports), 0,
+  'an administrator in another organization cannot read the report');
+
 reset role;
+-- Give the existing resolution a historical time so a fresh server timestamp is observable.
+alter table ops.cafe_missing_item_reports disable trigger cafe_missing_item_reports_guard;
+update ops.cafe_missing_item_reports set resolved_at = '2020-01-02 03:04:05+00'
+ where item_name = 'Oat milk';
+alter table ops.cafe_missing_item_reports enable trigger cafe_missing_item_reports_guard;
+create temporary table resolution_before_delete as
+  select id, resolved_at from ops.cafe_missing_item_reports where item_name = 'Oat milk';
+select lives_ok($$
+  delete from shared.people where id = '00000000-0000-0000-0000-0000000000d8'
+$$, 'deleting a resolver succeeds');
+select ok(exists (
+  select 1 from ops.cafe_missing_item_reports report
+  join resolution_before_delete original on original.id = report.id
+  where not report.needs_attention and report.resolved_by is null
+    and report.resolved_at = original.resolved_at
+), 'the resolved report and its original resolution time survive without the resolver');
 select * from finish();
 rollback;
