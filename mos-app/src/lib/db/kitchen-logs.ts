@@ -301,8 +301,8 @@ export async function fetchActualsMap(
         entry_unit_name: row.entry_unit_name ?? null,
       })
     } else if (row.item_unit_id) {
-      const exactUnit = entries.find(entry => entry.item_unit_id === row.item_unit_id)
-      if (exactUnit) exactUnit.qty_porsi += row.qty_porsi
+      const unitTotal = entries.find(entry => entry.key === `unit:${row.item_unit_id}`)
+      if (unitTotal) unitTotal.qty_porsi += row.qty_porsi
       else entries.push({
         key: `unit:${row.item_unit_id}`,
         item_unit_id: row.item_unit_id,
