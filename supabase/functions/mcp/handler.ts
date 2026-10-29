@@ -43,7 +43,7 @@ function challenge(deps: McpDeps, invalid: boolean): Response {
   )
 }
 
-export type ToolFailure = { code: string; message: string; field: string | null }
+type ToolFailure = { code: string; message: string; field: string | null }
 
 const toolError = (f: ToolFailure) => ({
   isError: true,
@@ -62,116 +62,54 @@ const GENERIC_FAILURE: ToolFailure = {
   field: null,
 }
 
-const ALLOWED_ERROR_CODES = new Set(['conflict', 'invalid_input', 'forbidden', 'rate_limited', 'rate_limit'])
-const ALLOWED_PT_CODES: Record<string, string> = {
-  PT400: 'invalid_input',
-  PT403: 'forbidden',
-  PT409: 'conflict',
-  PT429: 'rate_limited',
+const SAFE_ERRORS: Record<string, { status: number; details: string[]; messages: string[] }> = {
+  PT400: { status: 400, details: ['invalid_input'], messages: [
+    'A value is not allowed here.', 'A required value is missing.',
+    'A referenced record does not exist.', 'A value has the wrong format.',
+    'current_value must be a finite number.',
+    'current_value must be smaller than 1000000000000000 in size and have at most 6 decimal places.',
+  ] },
+  PT403: { status: 403, details: ['forbidden', 'refused.archive', 'refused.delete', 'refused.targets', 'refused.permissions', 'refused.money'], messages: [
+    "You don't have permission to do this in MOS.",
+    "Archiving, restoring and retracting can't be done through the API or an agent. Do this in MOS.",
+    "Deleting can't be done through the API or an agent. Do this in MOS.",
+    "Objective settings and key-result targets can't be changed through the API or an agent. Do this in MOS.",
+    "People, roles and access can't be changed through the API or an agent. Do this in MOS.",
+    "Money can't be read or changed through the API or an agent yet. Do this in MOS.",
+  ] },
+  PT409: { status: 409, details: ['conflict'], messages: [
+    'This conflicts with another change. Try again.',
+    'This Task changed since you read it. Read it again and retry.',
+    'This Signal changed since you read it. Read it again and retry.',
+    'This Project or Process changed since you read it. Read it again and retry.',
+    'This Objective changed since you read it. Read it again and retry.',
+    'This key result changed since you read it. Read it again and retry.',
+  ] },
+  PT429: { status: 429, details: ['rate_limited'], messages: [
+    'Too many changes in the last minute. Wait a moment and try again.',
+  ] },
 }
 
-const KNOWN_SAFE_MESSAGES = new Set([
-  'This conflicts with another change. Try again.',
-  'This Task changed since you read it. Read it again and retry.',
-  'This Signal changed since you read it. Read it again and retry.',
-  'This Project or Process changed since you read it. Read it again and retry.',
-  'This Objective changed since you read it. Read it again and retry.',
-  'This key result changed since you read it. Read it again and retry.',
-  'transfer route changed since it was loaded',
-  'A value is not allowed here.',
-  'A required value is missing.',
-  'A referenced record does not exist.',
-  'A value has the wrong format.',
-  "You don't have permission to do this in MOS.",
-  "Archiving, restoring and retracting can't be done through the API or an agent. Do this in MOS.",
-  "Deleting can't be done through the API or an agent. Do this in MOS.",
-  "Objective settings and key-result targets can't be changed through the API or an agent. Do this in MOS.",
-  "People, roles and access can't be changed through the API or an agent. Do this in MOS.",
-  "Money can't be read or changed through the API or an agent yet. Do this in MOS.",
-  'Too many changes in the last minute. Wait a moment and try again.',
-])
-
-const DEFAULT_MESSAGES: Record<string, string> = {
-  conflict: 'This conflicts with another change. Try again.',
-  invalid_input: 'The request contains invalid input.',
-  forbidden: "You don't have permission to do this in MOS.",
-  rate_limited: 'Too many changes in the last minute. Wait a moment and try again.',
-}
-
-const UNSAFE_PATTERNS = [
-  /private/i,
-  /database/i,
-  /relation/i,
-  /table\b/i,
-  /column\b/i,
-  /syntax/i,
-  /violates/i,
-  /\bsql\b/i,
-  /pgrst/i,
-  /\bpg_/i,
-  /Agent access is not available/i,
-  /\bselect\b/i,
-  /\binsert\b/i,
-  /\bupdate\b/i,
-  /\bdelete from\b/i,
-]
-
-function isSafeMessage(msg: string): boolean {
-  if (typeof msg !== 'string' || msg.length === 0 || msg.length > 500) return false
-  if (KNOWN_SAFE_MESSAGES.has(msg)) return true
-  if (UNSAFE_PATTERNS.some((pat) => pat.test(msg))) return false
-  if (/[\r\n\x00-\x1f]/.test(msg)) return false
-  return true
-}
-
-async function failureFrom(res: Response): Promise<ToolFailure> {
+async function failureFrom(res: Response, fields: string[]): Promise<ToolFailure> {
   if (res.status >= 500) {
     try { await res.body?.cancel() } catch { /* the response is already closed */ }
     return GENERIC_FAILURE
   }
-  let body: Record<string, unknown>
   try {
-    const text = await res.text()
-    const parsed: unknown = JSON.parse(text)
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      return GENERIC_FAILURE
-    }
-    body = parsed as Record<string, unknown>
+    const text = await readCappedText(res, MAX_BODY_BYTES)
+    if (text === null) return GENERIC_FAILURE
+    const body: unknown = JSON.parse(text)
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) return GENERIC_FAILURE
+    const { code, details, message, hint } = body as Record<string, unknown>
+    if (typeof code !== 'string' || !Object.hasOwn(SAFE_ERRORS, code)) return GENERIC_FAILURE
+    const allowed = SAFE_ERRORS[code]
+    if (res.status !== allowed.status || typeof details !== 'string' || !allowed.details.includes(details)
+      || typeof message !== 'string' || !allowed.messages.includes(message)) return GENERIC_FAILURE
+    if (code === 'PT403' && allowed.details.indexOf(details) !== allowed.messages.indexOf(message)) return GENERIC_FAILURE
+    if (hint != null && (typeof hint !== 'string' || !fields.includes(hint))) return GENERIC_FAILURE
+    return { code: details.startsWith('refused.') ? 'forbidden' : details, message, field: code === 'PT400' && typeof hint === 'string' ? hint : null }
   } catch {
     return GENERIC_FAILURE
-  }
-
-  const rawCode = typeof body.code === 'string' ? body.code : ''
-  const rawDetails = typeof body.details === 'string' ? body.details : ''
-
-  let normalizedCode: string | null = null
-  if (ALLOWED_PT_CODES[rawCode]) {
-    normalizedCode = ALLOWED_PT_CODES[rawCode]
-  } else if (rawDetails && ALLOWED_ERROR_CODES.has(rawDetails)) {
-    normalizedCode = rawDetails === 'rate_limit' ? 'rate_limited' : rawDetails
-  } else if (rawDetails.startsWith('refused.')) {
-    normalizedCode = 'forbidden'
-  } else if (rawCode && ALLOWED_ERROR_CODES.has(rawCode)) {
-    normalizedCode = rawCode === 'rate_limit' ? 'rate_limited' : rawCode
-  }
-
-  if (!normalizedCode) {
-    return GENERIC_FAILURE
-  }
-
-  const rawMessage = typeof body.message === 'string' ? body.message : ''
-  if (rawMessage && !isSafeMessage(rawMessage)) {
-    return GENERIC_FAILURE
-  }
-
-  const message = rawMessage || DEFAULT_MESSAGES[normalizedCode] || GENERIC_FAILURE.message
-  const rawField = typeof body.field === 'string' && body.field ? body.field : (typeof body.hint === 'string' && body.hint ? body.hint : null)
-  const field = normalizedCode === 'invalid_input' ? rawField : null
-
-  return {
-    code: normalizedCode,
-    message,
-    field,
   }
 }
 
@@ -217,7 +155,7 @@ async function callTool(
   if (res.status === 401) return { result: null, unauthorized: true, outcome: 'unauthorized' }
   if (!res.ok) {
     deps.log({ event: 'data_api_error', tool: name, status: res.status })
-    const f = await failureFrom(res)
+    const f = await failureFrom(res, known)
     return { result: toolError(f), outcome: f.code }
   }
   try {

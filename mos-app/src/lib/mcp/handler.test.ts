@@ -338,7 +338,7 @@ describe('tools/call', () => {
   it('decodes an allowlisted invalid_input error with the target field hint', async () => {
     const { rpc } = await setup(() => Response.json(
       { code: 'PT400', message: 'current_value must be a finite number.', details: 'invalid_input', hint: 'current_value' }, { status: 400 }))
-    const body = await (await rpc('tools/call', call('whoami', {}))).json()
+    const body = await (await rpc('tools/call', call('set_key_result_current_value', { key_result_id: 'x', current_value: 1 }))).json()
     expect(body.result).toEqual({
       isError: true,
       content: [{ type: 'text', text: 'current_value must be a finite number.' }],
@@ -389,6 +389,24 @@ describe('tools/call', () => {
       structuredContent: { code: 'request_failed', message: 'The request could not be completed.', field: null },
     })
     expect(JSON.stringify(body)).not.toContain('private database detail')
+  })
+
+  it.each([
+    [{ code: 'PT400', details: 'invalid_input', message: 'customer secret 123', hint: 'token-value' }, 400],
+    [{ code: 'PT400', details: 'invalid_input', message: 'A value has the wrong format.', hint: 'customer secret 123' }, 400],
+    [{ code: 'PT403', details: 'forbidden', message: "Deleting can't be done through the API or an agent. Do this in MOS." }, 403],
+    [{ code: 'PT409', details: 'unknown', message: 'This conflicts with another change. Try again.' }, 409],
+    [{ code: 'PT409', details: 'conflict', message: 'This conflicts with another change. Try again.' }, 400],
+  ])('does not disclose untrusted or inconsistent API error data', async (error, status) => {
+    const { rpc } = await setup(() => Response.json(error, { status }))
+    const body = await (await rpc('tools/call', call('whoami', {}))).json()
+    expect(body.result.structuredContent).toEqual({ code: 'request_failed', message: 'The request could not be completed.', field: null })
+  })
+
+  it('does not disclose an oversized API error response', async () => {
+    const { rpc } = await setup(() => new Response('x'.repeat(1_048_577), { status: 400 }))
+    const body = await (await rpc('tools/call', call('whoami', {}))).json()
+    expect(body.result.structuredContent).toEqual({ code: 'request_failed', message: 'The request could not be completed.', field: null })
   })
 
   it('returns a generic tool error for a fence refusal', async () => {

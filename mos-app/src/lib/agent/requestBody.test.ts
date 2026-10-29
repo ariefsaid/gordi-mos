@@ -33,6 +33,23 @@ describe('agent-chat request body cap', () => {
     await expect(readCappedJson(request)).resolves.toEqual({ ok: true, value: { messages: [] } })
   })
 
+  it('cancels the stream when it exceeds the limit', async () => {
+    let cancelled = false
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) { controller.enqueue(new TextEncoder().encode('123456')) },
+      cancel() { cancelled = true },
+    })
+    const request = new Request('https://mos.test', { method: 'POST', body: stream, duplex: 'half' } as RequestInit)
+    await expect(readCappedJson(request, 5)).resolves.toEqual({ ok: false, reason: 'too_large' })
+    expect(cancelled).toBe(true)
+  })
+
+  it('propagates stream errors', async () => {
+    const stream = new ReadableStream<Uint8Array>({ pull(controller) { controller.error(new Error('read failed')) } })
+    const request = new Request('https://mos.test', { method: 'POST', body: stream, duplex: 'half' } as RequestInit)
+    await expect(readCappedJson(request)).rejects.toThrow('read failed')
+  })
+
   it('supports a caller-defined byte limit', async () => {
     const request = new Request('https://mos.test', {
       method: 'POST',

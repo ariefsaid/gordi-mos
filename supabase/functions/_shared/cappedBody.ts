@@ -2,7 +2,7 @@
 // Returns the body as a UTF-8 string, or null if the body exceeds maxBytes.
 // Does not touch the request body stream when Content-Length declares an oversize payload.
 export async function readCappedText(
-  req: Request,
+  req: Pick<Request, 'headers' | 'body'>,
   maxBytes: number,
 ): Promise<string | null> {
   const declared = Number(req.headers.get('Content-Length'))
