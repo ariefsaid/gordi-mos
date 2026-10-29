@@ -46,7 +46,7 @@ import subprocess
 import sys
 import tempfile
 from datetime import date, datetime, timedelta
-from urllib.parse import urlsplit
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 JAKARTA = ZoneInfo("Asia/Jakarta")
@@ -399,18 +399,61 @@ def guard_db_url(url: str, allow_remote: bool) -> None:
     print("WARNING: --allow-remote set — writing to a NON-LOCAL database.", file=sys.stderr)
 
 
+def separate_password(url: str) -> tuple[str, str | None]:
+    try:
+        parts = urlsplit(url)
+        netloc = parts.netloc
+        password = None
+        if "@" in netloc:
+            userinfo, host = netloc.rsplit("@", 1)
+            if ":" in userinfo:
+                user, encoded = userinfo.split(":", 1)
+                password = unquote(encoded)
+                netloc = user + "@" + host
+        query = []
+        for item in parts.query.split("&") if parts.query else []:
+            key, separator, value = item.partition("=")
+            if unquote(key) == "password":
+                password = unquote(value) if separator else ""
+            else:
+                query.append(item)
+        if password is not None and any(c in password for c in "\r\n\0"):
+            die("database password contains unsupported characters")
+        return urlunsplit((parts.scheme, netloc, parts.path, "&".join(query), parts.fragment)), password
+    except ValueError:
+        die("refusing database URL: malformed — pass a valid postgresql:// URL")
+
+
 def run_psql(psql: str, sql: str, db_url: str) -> dict:
+    safe_url, password = separate_password(db_url)
     with tempfile.NamedTemporaryFile("w", suffix=".sql", encoding="utf-8", delete=False) as fh:
         fh.write(sql)
         path = fh.name
+    credential_path = None
     try:
-        proc = subprocess.run([psql, db_url, "-q", "-X", "-v", "ON_ERROR_STOP=1",
+        env = os.environ.copy()
+        env.pop("CAFE_USAGE_SEED_DB_URL", None)
+        if password is not None:
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as credentials:
+                credential_path = credentials.name
+                escaped = password.replace("\\", "\\\\").replace(":", "\\:")
+                credentials.write(f"*:*:*:*:{escaped}\n")
+            env.pop("PGPASSWORD", None)
+            env["PGPASSFILE"] = credential_path
+            parts = urlsplit(safe_url)
+            query = [item for item in parts.query.split("&")
+                     if item and unquote(item.partition("=")[0]) != "passfile"]
+            query.append("passfile=" + quote(credential_path, safe=""))
+            safe_url = urlunsplit((parts.scheme, parts.netloc, parts.path, "&".join(query), parts.fragment))
+        proc = subprocess.run([psql, safe_url, "-q", "-X", "-v", "ON_ERROR_STOP=1",
                                "-P", "format=unaligned", "-P", "tuples_only=on", "-f", path],
-                              capture_output=True, text=True)
+                              capture_output=True, text=True, env=env)
     except FileNotFoundError:
         die(f"psql not found ({psql}) — pass --psql <path>")
     finally:
         os.unlink(path)
+        if credential_path is not None:
+            os.unlink(credential_path)
     if proc.returncode != 0:
         sys.stderr.write(proc.stderr + proc.stdout)
         die(f"psql failed with exit code {proc.returncode} — the transaction rolled back", 3)
@@ -457,9 +500,17 @@ def main() -> None:
     p.add_argument("--print-usage-sql", action="store_true", help="print the ERP usage query and exit")
     args = p.parse_args()
 
+    if args.db_url and separate_password(args.db_url)[1] is not None:
+        die("passwords in --db-url are not accepted; use CAFE_USAGE_SEED_DB_URL")
     db_url = args.db_url or os.environ.get("CAFE_USAGE_SEED_DB_URL", "")
     if not db_url and not (args.dry_run or args.print_usage_sql):
         die("--db-url (or env CAFE_USAGE_SEED_DB_URL) is required for a real run")
+    if db_url:
+        _, password = separate_password(db_url)
+        query = urlsplit(db_url).query.split("&")
+        has_service = any(unquote(item.partition("=")[0]) == "service" for item in query)
+        if password is not None and (has_service or os.environ.get("PGSERVICE")):
+            die("explicit-password database URLs must not select a service")
     if db_url and not args.print_usage_sql:
         guard_db_url(db_url, args.allow_remote)
 
