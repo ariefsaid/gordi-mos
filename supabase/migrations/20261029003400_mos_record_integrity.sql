@@ -2,7 +2,7 @@
 create or replace function mos._guard_signal_mention_tombstone_audience()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 declare
