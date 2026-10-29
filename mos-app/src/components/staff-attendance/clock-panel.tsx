@@ -21,6 +21,24 @@ function pickShift(shifts: ClockShift[], now: Date): ClockShift | null {
   return open ?? shifts.find((s) => new Date(s.end_at) > now) ?? shifts[shifts.length - 1] ?? null
 }
 
+function nextShiftBoundaryDelay(shifts: ClockShift[], serverNowIso: string): number | null {
+  const serverNow = new Date(serverNowIso).getTime()
+  if (Number.isNaN(serverNow)) return null
+  let minDelay: number | null = null
+  for (const s of shifts) {
+    for (const timeStr of [s.opens_at, s.end_at]) {
+      const t = new Date(timeStr).getTime()
+      if (!Number.isNaN(t) && t > serverNow) {
+        const delay = t - serverNow
+        if (minDelay === null || delay < minDelay) {
+          minDelay = delay
+        }
+      }
+    }
+  }
+  return minDelay
+}
+
 export function ClockPanel() {
   const t = useT()
   const { locale } = useI18n()
@@ -36,11 +54,54 @@ export function ClockPanel() {
   const [outcome, setOutcome] = useState<Outcome | null>(null)
   const alertRef = useRef<HTMLDivElement>(null)
   const attempt = useRef<{ id: string; orgId: string; uploaded: Blob | null } | null>(null)
+  const refreshSeq = useRef(0)
 
   const refresh = useCallback(async () => {
-    try { setState(await getMyClockState()); setLoad('ready') } catch { setLoad('error') }
+    const seq = ++refreshSeq.current
+    try {
+      const next = await getMyClockState()
+      if (seq === refreshSeq.current) {
+        setState(next)
+        setLoad('ready')
+      }
+    } catch {
+      if (seq === refreshSeq.current) {
+        setLoad('error')
+      }
+    }
   }, [])
+
+  useEffect(() => {
+    return () => {
+      refreshSeq.current++
+    }
+  }, [])
+
   useEffect(() => { void refresh() }, [refresh])
+
+  useEffect(() => {
+    function onResume() {
+      if (document.visibilityState === 'visible') {
+        void refresh()
+      }
+    }
+    document.addEventListener('visibilitychange', onResume)
+    window.addEventListener('focus', onResume)
+    return () => {
+      document.removeEventListener('visibilitychange', onResume)
+      window.removeEventListener('focus', onResume)
+    }
+  }, [refresh])
+
+  useEffect(() => {
+    if (!state?.shifts?.length || !state.now) return
+    const delay = nextShiftBoundaryDelay(state.shifts, state.now)
+    if (delay === null) return
+    const timer = setTimeout(() => {
+      void refresh()
+    }, Math.max(0, delay))
+    return () => clearTimeout(timer)
+  }, [state, refresh])
   useEffect(() => { if (failure) alertRef.current?.scrollIntoView?.({ block: 'nearest' }) }, [failure])
 
   async function consent() {
