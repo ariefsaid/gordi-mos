@@ -6,7 +6,7 @@
 -- and no membership there, so none of the Team-rooted read rules reaches it for either of them.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(18);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
@@ -23,8 +23,27 @@ insert into mos.signal_mentions (id, org_id, signal_id, mention_kind, target_per
 values ('00000000-0000-0000-0000-00000000e874','00000000-0000-0000-0000-0000000000a1',
         '00000000-0000-0000-0000-000000009874','person','00000000-0000-0000-0000-0000000000d5');
 
+insert into mos.signals (id, org_id, author_id, audience, occurred_at, body, retracted_at)
+values
+  ('00000000-0000-0000-0000-000000009875','00000000-0000-0000-0000-0000000000b1',
+   '00000000-0000-0000-0000-0000000000b4','org',now(),'Foreign active',null),
+  ('00000000-0000-0000-0000-000000009876','00000000-0000-0000-0000-0000000000b1',
+   '00000000-0000-0000-0000-0000000000b4','org',now(),'Foreign retracted',now());
+
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
+select throws_ok($$
+  insert into mos.signal_mentions (org_id, signal_id, mention_kind, target_person_id)
+  values ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-000000009875',
+          'person','00000000-0000-0000-0000-0000000000b4')
+$$, '42501', 'new row violates row-level security policy for table "signal_mentions"',
+  'a foreign active Signal receives the ordinary tenant refusal');
+select throws_ok($$
+  insert into mos.signal_mentions (org_id, signal_id, mention_kind, target_person_id)
+  values ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-000000009876',
+          'person','00000000-0000-0000-0000-0000000000b4')
+$$, '42501', 'new row violates row-level security policy for table "signal_mentions"',
+  'a foreign retracted Signal receives the same tenant refusal');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000009874'), 1,
   'an outside-Team author reads their historical Team Signal');
 -- Controls for the freeze below: both mention writes land while the Signal is active.
@@ -63,6 +82,10 @@ select throws_ok($$
   values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000009874',
           'person','00000000-0000-0000-0000-0000000000d4')
 $$, '42501', null, 'an author cannot add a mention after the Signal becomes a tombstone');
+select lives_ok($$
+  update mos.signal_mentions set revoked_at = revoked_at
+   where id = '00000000-0000-0000-0000-00000000e874'
+$$, 'a no-op mention update remains permitted after retraction');
 select throws_ok($$
   update mos.signal_mentions set revoked_at = now()
    where id = '00000000-0000-0000-0000-00000000e874'
