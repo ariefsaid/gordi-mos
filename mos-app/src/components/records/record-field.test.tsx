@@ -103,6 +103,15 @@ const textSpec: RecordFieldSpec = {
   editable: true,
 }
 
+const dateSpec: RecordFieldSpec = {
+  key: 'dueDate',
+  label: 'Due date',
+  control: 'date',
+  value: '2026-10-05',
+  displayValue: '5 Oct 2026',
+  editable: true,
+}
+
 it('caps a text field at the spec maxLength (#1034)', async () => {
   const user = userEvent.setup()
   renderField({ ...textSpec, maxLength: 5 })
@@ -239,6 +248,45 @@ describe('RecordField', () => {
       await waitFor(() => expect(input).toHaveFocus())
       expect(input.value).toBe('kept draft')
     } finally { restore() }
+  })
+
+  it('issue 1897: keeps a changed date unsaved when the host freezes blur commits', async () => {
+    const user = userEvent.setup()
+    const onCommit = vi.fn(async () => {})
+    render(
+      <I18nProvider>
+        <RecordField spec={dateSpec} onCommit={onCommit} commitsFrozen />
+      </I18nProvider>,
+    )
+
+    activate('Due date')
+    const input = screen.getByRole('textbox', { name: 'Due date' })
+    await user.clear(input)
+    await user.type(input, '06102026')
+    await act(async () => { fireEvent.blur(input); await Promise.resolve() })
+
+    expect(onCommit).not.toHaveBeenCalled()
+    expect(input).toBeInTheDocument()
+    expect(input).toHaveValue('6 Oct 2026')
+  })
+
+  it('issue 1897: does not retry a failed date save when the field blurs', async () => {
+    const user = userEvent.setup()
+    const onCommit = vi.fn<(value: RecordValue) => Promise<void>>().mockRejectedValueOnce(new Error('nope'))
+    renderField(dateSpec, { onCommit })
+
+    activate('Due date')
+    const input = screen.getByRole('textbox', { name: 'Due date' })
+    await user.clear(input)
+    await user.type(input, '06102026')
+    await act(async () => { fireEvent.keyDown(input, { key: 'Enter' }); await Promise.resolve() })
+
+    expect(onCommit).toHaveBeenCalledWith('2026-10-06')
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    await act(async () => { fireEvent.blur(input); await Promise.resolve() })
+
+    expect(onCommit).toHaveBeenCalledTimes(1)
+    expect(input).toHaveValue('6 Oct 2026')
   })
 
   it('FieldErrorRetryContract: a rejected save preserves the draft and exposes retry plus an error message', async () => {
