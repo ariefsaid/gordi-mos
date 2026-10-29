@@ -129,3 +129,4 @@ begin
   return v_batch_id;
 end;
 $$;
+revoke execute on function ops._approve_kitchen_log_impl(uuid,text) from public, anon, authenticated;
