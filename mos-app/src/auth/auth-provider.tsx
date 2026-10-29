@@ -28,15 +28,22 @@ interface Props {
 }
 
 // Capture the callback before Supabase clears the URL during initialization.
-function recoveryCallback(): { recovery: boolean } | null {
+function recoveryCallback(): { recovery: boolean; accessToken: string | null; userId: string | null } | null {
   if (typeof window === 'undefined' || !window.location.pathname.endsWith('/recovery')) return null
   const hash = new URLSearchParams(window.location.hash.slice(1))
   const query = new URLSearchParams(window.location.search)
   const hasCallback = ['access_token', 'refresh_token', 'code', 'token_hash', 'error', 'error_code', 'error_description']
     .some(key => hash.has(key) || query.has(key))
-  const accessTokenPresent = hash.has('access_token') || query.has('access_token')
+  const accessToken = hash.get('access_token') ?? query.get('access_token')
   const type = hash.get('type') ?? query.get('type')
-  return hasCallback ? { recovery: accessTokenPresent && type === 'recovery' } : null
+  // The subject only correlates events; Supabase still owns callback verification.
+  let userId: string | null = null
+  try {
+    const payload = accessToken?.split('.')[1]
+    const claims = payload ? JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { sub?: unknown } : null
+    if (typeof claims?.sub === 'string') userId = claims.sub
+  } catch { /* An unreadable subject keeps the callback pending until initialization finishes. */ }
+  return hasCallback ? { recovery: Boolean(accessToken) && type === 'recovery', accessToken, userId } : null
 }
 let startupRecoveryCallback = recoveryCallback()
 
@@ -117,7 +124,8 @@ export function AuthProvider({ children }: Props) {
   // resolveSession can bail out if recovery has already been detected.
   const isRecoveringRef = useRef(false)
   const callbackEventOutstandingRef = useRef(false)
-  const ignoreRecoveryEventRef = useRef(false)
+  const callbackAccessTokenRef = useRef<string | null>(null)
+  const ignoreRecoveryEventRef = useRef<string | null>(null)
 
   const retireReadScope = useCallback(() => {
     activeScopeRef.current = null
@@ -224,7 +232,7 @@ export function AuthProvider({ children }: Props) {
     // supersedes it and must remain the source of truth.
     isRecoveringRef.current = false
     if (callbackEventOutstandingRef.current) {
-      ignoreRecoveryEventRef.current = true
+      ignoreRecoveryEventRef.current = callbackAccessTokenRef.current
       callbackEventOutstandingRef.current = false
     }
     const ticket = ++resolutionTicketRef.current
@@ -253,7 +261,8 @@ export function AuthProvider({ children }: Props) {
     const callback = startupRecoveryCallback ?? recoveryCallback()
     let callbackPending = Boolean(callback)
     callbackEventOutstandingRef.current = Boolean(callback?.recovery)
-    ignoreRecoveryEventRef.current = false
+    callbackAccessTokenRef.current = callback?.recovery ? callback.accessToken : null
+    ignoreRecoveryEventRef.current = null
     if (callback) {
       startupRecoveryCallback = callback
       isRecoveringRef.current = true
@@ -283,8 +292,8 @@ export function AuthProvider({ children }: Props) {
     // Subscribe to auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
-        if (ignoreRecoveryEventRef.current) {
-          ignoreRecoveryEventRef.current = false
+        if (ignoreRecoveryEventRef.current && ignoreRecoveryEventRef.current === session?.access_token) {
+          ignoreRecoveryEventRef.current = null
           return
         }
         callbackPending = false
@@ -299,7 +308,8 @@ export function AuthProvider({ children }: Props) {
         if (!cancelled) setState({ status: 'recovering', clearRecovering: handleClearRecovering })
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (callbackPending) {
-          ignoreRecoveryEventRef.current = callbackEventOutstandingRef.current
+          if (event === 'TOKEN_REFRESHED' || !callback?.userId || callback.userId === session?.user?.id) return
+          ignoreRecoveryEventRef.current = callbackEventOutstandingRef.current ? callbackAccessTokenRef.current : null
           callbackPending = false
           callbackEventOutstandingRef.current = false
           startupRecoveryCallback = null
@@ -309,7 +319,7 @@ export function AuthProvider({ children }: Props) {
         invalidateReferenceCache('shared.auth.viewer')
         void resolveSession(session?.user?.id, session?.access_token)
       } else if (event === 'SIGNED_OUT') {
-        ignoreRecoveryEventRef.current = callbackEventOutstandingRef.current
+        ignoreRecoveryEventRef.current = callbackEventOutstandingRef.current ? callbackAccessTokenRef.current : null
         callbackPending = false
         callbackEventOutstandingRef.current = false
         startupRecoveryCallback = null

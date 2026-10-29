@@ -100,6 +100,8 @@ function ViewerIdentityConsumer({ capture }: { capture: (viewer: { canReadCafePu
   return <span>{auth.status}</span>
 }
 
+const RECOVERY_TOKEN = `header.${Buffer.from(JSON.stringify({ sub: 'auth-user-001' })).toString('base64url')}.sig`
+
 function sessionFor(userId: string): Session {
   return { user: { id: userId } } as Partial<Session> as Session
 }
@@ -657,8 +659,35 @@ describe('AuthProvider', () => {
     }
   })
 
+  it.each(['TOKEN_REFRESHED', 'SIGNED_IN'] as const)(
+    'keeps recovery pending when a same-account %s arrives before its recovery event',
+    async event => {
+      window.history.replaceState({}, '', `/recovery#access_token=${RECOVERY_TOKEN}&type=recovery`)
+      let callback!: Parameters<typeof supabase.auth.onAuthStateChange>[0]
+      vi.mocked(supabase.auth.initialize).mockReturnValue(new Promise(() => {}))
+      mockResolveViewer.mockResolvedValue(viewerFor('auth-user-001'))
+      mockOnAuthStateChange.mockImplementation(cb => {
+        callback = cb
+        return { data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } } } as ReturnType<typeof supabase.auth.onAuthStateChange>
+      })
+      try {
+        render(<AuthProvider><AuthConsumer /><AuthScopeConsumer /></AuthProvider>)
+        await act(async () => { callback(event, sessionFor('auth-user-001')) })
+        expect(screen.getByTestId('status').textContent).toBe('loading')
+        expect(mockResolveViewer).not.toHaveBeenCalled()
+        expect(getReadScope()).toBeNull()
+        await act(async () => { callback('PASSWORD_RECOVERY', { ...sessionFor('auth-user-001'), access_token: RECOVERY_TOKEN }) })
+        expect(screen.getByTestId('status').textContent).toBe('recovering')
+        expect(mockResolveViewer).not.toHaveBeenCalled()
+        expect(getReadScope()).toBeNull()
+      } finally {
+        window.history.replaceState({}, '', '/')
+      }
+    },
+  )
+
   it('uses a newer sign-in when it supersedes a pending recovery callback', async () => {
-    window.history.replaceState({}, '', '/recovery#access_token=token&type=recovery')
+    window.history.replaceState({}, '', `/recovery#access_token=${RECOVERY_TOKEN}&type=recovery`)
     let callback!: Parameters<typeof supabase.auth.onAuthStateChange>[0]
     vi.mocked(supabase.auth.initialize).mockReturnValue(new Promise(() => {}))
     mockResolveViewer.mockResolvedValue(viewerFor('auth-user-b'))
@@ -670,15 +699,39 @@ describe('AuthProvider', () => {
       render(<AuthProvider><AuthConsumer /></AuthProvider>)
       await act(async () => { callback('SIGNED_IN', sessionFor('auth-user-b')) })
       expect(screen.getByTestId('name').textContent).toBe('Other Fixture')
-      await act(async () => { callback('PASSWORD_RECOVERY', sessionFor('auth-user-001')) })
+      await act(async () => { callback('PASSWORD_RECOVERY', { ...sessionFor('auth-user-001'), access_token: RECOVERY_TOKEN }) })
       expect(screen.getByTestId('name').textContent).toBe('Other Fixture')
     } finally {
       window.history.replaceState({}, '', '/')
     }
   })
 
+  it('accepts a fresh recovery event while a superseded callback event is still outstanding', async () => {
+    window.history.replaceState({}, '', `/recovery#access_token=${RECOVERY_TOKEN}&type=recovery`)
+    let callback!: Parameters<typeof supabase.auth.onAuthStateChange>[0]
+    vi.mocked(supabase.auth.initialize).mockReturnValue(new Promise(() => {}))
+    mockResolveViewer.mockResolvedValue(viewerFor('auth-user-b'))
+    mockOnAuthStateChange.mockImplementation(cb => {
+      callback = cb
+      return { data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } } } as ReturnType<typeof supabase.auth.onAuthStateChange>
+    })
+    try {
+      render(<AuthProvider><AuthConsumer /><AuthScopeConsumer /></AuthProvider>)
+      await act(async () => { callback('SIGNED_IN', sessionFor('auth-user-b')) })
+      expect(screen.getByTestId('status').textContent).toBe('authenticated')
+      await act(async () => { callback('PASSWORD_RECOVERY', { ...sessionFor('auth-user-b'), access_token: 'new-recovery-token' }) })
+      expect(screen.getByTestId('status').textContent).toBe('recovering')
+      expect(getReadScope()).toBeNull()
+      await act(async () => { callback('PASSWORD_RECOVERY', { ...sessionFor('auth-user-001'), access_token: RECOVERY_TOKEN }) })
+      expect(screen.getByTestId('status').textContent).toBe('recovering')
+      expect(getReadScope()).toBeNull()
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+  })
+
   it('does not revive a recovery callback after sign-out supersedes it', async () => {
-    window.history.replaceState({}, '', '/recovery#access_token=token&type=recovery')
+    window.history.replaceState({}, '', `/recovery#access_token=${RECOVERY_TOKEN}&type=recovery`)
     let callback!: Parameters<typeof supabase.auth.onAuthStateChange>[0]
     vi.mocked(supabase.auth.initialize).mockReturnValue(new Promise(() => {}))
     mockOnAuthStateChange.mockImplementation(cb => {
@@ -688,7 +741,7 @@ describe('AuthProvider', () => {
     try {
       render(<AuthProvider><AuthConsumer /></AuthProvider>)
       await act(async () => { callback('SIGNED_OUT', null) })
-      await act(async () => { callback('PASSWORD_RECOVERY', sessionFor('auth-user-001')) })
+      await act(async () => { callback('PASSWORD_RECOVERY', { ...sessionFor('auth-user-001'), access_token: RECOVERY_TOKEN }) })
       expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
     } finally {
       window.history.replaceState({}, '', '/')
@@ -696,7 +749,7 @@ describe('AuthProvider', () => {
   })
 
   it('does not return to recovery if its delayed callback event follows a completed reset', async () => {
-    window.history.replaceState({}, '', '/recovery#access_token=token&type=recovery')
+    window.history.replaceState({}, '', `/recovery#access_token=${RECOVERY_TOKEN}&type=recovery`)
     let callback!: Parameters<typeof supabase.auth.onAuthStateChange>[0]
     mockGetSession.mockResolvedValue({ data: { session: sessionFor('auth-user-001') }, error: null })
     mockResolveViewer.mockResolvedValue(viewerFor('auth-user-001'))
@@ -708,7 +761,7 @@ describe('AuthProvider', () => {
       await act(async () => { render(<AuthProvider><AuthConsumer /></AuthProvider>) })
       await act(async () => { screen.getByRole('button', { name: 'Clear recovering' }).click() })
       expect(screen.getByTestId('status').textContent).toBe('authenticated')
-      await act(async () => { callback('PASSWORD_RECOVERY', sessionFor('auth-user-001')) })
+      await act(async () => { callback('PASSWORD_RECOVERY', { ...sessionFor('auth-user-001'), access_token: RECOVERY_TOKEN }) })
       expect(screen.getByTestId('status').textContent).toBe('authenticated')
     } finally {
       window.history.replaceState({}, '', '/')
@@ -716,7 +769,7 @@ describe('AuthProvider', () => {
   })
 
   it('keeps a valid recovery callback on recovery while Supabase delays its event', async () => {
-    window.history.replaceState({}, '', '/recovery#access_token=token&type=recovery')
+    window.history.replaceState({}, '', `/recovery#access_token=${RECOVERY_TOKEN}&type=recovery`)
     let callback!: Parameters<typeof supabase.auth.onAuthStateChange>[0]
     mockOnAuthStateChange.mockImplementation(cb => {
       callback = cb
@@ -726,13 +779,13 @@ describe('AuthProvider', () => {
     mockResolveViewer.mockResolvedValue(viewerFor('auth-user-001'))
     try {
       await act(async () => {
-        render(<MemoryRouter initialEntries={['/recovery#access_token=token&type=recovery']}><AuthProvider><Routes>
+        render(<MemoryRouter initialEntries={[`/recovery#access_token=${RECOVERY_TOKEN}&type=recovery`]}><AuthProvider><Routes>
           <Route element={<RedirectIfAuthed />}><Route path="/recovery" element={<RecoveryPage />} /></Route>
           <Route path="/" element={<div>Home</div>} />
         </Routes></AuthProvider></MemoryRouter>)
       })
       expect(screen.getByLabelText('New password')).toBeInTheDocument()
-      await act(async () => { callback('PASSWORD_RECOVERY', sessionFor('auth-user-001')) })
+      await act(async () => { callback('PASSWORD_RECOVERY', { ...sessionFor('auth-user-001'), access_token: RECOVERY_TOKEN }) })
       expect(screen.getByLabelText('New password')).toBeInTheDocument()
     } finally {
       window.history.replaceState({}, '', '/')
