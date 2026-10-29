@@ -32,4 +32,13 @@ describe('agent-chat request body cap', () => {
     const request = new Request('https://mos.test', { method: 'POST', body: '{"messages":[]}' })
     await expect(readCappedJson(request)).resolves.toEqual({ ok: true, value: { messages: [] } })
   })
+  it('reports an oversized stream even when cancellation fails', async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(new Uint8Array(MAX_AGENT_CHAT_BODY_BYTES + 1)) },
+      cancel() { throw new Error('cancel failed') },
+    })
+    const request = new Request('https://mos.test', { method: 'POST', body: stream, duplex: 'half' } as RequestInit)
+    await expect(readCappedJson(request)).resolves.toEqual({ ok: false, reason: 'too_large' })
+  })
+
 })
