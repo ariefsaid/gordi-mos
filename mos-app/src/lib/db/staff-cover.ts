@@ -34,7 +34,7 @@ type QueueClaim = {
   local_date: string; start_at: string; end_at: string; can_decide: boolean
 }
 type QueueUncovered = {
-  offer_id: string; offer_kind: 'absence' | 'swap'; person_name: string; team_name: string; team_id: string; site_id: string
+  offer_id: string; offer_kind: 'absence' | 'swap'; person_id: string; person_name: string; team_name: string; team_id: string; site_id: string
   local_date: string; start_at: string; end_at: string; can_decide: boolean
 }
 type QueueSick = { id: string; person_name: string; team_name: string; local_date: string; documented: boolean }
