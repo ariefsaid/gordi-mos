@@ -7,7 +7,7 @@
 -- refused, not just who is admitted.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(23);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -60,6 +60,12 @@ select throws_ok($$
 $$, '42501', null,
   'and cannot pair their own org''s person with another org''s team — the guard catches what the policy structurally cannot see');
 
+-- A planned return and an earlier ended membership are separate records.
+insert into shared.team_memberships (id, person_id, team_id, effective_from, effective_to)
+values
+  ('00000000-0000-0000-0000-000000001901', '00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000e1', current_date + 10, current_date + 20),
+  ('00000000-0000-0000-0000-000000001902', '00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000e1', current_date - 20, current_date - 10);
+
 -- Removal is a soft end. The partial unique index is over (is_primary and effective_to is null),
 -- so ending the row frees the primary slot without destroying the history.
 -- Through the FUNCTION, not a hand-written date. `effective_to` is an INCLUSIVE last day, so
@@ -80,6 +86,15 @@ select is(
       and (m.effective_to is null or m.effective_to >= current_date)),
   0,
   'and the ended membership is DEAD TO THE GATES TODAY — the predicate mos.can_read_signal R1, can_post_signal_for_team and ops.is_stream_reviewer all use no longer matches it');
+
+select is((select effective_to from shared.team_memberships where id = '00000000-0000-0000-0000-000000001901'),
+  current_date + 20, 'removing the current membership preserves the scheduled return');
+select is((select effective_to from shared.team_memberships where id = '00000000-0000-0000-0000-000000001902'),
+  current_date - 10, 'removing the current membership preserves an already ended membership');
+select lives_ok($$ select shared.end_team_membership('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000e1') $$,
+  'removing again when only a future membership remains succeeds');
+select is((select effective_to from shared.team_memberships where id = '00000000-0000-0000-0000-000000001901'),
+  current_date + 20, 'a future-only membership remains unchanged');
 
 select lives_ok($$
   insert into shared.team_memberships (person_id, team_id, is_primary)

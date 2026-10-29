@@ -1413,6 +1413,25 @@ describe('fetchActualsMap — the already-logged actuals, stream-scoped (FR-014,
     })
   })
 
+  it('aggregates legacy rows into their unit total without changing newer per-log quantities', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      kitchen_logs: [{ data: [
+        { id: 'log-new', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, item_unit_id: 'u-each', qty_porsi: 5, entry_quantity: 10, entry_unit_factor: 0.5, entry_unit_name: 'each' },
+        { id: 'log-legacy-1', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, item_unit_id: 'u-each', qty_porsi: 2 },
+        { id: 'log-legacy-2', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, item_unit_id: 'u-each', qty_porsi: 4 },
+      ], error: null }],
+      item_units: [{ data: [{ id: 'u-each', unit_name: 'each' }], error: null }],
+    }, rec) as never)
+
+    await expect(fetchActualsMap('2026-08-08', STREAM)).resolves.toEqual({
+      w1: { produce: [
+        { key: 'log:log-new', item_unit_id: 'u-each', unit_name: 'each', qty_porsi: 5, entry_quantity: 10, entry_unit_factor: 0.5, entry_unit_name: 'each' },
+        { key: 'unit:u-each', item_unit_id: 'u-each', unit_name: 'each', qty_porsi: 6 },
+      ] },
+    })
+  })
+
   it('returns an empty map when nothing is logged yet', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
