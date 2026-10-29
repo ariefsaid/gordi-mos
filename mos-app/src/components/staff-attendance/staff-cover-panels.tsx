@@ -310,7 +310,7 @@ export function RequestsPanel() {
       {data && data.uncovered.length > 0 && <section className="staff-attendance__subpanel" aria-label={tt('queue.uncovered')}>
         <h2>{tt('queue.uncovered')}</h2>
         {data.uncovered.map((row) => {
-          const options = data.candidates.filter((c) => c.site_id === row.site_id)
+          const options = data.candidates.filter((c) => c.site_id === row.site_id && c.person_id !== row.person_id)
           const pick = assignees[row.offer_id] ?? ''
           return <article className="staff-attendance__shift" key={row.offer_id}>
             <div className="staff-attendance__shift-main">
@@ -320,7 +320,7 @@ export function RequestsPanel() {
             {row.can_decide && <div className="staff-attendance__actions">
               <Select aria-label={tt('queue.assignPick')} value={pick} onChange={(e) => setAssignees({ ...assignees, [row.offer_id]: e.target.value })}>
                 <option value="">{tt('queue.assignNone')}</option>
-                {options.filter((c) => c.full_name !== row.person_name).map((c) => <option key={c.person_id} value={c.person_id}>{c.full_name}</option>)}
+                {options.map((c) => <option key={c.person_id} value={c.person_id}>{c.full_name}</option>)}
               </Select>
               <button type="button" className="staff-attendance__primary" disabled={!pick || busy === row.offer_id} onClick={() => act(row.offer_id, () => assignStaffCover(row.offer_id, pick))}>{tt('queue.assign')}</button>
             </div>}
