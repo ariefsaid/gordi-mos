@@ -60,7 +60,7 @@ export function EventsCalendarPresentation({
   const t = useT()
   const { locale } = useI18n()
   const [expandedDays, setExpandedDays] = useState<Set<string>>(() => new Set())
-  const [selectedDay, setSelectedDay] = useState<string | null>(null)
+  const [selection, setSelection] = useState<{ month: string; day: string } | null>(null)
   const days = [
     t('events.weekday.mon'), t('events.weekday.tue'), t('events.weekday.wed'),
     t('events.weekday.thu'), t('events.weekday.fri'), t('events.weekday.sat'), t('events.weekday.sun'),
@@ -85,7 +85,7 @@ export function EventsCalendarPresentation({
 
   const gridDays = Array.from({ length: 42 }, (_, index) => new Date(gridStart.getTime() + index * 86400000))
   const agendaDays = gridDays.filter((day) => day.getUTCMonth() === first.getUTCMonth() && eventByDay.has(dateKey(day)))
-  const selected = selectedDay ?? (agendaDays[0] ? dateKey(agendaDays[0]) : dateKey(first))
+  const selected = selection?.month === month ? selection.day : agendaDays[0] ? dateKey(agendaDays[0]) : dateKey(first)
 
   return (
     <div className="events-calendar-presentation">
@@ -107,7 +107,7 @@ export function EventsCalendarPresentation({
                 key={key}
                 className={day.getUTCMonth() === first.getUTCMonth() ? 'events-calendar__day' : 'events-calendar__day events-calendar__day--outside'}
               >
-                <button type="button" className="events-calendar__date" aria-pressed={selected === key} aria-label={displayDate(day, locale)} onClick={() => setSelectedDay(key)}>
+                <button type="button" className="events-calendar__date" aria-pressed={selected === key} aria-label={displayDate(day, locale)} onClick={() => setSelection({ month, day: key })}>
                   <time dateTime={key}>{day.getUTCDate()}</time>
                 </button>
                 {visibleEvents.map((event) => (
@@ -138,7 +138,7 @@ export function EventsCalendarPresentation({
         <div className="events-agenda__phone-dates" aria-label={t('events.calendar')}>
           {gridDays.filter((day) => day.getUTCMonth() === first.getUTCMonth()).map((day) => {
             const key = dateKey(day)
-            return <button type="button" key={key} aria-label={displayDate(day, locale)} aria-pressed={selected === key} onClick={() => setSelectedDay(key)}>
+            return <button type="button" key={key} aria-label={displayDate(day, locale)} aria-pressed={selected === key} onClick={() => setSelection({ month, day: key })}>
               <span>{displayDate(day, locale).split(' ')[0]}</span><time dateTime={key}>{day.getUTCDate()}</time>
             </button>
           })}
