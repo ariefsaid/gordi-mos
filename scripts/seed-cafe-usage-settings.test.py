@@ -17,7 +17,7 @@ class CredentialsTest(unittest.TestCase):
 import json, os, pathlib, stat, sys
 p = pathlib.Path(os.environ['PGPASSFILE'])
 assert stat.S_IMODE(p.stat().st_mode) == 0o600
-assert p.read_text() == '*:*:*:*:query\\\\:secret\\\\\\\\word\\n'
+assert p.read_text() == os.environ['EXPECTED']
 assert all('secret' not in arg and 'password' not in arg for arg in sys.argv)
 assert 'sslmode=require' in sys.argv[1] and 'user=alice' in sys.argv[1]
 pathlib.Path(os.environ['RECORD']).write_text(str(p))
@@ -27,9 +27,13 @@ sys.exit(int(os.environ.get('FAIL', '0')))
             fake.chmod(0o755)
             manifest = root / 'manifest.json'
             manifest.write_text('{"label":"test","run_at":"2026-03-31T00:00:00+00:00","updated_existing":[]}')
-            for fail in ('0', '1'):
+            for fail, query in (('0', True), ('1', True), ('0', False)):
                 record = root / 'record'
-                env = dict(os.environ, CAFE_USAGE_SEED_DB_URL='postgresql://alice:user%3Asecret@localhost/db?sslmode=require&user=alice&password=query%3Asecret%5Cword', RECORD=str(record), FAIL=fail)
+                url = 'postgresql://alice:user%3Asecret@localhost/db?sslmode=require&user=alice'
+                if query:
+                    url += '&password=query%3Asecret%5Cword'
+                expected = '*:*:*:*:query\\:secret\\\\word\n' if query else '*:*:*:*:user\\:secret\n'
+                env = dict(os.environ, CAFE_USAGE_SEED_DB_URL=url, RECORD=str(record), FAIL=fail, EXPECTED=expected)
                 result = subprocess.run([sys.executable, str(SCRIPT), '--rollback', str(manifest), '--psql', str(fake)], env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0 if fail == '0' else 3, result.stderr)
                 self.assertFalse(pathlib.Path(record.read_text()).exists())
