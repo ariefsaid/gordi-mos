@@ -41,6 +41,17 @@ beforeEach(() => {
 })
 
 describe('AbsencePanel', () => {
+  it('uses the Jakarta date for today’s sick shift across UTC midnight', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-04-30T17:30:00Z'))
+    try {
+      vi.mocked(listMyStaffShifts).mockResolvedValue([{ ...shift, local_date: '2026-05-01', start_at: '2026-05-01T00:00:00Z', end_at: '2026-05-01T08:00:00Z' }])
+      renderIn(<AbsencePanel orgId="org-1" />)
+      expect(await screen.findByRole('button', { name: 'Report sick today' })).toBeEnabled()
+      expect(listMyStaffShifts).toHaveBeenCalledWith('2026-04-27')
+    } finally { vi.useRealTimers() }
+  })
+
   it('AC-010 reports sick for today and says it was accepted and the lead told', async () => {
     renderIn(<AbsencePanel orgId="org-1" />)
     await userEvent.click(await screen.findByRole('button', { name: 'Report sick today' }))

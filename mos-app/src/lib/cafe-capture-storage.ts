@@ -1,3 +1,5 @@
+import { isIsoCalendarDate } from './calendar-date'
+
 export type CafeCaptureForm = 'production' | 'transfer' | 'waste' | 'count'
 
 export const CAFE_CAPTURE_DRAFT_TTL_MS = 24 * 60 * 60 * 1000
@@ -31,12 +33,6 @@ function decode(value: string): string | null {
   }
 }
 
-function isDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-  const date = new Date(`${value}T00:00:00.000Z`)
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
-}
-
 function isScope(value: unknown): value is CafeCaptureDraftScope {
   if (!value || typeof value !== 'object') return false
   const scope = value as Partial<CafeCaptureDraftScope>
@@ -45,7 +41,7 @@ function isScope(value: unknown): value is CafeCaptureDraftScope {
     && (scope.form === 'production' || scope.form === 'transfer' || scope.form === 'waste' || scope.form === 'count')
     && typeof scope.branchId === 'string' && scope.branchId.length > 0
     && (scope.activity === 'kitchen' || scope.activity === 'bar')
-    && typeof scope.logDate === 'string' && isDate(scope.logDate)
+    && typeof scope.logDate === 'string' && isIsoCalendarDate(scope.logDate)
 }
 
 function scopePrefix(orgId: string, personId: string, form: CafeCaptureForm): string {
