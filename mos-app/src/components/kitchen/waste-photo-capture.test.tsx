@@ -124,6 +124,34 @@ describe('WastePhotoCapture', () => {
     expect(device.get('person|receipt|line')?.map(file => file.name)).toEqual(['delivery.jpg'])
   })
 
+  it('AC-1896 retains a selected photo in the offline draft while its upload is pending', async () => {
+    const draftKey = 'person|waste|date'
+    const device = new Map<string, File[]>()
+    vi.mocked(loadOfflinePhotoDraft).mockImplementation(async key => device.get(key) ?? [])
+    vi.mocked(saveOfflinePhotoDraft).mockImplementation(async (key, files) => {
+      if (files.length === 0) device.delete(key)
+      else device.set(key, [...files])
+      return 'saved'
+    })
+    let finishUpload!: () => void
+    onUpload.mockImplementation(() => new Promise<void>(resolve => { finishUpload = resolve }))
+    const selected = photo('uploading.jpg')
+
+    renderCapture([], 'en', draftKey)
+    await waitFor(() => expect(saveOfflinePhotoDraft).toHaveBeenCalledWith(draftKey, []))
+    fireEvent.change(screen.getByLabelText(/take or choose photos/i), { target: { files: [selected] } })
+    await waitFor(() => expect(device.get(draftKey)).toEqual([selected]))
+
+    const savesBeforeUpload = vi.mocked(saveOfflinePhotoDraft).mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: /upload photos/i }))
+    expect(screen.getByRole('progressbar', { name: /uploading photo 1/i })).toBeInTheDocument()
+    await waitFor(() => expect(vi.mocked(saveOfflinePhotoDraft).mock.calls.length).toBeGreaterThan(savesBeforeUpload))
+    expect(device.get(draftKey)).toEqual([selected])
+
+    finishUpload()
+    await waitFor(() => expect(device.has(draftKey)).toBe(false))
+  })
+
   it('NFR-1007 a photo too large to keep even after shrinking says so in size terms, not as a device failure', async () => {
     vi.mocked(saveOfflinePhotoDraft).mockResolvedValue('tooLarge')
     renderCapture([], 'en', 'person|receipt|line', true)
