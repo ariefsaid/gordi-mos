@@ -200,6 +200,11 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
     onCancel?.()
   }
 
+  function commitOnBlur() {
+    if (commitsFrozen || statusRef.current === 'error') return
+    void commit(draft, false)
+  }
+
   // NATIVE capture-phase Escape isolation (OD-REDESIGN-83.1 / NFR-V3-001).
   // The edit root's nested marker makes the shared document-capture manager yield to this field
   // before dismissing any higher overlay (including Deputy). This input-level native capture then
@@ -419,10 +424,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
               // Escape isolation is owned by the native capture listener attached via
               // `attachFieldEscapeIsolation` above; React's synthetic handler is not needed.
             }}
-            onBlur={() => {
-              if (commitsFrozen || statusRef.current === 'error') return
-              void commit(draft, false)
-            }}
+            onBlur={commitOnBlur}
           />
         ) : (
           <input
@@ -449,11 +451,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
               // Escape isolation is owned by the native capture listener attached via
               // `attachFieldEscapeIsolation` above; React's synthetic handler is not needed.
             }}
-            onBlur={() => {
-              // Leave-guard autofocus and post-failure blur are not commit intents; preserve the draft.
-              if (commitsFrozen || statusRef.current === 'error') return
-              void commit(draft, false)
-            }}
+            onBlur={commitOnBlur}
           />
         )}
 
