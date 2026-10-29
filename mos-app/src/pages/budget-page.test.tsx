@@ -4,6 +4,7 @@
 // (AC-PB-008), and the fail-loud badge on a stale cost basis.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { AuthContext, type AuthState } from '@/auth/context'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -287,4 +288,59 @@ describe('BudgetPage — fail-loud freshness (AC-PB-006)', () => {
     // The fail-loud badge surfaces the stale reason.
     expect(await screen.findByText(/stale/i)).toBeInTheDocument()
   })
+})
+
+it('recovers a failed scenario read without reporting an empty list', async () => {
+  vi.mocked(listBomLines).mockResolvedValue([{ menu_item_esb_code: 'MENU-CAPPUC', ingredient_esb_code: 'ING-MILK', recipe_qty: 1, qty_unit: 'L' }])
+  vi.mocked(listIngredientCostLines).mockResolvedValue([])
+  vi.mocked(listBudgetsPage).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ rows: [], cursor: null, hasMore: false })
+  renderPage()
+  expect(await screen.findByRole('alert')).toBeVisible()
+  expect(screen.queryByText(/no scenarios/i)).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+  expect(await screen.findByText(/no scenarios/i)).toBeVisible()
+})
+
+
+it('does not show the previous menu scenarios while the new menu loads', async () => {
+  const row: BudgetRow = { id: 'old', menu_item_esb_code: 'A', menu_item_name: 'A', scenario_label: 'Old scenario', scenario_type: 'baseline', owning_bu_id: 'bu-1', total_budgeted_cogs: 1, cost_basis_as_of: FRESH, certified_metric_key: 'cogs.budgeted', is_complete: true }
+  vi.mocked(listBomLines).mockResolvedValue(['A', 'B'].map(menu_item_esb_code => ({ menu_item_esb_code, ingredient_esb_code: 'ING', recipe_qty: 1, qty_unit: 'L' })))
+  vi.mocked(listIngredientCostLines).mockResolvedValue([])
+  vi.mocked(listBudgetsPage).mockResolvedValueOnce({ rows: [row], cursor: null, hasMore: false }).mockReturnValueOnce(new Promise(() => {}))
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Old scenario')
+  await user.click(screen.getByRole('combobox', { name: /menu item/i }))
+  await user.click(screen.getByRole('option', { name: 'B' }))
+  expect(screen.queryByText('Old scenario')).not.toBeInTheDocument()
+})
+
+it('ignores late scenario response from previously selected menu', async () => {
+  const rowA: BudgetRow = { id: 'a', menu_item_esb_code: 'A', menu_item_name: 'A', scenario_label: 'A scenario', scenario_type: 'baseline', owning_bu_id: 'bu-1', total_budgeted_cogs: 1, cost_basis_as_of: FRESH, certified_metric_key: 'cogs.budgeted', is_complete: true }
+  const rowB: BudgetRow = { id: 'b', menu_item_esb_code: 'B', menu_item_name: 'B', scenario_label: 'B scenario', scenario_type: 'baseline', owning_bu_id: 'bu-1', total_budgeted_cogs: 2, cost_basis_as_of: FRESH, certified_metric_key: 'cogs.budgeted', is_complete: true }
+  vi.mocked(listBomLines).mockResolvedValue(['A', 'B'].map(menu_item_esb_code => ({ menu_item_esb_code, ingredient_esb_code: 'ING', recipe_qty: 1, qty_unit: 'L' })))
+  vi.mocked(listIngredientCostLines).mockResolvedValue([])
+
+  let resolveLateA!: (val: { rows: BudgetRow[]; cursor: null; hasMore: false }) => void
+  const lateAPromise = new Promise<{ rows: BudgetRow[]; cursor: null; hasMore: false }>((res) => { resolveLateA = res })
+
+  vi.mocked(listBudgetsPage)
+    .mockReturnValueOnce(lateAPromise)
+    .mockResolvedValueOnce({ rows: [rowB], cursor: null, hasMore: false })
+
+  const user = userEvent.setup()
+  renderPage()
+
+  const combobox = await screen.findByRole('combobox', { name: /menu item/i })
+  await user.click(combobox)
+  await user.click(screen.getByRole('option', { name: 'B' }))
+
+  expect(await screen.findByText('B scenario')).toBeVisible()
+
+  // Now resolve A late
+  resolveLateA({ rows: [rowA], cursor: null, hasMore: false })
+  await new Promise((r) => setTimeout(r, 10))
+
+  expect(screen.getByText('B scenario')).toBeVisible()
+  expect(screen.queryByText('A scenario')).not.toBeInTheDocument()
 })

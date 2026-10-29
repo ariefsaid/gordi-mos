@@ -121,3 +121,94 @@ it('shows load failure and recovers to an honest empty snapshot', async () => {
   await user.click(screen.getByRole('button', { name: 'Try again' }))
   expect(await screen.findByText('No cancelled or voided sales recorded in this slice.')).toBeVisible()
 })
+
+it('hides old results and editor on branch or period change, handles failure and retry, and ignores late old responses', async () => {
+  const branch1Row: CancelVoidRow = { ...source, sales_num: 'BRANCH-1-SALE' }
+  const branch2Row: CancelVoidRow = { ...source, sales_num: 'BRANCH-2-SALE', branch_code: 'BRANCH-2' }
+
+  vi.mocked(listCancelVoidRegister)
+    .mockResolvedValueOnce({ rows: [branch1Row], reviews: [] })
+
+  const { rerender } = render(
+    <I18nProvider initialLocale="en">
+      <MemoryRouter initialEntries={['/money/branch/BRANCH-1']}>
+        <CancelVoidRegister branch="BRANCH-1" start="2026-10-01" end="2026-10-19" />
+      </MemoryRouter>
+    </I18nProvider>
+  )
+
+  const user = userEvent.setup()
+  expect(await screen.findByText(/BRANCH-1-SALE/)).toBeVisible()
+
+  // Open review editor
+  await user.click(screen.getByRole('button', { name: 'Review' }))
+  expect(screen.getByRole('form', { name: 'Record review' })).toBeVisible()
+
+  // Change branch to BRANCH-2 with a held pending fetch
+  let rejectBranch2!: (err: Error) => void
+  const branch2Promise = new Promise<{ rows: CancelVoidRow[]; reviews: [] }>((_res, rej) => {
+    rejectBranch2 = rej
+  })
+
+  vi.mocked(listCancelVoidRegister).mockReturnValueOnce(branch2Promise)
+
+  rerender(
+    <I18nProvider initialLocale="en">
+      <MemoryRouter initialEntries={['/money/branch/BRANCH-2']}>
+        <CancelVoidRegister branch="BRANCH-2" start="2026-10-01" end="2026-10-19" />
+      </MemoryRouter>
+    </I18nProvider>
+  )
+
+  // Old results and old review form must immediately be absent during loading
+  expect(screen.queryByText(/BRANCH-1-SALE/)).not.toBeInTheDocument()
+  expect(screen.queryByRole('form', { name: 'Record review' })).not.toBeInTheDocument()
+  expect(screen.getByRole('status')).toHaveTextContent('Loading…')
+
+  // Reject the BRANCH-2 fetch
+  rejectBranch2(new Error('network error'))
+  expect(await screen.findByRole('alert')).toBeVisible()
+  expect(screen.queryByText(/BRANCH-1-SALE/)).not.toBeInTheDocument()
+
+  // Retry BRANCH-2 fetch and succeed
+  vi.mocked(listCancelVoidRegister).mockResolvedValueOnce({ rows: [branch2Row], reviews: [] })
+  await user.click(screen.getByRole('button', { name: 'Try again' }))
+  expect(await screen.findByText(/BRANCH-2-SALE/)).toBeVisible()
+  expect(screen.queryByText(/BRANCH-1-SALE/)).not.toBeInTheDocument()
+
+  // Period change (start / end) test with late response
+  let resolveSlowPeriod!: (val: { rows: CancelVoidRow[]; reviews: [] }) => void
+  const slowPeriodPromise = new Promise<{ rows: CancelVoidRow[]; reviews: [] }>((res) => { resolveSlowPeriod = res })
+  vi.mocked(listCancelVoidRegister).mockReturnValueOnce(slowPeriodPromise)
+
+  rerender(
+    <I18nProvider initialLocale="en">
+      <MemoryRouter initialEntries={['/money/branch/BRANCH-2']}>
+        <CancelVoidRegister branch="BRANCH-2" start="2026-10-01" end="2026-10-25" />
+      </MemoryRouter>
+    </I18nProvider>
+  )
+
+  expect(screen.queryByText(/BRANCH-2-SALE/)).not.toBeInTheDocument()
+
+  // Switch period again before slow one finishes
+  const fastPeriodRow: CancelVoidRow = { ...source, sales_num: 'FAST-PERIOD-SALE' }
+  vi.mocked(listCancelVoidRegister).mockResolvedValueOnce({ rows: [fastPeriodRow], reviews: [] })
+
+  rerender(
+    <I18nProvider initialLocale="en">
+      <MemoryRouter initialEntries={['/money/branch/BRANCH-2']}>
+        <CancelVoidRegister branch="BRANCH-2" start="2026-10-01" end="2026-10-31" />
+      </MemoryRouter>
+    </I18nProvider>
+  )
+
+  expect(await screen.findByText(/FAST-PERIOD-SALE/)).toBeVisible()
+
+  // Now slow response finishes late
+  resolveSlowPeriod({ rows: [{ ...source, sales_num: 'SLOW-PERIOD-SALE' }], reviews: [] })
+  await new Promise((r) => setTimeout(r, 10))
+
+  expect(screen.getByText(/FAST-PERIOD-SALE/)).toBeVisible()
+  expect(screen.queryByText(/SLOW-PERIOD-SALE/)).not.toBeInTheDocument()
+})
