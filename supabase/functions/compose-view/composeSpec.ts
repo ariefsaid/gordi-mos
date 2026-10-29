@@ -93,8 +93,10 @@ async function callModel(
     tool_choice: { type: 'function', function: { name: 'compose_view' } },
   })
 
-  const toolCall = response.message.tool_calls?.[0]
-  if (!toolCall || toolCall.function.name !== 'compose_view') {
+  const toolCall = response.message.tool_calls?.find(
+    (tc) => tc.type === 'function' && tc.function.name === 'compose_view',
+  )
+  if (!toolCall) {
     throw new Error('Model did not return a compose_view tool call')
   }
 
@@ -103,7 +105,10 @@ async function callModel(
   return {
     spec: JSON.parse(toolCall.function.arguments) as CompositionSpec,
     tokensUsed,
-    assistantMessage: response.message,
+    assistantMessage: {
+      ...response.message,
+      tool_calls: [toolCall],
+    },
     toolCallId: toolCall.id,
   }
 }
