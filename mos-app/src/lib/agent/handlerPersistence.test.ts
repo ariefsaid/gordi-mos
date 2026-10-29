@@ -217,12 +217,12 @@ it.each([false, true])('does not repeat a completed action after a capped journa
   const args = { title: 'Saved task', businessUnitId: 'bu-1', responsiblePersonId: 'person-r', accountablePersonId: 'person-a' }
   const { hashToolArgs } = await import('./../../../../supabase/functions/agent-chat/persistence')
   const rows: Record<string, unknown>[] = Array.from({ length: 1001 }, (_, seq) => ({ seq, type: 'status' }))
-  rows.push({ seq: 1001, tool_name: 'create_task', tool_args_hash: hashToolArgs(args), tool_status: 'completed', payload: { id: 'already-saved' } })
+  rows.push({ seq: 1001, tool_name: 'create_task', tool_args_hash: hashToolArgs(args), tool_status: 'completed', payload: { result: { id: 'already-saved' } } })
   const businessInsert = vi.fn()
   const page = (start: number) => failedPage && start > 0
     ? { data: null, error: { code: 'unavailable' } }
     : { data: rows.slice(start, start + 17), error: null }
-  const client = { schema: () => ({ from: (table: string) => ({
+  const client = { schema: () => ({ rpc: async () => ({ data: { result: { id: 'already-saved' }, replayed: true }, error: null }), from: (table: string) => ({
     select: () => ({ eq: () => ({
       maybeSingle: async () => ({ data: { id: 'saved-run' }, error: null }),
       limit: async () => page(0),
@@ -284,4 +284,75 @@ it.each(['agent_runs', 'agent_events'])('stops before the model when %s cannot b
     expect(row).not.toHaveProperty('org_id')
     expect(row).not.toHaveProperty('owner_id')
   }
+})
+
+// The RPC owns business rows and the completed event; ordinary event persistence must not
+// insert that tool event again. Database tests separately prove rollback and serialization.
+it.each(['create_task', 'post_update'])('commits %s through the caller transaction and recovers a lost response on a new approval', async actionName => {
+  const args = actionName === 'create_task'
+    ? { title: 'Saved task', businessUnitId: 'bu-1', responsiblePersonId: 'person-r', accountablePersonId: 'person-a' }
+    : { label: 'Saved update', progress: 'done', weekStart: '2026-10-26' }
+  const inserted: Record<string, unknown>[] = []
+  const durable: Record<string, unknown>[] = []
+  let loseResponse = true
+  const businessInsert = vi.fn()
+  const rpc = vi.fn(async (_name: string, input: Record<string, unknown>) => {
+    const result = { id: 'durable-result' }
+    durable.push({ id: input.p_event_id, seq: input.p_seq, type: 'tool', tool_name: actionName,
+      tool_args_hash: input.p_args_hash, tool_status: 'completed',
+      payload: { name: actionName, input: args, result, tool_call_id: input.p_tool_call_id } })
+    if (loseResponse) { loseResponse = false; throw new Error('response lost after commit') }
+    return { data: { result, replayed: true }, error: null }
+  })
+  const client = { schema: () => ({ rpc, from: (table: string) => ({
+    select: () => ({ eq: () => ({
+      maybeSingle: async () => ({ data: { id: 'saved-run' }, error: null }),
+      order: () => ({
+        limit: async () => ({ data: [...durable, ...inserted].sort((a, b) => Number(b.seq) - Number(a.seq)).slice(0, 1), error: null }),
+        range: (start: number, end: number) => ({ limit: async () => ({ data: durable.slice(start, end + 1), error: null }) }),
+      }),
+    }) }),
+    insert: (row: Record<string, unknown>) => ({ select: () => ({ single: async () => {
+      if (table !== 'agent_events') businessInsert(table)
+      inserted.push(row)
+      return { data: row, error: null }
+    } }) }),
+    update: () => ({ eq: async () => ({ data: null, error: null }) }),
+  }) }) }
+  const deps: HandlerDeps = {
+    modelClient: { create: vi.fn(async () => textResponse('continued')) }, model: 'test-model', supabase: client as never,
+    userId: 'user-1', personId: 'person-1', orgId: 'org-1', accessRoles: ['member'],
+    persistence: { supabase: client as never, ownerId: 'person-1', orgId: 'org-1', now: () => new Date() },
+    pendingActions: { create: async () => true, consume: async id => ({ id, actionName, args, toolCallId: `call-${id}` }) },
+  }
+  const drain = async (pendingId: string) => {
+    const events = []
+    for await (const event of agentChatHandler({ runId: 'saved-run', messages: [], decision: { pendingId, verdict: 'approve' } }, deps)) events.push(event)
+    return events
+  }
+  const failed = await drain('first')
+  expect(failed.at(-1)?.payload).toMatchObject({ status: 'error', error: 'PERSISTENCE_UNAVAILABLE' })
+  expect(failed.some(event => event.type === 'tool')).toBe(false)
+  expect(deps.modelClient.create).not.toHaveBeenCalled()
+  const retried = await drain('later-new-approval')
+  expect(retried.find(event => event.type === 'tool')?.payload).toEqual({ name: actionName, pendingId: 'later-new-approval', input: args, result: { id: 'durable-result' }, tool_call_id: 'call-later-new-approval' })
+  expect(retried.at(-1)?.payload).toMatchObject({ status: 'completed' })
+  expect(rpc).toHaveBeenCalledTimes(2)
+  expect(inserted.filter(row => row.type === 'tool')).toHaveLength(0)
+  expect(businessInsert).not.toHaveBeenCalled()
+})
+
+it('refuses an approved business write when durable persistence is disabled', async () => {
+  const insert = vi.fn(() => ({ select: () => ({ single: async () => ({ data: { id: 'must-not-exist' }, error: null }) }) }))
+  const client = { schema: () => ({ from: () => ({ insert }) }) }
+  const create = vi.fn(async () => textResponse('unexpected'))
+  const events = []
+  for await (const event of agentChatHandler({ runId: 'run-1', messages: [], decision: { pendingId: 'approval-1', verdict: 'approve' } }, {
+    modelClient: { create }, model: 'test-model', supabase: client as never,
+    userId: 'user-1', personId: 'person-1', orgId: 'org-1', accessRoles: ['member'],
+    pendingActions: { create: async () => true, consume: async id => ({ id, actionName: 'create_task', args: { title: 'Never insert', businessUnitId: 'bu-1', responsiblePersonId: 'person-1', accountablePersonId: 'person-1' }, toolCallId: 'call-1' }) },
+  })) events.push(event)
+  expect(insert).not.toHaveBeenCalled()
+  expect(create).not.toHaveBeenCalled()
+  expect(events.at(-1)?.payload).toMatchObject({ status: 'error', error: 'PERSISTENCE_UNAVAILABLE' })
 })

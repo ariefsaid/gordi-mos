@@ -3,7 +3,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   hashToolArgs, createThreadAndRun, insertEvent, heartbeat, setRunStatus,
-  loadMaxSeq, loadJournaledWrites,
+  loadMaxSeq, loadJournaledWrites, completeApprovedWrite,
 } from './../../../../supabase/functions/agent-chat/persistence'
 import type { PersistenceDeps } from './../../../../supabase/functions/agent-chat/persistence'
 
@@ -246,4 +246,37 @@ it('rejects the entire journal when a later capped page cannot be read', async (
     order: () => ({ range: (start: number) => ({ limit: async () => start === 0 ? page : { data: null, error: { code: 'read-failed' } } }) }),
   }) }) }) }) } as never
   await expect(loadJournaledWrites(deps, 'run-1')).rejects.toThrow('PERSISTENCE_UNAVAILABLE')
+})
+
+
+describe('approved completion boundary', () => {
+  it.each([
+    { data: null, error: { code: '23505' } },
+    { data: null, error: null },
+    { data: { result: { error: 'write_failed' }, replayed: false }, error: null },
+    { data: { result: { id: 'unconfirmed' } }, error: null },
+  ])('never returns success without confirmed durable evidence: %j', async response => {
+    const { deps } = makeDeps()
+    deps.supabase = { schema: () => ({ rpc: async () => response }) } as never
+    await expect(completeApprovedWrite(deps, { id: 'event-1', runId: 'run-1', type: 'tool' }, 5,
+      { toolName: 'create_task', pendingId: 'pending-1', toolCallId: 'call-1', args: { title: 'Saved' } },
+    )).rejects.toThrow('PERSISTENCE_UNAVAILABLE')
+  })
+
+  it('fails closed for a future unsupported confirmed action', async () => {
+    const { deps } = makeDeps()
+    const rpc = vi.fn()
+    deps.supabase = { schema: () => ({ rpc }) } as never
+    await expect(completeApprovedWrite(deps, { id: 'event-1', runId: 'run-1', type: 'tool' }, 5,
+      { toolName: 'future_write', pendingId: 'pending-1', toolCallId: 'call-1', args: {} },
+    )).rejects.toThrow('PERSISTENCE_UNAVAILABLE')
+    expect(rpc).not.toHaveBeenCalled()
+  })
+})
+
+it('refuses approved completion when the caller has no transaction interface', async () => {
+  const { deps } = makeDeps()
+  await expect(completeApprovedWrite(deps, { id: 'event-1', runId: 'run-1', type: 'tool' }, 5,
+    { toolName: 'post_update', pendingId: 'pending-1', toolCallId: 'call-1', args: { label: 'Saved', progress: 'done', weekStart: '2026-10-26' } },
+  )).rejects.toThrow('PERSISTENCE_UNAVAILABLE')
 })

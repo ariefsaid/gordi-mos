@@ -37,7 +37,10 @@ export { MAX_RUN_EVENTS_READ } from './replay.ts'
  */
 export interface HandlerSupabaseLike {
   from(table: string): SchemaTableOps
-  schema(schemaName: string): { from(table: string): SchemaTableOps }
+  schema(schemaName: string): {
+    from(table: string): SchemaTableOps
+    rpc?(name: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>
+  }
 }
 
 interface SchemaTableOps {
@@ -199,6 +202,35 @@ export async function insertEvent(
   } catch {
     throw new Error('PERSISTENCE_UNAVAILABLE')
   }
+}
+
+/** Commit an approved business write and its completed event under the same caller JWT. */
+export async function completeApprovedWrite(
+  deps: PersistenceDeps,
+  event: PersistableEvent,
+  seq: number,
+  input: { toolName: string; pendingId: string; toolCallId: string; args: unknown },
+): Promise<{ id: string }> {
+  if (input.toolName !== 'create_task' && input.toolName !== 'post_update') {
+    throw new Error('PERSISTENCE_UNAVAILABLE')
+  }
+  const schema = deps.supabase.schema('mos')
+  if (!schema.rpc) throw new Error('PERSISTENCE_UNAVAILABLE')
+  const { data, error } = await schema.rpc('execute_agent_approved_write', {
+    p_run_id: event.runId,
+    p_event_id: event.id,
+    p_seq: seq,
+    p_pending_id: input.pendingId,
+    p_tool_call_id: input.toolCallId,
+    p_name: input.toolName,
+    p_args: input.args,
+    p_args_hash: hashToolArgs(input.args),
+  })
+  const completion = data as { result?: { id?: unknown }; replayed?: unknown } | null
+  if (error || typeof completion?.result?.id !== 'string' || typeof completion.replayed !== 'boolean') {
+    throw new Error('PERSISTENCE_UNAVAILABLE')
+  }
+  return completion.result as { id: string }
 }
 
 // ── heartbeat — keeps a run's updated_at fresh each tool round ───────────────

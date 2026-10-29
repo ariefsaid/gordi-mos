@@ -277,3 +277,19 @@ describe('BASE_ACTIONS catalog (T16, AC-WT-005/FR-WT-005)', () => {
     )
   })
 })
+
+
+it('retains the proposal week when approval crosses Jakarta Monday', () => {
+  vi.useFakeTimers()
+  try {
+    vi.setSystemTime(new Date('2026-11-01T16:59:00Z'))
+    const proposed = postUpdateAction.validate({ label: 'Sunday work', progress: 'done' })
+    expect(proposed.ok).toBe(true)
+    if (!proposed.ok) throw new Error('invalid fixture')
+    expect(proposed.value.weekStart).toBe('2026-10-26')
+    vi.setSystemTime(new Date('2026-11-01T17:01:00Z'))
+    expect(postUpdateAction.validate(proposed.value)).toEqual(proposed)
+  } finally {
+    vi.useRealTimers()
+  }
+})
