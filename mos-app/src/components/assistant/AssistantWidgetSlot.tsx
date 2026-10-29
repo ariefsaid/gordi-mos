@@ -42,17 +42,47 @@ function DataInsightWidgetView({ widget }: { widget: DataInsightWidget }) {
 }
 
 function DataChartWidgetView({ widget }: { widget: DataChartWidget }) {
-  // Normalize values to bar heights (max = 100% of chart height).
+  const isDesktop = useIsDesktop()
+  // Normalize values to bar heights with zero baseline.
   const numericYValues = widget.points
     .map((p) => p[widget.yKey])
-    .filter((v): v is number => typeof v === 'number')
-  const maxY = Math.max(...numericYValues, 1) // avoid division by zero
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+
+  // Present unsupported data (no numeric series values) as a table fallback.
+  if (numericYValues.length === 0) {
+    return (
+      <DataTableWidgetView
+        widget={{
+          kind: 'data_table',
+          title: widget.title,
+          columns: [
+            { key: widget.xKey, header: widget.xKey },
+            { key: widget.yKey, header: widget.yKey },
+          ],
+          rows: widget.points,
+        }}
+      />
+    )
+  }
+
+  const hasPositive = numericYValues.some((v) => v > 0)
+  const hasNegative = numericYValues.some((v) => v < 0)
+
+  // Determine domain bounds including 0 for the baseline
+  const maxVal = hasPositive ? Math.max(...numericYValues) : 0
+  const minVal = hasNegative ? Math.min(...numericYValues) : 0
+  const range = maxVal - minVal || 1 // avoid division by zero
 
   const barHeight = 120
   const barWidth = 24
   const gap = 12
   const svgHeight = barHeight + 20 // +20 for labels below
-  const svgWidth = widget.points.length * (barWidth + gap) - gap
+  const svgWidth = Math.max(0, widget.points.length * (barWidth + gap) - gap)
+
+  // Zero baseline Y position in SVG coordinates (0 at top, barHeight at bottom)
+  const zeroY = !hasPositive && !hasNegative
+    ? barHeight
+    : (maxVal / range) * barHeight
 
   return (
     <ChartFrame
@@ -62,10 +92,10 @@ function DataChartWidgetView({ widget }: { widget: DataChartWidget }) {
         <DataTable
           columns={[
             { key: widget.xKey, header: widget.xKey },
-            { key: widget.yKey, header: widget.yKey },
+            { key: widget.yKey, header: widget.yKey, numeric: true, render: (row) => formatCell(row[widget.yKey]) },
           ]}
           rows={widget.points}
-          isDesktop
+          isDesktop={isDesktop}
           caption={widget.title}
         />
       }
@@ -79,14 +109,25 @@ function DataChartWidgetView({ widget }: { widget: DataChartWidget }) {
         className="chart-frame-svg"
       >
         <title>{widget.title}</title>
+        <line
+          x1={0}
+          y1={zeroY}
+          x2={svgWidth}
+          y2={zeroY}
+          stroke="var(--border)"
+          strokeWidth={1}
+          data-testid="zero-baseline"
+          className="chart-zero-baseline"
+          aria-hidden="true"
+        />
         {widget.points.map((point, idx) => {
           const x = idx * (barWidth + gap)
           const yVal = point[widget.yKey]
-          const numericY = typeof yVal === 'number' ? yVal : 0
-          const height = (numericY / maxY) * barHeight
-          const y = barHeight - height
-          const xLabel = String(point[widget.xKey])
-          const yLabel = String(yVal)
+          const numericY = typeof yVal === 'number' && Number.isFinite(yVal) ? yVal : 0
+          const height = (Math.abs(numericY) / range) * barHeight
+          const y = numericY >= 0 ? zeroY - height : zeroY
+          const xLabel = point[widget.xKey] != null ? String(point[widget.xKey]) : ''
+          const yLabel = formatCell(yVal as AgentWidgetCell)
 
           return (
             <g key={idx}>
