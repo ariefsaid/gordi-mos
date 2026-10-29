@@ -55,7 +55,7 @@ function useCountHistory(options: { row: ComparisonRow; stream: PanelStream | nu
     cursor.current = null
     if (!stream) { setHistory({ lines: [], status: 'ready', hasMore: false, loadingMore: false, moreError: false }); return }
     setHistory({ lines: [], status: 'loading', hasMore: false, loadingMore: false, moreError: false })
-    void listCafeRecordCounts({ from, to, stream, itemId: row.itemId, after: null }).then((page) => {
+    void listCafeRecordCounts({ from, to, stream, itemId: row.itemId, unitId: row.unitId, after: null }).then((page) => {
       if (mine !== generation.current) return
       cursor.current = page.next
       setHistory({ lines: toLines(page.rows), status: 'ready', hasMore: page.rows.length > 0, loadingMore: false, moreError: false })
@@ -68,14 +68,14 @@ function useCountHistory(options: { row: ComparisonRow; stream: PanelStream | nu
     if (!stream || !cursor.current) return
     const mine = generation.current
     setHistory((current) => ({ ...current, loadingMore: true, moreError: false }))
-    void listCafeRecordCounts({ from, to, stream, itemId: row.itemId, after: cursor.current }).then((page) => {
+    void listCafeRecordCounts({ from, to, stream, itemId: row.itemId, unitId: row.unitId, after: cursor.current }).then((page) => {
       if (mine !== generation.current) return
       cursor.current = page.next
       setHistory((current) => ({ lines: [...current.lines, ...toLines(page.rows)], status: 'ready', hasMore: page.rows.length > 0, loadingMore: false, moreError: false }))
     }).catch(() => {
       if (mine === generation.current) setHistory((current) => ({ ...current, loadingMore: false, moreError: true }))
     })
-  }, [stream, from, to, row.itemId, toLines])
+  }, [stream, from, to, row.itemId, row.unitId, toLines])
 
   return { history, loadMore, retry: () => setAttempt((value) => value + 1) }
 }

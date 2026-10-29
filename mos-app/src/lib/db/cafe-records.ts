@@ -167,7 +167,7 @@ export interface CafeRecordCount {
   row_version: number
 }
 
-export interface CafeRecordCountRead extends RecordPeriodRead<CafeCountStatus> { itemId?: string }
+export interface CafeRecordCountRead extends RecordPeriodRead<CafeCountStatus> { itemId?: string; unitId?: string }
 
 /** Counts in a period, including their stored submitter identity. */
 export async function listCafeRecordCounts(read: CafeRecordCountRead): Promise<RecordPage<CafeRecordCount>> {
@@ -176,6 +176,7 @@ export async function listCafeRecordCounts(read: CafeRecordCountRead): Promise<R
     .in('status', [...(read.statuses?.length ? read.statuses : COUNT_STATUSES)])
   if (read.stream) query = query.eq('branch_id', read.stream.branchId).eq('activity', read.stream.activity)
   if (read.itemId) query = query.eq('wip_item_id', read.itemId)
+  if (read.unitId !== undefined) query = read.unitId ? query.eq('item_unit_id', read.unitId) : query.is('item_unit_id', null)
   if (read.after) query = query.or(keysetBefore(COUNT_KEY, read.after))
   const { data, error } = await query
     .order('count_date', { ascending: false }).order('submitted_at', { ascending: false }).order('id', { ascending: false })
