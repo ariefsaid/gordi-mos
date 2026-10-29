@@ -1,5 +1,6 @@
 // Pending bills view-model (#1464): copied bills → the rows Finance reads, oldest first.
 import type { PendingBillRow } from '@/lib/db/reporting-pending-bills'
+import { isIsoCalendarDate } from './calendar-date'
 
 export type PendingBillState = 'open' | 'partial' | 'settled' | 'overpaid' | 'void' | 'missing'
 
@@ -209,11 +210,6 @@ export interface PendingBillPaymentValidation {
   canSubmit: boolean
 }
 
-function isIsoCalendarDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-  const date = new Date(`${value}T00:00:00Z`)
-  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value
-}
 
 export function validatePendingBillPaymentForm(draft: PendingBillPaymentDraft): PendingBillPaymentValidation {
   const errors: PendingBillPaymentValidation['errors'] = {}
