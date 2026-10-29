@@ -2,7 +2,7 @@
 -- bucket, the lead's queue, HR views and the timed cover job. Time rules run on a fixed clock.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(141);
+select plan(142);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select set_config('app.attendance_now', '2026-10-25 21:00:00+00', true); -- Mon 04:00 Jakarta
@@ -424,14 +424,21 @@ select is((ops.run_attendance_jobs()->>'notes_queued')::int + (select count(*)::
 
 -- Attendance totals are scoped before records are grouped by person.
 reset role;
+select ok(not has_function_privilege('anon', 'ops._attendance_clock_counts(uuid,date,date,uuid[])', 'execute')
+      and not has_function_privilege('authenticated', 'ops._attendance_clock_counts(uuid,date,date,uuid[])', 'execute'),
+  'application roles cannot call the attendance counts helper');
 insert into ops.attendance_records (org_id, person_id, team_id, site_id, shift_start_at, shift_end_at, status, clock_in_at, late, early_leave) values
   (pg_temp.p('a1'), pg_temp.p('f101'), pg_temp.p('5b01'), pg_temp.p('5a01'), '2026-10-10 00:00+00', '2026-10-10 08:00+00', 'in', '2026-10-10 00:00+00', false, false),
   (pg_temp.p('a1'), pg_temp.p('f101'), pg_temp.p('5b04'), pg_temp.p('5a03'), '2026-10-11 00:00+00', '2026-10-11 08:00+00', 'in', '2026-10-11 00:00+00', true, true);
+insert into shared.teams (id, org_id, business_unit_id, site_id, name, code, archived_at) values
+  (pg_temp.p('5b06'), pg_temp.p('a1'), pg_temp.p('a2'), pg_temp.p('5a03'), 'Archived Team', 'archived_team', '2026-10-20 00:00+00');
+insert into ops.attendance_records (org_id, person_id, team_id, site_id, shift_start_at, shift_end_at, status, clock_in_at, late, early_leave) values
+  (pg_temp.p('a1'), pg_temp.p('f101'), pg_temp.p('5b06'), pg_temp.p('5a03'), '2026-10-12 00:00+00', '2026-10-12 08:00+00', 'in', '2026-10-12 00:00+00', true, true);
 set local role authenticated;
 select pg_temp.as_('d1');
 select is((select (t->>'shifts_worked') || ':' || (t->>'late') || ':' || (t->>'early_leave') from jsonb_array_elements(ops.list_staff_monthly_totals('2026-10-01')) t where t->>'person_id' = pg_temp.p('f101')::text), '1:0:0', 'lead totals include only authorized team records for shared people');
 select pg_temp.as_('d3', 'admin');
-select is((select (t->>'shifts_worked') || ':' || (t->>'late') || ':' || (t->>'early_leave') from jsonb_array_elements(ops.list_staff_monthly_totals('2026-10-01')) t where t->>'person_id' = pg_temp.p('f101')::text), '2:1:1', 'admin totals include all teams');
+select is((select (t->>'shifts_worked') || ':' || (t->>'late') || ':' || (t->>'early_leave') from jsonb_array_elements(ops.list_staff_monthly_totals('2026-10-01')) t where t->>'person_id' = pg_temp.p('f101')::text), '3:2:2', 'admin totals include historical records from archived teams');
 
 -- Two uploads can be made before one is attached; only that attachment is readable.
 reset role;

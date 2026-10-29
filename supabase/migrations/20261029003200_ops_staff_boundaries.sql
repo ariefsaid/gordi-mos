@@ -74,7 +74,7 @@ begin
   return query execute
     'select r.person_id, count(*) filter (where r.clock_in_at is not null), count(*) filter (where r.late), count(*) filter (where r.early_leave)
        from ops.attendance_records r
-      where r.org_id = $1 and r.team_id = any($4) and r.status <> ''pending'' and (r.shift_start_at at time zone ''Asia/Jakarta'')::date between $2 and $3
+      where r.org_id = $1 and ($4 is null or r.team_id = any($4)) and r.status <> ''pending'' and (r.shift_start_at at time zone ''Asia/Jakarta'')::date between $2 and $3
       group by r.person_id' using p_org, p_first, p_last, p_teams;
 end;
 $$;
@@ -114,7 +114,7 @@ begin
       select o.person_id, count(*) as no_show from ops.staff_shift_outcomes o
        where o.org_id = v_org and o.outcome = 'no_show' and o.local_date between v_first and v_last and o.team_id = any(v_teams) group by o.person_id
     ), clock as (
-      select * from ops._attendance_clock_counts(v_org, v_first, v_last, v_teams)
+      select * from ops._attendance_clock_counts(v_org, v_first, v_last, case when shared.can('attendance.read_all') then null::uuid[] else v_teams end)
     )
     select jsonb_agg(jsonb_build_object('person_id',ps.person_id,'full_name',ps.full_name,'team_id',ps.team_id,'team_name',ps.team_name,
         'shifts_worked', case when v_clock then coalesce(k.worked,0) end,
