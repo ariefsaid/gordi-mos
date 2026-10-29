@@ -217,7 +217,10 @@ describe('listSalesDailyRevenue', () => {
     schemaMock.mockReturnValue(
       makeSchema({ sales_daily_revenue: [{ data: Array.from({ length: 1000 }, () => POS_ROW), error: null }] }, rec) as never,
     )
-    await expect(listSalesDailyRevenue()).rejects.toBeInstanceOf(ReportingRowCapError)
+    const error = await listSalesDailyRevenue().catch(caught => caught)
+    expect(error).toBeInstanceOf(ReportingRowCapError)
+    expect(error).toHaveProperty('message', 'listSalesDailyRevenue needs more than 20000 rows')
+    expect(rec.ranges).toHaveLength(20)
   })
 
   it('throws a clear, surfaceable error on PostgREST failure', async () => {
