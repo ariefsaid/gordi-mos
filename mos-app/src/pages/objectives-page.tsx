@@ -60,6 +60,11 @@ export function ObjectivesPage() {
   const [newName, setNewName] = useCreateDraftState('objective.newName', '')
   const [newBusinessUnitId, setNewBusinessUnitId] = useCreateDraftState<string | null>('objective.newBusinessUnitId', null)
   const [businessUnitOptions, setBusinessUnitOptions] = useState<BusinessUnitOption[]>([])
+  const [businessUnitRead, setBusinessUnitRead] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const [businessUnitAttempt, setBusinessUnitAttempt] = useState(0)
+  const [businessUnitScope, setBusinessUnitScope] = useState<string | null>(null)
+  const currentBusinessUnitScope = JSON.stringify(objectiveBuIds)
+  const businessUnitsReady = businessUnitRead === 'ready' && businessUnitScope === currentBusinessUnitScope
   const [adding, setAdding] = useCreateDraftState('objective.adding', false)
   const [addError, setAddError] = useCreateDraftState('objective.addError', '')
   const [completedName, setCompletedName] = useCreateDraftState<string | null>('objective.completedName', null)
@@ -77,6 +82,7 @@ export function ObjectivesPage() {
       return
     }
     setNewName('')
+    setBusinessUnitRead('idle')
     setNewBusinessUnitId(objectiveBuIds?.length === 1 ? objectiveBuIds[0] : null)
     setAddError('')
     setDraftOpen(true)
@@ -108,7 +114,9 @@ export function ObjectivesPage() {
       setAddError(t('catalog.nameRequired'))
       return
     }
-    if (businessUnitRequired && !newBusinessUnitId) {
+    if ((businessUnitRequired && (!businessUnitsReady || !newBusinessUnitId || newBusinessUnitId === COMPANY_WIDE_OPTION)) ||
+      (newBusinessUnitId && newBusinessUnitId !== COMPANY_WIDE_OPTION &&
+        (!businessUnitsReady || !businessUnitOptions.some((option) => option.id === newBusinessUnitId)))) {
       setAddError(t('catalog.record.businessUnitRequired'))
       return
     }
@@ -139,20 +147,23 @@ export function ObjectivesPage() {
   }, [announce, completedName, controller, query, setCompletedName, t])
 
   useEffect(() => {
-    if (!draftOpen || businessUnitOptions.length > 0) return
+    if (!draftOpen) return
     let live = true
+    setBusinessUnitRead('loading')
+    setBusinessUnitScope(currentBusinessUnitScope)
     void getBusinessUnits()
       .then((options) => {
         if (!live) return
         const visible = objectiveBuIds ? options.filter((option) => objectiveBuIds.includes(option.id)) : options
         setBusinessUnitOptions(visible)
+        setBusinessUnitRead('ready')
         if (objectiveBuIds?.length === 1 && !visible.some((option) => option.id === objectiveBuIds[0])) {
           setNewBusinessUnitId(null)
         }
       })
-      .catch(() => { /* The create field remains optional; the record read still stays truthful. */ })
+      .catch(() => { if (live) setBusinessUnitRead('error') })
     return () => { live = false }
-  }, [businessUnitOptions.length, draftOpen, objectiveBuIds, setNewBusinessUnitId])
+  }, [draftOpen, objectiveBuIds, currentBusinessUnitScope, setNewBusinessUnitId, businessUnitAttempt])
 
   const draft: CatalogCreateDraft = {
     kind: 'objective',
@@ -162,9 +173,13 @@ export function ObjectivesPage() {
     businessUnitOptions: [
       // Company-wide is an org-level choice: only a viewer who may create without a unit sees it.
       ...(businessUnitRequired ? [] : [{ value: COMPANY_WIDE_OPTION, label: t('catalog.companyWide') }]),
-      ...businessUnitOptions.map((unit) => ({ value: unit.id, label: unit.name })),
+      ...(businessUnitsReady ? businessUnitOptions : []).map((unit) => ({ value: unit.id, label: unit.name })),
     ],
     businessUnitRequired,
+    businessUnitUnavailable: !businessUnitsReady,
+    businessUnitLoading: !businessUnitsReady && !(businessUnitRead === 'error' && businessUnitScope === currentBusinessUnitScope),
+    businessUnitLoadError: businessUnitRead === 'error' && businessUnitScope === currentBusinessUnitScope,
+    onRetryBusinessUnits: () => { setBusinessUnitRead('loading'); setBusinessUnitAttempt((attempt) => attempt + 1) },
     adding,
     error: addError,
     onNameChange: (name: string) => { setNewName(name); if (addError) setAddError('') },

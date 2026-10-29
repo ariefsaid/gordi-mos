@@ -119,4 +119,28 @@ describe('TaskPrivateRow', () => {
     expect(screen.getByRole('button', { name: 'Tambah orang' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hapus Dewi Director' })).toBeInTheDocument()
   })
+
+  describe('Issue 1943 — Recoverable viewer list reads and gated editing', () => {
+    it('renders loading state without zero-viewer result and keeps editing unavailable', () => {
+      setup({ isPrivate: true, loading: true, viewers: [] })
+      expect(screen.getByText('Loading…')).toBeInTheDocument()
+      expect(screen.queryByText('Nobody added.')).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Add person' })).toBeNull()
+      expect(screen.getByRole('switch', { name: 'Private' })).toBeDisabled()
+    })
+
+    it('renders error state with retry on failure without zero-viewer result', async () => {
+      const onRetryLoad = vi.fn()
+      setup({ isPrivate: true, loadError: true, onRetryLoad, viewers: [] })
+      expect(screen.queryByText('Nobody added.')).toBeNull()
+      const alert = screen.getByRole('alert')
+      expect(alert).toHaveTextContent("Couldn't load tasks")
+      const retryBtn = screen.getByRole('button', { name: 'Try again' })
+      expect(retryBtn).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Add person' })).toBeNull()
+
+      await userEvent.click(retryBtn)
+      expect(onRetryLoad).toHaveBeenCalledTimes(1)
+    })
+  })
 })

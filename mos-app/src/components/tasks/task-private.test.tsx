@@ -1,6 +1,6 @@
 // The Private row, "None, just me" and the meeting origin on the Task page (#1839 UI).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { AuthContext, type AuthState } from '@/auth/context'
@@ -287,4 +287,70 @@ describe('Task page — "Created in meeting" from the Task\'s own meeting_id', (
     await renderPage(makeTask())
     expect(getMeeting).not.toHaveBeenCalled()
   })
+})
+
+it('retries the current private viewer read before offering viewer edits', async () => {
+  vi.mocked(listTaskViewers).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([
+    { id: 'v1', org_id: 'org', task_id: 'task-abc', person_id: BUDI, created_by: ME, created_at: '' },
+  ])
+  await renderPage(makeTask({ is_private: true }))
+  const retry = await screen.findByRole('button', { name: 'Try again' })
+  expect(screen.queryByText('Nobody added.')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Add person' })).toBeNull()
+  await userEvent.click(retry)
+  expect(await screen.findByRole('button', { name: 'Remove Budi Barista' })).toBeInTheDocument()
+})
+
+
+it('ignores viewer results from the previous task after selection changes', async () => {
+  let resolveOld!: (rows: Awaited<ReturnType<typeof listTaskViewers>>) => void
+  const oldRead = new Promise<Awaited<ReturnType<typeof listTaskViewers>>>((resolve) => { resolveOld = resolve })
+  vi.mocked(listTaskViewers).mockImplementation((id) => id === 'task-abc' ? oldRead : Promise.resolve([]))
+  vi.mocked(getTask).mockImplementation(async (id) => ({ task: makeTask({ id, title: id, is_private: true }), checklist: [], events: [] }))
+  const tree = (id: string) => <I18nProvider><AuthContext.Provider value={authed}><MemoryRouter><TaskSurface taskId={id} mode="view" width="full" /></MemoryRouter></AuthContext.Provider></I18nProvider>
+  const view = render(tree('task-abc'))
+  await waitFor(() => expect(listTaskViewers).toHaveBeenCalledWith('task-abc'))
+  view.rerender(tree('task-next'))
+  await screen.findByRole('heading', { name: 'task-next' })
+  await screen.findByText('Nobody added.')
+  await act(async () => { resolveOld([{ id: 'v1', org_id: 'org', task_id: 'task-abc', person_id: BUDI, created_by: ME, created_at: '' }]); await oldRead })
+  expect(screen.queryByRole('button', { name: 'Remove Budi Barista' })).toBeNull()
+})
+
+it('keeps a saved privacy change recoverable when its viewer read fails', async () => {
+  vi.mocked(getDownlinePersonIds).mockResolvedValue([DEWI])
+  vi.mocked(listTaskViewers).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([
+    { id: 'v1', org_id: 'org', task_id: 'task-abc', person_id: ME, created_by: DEWI, created_at: '' },
+  ])
+  await renderPage(makeTask({ responsible_person_id: DEWI, accountable_person_id: BUDI, created_by: DEWI }))
+  await userEvent.click(screen.getByRole('switch', { name: 'Private' }))
+  const retry = await screen.findByRole('button', { name: 'Try again' })
+  expect(screen.queryByRole('heading', { name: 'Task is now private' })).toBeNull()
+  await userEvent.click(retry)
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull())
+  expect(screen.queryByRole('heading', { name: 'Task is now private' })).toBeNull()
+})
+
+it('does not apply an earlier task privacy save to a newly selected task', async () => {
+  let finishSave!: () => void
+  const save = new Promise<void>((resolve) => { finishSave = resolve })
+  vi.mocked(setTaskPrivate).mockReturnValue(save)
+  vi.mocked(getTask).mockImplementation(async (id) => ({ task: makeTask({ id, title: id }), checklist: [], events: [] }))
+  const tree = (id: string) => <I18nProvider><AuthContext.Provider value={authed}><MemoryRouter><TaskSurface taskId={id} mode="view" width="full" /></MemoryRouter></AuthContext.Provider></I18nProvider>
+  const view = render(tree('task-abc'))
+  await screen.findByRole('heading', { name: 'task-abc' })
+  await userEvent.click(screen.getByRole('switch', { name: 'Private' }))
+  await waitFor(() => expect(setTaskPrivate).toHaveBeenCalled())
+  view.rerender(tree('task-next'))
+  await screen.findByRole('heading', { name: 'task-next' })
+  await act(async () => { finishSave(); await save })
+  expect(screen.getByRole('switch', { name: 'Private' })).toHaveAttribute('aria-checked', 'false')
+  expect(listTaskViewers).not.toHaveBeenCalled()
+})
+
+it('offers private viewer retry in Indonesian', async () => {
+  vi.mocked(listTaskViewers).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([])
+  await renderPage(makeTask({ is_private: true }), { locale: 'id' })
+  await userEvent.click(await screen.findByRole('button', { name: 'Coba lagi' }))
+  await waitFor(() => expect(listTaskViewers).toHaveBeenCalledTimes(2))
 })
