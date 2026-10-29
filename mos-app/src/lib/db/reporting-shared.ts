@@ -5,11 +5,10 @@
 // modules previously cloned.
 
 import { wibToday } from '@/lib/format/date'
+import { readAllPages as readPages } from './page-walker'
 
 export const REPORTING_WINDOW_DAYS = 60
 
-/** Rows per request: the API's own per-response cap, so a full page means "maybe more". */
-const REPORTING_PAGE_ROWS = 1000
 /** The most rows one reporting read will hold: 120 days of about 160 daily series. */
 const REPORTING_READ_MAX_ROWS = 20_000
 
@@ -19,20 +18,15 @@ export class ReportingRowCapError extends Error {}
 
 type PageResult = PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>
 
-/** Reads every row of a query one page at a time. `page(from, to)` must return the same query
- *  with `.range(from, to)` over an order that has no ties, so a row cannot move between pages. */
-export async function readAllPages<T>(label: string, page: (from: number, to: number) => PageResult): Promise<T[]> {
-  const rows: T[] = []
-  for (let from = 0; ; from += REPORTING_PAGE_ROWS) {
-    const { data, error } = await page(from, from + REPORTING_PAGE_ROWS - 1)
-    if (error) throw new Error(`${label} failed — ${error.message}`)
-    const batch = (data ?? []) as T[]
-    rows.push(...batch)
-    if (batch.length < REPORTING_PAGE_ROWS) return rows
-    if (rows.length >= REPORTING_READ_MAX_ROWS) {
-      throw new ReportingRowCapError(`${label} needs more than ${REPORTING_READ_MAX_ROWS} rows`)
-    }
-  }
+/** Keeps the reporting cap on the shared page reader. `page` must use a stable order without ties. */
+export async function readAllPages<T>(
+  label: string,
+  page: (from: number, to: number) => PageResult,
+): Promise<T[]> {
+  return readPages<T>(label, page, {
+    maxRows: REPORTING_READ_MAX_ROWS,
+    onMaxRowsExceeded: () => new ReportingRowCapError(`${label} needs more than ${REPORTING_READ_MAX_ROWS} rows`),
+  })
 }
 
 /** ISO yyyy-mm-dd date `days` before the current WIB date. */
