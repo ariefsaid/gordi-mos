@@ -10,7 +10,7 @@
 // Guards stay where they were: a row that may not change is disabled with its reason as its
 // description; `confirms` names the changes that must be confirmed first (Admin, Ops Lead).
 // Centered on desktop, full screen on a phone.
-import { useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
 import { matchesTokens } from '@/lib/token-search'
 import { ModalShell } from '@/components/ui/modal-shell'
@@ -80,12 +80,15 @@ export function ChoiceDialog({
   const offline = useIsOffline()
   const [draft, setDraft] = useState<Set<string>>(() => new Set(saved))
   const [query, setQuery] = useState('')
-  const [phase, setPhase] = useState<'edit' | 'confirm' | 'saving' | 'failed'>('edit')
+  const [phase, setPhase] = useState<'edit' | 'confirm' | 'saving' | 'reread' | 'failed'>('edit')
+  const [refreshFailed, setRefreshFailed] = useState(false)
   const [confirmIndex, setConfirmIndex] = useState(0)
   const [rows, setRows] = useState<Record<string, RowState>>({})
   // The order is fixed when the dialog opens, so a row never jumps away from the pointer that ticked it.
   const [initial] = useState(() => new Set(saved))
   const succeeded = useRef(new Set<string>())
+  // Rows whose latest write failed, with the value asked for; a row leaves when a write lands.
+  const unwritten = useRef(new Map<string, boolean>())
 
   const changes = useMemo<ChoiceChange[]>(() => choices
     .filter((c) => draft.has(c.id) !== saved.has(c.id))
@@ -93,7 +96,7 @@ export function ChoiceDialog({
   const adding = changes.filter((c) => c.wanted).length
   const removing = changes.length - adding
   const pendingConfirms = useMemo(() => (confirms ? confirms(changes) : []), [confirms, changes])
-  const busy = phase === 'saving'
+  const busy = phase === 'saving' || phase === 'reread'
 
   const visible = choices.filter((c) => matchesTokens(query, [c.label, c.description]))
   const current = pinSelected && !query ? visible.filter((c) => initial.has(c.id)) : []
@@ -112,9 +115,11 @@ export function ChoiceDialog({
     try {
       await write(change, succeeded.current)
       succeeded.current.add(change.id)
+      unwritten.current.delete(change.id)
       setRows((prev) => ({ ...prev, [change.id]: { status: 'saved' } }))
       return true
     } catch (err) {
+      unwritten.current.set(change.id, change.wanted)
       setRows((prev) => ({ ...prev, [change.id]: { status: 'failed', error: err instanceof Error ? err.message : undefined } }))
       return false
     }
@@ -122,20 +127,50 @@ export function ChoiceDialog({
 
   async function runAll() {
     setPhase('saving')
+    setRefreshFailed(false)
     succeeded.current = new Set()
-    let failed = 0
-    for (const change of order(changes)) {
-      if (!(await runOne(change))) failed += 1
+    unwritten.current = new Map()
+    for (const change of order(changes)) await runOne(change)
+    try {
+      await refresh()
+      setPhase('reread')
+    } catch {
+      setRefreshFailed(true)
+      setPhase('failed')
     }
-    await refresh()
-    if (failed === 0) onClose(true)
-    else setPhase('failed')
+  }
+
+  async function retryRefresh() {
+    setPhase('saving')
+    try {
+      await refresh()
+      setRefreshFailed(false)
+      setPhase('reread')
+    } catch {
+      setRefreshFailed(true)
+      setPhase('failed')
+    }
   }
 
   async function retry(change: ChoiceChange) {
     await runOne(change)
-    await refresh()
+    try {
+      await refresh()
+      setRefreshFailed(false)
+      setPhase('reread')
+    } catch {
+      setRefreshFailed(true)
+      setPhase('failed')
+    }
   }
+
+  // Done only when the fresh read holds every value a failed write was asked for.
+  useEffect(() => {
+    if (phase !== 'reread') return
+    const open = [...unwritten.current].some(([id, wanted]) => saved.has(id) !== wanted)
+    if (open) setPhase('failed')
+    else onClose(true)
+  }, [phase, saved, onClose])
 
   function save() {
     if (pendingConfirms.length > 0) {
@@ -252,7 +287,9 @@ export function ChoiceDialog({
         <footer className="choice-dialog__foot">
           {phase === 'failed' ? (
             <p className="choice-dialog__summary choice-dialog__summary--failed" role="alert">
-              {t(failures.length === 1 ? 'admin.picker.failedOne' : 'admin.picker.failedMany', { count: failures.length })}
+              {refreshFailed
+                ? t('admin.people.loadError')
+                : t(failures.length === 1 ? 'admin.picker.failedOne' : 'admin.picker.failedMany', { count: failures.length })}
             </p>
           ) : (
             <div className="choice-dialog__summary" role="status">
@@ -262,7 +299,14 @@ export function ChoiceDialog({
           )}
           <div className="choice-dialog__actions">
             {phase === 'failed' ? (
-              <Button variant="primary" onClick={() => onClose(true)}>{t('admin.picker.close')}</Button>
+              refreshFailed ? (
+                <>
+                  <Button variant="outline" onClick={() => onClose(false)}>{t('common.cancel')}</Button>
+                  <Button variant="primary" onClick={() => void retryRefresh()}>{t('admin.row.retry')}</Button>
+                </>
+              ) : (
+                <Button variant="primary" onClick={() => onClose(true)}>{t('admin.picker.close')}</Button>
+              )
             ) : (
               <>
                 <Button variant="outline" disabled={busy} onClick={() => onClose(false)}>{t('common.cancel')}</Button>

@@ -98,7 +98,7 @@ export function AdminPersonPage() {
       family="management"
       title={person.full_name}
       back={back}
-      action={<PersonAccountActions person={person} people={data.people} run={actions.run} />}
+      action={data.refreshError ? undefined : <PersonAccountActions person={person} people={data.people} run={actions.run} />}
       phoneActionBar={false}
       statusRow={<PersonFacts person={person} teams={data.teams} justSaved={actions.justSavedId === person.id} />}
       headClassName="person-head"
@@ -107,7 +107,15 @@ export function AdminPersonPage() {
       {actions.error && (
         <ErrorState message={actions.error} onRetry={actions.clearError} retryLabel={t('admin.people.dismiss')} className="person-page__error" />
       )}
-      <div className="person-page">
+      {data.refreshError && (
+        <ErrorState
+          message={t('admin.people.loadError')}
+          onRetry={() => void data.refresh().catch(() => {})}
+          retryLabel={t('admin.row.retry')}
+          className="person-page__error"
+        />
+      )}
+      <div className="person-page" inert={!!data.refreshError}>
         <div className="person-page__column">
           <TeamsCard person={person} teams={data.teams} refresh={data.refresh} />
           <PositionCard

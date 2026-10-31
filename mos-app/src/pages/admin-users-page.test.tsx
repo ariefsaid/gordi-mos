@@ -2,7 +2,7 @@
 // AC-060: list rendering (all 4 login states) + empty state predicate.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -440,5 +440,33 @@ describe('AdminUsersPage — find and open a person', () => {
     await user.click(await screen.findByRole('button', { name: /more actions for budi santoso/i }))
     await user.click(await screen.findByRole('menuitem', { name: /manage/i }))
     expect(screen.getByTestId('location')).toHaveTextContent('/admin/people/p-no-login')
+  })
+
+  it('displays a visible retry state when refresh fails after an account action', async () => {
+    const user = userEvent.setup()
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    renderPage()
+
+    await screen.findByText('Budi Santoso')
+
+    // An action that reloads people triggers a failed refresh
+    mockListAdminPeople.mockRejectedValueOnce(new Error('refresh failed'))
+    await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
+    await user.click(await screen.findByRole('menuitem', { name: /create login/i }))
+
+    // Visible retry state is retained on the page
+    const alerts = await screen.findAllByRole('alert')
+    const retryBanner = alerts.find((el) => el.textContent?.includes("Couldn't load people"))
+    expect(retryBanner).toBeDefined()
+    expect(screen.queryByTestId('people-list-container')).not.toBeInTheDocument()
+    expect(within(retryBanner!).getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+
+    // Retrying clears the error banner when reread succeeds
+    mockListAdminPeople.mockResolvedValueOnce(PEOPLE_ALL_STATES)
+    await user.click(within(retryBanner!).getByRole('button', { name: 'Retry' }))
+    await waitFor(() => {
+      const remainingAlerts = screen.queryAllByRole('alert')
+      expect(remainingAlerts.some((el) => el.textContent?.includes("Couldn't load people"))).toBe(false)
+    })
   })
 })
