@@ -72,6 +72,8 @@ jobs:
         run: node --test scripts/mos.test.mjs
       - name: MCP catalog generator self-test
         run: bash scripts/mcp-catalog.test.sh
+      - name: db-contracts scope self-test
+        run: bash scripts/db-contracts-scope.test.sh
       - name: statement-timeout check self-test
         run: bash scripts/check-statement-timeout.test.sh
       - name: Supabase CLI version pin self-test
