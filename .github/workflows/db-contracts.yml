@@ -54,12 +54,7 @@ jobs:
           git fetch --quiet --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
           bash scripts/check-migration-order.sh "origin/${BASE_REF}"
 
-      # POSITIVE LIST: run the DB steps only when the change touches something they read; every
-      # other path (mos-app/src/**, docs, prose) skips them, and the job still reports green.
-      # Inputs: supabase/** (migrations, seeds, pgTAP, config, the generated MCP catalog),
-      # api-docs/reference.md (the generated API reference), mos-app/e2e/**, mos-app/package-lock.json,
-      # mos-app/playwright.config.*, the scripts those steps run (and their scripts/lib/ helpers),
-      # and this workflow. A new path nobody listed skips; add it here when a step starts reading it.
+      # Positive list lives in scripts/db-contracts-scope.sh.
       - name: Scope — does this change feed pgTAP or the applied-path check?
         id: scope
         env:

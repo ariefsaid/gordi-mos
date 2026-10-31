@@ -14,7 +14,6 @@ echo '{}' > mos-app/package-lock.json
 git add -A; git commit -qm base
 
 fail=0
-# expect <run|skip> <label>: commit pending changes, then check the scope result.
 expect() {
   git add -A; git commit -qm "$2"
   out="$("$script" HEAD~1..HEAD)"
