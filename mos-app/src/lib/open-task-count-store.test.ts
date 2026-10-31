@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/db/open-task-count', () => ({ getMyOpenTaskCount: vi.fn() }))

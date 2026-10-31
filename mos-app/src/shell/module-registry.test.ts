@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ModuleId } from '@/lib/db/module-settings'
 import { effectiveModuleAccess } from '@/lib/module-access'

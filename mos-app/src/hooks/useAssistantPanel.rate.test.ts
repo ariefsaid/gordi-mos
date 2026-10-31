@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // T22 (P3a Phase E) — useAssistantPanel.rate(eventId, rating, reason?): a caller-JWT UPDATE on
 // mos.agent_events.{rating, downvote_reason} — the P2-added columns + the feedback-only guard
 // trigger already exist; this hook just wires the client call. AC-P3-FB-001/002.

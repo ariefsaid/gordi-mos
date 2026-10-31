@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // The Café module's remembered stream (#440) — the thing that makes Log · Plan · Stock ·
 // Review agree about which books the person is in.
 //

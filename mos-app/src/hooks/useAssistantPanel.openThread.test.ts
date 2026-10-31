@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // T6 (P3a) — useAssistantPanel.openThread(threadId): loads the persisted thread's transcript via
 // loadThreadForDisplay (history.ts), binds the thread's most-recent run as the active runId (so a
 // subsequent send() follows up on it with replay:true — MosNativeRuntime.openThread), and

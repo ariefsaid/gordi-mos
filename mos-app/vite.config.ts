@@ -188,7 +188,12 @@ export default defineConfig(({ mode }) => {
     },
   },
   test: {
-    environment: 'jsdom',
+    // Logic tests (.test.ts) run in node; component tests (.test.tsx) in jsdom. A .test.ts that needs
+    // the DOM says so with a `// @vitest-environment jsdom` docblock. Both projects inherit this config.
+    projects: [
+      { extends: true, test: { name: 'node', environment: 'node', include: ['**/*.test.ts'] } },
+      { extends: true, test: { name: 'jsdom', environment: 'jsdom', include: ['**/*.test.tsx'] } },
+    ],
     // The Edge Function entry points import the package from outside mos-app/; Deno resolves it there.
     alias: { '@supabase/supabase-js': fileURLToPath(new URL('./node_modules/@supabase/supabase-js', import.meta.url)) },
     globals: true,

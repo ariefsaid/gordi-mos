@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   CAFE_RECEIVE_DRAFT_MAX_AGE_MS,
