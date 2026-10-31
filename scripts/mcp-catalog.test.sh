@@ -30,8 +30,8 @@ MOS_API_CATALOG_JSON="$tmp/empty.json" bash scripts/mcp-catalog.sh --out "$tmp/e
   && bad "wrote an empty catalog" || ok "refuses an empty catalog"
 
 # The db-contracts lane must run the catalog freshness checks when only a catalog script changes.
-re=$(sed -n "s/^ *DB_INPUTS_RE='\(.*\)'$/\1/p" .github/workflows/db-contracts.yml)
-[ -n "$re" ] || bad "db-contracts.yml names no DB-input path pattern"
+re=$(sed -n "s/^ *DB_INPUTS_RE='\(.*\)'$/\1/p" scripts/db-contracts-scope.sh)
+[ -n "$re" ] || bad "db-contracts-scope.sh names no DB-input path pattern"
 for path in scripts/mcp-catalog.sh scripts/api-reference.sh scripts/lib/api-catalog.sql; do
   printf '%s\n' "$path" | grep -Eq "$re" && ok "db-contracts runs the catalog checks when $path changes" \
     || bad "db-contracts ignores a change to only $path"

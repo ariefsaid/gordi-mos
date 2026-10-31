@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 // T21 (P3a Phase D) — useAssistantPanel tracks a pending ask_user question from
 // status{kind:'question',...} and exposes answer(questionId, optionId?, freeText?), which calls
 // runtime.control(runId, 'answer', {answer}) and drains the continuation. AC-P3-AU-004.

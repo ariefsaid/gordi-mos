@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 // T25 — useAssistantPanel hook. Owns the panel's runtime state: transcript, run phase, the
 // approve/deny chip map, and the SSE drain that folds agent-chat events into state.
 // AC-AP-002 (transcript survives across phases), AC-WT-001/002 (chip flow:

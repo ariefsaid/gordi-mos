@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { createElement, type ReactNode } from 'react'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'

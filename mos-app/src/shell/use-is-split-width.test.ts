@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { describe, it, expect, afterEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { useIsSplitWidth } from './use-is-split-width'

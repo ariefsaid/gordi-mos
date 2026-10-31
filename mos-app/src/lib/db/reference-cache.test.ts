@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { publishReadScope } from '@/lib/scoped-reads'
 import { withReferenceCache, invalidateReferenceCache, __resetReferenceCacheForTests } from './reference-cache'
