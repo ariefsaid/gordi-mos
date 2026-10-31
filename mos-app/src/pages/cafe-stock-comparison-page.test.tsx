@@ -221,6 +221,20 @@ describe('Stock comparison', () => {
     expect(stubs.movements).not.toHaveBeenCalled()
   })
 
+  it('shows older counts in the selected unit when newer counts use another unit', async () => {
+    reads.counts.mockImplementation(async (read: { unitId?: string; after?: readonly string[] | null }) => {
+      if (read.after) return { rows: [], next: null }
+      const result = read.unitId === 'u1' ? line({ id: 'older', counted_quantity: 37 }) : line({ item_unit_id: 'other' })
+      return { rows: [result], next: ['2026-10-14', 't', result.id] }
+    })
+    const user = userEvent.setup()
+    renderPage()
+    const table = await screen.findByRole('table')
+    await user.click(within(table).getByRole('button', { name: /Open Beef patty/ }))
+    expect(await screen.findByText('37 Porsi')).toBeInTheDocument()
+    expect(reads.counts).toHaveBeenCalledWith(expect.objectContaining({ itemId: 'i1', unitId: 'u1' }))
+  })
+
   it('is closed to everyone without Count-review authority and reads nothing', async () => {
     auth.roles = ['member']
     renderPage()

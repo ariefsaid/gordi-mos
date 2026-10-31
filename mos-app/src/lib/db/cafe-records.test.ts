@@ -80,6 +80,15 @@ describe('listCafeRecordLogs', () => {
 })
 
 describe('listCafeRecordCounts', () => {
+  it('filters the selected unit before paginating, including counts without a unit', async () => {
+    const q = builder({ data: [], error: null })
+    await listCafeRecordCounts({ from: 'a', to: 'b', itemId: 'i', unitId: 'u', after: ['d', 't', 'id'] })
+    expect(q.called('eq')).toEqual(expect.arrayContaining([['wip_item_id', 'i'], ['item_unit_id', 'u']]))
+    expect(q.called('or')).toHaveLength(1)
+    const noUnit = builder({ data: [], error: null })
+    await listCafeRecordCounts({ from: 'a', to: 'b', unitId: '' })
+    expect(noUnit.called('is')).toEqual([['item_unit_id', null]])
+  })
   it('reads stored submitter identity without selecting expected balance or variance', async () => {
     const q = builder({ data: [{ id: 'c1', activity: 'kitchen', status: 'Confirmed', submitted_by: 'person-1' }], error: null })
     const result = await listCafeRecordCounts({ from: 'a', to: 'b' })
