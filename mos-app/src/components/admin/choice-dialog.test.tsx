@@ -1,5 +1,6 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ChoiceDialog, type ChoiceChange } from './choice-dialog'
@@ -172,5 +173,49 @@ describe('ChoiceDialog: one Save, the same per-row writes', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalledWith(false)
+  })
+
+  it('never closes as saved while a revoked row stays unapplied: partial write, reread, row retry, failed reread, refresh retry', async () => {
+    const server = new Set(['a', 'b', 'c'])
+    const failing = new Set(['b', 'c'])
+    const write = vi.fn(async (change: ChoiceChange) => {
+      if (failing.has(change.id)) throw new Error('write failed')
+      server.delete(change.id)
+    })
+    let rereads = 0
+    const onClose = vi.fn()
+    function Harness() {
+      const [saved, setSaved] = useState(() => new Set(server))
+      const refresh = async () => {
+        rereads += 1
+        if (rereads === 2) throw new Error('read failed')
+        setSaved(new Set(server))
+      }
+      return (
+        <ChoiceDialog
+          title="Pick" choices={[{ id: 'a', label: 'Alpha' }, { id: 'b', label: 'Bravo' }, { id: 'c', label: 'Charlie' }]}
+          saved={saved} saveLabel="Save picks" write={write} refresh={refresh} onClose={onClose}
+        />
+      )
+    }
+    render(<Harness />)
+    for (const name of ['Alpha', 'Bravo', 'Charlie']) fireEvent.click(screen.getByRole('checkbox', { name }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save picks' }))
+    await screen.findByText('2 changes didn\'t save. Retry them, or close and try again later.')
+
+    failing.delete('b')
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Bravo' }))
+    await screen.findByText("Couldn't load people. Try again.")
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Retry' })) })
+    await screen.findByText("1 change didn't save. Retry it, or close and try again later.")
+    expect(server).toEqual(new Set(['c']))
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Retry Charlie' })).toBeInTheDocument()
+
+    failing.delete('c')
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Charlie' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalledWith(true))
+    expect(server.size).toBe(0)
   })
 })
